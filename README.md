@@ -38,6 +38,7 @@ int main() {
 | 2-dimensional | [`Halfplane`](doc/shapes.md#half-plane), [`Triangle`](doc/shapes.md#triangle), [`Rectangle`](doc/shapes.md#rectangle), [`Disk`](doc/shapes.md#disk), [`Convex`](doc/shapes.md#convex), [`Polygon`](doc/shapes.md#polygon) |
 | Polymorphism | [`Shape`](doc/shapes.md#shape) |
 
+
 ## Predicates
 
 The following [predicates](doc/predicates.md) are implemented as methods of all shapes.
@@ -49,6 +50,18 @@ The following [predicates](doc/predicates.md) are implemented as methods of all 
 - `interiorsIntersect(Shape)` Do the interior of the two shapes intersect?
 - `separates(Shape)` Does one shape cut the other into two (or more) components?
 - `crosses(Shape)` Do both shapes separate each other?
+
+```c++
+pgl::Point o;      // Point (0,0)
+pgl::Disk d(o,10); // Disk of radius 10 centered at (0,0)
+if (d.contains(o))
+    std::cout << "Disk contains " << o << std::endl;
+pgl::Segment diam = d.diameter();
+if (d.contains(diam))
+    std::cout << "Disk contains the diameter" << std::endl;
+if (!d.interiorContains(diam))
+    std::cout << "Disk's interior does not contain the diameter" << std::endl;
+```
 
 ## Exact Constructions
 
