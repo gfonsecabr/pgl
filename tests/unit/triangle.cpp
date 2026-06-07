@@ -184,7 +184,7 @@ TEST_CASE("Triangle reports exact area, centroid, interior point, and bounding b
 
     const auto circumcircle = triangle.circumcircle();
     CHECK(circumcircle.center() == RationalPoint(Rational(2), Rational(1)));
-    CHECK(circumcircle.squaredRadius() == Rational(5));
+    CHECK(circumcircle.squaredRadius<Rational>() == Rational(5));
 
     const auto box = triangle.bbox();
     CHECK(box.min() == Point(0, 0));

@@ -332,8 +332,8 @@ struct Disk {
     // }
 
     /**
-     * @brief Returns the radius as a floating-point length.
-     * @tparam ResultNumber Floating-point result type.
+     * @brief Returns the radius.
+     * @tparam ResultNumber Result type.
      * @warning If the disk has not been defined by center and radius, it takes a square root of @ref squaredRadius, which uses division.
      */
     template <class ResultNumber = NumberType>
