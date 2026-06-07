@@ -22,6 +22,7 @@
 #include <ostream>
 #include <type_traits>
 #include <utility>
+#include <stdexcept>
 
 #include "../pgl.hpp"
 
@@ -280,10 +281,18 @@ struct Disk {
      *        an explicitly chosen coordinate type.
      *
      * @tparam ResultNumber Coordinate type of the result.
-     * @attention Computes the circumcenter via division by twice the signed area.
+     * @warning Computes the center via division by twice the signed area unless the disk has been created by center and radius.
      */
-    template <class ResultNumber>
+    template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber, PointLabelType> center() const {
+        if (a().y() == b().y()) {
+            NumberType r = c().y() - a().y();
+            NumberType center_x = a().x() + r;
+            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
+                return Point<ResultNumber, PointLabelType>(center_x, a().y(), PointLabelType{});
+            }
+        }
+
         if (isDegenerate()) {
             return Point<ResultNumber, PointLabelType>(a().x(),a().y(), PointLabelType{});
         }
@@ -307,29 +316,41 @@ struct Disk {
         );
     }
 
-    /**
-     * @brief Returns the center in this disk's exact coordinate type.
-     *
-     * For integral coordinates the circumcenter is generally rational, so the
-     * result is `Rational<promoted NumberType>`; for floating-point coordinates
-     * it is the promoted floating-point type.
-     */
-    [[nodiscard]] constexpr auto center() const {
-        using ResultNumber = std::conditional_t<
-            detail::extended_integral<NumberType>,
-            Rational<detail::promoted_number_t<NumberType>>,
-            detail::promoted_number_t<NumberType>>;
-        return center<ResultNumber>();
-    }
+    // /**
+    //  * @brief Returns the center in this disk's exact coordinate type.
+    //  *
+    //  * For integral coordinates the circumcenter is generally rational, so the
+    //  * result is `Rational<promoted NumberType>`; for floating-point coordinates
+    //  * it is the promoted floating-point type.
+    //  */
+    // [[nodiscard]] constexpr auto center() const {
+    //     using ResultNumber = std::conditional_t<
+    //         detail::extended_integral<NumberType>,
+    //         Rational<detail::promoted_number_t<NumberType>>,
+    //         detail::promoted_number_t<NumberType>>;
+    //     return center<ResultNumber>();
+    // }
 
     /**
      * @brief Returns the radius as a floating-point length.
      * @tparam ResultNumber Floating-point result type.
-     * @attention Takes a square root of @ref squaredRadius, which uses division.
+     * @warning If the disk has not been defined by center and radius, it takes a square root of @ref squaredRadius, which uses division.
      */
-    template <std::floating_point ResultNumber = double>
+    template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber radius() const {
-        return std::sqrt(squaredRadius<ResultNumber>());
+        if (a().y() == b().y()) {
+            NumberType r = c().y() - a().y();
+            NumberType center_x = a().x() + r;
+            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
+                return static_cast<ResultNumber>(r);;
+            }
+        }
+        
+        if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
+            throw std::runtime_error("std::sqrt is not available for the requested ResultNumber type");
+        } else {
+            return std::sqrt(squaredRadius<ResultNumber>());
+        }
     }
 
     /**
@@ -343,10 +364,18 @@ struct Disk {
      * @brief Returns the squared radius in an explicitly chosen result type.
      *
      * @tparam ResultNumber Result type.
-     * @attention Uses the circumradius formula, which divides by the squared area.
+     * @warning If the disk has not been defined by center and radius, it uses the circumradius formula, which divides by the squared area.
      */
-    template <class ResultNumber>
+    template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber squaredRadius() const {
+        if (a().y() == b().y()) {
+            NumberType r = c().y() - a().y();
+            NumberType center_x = a().x() + r;
+            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
+                return static_cast<ResultNumber>(r*r);
+            }
+        }
+
         if (isDegenerate()) {
             return ResultNumber{};
         }
@@ -363,25 +392,25 @@ struct Disk {
         return (ab2 * bc2 * ca2) / (four * determinant * determinant);
     }
 
-    /**
-     * @brief Returns the squared radius in this disk's exact result type.
-     *
-     * Exact for integral coordinates, where the result is
-     * `Rational<promoted NumberType>`; for floating-point coordinates it is the
-     * promoted floating-point type.
-     */
-    [[nodiscard]] constexpr auto squaredRadius() const {
-        using ResultNumber = std::conditional_t<
-            detail::extended_integral<NumberType>,
-            Rational<detail::promoted_number_t<NumberType>>,
-            detail::promoted_number_t<NumberType>>;
-        return squaredRadius<ResultNumber>();
-    }
+    // /**
+    //  * @brief Returns the squared radius in this disk's exact result type.
+    //  *
+    //  * Exact for integral coordinates, where the result is
+    //  * `Rational<promoted NumberType>`; for floating-point coordinates it is the
+    //  * promoted floating-point type.
+    //  */
+    // [[nodiscard]] constexpr auto squaredRadius() const {
+    //     using ResultNumber = std::conditional_t<
+    //         detail::extended_integral<NumberType>,
+    //         Rational<detail::promoted_number_t<NumberType>>,
+    //         detail::promoted_number_t<NumberType>>;
+    //     return squaredRadius<ResultNumber>();
+    // }
 
     /**
      * @brief Returns the area `pi * R^2` of the closed disk.
      * @tparam ResultNumber Floating-point result type.
-     * @attention Computes @ref squaredRadius, which uses division.
+     * @warning Computes @ref squaredRadius, which uses division unless the disk has been defined by center and radius.
      */
     template <std::floating_point ResultNumber = double>
     [[nodiscard]] constexpr ResultNumber area() const {
@@ -404,7 +433,7 @@ struct Disk {
      * floating-point rounding of the center and radius.
      *
      * @tparam ResultNumber Floating-point coordinate type of the box.
-     * @attention Computes @ref center and @ref radius, which use division.
+     * @warning Computes @ref center and @ref radius, which use division.
      */
     template <std::floating_point ResultNumber = double>
     [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const {
@@ -423,7 +452,7 @@ struct Disk {
      * Being the midpoint of a chord, it lies strictly inside the disk.
      *
      * @tparam ResultNumber Coordinate type of the result; defaults to @ref NumberType.
-     * @attention Divides by 2; with an integral @p ResultNumber the truncated
+     * @warning Divides by 2; with an integral @p ResultNumber the truncated
      *            result may land on or outside the boundary.
      */
     template <class ResultNumber = NumberType>
@@ -442,7 +471,7 @@ struct Disk {
      * `(cx - r, cy)` and `(cx + r, cy)`.
      *
      * @tparam ResultNumber Floating-point coordinate type of the endpoints.
-     * @attention Computes @ref center and @ref radius, which use division.
+     * @warning Computes @ref center and @ref radius, which use division.
      */
     template <std::floating_point ResultNumber = double>
     [[nodiscard]] constexpr Segment<Point<ResultNumber, PointLabelType>> diameter() const {
@@ -771,7 +800,7 @@ struct Disk {
 
     /**
      * @brief Divides every boundary point by @p scalar in place.
-     * @attention Re-canonicalizes the points; integer division truncates coordinates.
+     * @warning Re-canonicalizes the points; integer division truncates coordinates.
      * @return Reference to this disk.
      */
     template <class Scalar>
@@ -813,7 +842,7 @@ struct Disk {
 
     /**
      * @brief Orders disks by increasing squared radius, then by center.
-     * @attention Uses division through squaredRadius() and center().
+     * @warning Uses division through squaredRadius() and center().
      */
     constexpr std::partial_ordering operator<=>(const Disk& other) const {
         // Keep degenerate disks in a separate ordering class from true circles.
@@ -885,7 +914,7 @@ struct Disk {
 
     /**
      * @brief Scales every boundary point by @p scalar in place.
-     * @attention Re-canonicalizes the points (a negative scalar flips orientation).
+     * @warning Re-canonicalizes the points (a negative scalar flips orientation).
      * @return Reference to this disk.
      */
     template <class Scalar>

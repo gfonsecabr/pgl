@@ -31,13 +31,13 @@ TEST_CASE_TEMPLATE("Disk stores three boundary points and computes center and ra
     CHECK(degenerate.b() == make_point(Number{}, Number{}, ""));
     CHECK(degenerate.c() == make_point(Number{}, Number{}, ""));
     CHECK(degenerate.center() == make_point(Number{}, Number{}, ""));
-    CHECK(degenerate.radius() == doctest::Approx(0.0));
+    CHECK(degenerate.radius() == 0);
     CHECK(degenerate.isDegenerate());
 
     const Disk disk(make_point(static_cast<Number>(2), static_cast<Number>(3), "c"), static_cast<Number>(-5));
     CHECK(disk.center().x() == Number(2));
     CHECK(disk.center().y() == Number(3));
-    CHECK(disk.radius() == doctest::Approx(5.0));
+    CHECK(disk.radius() == 5);
     CHECK(disk.squaredRadius() == Number(25));
 
     if constexpr (requires { disk.center().label(); }) {
@@ -52,9 +52,9 @@ TEST_CASE("Disk supports default template parameters and CTAD") {
     static_assert(std::is_same_v<decltype(deduced), pgl::Disk<pgl::Point<int>>>);
 
     CHECK(explicit_default.center() == pgl::Point<int>(2, 3));
-    CHECK(explicit_default.radius() == doctest::Approx(4.0));
+    CHECK(explicit_default.radius() == 4);
     CHECK(deduced.center() == pgl::Point<int>(2, 3));
-    CHECK(deduced.radius() == doctest::Approx(4.0));
+    CHECK(deduced.radius() == 4);
     CHECK(deduced.a() == pgl::Point<int>(-2, 3));
     CHECK(deduced.b() == pgl::Point<int>(6, 3));
     CHECK(deduced.c() == pgl::Point<int>(2, 7));
@@ -77,7 +77,7 @@ TEST_CASE("Disk streams, translates, scales, and exposes its bounding box") {
     CHECK(translated.center() == Point(3, 2));
     CHECK(shifted.center() == Point(1, 1));
     CHECK(scaled.center() == Point(-4, -6));
-    CHECK(scaled.radius() == doctest::Approx(8.0));
+    CHECK(scaled.radius() == 8);
 
     CHECK(disk.fbox<float>().min() == pgl::Point<float>(-2.0f, -1.0f));
     CHECK(disk.fbox<float>().max() == pgl::Point<float>(6.0f, 7.0f));
@@ -94,9 +94,9 @@ TEST_CASE("Disk converts between labeled and unlabeled centers and supports hash
     const LabelDisk relabeled = plain;
 
     CHECK(plain.center() == PlainPoint(2, 3));
-    CHECK(plain.radius() == doctest::Approx(4.0));
+    CHECK(plain.radius() == 4);
     CHECK(relabeled.center() == LabelPoint(2, 3, ""));
-    CHECK(relabeled.radius() == doctest::Approx(4.0));
+    CHECK(relabeled.radius() == 4);
     CHECK(labeled.label() == "disk");
     CHECK(relabeled.label().empty());
 
