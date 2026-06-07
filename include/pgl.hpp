@@ -5,6 +5,18 @@
  * @brief Convenience umbrella header for the PGL library.
  */
 
+#if defined(_MSVC_LANG)
+#  define PGL_CPLUSPLUS _MSVC_LANG
+#else
+#  define PGL_CPLUSPLUS __cplusplus
+#endif
+
+#if PGL_CPLUSPLUS < 202002L
+#  error "PGL requires C++20 or newer. Compile with -std=c++20 (or later)."
+#endif
+
+#undef PGL_CPLUSPLUS
+
 #include "core/forward.hpp"
 #include "core/numeric.hpp"
 #include "core/rational.hpp"
