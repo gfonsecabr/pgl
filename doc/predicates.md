@@ -15,7 +15,7 @@
 
 ## Predicates
 
-Any two shapes `A`,`B` support the following [predicates](predicates.md), where $\partial A$ denotes the boundary of $A$. Notice that the boundary of a one-dimensional shape is defined as its endpoints (see also [shapes](shapes.md).
+Any two shapes `A`,`B` support the following [predicates](predicates.md), where $\partial A$ denotes the manifold boundary of $A$. Notice that the boundary of a one-dimensional shape is defined as its endpoints (see also [shapes](shapes.md)).
 
 - `A.contains(B)` Does `A` contain `B`, that is $A \supseteq B$?
 - `A.boundaryContains(B)` Does the boundary of `A` contain `B`, that is $\partial A \supseteq B$?

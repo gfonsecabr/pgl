@@ -1068,4 +1068,90 @@ constexpr bool Convex<PointType>::intersects(const Polygon<OtherPoint>& other) c
     return other.intersects(*this);
 }
 
+
+// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Point) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const OrientedSegment<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(OrientedSegment) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Line<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Line) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const OrientedLine<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(OrientedLine) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Ray<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Ray) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::intersects(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
+
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::intersects(const Disk<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::intersects(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
 }  // namespace pgl

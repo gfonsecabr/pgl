@@ -356,7 +356,7 @@ TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from b
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK(triangle.interiorsIntersect(Point(1, 1)));
+    CHECK_FALSE(triangle.interiorsIntersect(Point(1, 1)));  // a point has empty interior
     CHECK_FALSE(triangle.interiorsIntersect(Point(3, 0)));
     CHECK_FALSE(triangle.interiorsIntersect(Point(7, 0)));
 
@@ -475,7 +475,7 @@ TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK(triangle.interiorsIntersect(Point(1, 1)));
+    CHECK_FALSE(triangle.interiorsIntersect(Point(1, 1)));  // a point has empty interior
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
     CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
     CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));

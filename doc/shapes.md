@@ -75,7 +75,7 @@ All shapes contain their boundaries (that is, they are closed in the topological
 
 ### Point
 
-The `Point` class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). 
+The `Point` class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). A point has no interior.
 
 ```C++
 pgl::Point p = {7,9};

@@ -18,6 +18,12 @@ namespace pgl {
  * the cases where removing a point disconnects a 1D primitive.
  */
 
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
+}
+
 /**
  * @section predicates-segment Segment
  * Segment endpoint, boundary, containment, collinearity, intersection, and
@@ -93,8 +99,8 @@ constexpr bool Segment<PointType>::interiorsIntersect(const Shape<PointType>& ot
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Triangle<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -284,8 +290,8 @@ constexpr bool OrientedSegment<PointType>::interiorsIntersect(const Shape<PointT
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Line<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -381,8 +387,8 @@ constexpr bool OrientedLine<PointType>::interiorsIntersect(const Shape<PointType
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Ray<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -501,8 +507,8 @@ constexpr bool Ray<PointType>::interiorsIntersect(const Shape<PointType>& other)
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Rectangle<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -602,8 +608,8 @@ constexpr bool Rectangle<PointType>::interiorsIntersect(const Shape<PointType>& 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Halfplane<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -721,8 +727,8 @@ constexpr bool Halfplane<PointType>::interiorsIntersect(const Shape<PointType>& 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Convex<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -903,8 +909,8 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Shape<OtherPoint>& ot
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPoint& other) const {
-    return interiorContains(other);
+constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
 }
 
 template <class PointType>
@@ -1163,6 +1169,106 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::interiorsIntersect(const Polygon<OtherPoint>& other) const {
     return other.interiorsIntersect(*this);
+}
+
+
+// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint&) const {
+    return false;  // a point has empty interior, so interiors never intersect
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Segment) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OrientedSegment<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(OrientedSegment) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Line<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Line) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OrientedLine<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(OrientedLine) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Ray<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Ray) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorsIntersect(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::interiorsIntersect(const Disk<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::interiorsIntersect(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
 }
 
 }  // namespace pgl

@@ -1525,4 +1525,175 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>&) const {
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
+
+// --- asymmetric not-yet-implemented stubs ---
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const OtherPoint&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Point) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::separates(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherPoint&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Point) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Ray<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Ray) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::separates(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const OtherPoint&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Point) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Disk<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::separates(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
 }  // namespace pgl

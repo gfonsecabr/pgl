@@ -772,6 +772,26 @@ struct Triangle {
 
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+
     /** @brief Tests whether the triangle crosses a segment. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
