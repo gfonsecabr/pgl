@@ -1,0 +1,161 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'doc/**'
+      - 'README.md'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'doc/**'
+      - 'README.md'
+      - '**/*.md'
+
+jobs:
+  test:
+    if: |
+      !contains(github.event.head_commit.message || '', '[skip]') &&
+      !contains(github.event.pull_request.title || '', '[skip]') &&
+      !contains(github.event.pull_request.body || '', '[skip]')
+    name: Tests (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+
+    strategy:
+      matrix:
+        include:
+          - name: GCC
+            compiler: g++
+            package: g++
+          - name: Clang
+            compiler: clang++
+            package: clang
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.package }}
+
+      - name: Show compiler version
+        run: ${{ matrix.compiler }} --version
+
+      - name: Run unit tests
+        env:
+          CXX: ${{ matrix.compiler }}
+        run: sh tests/run_tests.sh
+
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.compiler }}
+          path: build/tests/reports/*.xml
+          if-no-files-found: error
+
+      - name: Publish test report
+        id: junit-report
+        if: always()
+        uses: mikepenz/action-junit-report@v6
+        with:
+          report_paths: build/tests/reports/*.xml
+          check_name: Test Report (${{ matrix.name }})
+          require_tests: true
+          include_passed: false
+
+      - name: Add GitHub summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+
+          compiler_name = "${{ matrix.name }}"
+          report_paths = sorted(glob.glob("build/tests/reports/*.xml"))
+
+          unique_tests = {}
+          total_generated_cases = 0
+
+          for report_path in report_paths:
+              root = ET.parse(report_path).getroot()
+              for testcase in root.findall(".//testcase"):
+                  total_generated_cases += 1
+                  classname = testcase.attrib.get("classname", "")
+                  name = testcase.attrib.get("name", "")
+                  key = (classname, name)
+                  entry = unique_tests.setdefault(
+                      key,
+                      {
+                          "classname": classname,
+                          "name": name,
+                          "runs": 0,
+                          "failed": False,
+                          "skipped": False,
+                      },
+                  )
+                  entry["runs"] += 1
+                  if testcase.find("failure") is not None or testcase.find("error") is not None:
+                      entry["failed"] = True
+                  if testcase.attrib.get("status") == "skipped" or testcase.find("skipped") is not None:
+                      entry["skipped"] = True
+
+          failed = []
+          passed = []
+          skipped = []
+
+          for entry in unique_tests.values():
+              if entry["failed"]:
+                  failed.append(entry)
+              elif entry["skipped"]:
+                  skipped.append(entry)
+              else:
+                  passed.append(entry)
+
+          failed.sort(key=lambda item: (item["classname"], item["name"]))
+          passed.sort(key=lambda item: (item["classname"], item["name"]))
+          skipped.sort(key=lambda item: (item["classname"], item["name"]))
+
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write(f"### {compiler_name}\n\n")
+              summary.write("| Unique tests | Passed | Failed | Skipped | Generated cases |\n")
+              summary.write("| --- | --- | --- | --- | --- |\n")
+              summary.write(
+                  f"| {len(unique_tests)} | {len(passed)} | {len(failed)} | {len(skipped)} | {total_generated_cases} |\n\n"
+              )
+              summary.write(
+                  f"Detailed failures are available in the `Test Report ({compiler_name})` check and in the uploaded JUnit artifact.\n\n"
+              )
+
+              if failed:
+                  summary.write("Failed tests:\n\n")
+                  for entry in failed:
+                      suffix = f" ({entry['runs']} generated cases)" if entry["runs"] > 1 else ""
+                      summary.write(f"- [ ] {entry['name']}{suffix}\n")
+                  summary.write("\n")
+
+              if skipped:
+                  summary.write("<details>\n")
+                  summary.write(f"<summary>Skipped tests ({len(skipped)})</summary>\n\n")
+                  for entry in skipped:
+                      suffix = f" ({entry['runs']} generated cases)" if entry["runs"] > 1 else ""
+                      summary.write(f"- [ ] {entry['name']}{suffix}\n")
+                  summary.write("\n</details>\n\n")
+
+              summary.write("<details>\n")
+              summary.write(f"<summary>Passed tests ({len(passed)})</summary>\n\n")
+              for entry in passed:
+                  suffix = f" ({entry['runs']} generated cases)" if entry["runs"] > 1 else ""
+                  summary.write(f"- [x] {entry['name']}{suffix}\n")
+              summary.write("\n</details>\n")
+          PY
