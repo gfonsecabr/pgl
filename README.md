@@ -5,7 +5,7 @@
   <img alt="Pangoling: Plane Geometry Library" src="doc/figures/logotext.svg" width="65%"/>
 </picture>
 
-[![Tests](https://github.com/gfonsecabr/pgl-private/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl-private/actions/workflows/tests.yml)
+[![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
 
