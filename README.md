@@ -138,7 +138,7 @@ include(FetchContent)
 
 FetchContent_Declare(
   pgl
-  GIT_REPOSITORY https://github.com/gfonsecabr/<TO EDIT WITH THE PUBLIC GIT LINK>
+  GIT_REPOSITORY https://github.com/gfonsecabr/pgl
   GIT_TAG main
 )
 
