@@ -1,0 +1,1500 @@
+#pragma once
+
+/**
+ * @file transformations.hpp
+ * @brief Arithmetic transformations and explicit conversions between primitives.
+ *
+ * Translation, scaling, negation, axis swapping, and cross-primitive conversion
+ */
+
+#include "../pgl.hpp"
+
+namespace pgl {
+
+// -----------------------------------------------------------------------------
+// Point
+
+template <class Number, class Label>
+constexpr Point<Number, Label> Point<Number, Label>::operator-() const {
+    return Point<Number, Label>(-x(), -y(), label_);
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr Point<Number, Label>& Point<Number, Label>::operator+=(const OtherPoint& other) {
+    coords_[0] += static_cast<Number>(other[0]);
+    coords_[1] += static_cast<Number>(other[1]);
+    return *this;
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr Point<Number, Label>& Point<Number, Label>::operator-=(const OtherPoint& other) {
+    coords_[0] -= static_cast<Number>(other[0]);
+    coords_[1] -= static_cast<Number>(other[1]);
+    return *this;
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label>& Point<Number, Label>::operator*=(const OtherNumber scalar) {
+    coords_[0] *= static_cast<Number>(scalar);
+    coords_[1] *= static_cast<Number>(scalar);
+    return *this;
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label>& Point<Number, Label>::operator/=(const OtherNumber scalar) {
+    coords_[0] /= static_cast<Number>(scalar);
+    coords_[1] /= static_cast<Number>(scalar);
+    return *this;
+}
+
+template <class Number, class Label>
+constexpr Point<Number, Label> Point<Number, Label>::swapped() const {
+    return Point<Number, Label>(y(), x(), detail::copyLabel<Label>(*this));
+}
+
+template <class Number, class Label>
+constexpr Point<Number, Label> Point<Number, Label>::rotated90(int k) const {
+    switch (((k % 4) + 4) % 4) {
+        case 1:  return Point(-y(),  x());
+        case 2:  return Point(-x(), -y());
+        case 3:  return Point( y(), -x());
+        default: return *this;
+    }
+}
+
+template <class Number, class Label>
+constexpr void Point<Number, Label>::rotate90(int k) {
+    switch (((k % 4) + 4) % 4) {
+        case 1: { auto tmp = x(); x() = -y(); y() =  tmp; break; }
+        case 2: { x() = -x(); y() = -y(); break; }
+        case 3: { auto tmp = x(); x() =  y(); y() = -tmp; break; }
+    }
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label> Point<Number, Label>::scaledUpX(const OtherNumber scalar) const {
+    return Point<Number, Label>(x() * scalar, y(), detail::copyLabel<Label>(*this));
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr void Point<Number, Label>::scaleUpX(const OtherNumber scalar) {
+    coords_[0] *= static_cast<Number>(scalar);
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label> Point<Number, Label>::scaledUpY(const OtherNumber scalar) const {
+    return Point<Number, Label>(x(), y() * scalar, detail::copyLabel<Label>(*this));
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr void Point<Number, Label>::scaleUpY(const OtherNumber scalar) {
+    coords_[1] *= static_cast<Number>(scalar);
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label> Point<Number, Label>::scaledDownX(const OtherNumber scalar) const {
+    return Point<Number, Label>(x() / scalar, y(), detail::copyLabel<Label>(*this));
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr void Point<Number, Label>::scaleDownX(const OtherNumber scalar) {
+    coords_[0] /= static_cast<Number>(scalar);
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr Point<Number, Label> Point<Number, Label>::scaledDownY(const OtherNumber scalar) const {
+    return Point<Number, Label>(x(), y() / scalar, detail::copyLabel<Label>(*this));
+}
+
+template <class Number, class Label>
+template <class OtherNumber>
+constexpr void Point<Number, Label>::scaleDownY(const OtherNumber scalar) {
+    coords_[1] /= static_cast<Number>(scalar);
+}
+
+template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel>
+constexpr auto operator+(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right) {
+    using ResultNumber = std::common_type_t<LeftNumber, RightNumber>;
+    return Point<ResultNumber, LeftLabel>(
+        static_cast<ResultNumber>(left.x()) + static_cast<ResultNumber>(right.x()),
+        static_cast<ResultNumber>(left.y()) + static_cast<ResultNumber>(right.y()),
+        detail::copyLabel<LeftLabel>(left));
+}
+
+template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel>
+constexpr auto operator-(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right) {
+    using ResultNumber = std::common_type_t<LeftNumber, RightNumber>;
+    return Point<ResultNumber, LeftLabel>(
+        static_cast<ResultNumber>(left.x()) - static_cast<ResultNumber>(right.x()),
+        static_cast<ResultNumber>(left.y()) - static_cast<ResultNumber>(right.y()),
+        detail::copyLabel<LeftLabel>(left));
+}
+
+template <class Number, class Label, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Point<Number, Label>& point, const Scalar& scalar) {
+    using ResultNumber = std::common_type_t<Number, Scalar>;
+    return Point<ResultNumber, Label>(
+        static_cast<ResultNumber>(point.x()) * static_cast<ResultNumber>(scalar),
+        static_cast<ResultNumber>(point.y()) * static_cast<ResultNumber>(scalar),
+        detail::copyLabel<Label>(point));
+}
+
+template <class Scalar, class Number, class Label>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Point<Number, Label>& point) {
+    return point * scalar;
+}
+
+template <class Number, class Label, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Point<Number, Label>& point, const Scalar& scalar) {
+    using ResultNumber = std::common_type_t<Number, Scalar>;
+    return Point<ResultNumber, Label>(
+        static_cast<ResultNumber>(point.x()) / static_cast<ResultNumber>(scalar),
+        static_cast<ResultNumber>(point.y()) / static_cast<ResultNumber>(scalar),
+        detail::copyLabel<Label>(point));
+}
+
+// -----------------------------------------------------------------------------
+// Segment
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Segment<PointType>& Segment<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Segment<PointType>& Segment<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Segment<PointType>& Segment<PointType>::operator*=(const Scalar& scalar) {
+    *this = *this * scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Segment<PointType>& Segment<PointType>::operator/=(const Scalar& scalar) {
+    *this = *this / scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Segment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = segment.min() + translation;
+    const auto second = segment.max() + translation;
+    return Segment(first, second);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Segment<PointType>& segment) {
+    return segment + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Segment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = segment.min() - translation;
+    const auto second = segment.max() - translation;
+    return Segment(first, second);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Segment<PointType>& segment, const Scalar& scalar) {
+    const auto first = segment.min() * scalar;
+    const auto second = segment.max() * scalar;
+    return Segment(first, second);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Segment<PointType>& segment) {
+    return segment * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Segment<PointType>& segment, const Scalar& scalar) {
+    const auto first = segment.min() / scalar;
+    const auto second = segment.max() / scalar;
+    return Segment(first, second);
+}
+
+template <class PointType>
+constexpr Segment<PointType> Segment<PointType>::rotated90(int k) const {
+    return Segment(min().rotated90(k), max().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Segment<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Segment<PointType> Segment<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return Segment(min().scaledUpX(scalar), max().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Segment<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Segment<PointType> Segment<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return Segment(min().scaledUpY(scalar), max().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Segment<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Segment<PointType> Segment<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return Segment(min().scaledDownX(scalar), max().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Segment<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Segment<PointType> Segment<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return Segment(min().scaledDownY(scalar), max().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Segment<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// OrientedSegment
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr OrientedSegment<PointType>& OrientedSegment<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr OrientedSegment<PointType>& OrientedSegment<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr OrientedSegment<PointType>& OrientedSegment<PointType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr OrientedSegment<PointType>& OrientedSegment<PointType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const OrientedSegment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = segment.source() + translation;
+    const auto second = segment.target() + translation;
+    return OrientedSegment(first, second);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedSegment<PointType>& segment) {
+    return segment + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const OrientedSegment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = segment.source() - translation;
+    const auto second = segment.target() - translation;
+    return OrientedSegment(first, second);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const OrientedSegment<PointType>& segment, const Scalar& scalar) {
+    const auto first = segment.source() * scalar;
+    const auto second = segment.target() * scalar;
+    return OrientedSegment(first, second);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType>& segment) {
+    return segment * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const OrientedSegment<PointType>& segment, const Scalar& scalar) {
+    const auto first = segment.source() / scalar;
+    const auto second = segment.target() / scalar;
+    return OrientedSegment(first, second);
+}
+
+template <class PointType>
+constexpr OrientedSegment<PointType> OrientedSegment<PointType>::rotated90(int k) const {
+    return OrientedSegment(source().rotated90(k), target().rotated90(k));
+}
+
+template <class PointType>
+constexpr void OrientedSegment<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedSegment<PointType> OrientedSegment<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return OrientedSegment(source().scaledUpX(scalar), target().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedSegment<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedSegment<PointType> OrientedSegment<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return OrientedSegment(source().scaledUpY(scalar), target().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedSegment<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedSegment<PointType> OrientedSegment<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return OrientedSegment(source().scaledDownX(scalar), target().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedSegment<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedSegment<PointType> OrientedSegment<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return OrientedSegment(source().scaledDownY(scalar), target().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedSegment<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// Line
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Line<PointType>& Line<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Line<PointType>& Line<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Line<PointType>& Line<PointType>::operator*=(const Scalar& scalar) {
+    *this = *this * scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Line<PointType>& Line<PointType>::operator/=(const Scalar& scalar) {
+    *this = *this / scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Line(line.min() + translation, line.max() + translation);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType>& line) {
+    return line + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Line(line.min() - translation, line.max() - translation);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Line<PointType>& line, const Scalar& scalar) {
+    return Line(line.min() * scalar, line.max() * scalar);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Line<PointType>& line) {
+    return line * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Line<PointType>& line, const Scalar& scalar) {
+    return Line(line.min() / scalar, line.max() / scalar);
+}
+
+template <class PointType>
+constexpr Segment<PointType>::operator Line<PointType>() const {
+    return Line<PointType>(min(), max());
+}
+
+template <class PointType>
+constexpr Halfplane<PointType>::operator Line<PointType>() const {
+    return Line<PointType>(source(), target());
+}
+
+template <class PointType>
+constexpr Line<PointType> Line<PointType>::rotated90(int k) const {
+    return Line(min().rotated90(k), max().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Line<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Line<PointType> Line<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return Line(min().scaledUpX(scalar), max().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Line<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Line<PointType> Line<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return Line(min().scaledUpY(scalar), max().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Line<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Line<PointType> Line<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return Line(min().scaledDownX(scalar), max().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Line<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Line<PointType> Line<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return Line(min().scaledDownY(scalar), max().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Line<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// OrientedLine
+
+template <class PointType>
+constexpr OrientedLine<PointType>::operator Line<PointType>() const {
+    return Line<PointType>(source(), target());
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return OrientedLine(line.source() + translation, line.target() + translation);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType>& line) {
+    return line + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return OrientedLine(line.source() - translation, line.target() - translation);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const OrientedLine<PointType>& line, const Scalar& scalar) {
+    return OrientedLine(line.source() * scalar, line.target() * scalar);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType>& line) {
+    return line * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const OrientedLine<PointType>& line, const Scalar& scalar) {
+    return OrientedLine(line.source() / scalar, line.target() / scalar);
+}
+
+template <class PointType>
+constexpr OrientedSegment<PointType>::operator OrientedLine<PointType>() const {
+    return OrientedLine<PointType>(source(), target());
+}
+
+template <class PointType>
+constexpr Halfplane<PointType>::operator OrientedLine<PointType>() const {
+    return OrientedLine<PointType>(source(), target());
+}
+
+template <class PointType>
+constexpr OrientedLine<PointType> OrientedLine<PointType>::rotated90(int k) const {
+    return OrientedLine(source().rotated90(k), target().rotated90(k));
+}
+
+template <class PointType>
+constexpr void OrientedLine<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return OrientedLine(source().scaledUpX(scalar), target().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedLine<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return OrientedLine(source().scaledUpY(scalar), target().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedLine<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return OrientedLine(source().scaledDownX(scalar), target().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedLine<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return OrientedLine(source().scaledDownY(scalar), target().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void OrientedLine<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// Ray
+
+template <class PointType>
+constexpr Ray<PointType>::operator Line<PointType>() const {
+    return Line<PointType>(source(), target());
+}
+
+template <class PointType>
+constexpr Ray<PointType>::operator OrientedLine<PointType>() const {
+    return OrientedLine<PointType>(source(), target());
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Ray<PointType>& Ray<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Ray<PointType>& Ray<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Ray<PointType>& Ray<PointType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Ray<PointType>& Ray<PointType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Ray(ray.source() + translation, ray.target() + translation);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType>& ray) {
+    return ray + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Ray(ray.source() - translation, ray.target() - translation);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Ray<PointType>& ray, const Scalar& scalar) {
+    return Ray(ray.source() * scalar, ray.target() * scalar);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Ray<PointType>& ray) {
+    return ray * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Ray<PointType>& ray, const Scalar& scalar) {
+    return Ray(ray.source() / scalar, ray.target() / scalar);
+}
+
+template <class PointType>
+constexpr OrientedSegment<PointType>::operator Ray<PointType>() const {
+    return Ray<PointType>(source(), target());
+}
+
+template <class PointType>
+constexpr Ray<PointType> Ray<PointType>::rotated90(int k) const {
+    return Ray(source().rotated90(k), target().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Ray<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Ray<PointType> Ray<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return Ray(source().scaledUpX(scalar), target().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Ray<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Ray<PointType> Ray<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return Ray(source().scaledUpY(scalar), target().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Ray<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Ray<PointType> Ray<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return Ray(source().scaledDownX(scalar), target().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Ray<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Ray<PointType> Ray<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return Ray(source().scaledDownY(scalar), target().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Ray<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// Rectangle
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Rectangle<PointType>& Rectangle<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Rectangle<PointType>& Rectangle<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Rectangle<PointType>& Rectangle<PointType>::operator*=(const Scalar& scalar) {
+    *this = *this * scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Rectangle<PointType>& Rectangle<PointType>::operator/=(const Scalar& scalar) {
+    *this = *this / scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = rectangle.min() + translation;
+    const auto second = rectangle.max() + translation;
+    return Rectangle(first, second);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType>& rectangle) {
+    return rectangle + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = rectangle.min() - translation;
+    const auto second = rectangle.max() - translation;
+    return Rectangle(first, second);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Rectangle<PointType>& rectangle, const Scalar& scalar) {
+    const auto first = rectangle.min() * scalar;
+    const auto second = rectangle.max() * scalar;
+    return Rectangle(first, second);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType>& rectangle) {
+    return rectangle * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Rectangle<PointType>& rectangle, const Scalar& scalar) {
+    const auto first = rectangle.min() / scalar;
+    const auto second = rectangle.max() / scalar;
+    return Rectangle(first, second);
+}
+
+template <class PointType>
+constexpr Rectangle<PointType> Rectangle<PointType>::rotated90(int k) const {
+    return Rectangle(min().rotated90(k), max().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Rectangle<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Rectangle<PointType> Rectangle<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return Rectangle(min().scaledUpX(scalar), max().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Rectangle<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Rectangle<PointType> Rectangle<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return Rectangle(min().scaledUpY(scalar), max().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Rectangle<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Rectangle<PointType> Rectangle<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return Rectangle(min().scaledDownX(scalar), max().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Rectangle<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Rectangle<PointType> Rectangle<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return Rectangle(min().scaledDownY(scalar), max().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Rectangle<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// Triangle
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Triangle<PointType>& Triangle<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    points_[2] += translation;
+    normalize();
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Triangle<PointType>& Triangle<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    points_[2] -= translation;
+    normalize();
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Triangle<PointType>& Triangle<PointType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    points_[2] *= scalar;
+    normalize();
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Triangle<PointType>& Triangle<PointType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    points_[2] /= scalar;
+    normalize();
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Triangle(triangle.a() + translation, triangle.b() + translation, triangle.c() + translation);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType>& triangle) {
+    return triangle + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Triangle(triangle.a() - translation, triangle.b() - translation, triangle.c() - translation);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Triangle<PointType>& triangle, const Scalar& scalar) {
+    return Triangle(triangle.a() * scalar, triangle.b() * scalar, triangle.c() * scalar);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Triangle<PointType>& triangle) {
+    return triangle * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Triangle<PointType>& triangle, const Scalar& scalar) {
+    return Triangle(triangle.a() / scalar, triangle.b() / scalar, triangle.c() / scalar);
+}
+
+template <class PointType>
+constexpr Triangle<PointType> Triangle<PointType>::rotated90(int k) const {
+    return Triangle(a().rotated90(k), b().rotated90(k), c().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Triangle<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Triangle<PointType> Triangle<PointType>::scaledUpX(const OtherNumber scalar) const {
+    return Triangle(a().scaledUpX(scalar), b().scaledUpX(scalar), c().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Triangle<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Triangle<PointType> Triangle<PointType>::scaledUpY(const OtherNumber scalar) const {
+    return Triangle(a().scaledUpY(scalar), b().scaledUpY(scalar), c().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Triangle<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Triangle<PointType> Triangle<PointType>::scaledDownX(const OtherNumber scalar) const {
+    return Triangle(a().scaledDownX(scalar), b().scaledDownX(scalar), c().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Triangle<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Triangle<PointType> Triangle<PointType>::scaledDownY(const OtherNumber scalar) const {
+    return Triangle(a().scaledDownY(scalar), b().scaledDownY(scalar), c().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Triangle<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// -----------------------------------------------------------------------------
+// Halfplane
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Halfplane<PointType>& Halfplane<PointType>::operator+=(const OtherPoint& translation) {
+    points_[0] += translation;
+    points_[1] += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Halfplane<PointType>& Halfplane<PointType>::operator-=(const OtherPoint& translation) {
+    points_[0] -= translation;
+    points_[1] -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Halfplane<PointType>& Halfplane<PointType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr Halfplane<PointType>& Halfplane<PointType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    return *this;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Halfplane(halfplane.source() + translation, halfplane.target() + translation);
+}
+
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType>& halfplane) {
+    return halfplane + translation;
+}
+
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
+    return Halfplane(halfplane.source() - translation, halfplane.target() - translation);
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Halfplane<PointType>& halfplane, const Scalar& scalar) {
+    return Halfplane(halfplane.source() * scalar, halfplane.target() * scalar);
+}
+
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType>& halfplane) {
+    return halfplane * scalar;
+}
+
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Halfplane<PointType>& halfplane, const Scalar& scalar) {
+    return Halfplane(halfplane.source() / scalar, halfplane.target() / scalar);
+}
+
+
+template <class PointType>
+constexpr Halfplane<PointType> Halfplane<PointType>::rotated90(int k) const {
+    return Halfplane(source().rotated90(k), target().rotated90(k));
+}
+
+template <class PointType>
+constexpr void Halfplane<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpX(const OtherNumber scalar) const {
+    // A negative factor reflects the plane, flipping the inside side; swap
+    // source and target so the oriented boundary keeps the correct side.
+    if (scalar < OtherNumber{})
+        return Halfplane(target().scaledUpX(scalar), source().scaledUpX(scalar));
+    return Halfplane(source().scaledUpX(scalar), target().scaledUpX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Halfplane<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpY(const OtherNumber scalar) const {
+    // A negative factor reflects the plane, flipping the inside side; swap
+    // source and target so the oriented boundary keeps the correct side.
+    if (scalar < OtherNumber{})
+        return Halfplane(target().scaledUpY(scalar), source().scaledUpY(scalar));
+    return Halfplane(source().scaledUpY(scalar), target().scaledUpY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Halfplane<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownX(const OtherNumber scalar) const {
+    // A negative factor reflects the plane, flipping the inside side; swap
+    // source and target so the oriented boundary keeps the correct side.
+    if (scalar < OtherNumber{})
+        return Halfplane(target().scaledDownX(scalar), source().scaledDownX(scalar));
+    return Halfplane(source().scaledDownX(scalar), target().scaledDownX(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Halfplane<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownY(const OtherNumber scalar) const {
+    // A negative factor reflects the plane, flipping the inside side; swap
+    // source and target so the oriented boundary keeps the correct side.
+    if (scalar < OtherNumber{})
+        return Halfplane(target().scaledDownY(scalar), source().scaledDownY(scalar));
+    return Halfplane(source().scaledDownY(scalar), target().scaledDownY(scalar));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Halfplane<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// ---------------------------------------------------------------------------
+// Convex
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& translation) {
+    translation_ += translation;
+    return *this;
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& translation) {
+    translation_ -= translation;
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+requires(!detail::is_point_v<Scalar>)
+constexpr Convex<PointType>& Convex<PointType>::operator*=(const Scalar& scalar) {
+    for (auto& vertex : points_) {
+        vertex += translation_;
+        vertex *= scalar;
+    }
+    translation_ = {};
+    return *this;
+}
+
+template <class PointType>
+template <class Scalar>
+requires(!detail::is_point_v<Scalar>)
+constexpr Convex<PointType>& Convex<PointType>::operator/=(const Scalar& scalar) {
+    for (auto& vertex : points_) {
+        vertex += translation_;
+        vertex /= scalar;
+    }
+    translation_ = {};
+    return *this;
+}
+
+template <class PointType>
+constexpr Convex<PointType> Convex<PointType>::rotated90(int k) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.rotated90(k));
+    }
+    return Convex(std::move(pts));
+}
+
+template <class PointType>
+constexpr void Convex<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Convex<PointType> Convex<PointType>::scaledUpX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpX(scalar));
+    }
+    return Convex(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Convex<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Convex<PointType> Convex<PointType>::scaledUpY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpY(scalar));
+    }
+    return Convex(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Convex<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Convex<PointType> Convex<PointType>::scaledDownX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownX(scalar));
+    }
+    return Convex(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Convex<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Convex<PointType> Convex<PointType>::scaledDownY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownY(scalar));
+    }
+    return Convex(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Convex<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// ---------------------------------------------------------------------------
+// Polygon
+
+template <class PointType>
+constexpr Polygon<PointType> Polygon<PointType>::rotated90(int k) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.rotated90(k));
+    }
+    return Polygon(std::move(pts));
+}
+
+template <class PointType>
+constexpr void Polygon<PointType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Polygon<PointType> Polygon<PointType>::scaledUpX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpX(scalar));
+    }
+    return Polygon(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Polygon<PointType>::scaleUpX(const OtherNumber scalar) {
+    *this = scaledUpX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Polygon<PointType> Polygon<PointType>::scaledUpY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpY(scalar));
+    }
+    return Polygon(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Polygon<PointType>::scaleUpY(const OtherNumber scalar) {
+    *this = scaledUpY(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Polygon<PointType> Polygon<PointType>::scaledDownX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownX(scalar));
+    }
+    return Polygon(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Polygon<PointType>::scaleDownX(const OtherNumber scalar) {
+    *this = scaledDownX(scalar);
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr Polygon<PointType> Polygon<PointType>::scaledDownY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownY(scalar));
+    }
+    return Polygon(std::move(pts));
+}
+
+template <class PointType>
+template <class OtherNumber>
+constexpr void Polygon<PointType>::scaleDownY(const OtherNumber scalar) {
+    *this = scaledDownY(scalar);
+}
+
+// ---------------------------------------------------------------------------
+// Disk
+
+template <class PointType, class LabelType>
+constexpr Disk<PointType, LabelType> Disk<PointType, LabelType>::rotated90(int k) const {
+    return Disk(a().rotated90(k), b().rotated90(k), c().rotated90(k));
+}
+
+template <class PointType, class LabelType>
+constexpr void Disk<PointType, LabelType>::rotate90(int k) {
+    *this = rotated90(k);
+}
+
+}  // namespace pgl

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="680" viewBox="0 0 980 680">
+  <defs>
+    <marker id="pgl-arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" stroke="none"/>
+    </marker>
+  </defs>
+  <rect x="0.5" y="0.5" width="979" height="679" stroke="black" fill="none" stroke-width="1"/>
+  <circle cx="163" cy="467.167" r="5" stroke="black" fill="black" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(10,20)</title></circle>
+  <line x1="126.667" y1="539.833" x2="272" y2="430.833" stroke="royalblue" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(0,0)--(40,30)</title></line>
+  <path d="M 344.667 503.5 L 435.5 449 L 526.333 394.5" stroke="crimson" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke" marker-mid="url(#pgl-arrowhead)"><title>(60,10)-&gt;(110,40)</title></path>
+  <line x1="0" y1="195.167" x2="484.833" y2="680" stroke="darkgreen" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>-(-20,80)--(80,-20)-</title></line>
+  <path d="M 980 122.5 L 701.25 401.25 L 422.5 680" stroke="orange" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke" marker-mid="url(#pgl-arrowhead)"><title>-(120,0)--(180,60)-&gt;</title></path>
+  <path d="M 199.333 176.5 L 346.417 88.25 L 493.5 0" stroke="purple" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke" marker-mid="url(#pgl-arrowhead)"><title>(20,100)--(70,130)-&gt;</title></path>
+  <g><polygon points="-4.26326e-14,140.167 980,140.167 980,0 1.42109e-14,0" stroke="none" fill="teal" fill-opacity="0.18"><title>^-(140,110)--(200,110)-^</title></polygon><line x1="0" y1="140.167" x2="980" y2="140.167" stroke="teal" fill="teal" fill-opacity="0.18" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>^-(140,110)--(200,110)-^</title></line></g>
+  <rect x="671.667" y="285.5" width="254.333" height="218" stroke="sienna" fill="gold" fill-opacity="0.22" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>[(150,10),(220,70)]</title></rect>
+</svg>

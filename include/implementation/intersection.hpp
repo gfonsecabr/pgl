@@ -1,0 +1,1468 @@
+#pragma once
+
+/**
+ * @file intersection.hpp
+ * @brief Implementations of the 'intersection' predicate.
+ */
+
+#include <algorithm>
+
+#include "../pgl.hpp"
+
+namespace pgl {
+
+// -----------------------------------------------------------------------------
+// Point
+
+template <class Number, class Label>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, Label>>
+Point<Number, Label>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, Label>(*this);
+    }
+    return {};
+}
+
+// -----------------------------------------------------------------------------
+// Segment
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Segment<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Segment<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+
+    if (!boundingBoxesOverlap(other)) {
+        return {};
+    }
+
+    const auto d1 = orientationSign(min(), max(), other.min());
+    const auto d2 = orientationSign(min(), max(), other.max());
+
+    if (d1 == 0 && d2 == 0) {
+        // Both segments are collinear: compare endpoints in ResultPoint so the
+        // ternary and ordering stay well-typed when PointType and OtherPoint
+        // differ (e.g. Convex chord clipped from int into Rational).
+        const ResultPoint a_min(min());
+        const ResultPoint a_max(max());
+        const ResultPoint b_min(other.min());
+        const ResultPoint b_max(other.max());
+        const ResultPoint pminmax = a_max < b_max ? a_max : b_max;
+        const ResultPoint pmaxmin = a_min < b_min ? b_min : a_min;
+
+        if (pminmax < pmaxmin) {
+            return {};
+        }
+        if (pminmax == pmaxmin) {
+            return pminmax;
+        }
+
+        return ResultSegment(pminmax, pmaxmin);
+    }
+
+    if (d1 == 0 && containsCollinear(other.min())) {
+        return Point<ResultNumber>(other.min());
+    }
+    if (d2 == 0 && containsCollinear(other.max())) {
+        return Point<ResultNumber>(other.max());
+    }
+
+    const auto d3 = orientationSign(other.min(), other.max(), min());
+    if (d3 == 0 && other.containsCollinear(min())) {
+        return Point<ResultNumber>(min());
+    }
+
+    const auto d4 = orientationSign(other.min(), other.max(), max());
+    if (d4 == 0 && other.containsCollinear(max())) {
+        return Point<ResultNumber>(max());
+    }
+
+    if (d1 == 0 || d2 == 0 || d3 == 0 || d4 == 0) {
+        return {};
+    }
+
+    if (d1 != d2 && d3 != d4) {
+        const auto x1 = static_cast<ResultNumber>(min().x());
+        const auto y1 = static_cast<ResultNumber>(min().y());
+        const auto x2 = static_cast<ResultNumber>(max().x());
+        const auto y2 = static_cast<ResultNumber>(max().y());
+        const auto x3 = static_cast<ResultNumber>(other.min().x());
+        const auto y3 = static_cast<ResultNumber>(other.min().y());
+        const auto x4 = static_cast<ResultNumber>(other.max().x());
+        const auto y4 = static_cast<ResultNumber>(other.max().y());
+
+        const ResultNumber determinant = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        const ResultNumber line1 = x1 * y2 - y1 * x2;
+        const ResultNumber line2 = x3 * y4 - y3 * x4;
+
+        const ResultNumber px = (line1 * (x3 - x4) - (x1 - x2) * line2) / determinant;
+        const ResultNumber py = (line1 * (y3 - y4) - (y1 - y2) * line2) / determinant;
+
+        return Point<ResultNumber, typename PointType::LabelType>(px, py);
+    }
+
+    return {};
+}
+
+// -----------------------------------------------------------------------------
+// OrientedSegment
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+OrientedSegment<PointType>::intersection(const OtherPoint& other) const {
+    return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto OrientedSegment<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto OrientedSegment<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(
+        static_cast<Segment<OtherPoint>>(other));
+}
+
+// -----------------------------------------------------------------------------
+// Line
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Line<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Line<Point<ResultNumber, typename PointType::LabelType>>>>
+Line<PointType>::intersection(const Line<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultLine = Line<ResultPoint>;
+
+    if (isDegenerate()) {
+        if (other.contains(min())) {
+            return ResultPoint(min());
+        }
+        return {};
+    }
+
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return ResultPoint(other.min());
+        }
+        return {};
+    }
+
+    if (contains(other)) {
+        return ResultLine(ResultPoint(min()), ResultPoint(max()));
+    }
+
+    if (parallel(other)) {
+        return {};
+    }
+
+    const auto x1 = static_cast<ResultNumber>(min().x());
+    const auto y1 = static_cast<ResultNumber>(min().y());
+    const auto x2 = static_cast<ResultNumber>(max().x());
+    const auto y2 = static_cast<ResultNumber>(max().y());
+    const auto x3 = static_cast<ResultNumber>(other.min().x());
+    const auto y3 = static_cast<ResultNumber>(other.min().y());
+    const auto x4 = static_cast<ResultNumber>(other.max().x());
+    const auto y4 = static_cast<ResultNumber>(other.max().y());
+
+    const ResultNumber determinant = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    const ResultNumber line1 = x1 * y2 - y1 * x2;
+    const ResultNumber line2 = x3 * y4 - y3 * x4;
+
+    const ResultNumber px = (line1 * (x3 - x4) - (x1 - x2) * line2) / determinant;
+    const ResultNumber py = (line1 * (y3 - y4) - (y1 - y2) * line2) / determinant;
+
+    return ResultPoint(px, py);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Line<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultType = std::optional<std::variant<ResultPoint, ResultSegment>>;
+
+    const auto line_intersection = intersection<ResultNumber>(Line<OtherPoint>(other.min(), other.max()));
+    if (!line_intersection) {
+        return ResultType{};
+    }
+    if (std::holds_alternative<ResultPoint>(*line_intersection)) {
+        const auto& point = std::get<ResultPoint>(*line_intersection);
+        if (other.contains(point)) {
+            return ResultType(point);
+        }
+        return ResultType{};
+    }
+    return ResultType(ResultSegment(ResultPoint(other.min()), ResultPoint(other.max())));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Line<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
+}
+
+// -----------------------------------------------------------------------------
+// OrientedLine
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+OrientedLine<PointType>::intersection(const OtherPoint& other) const {
+    return this->asLine().template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Line<Point<ResultNumber, typename PointType::LabelType>>>>
+OrientedLine<PointType>::intersection(const Line<OtherPoint>& other) const {
+    return this->asLine().template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Line<Point<ResultNumber, typename PointType::LabelType>>>>
+OrientedLine<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return this->asLine().template intersection<ResultNumber>(
+        other.asLine());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto OrientedLine<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    return this->asLine().template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto OrientedLine<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return this->asLine().template intersection<ResultNumber>(other);
+}
+
+// -----------------------------------------------------------------------------
+// Ray
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Ray<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Ray<PointType>::intersection(const Line<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    const auto line_intersection = this->asLine().template intersection<ResultNumber>(other);
+    if (!line_intersection) {
+        return {};
+    }
+
+    if (std::holds_alternative<Line<ResultPoint>>(*line_intersection)) {
+        return Ray<ResultPoint>(ResultPoint(source()), ResultPoint(target()));
+    }
+
+    const auto& point = std::get<ResultPoint>(*line_intersection);
+    if (contains(point)) {
+        return point;
+    }
+
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Ray<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return intersection(other.asLine());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Ray<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    const auto line_intersection =
+        this->asLine().template intersection<ResultNumber>(
+            Line<OtherPoint>(other.min(), other.max()));
+    if (!line_intersection) {
+        return {};
+    }
+
+    if (std::holds_alternative<ResultPoint>(*line_intersection)) {
+        const auto& point = std::get<ResultPoint>(*line_intersection);
+        if (contains(point) && other.contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    const ResultPoint ray_source(source());
+    const bool min_on_ray = contains(other.min());
+    const bool max_on_ray = contains(other.max());
+
+    if (min_on_ray && max_on_ray) {
+        return ResultSegment(ResultPoint(other.min()), ResultPoint(other.max()));
+    }
+
+    if (min_on_ray) {
+        const auto point = ResultPoint(other.min());
+        if (other.contains(ray_source) && point != ray_source) {
+            return ResultSegment(point, ray_source);
+        }
+        return point;
+    }
+
+    if (max_on_ray) {
+        const auto point = ResultPoint(other.max());
+        if (other.contains(ray_source) && point != ray_source) {
+            return ResultSegment(point, ray_source);
+        }
+        return point;
+    }
+
+    if (other.contains(ray_source)) {
+        return ray_source;
+    }
+
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Ray<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection(static_cast<Segment<OtherPoint>>(other));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Ray<PointType>::intersection(const Ray<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultRay = Ray<ResultPoint>;
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    if (other.isDegenerate()) {
+        if (contains(other.source())) {
+            return ResultPoint(other.source());
+        }
+        return {};
+    }
+
+    const auto line_intersection =
+        this->asLine().template intersection<ResultNumber>(
+            other.asLine());
+    if (!line_intersection) {
+        return {};
+    }
+
+    if (std::holds_alternative<ResultPoint>(*line_intersection)) {
+        const auto& point = std::get<ResultPoint>(*line_intersection);
+        if (contains(point) && other.contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    const ResultPoint this_source(source());
+    const ResultPoint other_source(other.source());
+    const bool this_contains_other_source = contains(other.source());
+    const bool other_contains_this_source = other.contains(source());
+
+    if (source() == other.source()) {
+        if (contains(other.target()) && other.contains(target())) {
+            return ResultRay(ResultPoint(source()), ResultPoint(target()));
+        }
+        return this_source;
+    }
+
+    if (this_contains_other_source && other_contains_this_source) {
+        return ResultSegment(this_source, other_source);
+    }
+
+    if (this_contains_other_source) {
+        return ResultRay(ResultPoint(other.source()), ResultPoint(other.target()));
+    }
+
+    if (other_contains_this_source) {
+        return ResultRay(ResultPoint(source()), ResultPoint(target()));
+    }
+
+    return {};
+}
+
+// -----------------------------------------------------------------------------
+// Halfplane
+
+namespace detail {
+
+template <class ResultPoint>
+constexpr ResultPoint extendRayAlongLine(const ResultPoint& intersection, const ResultPoint& first, const ResultPoint& second) {
+    return intersection + (second - first);
+}
+
+}  // namespace detail
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Halfplane<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Line<Point<ResultNumber, typename PointType::LabelType>>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Halfplane<PointType>::intersection(const Line<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultLine = Line<ResultPoint>;
+    using ResultRay = Ray<ResultPoint>;
+
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return ResultPoint(other.min());
+        }
+        return {};
+    }
+
+    const auto boundary_intersection =
+        this->asLine().template intersection<ResultNumber>(other);
+
+    if (!boundary_intersection) {
+        if (contains(other.min())) {
+            return ResultLine(ResultPoint(other.min()), ResultPoint(other.max()));
+        }
+        return {};
+    }
+
+    if (std::holds_alternative<ResultPoint>(*boundary_intersection)) {
+        const auto& point = std::get<ResultPoint>(*boundary_intersection);
+        const ResultPoint first(other.min());
+        const ResultPoint second(other.max());
+        const auto direction_side =
+            orientationDeterminant(source(), target(), other.max()) -
+            orientationDeterminant(source(), target(), other.min());
+        const auto zero = decltype(direction_side){};
+
+        if (zero < direction_side) {
+            return ResultRay(point, detail::extendRayAlongLine(point, first, second));
+        }
+
+        return ResultRay(point, detail::extendRayAlongLine(point, second, first));
+    }
+
+    return ResultLine(ResultPoint(other.min()), ResultPoint(other.max()));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Line<Point<ResultNumber, typename PointType::LabelType>>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Halfplane<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Halfplane<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultLine = Line<ResultPoint>;
+    using ResultRay = Ray<ResultPoint>;
+
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return ResultPoint(other.min());
+        }
+        return {};
+    }
+
+    const auto supporting_intersection =
+        intersection<ResultNumber>(Line<OtherPoint>(other.min(), other.max()));
+    if (!supporting_intersection) {
+        return {};
+    }
+
+    if (std::holds_alternative<ResultPoint>(*supporting_intersection)) {
+        const auto& point = std::get<ResultPoint>(*supporting_intersection);
+        if (other.contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    if (std::holds_alternative<ResultLine>(*supporting_intersection)) {
+        return ResultSegment(ResultPoint(other.min()), ResultPoint(other.max()));
+    }
+
+    return std::get<ResultRay>(*supporting_intersection).template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Halfplane<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<
+    std::variant<
+        Point<ResultNumber, typename PointType::LabelType>,
+        Segment<Point<ResultNumber, typename PointType::LabelType>>,
+        Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+Halfplane<PointType>::intersection(const Ray<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultRay = Ray<ResultPoint>;
+
+    if (isDegenerate()) {
+        if (other.contains(source())) {
+            return ResultPoint(source());
+        }
+        return {};
+    }
+
+    if (other.isDegenerate()) {
+        if (contains(other.source())) {
+            return ResultPoint(other.source());
+        }
+        return {};
+    }
+
+    const auto supporting_intersection =
+        intersection<ResultNumber>(other.asLine());
+    if (!supporting_intersection) {
+        return {};
+    }
+
+    if (std::holds_alternative<ResultPoint>(*supporting_intersection)) {
+        const auto& point = std::get<ResultPoint>(*supporting_intersection);
+        if (other.contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    if (std::holds_alternative<Line<ResultPoint>>(*supporting_intersection)) {
+        return ResultRay(ResultPoint(other.source()), ResultPoint(other.target()));
+    }
+
+    return std::get<ResultRay>(*supporting_intersection).template intersection<ResultNumber>(other);
+}
+
+// -----------------------------------------------------------------------------
+// Rectangle
+
+namespace detail {
+
+template <class PointType, std::size_t Capacity>
+struct UniqueIntersectionPoints {
+    constexpr void add(const PointType& point) {
+        for (std::size_t index = 0; index < size; ++index) {
+            if (points[index] == point) {
+                return;
+            }
+        }
+
+        points[size] = point;
+        ++size;
+    }
+
+    constexpr const PointType& operator[](std::size_t index) const {
+        return points[index];
+    }
+
+    constexpr PointType minPoint() const {
+        PointType result = points[0];
+        for (std::size_t index = 1; index < size; ++index) {
+            if (points[index] < result) {
+                result = points[index];
+            }
+        }
+        return result;
+    }
+
+    constexpr PointType maxPoint() const {
+        PointType result = points[0];
+        for (std::size_t index = 1; index < size; ++index) {
+            if (result < points[index]) {
+                result = points[index];
+            }
+        }
+        return result;
+    }
+
+    std::array<PointType, Capacity> points{};
+    std::size_t size = 0;
+};
+
+template <class SegmentType, class PointSet>
+constexpr void addSegmentEndpoints(const SegmentType& segment, PointSet& points) {
+    points.add(segment.min());
+    points.add(segment.max());
+}
+
+template <class PointSet>
+constexpr auto pointsToSegmentIntersection(const PointSet& points) {
+    using PointType = std::remove_cvref_t<decltype(points[0])>;
+    using SegmentType = Segment<PointType>;
+    using ResultType = std::optional<std::variant<PointType, SegmentType>>;
+
+    if (points.size == 0) {
+        return ResultType{};
+    }
+
+    if (points.size == 1) {
+        return ResultType(points[0]);
+    }
+
+    const auto first = points.minPoint();
+    const auto second = points.maxPoint();
+    if (first == second) {
+        return ResultType(first);
+    }
+
+    return ResultType(SegmentType(first, second));
+}
+
+template <class ResultNumber, class LabelType, class RectangleType, class LineType>
+constexpr auto rectangleLineIntersection(const RectangleType& rectangle, const LineType& line) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 8> points;
+
+    if (line.isDegenerate()) {
+        if (rectangle.contains(line.min())) {
+            points.add(ResultPoint(line.min()));
+        }
+        return pointsToSegmentIntersection(points);
+    }
+
+    const auto rectangle_edges = rectangle.edges();
+    for (const auto& edge : rectangle_edges) {
+        const Line<typename RectangleType::PointType> edge_line(edge.min(), edge.max());
+        const auto intersection = edge_line.template intersection<ResultNumber>(line);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            const auto& point = std::get<ResultPoint>(*intersection);
+            if (edge.contains(point)) {
+                points.add(point);
+            }
+        } else {
+            const auto& overlap = std::get<Line<ResultPoint>>(*intersection);
+            static_cast<void>(overlap);
+            addSegmentEndpoints(Segment<ResultPoint>(ResultPoint(edge.min()), ResultPoint(edge.max())), points);
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+template <class ResultNumber, class LabelType, class RectangleType, class SegmentType>
+constexpr auto rectangleSegmentIntersection(const RectangleType& rectangle, const SegmentType& segment) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 10> points;
+
+    if (rectangle.contains(segment.min())) {
+        points.add(ResultPoint(segment.min()));
+    }
+    if (rectangle.contains(segment.max())) {
+        points.add(ResultPoint(segment.max()));
+    }
+
+    const auto rectangle_edges = rectangle.edges();
+    for (const auto& edge : rectangle_edges) {
+        const auto intersection = edge.template intersection<ResultNumber>(segment);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            points.add(std::get<ResultPoint>(*intersection));
+        } else {
+            addSegmentEndpoints(std::get<Segment<ResultPoint>>(*intersection), points);
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+template <class ResultNumber, class LabelType, class RectangleType, class RayType>
+constexpr auto rectangleRayIntersection(const RectangleType& rectangle, const RayType& ray) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 10> points;
+
+    if (rectangle.contains(ray.source())) {
+        points.add(ResultPoint(ray.source()));
+    }
+
+    if (ray.isDegenerate()) {
+        return pointsToSegmentIntersection(points);
+    }
+
+    const Line<Point<ResultNumber, LabelType>> ray_line(ResultPoint(ray.source()), ResultPoint(ray.target()));
+    const auto rectangle_edges = rectangle.edges();
+    for (const auto& edge : rectangle_edges) {
+        const Line<typename RectangleType::PointType> edge_line(edge.min(), edge.max());
+        const auto intersection = edge_line.template intersection<ResultNumber>(ray_line);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            const auto& point = std::get<ResultPoint>(*intersection);
+            if (edge.contains(point) && ray.contains(point)) {
+                points.add(point);
+            }
+        } else {
+            if (ray.contains(edge.min())) {
+                points.add(ResultPoint(edge.min()));
+            }
+            if (ray.contains(edge.max())) {
+                points.add(ResultPoint(edge.max()));
+            }
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+template <class ResultNumber, class LabelType, class TriangleType, class LineType>
+constexpr auto triangleLineIntersection(const TriangleType& triangle, const LineType& line) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 8> points;
+
+    if (line.isDegenerate()) {
+        if (triangle.contains(line.min())) {
+            points.add(ResultPoint(line.min()));
+        }
+        return pointsToSegmentIntersection(points);
+    }
+
+    const auto triangle_edges = triangle.edges();
+    for (const auto& edge : triangle_edges) {
+        const Line<typename TriangleType::PointType> edge_line(edge.min(), edge.max());
+        const auto intersection = edge_line.template intersection<ResultNumber>(line);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            const auto& point = std::get<ResultPoint>(*intersection);
+            if (edge.contains(point)) {
+                points.add(point);
+            }
+        } else {
+            addSegmentEndpoints(Segment<ResultPoint>(ResultPoint(edge.min()), ResultPoint(edge.max())), points);
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+template <class ResultNumber, class LabelType, class TriangleType, class SegmentType>
+constexpr auto triangleSegmentIntersection(const TriangleType& triangle, const SegmentType& segment) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 10> points;
+
+    if (triangle.contains(segment.min())) {
+        points.add(ResultPoint(segment.min()));
+    }
+    if (triangle.contains(segment.max())) {
+        points.add(ResultPoint(segment.max()));
+    }
+
+    const auto triangle_edges = triangle.edges();
+    for (const auto& edge : triangle_edges) {
+        const auto intersection = edge.template intersection<ResultNumber>(segment);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            points.add(std::get<ResultPoint>(*intersection));
+        } else {
+            addSegmentEndpoints(std::get<Segment<ResultPoint>>(*intersection), points);
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+template <class ResultNumber, class LabelType, class TriangleType, class RayType>
+constexpr auto triangleRayIntersection(const TriangleType& triangle, const RayType& ray) {
+    using ResultPoint = Point<ResultNumber, LabelType>;
+    UniqueIntersectionPoints<ResultPoint, 10> points;
+
+    if (triangle.contains(ray.source())) {
+        points.add(ResultPoint(ray.source()));
+    }
+
+    if (ray.isDegenerate()) {
+        return pointsToSegmentIntersection(points);
+    }
+
+    const Line<Point<ResultNumber, LabelType>> ray_line(ResultPoint(ray.source()), ResultPoint(ray.target()));
+    const auto triangle_edges = triangle.edges();
+    for (const auto& edge : triangle_edges) {
+        const Line<typename TriangleType::PointType> edge_line(edge.min(), edge.max());
+        const auto intersection = edge_line.template intersection<ResultNumber>(ray_line);
+        if (!intersection) {
+            continue;
+        }
+
+        if (std::holds_alternative<ResultPoint>(*intersection)) {
+            const auto& point = std::get<ResultPoint>(*intersection);
+            if (edge.contains(point) && ray.contains(point)) {
+                points.add(point);
+            }
+        } else {
+            if (ray.contains(edge.min())) {
+                points.add(ResultPoint(edge.min()));
+            }
+            if (ray.contains(edge.max())) {
+                points.add(ResultPoint(edge.max()));
+            }
+        }
+    }
+
+    return pointsToSegmentIntersection(points);
+}
+
+}  // namespace detail
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Rectangle<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<Rectangle<Point<ResultNumber, typename PointType::LabelType>>>
+Rectangle<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultRectangle = Rectangle<ResultPoint>;
+
+    if (!intersects(other)) {
+        return {};
+    }
+
+    const auto min_x = min().x() < other.min().x() ? other.min().x() : min().x();
+    const auto min_y = min().y() < other.min().y() ? other.min().y() : min().y();
+    const auto max_x = max().x() < other.max().x() ? max().x() : other.max().x();
+    const auto max_y = max().y() < other.max().y() ? max().y() : other.max().y();
+
+    return ResultRectangle(
+        ResultPoint(static_cast<ResultNumber>(min_x), static_cast<ResultNumber>(min_y)),
+        ResultPoint(static_cast<ResultNumber>(max_x), static_cast<ResultNumber>(max_y)));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Rectangle<PointType>::intersection(const Line<OtherPoint>& other) const {
+    return detail::rectangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Rectangle<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Rectangle<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    return detail::rectangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Rectangle<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Rectangle<PointType>::intersection(const Ray<OtherPoint>& other) const {
+    return detail::rectangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Rectangle<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    if (!other.intersects(*this)) {
+        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
+    }
+    const auto rectangle_edges = edges();
+    for (const auto& edge : rectangle_edges) {
+        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
+        if (edge_intersection) {
+            return edge_intersection;
+        }
+    }
+    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(min()));
+}
+
+// -----------------------------------------------------------------------------
+// Triangle
+
+template <class PointType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Triangle<PointType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Triangle<PointType>::intersection(const Line<OtherPoint>& other) const {
+    return detail::triangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Triangle<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Triangle<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    return detail::triangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Triangle<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Triangle<PointType>::intersection(const Ray<OtherPoint>& other) const {
+    return detail::triangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Triangle<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    if (!other.intersects(*this)) {
+        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
+    }
+    const auto triangle_edges = edges();
+    for (const auto& edge : triangle_edges) {
+        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
+        if (edge_intersection) {
+            return edge_intersection;
+        }
+    }
+    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(a()));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Triangle<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    if (!other.intersects(*this)) {
+        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
+    }
+    const auto triangle_edges = edges();
+    for (const auto& edge : triangle_edges) {
+        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
+        if (edge_intersection) {
+            return edge_intersection;
+        }
+    }
+    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(a()));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr auto Triangle<PointType>::intersection(const Triangle<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    if (!intersects(other)) {
+        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
+    }
+    const auto other_edges = other.edges();
+    for (const auto& edge : other_edges) {
+        const auto edge_intersection = intersection<ResultNumber>(edge);
+        if (edge_intersection) {
+            return edge_intersection;
+        }
+    }
+    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(other.a()));
+}
+
+
+// ---------------------------------------------------------------------------
+// Convex
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Segment<OtherPoint>& other) const {
+    auto isec = this->template intersection<ResultNumber>(Line<OtherPoint>(other));
+    if (!isec) {
+        return {};
+    }
+    size_t index = isec->index();
+    if (index == 0) {
+        const auto& p = std::get<0>(*isec);
+        if (other.containsCollinear(p)) {
+            return p;
+        }
+        return {};
+    }
+    const auto& seg = std::get<1>(*isec);
+    return seg.template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(Segment<OtherPoint>(other[0], other[1]));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Line<OtherPoint>& other) const {
+    if (points_.empty()) {
+        return {};
+    }
+
+    using CommonNumberType = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+    using CommonPoint = Point<CommonNumberType, typename PointType::LabelType>;
+
+    const CommonPoint local_p0(static_cast<CommonNumberType>(other[0].x()) - static_cast<CommonNumberType>(translation_.x()),
+                               static_cast<CommonNumberType>(other[0].y()) - static_cast<CommonNumberType>(translation_.y()));
+    const CommonPoint local_p1(static_cast<CommonNumberType>(other[1].x()) - static_cast<CommonNumberType>(translation_.x()),
+                               static_cast<CommonNumberType>(other[1].y()) - static_cast<CommonNumberType>(translation_.y()));
+
+    if (local_p0 == local_p1) {
+        return {};
+    }
+
+    const Line<CommonPoint> localLine(local_p0, local_p1);
+
+    auto orientationValue = [&](size_t index) {
+        return orientationDeterminant(localLine[0], localLine[1], points_[index]);
+    };
+
+    if (points_.size() == 1) {
+        if (orientationValue(0) == CommonNumberType(0)) {
+            Point<ResultNumber, typename PointType::LabelType> result =
+                static_cast<Point<ResultNumber, typename PointType::LabelType>>(points_[0]);
+            return result + static_cast<Point<ResultNumber, typename PointType::LabelType>>(translation_);
+        }
+        return {};
+    }
+
+    if (points_.size() == 2) {
+        auto local_segment = Segment<PointType>(points_[0], points_[1]);
+        auto isec = local_segment.template intersection<ResultNumber>(localLine);
+        if (!isec) {
+            return {};
+        }
+        const auto shift = static_cast<Point<ResultNumber, typename PointType::LabelType>>(translation_);
+        if (std::holds_alternative<Point<ResultNumber, typename PointType::LabelType>>(*isec)) {
+            return std::get<Point<ResultNumber, typename PointType::LabelType>>(*isec) + shift;
+        }
+        auto seg = std::get<Segment<Point<ResultNumber, typename PointType::LabelType>>>(*isec);
+        return Segment<Point<ResultNumber, typename PointType::LabelType>>(seg[0] + shift, seg[1] + shift);
+    }
+
+    auto max_it = detail::cyclicMax(points_.begin(), points_.end(),
+                                    [&](const PointType& a) {
+                                        return orientationDeterminant(localLine[0], localLine[1], a);
+                                    });
+    auto min_it = detail::cyclicMax(points_.begin(), points_.end(),
+                                    [&](const PointType& a) {
+                                        return orientationDeterminant(localLine[1], localLine[0], a);
+                                    });
+
+    const size_t n = points_.size();
+    const size_t i_max = static_cast<size_t>(std::distance(points_.begin(), max_it));
+    const size_t i_min = static_cast<size_t>(std::distance(points_.begin(), min_it));
+
+    const CommonNumberType max_value = orientationValue(i_max);
+    const CommonNumberType min_value = orientationValue(i_min);
+
+    if (max_value < CommonNumberType(0) || min_value > CommonNumberType(0)) {
+        return {};
+    }
+
+    auto translatePoint = [&](const Point<ResultNumber, typename PointType::LabelType>& point) {
+        return point + static_cast<Point<ResultNumber, typename PointType::LabelType>>(translation_);
+    };
+
+    auto translateSegment = [&](const Segment<Point<ResultNumber, typename PointType::LabelType>>& segment) {
+        return Segment<Point<ResultNumber, typename PointType::LabelType>>(
+            translatePoint(segment[0]), translatePoint(segment[1]));
+    };
+
+    if (max_value == CommonNumberType(0) && min_value == CommonNumberType(0)) {
+        const CommonPoint direction(localLine[1].x() - localLine[0].x(),
+                                    localLine[1].y() - localLine[0].y());
+
+        auto extremal_high = detail::cyclicMax(points_.begin(), points_.end(),
+            [&](const PointType& a) {
+                return static_cast<CommonNumberType>(a.x()) * direction.x() +
+                       static_cast<CommonNumberType>(a.y()) * direction.y();
+            });
+
+        auto extremal_low = detail::cyclicMax(points_.begin(), points_.end(),
+            [&](const PointType& a) {
+                return -(static_cast<CommonNumberType>(a.x()) * direction.x() +
+                         static_cast<CommonNumberType>(a.y()) * direction.y());
+            });
+
+        Segment<PointType> support(*extremal_low, *extremal_high);
+        auto isec = support.template intersection<ResultNumber>(localLine);
+        if (!isec) {
+            return {};
+        }
+        if (std::holds_alternative<Point<ResultNumber, typename PointType::LabelType>>(*isec)) {
+            return translatePoint(std::get<Point<ResultNumber, typename PointType::LabelType>>(*isec));
+        }
+        return translateSegment(std::get<Segment<Point<ResultNumber, typename PointType::LabelType>>>(*isec));
+    }
+
+    auto forwardDist = [&](size_t from, size_t to) {
+        return (to + n - from) % n;
+    };
+
+    auto findBoundaryForward = [&](size_t start, size_t length) -> size_t {
+        size_t lo = 1;
+        size_t hi = length;
+        size_t result = length + 1;
+        while (lo <= hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            if (orientationValue((start + mid) % n) <= CommonNumberType(0)) {
+                result = mid;
+                hi = mid - 1;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        return result;
+    };
+
+    auto findBoundaryBackward = [&](size_t start, size_t length) -> size_t {
+        size_t lo = 1;
+        size_t hi = length;
+        size_t result = length + 1;
+        while (lo <= hi) {
+            size_t mid = lo + (hi - lo) / 2;
+            size_t index = (start + n - mid) % n;
+            if (orientationValue(index) <= CommonNumberType(0)) {
+                result = mid;
+                hi = mid - 1;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        return result;
+    };
+
+    const size_t forward_len = forwardDist(i_max, i_min);
+    const size_t backward_len = forwardDist(i_min, i_max);
+
+    const size_t boundary_forward = findBoundaryForward(i_max, forward_len);
+    const size_t boundary_backward = findBoundaryBackward(i_max, backward_len);
+
+    if (boundary_forward > forward_len || boundary_backward > backward_len) {
+        return {};
+    }
+
+    const size_t b1 = (i_max + boundary_forward) % n;
+    const size_t b1_prev = (b1 + n - 1) % n;
+    const size_t b2 = (i_max + n - boundary_backward) % n;
+    const size_t b2_next = (b2 + 1) % n;
+
+    auto collectPoints = [&](const Segment<PointType>& edge,
+                             std::vector<Point<ResultNumber, typename PointType::LabelType>>& points) {
+        auto edge_isec = edge.template intersection<ResultNumber>(localLine);
+        if (!edge_isec) {
+            return;
+        }
+        if (std::holds_alternative<Point<ResultNumber, typename PointType::LabelType>>(*edge_isec)) {
+            points.push_back(std::get<Point<ResultNumber, typename PointType::LabelType>>(*edge_isec));
+        } else {
+            auto seg = std::get<Segment<Point<ResultNumber, typename PointType::LabelType>>>(*edge_isec);
+            points.push_back(seg[0]);
+            points.push_back(seg[1]);
+        }
+    };
+
+    std::vector<Point<ResultNumber, typename PointType::LabelType>> points;
+    points.reserve(4);
+    collectPoints(Segment<PointType>(points_[b1_prev], points_[b1]), points);
+    collectPoints(Segment<PointType>(points_[b2], points_[b2_next]), points);
+
+    if (points.empty()) {
+        return {};
+    }
+
+    const CommonPoint direction(localLine[1].x() - localLine[0].x(),
+                                localLine[1].y() - localLine[0].y());
+
+    auto project = [&](const Point<ResultNumber, typename PointType::LabelType>& point) {
+        return (static_cast<CommonNumberType>(point.x()) - localLine[0].x()) * direction.x() +
+               (static_cast<CommonNumberType>(point.y()) - localLine[0].y()) * direction.y();
+    };
+
+    std::sort(points.begin(), points.end(), [&](auto const& a, auto const& b) {
+        return project(a) < project(b);
+    });
+    points.erase(std::unique(points.begin(), points.end()), points.end());
+
+    if (points.empty()) {
+        return {};
+    }
+    if (points.size() == 1) {
+        return translatePoint(points[0]);
+    }
+
+    return Segment<Point<ResultNumber, typename PointType::LabelType>>(translatePoint(points.front()),
+                                                                      translatePoint(points.back()));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
+    return intersection<ResultNumber>(Line<OtherPoint>(other[0], other[1]));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Ray<OtherPoint>& other) const {
+    auto line_isec =  intersection<ResultNumber>(Line<OtherPoint>(other[0], other[1]));
+    if (!line_isec) {
+        return {};
+    }
+    size_t index = line_isec->index();
+    if (index == 0) {
+        if (other.containsCollinear(std::get<0>(*line_isec))) {
+            return std::get<0>(*line_isec);
+        }
+        return {};
+    }
+    // index == 1
+    auto seg = std::get<1>(*line_isec);
+    return seg.template intersection<ResultNumber>(other);
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
+    return intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Triangle<OtherPoint>& other) const {
+    return intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Convex<OtherPoint>& other) const {
+    if (size() == 0 || other.size() == 0 || !intersects(other)) {
+        return {};
+    }
+
+    using ResultPointType = Point<ResultNumber, typename PointType::LabelType>;
+
+    if (size() == 1) {
+        ResultPointType point = static_cast<ResultPointType>(points_[0] + translation_);
+        if (other.contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    if (other.size() == 1) {
+        ResultPointType point = static_cast<ResultPointType>(other[0]);
+        if (contains(point)) {
+            return point;
+        }
+        return {};
+    }
+
+    std::vector<ResultPointType> isecPoints;
+
+    for (auto &edge : other.edges()) {
+        auto isec = intersection<ResultNumber>(edge);
+        if (isec) {
+            if (std::holds_alternative<Point<ResultNumber, typename PointType::LabelType>>(*isec)) {
+                isecPoints.push_back(std::get<Point<ResultNumber, typename PointType::LabelType>>(*isec));
+            } else {
+                auto seg = std::get<Segment<Point<ResultNumber, typename PointType::LabelType>>>(*isec);
+                isecPoints.push_back(seg[0]);
+                isecPoints.push_back(seg[1]);
+            }
+        }
+    }
+    for (auto &edge : edges()) {
+        auto isec = other.template intersection<ResultNumber>(edge);
+        if (isec) {
+            if (std::holds_alternative<ResultPointType>(*isec)) {
+                isecPoints.push_back(std::get<ResultPointType>(*isec));
+            } else {
+                auto seg = std::get<Segment<ResultPointType>>(*isec);
+                isecPoints.push_back(seg[0]);
+                isecPoints.push_back(seg[1]);
+            }
+        }
+    }
+
+    if (isecPoints.empty()) {
+        return {};
+    }
+
+    Convex<ResultPointType> convex(std::move(isecPoints));
+
+    if (convex.size() == 1) {
+        return convex[0];
+    }
+    if (convex.size() == 2) {
+        return Segment<ResultPointType>(convex[0], convex[1]);
+    }
+
+    return convex;
+}
+
+}  // namespace pgl
