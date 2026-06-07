@@ -29,7 +29,7 @@ int main() {
 } // Output: (1,0)--(4,7) intersects (0,8)--(2,1)
 ```
 
-## Shapes
+## Shapes and Predicates
 
 | Family | Shapes |
 | --- | --- |
@@ -37,9 +37,6 @@ int main() {
 | 1-dimensional | [`Segment`](doc/shapes.md#segment), [`OrientedSegment`](doc/shapes.md#oriented-segment), [`Line`](doc/shapes.md#line), [`OrientedLine`](doc/shapes.md#oriented-line), [`Ray`](doc/shapes.md#ray), ~~[`Polyline`](doc/shapes.md#polyline), [`PolyFunction`](doc/shapes.md#monotone-polyline)~~ |
 | 2-dimensional | [`Halfplane`](doc/shapes.md#half-plane), [`Triangle`](doc/shapes.md#triangle), [`Rectangle`](doc/shapes.md#rectangle), [`Disk`](doc/shapes.md#disk), [`Convex`](doc/shapes.md#convex), [`Polygon`](doc/shapes.md#polygon) |
 | Polymorphism | [`Shape`](doc/shapes.md#shape) |
-
-
-## Predicates
 
 The following [predicates](doc/predicates.md) are implemented as methods of all shapes.
 
@@ -74,6 +71,14 @@ std::cout << "The midpoint of " << s << " is " << midpoint << std::endl;
 // Output: The midpoint of (1,0)--(4,7) is (5/2,7/2)
 ```
 
+Notice that sometimes it is possible to obtain integral results with scaling:
+
+```c++
+pgl::Point midpoint2 = (2*s).midpoint();
+std::cout << "The midpoint of " << 2*s << " is " << midpoint2 << std::endl;
+// Output: The midpoint of (2,0)--(8,14) is (5,7)
+```
+
 See [types.md](doc/types.md) for more information.
 
 ## Other Methods
@@ -88,7 +93,6 @@ std::cout << " is defined by " << s;
 std::cout << " and has length " << s.length() << std::endl;
 // Output: The diameter of Convex[(0,0),(1,0),(1,2),(0,1)] is defined by (0,0)--(1,2) and has length 2.23607
 ```
-
 
 ## Comparison and Hashing
 
