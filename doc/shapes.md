@@ -313,7 +313,7 @@ if (h1 == h2)
 // Output: ^-(1,2)--(3,4)-^ == ^-(1,2)--(2,3)-^
 ```
 
-The defining points may be accessed as in an oriented segment and may be changed directly.
+Halfplane does not have an `intersection` method. The defining points may be accessed as in an oriented segment and may be changed directly.
 
 A half-plane `h` has methods such as:
 
@@ -405,7 +405,7 @@ std::cout << d2 << std::endl;
 // Output: Disk((-2,3)(6,3)(2,7))  // Output always uses 3 points
 ```
 
-Disk is the only shape that does not have the `intersect` method. A disk `d` has methods such as:
+Disk does not have the `intersection` method and cannot be scaled on a single axis. A disk `d` has methods such as:
 
 - `d.isDegenerate()`: Returns true if the points are colinear or equal.
 - `d.radius()`: Returns the radius length.
