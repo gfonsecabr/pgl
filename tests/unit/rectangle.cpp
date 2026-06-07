@@ -602,7 +602,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
-    CHECK(rectangle.interiorsIntersect(Point(2, 1)));
+    CHECK_FALSE(rectangle.interiorsIntersect(Point(2, 1)));  // a point has empty interior
     CHECK_FALSE(rectangle.interiorsIntersect(Point(0, 0)));
     CHECK(rectangle.interiorsIntersect(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.interiorsIntersect(OrientedLine({2, -1}, {2, 4})));

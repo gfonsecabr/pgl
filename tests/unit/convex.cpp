@@ -373,7 +373,7 @@ TEST_CASE("Convex::interiorsIntersect distinguishes interior overlap from bounda
     const Convex sq(std::vector<Point>{{0,0},{4,0},{4,4},{0,4}});
 
     SUBCASE("point") {
-        CHECK(sq.interiorsIntersect(Point(2,2)));   // strict interior
+        CHECK_FALSE(sq.interiorsIntersect(Point(2,2)));   // a point has empty interior
         CHECK_FALSE(sq.interiorsIntersect(Point(2,0))); // boundary
         CHECK_FALSE(sq.interiorsIntersect(Point(5,5)));
     }

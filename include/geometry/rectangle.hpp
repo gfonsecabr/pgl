@@ -766,6 +766,17 @@ struct Rectangle {
 
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+
     /**
      * @brief Returns whether the two rectangles cross.
      *

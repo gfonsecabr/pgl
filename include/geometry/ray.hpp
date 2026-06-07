@@ -661,6 +661,17 @@ struct Ray {
 
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+
     template <class ResultNumber = NumberType, class OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;

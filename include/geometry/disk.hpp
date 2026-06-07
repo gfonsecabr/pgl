@@ -625,6 +625,32 @@ struct Disk {
     /** @brief Dispatches to the matching overload for the runtime type of @p other. */
     [[nodiscard]] constexpr bool boundaryContains(const Shape<PointType>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Ray<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
+
+
     /**
      * @brief Tests whether removing the disk from the segment splits it into
      *        two pieces (the disk crosses the segment's interior).
@@ -648,15 +674,99 @@ struct Disk {
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
 
-    /** Temporary just so Shape can call these methods */
-    [[nodiscard]] constexpr bool intersects(const Shape<PointType>&) const {
-        return false;
+    // --- Symmetric predicate dispatch: intersects / interiorsIntersect / crosses ---
+    // For a symmetric predicate a.method(b) == b.method(a). The canonical
+    // implementor of each pair is the shape that appears later in pgl.hpp; the
+    // earlier shape forwards to it. Disk is therefore canonical against every
+    // shape up to and including Disk, and forwards to Convex/Polygon (which come
+    // later). Pairs whose disk-side geometry is not yet implemented throw, in the
+    // style of the other "not implemented yet" stubs.
+
+    /** @brief intersects: not-yet-implemented disk pairs (throw); see implementation. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Line<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Ray<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Halfplane<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Rectangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Triangle<OtherPoint>& other) const;
+
+    /** @brief interiorsIntersect: not-yet-implemented disk pairs (throw); see implementation. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Ray<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Halfplane<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Rectangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Triangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    /** @brief crosses: not-yet-implemented disk pairs (throw); see implementation. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Line<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const OrientedLine<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Ray<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Halfplane<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Rectangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Triangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    /** @brief Dispatches to the matching overload for the runtime type of @p other. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Shape<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
+
+    /** @brief Later shapes (Convex, Polygon) implement the pair; forward to them. */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
     }
-    [[nodiscard]] constexpr bool crosses(const Shape<PointType>&) const {
-        return false;
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
     }
-    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>&) const {
-        return false;
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return other.crosses(*this);
     }
 
     /**

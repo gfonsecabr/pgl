@@ -812,4 +812,55 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const Polygon<OtherP
     return other.size() == 1 && boundaryContains(other[0]);
 }
 
+
+// --- asymmetric not-yet-implemented stubs ---
+
+template <class Number, class Label>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::boundaryContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Point::boundaryContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::boundaryContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::boundaryContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::boundaryContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::boundaryContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::boundaryContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::boundaryContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Triangle<PointType>::boundaryContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::boundaryContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Triangle<PointType>::boundaryContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::boundaryContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
 }  // namespace pgl

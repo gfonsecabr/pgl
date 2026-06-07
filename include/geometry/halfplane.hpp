@@ -528,6 +528,11 @@ struct Halfplane {
 
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Line<OtherPoint>& other) const;
 

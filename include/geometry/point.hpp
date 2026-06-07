@@ -472,6 +472,47 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
 
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
+
+
     /**
      * @brief Returns whether this point intersects another point.
      *
@@ -486,6 +527,16 @@ struct Point {
         requires (!PointConcept<OtherShape>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
+    }
+
+    /** @brief A point has empty interior, so interiors never intersect (false). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
+
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
     }
 
     template<PointConcept OtherPoint>

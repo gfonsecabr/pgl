@@ -673,4 +673,97 @@ constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>&) const {
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
+
+// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherPoint&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Point) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Segment<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Segment) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const OrientedSegment<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(OrientedSegment) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Line<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Line) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const OrientedLine<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(OrientedLine) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Ray<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Ray) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Halfplane<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Halfplane) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Rectangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Rectangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Triangle<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Triangle) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::crosses(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::crosses(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->crosses(value);
+        },
+        other.variant());
+}
+
 }  // namespace pgl

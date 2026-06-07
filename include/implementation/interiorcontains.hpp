@@ -949,4 +949,199 @@ constexpr bool Convex<PointType>::interiorContains(const Polygon<OtherPoint>& ot
     return true;
 }
 
+
+// --- asymmetric not-yet-implemented stubs ---
+
+template <class Number, class Label>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Point::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Point::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedSegment<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedSegment::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool OrientedSegment<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedSegment::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool OrientedSegment<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedSegment::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Line<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Line::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Line<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Line::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Line<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Line::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedLine<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedLine::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool OrientedLine<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedLine::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool OrientedLine<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: OrientedLine::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Ray<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Ray::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Ray<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Ray::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Ray<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Ray::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Halfplane<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Halfplane::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Rectangle<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Rectangle::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Rectangle<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Rectangle::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Rectangle<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Rectangle::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Triangle<PointType>::interiorContains(const Convex<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::interiorContains(Convex) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Triangle<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Triangle::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const Polygon<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Disk::interiorContains(Polygon) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::interiorContains(const Disk<OtherPoint>&) const {
+    throw std::runtime_error(
+        "pgl: Polygon::interiorContains(Disk) is not implemented yet for this shape pair");
+    return false;  // unreachable; satisfies constexpr return requirement
+}
+
 }  // namespace pgl
