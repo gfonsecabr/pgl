@@ -27,7 +27,7 @@ namespace pgl {
  */
 template<class Container>
 auto grahamScan(const Container &points_) {
-    using Point = Container::value_type;
+    using Point = std::remove_cvref_t<decltype(*std::begin(points_))>;
     std::vector<Point> points(points_.begin(), points_.end());
     std::vector<Point> hull;
 
@@ -74,7 +74,7 @@ auto grahamScan(const Container &points_) {
  */
 template<class Container>
 auto grahamScanExtended(const Container &points_) {
-    using Point = Container::value_type;
+    using Point = std::remove_cvref_t<decltype(*std::begin(points_))>;
     std::vector<Point> points(points_.begin(), points_.end());
     std::vector<Point> hull;
 
