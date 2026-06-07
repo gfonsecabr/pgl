@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
+  <rect x="0.5" y="0.5" width="899" height="559" stroke="black" fill="none" stroke-width="1"/>
+  <line x1="392.5" y1="510" x2="565" y2="107.5" stroke="royalblue" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(1,0)--(4,7)</title></line>
+  <line x1="335" y1="50" x2="450" y2="452.5" stroke="darkorange" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(0,8)--(2,1)</title></line>
+  <circle cx="392.5" cy="510" r="5" stroke="black" fill="black" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(1,0)</title></circle>
+  <circle cx="565" cy="107.5" r="5" stroke="black" fill="black" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(4,7)</title></circle>
+  <circle cx="436.857" cy="406.5" r="5" stroke="crimson" fill="crimson" fill-opacity="1" stroke-opacity="1" stroke-width="4" vector-effect="non-scaling-stroke"><title>(62/35,9/5)</title></circle>
+</svg>

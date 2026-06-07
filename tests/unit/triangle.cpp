@@ -1,0 +1,570 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "doctest.h"
+
+#include <cstdint>
+#include <set>
+#include <sstream>
+#include <string>
+#include <type_traits>
+#include <unordered_set>
+#include <vector>
+
+#include "pgl.hpp"
+
+static_assert(std::is_same_v<pgl::Triangle<>, pgl::Triangle<pgl::Point<int>>>);
+
+TEST_CASE_TEMPLATE("Triangle canonicalizes vertex order and iterates over its three canonical vertices", Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<int, std::string>, pgl::Point<pgl::Rational<int64_t>>) {
+    using Triangle = pgl::Triangle<Point>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    const auto make_point = [](Number x, Number y, const char* label = "tag") {
+        if constexpr (requires { Point(x, y, label); }) {
+            return Point(x, y, label);
+        } else {
+            return Point(x, y);
+        }
+    };
+
+    const Triangle degenerate;
+    if constexpr (requires { Point(Number{}, Number{}, "tag"); }) {
+        CHECK(degenerate.a() == Point(Number{}, Number{}, ""));
+        CHECK(degenerate.b() == Point(Number{}, Number{}, ""));
+        CHECK(degenerate.c() == Point(Number{}, Number{}, ""));
+    } else {
+        CHECK(degenerate.a() == Point(Number{}, Number{}));
+        CHECK(degenerate.b() == Point(Number{}, Number{}));
+        CHECK(degenerate.c() == Point(Number{}, Number{}));
+    }
+
+
+    {
+        const Triangle triangle(
+            make_point(static_cast<Number>(1), static_cast<Number>(2), "a"),
+            make_point(static_cast<Number>(4), static_cast<Number>(2), "b"),
+            make_point(static_cast<Number>(1), static_cast<Number>(5), "c"));
+
+        CHECK(triangle[0] == make_point(static_cast<Number>(1), static_cast<Number>(2), "a"));
+        CHECK(triangle[1] == make_point(static_cast<Number>(4), static_cast<Number>(2), "b"));
+        CHECK(triangle[2] == make_point(static_cast<Number>(1), static_cast<Number>(5), "c"));
+
+        Number coordinate_sum{};
+        for (const auto& vertex : triangle) {
+            coordinate_sum += vertex.x() + vertex.y();
+        }
+        CHECK(coordinate_sum == Number(15));
+
+        if constexpr (requires { triangle.a().label(); }) {
+            CHECK(triangle.a().label() == "a");
+            CHECK(triangle.b().label() == "b");
+            CHECK(triangle.c().label() == "c");
+        }
+    }
+
+    {
+        const Triangle triangle(
+            make_point(static_cast<Number>(1), static_cast<Number>(5), "c"),
+            make_point(static_cast<Number>(1), static_cast<Number>(2), "a"),
+            make_point(static_cast<Number>(4), static_cast<Number>(2), "b"));
+
+        CHECK(triangle[0] == make_point(static_cast<Number>(1), static_cast<Number>(2), "a"));
+        CHECK(triangle[1] == make_point(static_cast<Number>(4), static_cast<Number>(2), "b"));
+        CHECK(triangle[2] == make_point(static_cast<Number>(1), static_cast<Number>(5), "c"));
+
+        Number coordinate_sum{};
+        for (const auto& vertex : triangle) {
+            coordinate_sum += vertex.x() + vertex.y();
+        }
+        CHECK(coordinate_sum == Number(15));
+
+        if constexpr (requires { triangle.a().label(); }) {
+            CHECK(triangle.a().label() == "a");
+            CHECK(triangle.b().label() == "b");
+            CHECK(triangle.c().label() == "c");
+        }
+    }
+}
+
+TEST_CASE("Triangle converts between labeled and unlabeled vertices") {
+    using PlainPoint = pgl::Point<int>;
+    using LabelPoint = pgl::Point<int, std::string>;
+    using PlainTriangle = pgl::Triangle<PlainPoint>;
+    using LabelTriangle = pgl::Triangle<LabelPoint>;
+
+    const LabelTriangle labeled(LabelPoint(0, 0, "a"), LabelPoint(4, 0, "b"), LabelPoint(0, 3, "c"));
+    const PlainTriangle plain_source(0, 0, 4, 0, 0, 3);
+
+    const PlainTriangle plain_from_labeled = labeled;
+    const LabelTriangle labeled_from_plain = plain_source;
+
+    CHECK(plain_from_labeled.a() == PlainPoint(0, 0));
+    CHECK(plain_from_labeled.b() == PlainPoint(4, 0));
+    CHECK(plain_from_labeled.c() == PlainPoint(0, 3));
+    CHECK(labeled_from_plain.a() == LabelPoint(0, 0, ""));
+    CHECK(labeled_from_plain.b() == LabelPoint(4, 0, ""));
+    CHECK(labeled_from_plain.c() == LabelPoint(0, 3, ""));
+}
+
+TEST_CASE("Triangle supports default template parameters and CTAD") {
+    const pgl::Triangle<> triangle(0, 0, 4, 0, 0, 3);
+    pgl::Triangle deduced(0, 0, 4, 0, 0, 3);
+
+    static_assert(std::is_same_v<decltype(deduced), pgl::Triangle<pgl::Point<int>>>);
+
+    CHECK(triangle.a() == pgl::Point<int>(0, 0));
+    CHECK(triangle.b() == pgl::Point<int>(4, 0));
+    CHECK(triangle.c() == pgl::Point<int>(0, 3));
+}
+
+TEST_CASE("Triangle streams, transforms, and exposes vertices and edges") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+
+    const Triangle triangle(1, 1, 4, 1, 1, 5);
+
+    std::ostringstream stream;
+    stream << triangle;
+    CHECK(stream.str() == "<(1,1)(4,1)(1,5)>");
+
+    const auto translated = triangle + Point(2, 3);
+    const auto scaled = 2 * triangle;
+    const auto shifted = translated - Point(1, 1);
+
+    CHECK(translated.a() == Point(3, 4));
+    CHECK(translated.b() == Point(6, 4));
+    CHECK(translated.c() == Point(3, 8));
+    CHECK(scaled.b() == Point(8, 2));
+    CHECK(shifted.c() == Point(2, 7));
+
+    const auto vertices = triangle.vertices();
+    CHECK(vertices[0] == Point(1, 1));
+    CHECK(vertices[1] == Point(4, 1));
+    CHECK(vertices[2] == Point(1, 5));
+
+    const auto edges = triangle.edges();
+    CHECK(edges[0] == Segment(Point(1, 1), Point(4, 1)));
+    CHECK(edges[1] == Segment(Point(1, 5), Point(4, 1)));
+    CHECK(edges[2] == Segment(Point(1, 1), Point(1, 5)));
+
+    const auto oriented_edges = triangle.orientedEdges();
+    CHECK(oriented_edges[0] == OrientedSegment(Point(1, 1), Point(4, 1)));
+    CHECK(oriented_edges[1] == OrientedSegment(Point(4, 1), Point(1, 5)));
+    CHECK(oriented_edges[2] == OrientedSegment(Point(1, 5), Point(1, 1)));
+
+    std::vector<Segment> iterated_edges;
+    for (auto it = triangle.edgesBegin(); it != triangle.edgesEnd(); ++it) {
+        iterated_edges.push_back(*it);
+    }
+    CHECK(iterated_edges == std::vector<Segment>(edges.begin(), edges.end()));
+
+    std::vector<OrientedSegment> iterated_oriented_edges;
+    for (auto it = triangle.orientedEdgesBegin(); it != triangle.orientedEdgesEnd(); ++it) {
+        iterated_oriented_edges.push_back(*it);
+    }
+    CHECK(iterated_oriented_edges == std::vector<OrientedSegment>(oriented_edges.begin(), oriented_edges.end()));
+}
+
+TEST_CASE("Triangle reports exact area, centroid, interior point, and bounding boxes") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+
+    const Triangle triangle(0, 0, 4, 0, 0, 2);
+
+    CHECK(triangle.twiceArea() == int64_t(8));
+    const auto area = triangle.area<Rational>();
+    CHECK(area.numerator() == 4);
+    CHECK(area.denominator() == 1);
+
+    const auto centroid = triangle.centroid<Rational>();
+    CHECK(centroid == RationalPoint(Rational(4, 3), Rational(2, 3)));
+    CHECK(triangle.interiorContains(triangle.pointInside()));
+
+    const auto circumcircle = triangle.circumcircle();
+    CHECK(circumcircle.center() == RationalPoint(Rational(2), Rational(1)));
+    CHECK(circumcircle.squaredRadius() == Rational(5));
+
+    const auto box = triangle.bbox();
+    CHECK(box.min() == Point(0, 0));
+    CHECK(box.max() == Point(4, 2));
+
+    const auto fbox = triangle.fbox<float>();
+    CHECK(fbox.min() == pgl::Point<float>(0.0f, 0.0f));
+    CHECK(fbox.max() == pgl::Point<float>(4.0f, 2.0f));
+}
+
+TEST_CASE("Triangle exposes its longest side and basic angle classification helpers") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Triangle right_triangle(0, 0, 4, 0, 0, 3);
+    CHECK(right_triangle.isRectangle());
+    CHECK_FALSE(right_triangle.isObtuse());
+    CHECK_FALSE(right_triangle.isIsosceles());
+    CHECK(right_triangle.diameter() == Segment(Point(0, 3), Point(4, 0)));
+
+    const Triangle obtuse_triangle(0, 0, 4, 0, 1, 1);
+    CHECK_FALSE(obtuse_triangle.isRectangle());
+    CHECK(obtuse_triangle.isObtuse());
+    CHECK_FALSE(obtuse_triangle.isIsosceles());
+
+    const Triangle isosceles_triangle(0, 0, 4, 0, 2, 3);
+    CHECK_FALSE(isosceles_triangle.isRectangle());
+    CHECK_FALSE(isosceles_triangle.isObtuse());
+    CHECK(isosceles_triangle.isIsosceles());
+}
+
+TEST_CASE("Triangle point predicates distinguish vertices, boundary, interior, exterior, and degenerate cases") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    CHECK(triangle.verticesContain(Point(0, 0)));
+    CHECK(triangle.boundaryContains(Point(3, 0)));
+    CHECK(triangle.contains(Point(3, 0)));
+    CHECK_FALSE(triangle.interiorContains(Point(3, 0)));
+
+    CHECK(triangle.contains(Point(1, 1)));
+    CHECK(triangle.interiorContains(Point(1, 1)));
+    CHECK_FALSE(triangle.boundaryContains(Point(1, 1)));
+
+    const auto interior_intersection = triangle.intersection(Point(1, 1));
+    REQUIRE(interior_intersection);
+    CHECK(*interior_intersection == Point(1, 1));
+
+    const auto boundary_intersection = triangle.intersection(Point(3, 0));
+    REQUIRE(boundary_intersection);
+    CHECK(*boundary_intersection == Point(3, 0));
+
+    CHECK_FALSE(triangle.contains(Point(4, 4)));
+    CHECK_FALSE(triangle.boundaryContains(Point(4, 4)));
+    CHECK_FALSE(triangle.interiorContains(Point(4, 4)));
+    CHECK_FALSE(triangle.intersection(Point(4, 4)).has_value());
+    CHECK(triangle.intersects(Point(1, 1)));
+    CHECK(triangle.intersects(Point(3, 0)));
+    CHECK_FALSE(triangle.intersects(Point(4, 4)));
+
+    const Triangle degenerate(0, 0, 2, 0, 4, 0);
+    CHECK(degenerate.isDegenerate());
+    CHECK(degenerate.contains(Point(1, 0)));
+    CHECK(degenerate.boundaryContains(Point(1, 0)));
+    CHECK_FALSE(degenerate.interiorContains(Point(1, 0)));
+    CHECK_FALSE(degenerate.contains(Point(1, 1)));
+}
+
+TEST_CASE("Triangle boundary containment accepts edge segments and rejects interior chords") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+    const Segment edge_segment({1, 0}, {4, 0});
+    const Segment interior_chord({0, 3}, {3, 0});
+
+    CHECK(triangle.boundaryContains(edge_segment));
+    CHECK_FALSE(triangle.boundaryContains(interior_chord));
+}
+
+TEST_CASE("Triangle intersections with lines, segments, and rays return points or clipped segments") {
+    using Point = pgl::Point<int>;
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    using Triangle = pgl::Triangle<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Ray = pgl::Ray<Point>;
+    using RationalSegment = pgl::Segment<RationalPoint>;
+
+    const Triangle triangle(0, 0, 4, 0, 0, 4);
+
+    const auto line_crossing = triangle.intersection<Rational>(Line({-1, 1}, {5, 1}));
+    REQUIRE(line_crossing);
+    REQUIRE(std::holds_alternative<RationalSegment>(*line_crossing));
+    CHECK(std::get<RationalSegment>(*line_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
+
+    const auto line_vertex = triangle.intersection(Line({-1, 1}, {1, -1}));
+    REQUIRE(line_vertex);
+    REQUIRE(std::holds_alternative<Point>(*line_vertex));
+    CHECK(std::get<Point>(*line_vertex) == Point(0, 0));
+
+    const auto line_edge = triangle.intersection(OrientedLine({0, 0}, {0, 4}));
+    REQUIRE(line_edge);
+    REQUIRE(std::holds_alternative<Segment>(*line_edge));
+    CHECK(std::get<Segment>(*line_edge) == Segment({0, 0}, {0, 4}));
+
+    CHECK_FALSE(triangle.intersection(Line({0, 5}, {4, 5})));
+    CHECK(triangle.intersects(Line({-1, 1}, {5, 1})));
+    CHECK(triangle.intersects(OrientedLine({0, 0}, {0, 4})));
+    CHECK_FALSE(triangle.intersects(Line({0, 5}, {4, 5})));
+
+    const auto segment_crossing = triangle.intersection<Rational>(Segment({-1, 1}, {5, 1}));
+    REQUIRE(segment_crossing);
+    REQUIRE(std::holds_alternative<RationalSegment>(*segment_crossing));
+    CHECK(std::get<RationalSegment>(*segment_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
+
+    const auto segment_touching = triangle.intersection(Segment({-1, -1}, {0, 0}));
+    REQUIRE(segment_touching);
+    REQUIRE(std::holds_alternative<Point>(*segment_touching));
+    CHECK(std::get<Point>(*segment_touching) == Point(0, 0));
+
+    const auto segment_edge = triangle.intersection(OrientedSegment({0, 0}, {3, 0}));
+    REQUIRE(segment_edge);
+    REQUIRE(std::holds_alternative<Segment>(*segment_edge));
+    CHECK(std::get<Segment>(*segment_edge) == Segment({0, 0}, {3, 0}));
+
+    CHECK_FALSE(triangle.intersection(Segment({5, 5}, {6, 6})));
+    CHECK(triangle.intersects(Segment({-1, 1}, {5, 1})));
+    CHECK(triangle.intersects(OrientedSegment({0, 0}, {3, 0})));
+    CHECK_FALSE(triangle.intersects(Segment({5, 5}, {6, 6})));
+
+    const auto ray_crossing = triangle.intersection<Rational>(Ray({-1, 1}, {5, 1}));
+    REQUIRE(ray_crossing);
+    REQUIRE(std::holds_alternative<RationalSegment>(*ray_crossing));
+    CHECK(std::get<RationalSegment>(*ray_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
+
+    const auto ray_inside = triangle.intersection<Rational>(Ray({1, 1}, {5, 1}));
+    REQUIRE(ray_inside);
+    REQUIRE(std::holds_alternative<RationalSegment>(*ray_inside));
+    CHECK(std::get<RationalSegment>(*ray_inside) == RationalSegment(RationalPoint(1, 1), RationalPoint(3, 1)));
+
+    const auto ray_touching = triangle.intersection(Ray({-1, 1}, {0, 0}));
+    REQUIRE(ray_touching);
+    REQUIRE(std::holds_alternative<Point>(*ray_touching));
+    CHECK(std::get<Point>(*ray_touching) == Point(0, 0));
+
+    CHECK_FALSE(triangle.intersection(Ray({5, 5}, {6, 6})));
+    CHECK(triangle.intersects(Ray({-1, 1}, {5, 1})));
+    CHECK_FALSE(triangle.intersects(Ray({5, 5}, {6, 6})));
+}
+
+TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from boundary-only contact") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    CHECK(triangle.interiorsIntersect(Point(1, 1)));
+    CHECK_FALSE(triangle.interiorsIntersect(Point(3, 0)));
+    CHECK_FALSE(triangle.interiorsIntersect(Point(7, 0)));
+
+    CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
+    CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
+    CHECK_FALSE(triangle.interiorsIntersect(Line({0, 0}, {6, 0})));
+    CHECK_FALSE(triangle.interiorsIntersect(Line({-1, 1}, {1, -1})));
+
+    CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
+    CHECK(triangle.interiorsIntersect(OrientedSegment({0, 0}, {3, 3})));
+    CHECK(triangle.interiorsIntersect(Segment({1, 1}, {2, 2})));
+    CHECK_FALSE(triangle.interiorsIntersect(Segment({0, 0}, {6, 0})));
+    CHECK_FALSE(triangle.interiorsIntersect(Segment({-1, -1}, {0, 0})));
+
+    CHECK(triangle.interiorsIntersect(Ray({-1, 2}, {5, 2})));
+    CHECK(triangle.interiorsIntersect(Ray({1, 1}, {5, 1})));
+    CHECK_FALSE(triangle.interiorsIntersect(Ray({0, 0}, {6, 0})));
+    // The ray passes through the vertex (0,0) and continues along (1,1) into the
+    // interior, so its interior does meet the triangle's interior.
+    CHECK(triangle.interiorsIntersect(Ray({-1, -1}, {0, 0})));
+
+    const Rectangle touching_corner({6, 0}, {8, 2});
+    const Rectangle crossing_box({2, -1}, {4, 2});
+    CHECK_FALSE(triangle.interiorsIntersect(touching_corner));
+    CHECK(triangle.interiorsIntersect(crossing_box));
+
+    const Halfplane boundary_only({6, 0}, {0, 0});
+    const Halfplane entering({0, 0}, {6, 0});
+    CHECK_FALSE(triangle.interiorsIntersect(boundary_only));
+    CHECK(triangle.interiorsIntersect(entering));
+}
+
+TEST_CASE("Triangle interiorsIntersect handles triangle-triangle overlap without counting shared boundaries") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle base(0, 0, 6, 0, 0, 6);
+    const Triangle overlapping(2, -1, 5, 2, 2, 5);
+    const Triangle contained(1, 1, 2, 1, 1, 2);
+    const Triangle same(0, 0, 6, 0, 0, 6);
+    const Triangle shared_edge(0, 0, 6, 0, 3, -3);
+    const Triangle touching_vertex(6, 0, 8, 0, 6, 2);
+    const Triangle disjoint(7, 0, 9, 0, 7, 2);
+
+    CHECK(base.interiorsIntersect(overlapping));
+    CHECK(base.interiorsIntersect(contained));
+    CHECK(base.interiorsIntersect(same));
+    CHECK_FALSE(base.interiorsIntersect(shared_edge));
+    CHECK_FALSE(base.interiorsIntersect(touching_vertex));
+    CHECK_FALSE(base.interiorsIntersect(disjoint));
+}
+
+TEST_CASE("Linear primitives separate triangles only when their trace cuts the interior from boundary to boundary") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Ray = pgl::Ray<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    const Segment edge_to_edge({-1, 2}, {5, 2});
+    const Segment vertex_to_opposite_edge({0, 0}, {3, 3});
+    const OrientedSegment oriented_edge_to_edge({5, 2}, {-1, 2});
+    const Segment touching_vertex({-1, -1}, {0, 0});
+    const Segment starts_inside({1, 1}, {5, 1});
+    const Segment along_edge({0, 0}, {6, 0});
+
+    CHECK(edge_to_edge.separates(triangle));
+    CHECK(edge_to_edge.crosses(triangle));
+    CHECK(oriented_edge_to_edge.separates(triangle));
+    CHECK(vertex_to_opposite_edge.separates(triangle));
+
+    CHECK_FALSE(touching_vertex.separates(triangle));
+    CHECK_FALSE(starts_inside.separates(triangle));
+    CHECK_FALSE(along_edge.separates(triangle));
+
+    CHECK(Line({-1, 2}, {5, 2}).separates(triangle));
+    CHECK(OrientedLine({5, 2}, {-1, 2}).separates(triangle));
+    CHECK(Ray({-1, 2}, {5, 2}).separates(triangle));
+    CHECK(Ray({0, 0}, {3, 3}).separates(triangle));
+    CHECK_FALSE(Ray({1, 1}, {5, 1}).separates(triangle));
+    CHECK_FALSE(Line({0, 0}, {6, 0}).separates(triangle));
+}
+
+TEST_CASE("Triangles can separate rectangles and other triangles when they carry a true cut") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle rectangle({0, 0}, {6, 6});
+    const Triangle vertical_wedge({2, -1}, {4, -1}, {3, 7});
+    const Triangle corner_wedge({0, 0}, {2, 0}, {0, 2});
+
+    CHECK(vertical_wedge.separates(rectangle));
+    CHECK_FALSE(corner_wedge.separates(rectangle));
+
+    const Triangle big_triangle({0, 0}, {6, 0}, {0, 6});
+    const Triangle cutting_triangle({2, -1}, {4, -1}, {3, 5});
+    CHECK(cutting_triangle.separates(big_triangle));
+}
+
+TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    CHECK(triangle.interiorsIntersect(Point(1, 1)));
+    CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
+    CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
+    CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
+    CHECK(triangle.interiorsIntersect(OrientedSegment({0, 0}, {3, 3})));
+    CHECK(triangle.interiorsIntersect(Ray({-1, 2}, {5, 2})));
+    CHECK(triangle.interiorsIntersect(Halfplane({0, 0}, {6, 0})));
+    CHECK(triangle.interiorsIntersect(Rectangle({2, -1}, {4, 2})));
+    CHECK(triangle.interiorsIntersect(Triangle({2, -1}, {5, 2}, {2, 5})));
+    CHECK(triangle.interiorsIntersect(Shape(Rectangle({2, -1}, {4, 2}))));
+}
+
+TEST_CASE("Triangle covers the non-Convex contract for separates") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    CHECK_FALSE(triangle.separates(Point(1, 1)));
+    CHECK(triangle.separates(Line({-1, 2}, {5, 2})));
+    CHECK(triangle.separates(OrientedLine({5, 2}, {-1, 2})));
+    CHECK(triangle.separates(Segment({-1, 2}, {5, 2})));
+    CHECK(triangle.separates(OrientedSegment({5, 2}, {-1, 2})));
+    CHECK(triangle.separates(Ray({-1, 2}, {5, 2})));
+    CHECK_FALSE(triangle.separates(Halfplane({0, 0}, {6, 0})));
+    CHECK(triangle.separates(Rectangle({0, 0}, {6, 6})));
+    CHECK(triangle.separates(Shape(Segment({-1, 2}, {5, 2}))));
+}
+
+TEST_CASE("Triangle covers the non-Convex contract for crosses") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Triangle triangle(0, 0, 6, 0, 0, 6);
+
+    CHECK_FALSE(triangle.crosses(Point(1, 1)));
+    CHECK(triangle.crosses(Line({-1, 2}, {5, 2})));
+    CHECK(triangle.crosses(OrientedLine({5, 2}, {-1, 2})));
+    CHECK(triangle.crosses(Segment({-1, 2}, {5, 2})));
+    CHECK(triangle.crosses(OrientedSegment({5, 2}, {-1, 2})));
+    CHECK(triangle.crosses(Ray({-1, 2}, {5, 2})));
+    CHECK_FALSE(triangle.crosses(Halfplane({0, 0}, {6, 0})));
+    CHECK_FALSE(triangle.crosses(Rectangle({0, 0}, {6, 6})));
+    CHECK(triangle.crosses(Shape(Segment({-1, 2}, {5, 2}))));
+}
+
+TEST_CASE("Triangle ordering and hashing follow the stored vertices") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle first(0, 0, 4, 0, 0, 3);
+    const Triangle second(0, 0, 4, 0, 0, 3);
+    const Triangle permuted(4, 0, 0, 3, 0, 0);
+
+    CHECK(first == second);
+    CHECK(first == permuted);
+
+    std::set<Triangle> ordered_set;
+    ordered_set.insert(first);
+    ordered_set.insert(second);
+    ordered_set.insert(permuted);
+    CHECK(ordered_set.size() == 1);
+
+    std::unordered_set<Triangle> unordered_set;
+    unordered_set.insert(first);
+    unordered_set.insert(second);
+    unordered_set.insert(permuted);
+    CHECK(unordered_set.size() == 1);
+}
+
+TEST_CASE("Triangle mixing number types") {
+    pgl::Triangle<pgl::Point<int>> t(0,0,1,2,0,-2);
+    CHECK(t.contains(pgl::Point<double>(0.5,0.5)));
+    CHECK_FALSE(t.contains(pgl::Point<double>(1,2.1)));
+    CHECK_FALSE(t.contains(pgl::Point<pgl::Rational<int>>({1,8},{1,3})));
+    CHECK(t.interiorContains(pgl::Point<pgl::Rational<int>>({1,5},-1)));
+}
