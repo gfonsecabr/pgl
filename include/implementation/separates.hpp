@@ -60,15 +60,15 @@ constexpr bool Point<Number, Label>::separates(const Ray<OtherPoint>& other) con
  * dispatch used against 1D and area targets.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const OtherPoint&) const {
+constexpr bool Segment<PointType, LabelType>::separates(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Segment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Segment<OtherPoint>& other) const {
     const int cross = boundingBoxesCross(other);
     if (cross == 0) {
         return false;
@@ -101,27 +101,27 @@ constexpr bool Segment<PointType>::separates(const Segment<OtherPoint>& other) c
     return d3 != 0 && d4 != 0 && d3 != d4;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const OrientedSegment<OtherPoint>& other) const {
     return separates(other.asSegment());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Line<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Line<OtherPoint>& other) const {
     return intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const OrientedLine<OtherPoint>& other) const {
     return intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Ray<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Ray<OtherPoint>& other) const {
     // The segment splits the ray only when it meets the ray ahead of the
     // source: a piece then survives between the source and the segment, and
     // another runs to infinity. If the source lies on the segment, the near
@@ -129,21 +129,21 @@ constexpr bool Segment<PointType>::separates(const Ray<OtherPoint>& other) const
     return intersects(other) && !contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Rectangle<OtherPoint>& other) const {
     return other.interiorsIntersect(*this) && !other.interiorContains(min()) && !other.interiorContains(max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Halfplane<OtherPoint>& other) const {
     return other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Triangle<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Triangle<OtherPoint>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -186,9 +186,9 @@ constexpr bool Segment<PointType>::separates(const Triangle<OtherPoint>& other) 
     return boundary_contact_count >= 2;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Convex<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Convex<OtherPoint>& other) const {
     // The segment separates the polygon iff its intersection with the polygon
     // is a true chord through the interior — neither endpoint lies strictly
     // inside (otherwise the segment ends midway and leaves a slit, not a
@@ -200,9 +200,9 @@ constexpr bool Segment<PointType>::separates(const Convex<OtherPoint>& other) co
            && other.interiorsIntersect(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::separates(const Polygon<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Polygon<OtherPoint>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -232,9 +232,9 @@ constexpr bool Segment<PointType>::separates(const Polygon<OtherPoint>& other) c
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType>::separates(const Disk<OtherPoint, OtherLabel>& other) const {
+constexpr bool Segment<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>& other) const {
     // Removing the segment disconnects the disk iff the segment carries a
     // complete chord through the interior: the line must genuinely cross the
     // circle (two distinct intersections) and both of those intersection points
@@ -270,8 +270,8 @@ constexpr bool Segment<PointType>::separates(const Disk<OtherPoint, OtherLabel>&
         && tail >= R{} && tail * tail >= discriminant;
 }
 
-template <class PointType>
-constexpr bool Segment<PointType>::separates(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Segment<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->separates(value);

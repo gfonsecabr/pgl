@@ -56,9 +56,9 @@ namespace std {
     /**
      * @brief Hash support for Segment.
      */
-    template <class PointType>
-    struct hash<pgl::Segment<PointType>> {
-        std::size_t operator()(const pgl::Segment<PointType>& segment) const {
+    template <class PointType, class LabelType>
+    struct hash<pgl::Segment<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Segment<PointType, LabelType>& segment) const {
             std::size_t seed = 2;
             pgl::detail::hashCombine(seed, segment.min());
             pgl::detail::hashCombine(seed, segment.max());

@@ -46,9 +46,9 @@ constexpr std::array<OrientedSegment<Point<Number, Label>>, 0> Point<Number, Lab
 // -----------------------------------------------------------------------------
 // Segment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber, class Value>
-constexpr ResultNumber Segment<PointType>::lowerCoordinateBound(const Value& value) {
+constexpr ResultNumber Segment<PointType, LabelType>::lowerCoordinateBound(const Value& value) {
     if constexpr (requires { value.template lowerBound<ResultNumber>(); }) {
         return value.template lowerBound<ResultNumber>();
     } else {
@@ -56,9 +56,9 @@ constexpr ResultNumber Segment<PointType>::lowerCoordinateBound(const Value& val
     }
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber, class Value>
-constexpr ResultNumber Segment<PointType>::upperCoordinateBound(const Value& value) {
+constexpr ResultNumber Segment<PointType, LabelType>::upperCoordinateBound(const Value& value) {
     if constexpr (requires { value.template upperBound<ResultNumber>(); }) {
         return value.template upperBound<ResultNumber>();
     } else {
@@ -66,17 +66,17 @@ constexpr ResultNumber Segment<PointType>::upperCoordinateBound(const Value& val
     }
 }
 
-template <class PointType>
-constexpr Rectangle<PointType> Segment<PointType>::bbox() const {
+template <class PointType, class LabelType>
+constexpr Rectangle<PointType> Segment<PointType, LabelType>::bbox() const {
     if (min().y() < max().y()) {
         return Rectangle<PointType>(min().x(), min().y(), max().x(), max().y(), true);
     }
     return Rectangle<PointType>(min().x(), max().y(), max().x(), min().y(), true);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Segment<PointType>::fbox() const {
+constexpr Rectangle<Point<ResultNumber>> Segment<PointType, LabelType>::fbox() const {
     ResultNumber xmin = lowerCoordinateBound<ResultNumber>(min().x());
     ResultNumber ymin = lowerCoordinateBound<ResultNumber>(min().y());
     ResultNumber xmax = upperCoordinateBound<ResultNumber>(max().x());
@@ -87,18 +87,18 @@ constexpr Rectangle<Point<ResultNumber>> Segment<PointType>::fbox() const {
     return Rectangle<Point<ResultNumber>>(xmin, ymin, xmax, ymax, true);
 }
 
-template <class PointType>
-constexpr std::array<PointType, 2> Segment<PointType>::vertices() const {
+template <class PointType, class LabelType>
+constexpr std::array<PointType, 2> Segment<PointType, LabelType>::vertices() const {
     return {min(), max()};
 }
 
-template <class PointType>
-constexpr std::array<Segment<PointType>, 1> Segment<PointType>::edges() const {
+template <class PointType, class LabelType>
+constexpr std::array<Segment<PointType, LabelType>, 1> Segment<PointType, LabelType>::edges() const {
     return {*this};
 }
 
-template <class PointType>
-constexpr std::array<OrientedSegment<PointType>, 1> Segment<PointType>::orientedEdges() const {
+template <class PointType, class LabelType>
+constexpr std::array<OrientedSegment<PointType>, 1> Segment<PointType, LabelType>::orientedEdges() const {
     return {OrientedSegment<PointType>(min(), max())};
 }
 

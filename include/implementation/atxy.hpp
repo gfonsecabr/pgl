@@ -23,10 +23,10 @@ namespace pgl {
  * @param x Query x-coordinate.
  * @return Interpolated y-coordinate, or empty when `x` is outside the segment.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-Segment<PointType>::yAtX(const OtherNumber &x) const {
+Segment<PointType, LabelType>::yAtX(const OtherNumber &x) const {
     if (x < min().x() || x > max().x()) {
         return {};
     }
@@ -55,10 +55,9 @@ Segment<PointType>::yAtX(const OtherNumber &x) const {
  * @param y Query y-coordinate.
  * @return Interpolated x-coordinate, or empty when `y` is outside the segment.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
-constexpr std::optional<ResultNumber>
-Segment<PointType>::xAtY(const OtherNumber &y) const {
+constexpr std::optional<ResultNumber> Segment<PointType, LabelType>::xAtY(const OtherNumber &y) const {
     const auto min_y = min().y() < max().y() ? min().y() : max().y();
     const auto max_y = max().y() < min().y() ? min().y() : max().y();
 
