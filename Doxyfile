@@ -1,0 +1,88 @@
+# Doxyfile for Pangolin (pgl)
+# Run locally with:  doxygen Doxyfile   (output in build/doc/html)
+# CI regenerates and deploys this on every push to main.
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "Pangolin"
+PROJECT_BRIEF          = "Header-only C++20 plane computational geometry library"
+PROJECT_LOGO           = doc/figures/logo.png
+OUTPUT_DIRECTORY       = build/doc
+CREATE_SUBDIRS         = NO
+OPTIMIZE_OUTPUT_FOR_C  = NO
+MARKDOWN_SUPPORT       = YES
+TOC_INCLUDE_HEADINGS   = 3
+AUTOLINK_SUPPORT       = YES
+TAB_SIZE               = 4
+
+#---------------------------------------------------------------------------
+# What to extract
+#---------------------------------------------------------------------------
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_LOCAL_CLASSES  = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+SHOW_USED_FILES        = NO
+SORT_MEMBER_DOCS       = YES
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+INPUT                  = README.md \
+                         include \
+                         doc
+USE_MDFILE_AS_MAINPAGE = README.md
+FILE_PATTERNS          = *.hpp *.h *.md
+RECURSIVE              = YES
+# Maintainer scripts and generated/build artifacts are not API surface.
+EXCLUDE                = include/implementation/split_predicates.py
+EXCLUDE_PATTERNS       = */build/* */tests/* */benchmark/* */sandbox/*
+IMAGE_PATH             = doc/figures
+EXAMPLE_PATH           = examples
+EXAMPLE_RECURSIVE      = YES
+
+#---------------------------------------------------------------------------
+# C++ specifics
+#---------------------------------------------------------------------------
+BUILTIN_STL_SUPPORT    = YES
+CPP_CLI_SUPPORT        = NO
+TEMPLATE_RELATIONS     = YES
+# Header-only: treat everything as one translation unit's worth of decls.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+
+#---------------------------------------------------------------------------
+# Diagrams (Graphviz). Disabled by default for speed; CI installs dot, so
+# class/collaboration graphs render automatically when available.
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+
+#---------------------------------------------------------------------------
+# HTML output + Doxygen Awesome theme
+# (the .css files are fetched by the CI workflow into build/doxygen-awesome)
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_OUTPUT            = html
+HTML_COLORSTYLE        = LIGHT
+HTML_EXTRA_STYLESHEET  = build/doxygen-awesome/doxygen-awesome.css \
+                         build/doxygen-awesome/doxygen-awesome-sidebar-only.css
+HTML_COPY_CLIPBOARD    = NO
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
