@@ -51,13 +51,21 @@ concept RationalConcept = is_Rational_v<T>;
 template <class Int = int64_t>
 class Rational {
 private:
-    Int num; ///< Numerator
-    Int den; ///< Denominator (always > 0)
+    Int num;                 ///< Numerator (not necessarily reduced; see normalized_)
+    Int den;                 ///< Denominator (always > 0)
+    bool normalized_ = true; ///< False when gcd(|num|, den) may exceed 1
 
     /**
-     * @brief Normalize the fraction.
+     * @brief Reduce the stored fraction to lowest terms (den stays > 0).
+     *
+     * Only ever called on a value being constructed/assigned, never on a const
+     * object, so Rational stays usable in constant expressions.
      */
     constexpr void normalize() {
+        if (normalized_) {
+            return;
+        }
+        normalized_ = true;
         assert(den != 0);
 
         if (num == 0) {
@@ -72,6 +80,36 @@ private:
         Int g = pgl::detail::gcd(pgl::detail::abs(num), den);
         num /= g;
         den /= g;
+    }
+
+    /**
+     * @brief Whether leaving (n, d) unreduced before the next multiply or
+     * cross-addition would risk overflowing a fixed-width Int, or growing a
+     * BigInt past its inline storage onto the heap. This is the trigger that
+     * forces an otherwise-deferred normalization.
+     */
+    static constexpr bool reductionUrgent(const Int& n, const Int& d) {
+        if constexpr (requires { n.fitsInt128(); }) {
+            return !n.fitsInt128() || !d.fitsInt128();
+        } else {
+            constexpr int half = std::numeric_limits<Int>::digits / 2 - 1;
+            const Int limit = Int(1) << half;
+            return pgl::detail::abs(n) >= limit || d >= limit;
+        }
+    }
+
+    /**
+     * @brief Copy this value's numerator/denominator into (n, d), reducing first
+     * only when leaving them unreduced could overflow the impending arithmetic.
+     */
+    constexpr void operandParts(Int& n, Int& d) const {
+        n = num;
+        d = den;
+        if (!normalized_ && reductionUrgent(n, d)) {
+            const Int g = pgl::detail::gcd(pgl::detail::abs(n), d);
+            n /= g;
+            d /= g;
+        }
     }
 
 public:
@@ -93,14 +131,18 @@ public:
     /**
      * @brief Construct from numerator and denominator.
      */
-    constexpr Rational(Int n, Int d, bool normalized = false) : num(n), den(d) {
+    constexpr Rational(Int n, Int d, bool normalized = false)
+        : num(n), den(d), normalized_(normalized) {
         if (den < 0) {
             num = -num;
             den = -den;
         }
 
         assert(den > 0);
-        if (!normalized) normalize();
+        // The reduction is deferred: it happens lazily at a read, a comparison,
+        // or when an arithmetic step would otherwise risk overflow. Integers are
+        // already in lowest terms, so flag them normalized to skip that work.
+        if (den == 1) normalized_ = true;
     }
 
     /**
@@ -129,14 +171,21 @@ public:
         den = 1 << digits;
         num = negative ? -den * f : den * f;
 
+        normalized_ = false;
         normalize();
     }
 
-    /// @brief Get numerator
-    constexpr Int numerator() const noexcept { return num; }
+    /// @brief Get numerator (in lowest terms).
+    constexpr Int numerator() const noexcept {
+        if (normalized_) return num;
+        return num / pgl::detail::gcd(pgl::detail::abs(num), den);
+    }
 
-    /// @brief Get denominator
-    constexpr Int denominator() const noexcept { return den; }
+    /// @brief Get denominator (in lowest terms).
+    constexpr Int denominator() const noexcept {
+        if (normalized_) return den;
+        return den / pgl::detail::gcd(pgl::detail::abs(num), den);
+    }
 
     /// @brief Convert to float
     explicit constexpr operator float() const {
@@ -166,7 +215,7 @@ public:
     /// @brief Convert to another Rational
     template <class OtherInt>
     explicit constexpr operator Rational<OtherInt>() const {
-        return Rational<OtherInt>(num,den,true);
+        return Rational<OtherInt>(num, den, normalized_);
     }
 
     /**
@@ -245,24 +294,58 @@ public:
         return flt_result;
     }
 
+    // Arithmetic results are left unreduced (the gcd is deferred); each operand
+    // is only reduced first when its magnitude would otherwise risk overflow.
+    // An integer result (denominator 1) is trivially in lowest terms.
+
+    /// @brief Whether the raw num/den can be combined as-is without first
+    /// reducing (i.e. already normalized, or small enough to be safe).
+    constexpr bool safeRaw() const {
+        return normalized_ || !reductionUrgent(num, den);
+    }
+
     constexpr Rational operator+(const Rational& r) const {
-        return Rational(num * r.den + r.num * den, den * r.den,
-                        den==1 || r.den==1);
+        if (safeRaw() && r.safeRaw()) {
+            const Int rd = den * r.den;
+            return Rational(num * r.den + r.num * den, rd, rd == 1);
+        }
+        Int an, ad, bn, bd;
+        operandParts(an, ad);
+        r.operandParts(bn, bd);
+        const Int rd = ad * bd;
+        return Rational(an * bd + bn * ad, rd, rd == 1);
     }
 
     constexpr Rational operator-(const Rational& r) const {
-        return Rational(num * r.den - r.num * den, den * r.den,
-                        den==1 || r.den==1);
+        if (safeRaw() && r.safeRaw()) {
+            const Int rd = den * r.den;
+            return Rational(num * r.den - r.num * den, rd, rd == 1);
+        }
+        Int an, ad, bn, bd;
+        operandParts(an, ad);
+        r.operandParts(bn, bd);
+        const Int rd = ad * bd;
+        return Rational(an * bd - bn * ad, rd, rd == 1);
     }
 
     constexpr Rational<Int> operator*(const Rational<Int>& r) const {
-        return Rational(num * r.num, den * r.den,
-                        den == r.den || pgl::detail::abs(num) == pgl::detail::abs(r.num));
+        if (safeRaw() && r.safeRaw()) {
+            const Int rd = den * r.den;
+            return Rational(num * r.num, rd, rd == 1);
+        }
+        Int an, ad, bn, bd;
+        operandParts(an, ad);
+        r.operandParts(bn, bd);
+        const Int rd = ad * bd;
+        return Rational(an * bn, rd, rd == 1);
     }
 
     constexpr Rational reciprocal() const {
         assert(num != 0);
-        return num < 0 ? Rational(-den, -num, true) : Rational(den, num, true);
+        // Swapping numerator and denominator preserves gcd(|num|, den), so the
+        // normalization state carries over unchanged.
+        return num < 0 ? Rational(-den, -num, normalized_)
+                       : Rational(den, num, normalized_);
     }
 
     constexpr Rational operator/(const Rational& r) const {
@@ -270,7 +353,8 @@ public:
     }
 
     constexpr Rational operator-() const {
-        return Rational(-num, den, true);
+        // Negation preserves gcd(|num|, den), so the normalization state holds.
+        return Rational(-num, den, normalized_);
     }
 
     // Compound
@@ -294,11 +378,19 @@ public:
 
     template <class I>
         requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
-    constexpr Rational operator*(const I& x) const { return Rational(num * Int(x), den); }
+    constexpr Rational operator*(const I& x) const {
+        Int n, d;
+        operandParts(n, d);
+        return Rational(n * Int(x), d);
+    }
 
     template <class I>
         requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
-    constexpr Rational operator/(const I& x) const { return Rational(num, den * Int(x)); }
+    constexpr Rational operator/(const I& x) const {
+        Int n, d;
+        operandParts(n, d);
+        return Rational(n, d * Int(x));
+    }
 
     friend constexpr Rational operator+(Int x, const Rational& r) { return r + x; }
     friend constexpr Rational operator-(Int x, const Rational& r) { return r + (-x); }
@@ -332,20 +424,20 @@ public:
      * @brief Three-way comparison operator.
      */
     constexpr std::strong_ordering operator<=>(const Rational& r) const {
-        if (r.num == 0)
-            return compareValues(num, Int{0});
-        if (num == 0)
-            return compareValues(Int{0}, r.num);
-        if (num == r.num && den == r.den)
-            return std::strong_ordering::equal;
-
         using Wide = pgl::detail::promoted_number_t<Int>;
-        Wide lhs = static_cast<Wide>(num) * r.den;
-        Wide rhs = static_cast<Wide>(r.num) * den;
-
-        if (lhs < rhs)
-            return std::strong_ordering::less;
-        return std::strong_ordering::greater;
+        // Deferred fractions compare exactly by cross-multiplying in the wider
+        // type (both denominators are positive, so the sign is preserved, and
+        // compareValues yields the equal case). Reduce first only when an operand
+        // is large enough that the widened product could itself overflow.
+        if ((!normalized_ && reductionUrgent(num, den)) ||
+            (!r.normalized_ && reductionUrgent(r.num, r.den))) {
+            Int an, ad, bn, bd;
+            operandParts(an, ad);
+            r.operandParts(bn, bd);
+            return compareValues(static_cast<Wide>(an) * bd, static_cast<Wide>(bn) * ad);
+        }
+        return compareValues(static_cast<Wide>(num) * r.den,
+                             static_cast<Wide>(r.num) * den);
     }
 
     /**
@@ -371,10 +463,20 @@ public:
      * @brief Equality comparison.
      */
     constexpr bool operator==(const Rational& r) const {
-        return num == r.num && den == r.den;
+        using Wide = pgl::detail::promoted_number_t<Int>;
+        // Deferred fractions are equal iff their cross products match; reduce
+        // first only when an operand could overflow the widened product.
+        if ((!normalized_ && reductionUrgent(num, den)) ||
+            (!r.normalized_ && reductionUrgent(r.num, r.den))) {
+            Int an, ad, bn, bd;
+            operandParts(an, ad);
+            r.operandParts(bn, bd);
+            return static_cast<Wide>(an) * bd == static_cast<Wide>(bn) * ad;
+        }
+        return static_cast<Wide>(num) * r.den == static_cast<Wide>(r.num) * den;
     }
     constexpr bool operator!=(const Rational& r) const {
-        return !(num == r.num && den == r.den);
+        return !(*this == r);
     }
 
     /**
@@ -387,7 +489,7 @@ public:
     template <class U>
         requires (!std::same_as<U, Int>)
     constexpr bool operator==(const Rational<U>& r) const {
-        return num == r.numerator() && den == r.denominator();
+        return numerator() == r.numerator() && denominator() == r.denominator();
     }
 
     constexpr Rational& operator++() { return *this += 1; }
@@ -400,10 +502,12 @@ public:
      * @brief Output format: num/den or just num if den==1
      */
     friend std::ostream& operator<<(std::ostream& os, const Rational& r) {
-        if (r.den == 1)
-            return os << r.num;
+        const Int n = r.numerator();
+        const Int d = r.denominator();
+        if (d == 1)
+            return os << n;
         else
-            return os << r.num << "/" << r.den;
+            return os << n << "/" << d;
     }
 
     /**
