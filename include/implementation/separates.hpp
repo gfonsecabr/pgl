@@ -1369,15 +1369,22 @@ constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint>& other) c
         return false;
     }
 
-    pgl::OrientedLine<OtherPoint> ol(other[0],other[1]);
     std::optional<pgl::OrientedSegment<PointType>> minSeg, maxSeg;
+
+    auto crossingOrder = [](const pgl::Segment<OtherPoint> &s, const pgl::OrientedSegment<PointType> &a, const pgl::OrientedSegment<PointType> &b) {
+        bool gte = pgl::Triangle<PointType>(s[0],a[0],a[1]).interiorsIntersect(pgl::Triangle<PointType>(s[1],b[0],b[1]));
+        bool lte = pgl::Triangle<PointType>(s[0],b[0],b[1]).interiorsIntersect(pgl::Triangle<PointType>(s[1],a[0],a[1]));
+        if (gte && !lte) return std::partial_ordering::greater;
+        if (lte && !gte) return std::partial_ordering::less;
+        return std::partial_ordering::equivalent;
+    };
 
     for (ptrdiff_t i = 0; i < (ptrdiff_t) size(); ++i) {
         pgl::OrientedSegment<PointType> edge(get(i), get(i+1));
         if (edge.separates(other) && !edge.collinear(other)) {
             auto h = edge.leftHalfplane();
             if (h.contains(other[0])) {
-                if (!maxSeg || ol.crossingOrder(maxSeg->asLine(), edge.asLine()) < 0) {
+                if (!maxSeg || crossingOrder(other, *maxSeg, edge) < 0) {
                     if (other.contains(edge[0])) {
                         pgl::OrientedSegment<PointType> previous(get(i-1), get(i));
                         if (previous.collinear(other) && !h.contains(previous)) continue;
@@ -1391,13 +1398,13 @@ constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint>& other) c
                         if (!next.collinear(other) && hnext.contains(other[1]) && !hnext.contains(edge[0])) continue;
                     }
                     maxSeg = edge;
-                    if (minSeg && maxSeg && ol.crossingOrder(minSeg->asLine(), maxSeg->asLine()) <= 0) {
+                    if (minSeg && maxSeg && crossingOrder(other, *minSeg, *maxSeg) <= 0) {
                         return true;
                     }
                 }
             }
             else {
-                if (!minSeg || ol.crossingOrder(minSeg->asLine(), edge.asLine()) > 0) {
+                if (!minSeg || crossingOrder(other, *minSeg, edge) > 0) {
                     if (other.contains(edge[0])) {
                         pgl::OrientedSegment<PointType> previous(get(i-1), get(i));
                         if (previous.collinear(other) && !h.contains(previous)) continue;
@@ -1411,7 +1418,7 @@ constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint>& other) c
                         if (!next.collinear(other) && hnext.contains(other[0]) && !hnext.contains(edge[0])) continue;
                     }
                     minSeg = edge;
-                    if (minSeg && maxSeg && ol.crossingOrder(minSeg->asLine(), maxSeg->asLine()) <= 0) {
+                    if (minSeg && maxSeg && crossingOrder(other, *minSeg, *maxSeg) <= 0) {
                         return true;
                     }
                 }
