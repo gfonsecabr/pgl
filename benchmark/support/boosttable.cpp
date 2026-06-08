@@ -1,4 +1,4 @@
-// g++ -Ofast -Iinclude -std=c++23 benchmark/support/doctable.cpp -o build/doctable_bench
+// g++ -Ofast -Iinclude -std=c++23 benchmark/support/boosttable.cpp
 #include <random>
 #include <vector>
 #include <iostream>
@@ -7,14 +7,12 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/rational.hpp>
 
-template<class A, class B>
-auto operator<=>(const A &a, const B &b) {
-    if (a == b)
-        return std::strong_ordering::equal;
-    if (a < b)
-        return std::strong_ordering::less;
-    return std::strong_ordering::greater;
-}
+// Note: pgl no longer needs a hand-rolled global operator<=> for number types
+// that lack one (e.g. Boost.Multiprecision). The comparison operators route
+// coordinate ordering through pgl::detail::strongOrder / threeWay, which fall
+// back to operator< when operator<=> is unavailable. A catch-all operator<=>
+// here would also recurse infinitely for types like pgl::BigInt that rely on
+// their own operator<=> (the rewritten `a < b` would re-select this template).
 
 #include "pgl.hpp"
 #include "plf_nanotimer.h"
@@ -75,6 +73,9 @@ int main() {
     std::cout << "crosses\t\t__int128_t\t\t";
     run<pgl::Point<__int128_t>>();
 
+    std::cout << "crosses\t\tBigInt\t\t\t";
+    run<pgl::Point<pgl::BigInt>>();
+
     std::cout << "crosses\t\tboost int128_t\t\t";
     run<pgl::Point<boost::multiprecision::int128_t>>();
 
@@ -86,6 +87,9 @@ int main() {
 
     std::cout << "crosses\t\tpgl Rational int64_t\t";
     run<pgl::Point<pgl::Rational<int64_t>>>();
+
+    std::cout << "crosses\t\tpgl Rational BigInt\t";
+    run<pgl::Point<pgl::Rational<pgl::BigInt>>>();
 
     std::cout << "crosses\t\tboost rational int64_t\t";
     run<pgl::Point<boost::rational<int64_t>>>();
@@ -100,6 +104,9 @@ int main() {
 
     std::cout << "crosses\t\tpgl Rational int64_t\t";
     run<pgl::Point<pgl::Rational<int64_t>>>(60);
+
+    std::cout << "crosses\t\tpgl Rational BigInt\t";
+    run<pgl::Point<pgl::Rational<pgl::BigInt>>>(60);
 
     std::cout << "crosses\t\tboost rational int64_t\t";
     run<pgl::Point<boost::rational<int64_t>>>(60);
