@@ -529,7 +529,7 @@ struct Point {
         return other.intersects(*this);
     }
 
-    /** @brief A point has empty interior, so interiors never intersect (false). */
+    /** @brief A point's interior is the point itself, so this matches @ref interiorContains. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
 

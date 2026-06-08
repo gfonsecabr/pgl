@@ -20,8 +20,10 @@ namespace pgl {
 
 template <class Number, class Label>
 template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Point<Number, Label>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so interiors intersect exactly
+    // when its interior contains the other shape.
+    return interiorContains(other);
 }
 
 /**
@@ -33,8 +35,9 @@ constexpr bool Point<Number, Label>::interiorsIntersect(const OtherPoint&) const
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherPoint&) const {
-    return false;
+constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType, class LabelType>
@@ -99,8 +102,9 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const Shape<Poi
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Triangle<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -290,8 +294,9 @@ constexpr bool OrientedSegment<PointType>::interiorsIntersect(const Shape<PointT
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Line<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -387,8 +392,9 @@ constexpr bool OrientedLine<PointType>::interiorsIntersect(const Shape<PointType
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Ray<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -507,8 +513,9 @@ constexpr bool Ray<PointType>::interiorsIntersect(const Shape<PointType>& other)
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Rectangle<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -608,8 +615,9 @@ constexpr bool Rectangle<PointType>::interiorsIntersect(const Shape<PointType>& 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Halfplane<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -727,8 +735,9 @@ constexpr bool Halfplane<PointType>::interiorsIntersect(const Shape<PointType>& 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Convex<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -909,8 +918,9 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Shape<OtherPoint>& ot
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType>
@@ -1176,8 +1186,9 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Polygon<OtherPoint>& 
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint&) const {
-    return false;  // a point has empty interior, so interiors never intersect
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
 }
 
 template <class PointType, class LabelType>

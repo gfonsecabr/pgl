@@ -395,8 +395,8 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
 
     const Halfplane upper({0, 0}, {4, 0});
 
-    CHECK_FALSE(upper.interiorsIntersect(Point(1, 1)));  // a point has empty interior
-    CHECK_FALSE(upper.interiorsIntersect(Point(1, 0)));
+    CHECK(upper.interiorsIntersect(Point(1, 1)));  // interior point
+    CHECK_FALSE(upper.interiorsIntersect(Point(1, 0)));  // on the boundary line
     CHECK(upper.interiorsIntersect(Line({0, -1}, {4, 3})));
     CHECK(upper.interiorsIntersect(OrientedLine({4, 3}, {0, -1})));
     CHECK(upper.interiorsIntersect(Segment({1, -1}, {3, 2})));

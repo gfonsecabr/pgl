@@ -292,7 +292,7 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
 
     const Line vertical({2, -2}, {2, 2});
 
-    CHECK_FALSE(vertical.interiorsIntersect(Point(2, 0)));  // a point has empty interior
+    CHECK(vertical.interiorsIntersect(Point(2, 0)));  // on the line (its interior is the whole line)
     CHECK(vertical.interiorsIntersect(Segment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedSegment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedLine({0, 0}, {4, 0})));
