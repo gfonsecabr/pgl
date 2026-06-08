@@ -629,8 +629,8 @@ constexpr bool Convex<PointType>::boundaryContains(const Convex<OtherPoint>& oth
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::boundaryContains(const Disk<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const {
     if (other[0] == other[1] && other[0] == other[2]) {
         return boundaryContains(other[0]);
     }
@@ -770,8 +770,8 @@ constexpr bool Polygon<PointType>::boundaryContains(const Polygon<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::boundaryContains(const Disk<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const {
     if (other[0] == other[1] && other[0] == other[2]) {
         return boundaryContains(other[0]);
     }

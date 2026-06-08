@@ -673,8 +673,8 @@ struct Disk {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;

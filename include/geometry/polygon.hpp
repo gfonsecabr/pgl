@@ -652,8 +652,8 @@ struct Polygon {
     /**
      * @brief A disk lies on the boundary only if it is a single point on the boundary.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the polygon boundary contains the wrapped shape.
@@ -662,8 +662,8 @@ struct Polygon {
     constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
@@ -677,8 +677,8 @@ struct Polygon {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
@@ -776,8 +776,8 @@ struct Polygon {
     constexpr bool intersects(const Polygon<OtherPoint>& other) const;
 
     /** @brief Not yet supported; throws (Polygon cannot yet `intersects` a disk). */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool intersects(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the polygon interior strictly contains the given point.
@@ -868,8 +868,8 @@ struct Polygon {
     constexpr bool interiorsIntersect(const Polygon<OtherPoint>& other) const;
 
     /** @brief Not yet supported; throws (Polygon cannot yet `interiorsIntersect` a disk). */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if removing the polygon disconnects the given segment.
@@ -951,8 +951,8 @@ struct Polygon {
     [[nodiscard]] constexpr bool crosses(const Convex<OtherPoint>&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Disk<OtherPoint>&) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Disk<OtherPoint, OtherLabel>&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
     template<PointConcept OtherPoint>

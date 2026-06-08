@@ -1211,8 +1211,8 @@ constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) con
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Disk<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::separates(const Disk<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1625,8 +1625,8 @@ constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>&
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint>&) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
     throw std::runtime_error(
         "pgl: Disk::separates(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
@@ -1673,8 +1673,8 @@ constexpr bool Polygon<PointType>::separates(const Triangle<OtherPoint>&) const 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Disk<OtherPoint>&) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
