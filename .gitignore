@@ -1,0 +1,26 @@
+# Build artifacts: test/benchmark binaries, JUnit reports, generated docs.
+build/
+
+# Doxygen output (if generated outside build/).
+/doc/html/
+/doc/latex/
+/html/
+/latex/
+
+# Editor / tooling
+.clangd
+.cache/
+compile_commands.json
+
+# Ad-hoc exploratory programs and their output
+sandbox/
+
+# Generated SVG output from graphical tests / examples
+tests/graphical/*.svg
+/*.svg
+
+# Compiled binaries / objects
+*.o
+*.out
+*.exe
+a.out
