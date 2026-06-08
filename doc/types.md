@@ -68,7 +68,7 @@ std::cout << s << std::endl;
 
 ### Promotion
 
-The geometric [predicates](predicates.md) do not use division anywhere, so they should be exact for integers, unless there is an overflow. To minimize the chances of an overflow, whenever we need to multiply two coordinates, we promote the type to a larger one:
+The geometric [predicates](shape_methods.md#predicates) do not use division anywhere, so they should be exact for integers, unless there is an overflow. To minimize the chances of an overflow, whenever we need to multiply two coordinates, we promote the type to a larger one:
 
 - `int8_t` is promoted to `int16_t`
 - `int16_t` is promoted to `int32_t`
@@ -81,7 +81,7 @@ You may disable promotion by defining `PGL_DISABLE_PROMOTION` before including
 
 ### Overflow
 
-As mentioned before, if the coordinate type is an integer, then the predicates are exact unless there is an overflow. Next, we define precise bounds that are guaranteed to avoid overflows. We start with the [predicates](predicates.md) for all shapes except disks, which we consider later on.
+As mentioned before, if the coordinate type is an integer, then the predicates are exact unless there is an overflow. Next, we define precise bounds that are guaranteed to avoid overflows. We start with the [predicates](shape_methods.md#predicates) for all shapes except disks, which we consider later on.
 
 If promotion is disabled, then let $T$ denote the type being used to store the coordinates. If promotion is enabled, then let $T$ denote the type after promotion.
 Let $MAX(T)$ be the largest value that the integer type $T$ can hold, which is roughly $2^{b-1}$ where $b$ is the number of bits. Let $SAFE(T)$ be the largest absolute value that we can use for $T$ with no overflow. Essentially, we have\
