@@ -279,10 +279,26 @@ public:
     constexpr Rational& operator*=(const Rational& r) { return *this = *this * r; }
     constexpr Rational& operator/=(const Rational& r) { return *this = *this / r; }
 
-    constexpr Rational operator+(Int x) const { return *this + Rational(x, true); }
-    constexpr Rational operator-(Int x) const { return *this - Rational(x, true); }
-    constexpr Rational operator*(Int x) const { return Rational(num * x, den); }
-    constexpr Rational operator/(Int x) const { return Rational(num, den * x); }
+    // Mixed integer operators. Templating on the (deduced) argument type makes
+    // an integer operand bind without a conversion, so these win cleanly over
+    // operator OP(const Rational&) instead of tying with it. The tie — and the
+    // resulting ambiguity — only arose when `int -> Int` is itself a
+    // user-defined conversion, i.e. for a class-type Int such as BigInt.
+    template <class I>
+        requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr Rational operator+(const I& x) const { return *this + Rational(Int(x), true); }
+
+    template <class I>
+        requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr Rational operator-(const I& x) const { return *this - Rational(Int(x), true); }
+
+    template <class I>
+        requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr Rational operator*(const I& x) const { return Rational(num * Int(x), den); }
+
+    template <class I>
+        requires (pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr Rational operator/(const I& x) const { return Rational(num, den * Int(x)); }
 
     friend constexpr Rational operator+(Int x, const Rational& r) { return r + x; }
     friend constexpr Rational operator-(Int x, const Rational& r) { return r + (-x); }
