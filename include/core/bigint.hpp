@@ -26,7 +26,116 @@
 
 #include "numeric.hpp"
 
+// Marks the rarely-taken, out-of-line limb-path helpers cold so the int128 fast
+// paths stay small enough to inline into hot callers. GCC and clang honour the
+// hint; other compilers (e.g. MSVC on the Boost int128 fallback) ignore it.
+#if defined(__GNUC__) || defined(__clang__)
+#define PGL_BIGINT_COLD [[gnu::noinline, gnu::cold]]
+#else
+#define PGL_BIGINT_COLD
+#endif
+
 namespace pgl {
+
+namespace detail {
+
+/**
+ * @brief Minimal owning limb store used by ::pgl::BigInt.
+ *
+ * This is a tiny stand-in for @c std::vector<pgl::int128> that occupies a single
+ * pointer (8 bytes) instead of three, so a BigInt whose magnitude fits in its
+ * inline ::pgl::int128 stays 32 bytes rather than 48. Shrinking the object cuts
+ * the per-copy data movement that dominates limb-free workloads (the common
+ * case), where the store is always empty.
+ *
+ * The limb count is kept in the allocation itself: a block of @c n+1 int128s is
+ * allocated, slot 0 holds @c n, and @ref data_ points at slot 1 (the first
+ * limb). An empty store is a null @ref data_ and owns nothing. Only the handful
+ * of @c std::vector operations BigInt actually uses are provided, plus
+ * @c begin / @c end so the value is range-iterable (e.g. by @c std::hash).
+ */
+class LimbStore {
+    pgl::int128* data_ = nullptr;   ///< Points at limb 0; data_[-1] holds the count.
+
+    std::size_t count() const { return static_cast<std::size_t>(data_[-1]); }
+
+    void allocate(std::size_t n) {
+        pgl::int128* base = new pgl::int128[n + 1];
+        base[0] = static_cast<pgl::int128>(n);
+        data_ = base + 1;
+    }
+
+    void copyFrom(const pgl::int128* src, std::size_t n) {
+        allocate(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            data_[i] = src[i];
+        }
+    }
+
+    void release() {
+        if (data_) {
+            delete[] (data_ - 1);
+            data_ = nullptr;
+        }
+    }
+
+public:
+    LimbStore() = default;
+    LimbStore(const LimbStore& o) {
+        if (o.data_) {
+            copyFrom(o.data_, o.count());
+        }
+    }
+    LimbStore(LimbStore&& o) noexcept : data_(o.data_) { o.data_ = nullptr; }
+    LimbStore& operator=(const LimbStore& o) {
+        if (this != &o) {
+            release();
+            if (o.data_) {
+                copyFrom(o.data_, o.count());
+            }
+        }
+        return *this;
+    }
+    LimbStore& operator=(LimbStore&& o) noexcept {
+        if (this != &o) {
+            release();
+            data_ = o.data_;
+            o.data_ = nullptr;
+        }
+        return *this;
+    }
+    ~LimbStore() { release(); }
+
+    /// @brief Replace the contents with a copy of a std::vector's limbs.
+    LimbStore& operator=(const std::vector<pgl::int128>& v) {
+        release();
+        if (!v.empty()) {
+            copyFrom(v.data(), v.size());
+        }
+        return *this;
+    }
+
+    bool empty() const { return data_ == nullptr; }
+    std::size_t size() const { return data_ ? count() : 0; }
+    pgl::int128& operator[](std::size_t i) { return data_[i]; }
+    const pgl::int128& operator[](std::size_t i) const { return data_[i]; }
+    const pgl::int128* begin() const { return data_; }
+    const pgl::int128* end() const { return data_ ? data_ + count() : nullptr; }
+    void clear() { release(); }
+
+    /// @brief Set the store to @p n copies of @p val.
+    void assign(std::size_t n, pgl::int128 val) {
+        release();
+        if (n) {
+            allocate(n);
+            for (std::size_t i = 0; i < n; ++i) {
+                data_[i] = val;
+            }
+        }
+    }
+};
+
+}  // namespace detail
 
 /**
  * @brief Arbitrary precision signed integer.
@@ -42,7 +151,7 @@ namespace pgl {
 class BigInt {
 private:
     pgl::int128 small_ = 0;            ///< Magnitude when @ref limbs_ is empty (>= 0).
-    std::vector<pgl::int128> limbs_;   ///< Magnitude limbs, base 2^62, little-endian.
+    detail::LimbStore limbs_;          ///< Magnitude limbs, base 2^62, little-endian.
     bool negative_ = false;            ///< Sign; false when the value is zero.
 
     using Limbs = std::vector<pgl::int128>;
@@ -197,7 +306,7 @@ private:
     /// @brief Return the magnitude as a normalized limb vector.
     Limbs magToLimbs() const {
         if (!limbs_.empty()) {
-            return limbs_;
+            return Limbs(limbs_.begin(), limbs_.end());
         }
         Limbs v;
         pgl::int128 x = small_;
@@ -261,6 +370,14 @@ private:
             if (small_ == o.small_) return 0;
             return small_ < o.small_ ? -1 : 1;
         }
+        return compareMagGeneral(o);
+    }
+
+    /// @brief Cold out-of-line magnitude comparison once a value spilled to limbs.
+    /// Keeps the int128 fast path tiny so operator== / operator<=> inline into
+    /// hot callers (gcd loop conditions, Rational comparisons).
+    PGL_BIGINT_COLD
+    int compareMagGeneral(const BigInt& o) const {
         return cmpMag(magToLimbs(), o.magToLimbs());
     }
 
@@ -287,6 +404,10 @@ private:
     }
 
     /// @brief General (limb based) addition used when the fast path overflows.
+    ///
+    /// Kept out-of-line and cold so the int128 fast path in operator+/- stays
+    /// small enough to inline into hot callers such as orientationSign.
+    PGL_BIGINT_COLD
     static BigInt addGeneral(const BigInt& a, const BigInt& b) {
         Limbs av = a.magToLimbs();
         Limbs bv = b.magToLimbs();
@@ -305,7 +426,31 @@ private:
         return r;
     }
 
+    /// @brief Quotient of two non-negative int128 magnitudes. When both fit in
+    /// 64 bits (overwhelmingly the common case) this issues a single hardware
+    /// 64-bit divide instead of the ~3x slower 128-bit __divti3.
+    static pgl::int128 quotSmall(pgl::int128 a, pgl::int128 b) {
+        const std::uint64_t u64max = std::numeric_limits<std::uint64_t>::max();
+        if (a <= u64max && b <= u64max) {
+            return pgl::int128(static_cast<std::uint64_t>(a) / static_cast<std::uint64_t>(b));
+        }
+        return a / b;
+    }
+
+    /// @brief Remainder of two non-negative int128 magnitudes; see @ref quotSmall.
+    static pgl::int128 remSmall(pgl::int128 a, pgl::int128 b) {
+        const std::uint64_t u64max = std::numeric_limits<std::uint64_t>::max();
+        if (a <= u64max && b <= u64max) {
+            return pgl::int128(static_cast<std::uint64_t>(a) % static_cast<std::uint64_t>(b));
+        }
+        return a % b;
+    }
+
     /// @brief Truncated division producing both quotient and remainder.
+    ///
+    /// Only reached once a magnitude exceeds int128; operator/ and operator%
+    /// handle the common small case directly, so keep this cold and out-of-line.
+    PGL_BIGINT_COLD
     static void divmod(const BigInt& a, const BigInt& b, BigInt& q, BigInt& r) {
         if (b.isZero()) {
             throw std::domain_error("pgl::BigInt: division by zero");
@@ -313,8 +458,8 @@ private:
         const bool quotientNegative = a.negative_ != b.negative_;
         const bool remainderNegative = a.negative_;   // remainder follows the dividend
         if (a.limbs_.empty() && b.limbs_.empty()) {
-            q = fromSmall(a.small_ / b.small_, quotientNegative);
-            r = fromSmall(a.small_ % b.small_, remainderNegative);
+            q = fromSmall(quotSmall(a.small_, b.small_), quotientNegative);
+            r = fromSmall(remSmall(a.small_, b.small_), remainderNegative);
             return;
         }
         auto [qm, rm] = divmodMag(a.magToLimbs(), b.magToLimbs());
@@ -435,27 +580,70 @@ public:
         return addGeneral(a, b);
     }
 
-    friend BigInt operator-(const BigInt& a, const BigInt& b) { return a + (-b); }
+    friend BigInt operator-(const BigInt& a, const BigInt& b) {
+        if (a.limbs_.empty() && b.limbs_.empty()) {
+            const pgl::int128 ma = a.small_;
+            const pgl::int128 mb = b.small_;
+            // a - b == a + (-b); replicate operator+'s small path with b's sign
+            // flipped, so we avoid materialising the negated temporary -b.
+            if (a.negative_ != b.negative_) {
+                if (ma <= int128Max() - mb) {
+                    return fromSmall(ma + mb, a.negative_);
+                }
+            } else if (ma >= mb) {
+                return fromSmall(ma - mb, a.negative_);
+            } else {
+                return fromSmall(mb - ma, !a.negative_);
+            }
+        }
+        return subGeneral(a, b);
+    }
+
+    /// @brief Cold out-of-line subtraction fallback (a magnitude spilled to limbs).
+    PGL_BIGINT_COLD
+    static BigInt subGeneral(const BigInt& a, const BigInt& b) { return a + (-b); }
 
     friend BigInt operator*(const BigInt& a, const BigInt& b) {
         const bool neg = a.negative_ != b.negative_;
         if (a.limbs_.empty() && b.limbs_.empty()) {
             const pgl::int128 ma = a.small_;
             const pgl::int128 mb = b.small_;
-            if (ma == 0 || mb == 0) {
-                return BigInt();
+#if defined(__SIZEOF_INT128__)
+            // Native int128: both magnitudes are non-negative, so a signed-overflow
+            // check on the product is exactly the "does it still fit" test we want,
+            // and __builtin_mul_overflow performs it without a 128-bit division.
+            pgl::int128 prod;
+            if (!__builtin_mul_overflow(ma, mb, &prod)) {
+                return fromSmall(prod, neg);
             }
-            if (mb <= int128Max() / ma) {
+#else
+            // Boost fallback (no native int128, no overflow builtin): guard the
+            // product with a division, matching operator+'s overflow style.
+            if (ma == 0 || mb <= int128Max() / ma) {
                 return fromSmall(ma * mb, neg);
             }
+#endif
             // magnitude overflow: fall through to the limb path
         }
+        return mulGeneral(a, b, neg);
+    }
+
+    /// @brief Cold out-of-line schoolbook multiplication (a magnitude exceeds int128).
+    PGL_BIGINT_COLD
+    static BigInt mulGeneral(const BigInt& a, const BigInt& b, bool neg) {
         BigInt out;
         out.setFromLimbs(mulMag(a.magToLimbs(), b.magToLimbs()), neg);
         return out;
     }
 
     friend BigInt operator/(const BigInt& a, const BigInt& b) {
+        if (a.limbs_.empty() && b.limbs_.empty()) {
+            if (b.small_ == 0) {
+                throw std::domain_error("pgl::BigInt: division by zero");
+            }
+            // The quotient is all the caller wants, so skip computing a remainder.
+            return fromSmall(quotSmall(a.small_, b.small_), a.negative_ != b.negative_);
+        }
         BigInt q;
         BigInt r;
         divmod(a, b, q, r);
@@ -463,6 +651,13 @@ public:
     }
 
     friend BigInt operator%(const BigInt& a, const BigInt& b) {
+        if (a.limbs_.empty() && b.limbs_.empty()) {
+            if (b.small_ == 0) {
+                throw std::domain_error("pgl::BigInt: division by zero");
+            }
+            // The remainder is all the caller wants, so skip computing a quotient.
+            return fromSmall(remSmall(a.small_, b.small_), a.negative_);
+        }
         BigInt q;
         BigInt r;
         divmod(a, b, q, r);
@@ -546,3 +741,5 @@ public:
 inline BigInt abs(const BigInt& v) { return v.abs(); }
 
 }  // namespace pgl
+
+#undef PGL_BIGINT_COLD
