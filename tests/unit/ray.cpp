@@ -350,8 +350,8 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
 
     const Ray horizontal({0, 0}, {4, 0});
 
-    CHECK_FALSE(horizontal.interiorsIntersect(Point(2, 0)));  // a point has empty interior
-    CHECK_FALSE(horizontal.interiorsIntersect(Point(0, 0)));
+    CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the ray
+    CHECK_FALSE(horizontal.interiorsIntersect(Point(0, 0)));  // source (boundary)
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Segment({2, -2}, {2, 2})));

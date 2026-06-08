@@ -400,7 +400,7 @@ TEST_CASE("Segment accepts runtime Shape arguments for core predicates") {
     CHECK(horizontal.intersects(centered_box));
 
     CHECK(horizontal.interiorsIntersect(inner));
-    CHECK_FALSE(horizontal.interiorsIntersect(midpoint));
+    CHECK(horizontal.interiorsIntersect(midpoint));  // midpoint is interior to the segment
 
     CHECK(horizontal.separates(crossing));
     CHECK_FALSE(horizontal.separates(midpoint));
@@ -423,7 +423,7 @@ TEST_CASE("Segment interiorsIntersect covers the non-Convex Shape contract") {
 
     const Segment horizontal({0, 0}, {4, 0});
 
-    CHECK_FALSE(horizontal.interiorsIntersect(Point(2, 0)));
+    CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the segment
 
     CHECK(horizontal.interiorsIntersect(OrientedSegment({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
