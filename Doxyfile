@@ -81,7 +81,8 @@ FULL_SIDEBAR           = NO
 HTML_OUTPUT            = html
 HTML_COLORSTYLE        = LIGHT
 HTML_EXTRA_STYLESHEET  = build/doxygen-awesome/doxygen-awesome.css \
-                         build/doxygen-awesome/doxygen-awesome-sidebar-only.css
+                         build/doxygen-awesome/doxygen-awesome-sidebar-only.css \
+                         doc/doxygen/doxygen-pgl.css
 HTML_COPY_CLIPBOARD    = NO
 
 QUIET                  = YES
