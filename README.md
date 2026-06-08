@@ -146,3 +146,25 @@ FetchContent_MakeAvailable(pgl)
 
 target_include_directories(your_target PRIVATE ${pgl_SOURCE_DIR}/include)
 ```
+
+## Comparison to CGAL
+
+There are several architectural differences between PGL and [CGAL](https://www.cgal.org/), we summarize some of them:
+
+| Feature | PGL | CGAL |
+| --- | --- | --- |
+| Dependency-free | ✓ | ✗ |
+| Learning curve | Low | High |
+| Geometry | Plane only | 2d, 3d, hyperbolic... |
+| Data structures | Limited | Extensive |
+| Maturity | Very low | High |
+| License | MIT | LGPL, GPL, and commercial |
+| Number types | Per-shape | Per-kernel |
+| Type conversion | Implicit | Explicit |
+| Shapes | Mostly non-oriented | Oriented |
+
+- Pangolin defines the shapes as their *geometric concepts*, instead of their *computational representation*. For example, a `Triangle` is the same regardless of the order of its 3 vertices (in contrast to CGAL's oriented triangles).
+- Pangolin stores lines and halfplanes as *2 points* (instead of an *equation*), so rational numbers are not needed to exactly represent a line passing through any two integer points. Notice that the comparison operators (and hash function) take care of testing if two lines are equal even if they are defined by different points.
+- Pangolin does not distinguish between points, vectors, and directions.
+- Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
+- Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
