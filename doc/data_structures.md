@@ -32,7 +32,7 @@ Given a container of $n$ line segments, we provide several functions to compute 
 - `detectCrossings(V)` returns true if there are two crossing segments in the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O(n \log n)$ time.
 
 These functions use the same predicate conventions documented in
-[predicates.md](predicates.md).
+[Predicates](shape_methods.md#predicates).
 
 ### Convex hull
 

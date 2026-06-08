@@ -51,7 +51,7 @@ using Segment = pgl::Segment<Point>;
 using Triangle = pgl::Triangle<Point>;
 ```
 
-There are many [predicates](predicates.md) and [other methods](shape_methods.md) supported by all shapes, such as `intersects`, `contains`, `squaredDistance`, `distanceL1`, translation, and scaling.
+There are many [predicates](shape_methods.md#predicates) and [other methods](shape_methods.md) supported by all shapes, such as `intersects`, `contains`, `squaredDistance`, `distanceL1`, translation, and scaling.
 Shapes may be degenerate, for example when some of their defining points are equal. The behavior of geometric operations on degenerate shapes is undefined. However, degenerate shapes may safely be constructed and are often constructed by the default constructor that sets all points to the origin.
 
 Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
@@ -66,16 +66,16 @@ if (r.intersects(s))
     std::cout << r << " intersects " << s << std::endl;
 ```
 
-All shapes contain their boundaries (that is, they are closed in the topological sense). We define the boundary of a shape as follows:
+All shapes contain their boundaries (that is, they are closed in the topological sense). The boundary of a shape is the *manifold boundary*, that is:
 
 - A point has no boundary.
-- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. More formally, the boundary is the set of points that have exactly one point at distance $\varepsilon$ in the shape for arbitrarily small $\varepsilon$. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary. 
-- The boundary of a 2-dimensional shape is defined in the usual way: the set of points that have at least one point at distance $\varepsilon$ in the shape and at least one point at distance $\varepsilon$ outside the shape for arbitrarily small $\varepsilon$. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
+- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary. 
+- The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
 
 
 ### Point
 
-The `Point` class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). A point has no interior.
+The `Point` class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). A point has no boundary and has empty interior.
 
 ```C++
 pgl::Point p = {7,9};

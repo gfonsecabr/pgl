@@ -19,7 +19,7 @@ The `Point` and `Segment` classes are two of [several shapes](shapes.md).
 
 The coordinates are of type `int` by default, but [other types](types.md) including rational and floating point numbers may be used instead.
 
-All shapes support [many predicates](predicates.md) and several other [methods and operators](shape_methods.md). Fundamental [algorithms and data structures](data_structures.md) are also provided.
+All shapes support [many predicates](shape_methods.md#predicates) and several other [methods and operators](shape_methods.md). Fundamental [algorithms and data structures](data_structures.md) are also provided.
 
 A `Canvas` class is provided for [easy visualisation](canvas.md):
 
