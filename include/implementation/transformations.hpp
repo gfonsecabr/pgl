@@ -170,134 +170,160 @@ constexpr auto operator/(const Point<Number, Label>& point, const Scalar& scalar
 // -----------------------------------------------------------------------------
 // Segment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Segment<PointType>& Segment<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Segment<PointType>& Segment<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Segment<PointType>& Segment<PointType>::operator*=(const Scalar& scalar) {
+constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator*=(const Scalar& scalar) {
     *this = *this * scalar;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Segment<PointType>& Segment<PointType>::operator/=(const Scalar& scalar) {
+constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator/=(const Scalar& scalar) {
     *this = *this / scalar;
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Segment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Segment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = segment.min() + translation;
     const auto second = segment.max() + translation;
-    return Segment(first, second);
+    if constexpr (detail::has_label_v<LabelType>) {
+        return Segment(first, second, segment.label());
+    } else {
+        return Segment(first, second);
+    }
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Segment<PointType>& segment) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Segment<PointType, LabelType>& segment) {
     return segment + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Segment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Segment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = segment.min() - translation;
     const auto second = segment.max() - translation;
-    return Segment(first, second);
+    if constexpr (detail::has_label_v<LabelType>) {
+        return Segment(first, second, segment.label());
+    } else {
+        return Segment(first, second);
+    }
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Segment<PointType>& segment, const Scalar& scalar) {
+constexpr auto operator*(const Segment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.min() * scalar;
     const auto second = segment.max() * scalar;
-    return Segment(first, second);
+    if constexpr (detail::has_label_v<LabelType>) {
+        return Segment(first, second, segment.label());
+    } else {
+        return Segment(first, second);
+    }
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Segment<PointType>& segment) {
+constexpr auto operator*(const Scalar& scalar, const Segment<PointType, LabelType>& segment) {
     return segment * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Segment<PointType>& segment, const Scalar& scalar) {
+constexpr auto operator/(const Segment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.min() / scalar;
     const auto second = segment.max() / scalar;
-    return Segment(first, second);
+    if constexpr (detail::has_label_v<LabelType>) {
+        return Segment(first, second, segment.label());
+    } else {
+        return Segment(first, second);
+    }
 }
 
-template <class PointType>
-constexpr Segment<PointType> Segment<PointType>::rotated90(int k) const {
-    return Segment(min().rotated90(k), max().rotated90(k));
+template <class PointType, class LabelType>
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::rotated90(int k) const {
+    Segment result(min().rotated90(k), max().rotated90(k));
+    result.label_ = label_;
+    return result;
 }
 
-template <class PointType>
-constexpr void Segment<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Segment<PointType, LabelType>::rotate90(int k) {
     *this = rotated90(k);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Segment<PointType> Segment<PointType>::scaledUpX(const OtherNumber scalar) const {
-    return Segment(min().scaledUpX(scalar), max().scaledUpX(scalar));
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
+    Segment result(min().scaledUpX(scalar), max().scaledUpX(scalar));
+    result.label_ = label_;
+    return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Segment<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Segment<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
     *this = scaledUpX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Segment<PointType> Segment<PointType>::scaledUpY(const OtherNumber scalar) const {
-    return Segment(min().scaledUpY(scalar), max().scaledUpY(scalar));
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
+    Segment result(min().scaledUpY(scalar), max().scaledUpY(scalar));
+    result.label_ = label_;
+    return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Segment<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Segment<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
     *this = scaledUpY(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Segment<PointType> Segment<PointType>::scaledDownX(const OtherNumber scalar) const {
-    return Segment(min().scaledDownX(scalar), max().scaledDownX(scalar));
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
+    Segment result(min().scaledDownX(scalar), max().scaledDownX(scalar));
+    result.label_ = label_;
+    return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Segment<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Segment<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
     *this = scaledDownX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Segment<PointType> Segment<PointType>::scaledDownY(const OtherNumber scalar) const {
-    return Segment(min().scaledDownY(scalar), max().scaledDownY(scalar));
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
+    Segment result(min().scaledDownY(scalar), max().scaledDownY(scalar));
+    result.label_ = label_;
+    return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Segment<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Segment<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
     *this = scaledDownY(scalar);
 }
 
@@ -505,8 +531,8 @@ constexpr auto operator/(const Line<PointType>& line, const Scalar& scalar) {
     return Line(line.min() / scalar, line.max() / scalar);
 }
 
-template <class PointType>
-constexpr Segment<PointType>::operator Line<PointType>() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType, LabelType>::operator Line<PointType>() const {
     return Line<PointType>(min(), max());
 }
 

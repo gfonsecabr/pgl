@@ -99,34 +99,34 @@ constexpr bool Point<Number, Label>::interiorContains(const Disk<OtherPoint, Oth
  * dispatch used against 1D and area targets.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::interiorContains(const OtherPoint& point) const {
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
     return !boundaryContains(point) && contains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::interiorContains(const Segment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::interiorContains(const Segment<OtherPoint>& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::interiorContains(const Triangle<OtherPoint>& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<class S>
     requires(!detail::is_point_v<S>)
-constexpr bool Segment<PointType>::interiorContains(const S&) const {
+constexpr bool Segment<PointType, LabelType>::interiorContains(const S&) const {
     return false;
 }
 

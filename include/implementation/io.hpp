@@ -42,8 +42,8 @@ std::ostream& operator<<(std::ostream& stream, const Point<Number, Label>& point
  * @param segment Segment to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Segment<PointType>& segment) {
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Segment<PointType, LabelType>& segment) {
     stream << segment.min() << "--" << segment.max();
     return stream;
 }

@@ -27,20 +27,20 @@ Point<Number, Label>::intersection(const OtherPoint& other) const {
 // -----------------------------------------------------------------------------
 // Segment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-Segment<PointType>::intersection(const OtherPoint& other) const {
+Segment<PointType, LabelType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
         return Point<ResultNumber, typename PointType::LabelType>(other);
     }
     return {};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Segment<PointType>::intersection(const Segment<OtherPoint>& other) const {
+Segment<PointType, LabelType>::intersection(const Segment<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
 

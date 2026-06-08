@@ -32,9 +32,9 @@ constexpr bool Point<Number, Label>::crosses(const OtherPoint&) const {
  * dispatch used against 1D and area targets.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::crosses(const Segment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::crosses(const Segment<OtherPoint>& other) const {
     if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherPoint::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
@@ -63,14 +63,14 @@ constexpr bool Segment<PointType>::crosses(const Segment<OtherPoint>& other) con
     return d3 != d4;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Segment<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
-constexpr bool Segment<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Segment<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

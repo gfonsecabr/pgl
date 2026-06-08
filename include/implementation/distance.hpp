@@ -44,9 +44,9 @@ constexpr auto Point<Number, Label>::distanceLInf(const OtherPoint& other) const
 // -----------------------------------------------------------------------------
 // Segment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Segment<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
     const Point<ResultNumber> a(min());
     const Point<ResultNumber> b(max());
@@ -74,9 +74,9 @@ constexpr auto Segment<PointType>::squaredDistance(const OtherPoint& point) cons
     return (twice_triangle_area * twice_triangle_area) / squared_length;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Segment<PointType>::squaredDistance(const Segment<OtherPoint>& other) const {
+constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<OtherPoint>& other) const {
     if (intersects(other)) {
         using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
         return ResultNumber{};
@@ -93,9 +93,9 @@ constexpr auto Segment<PointType>::squaredDistance(const Segment<OtherPoint>& ot
     return best_from_this < best_from_other ? best_from_this : best_from_other;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Segment<PointType>::squaredHausdorffDistance(const Segment<OtherPoint>& other) const {
+constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Segment<OtherPoint>& other) const {
     const auto this_min_to_other = other.squaredDistance(min());
     const auto this_max_to_other = other.squaredDistance(max());
     const auto other_min_to_this = squaredDistance(other.min());

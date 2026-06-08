@@ -20,8 +20,8 @@ namespace detail {
 template <class T>
 struct is_segment : std::false_type {};
 
-template <class PointType>
-struct is_segment<Segment<PointType>> : std::true_type {};
+template <class PointType, class LabelType>
+struct is_segment<Segment<PointType, LabelType>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;

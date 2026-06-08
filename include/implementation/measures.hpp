@@ -23,62 +23,62 @@ constexpr auto operator*(const Point<LeftNumber, LeftLabel>& left, const Point<R
 // -----------------------------------------------------------------------------
 // Segment
 
-template <class PointType>
-constexpr typename Segment<PointType>::NumberType Segment<PointType>::area() const {
+template <class PointType, class LabelType>
+constexpr typename Segment<PointType, LabelType>::NumberType Segment<PointType, LabelType>::area() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr typename Segment<PointType>::NumberType Segment<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr typename Segment<PointType, LabelType>::NumberType Segment<PointType, LabelType>::twiceArea() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr auto Segment<PointType>::squaredLength() const {
+template <class PointType, class LabelType>
+constexpr auto Segment<PointType, LabelType>::squaredLength() const {
     return min().squaredDistance(max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ApproximateNumber>
-ApproximateNumber Segment<PointType>::length() const {
+ApproximateNumber Segment<PointType, LabelType>::length() const {
     return min().template distance<ApproximateNumber>(max());
 }
 
-template <class PointType>
-constexpr auto Segment<PointType>::lengthL1() const {
+template <class PointType, class LabelType>
+constexpr auto Segment<PointType, LabelType>::lengthL1() const {
     return min().distanceL1(max());
 }
 
-template <class PointType>
-constexpr auto Segment<PointType>::lengthLInf() const {
+template <class PointType, class LabelType>
+constexpr auto Segment<PointType, LabelType>::lengthLInf() const {
     return min().distanceLInf(max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber Segment<PointType>::slope() const {
+constexpr ResultNumber Segment<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
     const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
     return detail::abs(dy / dx);
 }
 
-template <class PointType>
-constexpr Segment<PointType> Segment<PointType>::diameter() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType, LabelType> Segment<PointType, LabelType>::diameter() const {
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Segment<PointType>::midpoint() const {
+constexpr Point<ResultNumber> Segment<PointType, LabelType>::midpoint() const {
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
         (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2)
     );
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Segment<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Segment<PointType, LabelType>::pointInside() const {
     return midpoint<ResultNumber>();
 }
 

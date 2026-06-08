@@ -42,15 +42,15 @@ constexpr bool Point<Number, Label>::intersects(const Shape<Point<Number, Label>
  * dispatch used against 1D and area targets.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Segment<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::intersects(const Segment<OtherPoint>& other) const {
+constexpr bool Segment<PointType, LabelType>::intersects(const Segment<OtherPoint>& other) const {
     if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherPoint::NumberType>) {
         int cross = boundingBoxesCross(other);
         if (cross == 0) {
@@ -86,8 +86,8 @@ constexpr bool Segment<PointType>::intersects(const Segment<OtherPoint>& other) 
 }
 
 
-template <class PointType>
-constexpr bool Segment<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Segment<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

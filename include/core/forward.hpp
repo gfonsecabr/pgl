@@ -46,8 +46,8 @@ constexpr bool collinear(
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c);
 
-/** @brief Unoriented closed segment between two endpoints. */
-template <class PointType>
+/** @brief Unoriented closed segment between two endpoints plus optional segment label. */
+template <class PointType, class Label = NoLabel>
 struct Segment;
 
 /** @brief Directed segment preserving source-to-target order. */

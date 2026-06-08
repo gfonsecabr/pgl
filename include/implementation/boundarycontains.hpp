@@ -81,16 +81,16 @@ constexpr bool Point<Number, Label>::boundaryContains(const Triangle<OtherPoint>
  * dispatch used against 1D and area targets.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Segment<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool Segment<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     return verticesContain(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<class S>
     requires(!detail::is_point_v<S>)
-constexpr bool Segment<PointType>::boundaryContains(const S&) const {
+constexpr bool Segment<PointType, LabelType>::boundaryContains(const S&) const {
     return false;
 }
 
