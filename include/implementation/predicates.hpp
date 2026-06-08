@@ -36,10 +36,10 @@ template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr std::strong_ordering Point<Number, Label>::operator<=>(const OtherPoint& other) const {
     using Compare = std::common_type_t<Number, typename OtherPoint::NumberType>;
-    if (auto cmp = std::strong_order(static_cast<Compare>(x()), static_cast<Compare>(other.x())); cmp != 0) {
+    if (auto cmp = detail::strongOrder(static_cast<Compare>(x()), static_cast<Compare>(other.x())); cmp != 0) {
         return cmp;
     }
-    return std::strong_order(static_cast<Compare>(y()), static_cast<Compare>(other.y()));
+    return detail::strongOrder(static_cast<Compare>(y()), static_cast<Compare>(other.y()));
 }
 
 /**
@@ -365,16 +365,16 @@ constexpr bool Line<PointType>::operator==(const Line& other) const {
 template <class PointType>
 constexpr auto Line<PointType>::operator<=>(const Line& other) const {
     if (isVertical()) {
-        return std::strong_order(min().y(), max().y());
+        return detail::strongOrder(min().y(), max().y());
     }
     using otherNumber = std::remove_cvref_t<decltype(other.min().x())>;
     using Coordinate = detail::promoted_number_t<std::common_type_t<NumberType, otherNumber>>;
     const auto [anum, bnum, den] = dualCoordinates<Coordinate>();
     const auto [other_anum, other_bnum, other_den] = other.template dualCoordinates<Coordinate>();
-    if (auto cmp = std::strong_order(anum * other_den, other_anum * den); cmp != 0) {
+    if (auto cmp = detail::strongOrder(anum * other_den, other_anum * den); cmp != 0) {
         return cmp;
     }
-    return std::strong_order(bnum * other_den, other_bnum * den);
+    return detail::strongOrder(bnum * other_den, other_bnum * den);
 }
 
 template <class PointType>

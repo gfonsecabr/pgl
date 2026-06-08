@@ -9,6 +9,7 @@
  */
 
 #include <cmath>
+#include <compare>
 #include <concepts>
 #include <cstdint>
 #include <numeric>
@@ -75,6 +76,48 @@ template <typename T>
 concept extended_integral =
     std::integral<T>
     || std::same_as<std::remove_cv_t<T>, pgl::int128>;
+
+/**
+ * @brief Total ordering of two values, returned as a std::strong_ordering.
+ *
+ * Prefers std::strong_order, which gives a true total order for built-in
+ * integers and floating-point values (and for types whose `operator<=>`
+ * already yields a strong ordering, such as Rational and BigInt). Types that
+ * std::strong_order rejects fall back to `<`. The `<` fallback is what lets
+ * number types without a conforming `operator<=>` (e.g. Boost.Multiprecision,
+ * used as the int128 fallback) participate in the geometry comparison
+ * operators that need a strong total order.
+ */
+template <class A, class B>
+constexpr std::strong_ordering strongOrder(const A& a, const B& b) {
+    if constexpr (requires { std::strong_order(a, b); }) {
+        return std::strong_order(a, b);
+    } else {
+        if (a < b) return std::strong_ordering::less;
+        if (b < a) return std::strong_ordering::greater;
+        return std::strong_ordering::equal;
+    }
+}
+
+/**
+ * @brief Three-way comparison preserving the natural ordering category.
+ *
+ * Returns `a <=> b` when the type provides it (a `partial_ordering` for
+ * floating point, a `strong_ordering` for integers), so callers such as the
+ * orientation predicates keep their exact float semantics (e.g. -0.0 and +0.0
+ * compare equal). Types without `operator<=>` (Boost.Multiprecision on the
+ * int128 fallback) derive a strong ordering from `<`.
+ */
+template <class A, class B>
+constexpr auto threeWay(const A& a, const B& b) {
+    if constexpr (requires { a <=> b; }) {
+        return a <=> b;
+    } else {
+        return a < b ? std::strong_ordering::less
+             : b < a ? std::strong_ordering::greater
+                     : std::strong_ordering::equal;
+    }
+}
 
 /**
  * @brief Type-level coordinate promotion helper.

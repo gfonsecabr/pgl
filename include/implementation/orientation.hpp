@@ -72,7 +72,7 @@ constexpr std::partial_ordering orientationSign(
     const auto acx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(a.x());
     const auto acy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(a.y());
 
-    return abx * acy <=> aby * acx;
+    return detail::threeWay(abx * acy, aby * acx);
 }
 
 /**
@@ -113,7 +113,7 @@ constexpr std::partial_ordering dotSign(
     const auto x = static_cast<Coordinate>(a.x()) * static_cast<Coordinate>(b.x());
     const auto y = static_cast<Coordinate>(a.y()) * static_cast<Coordinate>(b.y());
 
-    return x <=> -y;
+    return detail::threeWay(x, -y);
 }
 
 /**
@@ -150,7 +150,7 @@ constexpr std::partial_ordering inCircleSign(
     const auto alift = adx * adx + ady * ady;
     const auto blift = bdx * bdx + bdy * bdy;
     const auto clift = cdx * cdx + cdy * cdy;
-    return alift * bcdet + blift * cadet <=> -clift * abdet;
+    return detail::threeWay(alift * bcdet + blift * cadet, -clift * abdet);
 }
 
 }  // namespace pgl

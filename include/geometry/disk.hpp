@@ -852,7 +852,7 @@ struct Disk {
 
         // Order true circles from smaller to larger, then by center.
         if (!isDegenerate()) {
-            const auto radius_order = squaredRadius() <=> other.squaredRadius();
+            const auto radius_order = pgl::detail::threeWay(squaredRadius(), other.squaredRadius());
             if (radius_order != 0) {
                 return radius_order;
             }
