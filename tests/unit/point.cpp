@@ -200,6 +200,12 @@ TEST_CASE("Point contains only shapes that degenerate to the same point") {
     const pgl::Rectangle<Point> segment_rectangle({2, 3}, {4, 3});
     const pgl::Triangle<Point> point_triangle({2, 3}, {2, 3}, {2, 3});
     const pgl::Triangle<Point> degenerate_segment_triangle({2, 3}, {3, 3}, {4, 3});
+    const pgl::Convex<Point> point_convex(std::vector<Point>{{2, 3}});
+    const pgl::Convex<Point> segment_convex(std::vector<Point>{{2, 3}, {4, 5}});
+    const pgl::Polygon<Point> point_polygon(std::vector<Point>{{2, 3}});
+    const pgl::Polygon<Point> segment_polygon(std::vector<Point>{{2, 3}, {4, 5}});
+    const pgl::Disk<Point> point_disk({2, 3}, {2, 3}, {2, 3});
+    const pgl::Disk<Point> disk({1, 1}, {2, 5}, {4, 3});
 
     CHECK(point.contains(degenerate_segment));
     CHECK_FALSE(point.contains(segment));
@@ -212,6 +218,10 @@ TEST_CASE("Point contains only shapes that degenerate to the same point") {
     CHECK_FALSE(point.contains(segment_rectangle));
     CHECK(point.contains(point_triangle));
     CHECK_FALSE(point.contains(degenerate_segment_triangle));
+    CHECK(point.contains(point_convex));
+    CHECK_FALSE(point.contains(segment_convex));
+    CHECK(point.contains(point_polygon));
+    CHECK_FALSE(point.contains(segment_polygon));
 
     CHECK_FALSE(point.boundaryContains(degenerate_segment));
     CHECK_FALSE(point.boundaryContains(degenerate_line));
@@ -222,6 +232,12 @@ TEST_CASE("Point contains only shapes that degenerate to the same point") {
     CHECK(point.interiorContains(degenerate_line));
     CHECK(point.interiorContains(point_rectangle));
     CHECK(point.interiorContains(point_triangle));
+    CHECK(point.interiorContains(point_convex));
+    CHECK_FALSE(point.interiorContains(segment_convex));
+    CHECK(point.interiorContains(point_polygon));
+    CHECK_FALSE(point.interiorContains(segment_polygon));
+    CHECK(point.interiorContains(point_disk));
+    CHECK_FALSE(point.interiorContains(disk));
 }
 
 TEST_CASE("Point intersects implemented shapes through their point-containment predicate") {

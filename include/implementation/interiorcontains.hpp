@@ -72,6 +72,26 @@ constexpr bool Point<Number, Label>::interiorContains(const Triangle<OtherPoint>
     return contains(other);
 }
 
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::interiorContains(const Convex<OtherPoint>& other) const {
+    return contains(other);
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::interiorContains(const Polygon<OtherPoint>& other) const {
+    return contains(other);
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::interiorContains(const Disk<OtherPoint, OtherLabel>& other) const {
+    // The interior of a point is the point itself, so this matches contains:
+    // it holds only for a disk that degenerates to this very point.
+    return other.a() == other.b() && other.b() == other.c() && contains(other.a());
+}
+
 /**
  * @section predicates-segment Segment
  * Segment endpoint, boundary, containment, collinearity, intersection, and
@@ -951,30 +971,6 @@ constexpr bool Convex<PointType>::interiorContains(const Polygon<OtherPoint>& ot
 
 
 // --- asymmetric not-yet-implemented stubs ---
-
-template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
-    throw std::runtime_error(
-        "pgl: Point::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Polygon<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
 
 template <class PointType>
 template<PointConcept OtherPoint, class OtherLabel>
