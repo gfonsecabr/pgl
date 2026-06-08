@@ -15,7 +15,7 @@
 #include <vector>
 #include "pgl.hpp"
 
-using Number = double;
+using Number = pgl::Rational<pgl::BigInt>;
 using Point = pgl::Point<Number>;
 
 // Returns n random integer-coordinate points lying inside the disk of radius r
@@ -54,7 +54,7 @@ int main() {
 
     pgl::Canvas canvas;
 
-    for (int i = 0; i <= 30; ++i) {
+    for (int i = 0; i <= 100; ++i) {
         canvas << pgl::stroke(colors[i % colors.size()]);
         canvas << pgl::fill(colors[i % colors.size()]);
         canvas << pgl::fillOpacity("10%");
@@ -62,8 +62,8 @@ int main() {
         convex = midpointPolygon(convex);
     }
 
-    canvas << pgl::stroke("black");
-    canvas << pgl::fill("black");
+    canvas << pgl::stroke("white");
+    canvas << pgl::fill("red");
     canvas << pgl::fillOpacity("100%");
     canvas << center;
 

@@ -227,3 +227,36 @@ TEST_CASE("Most negative int128 round-trips through the limb path") {
     CHECK(str(mn + BigInt(1)) == "-170141183460469231731687303715884105727");
     CHECK((mn + mn.abs()).isZero());
 }
+
+TEST_CASE("Fibonacci number") {
+    BigInt a(1), b(1);
+    for (int i = 2; i < 300; ++i) {
+        BigInt next = a + b;
+        a = b;
+        b = next;
+    }
+    std::stringstream s;
+    s << b;
+
+    CHECK(s.str() == "222232244629420445529739893461909967206666939096499764990979600");
+}
+
+TEST_CASE("Factorial") {
+    BigInt a(1);
+    for (int i = 2; i <= 50; ++i) {
+        a *= i;
+    }
+    BigInt b(1);
+    for (int i = 51; i <= 100; ++i) {
+        b *= i;
+    }
+    a *= b;
+    std::stringstream s;
+    s << a;
+
+    CHECK(s.str() == "93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000");
+    for (int i = 4; i <= 100; ++i) {
+        a /= i;
+    }
+    CHECK(a == 6);
+}
