@@ -279,7 +279,7 @@ constexpr Point<ResultNumber> Rectangle<PointType>::pointInside() const {
 
 template <class PointType>
 constexpr typename Triangle<PointType>::NumberType Triangle<PointType>::twiceArea() const {
-    return detail::abs(orientationDeterminant(a(), b(), c()));
+    return static_cast<NumberType>(detail::abs(orientationDeterminant(a(), b(), c())));
 }
 
 template <class PointType>
@@ -449,9 +449,9 @@ constexpr Point<ResultNumber> Convex<PointType>::centroid() const {
     for (std::size_t i = 0; i < points_.size(); ++i) {
         const auto& p1 = points_[i];
         const auto& p2 = points_[(i + 1) % points_.size()];
-        const auto cross = p1.x * p2.y - p2.x * p1.y;
-        cx += (p1.x + p2.x) * cross;
-        cy += (p1.y + p2.y) * cross;
+        const auto cross = p1.x() * p2.y() - p2.x() * p1.y();
+        cx += (p1.x() + p2.x()) * cross;
+        cy += (p1.y() + p2.y()) * cross;
     }
     return Point<ResultNumber>(cx / (ResultNumber(3) * area_twice), cy / (ResultNumber(3) * area_twice))
            + static_cast<Point<ResultNumber>>(translation_);
