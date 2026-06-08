@@ -5,11 +5,12 @@ on:
     branches:
       - main
       - master
+    # Only rebuild the docs when something the docs are built from changes —
+    # a commit that touches none of these does not re-run this workflow.
     paths:
       - 'include/**'
       - 'doc/**'
       - 'examples/**'
-      - 'README.md'
       - 'Doxyfile'
       - '.github/workflows/docs.yml'
   # Allow manual runs from the Actions tab.
@@ -46,7 +47,10 @@ jobs:
 
       - name: Install Doxygen ${{ env.DOXYGEN_VERSION }}
         run: |
-          url="https://www.doxygen.nl/files/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          # GitHub release assets are CDN-backed and reliable in CI; doxygen.nl
+          # rejects the runner's request with HTTP 415.
+          tag="Release_$(echo "$DOXYGEN_VERSION" | tr . _)"
+          url="https://github.com/doxygen/doxygen/releases/download/${tag}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
           curl -fsSL "$url" -o doxygen.tar.gz
           tar -xzf doxygen.tar.gz
           sudo make -C "doxygen-${DOXYGEN_VERSION}" install
