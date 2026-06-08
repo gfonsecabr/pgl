@@ -84,7 +84,7 @@ The library is layered. `include/pgl.hpp` includes the layers in a deliberate or
 
 `doc/` is the user-facing reference and is unusually thorough — consult it before guessing at API shape:
 - `doc/project_structure.md` — the authoritative architectural map (this file is a condensed pointer to it).
-- `doc/shapes.md`, `doc/predicates.md`, `doc/shape_methods.md`, `doc/types.md`, `doc/data_structures.md`, `doc/canvas.md`.
+- `doc/shapes.md`, `doc/shape_methods.md`, `doc/types.md`, `doc/algorithms.md`, `doc/canvas.md`.
 - `doc/README.md` indexes the set; `doc/todo.md` tracks planned work.
 
 ## Untracked clutter to ignore

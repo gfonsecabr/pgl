@@ -13,7 +13,7 @@
 
 > ⚠️ **Work in Progress**: This library is still under construction and contains **bugs and missing features**. Use in production environments is not recommended.
 
-[README](../README.md) | [User Guide](userguide.md) | [Shapes](shapes.md) | [Predicates](shape_methods.md#predicates) | [Shape Methods](shape_methods.md) | [Types](types.md) | [Algorithms and Data Structures](data_structures.md) | [Canvas](canvas.md)
+[README](../README.md) | [User Guide](userguide.md) | [Shapes](shapes.md) | [Predicates](shape_methods.md#predicates) | [Shape Methods](shape_methods.md) | [Types](types.md) | [Algorithms and Data Structures](algorithms.md) | [Canvas](canvas.md)
 
 # Project structure
 
