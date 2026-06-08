@@ -444,13 +444,11 @@ TEST_CASE("Point streams as coordinates or label colon coordinates") {
         CHECK(plain_stream.str() == "(123,-456)");
     }
 
-#if defined(__SIZEOF_INT128__)
     {
         std::ostringstream plain_stream;
-        plain_stream << pgl::Point<__int128_t>(123, -456);
+        plain_stream << pgl::Point<pgl::int128>(123, -456);
         CHECK(plain_stream.str() == "(123,-456)");
     }
-#endif
 
     {
         std::ostringstream plain_stream;

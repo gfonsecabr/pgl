@@ -15,6 +15,12 @@
 #include <ostream>
 #include <type_traits>
 
+#if !defined(__SIZEOF_INT128__)
+// Toolchains without the 128-bit extension (e.g. MSVC) fall back to Boost.
+// Boost is only pulled in here, never when __int128_t is available.
+#include <boost/multiprecision/cpp_int.hpp>
+#endif
+
 namespace pgl {
 
 /**
@@ -25,6 +31,20 @@ namespace pgl {
 template <class T>
 class Rational;
 
+/**
+ * @brief Signed 128-bit integer.
+ *
+ * Aliases the native `__int128_t` extension when the compiler provides it
+ * (recent g++ and clang++). On toolchains without it (e.g. MSVC) it falls back
+ * to Boost.Multiprecision's fixed-width 128-bit integer; Boost is only included
+ * in that fallback case.
+ */
+#if defined(__SIZEOF_INT128__)
+using int128 = __int128_t;
+#else
+using int128 = boost::multiprecision::int128_t;
+#endif
+
 #if defined(__SIZEOF_INT128__)
 /**
  * @brief Streams a signed 128-bit integer in decimal form.
@@ -33,7 +53,7 @@ class Rational;
  * @param value Value to print.
  * @return The output stream.
  */
-inline std::ostream& operator<<(std::ostream& stream, const __int128_t& value) {
+inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
     if (value < 0 && value == -value) {
         return stream << "-170141183460469231731687303715884105728";
     }
@@ -51,17 +71,10 @@ inline std::ostream& operator<<(std::ostream& stream, const __int128_t& value) {
 
 namespace pgl::detail {
 
-#if defined(__SIZEOF_INT128__)
-using int128_t = __int128_t;
-#endif
-
 template <typename T>
 concept extended_integral =
     std::integral<T>
-#if defined(__SIZEOF_INT128__)
-    || std::same_as<std::remove_cv_t<T>, int128_t>
-#endif
-    ;
+    || std::same_as<std::remove_cv_t<T>, pgl::int128>;
 
 /**
  * @brief Type-level coordinate promotion helper.
@@ -107,17 +120,15 @@ struct _promote<pgl::Rational<int32_t>> {
     using type = pgl::Rational<int64_t>;
 };
 
-#if defined(__SIZEOF_INT128__)
 template <>
 struct _promote<int64_t> {
-    using type = __int128_t;
+    using type = pgl::int128;
 };
 
 template <>
 struct _promote<pgl::Rational<int64_t>> {
-    using type = pgl::Rational<__int128_t>;
+    using type = pgl::Rational<pgl::int128>;
 };
-#endif
 
 template <>
 struct _promote<float> {

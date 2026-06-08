@@ -11,7 +11,7 @@
 #include <limits>
 #include "pgl.hpp"
 
-TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, __int128_t) {
+TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, pgl::int128) {
     {
         pgl::Rational<Int> a(13);
         CHECK(a.numerator() == 13);
@@ -43,7 +43,7 @@ TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, __int128
     }
 }
 
-TEST_CASE_TEMPLATE("Constructors from double", Int, int32_t, int64_t, __int128_t) {
+TEST_CASE_TEMPLATE("Constructors from double", Int, int32_t, int64_t, pgl::int128) {
     {
         pgl::Rational<Int> a(0.0);
         CHECK(a.numerator() == 0);
@@ -91,7 +91,7 @@ TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     CHECK(std::numeric_limits<pgl::Rational<int>>::lowest() == std::numeric_limits<pgl::Rational<int>>::min());
 }
 
-TEST_CASE_TEMPLATE("Arithmetic operations", Int, int32_t, int64_t, __int128_t) {
+TEST_CASE_TEMPLATE("Arithmetic operations", Int, int32_t, int64_t, pgl::int128) {
     {
         pgl::Rational<Int> a(13);
         pgl::Rational<Int> b(7);

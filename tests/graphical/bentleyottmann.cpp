@@ -47,7 +47,7 @@ void draw(const std::string &fn, const std::vector<pgl::Segment<Point>> &segment
         canvas << pgl::stroke("black") << s;
         canvas << pgl::stroke("lightgrey") << s.min() << s.max();
     }
-    using Rational = pgl::Rational<__int128_t>;
+    using Rational = pgl::Rational<pgl::int128>;
     using RPoint = pgl::Point<Rational>;
 
     std::map<RPoint,int> count;

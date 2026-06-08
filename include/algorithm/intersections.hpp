@@ -588,7 +588,7 @@ namespace pgl {
  * @param segments Input segment container.
  * @return Vector of intersecting segment pairs.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 auto findIntersections(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
@@ -608,7 +608,7 @@ auto findIntersections(const Container &segments) {
  * @param segments Input segment container.
  * @return Vector of crossing segment pairs.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 auto findCrossings(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
@@ -628,7 +628,7 @@ auto findCrossings(const Container &segments) {
  * @param segments Input segment container.
  * @return `true` if at least one intersecting pair exists.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 bool detectIntersections(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
@@ -647,7 +647,7 @@ bool detectIntersections(const Container &segments) {
  * @param segments Input segment container.
  * @return `true` if at least one crossing pair exists.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 bool detectCrossings(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
@@ -666,7 +666,7 @@ bool detectCrossings(const Container &segments) {
  * @param segments Input segment container.
  * @return Vector of crossing segment pairs.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 auto bruteForceCrossings(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<std::array<pgl::Segment<Point>,2>> ret;
@@ -699,7 +699,7 @@ auto bruteForceCrossings(const Container &segments) {
  * @param segments Input segment container.
  * @return Vector of intersecting segment pairs.
  */
-template<class Rational = pgl::Rational<__int128_t>, class Container>
+template<class Rational = pgl::Rational<pgl::int128>, class Container>
 auto bruteForceIntersections(const Container &segments) {
     using Point = Container::value_type::PointType;
     std::vector<std::array<pgl::Segment<Point>,2>> ret;

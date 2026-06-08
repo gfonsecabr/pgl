@@ -292,13 +292,34 @@ public:
     }
 
     /**
+     * @brief Three-way ordering of two values.
+     *
+     * Uses the native `operator<=>` when the storage type provides it (e.g.
+     * `__int128_t`), and otherwise derives the ordering from `<` for types that
+     * lack three-way comparison (e.g. Boost.Multiprecision numbers, used as the
+     * int128 fallback).
+     */
+    template <class A, class B>
+    static constexpr std::strong_ordering compareValues(const A& a, const B& b) {
+        if constexpr (requires { a <=> b; }) {
+            return a <=> b;
+        } else {
+            if (a < b)
+                return std::strong_ordering::less;
+            if (b < a)
+                return std::strong_ordering::greater;
+            return std::strong_ordering::equal;
+        }
+    }
+
+    /**
      * @brief Three-way comparison operator.
      */
     constexpr std::strong_ordering operator<=>(const Rational& r) const {
         if (r.num == 0)
-            return num<=>0;
+            return compareValues(num, Int{0});
         if (num == 0)
-            return 0<=>r.num;
+            return compareValues(Int{0}, r.num);
         if (num == r.num && den == r.den)
             return std::strong_ordering::equal;
 
@@ -327,7 +348,7 @@ public:
         using Wide = pgl::detail::promoted_number_t<Common>;
         const Wide lhs = static_cast<Wide>(num) * static_cast<Wide>(r.denominator());
         const Wide rhs = static_cast<Wide>(r.numerator()) * static_cast<Wide>(den);
-        return lhs <=> rhs;
+        return compareValues(lhs, rhs);
     }
 
     /**
@@ -401,9 +422,7 @@ template <> struct select_int_ge<8>  { using type = std::int8_t;  };
 template <> struct select_int_ge<16> { using type = std::int16_t; };
 template <> struct select_int_ge<32> { using type = std::int32_t; };
 template <> struct select_int_ge<64> { using type = std::int64_t; };
-#ifdef __SIZEOF_INT128__
-template <> struct select_int_ge<128> { using type = __int128_t; };
-#endif
+template <> struct select_int_ge<128> { using type = pgl::int128; };
 
 // Helper to round required bits up to the next supported size
 constexpr int round_up_bits(int bits) {
@@ -411,18 +430,14 @@ constexpr int round_up_bits(int bits) {
     if (bits <= 16)  return 16;
     if (bits <= 32)  return 32;
     if (bits <= 64)  return 64;
-#ifdef __SIZEOF_INT128__
     return 128;
-#else
-    return 64;
-#endif
 }
 
 template <typename T>
 struct is_int128 : std::false_type {};
 
+template <> struct is_int128<pgl::int128> : std::true_type {};
 #ifdef __SIZEOF_INT128__
-template <> struct is_int128<__int128_t>  : std::true_type {};
 template <> struct is_int128<__uint128_t> : std::true_type {};
 #endif
 
@@ -477,4 +492,30 @@ struct std::numeric_limits<pgl::Rational<Int>> {
     static constexpr bool is_signed = std::numeric_limits<Int>::is_signed;
     static constexpr bool is_integer = false;
     static constexpr bool is_exact = true;
+
+    // Remaining members keep the specialization complete so generic trait
+    // machinery (e.g. Boost.Multiprecision, used as the int128 fallback) can
+    // classify Rational. With is_integer == false and max_exponent == 0 it is
+    // treated as an "unknown" category, so Boost never tries to convert it.
+    static constexpr int radix = 2;
+    static constexpr int min_exponent = 0;
+    static constexpr int min_exponent10 = 0;
+    static constexpr int max_exponent = 0;
+    static constexpr int max_exponent10 = 0;
+    static constexpr bool is_bounded = std::numeric_limits<Int>::is_bounded;
+    static constexpr bool is_modulo = false;
+    static constexpr bool is_iec559 = false;
+    static constexpr bool has_infinity = false;
+    static constexpr bool has_quiet_NaN = false;
+    static constexpr bool has_signaling_NaN = false;
+    static constexpr bool traps = false;
+    static constexpr bool tinyness_before = false;
+    static constexpr std::float_round_style round_style = std::round_toward_zero;
+
+    static constexpr pgl::Rational<Int> epsilon() noexcept { return pgl::Rational<Int>(0, 1); }
+    static constexpr pgl::Rational<Int> round_error() noexcept { return pgl::Rational<Int>(0, 1); }
+    static constexpr pgl::Rational<Int> infinity() noexcept { return pgl::Rational<Int>(0, 1); }
+    static constexpr pgl::Rational<Int> quiet_NaN() noexcept { return pgl::Rational<Int>(0, 1); }
+    static constexpr pgl::Rational<Int> signaling_NaN() noexcept { return pgl::Rational<Int>(0, 1); }
+    static constexpr pgl::Rational<Int> denorm_min() noexcept { return pgl::Rational<Int>(0, 1); }
 };
