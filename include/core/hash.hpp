@@ -54,6 +54,22 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for BigInt.
+     */
+    template <>
+    struct hash<pgl::BigInt> {
+        std::size_t operator()(const pgl::BigInt& b) const noexcept {
+            std::size_t seed = 15;
+            pgl::detail::hashCombine(seed, b.negative_);
+            pgl::detail::hashCombine(seed, b.small_);
+            for (const auto& limb : b.limbs_) {
+                pgl::detail::hashCombine(seed, limb);
+            }
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for Segment.
      */
     template <class PointType, class LabelType>

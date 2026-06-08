@@ -19,6 +19,7 @@
 
 #include "core/forward.hpp"
 #include "core/numeric.hpp"
+#include "core/bigint.hpp"
 #include "core/rational.hpp"
 #include "geometry/point.hpp"
 #include "implementation/orientation.hpp"
