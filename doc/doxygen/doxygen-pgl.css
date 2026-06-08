@@ -1,0 +1,242 @@
+/*
+ * doxygen-pgl.css — Pangolin (pgl) brand layer on top of Doxygen Awesome.
+ * Loaded after doxygen-awesome*.css, so it only overrides variables and a few
+ * structural rules. Brand colors come from the README badges / logo:
+ *   blue   rgb(10, 66, 158)  #0a429e
+ *   orange rgb(216,134, 42)  #d8862a
+ */
+
+/* ------------------------------------------------------------------ */
+/*  Palette                                                            */
+/* ------------------------------------------------------------------ */
+html {
+    /* Primary = pgl blue, with a derived ramp. */
+    --primary-color:          #0a429e;
+    --primary-dark-color:     #072f72;
+    --primary-light-color:    #3f6fc0;
+    --primary-lighter-color:  #c7d6ee;
+    --primary-lightest-color: #eef3fb;
+
+    /* Orange is the accent: links, code keywords, search highlight. */
+    --pgl-accent:             #d8862a;
+    --pgl-accent-dark:        #b56d1d;
+
+    /* Logo-inspired hues used in small geometric accents. */
+    --pgl-teal:               #2a9d8f;
+    --pgl-red:                #d8362a;
+    --pgl-gold:               #e8a33d;
+
+    --page-background-color:  #ffffff;
+    --separator-color:        #e3e6ec;
+    --border-radius-large:    10px;
+    --border-radius-medium:   7px;
+    --border-radius-small:    4px;
+
+    --spacing-large:          14px;
+    --content-maxwidth:       1100px;
+
+    /* Slightly warmer, more readable code font sizing. */
+    --code-background:        #f6f8fb;
+    --fragment-background:    #f6f8fb;
+    --fragment-foreground:    #2b2f36;
+}
+
+/* Optional dark mode (kicks in if HTML_COLORSTYLE makes the theme dark). */
+html.dark-mode {
+    --primary-color:          #6ea8ff;
+    --primary-dark-color:     #3f6fc0;
+    --primary-light-color:    #88b9ff;
+    --primary-lighter-color:  #20304d;
+    --primary-lightest-color: #16213a;
+
+    --pgl-accent:             #f0a347;
+    --pgl-accent-dark:        #d8862a;
+
+    --page-background-color:  #0e1117;
+    --separator-color:        #232a36;
+    --code-background:        #161b22;
+    --fragment-background:    #161b22;
+    --fragment-foreground:    #d6dae0;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Header / title area — a geometric brand band                       */
+/* ------------------------------------------------------------------ */
+#titlearea {
+    background:
+        linear-gradient(135deg,
+            var(--primary-dark-color) 0%,
+            var(--primary-color) 55%,
+            var(--pgl-accent) 130%);
+    border-bottom: 3px solid var(--pgl-accent);
+    padding: 10px 0;
+}
+
+#titlearea #projectname,
+#titlearea #projectbrief {
+    color: #ffffff;
+}
+
+#titlearea #projectname {
+    font-weight: 700;
+    letter-spacing: .3px;
+}
+
+#titlearea #projectbrief {
+    opacity: .85;
+    font-style: normal;
+}
+
+#projectlogo img {
+    max-height: 56px;
+    margin: 0 12px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Search bar — fix the clipped box in the (sidebar-only) top nav     */
+/* ------------------------------------------------------------------ */
+#main-nav {
+    overflow: visible;            /* stop the nav row from clipping the box */
+}
+
+#main-menu > li#searchBoxPos2 {
+    float: right;
+    margin: 6px 12px 6px 0;       /* breathing room, no longer flush-clipped */
+    display: flex;
+    align-items: center;
+    height: auto;
+}
+
+#MSearchBox {
+    position: static;             /* let it flow inside the flex li */
+    display: flex;
+    align-items: center;
+    width: 260px;
+    max-width: 40vw;
+    height: 34px;
+    margin: 0;
+    padding: 0 6px;
+    box-sizing: border-box;
+    background: var(--page-background-color);
+    border: 1px solid var(--separator-color);
+    border-radius: var(--border-radius-medium);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .06);
+}
+
+#MSearchBox .left,
+#MSearchBox .right {
+    position: static;
+    display: flex;
+    align-items: center;
+}
+
+#MSearchBox .left { flex: 1; }
+
+#MSearchField {
+    flex: 1;
+    width: 100%;
+    height: 30px;
+    margin: 0 4px;
+    font-size: 13px;
+    background: transparent;
+}
+
+#MSearchSelect { padding: 0 2px; }
+
+/* Results popup aligned to the box, with brand-colored highlights. */
+#MSearchResultsWindow {
+    border: 1px solid var(--separator-color);
+    border-radius: var(--border-radius-medium);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+.SRSymbol,
+a.SRSymbol:focus,
+a.SRSymbol:active { color: var(--primary-color); }
+span.SRScope { color: var(--pgl-accent-dark); }
+
+/* ------------------------------------------------------------------ */
+/*  Links & accents                                                    */
+/* ------------------------------------------------------------------ */
+a { color: var(--primary-color); }
+a:hover { color: var(--pgl-accent-dark); }
+
+/* Section / member anchors get the orange accent on hover. */
+h1 a:hover, h2 a:hover, h3 a:hover,
+.memtitle a:hover { color: var(--pgl-accent); }
+
+/* Heading underline echoes the logo band. */
+h1, h2 {
+    border-bottom: 2px solid var(--separator-color);
+    padding-bottom: 4px;
+}
+h2 { border-bottom-color: var(--primary-lighter-color); }
+
+/* ------------------------------------------------------------------ */
+/*  Member declarations / tables                                       */
+/* ------------------------------------------------------------------ */
+.memtitle {
+    border-top: 3px solid var(--primary-color);
+}
+
+table.memberdecls .heading h2,
+.groupheader {
+    color: var(--primary-dark-color);
+    border-bottom: 2px solid var(--pgl-accent);
+    padding-bottom: 3px;
+}
+
+/* Parameter / return tables: brand header row. */
+table.params .paramname,
+table.retval .paramname { color: var(--pgl-accent-dark); }
+
+/* ------------------------------------------------------------------ */
+/*  Code fragments                                                     */
+/* ------------------------------------------------------------------ */
+div.fragment,
+pre.fragment {
+    border: 1px solid var(--separator-color);
+    border-left: 4px solid var(--primary-color);
+    border-radius: var(--border-radius-small);
+}
+
+span.keyword,
+span.keywordtype,
+span.keywordflow { color: var(--pgl-accent-dark); font-weight: 600; }
+span.comment { color: var(--pgl-teal); font-style: italic; }
+span.stringliteral { color: var(--pgl-red); }
+
+/* Inline code chips. */
+code,
+a.code, a.codeRef {
+    background: var(--code-background);
+    border-radius: var(--border-radius-small);
+    padding: .05em .3em;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar tree                                                       */
+/* ------------------------------------------------------------------ */
+#side-nav { border-right: 1px solid var(--separator-color); }
+
+#nav-tree .item.selected a.label,
+#nav-tree a:hover { color: var(--primary-color); }
+
+#nav-tree .selected {
+    background-image: none;
+    background-color: var(--primary-lightest-color);
+    border-left: 3px solid var(--pgl-accent);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Small geometric flourish: dotted rule under the main title (home)  */
+/* ------------------------------------------------------------------ */
+div.contents h1.title {
+    background:
+        repeating-linear-gradient(90deg,
+            var(--primary-color) 0 8px,
+            var(--pgl-accent)     8px 16px,
+            var(--pgl-teal)       16px 24px) bottom / 100% 3px no-repeat;
+    padding-bottom: 8px;
+    border-bottom: none;
+}
