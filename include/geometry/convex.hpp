@@ -664,8 +664,8 @@ struct Convex {
      * Returns false unless all disk points are the same and that point is on the boundary of this convex polygon.
      * Complexity: O(log n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the boundary of the convex polygon contains the wrapped shape.
@@ -811,8 +811,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool contains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the wrapped shape.
@@ -938,8 +938,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the wrapped shape.
@@ -1077,8 +1077,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool intersects(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the wrapped shape.
@@ -1186,8 +1186,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon intersects the interior of the wrapped shape.
@@ -1293,8 +1293,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon separates the wrapped shape.
@@ -1392,8 +1392,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Disk<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool crosses(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses the wrapped shape.

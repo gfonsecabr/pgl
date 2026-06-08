@@ -1054,8 +1054,8 @@ constexpr bool Convex<PointType>::contains(const Convex<OtherPoint>& other) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::contains(const Disk<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::contains(const Disk<OtherPoint, OtherLabel>& other) const {
     for (auto &edge : orientedEdges()) {
         if (!edge.leftHalfplane().contains(other)) {
             return false;
