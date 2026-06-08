@@ -27,19 +27,42 @@ HIDE_UNDOC_MEMBERS     = NO
 HIDE_UNDOC_CLASSES     = NO
 SHOW_USED_FILES        = NO
 SORT_MEMBER_DOCS       = YES
+# Everything lives in pgl::, so the Namespaces page/tab is just noise.
+SHOW_NAMESPACES        = NO
+# Don't surface @todo items as a generated "Todo List" page.
+GENERATE_TODOLIST      = NO
 
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-INPUT                  = README.md \
-                         include \
-                         doc
-USE_MDFILE_AS_MAINPAGE = README.md
+# A dedicated, Doxygen-friendly landing page plus the API headers. The GitHub
+# README is intentionally NOT used here (its <picture>/badge HTML renders raw),
+# and the standalone doc/*.md reference pages are maintained separately.
+INPUT                  = doc/doxygen/mainpage.md \
+                         include
+USE_MDFILE_AS_MAINPAGE = doc/doxygen/mainpage.md
+# Custom navigation (Classes / Concepts / Files only).
+LAYOUT_FILE            = doc/doxygen/DoxygenLayout.xml
 FILE_PATTERNS          = *.hpp *.h *.md
 RECURSIVE              = YES
 # Maintainer scripts and generated/build artifacts are not API surface.
 EXCLUDE                = include/implementation/split_predicates.py
 EXCLUDE_PATTERNS       = */build/* */tests/* */benchmark/* */sandbox/*
+# Keep the reference focused on the public pgl API. Everything internal lives
+# in pgl::detail by convention; std specializations and the low-level numeric
+# traits are plumbing, not part of the documented surface.
+EXCLUDE_SYMBOLS        = pgl::detail \
+                         pgl::detail::* \
+                         detail::* \
+                         std \
+                         std::* \
+                         pgl::_promote \
+                         pgl::is_Rational \
+                         pgl::is_Rational_v \
+                         pgl::is_int128 \
+                         pgl::is_int128_v \
+                         pgl::select_int_ge \
+                         pgl::to_integer_with_digits
 IMAGE_PATH             = doc/figures
 EXAMPLE_PATH           = examples
 EXAMPLE_RECURSIVE      = YES
@@ -47,7 +70,7 @@ EXAMPLE_RECURSIVE      = YES
 #---------------------------------------------------------------------------
 # C++ specifics
 #---------------------------------------------------------------------------
-BUILTIN_STL_SUPPORT    = YES
+BUILTIN_STL_SUPPORT    = NO
 CPP_CLI_SUPPORT        = NO
 TEMPLATE_RELATIONS     = YES
 # Header-only: treat everything as one translation unit's worth of decls.
@@ -81,8 +104,9 @@ FULL_SIDEBAR           = NO
 HTML_OUTPUT            = html
 HTML_COLORSTYLE        = LIGHT
 HTML_EXTRA_STYLESHEET  = build/doxygen-awesome/doxygen-awesome.css \
-                         build/doxygen-awesome/doxygen-awesome-sidebar-only.css \
                          doc/doxygen/doxygen-pgl.css
+# Copied verbatim into the output so the CSS can use it as the title wordmark.
+HTML_EXTRA_FILES       = doc/figures/logotext.svg
 HTML_COPY_CLIPBOARD    = NO
 
 QUIET                  = YES
