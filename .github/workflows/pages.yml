@@ -1,51 +1,59 @@
-name: Docs
+name: Pages
 
 on:
   push:
     branches:
       - main
       - master
-    # Only rebuild the docs when something the docs are built from changes —
-    # a commit that touches none of these does not re-run this workflow.
+    # Rebuild the site when the docs OR the benchmark data/dashboard change.
     paths:
       - 'include/**'
       - 'doc/**'
       - 'examples/**'
       - 'Doxyfile'
-      - '.github/workflows/docs.yml'
-  # Allow manual runs from the Actions tab.
+      - 'benchmark/history/**'
+      - 'benchmark/dashboard/**'
+      - 'benchmark/support/build_dashboard.py'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
-# Allow the workflow to publish to GitHub Pages.
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# One deploy at a time; let an in-progress run finish.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build docs
+    name: Build site
     runs-on: ubuntu-latest
     env:
       DOXYGEN_AWESOME_VERSION: v2.3.4
-      # Pinned so Pages renders identically to local; Ubuntu's apt doxygen
-      # lags several releases and lays out tabs/concepts differently.
       DOXYGEN_VERSION: 1.17.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Reuse the previously built docs when none of their sources changed, so a
+      # benchmark-only push redeploys without rebuilding the API reference.
+      - name: Restore docs cache
+        id: doccache
+        uses: actions/cache@v4
+        with:
+          path: build/doc/html
+          key: docs-${{ env.DOXYGEN_VERSION }}-${{ env.DOXYGEN_AWESOME_VERSION }}-${{ hashFiles('Doxyfile', 'doc/**', 'include/**', 'examples/**') }}
+
       - name: Install Graphviz
+        if: steps.doccache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz
 
       - name: Install Doxygen ${{ env.DOXYGEN_VERSION }}
+        if: steps.doccache.outputs.cache-hit != 'true'
         run: |
           # GitHub release assets are CDN-backed and reliable in CI; doxygen.nl
           # rejects the runner's request with HTTP 415.
@@ -57,18 +65,30 @@ jobs:
           doxygen --version
 
       - name: Fetch Doxygen Awesome theme
+        if: steps.doccache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch "$DOXYGEN_AWESOME_VERSION" \
             https://github.com/jothepro/doxygen-awesome-css.git \
             build/doxygen-awesome
 
       - name: Generate documentation
+        if: steps.doccache.outputs.cache-hit != 'true'
         run: doxygen Doxyfile
+
+      - name: Assemble site (docs at root, benchmarks under /benchmarks)
+        run: |
+          rm -rf site
+          mkdir -p site
+          cp -r build/doc/html/. site/
+          python3 benchmark/support/build_dashboard.py \
+            --history benchmark/history \
+            --dashboard benchmark/dashboard \
+            --out site/benchmarks
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/doc/html
+          path: site
 
   deploy:
     name: Deploy to GitHub Pages

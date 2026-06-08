@@ -63,7 +63,11 @@ if [[ -n "${PGL_BENCHMARK_NUMBERS:-}" ]]; then
     done
 fi
 
-cpu_model="$(lscpu 2>/dev/null | awk -F: '/Model name/ {$1=""; sub(/^ +/, ""); print; exit}' || true)"
+# LC_ALL=C so the "Model name" label is not localized; fall back to cpuinfo.
+cpu_model="$(LC_ALL=C lscpu 2>/dev/null | awk -F: '/Model name/ {$1=""; sub(/^ +/, ""); print; exit}' || true)"
+if [[ -z "$cpu_model" ]]; then
+    cpu_model="$(awk -F: '/model name/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
+fi
 commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 commit="${commit:-unknown}"
 

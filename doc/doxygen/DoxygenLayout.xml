@@ -17,6 +17,8 @@
     <tab type="files" visible="yes" title="Files">
       <tab type="filelist" visible="yes" title="File List" intro=""/>
     </tab>
+    <!-- Link to the benchmark dashboard published alongside the docs. -->
+    <tab type="user" url="^benchmarks/index.html" title="Benchmarks"/>
   </navindex>
 
   <!-- Layout definition for a class page -->

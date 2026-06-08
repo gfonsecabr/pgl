@@ -20,6 +20,7 @@ class Measurement:
     compiler: str
     cxxflags: str
     cpu: str
+    commit: str = "unknown"
 
 
 def parse_metadata(line: str, metadata: dict[str, str]) -> bool:
@@ -51,6 +52,7 @@ def parse_measurement(line: str, metadata: dict[str, str]) -> Measurement | None
     compiler = metadata.get("compiler", "unknown")
     cxxflags = metadata.get("cxxflags", "unknown")
     cpu = metadata.get("cpu", "unknown")
+    commit = metadata.get("commit", "unknown")
     return Measurement(
         suite=suite,
         operation=parts[0],
@@ -61,6 +63,7 @@ def parse_measurement(line: str, metadata: dict[str, str]) -> Measurement | None
         compiler=compiler,
         cxxflags=cxxflags,
         cpu=cpu,
+        commit=commit,
     )
 
 

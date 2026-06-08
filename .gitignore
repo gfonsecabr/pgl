@@ -1,6 +1,9 @@
 # Build artifacts: test/benchmark binaries, JUnit reports, generated docs.
 build/
 
+# Locally assembled Pages site (docs + benchmark dashboard).
+/site/
+
 # Doxygen output (if generated outside build/).
 /doc/html/
 /doc/latex/
@@ -11,6 +14,8 @@ build/
 .clangd
 .cache/
 compile_commands.json
+__pycache__/
+*.pyc
 
 # Ad-hoc exploratory programs and their output
 sandbox/
