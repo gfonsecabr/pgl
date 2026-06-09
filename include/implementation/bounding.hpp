@@ -376,9 +376,12 @@ constexpr void Rectangle<PointType>::insert(Range&& range) {
 // Convex
 
 template <class PointType>
-constexpr Rectangle<PointType> Convex<PointType>::bbox() const {
+constexpr const Rectangle<PointType>& Convex<PointType>::bbox() const {
+    if (bbox_) {
+        return *bbox_;
+    }
     if (points_.empty()) {
-        return Rectangle<PointType>();
+        return bbox_.emplace();
     }
     // x is unimodal (vertices are CCW from the leftmost), so the x-extremes are
     // the stored ends; y is unimodal only modulo rotation, so cyclicMax handles it.
@@ -389,7 +392,7 @@ constexpr Rectangle<PointType> Convex<PointType>::bbox() const {
     const NumberType max_y = detail::cyclicMax(points_.begin(), points_.end(),
         [](const PointType& p) { return p.y(); })->y();
 
-    return Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_;
+    return bbox_.emplace(Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_);
 }
 
 template <class PointType>

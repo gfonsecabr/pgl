@@ -710,7 +710,7 @@ constexpr bool Convex<PointType>::interiorContains(const Convex<OtherPoint>& oth
         return interiorContains(Segment<OtherPoint>(other[0], other[1]));
     }
 
-    if (other.size() <= size()) {
+    if (other.size() <= 2*size()) {
         for (size_t i = 0; i < other.size(); ++i) {
             if (!interiorContains(other[i])) {
                 return false;

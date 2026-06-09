@@ -1151,8 +1151,11 @@ constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) con
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
 
-    if (other.size() <= size()) {
+    if (other.size() <= 2*size()) {
         const ptrdiff_t m = other.size();
         int arcs = 0;
         bool prev_in = contains(other[m - 1]);
