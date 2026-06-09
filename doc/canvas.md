@@ -80,6 +80,8 @@ afterwards affects only shapes inserted later.
 This is why the order of streamed commands matters:
 
 ```c++
+pgl::Canvas canvas;
+pgl::Segment firstSegment = {0, 0, 4, 3}, secondSegment = {0, 3, 4, 0};
 // Each shape remembers the style that was active when it was inserted.
 canvas << pgl::stroke("royalblue") << firstSegment;
 // So changing the stroke now only affects what comes next.
@@ -100,6 +102,9 @@ becomes crimson.
 Example:
 
 ```c++
+pgl::Canvas canvas;
+pgl::Halfplane halfplane = {0, 0, 4, 2};
+pgl::Rectangle rectangle = {{1, 1}, {3, 3}};
 // Soft fill for the half-plane so the rest of the drawing still shows through.
 canvas << pgl::stroke("teal")
        << pgl::fill("teal")

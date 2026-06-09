@@ -33,11 +33,11 @@ name, id, or payload without going through an external map.
 
 ```C++
 pgl::Point<int,std::string> p = {3,5,"center"}, q = p;
-std::cout << p << << ' ' << q << std::endl;
+std::cout << p << ' ' << q << std::endl;
 // Output: center:(3,5) center:(3,5)
 q.label() = "other";
 if (p == q)
-    std::cout << p << << " == " << q << std::endl;
+    std::cout << p << " == " << q << std::endl;
 // Output: center:(3,5) == other:(3,5)
 ```
 
@@ -59,7 +59,7 @@ using Point = pgl::Point<int,std::string>;
 using Segment = pgl::Segment<Point>;
 using Triangle = pgl::Triangle<Point>;
 
-Triangle tri = {{{0,1,"a"}, {5,2,"b"}, {2,9,"c"}}};
+Triangle tri({{0,1,"a"}, {5,2,"b"}, {2,9,"c"}});
 Segment s = tri.diameter();
 std::cout << s << std::endl;
 // Output: a:(0,1)--c:(2,9)
@@ -156,7 +156,7 @@ int main() {
     if (s.intersects(t)) {
         std::cout << s << " intersects " << t << " at point ";
         auto isec = s.intersection<pgl::Rational<int>>(t); // Use rational here
-        pgl::Rational<int>>(t) cross = std::get<0>(*isec);
+        pgl::Point<pgl::Rational<int>> cross = std::get<0>(*isec);
         std::cout << cross << std::endl;
     }
 

@@ -57,9 +57,9 @@ Shapes may be degenerate, for example when some of their defining points are equ
 Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
 
 ```C++
-Shape p = Point(3,7);
-Shape s = Segment(1,4,2,9);
-Shape r = Rectangle(1,4,2,9);
+pgl::Shape p = pgl::Point(3,7);
+pgl::Shape s = pgl::Segment(1,4,2,9);
+pgl::Shape r = pgl::Rectangle(1,4,2,9);
 if (r.contains(p))
     std::cout << r << " contains " << p << std::endl;
 if (r.intersects(s))
@@ -80,7 +80,7 @@ The `Point` class template defines a point with x and y coordinates. A point may
 ```C++
 pgl::Point p = {7,9};
 pgl::Point<double> q = {3.5,2.25};
-pgl::Point<int,std::string> c = {3,5,"center"}
+pgl::Point<int,std::string> c = {3,5,"center"};
 ```
 
 You can read and change the coordinates of a point `p` as `p[0]` and `p[1]` or `p.x()` and `p.y()`. You can also iterate through the coordinates.
@@ -89,7 +89,7 @@ You can read and change the coordinates of a point `p` as `p[0]` and `p[1]` or `
 pgl::Point p;
 p.x() = 7;
 p[1] = 9;
-for(int coord : p) std::cout << p << ' ';
+for(int coord : p) std::cout << coord << ' ';
 std::cout << p << std::endl;
 // Output: 7 9 (7,9)
 ```
@@ -123,7 +123,7 @@ The interior of a segment is all the segment except the two endpoints.
 ```C++
 pgl::Segment s(1,0,5,0), t(2,0,2,3);
 if (s.intersects(t)) std::cout << "Intersect!";
-if (!s.interiorsIntersects(t)) std::cout << " Interiors do not intersect!\n";
+if (!s.interiorsIntersect(t)) std::cout << " Interiors do not intersect!\n";
 // Output: Intersect! Interiors do not intersect!
 ```
 
@@ -160,9 +160,9 @@ if (s != t)
 You can read the two endpoints of a segment `s` as `s[0]` and `s[1]` or `s.source()` and `s.target()`. You can directly change the endpoints. You can also iterate through the endpoints.
 
 ```C++
-pgl::Segment s(1,2,3,4);
+pgl::OrientedSegment s(1,2,3,4);
 s[0][0] = 5;
-s.target().x() = 7
+s.target().x() = 7;
 std::cout << s << std::endl;
 // Output: (5,2)->(7,4)
 ```
@@ -309,7 +309,7 @@ if (h1 != h2)
 
 h2 = h2.opposite();    
 if (h1 == h2)
-    std::cout << l1 << " == " << l2;
+    std::cout << h1 << " == " << h2;
 // Output: ^-(1,2)--(3,4)-^ == ^-(1,2)--(2,3)-^
 ```
 
@@ -343,7 +343,7 @@ for(pgl::Point p : t) std::cout << p << ' ';
 for(pgl::Segment s : t.edges()) std::cout << s << ' ';
 // Output: (1,1)--(4,1) (3,3)--(4,1) (1,1)--(3,3)
 for(pgl::OrientedSegment s : t.orientedEdges()) std::cout << s << ' ';
-// Output: (1,1)->(4,1) (3,1)->(3,3) (3,3)->(1,1)
+// Output: (1,1)->(4,1) (4,1)->(3,3) (3,3)->(1,1)
 ```
 
 A triangle `t` has methods such as:
@@ -365,10 +365,10 @@ It knows how to convert itself with an explicit cast to:
 The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y  and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
 
 ```C++
-pgl::Rectangle r({{{1,3},{2,4},{3,1},{5,4},{2,3}}});
-// Same as pgl::Rectangle r({1,1},{5,4} or pgl::Rectangle r({1,4},{5,1});
+pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
+// Same as pgl::Rectangle r({1,1},{5,4}) or pgl::Rectangle r({1,4},{5,1});
 std::cout << r << std::endl;
-// Output: [(1,1)(5,4)]
+// Output: [(1,1),(5,4)]
 std::cout << r.min() << ' ' << r.max() << std::endl;
 // Output: (1,1) (5,4)
 for(size_t i : {0,1,2,3}) std::cout << r[i] << ' ';
