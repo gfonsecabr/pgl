@@ -43,14 +43,17 @@ CXX = os.environ.get("CXX", "g++")
 BASE_FLAGS = ["-Ofast", "-std=c++23", f"-I{ROOT / 'include'}"]
 
 
-def run_program(src: Path, extra_flags=(), runs: int = 1):
+def run_program(src: Path, extra_flags=(), link_flags=(), runs: int = 1):
     """Compile `src`, run it `runs` times, and return one list of (label, ns)
     records keeping the fastest time seen for each row (positions are stable
-    across runs, so this also works when labels repeat between sections)."""
+    across runs, so this also works when labels repeat between sections).
+
+    link_flags go after the source (linker order matters, e.g. -lgmp)."""
     with tempfile.TemporaryDirectory() as tmp:
         exe = Path(tmp) / "bench"
-        cmd = [CXX, *BASE_FLAGS, *extra_flags, str(src), "-o", str(exe)]
-        print(f"  compiling {src.name} {' '.join(extra_flags)}".rstrip(),
+        cmd = [CXX, *BASE_FLAGS, *extra_flags, str(src), *link_flags, "-o", str(exe)]
+        print(f"  compiling {src.name} "
+              f"{' '.join((*extra_flags, *link_flags))}".rstrip(),
               file=sys.stderr)
         subprocess.run(cmd, check=True)
 
@@ -155,7 +158,9 @@ def doc_table(runs: int) -> str:
 
 
 def boost_table(runs: int) -> str:
-    records, divide_at = run_program(SUPPORT / "boosttable.cpp", runs=runs)
+    # boosttable.cpp uses GMP via Boost.Multiprecision, so link libgmp.
+    records, divide_at = run_program(SUPPORT / "boosttable.cpp",
+                                     link_flags=["-lgmp"], runs=runs)
     if divide_at is None:
         divide_at = len(records)
     integer = dict(records[:divide_at])
@@ -167,10 +172,12 @@ def boost_table(runs: int) -> str:
         ("`boost::multiprecision::int128_t`", "boost int128_t",         False),
         ("`pgl::BigInt`",                          "BigInt",                 False),
         ("`boost::cpp_int`",                  "boost cpp_int",          False),
+        ("`GMP mpz_int`",                     "GMP mpz_int",            False),
         ("`pgl::Rational<int64_t>`",          "pgl Rational int64_t",   True),
         ("`boost::rational<int64_t>`",        "boost rational int64_t", True),
         ("`pgl::Rational<pgl::BigInt>`",           "pgl Rational BigInt",    True),
         ("`boost::rational<boost::cpp_int>`", "boost rational cpp_int", True),
+        ("`GMP mpq_rational`",                "GMP mpq_rational",       True),
     ]
     headers = ["Type", "integer", "integer / 60"]
     rows = []

@@ -85,7 +85,7 @@ You may disable promotion by defining `PGL_DISABLE_PROMOTION` before including
 
 128-bit integers are available on most compilers (g++ and clang++, but not MSVC) on modern machines. For compatibility, Pangolin defines the type `pgl::int128` as the native `__int128_t` if available, and uses boost to emulate 128 bit integers when not available. Boost is a dependency of pgl only when `__int128_t`is not available (for example under MSVC).
 
-The `BigInt` class is available for arbitrary precision integers. We've chosen to provide our own `BigInt` class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is very slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The `BigInt` type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^127$. Check the [benchmark](#benchmark) for details.
+The `BigInt` class is available for arbitrary precision integers. We've chosen to provide our own `BigInt` class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The `BigInt` type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^127$. It doesn't even include Karatsuba multiplication, as the numbers are not big enough for Karatsuba to be faster. Check the [benchmark](#benchmark) for details.
 
 
 ### Overflow
@@ -188,17 +188,19 @@ To give an idea of the cost of using different number types, we show a benchmark
 
 ### Boost Number Types
 
-For comparison, we now perform tests on the time of the `pgl::Segment::cross` predicate using boost number types, all without promotion:
+Boost number types work well with pgl, but are slower in our tests.
+We perform tests on the time of the `pgl::Segment::cross` predicate using boost types, including boost GMP wrappers (native GMP wrappers cannot be used because pgl uses `auto` types). All tests are performed without promotion in the same setting as the previous benchmarks:
 
 | Type                              | integer | integer / 60 |
 | --------------------------------- | ------: | -----------: |
-| `int128`                          |    7.99 |              |
-| `boost::multiprecision::int128_t` |   20.77 |              |
-| `pgl::BigInt`                     |   52.76 |              |
-| `boost::cpp_int`                  |  195.07 |              |
-| `pgl::Rational<int64_t>`          |   27.72 |        39.76 |
-| `boost::rational<int64_t>`        |  108.80 |       220.54 |
-| `pgl::Rational<pgl::BigInt>`      |  206.53 |       209.12 |
-| `boost::rational<boost::cpp_int>` | 1926.61 |      1961.78 |
-
+| `int128`                          |    8.01 |              |
+| `boost::multiprecision::int128_t` |   20.65 |              |
+| `pgl::BigInt`                     |   52.14 |              |
+| `boost::cpp_int`                  |  189.02 |              |
+| `GMP mpz_int`                     |  350.55 |              |
+| `pgl::Rational<int64_t>`          |   27.83 |        39.41 |
+| `boost::rational<int64_t>`        |  108.96 |       224.06 |
+| `pgl::Rational<pgl::BigInt>`      |  207.14 |       209.50 |
+| `boost::rational<boost::cpp_int>` | 1864.56 |      1978.69 |
+| `GMP mpq_rational`                | 1251.52 |      1692.22 |
 
