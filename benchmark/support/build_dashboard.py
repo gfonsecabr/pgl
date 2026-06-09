@@ -14,7 +14,7 @@ import json
 import os
 import shutil
 
-TYPE_ORDER = ["int", "int128", "double", "rational", "rational60"]
+TYPE_ORDER = ["int", "int128", "double", "rational", "rational60", "rationalbigint", "rationalbigint60"]
 
 
 def type_sort_key(t: str):

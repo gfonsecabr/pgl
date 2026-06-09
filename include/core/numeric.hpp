@@ -224,18 +224,22 @@ constexpr auto abs(std::floating_point auto value) {
 }
 
 /**
+ * @brief Returns the absolute value for signed numeric types supporting comparison and negation.
+ *
+ * Declared before the rational overload below so that its qualified call to
+ * pgl::detail::abs on the numerator can resolve to this catch-all for class-type
+ * integers such as pgl::BigInt (qualified lookup only sees earlier declarations).
+ */
+inline constexpr auto abs(auto value) {
+    return value >= 0 ? value : -value;
+}
+
+/**
  * @brief Returns the absolute value of a rational number.
  */
 template <typename Int>
 constexpr pgl::Rational<Int> abs(pgl::Rational<Int> value) {
     return pgl::Rational(pgl::detail::abs(value.numerator()), value.denominator(), true);
-}
-
-/**
- * @brief Returns the absolute value for signed numeric types supporting comparison and negation.
- */
-inline constexpr auto abs(auto value) {
-    return value >= 0 ? value : -value;
 }
 
 /**
