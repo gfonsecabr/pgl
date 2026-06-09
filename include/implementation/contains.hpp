@@ -1037,7 +1037,7 @@ constexpr bool Convex<PointType>::contains(const Convex<OtherPoint>& other) cons
         return Segment<PointType>((*this)[0], (*this)[1]).contains(Segment<OtherPoint>(other[0], other[1]));
     }
 
-    if (other.size() <= size()) {
+    if (other.size() <= 2*size()) {
         for (size_t i = 0; i < other.size(); ++i) {
             if (!contains(other[i])) {
                 return false;

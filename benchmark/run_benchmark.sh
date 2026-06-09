@@ -3,6 +3,113 @@
 set -Eeuo pipefail
 shopt -s nullglob
 
+usage() {
+    cat <<'EOF'
+Usage: bash benchmark/run_benchmark.sh [-n NUMBERS] [suite...]
+
+Compiles each benchmark/<suite>/*.cpp, runs it, and writes per-suite reports
+plus an aggregated JSON and markdown summary under build/benchmark/.
+
+With no arguments, every suite under benchmark/*/ is built and run. Otherwise
+each argument selects a suite by basename (e.g. convex_convex) or by path
+(e.g. benchmark/convex/convex_convex.cpp). Explicit arguments override
+PGL_BENCHMARK_SOURCES.
+
+Options:
+  -n, --numbers NUMBERS  Comma/space list of number families to run; overrides
+                         PGL_BENCHMARK_NUMBERS. One or more of: int, double,
+                         rational, rational60, rationalbigint, rationalbigint60
+  -h, --help             Show this help and exit
+
+Configuration is otherwise through environment variables:
+
+  CXX                          Compiler to use            (default: c++)
+  CXXFLAGS                     Compile flags              (default: -std=c++23 -O3 -DNDEBUG -Wall -Wextra -pedantic)
+  PGL_BENCHMARK_SOURCES        Space-separated list of .cpp suites to build
+                               (default: all benchmark/*/*.cpp, excluding support/)
+  PGL_BENCHMARK_NUMBERS        Comma/space list of number families to run; one or
+                               more of: int, double, rational, rational60,
+                               rationalbigint, rationalbigint60
+  PGL_BENCHMARK_REPETITIONS    Positive integer, times to run each suite (default: 1)
+  PGL_BENCHMARK_REPORT_DIR     Where per-run reports are written
+                               (default: build/benchmark/current-reports)
+  PGL_BENCHMARK_JSON           Aggregated JSON output path
+                               (default: build/benchmark/benchmark.json)
+  PGL_BENCHMARK_SUMMARY        Markdown summary output path
+                               (default: build/benchmark/benchmark.md)
+
+Examples:
+  bash benchmark/run_benchmark.sh
+  bash benchmark/run_benchmark.sh convex_convex
+  bash benchmark/run_benchmark.sh -n int,rational convex_convex
+  PGL_BENCHMARK_NUMBERS="int,rational" bash benchmark/run_benchmark.sh
+  CXX=clang++ CXXFLAGS="-std=c++20 -O2 -Wall" bash benchmark/run_benchmark.sh
+EOF
+}
+
+# Parse options and positional suite arguments.
+positional=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        -n | --numbers)
+            if [[ $# -lt 2 ]]; then
+                echo "error: $1 requires an argument" >&2
+                exit 2
+            fi
+            PGL_BENCHMARK_NUMBERS="$2"
+            shift 2
+            ;;
+        -n=* | --numbers=*)
+            PGL_BENCHMARK_NUMBERS="${1#*=}"
+            shift
+            ;;
+        --)
+            shift
+            positional+=("$@")
+            break
+            ;;
+        -*)
+            echo "error: unknown option '$1'" >&2
+            echo "Run 'bash benchmark/run_benchmark.sh --help' for usage." >&2
+            exit 2
+            ;;
+        *)
+            positional+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Resolve any positional suite arguments (basename or path) to sources, mirroring
+# benchmark/record.sh. Explicit arguments override PGL_BENCHMARK_SOURCES.
+if [[ ${#positional[@]} -gt 0 ]]; then
+    arg_sources=()
+    for name in "${positional[@]}"; do
+        if [[ -f "$name" ]]; then
+            arg_sources+=("$name")
+            continue
+        fi
+        matches=(benchmark/*/"$name".cpp)
+        if [[ ${#matches[@]} -eq 0 ]]; then
+            echo "error: no benchmark suite named '$name'" >&2
+            echo "Run 'bash benchmark/run_benchmark.sh --help' for usage." >&2
+            exit 2
+        fi
+        arg_sources+=("${matches[@]}")
+    done
+    PGL_BENCHMARK_SOURCES="${arg_sources[*]}"
+fi
+
+# Export so the benchmark binary (which reads it via getenv) sees a value passed
+# through -n as well as one inherited from the environment.
+if [[ -n "${PGL_BENCHMARK_NUMBERS:-}" ]]; then
+    export PGL_BENCHMARK_NUMBERS
+fi
+
 CXX="${CXX:-c++}"
 CXXFLAGS="${CXXFLAGS:--std=c++23 -O3 -DNDEBUG -Wall -Wextra -pedantic}"
 PGL_BENCHMARK_REPETITIONS="${PGL_BENCHMARK_REPETITIONS:-1}"

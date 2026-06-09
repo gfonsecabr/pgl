@@ -863,11 +863,14 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Convex<OtherPoint>& o
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    if (size() > other.size()) {
-        return other.interiorsIntersect(*this);
-    }
     if (!bbox().intersects(other.bbox())) {
         return false;
+    }
+    if (bbox().crosses(other.bbox())) {
+        return true;
+    }
+    if (size() > other.size()) {
+        return other.interiorsIntersect(*this);
     }
 
     // If this contains 3 vertices of other, the interiors intersect,
@@ -878,6 +881,7 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Convex<OtherPoint>& o
 
     // Here we know that other is not inside this, so if the interiors intersect,
     // then there is an edge of this that intersects the interior of other.
+
 
     for (const auto& edge : edges()) {
         if (other.interiorsIntersect(edge)) {

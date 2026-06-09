@@ -7,6 +7,7 @@
 #include <concepts>
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -347,12 +348,16 @@ struct Convex {
 
     /**
      * @brief Computes the bounding box of the convex polygon.
-     * 
-     * Complexity: O(log n) for n vertices.
-     * 
-     * @return A rectangle representing the bounding box.
+     *
+     * The result is computed on the first call and cached in @ref bbox_; later
+     * calls return the stored value. Any operation that modifies the convex
+     * resets the cache.
+     *
+     * Complexity: O(log n) for n vertices on the first call, O(1) thereafter.
+     *
+     * @return A constant reference to the rectangle representing the bounding box.
      */
-    constexpr Rectangle<PointType> bbox() const;
+    constexpr const Rectangle<PointType>& bbox() const;
 
     /**
      * @brief Computes the floating-point bounding box of the convex polygon.
@@ -1659,6 +1664,8 @@ struct Convex {
   private:
     std::vector<PointType> points_{};
     PointType translation_{};
+    // Lazily computed by bbox() and reset by every mutating operation.
+    mutable std::optional<Rectangle<PointType>> bbox_{};
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {

@@ -1307,6 +1307,7 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& translation) {
     translation_ += translation;
+    bbox_ = {};
     return *this;
 }
 
@@ -1314,6 +1315,7 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& translation) {
     translation_ -= translation;
+    bbox_ = {};
     return *this;
 }
 
@@ -1326,6 +1328,7 @@ constexpr Convex<PointType>& Convex<PointType>::operator*=(const Scalar& scalar)
         vertex *= scalar;
     }
     translation_ = {};
+    bbox_ = {};
     return *this;
 }
 
@@ -1338,6 +1341,7 @@ constexpr Convex<PointType>& Convex<PointType>::operator/=(const Scalar& scalar)
         vertex /= scalar;
     }
     translation_ = {};
+    bbox_ = {};
     return *this;
 }
 

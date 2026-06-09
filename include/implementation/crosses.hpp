@@ -554,6 +554,9 @@ constexpr bool Convex<PointType>::crosses(const Triangle<OtherPoint>& other) con
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::crosses(const Convex<OtherPoint>& other) const {
+    if (bbox().crosses(other.bbox())) {
+        return true;
+    }
     return separates(other) && other.separates(*this);
 }
 
