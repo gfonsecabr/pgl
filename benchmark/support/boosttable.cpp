@@ -1,10 +1,15 @@
-// g++ -Ofast -Iinclude -std=c++23 benchmark/support/boosttable.cpp
+// g++ -Ofast -Iinclude -std=c++23 benchmark/support/boosttable.cpp -lgmp
 #include <random>
 #include <vector>
 #include <iostream>
 #include <iomanip>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/rational.hpp>
+// GMP via Boost.Multiprecision. The native gmpxx mpz_class/mpq_class cannot be
+// used here: their expression templates hold references to temporaries, so the
+// `auto x = a - b;` pattern in the orientation predicate dangles. Boost's GMP
+// backend wraps the same libgmp with expression templates that copy temporaries.
+#include <boost/multiprecision/gmp.hpp>
 
 #define PGL_DISABLE_PROMOTION
 #include "pgl.hpp"
@@ -75,6 +80,9 @@ int main() {
     std::cout << "crosses\t\tboost cpp_int\t\t";
     run<pgl::Point<boost::multiprecision::cpp_int>>();
 
+    std::cout << "crosses\t\tGMP mpz_int\t\t";
+    run<pgl::Point<boost::multiprecision::mpz_int>>();
+
     std::cout << "crosses\t\tpgl Rational int64_t\t";
     run<pgl::Point<pgl::Rational<int64_t>>>();
 
@@ -86,6 +94,9 @@ int main() {
 
     std::cout << "crosses\t\tboost rational cpp_int\t";
     run<pgl::Point<boost::rational<boost::multiprecision::cpp_int>>>();
+
+    std::cout << "crosses\t\tGMP mpq_rational\t";
+    run<pgl::Point<boost::multiprecision::mpq_rational>>();
 
     std::cout << "Dividing coordinates by 60:\n";
 
@@ -100,6 +111,9 @@ int main() {
 
     std::cout << "crosses\t\tboost rational cpp_int\t";
     run<pgl::Point<boost::rational<boost::multiprecision::cpp_int>>>(60);
+
+    std::cout << "crosses\t\tGMP mpq_rational\t";
+    run<pgl::Point<boost::multiprecision::mpq_rational>>(60);
 
     return 0;
 }
