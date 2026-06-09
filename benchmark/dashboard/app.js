@@ -54,6 +54,13 @@ const latest = (pts) => (pts && pts.length ? pts[pts.length - 1] : null);
 const best = (pts) => Math.min(...pts.map((p) => p.time));
 const worst = (pts) => Math.max(...pts.map((p) => p.time));
 
+// Friendlier column headers for the longer type keys.
+const TYPE_LABEL = {
+  rationalbigint: "rational big",
+  rationalbigint60: "rational big/60",
+};
+const typeLabel = (t) => TYPE_LABEL[t] || t;
+
 // Gradient status colour: green at the best, through amber, to red at the worst,
 // with a small dead-zone so a value within `margin` of the best stays green.
 // Scale is relative to the best (lo); the worst (hi) anchors the red end.
@@ -134,7 +141,7 @@ function render() {
     const thead = document.createElement("thead");
     const hr = document.createElement("tr");
     hr.appendChild(th("Function"));
-    for (const t of s.types) hr.appendChild(th(t, "num"));
+    for (const t of s.types) hr.appendChild(th(typeLabel(t), "num"));
     thead.appendChild(hr);
     table.appendChild(thead);
 
@@ -174,7 +181,10 @@ function render() {
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
-    section.appendChild(table);
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "table-wrap";
+    tableWrap.appendChild(table);
+    section.appendChild(tableWrap);
 
     const note = document.createElement("div");
     note.className = "unit-note";
@@ -191,7 +201,7 @@ function showPop(event, op, type, points, unit) {
   const lo = best(points), hi = worst(points), cur = latest(points).time;
   const delta = lo > 0 ? ((cur - lo) / lo) * 100 : 0;
   pop.innerHTML =
-    `<div class="pop-title">${op} · ${type}</div>` +
+    `<div class="pop-title">${op} · ${typeLabel(type)}</div>` +
     sparkline(points, 168, 46) +
     `<div class="pop-stats">` +
     `<span style="color:${statusColor(cur, lo, hi)}">now ${fmt(cur)}` +
@@ -213,7 +223,7 @@ function showChart(suite, op, type, machine, points, unit) {
   hidePop();
   const dialog = document.getElementById("chart-dialog");
   document.getElementById("chart-title").textContent =
-    suite + " · " + op + " · " + type + " — " + machine;
+    suite + " · " + op + " · " + typeLabel(type) + " — " + machine;
 
   const n = points.length;
   const lo = best(points), hi = worst(points);
