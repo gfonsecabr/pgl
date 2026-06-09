@@ -105,31 +105,16 @@ Hence, it is safe to use coordinates of the following values.
 | `int64_t`     | $6.5 \cdot 10^{18}$ |    $1.5 \cdot 10^9$ |
 | `int128`      | never               | $6.5 \cdot 10^{18}$ |
 
-For disks, however, we need to use the incircle test predicate and the values are much smaller. They are given by the formula:\
-$$\mathrm{SAFE}(T) = \left\lfloor \sqrt{\sqrt{\mathrm{MAX}(T) / 128}} \right\rfloor$$
-
-| base type     | promotion enabled   | promotion disabled  |
-| ------------- | ------------------: | ------------------: |
-| `int16_t`     |                $63$ |                 $3$ |
-| `int32_t`     |             $16383$ |                $63$ |
-| `int64_t`     |            $10^{9}$ |             $16383$ |
-| `int128`      | never               |            $10^{9}$ |
+For disks, the inCircle test promotes numbers twice to avoid overflows.
 
 
 ### Rational Numbers
 
 Important geometric properties may need coordinates that are not integers. For example, we may check if two segments intersect using only integers, but the point of intersection may have non-integer rational coordinates. Floating point numbers are fast and will provide exact results for division by a power of 2, but not for other divisions. The safest choice is to use rational numbers.
 
-Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including `pgl::BigInt`. The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. The same promtion rules are used for `pgl::Rational`:
+Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including `pgl::BigInt`. The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
 
-- `pgl::Rational<int8_t>` is promoted to `pgl::Rational<int16_t>`
-- `pgl::Rational<int16_t>` is promoted to `pgl::Rational<int32_t>`
-- `pgl::Rational<int32_t>` is promoted to `pgl::Rational<int64_t>`
-- `pgl::Rational<int64_t>` is promoted to `pgl::Rational<pgl::int128>`
-- `pgl::Rational<pgl::int128>` is promoted to `pgl::Rational<pgl::BigInt>`
-
-If you want to disable all type promotions, it suffices to `#define PGL_DISABLE_PROMOTION` before `#include "pgl.hpp"`.
-Notice that the promotion rules are not enough to avoid overflows in some cases as numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
+Notice that numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
 dot product 
 $$\frac{a}{a'}\cdot\frac{b}{b'} + \frac{c}{c'}\cdot\frac{d}{d'} = \frac{ab}{a'b'} + \frac{cd}{c'd'} = \frac{abc'd' + cda'b'}{a'b'c'd'}$$\
 and orientation test 
@@ -143,7 +128,7 @@ Using rational coordinates is fairly easy:
 #include "pgl.hpp"
 
 int main() {
-    using Point = pgl::Point<pgl::Rational<int>>; // Rational coordinates with int numerator and denominator
+    using Point = pgl::Point<pgl::Rational<pgl::BigInt>>; // Rational coordinates with BigInt numerator and denominator
     using Segment = pgl::Segment<Point>;
 
     Point p = {1,0}, q = {4,7};
@@ -186,36 +171,34 @@ You may have noticed that the `intersection` method does not return a point. Thi
 
 To give an idea of the cost of using different number types, we show a benchmark of the times to test if two segments cross using different types, with and without promotion. The time shown is the average time of the `crosses` predicate on two uniform random segments with integer endpoint coordinates in the -500 to 500 range. Since the class `Rational` is optimized to handle integer coordinates faster, we also perform the same test on rational numbers with the segment coordinates divided by 60. All times are in nanoseconds.
 
-| Type                 | promotion <br/> integer     | no promotion <br/> integer     | promotion <br/> integer / 60 | no promotion <br/> integer / 60 |
-| -------------------- | -----------: | -----------: | -----------: | -----------: |
-| `int16_t`            | 4.58         | 4.55         |              |              |
-| `int32_t`            | 4.55         | 4.39         |              |              |
-| `int64_t`            | 7.16         | 4.49         |              |              |
-| `int128`             | ?            | 7.80         |              |              |
-| `BigInt`             | ?            | ?            |              |              |
-| `float`              | 6.92         | 6.01         |              |              |
-| `double`             | 12.11        | 5.93         |              |              |
-| `long double`        |              | 13.59        |              |              |
-| `Rational<int32_t>`  | 18.32        | 15.93        |              | 94.84        |
-| `Rational<int64_t>`  | 25.18        | 15.71        | 161.47       | 93.32        |
-| `Rational<int128>`   | ?            | 45.27        | ?            | 187.3        |
-| `Rational<BigInt>  ` |              | 45.27        |              | 187.3        |
-
+| Type                | promotion <br/> integer | no promotion <br/> integer | no promotion <br/> integer / 60 |
+| ------------------- | ----------------------: | -------------------------: | ------------------------------: |
+| `int16_t`           |                    4.58 |                       4.62 |                                 |
+| `int32_t`           |                    4.56 |                       4.38 |                                 |
+| `int64_t`           |                    7.07 |                       4.40 |                                 |
+| `int128`            |                   48.64 |                       7.97 |                                 |
+| `pgl::BigInt`       |                         |                      53.69 |                                 |
+| `float`             |                    6.30 |                       5.57 |                                 |
+| `double`            |                   10.55 |                       5.61 |                                 |
+| `long double`       |                         |                      14.08 |                                 |
+| `Rational<int32_t>` |                         |                      34.68 |                          104.05 |
+| `Rational<int64_t>` |                         |                      27.07 |                           38.90 |
+| `Rational<int128>`  |                         |                      46.24 |                           65.64 |
+| `Rational<BigInt>`  |                         |                     204.21 |                          204.34 |
 
 ### Boost Number Types
 
 For comparison, we now perform tests on the time of the `pgl::Segment::cross` predicate using boost number types, all without promotion:
 
-| Type                                  |  integer     | integer / 60 |
-| ------------------------------------- | -----------: | -----------: |
-| `int128`                              |   7.79       |              |
-| `boost::multiprecision::int128_t`     |   20.35      |              |
-| `BigInt`                              |   190.42     |              |
-| `boost::cpp_int`                      |   190.42     |              |
-| `pgl::Rational<int64_t>`              |   18.27      |  95.77       |
-| `boost::rational<int64_t>`            |   103.17     |  213.80      |
-| `pgl::Rational<BigInt>`               |   103.17     |  213.80      |
-| `boost::rational<boost::cpp_int>`     |   1956.78    |  2024.58     |
+| Type                              | integer | integer / 60 |
+| --------------------------------- | ------: | -----------: |
+| `int128`                          |    7.99 |              |
+| `boost::multiprecision::int128_t` |   20.77 |              |
+| `pgl::BigInt`                     |   52.76 |              |
+| `boost::cpp_int`                  |  195.07 |              |
+| `pgl::Rational<int64_t>`          |   27.72 |        39.76 |
+| `boost::rational<int64_t>`        |  108.80 |       220.54 |
+| `pgl::Rational<pgl::BigInt>`      |  206.53 |       209.12 |
+| `boost::rational<boost::cpp_int>` | 1926.61 |      1961.78 |
 
-Notice that `boost rational<boost::cpp_int>` is an exact rational number with arbitrarily large integers, which ensures exact calculations, but comes at a high cost in performance: over 100 times when compared to native integer types.
 

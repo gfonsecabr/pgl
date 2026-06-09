@@ -139,14 +139,11 @@ struct _promote {
 };
 
 #ifndef PGL_DISABLE_PROMOTION
+// Rational is deliberately never promoted: it manages its own overflow by
+// reducing to lowest terms, so the storage type stays as the user chose it.
 template <>
 struct _promote<int8_t> {
     using type = int16_t;
-};
-
-template <>
-struct _promote<pgl::Rational<int8_t>> {
-    using type = pgl::Rational<int16_t>;
 };
 
 template <>
@@ -155,18 +152,8 @@ struct _promote<int16_t> {
 };
 
 template <>
-struct _promote<pgl::Rational<int16_t>> {
-    using type = pgl::Rational<int32_t>;
-};
-
-template <>
 struct _promote<int32_t> {
     using type = int64_t;
-};
-
-template <>
-struct _promote<pgl::Rational<int32_t>> {
-    using type = pgl::Rational<int64_t>;
 };
 
 template <>
@@ -175,18 +162,8 @@ struct _promote<int64_t> {
 };
 
 template <>
-struct _promote<pgl::Rational<int64_t>> {
-    using type = pgl::Rational<pgl::int128>;
-};
-
-template <>
 struct _promote<pgl::int128> {
     using type = pgl::BigInt;
-};
-
-template <>
-struct _promote<pgl::Rational<pgl::int128>> {
-    using type = pgl::Rational<pgl::BigInt>;
 };
 
 template <>
