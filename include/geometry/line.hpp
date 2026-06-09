@@ -872,9 +872,6 @@ struct Line {
     template<class ResultNumber>
     [[nodiscard]] constexpr auto polarCoordinates() const;
 
-    template<PointConcept OtherPoint>
-    constexpr auto directionCross(const OtherPoint& first, const OtherPoint& second) const;
-
     std::array<PointType, 2> points_{};
 };
 

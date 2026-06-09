@@ -66,20 +66,6 @@ constexpr bool Segment<PointType, LabelType>::isHorizontal() const {
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Segment<PointType, LabelType>::directionCross(const OtherPoint& first, const OtherPoint& second) const {
-    using cross_coordinate_type = std::common_type_t<
-        detail::promoted_number_t<NumberType>,
-        detail::promoted_number_t<std::remove_cvref_t<decltype(first.x())>>
-    >;
-    const cross_coordinate_type dx1 = static_cast<cross_coordinate_type>(max().x()) - static_cast<cross_coordinate_type>(min().x());
-    const cross_coordinate_type dy1 = static_cast<cross_coordinate_type>(max().y()) - static_cast<cross_coordinate_type>(min().y());
-    const cross_coordinate_type dx2 = static_cast<cross_coordinate_type>(second.x()) - static_cast<cross_coordinate_type>(first.x());
-    const cross_coordinate_type dy2 = static_cast<cross_coordinate_type>(second.y()) - static_cast<cross_coordinate_type>(first.y());
-    return dx1 * dy2 - dy1 * dx2;
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::boundingBoxesOverlap(const Segment<OtherPoint>& other) const {
     using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
     const auto& a = min();
@@ -175,8 +161,7 @@ constexpr bool Segment<PointType, LabelType>::collinear(const Segment<OtherPoint
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::parallel(const Segment<OtherPoint>& other) const {
-    const auto cross = directionCross(other.min(), other.max());
-    return cross == decltype(cross){};
+    return sameDirection(min(), max(), other.min(), other.max());
 }
 
 template <class PointType, class LabelType>
@@ -206,8 +191,7 @@ constexpr bool Segment<PointType, LabelType>::collinear(const Ray<OtherPoint>& o
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::parallel(const OrientedSegment<OtherPoint>& other) const {
-    const auto cross = directionCross(other.source(), other.target());
-    return cross == decltype(cross){};
+    return sameDirection(min(), max(), other.source(), other.target());
 }
 
 /**
@@ -392,20 +376,6 @@ constexpr bool Line<PointType>::isHorizontal() const {
     return min().y() == max().y();
 }
 
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto Line<PointType>::directionCross(const OtherPoint& first, const OtherPoint& second) const {
-    using cross_coordinate_type = std::common_type_t<
-        NumberType,
-        typename OtherPoint::NumberType
-    >;
-    const cross_coordinate_type dx1 = static_cast<cross_coordinate_type>(max().x()) - static_cast<cross_coordinate_type>(min().x());
-    const cross_coordinate_type dy1 = static_cast<cross_coordinate_type>(max().y()) - static_cast<cross_coordinate_type>(min().y());
-    const cross_coordinate_type dx2 = static_cast<cross_coordinate_type>(second.x()) - static_cast<cross_coordinate_type>(first.x());
-    const cross_coordinate_type dy2 = static_cast<cross_coordinate_type>(second.y()) - static_cast<cross_coordinate_type>(first.y());
-    return dx1 * dy2 - dy1 * dx2;
-}
-
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::parallel(const Line<OtherPoint>& other) const {
@@ -445,19 +415,19 @@ constexpr bool Line<PointType>::collinear(const Line<OtherPoint>& other) const {
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Line<PointType>::parallel(const Line<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == detail::promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(min(), max(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Line<PointType>::parallel(const Segment<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == detail::promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(min(), max(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Line<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == detail::promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(min(), max(), other.source(), other.target());
 }
 
 template <class PointType>
@@ -528,20 +498,6 @@ constexpr bool OrientedLine<PointType>::isHorizontal() const {
     return source().y() == target().y();
 }
 
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto OrientedLine<PointType>::directionCross(const OtherPoint& first, const OtherPoint& second) const {
-    using cross_coordinate_type = std::common_type_t<
-        CoordinateType,
-        detail::promoted_number_t<std::remove_cvref_t<decltype(first.x())>>
-    >;
-    const cross_coordinate_type dx1 = static_cast<cross_coordinate_type>(target().x()) - static_cast<cross_coordinate_type>(source().x());
-    const cross_coordinate_type dy1 = static_cast<cross_coordinate_type>(target().y()) - static_cast<cross_coordinate_type>(source().y());
-    const cross_coordinate_type dx2 = static_cast<cross_coordinate_type>(second.x()) - static_cast<cross_coordinate_type>(first.x());
-    const cross_coordinate_type dy2 = static_cast<cross_coordinate_type>(second.y()) - static_cast<cross_coordinate_type>(first.y());
-    return dx1 * dy2 - dy1 * dx2;
-}
-
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::parallel(const OrientedLine<OtherPoint>& other) const {
@@ -599,25 +555,25 @@ constexpr std::partial_ordering OrientedLine<PointType>::orientation(const Other
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool OrientedLine<PointType>::parallel(const Line<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool OrientedLine<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool OrientedLine<PointType>::parallel(const Segment<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool OrientedLine<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
@@ -673,20 +629,6 @@ constexpr bool Ray<PointType>::isVertical() const {
 template <class PointType>
 constexpr bool Ray<PointType>::isHorizontal() const {
     return source().y() == target().y();
-}
-
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto Ray<PointType>::directionCross(const OtherPoint& first, const OtherPoint& second) const {
-    using cross_coordinate_type = std::common_type_t<
-        CoordinateType,
-        detail::promoted_number_t<std::remove_cvref_t<decltype(first.x())>>
-    >;
-    const cross_coordinate_type dx1 = static_cast<cross_coordinate_type>(target().x()) - static_cast<cross_coordinate_type>(source().x());
-    const cross_coordinate_type dy1 = static_cast<cross_coordinate_type>(target().y()) - static_cast<cross_coordinate_type>(source().y());
-    const cross_coordinate_type dx2 = static_cast<cross_coordinate_type>(second.x()) - static_cast<cross_coordinate_type>(first.x());
-    const cross_coordinate_type dy2 = static_cast<cross_coordinate_type>(second.y()) - static_cast<cross_coordinate_type>(first.y());
-    return dx1 * dy2 - dy1 * dx2;
 }
 
 template <class PointType>
@@ -752,31 +694,31 @@ constexpr std::partial_ordering Ray<PointType>::orientation(const OtherPoint& po
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Ray<PointType>::parallel(const Line<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Ray<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Ray<PointType>::parallel(const Segment<OtherPoint>& other) const {
-    return directionCross(other.min(), other.max()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Ray<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Ray<PointType>::parallel(const Ray<OtherPoint>& other) const {
-    return directionCross(other.source(), other.target()) == promoted_number_t<typename OtherPoint::NumberType>{};
+    return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType, class LabelType>
