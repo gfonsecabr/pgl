@@ -33,6 +33,12 @@ template <class T>
 class Rational;
 
 /**
+ * @brief Forward declaration of the arbitrary precision integer class, the
+ * promotion target of ::pgl::int128.
+ */
+class BigInt;
+
+/**
  * @brief Signed 128-bit integer.
  *
  * Aliases the native `__int128_t` extension when the compiler provides it
@@ -171,6 +177,16 @@ struct _promote<int64_t> {
 template <>
 struct _promote<pgl::Rational<int64_t>> {
     using type = pgl::Rational<pgl::int128>;
+};
+
+template <>
+struct _promote<pgl::int128> {
+    using type = pgl::BigInt;
+};
+
+template <>
+struct _promote<pgl::Rational<pgl::int128>> {
+    using type = pgl::Rational<pgl::BigInt>;
 };
 
 template <>

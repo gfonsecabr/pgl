@@ -16,6 +16,11 @@ namespace pgl {
 struct NoLabel;
 
 /**
+ * @brief Arbitrary precision signed integer.
+ */
+class BigInt;
+
+/**
  * @brief Exact rational number class template.
  *
  * @tparam T Integral storage type.

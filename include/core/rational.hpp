@@ -150,29 +150,43 @@ public:
      */
     template<std::floating_point Float>
     constexpr Rational(Float f,
-                       int digits = std::min(std::numeric_limits<Float>::digits,
-                                             std::numeric_limits<Int>::digits/2 - 4)) {
-        if (f == 0) {
-            num = 0;
-            den = 1;
-            return;
-        }
-        bool negative = false;
-        if (f < 0) {
-            negative = true;
-            f = -f;
-        }
+                       int digits = std::numeric_limits<Int>::digits > 0
+                           ? std::min(std::numeric_limits<Float>::digits,
+                                      std::numeric_limits<Int>::digits / 2 - 4)
+                           : std::numeric_limits<Float>::digits) {
+        if constexpr (requires(Int x, Float g) { x * g; }) {
+            if (f == 0) {
+                num = 0;
+                den = 1;
+                return;
+            }
+            bool negative = false;
+            if (f < 0) {
+                negative = true;
+                f = -f;
+            }
 
-        int exponent;
-        std::frexp(f, &exponent);
-        if (exponent > 0)
-            digits -= exponent;
-        assert(digits > 0); // Rational number overflow
-        den = 1 << digits;
-        num = negative ? -den * f : den * f;
+            int exponent;
+            std::frexp(f, &exponent);
+            if (exponent > 0)
+                digits -= exponent;
+            assert(digits > 0); // Rational number overflow
+            den = 1 << digits;
+            num = negative ? -den * f : den * f;
 
-        normalized_ = false;
-        normalize();
+            normalized_ = false;
+            normalize();
+        } else {
+            // Int has no floating-point multiply (e.g. pgl::BigInt). A float's
+            // significand always fits in a 128-bit integer, so build the value
+            // with the requested number of fractional bits in Rational<int128>
+            // and widen it. This makes float -> Rational<BigInt> work, which the
+            // int128 -> BigInt type promotion relies on for mixed predicates.
+            const Rational<pgl::int128> r(f, digits);
+            num = Int(r.numerator());
+            den = Int(r.denominator());
+            normalized_ = true;
+        }
     }
 
     /// @brief Get numerator (in lowest terms).
