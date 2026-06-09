@@ -5,8 +5,9 @@
 #   bash benchmark/record.sh                  # all suites
 #   bash benchmark/record.sh segment_segment  # one suite (basename or path)
 #
-# Refuses to run with a dirty working tree so every measurement maps to a real
-# commit — the dashboard's x-axis is the commit date, not the run date.
+# Refuses to run with uncommitted changes to tracked files, so every measurement
+# maps to a real commit — the dashboard's x-axis is the commit date, not the run
+# date. Untracked files (e.g. scratch sources) are allowed and ignored.
 # Override the compiler/flags as usual:  CXX=g++ CXXFLAGS="-std=c++23 -O3" ...
 
 set -Eeuo pipefail
@@ -15,8 +16,8 @@ shopt -s nullglob
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-if [[ -n "$(git status --porcelain)" ]]; then
-    echo "error: working tree has uncommitted changes." >&2
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+    echo "error: tracked files have uncommitted changes." >&2
     echo "Commit them first — benchmarks are tagged to the current commit." >&2
     exit 1
 fi
