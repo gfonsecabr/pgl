@@ -21,6 +21,8 @@ canonical_number_filter() {
         double) echo "double" ;;
         rational|rationali64|rational64) echo "rational" ;;
         rational60) echo "rational60" ;;
+        rationalbigint|rationalbi|bigint) echo "rationalbigint" ;;
+        rationalbigint60|bigint60) echo "rationalbigint60" ;;
         *) echo "" ;;
     esac
 }
@@ -57,7 +59,7 @@ if [[ -n "${PGL_BENCHMARK_NUMBERS:-}" ]]; then
     for requested_number in "${requested_numbers[@]}"; do
         if [[ -z "$(canonical_number_filter "$requested_number")" ]]; then
             echo "Unknown benchmark number family: $requested_number"
-            echo "Supported values: int, double, rational, rational60"
+            echo "Supported values: int, double, rational, rational60, rationalbigint, rationalbigint60"
             exit 1
         fi
     done

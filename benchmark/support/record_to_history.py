@@ -24,6 +24,10 @@ import benchmark_to_json as bj  # noqa: E402  (local helper, same directory)
 def canon_type(label: str) -> str:
     """Map a printed Number label (e.g. 'Rational i64') to a stable key."""
     s = label.strip().lower()
+    if "rational" in s and "bigint" in s and "60" in s:
+        return "rationalbigint60"
+    if "rational" in s and "bigint" in s:
+        return "rationalbigint"
     if "rational" in s and "60" in s:
         return "rational60"
     if "rational" in s:

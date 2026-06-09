@@ -85,6 +85,16 @@ int main() {
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.crosses(t);}, 60);
     }
 
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "crosses\t\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.crosses(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "crosses\t\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.crosses(t);}, 60);
+    }
+
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "intersects\tint\t\t";
@@ -104,6 +114,16 @@ int main() {
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "intersects\tRational/60\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.intersects(t);}, 60);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "intersects\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.intersects(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "intersects\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.intersects(t);}, 60);
     }
 
 
@@ -127,6 +147,16 @@ int main() {
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.intersection(t);}, 60);
     }
 
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "intersection\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.intersection(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "intersection\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.intersection(t);}, 60);
+    }
+
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "separates\tint\t\t";
@@ -146,6 +176,16 @@ int main() {
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "separates\tRational/60\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.separates(t);}, 60);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "separates\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.separates(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "separates\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.separates(t);}, 60);
     }
 
 
@@ -169,6 +209,16 @@ int main() {
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.interiorsIntersect(t);}, 60);
     }
 
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "interiorsInter\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.interiorsIntersect(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "interiorsInter\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.interiorsIntersect(t);}, 60);
+    }
+
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "contains\tint\t\t";
@@ -188,6 +238,16 @@ int main() {
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "contains\tRational/60\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Convex<pgl::Point<pgl::Rational<>>> s, pgl::Convex<pgl::Point<pgl::Rational<>>> t){return s.contains(t);},60);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "contains\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.contains(t);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "contains\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Convex<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.contains(t);},60);
     }
 
     return 0;
