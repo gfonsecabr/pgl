@@ -168,3 +168,10 @@ There are several architectural differences between PGL and [CGAL](https://www.c
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
+
+## More Information
+
+- For a brief description, check the documents at the [doc folder](doc/).
+- For some simple examples, check the files at the [examples folder](examples/).
+- For the **doxygen reference** and **benchmarks**, check the [library website on github.io](https://gfonsecabr.github.io/pgl/index.html).
+ 
