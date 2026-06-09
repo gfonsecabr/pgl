@@ -499,6 +499,15 @@ public:
     /// @brief Whether the magnitude fits in a single ::pgl::int128.
     bool fitsInt128() const { return limbs_.empty(); }
 
+    /// @brief Whether the magnitude fits in 63 bits (i.e. in an int64_t).
+    ///
+    /// Used by Rational to decide when deferred reduction has become urgent:
+    /// reducing operands while they still fit here keeps the impending multiply
+    /// or cross-addition within the inline int128 store, off the heap limb path.
+    bool fitsInt64() const {
+        return limbs_.empty() && small_ < (pgl::int128(1) << 63);
+    }
+
     /// @brief Sign of the value: -1, 0, or 1.
     int sign() const {
         if (isZero()) return 0;

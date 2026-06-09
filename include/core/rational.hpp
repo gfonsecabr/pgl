@@ -84,13 +84,20 @@ private:
 
     /**
      * @brief Whether leaving (n, d) unreduced before the next multiply or
-     * cross-addition would risk overflowing a fixed-width Int, or growing a
-     * BigInt past its inline storage onto the heap. This is the trigger that
-     * forces an otherwise-deferred normalization.
+     * cross-addition would risk overflowing a fixed-width Int, or spilling a
+     * BigInt out of its inline int128 storage onto the heap. This is the trigger
+     * that forces an otherwise-deferred normalization. In both cases the bound is
+     * half the available width, so the impending product of two operands still
+     * fits.
      */
     static constexpr bool reductionUrgent(const Int& n, const Int& d) {
-        if constexpr (requires { n.fitsInt128(); }) {
-            return !n.fitsInt128() || !d.fitsInt128();
+        if constexpr (requires { n.fitsInt64(); }) {
+            // BigInt: the inline store is a single int128. Mirror the fixed-width
+            // rule below and reduce at half that width, so the next multiply or
+            // cross-addition of two operands stays inline rather than spilling to
+            // the heap limb path. Testing fitsInt128() here would only react after
+            // the value had already grown onto the heap.
+            return !n.fitsInt64() || !d.fitsInt64();
         } else {
             constexpr int half = std::numeric_limits<Int>::digits / 2 - 1;
             const Int limit = Int(1) << half;

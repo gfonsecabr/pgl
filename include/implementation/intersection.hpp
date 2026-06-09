@@ -440,20 +440,18 @@ Ray<PointType>::intersection(const Ray<OtherPoint>& other) const {
         return {};
     }
 
-    const ResultPoint this_source(source());
-    const ResultPoint other_source(other.source());
+    if (source() == other.source()) {
+        if (contains(other.target())) {
+            return ResultRay(ResultPoint(source()), ResultPoint(target()));
+        }
+        return ResultPoint(source());
+    }
+
     const bool this_contains_other_source = contains(other.source());
     const bool other_contains_this_source = other.contains(source());
 
-    if (source() == other.source()) {
-        if (contains(other.target()) && other.contains(target())) {
-            return ResultRay(ResultPoint(source()), ResultPoint(target()));
-        }
-        return this_source;
-    }
-
     if (this_contains_other_source && other_contains_this_source) {
-        return ResultSegment(this_source, other_source);
+        return ResultSegment(ResultPoint(source()), ResultPoint(other.source()));
     }
 
     if (this_contains_other_source) {
