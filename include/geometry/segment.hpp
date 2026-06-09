@@ -1096,9 +1096,6 @@ struct Segment {
     static constexpr ResultNumber upperCoordinateBound(const Value& value);
 
     template<PointConcept OtherPoint>
-    constexpr auto directionCross(const OtherPoint& first, const OtherPoint& second) const;
-
-    template<PointConcept OtherPoint>
     constexpr bool boundingBoxesOverlap(const Segment<OtherPoint>& other) const;
 
     // Returns 0 for no overlap, 1 for overlap but no cross, 2 for cross

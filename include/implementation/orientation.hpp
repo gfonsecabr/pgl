@@ -99,6 +99,36 @@ constexpr bool collinear(
 }
 
 /**
+ * @brief Tests whether the directions `a1 -> a2` and `b1 -> b2` are parallel.
+ *
+ * Compares the 2D cross product of the two direction vectors against zero, so
+ * it reports true for parallel and anti-parallel directions alike (and when
+ * either direction is degenerate). The two endpoints of each direction must
+ * share a point type; the two directions may use different point types.
+ *
+ * @param a1 Tail of the first direction.
+ * @param a2 Head of the first direction.
+ * @param b1 Tail of the second direction.
+ * @param b2 Head of the second direction.
+ * @return `true` if the two direction vectors are parallel.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel>
+constexpr bool sameDirection(
+    const Point<ANumber, ALabel>& a1,
+    const Point<ANumber, ALabel>& a2,
+    const Point<BNumber, BLabel>& b1,
+    const Point<BNumber, BLabel>& b2) {
+    using Coordinate = detail::dot_coordinate_t<ANumber, BNumber>;
+
+    const auto dx1 = static_cast<Coordinate>(a2.x()) - static_cast<Coordinate>(a1.x());
+    const auto dy1 = static_cast<Coordinate>(a2.y()) - static_cast<Coordinate>(a1.y());
+    const auto dx2 = static_cast<Coordinate>(b2.x()) - static_cast<Coordinate>(b1.x());
+    const auto dy2 = static_cast<Coordinate>(b2.y()) - static_cast<Coordinate>(b1.y());
+
+    return dx1 * dy2 == dy1 * dx2;
+}
+
+/**
  * @brief Tells if the angle between two vectors is acute, right, or obtuse.
  * @param a First vector.
  * @param b Second vector.

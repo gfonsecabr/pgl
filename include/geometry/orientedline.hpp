@@ -740,9 +740,6 @@ struct OrientedLine {
     template <class OtherNumber>
     using promoted_number_t = std::common_type_t<CoordinateType, detail::promoted_number_t<OtherNumber>>;
 
-    template<PointConcept OtherPoint>
-    constexpr auto directionCross(const OtherPoint& first, const OtherPoint& second) const;
-
     std::array<PointType, 2> points_{};
 };
 
