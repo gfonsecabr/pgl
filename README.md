@@ -38,7 +38,7 @@ int main() {
 | 2-dimensional | [`Halfplane`](doc/shapes.md#half-plane), [`Triangle`](doc/shapes.md#triangle), [`Rectangle`](doc/shapes.md#rectangle), [`Disk`](doc/shapes.md#disk), [`Convex`](doc/shapes.md#convex), [`Polygon`](doc/shapes.md#polygon) |
 | Polymorphism | [`Shape`](doc/shapes.md#shape) |
 
-The following [predicates](doc/predicates.md) are implemented as methods of all shapes.
+The following [predicates](doc/shape_methods.md#predicates) are implemented as methods of all shapes.
 
 - `contains(Shape)` Does it contain the other shape?
 - `boundaryContains(Shape)` Does its boundary contain the other shape?
