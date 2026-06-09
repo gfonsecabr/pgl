@@ -36,8 +36,8 @@ template<class Point, class Function>
 void allPairs(const std::vector<pgl::Convex<Point>> &convexes, Function f) {
     int n = 0;
 
-    for(auto s : convexes) {
-        for(auto t : convexes) {
+    for(auto &s : convexes) {
+        for(auto &t : convexes) {
             auto b = f(s,t);
 
             if(b) {
