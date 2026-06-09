@@ -135,7 +135,7 @@ int main() {
     Segment s = {p,q}, t = {0,8,2,1};
     if (s.intersects(t)) {
         std::cout << s << " intersects " << t << " at point ";
-        auto isec = s.intersection<pgl::Rational<int>>(t);
+        auto isec = s.intersection(t);
         Point cross = std::get<0>(*isec);
         std::cout << cross << std::endl;
     }
