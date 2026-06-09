@@ -74,6 +74,7 @@ std::cout << "The midpoint of " << s << " is " << midpoint << std::endl;
 Notice that sometimes it is possible to obtain integral results with scaling:
 
 ```c++
+pgl::Segment s = {1, 0, 4, 7};
 pgl::Point midpoint2 = (2*s).midpoint();
 std::cout << "The midpoint of " << 2*s << " is " << midpoint2 << std::endl;
 // Output: The midpoint of (2,0)--(8,14) is (5,7)
@@ -100,9 +101,9 @@ All geometry types are comparable and hashable, so they can be stored in standar
 
 ```c++
 pgl::Segment s = {1, 0, 4, 7};
-std::set<pgl::Segment> set;
+std::set<decltype(s)> set;
 set.insert(s);
-std::unordered_set<pgl::Segment> uset;
+std::unordered_set<decltype(s)> uset;
 uset.insert(s);
 ```
 
