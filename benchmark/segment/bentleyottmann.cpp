@@ -24,19 +24,22 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n) {
 
     return std::vector<pgl::Segment<Point>>(ret_set.begin(),ret_set.end());
 }
-template<class Point>
+
+template <class Rational>
 void run(bool crossingsOnly, bool bruteForce) {
+    using Point = pgl::Point<int>;
+
     auto segs = randomSegments<Point>(100000);
     plf::nanotimer timer;
     timer.start();
     std::vector<std::array<pgl::Segment<Point>,2>> v;
     if (crossingsOnly) {
         if (bruteForce) v = pgl::bruteForceCrossings(segs);
-        else v = pgl::findCrossings(segs);
+        else v = pgl::findCrossings<Rational>(segs);
     }
     else {
         if (bruteForce) v = pgl::bruteForceIntersections(segs);
-        else v = pgl::findIntersections(segs);
+        else v = pgl::findIntersections<Rational>(segs);
     }
 
     std::cout << v.size() << "\t";
@@ -49,24 +52,33 @@ void run(bool crossingsOnly, bool bruteForce) {
 int main() {
     std::cout << "Operation\t\tNumber\t\tResult\tTime(ms)" << std::endl;
 
-
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "intersections\t\tint\t\t";
-        run<pgl::Point<int>>(false, false);
-    }
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "intersectionsBF\t\tint\t\t";
-        run<pgl::Point<int>>(false, true);
-    }
-
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "crossings\t\tint\t\t";
-        run<pgl::Point<int>>(true, false);
+        run<int>(false, true);
     }
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "crossingsBF\t\tint\t\t";
-        run<pgl::Point<int>>(true, true);
+        run<int>(true, true);
     }
 
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "intersections\t\tRational BigInt\t\t";
+        run<pgl::Rational<pgl::BigInt>>(false, false);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "crossings\t\tRational BigInt\t\t";
+        run<pgl::Rational<pgl::BigInt>>(true, false);
+    }
+
+    if (pgl_benchmark::numberEnabled("rational")) {
+        std::cout << "intersections\t\tRational int128\t\t";
+        run<pgl::Rational<pgl::int128>>(false, false);
+    }
+
+    if (pgl_benchmark::numberEnabled("rational")) {
+        std::cout << "crossings\t\tRational int128\t\t";
+        run<pgl::Rational<pgl::int128>>(true, false);
+    }
     return 0;
 }
