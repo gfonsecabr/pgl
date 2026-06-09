@@ -61,17 +61,21 @@ const TYPE_LABEL = {
 };
 const typeLabel = (t) => TYPE_LABEL[t] || t;
 
-// Gradient status colour: green at the best, through amber, to red at the worst,
-// with a small dead-zone so a value within `margin` of the best stays green.
-// Scale is relative to the best (lo); the worst (hi) anchors the red end.
+// Status colour on an absolute scale relative to the best (lo): green within
+// `margin` of the best, ramping through amber to full red once the value is
+// `redAt` above the best — independent of the worst ever seen.
 function statusColor(cur, lo, hi, alpha) {
-  const margin = 0.02; // within 2% of best => still "best"
+  const margin = 0.10; // within 10% of best => still "best" (green)
+  const redAt = 1.0;   // 100% above best (2x) => full red
   let frac = 0;
-  if (hi > lo && (cur - lo) / lo > margin) {
-    frac = (cur - lo) / (hi - lo);
-    frac = Math.max(0, Math.min(1, frac));
+  if (lo > 0) {
+    const excess = (cur - lo) / lo;
+    if (excess > margin) {
+      frac = (excess - margin) / (redAt - margin);
+      frac = Math.max(0, Math.min(1, frac));
+    }
   }
-  const hue = 130 * (1 - frac); // 130 green -> 60 amber -> 0 red
+  const hue = 130 * (1 - frac); // 130 green -> 65 amber -> 0 red
   return `hsl(${hue.toFixed(0)} 68% ${alpha ? "45% / " + alpha : "38%"})`;
 }
 
@@ -162,7 +166,7 @@ function render() {
         if (lp) {
           any = true;
           const lo = best(pts), hi = worst(pts);
-          const heavy = hi > lo && (lp.time - lo) / lo > 0.15 ? " heavy" : "";
+          const heavy = hi > lo && (lp.time - lo) / lo > 1.0 ? " heavy" : "";
           const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
           td.innerHTML =
             `<span class="cell">${spark}` +
