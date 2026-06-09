@@ -136,7 +136,7 @@ constexpr std::partial_ordering inCircleSign(
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c,
     const Point<DNumber, DLabel>& d) {
-    using Coordinate = detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>;
+    using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
 
     const auto adx = static_cast<Coordinate>(a.x()) - static_cast<Coordinate>(d.x());
     const auto ady = static_cast<Coordinate>(a.y()) - static_cast<Coordinate>(d.y());

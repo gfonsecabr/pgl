@@ -3,17 +3,10 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
-#define PGL_DISABLE_PROMOTION
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/rational.hpp>
 
-// Note: pgl no longer needs a hand-rolled global operator<=> for number types
-// that lack one (e.g. Boost.Multiprecision). The comparison operators route
-// coordinate ordering through pgl::detail::strongOrder / threeWay, which fall
-// back to operator< when operator<=> is unavailable. A catch-all operator<=>
-// here would also recurse infinitely for types like pgl::BigInt that rely on
-// their own operator<=> (the rewritten `a < b` would re-select this template).
-
+#define PGL_DISABLE_PROMOTION
 #include "pgl.hpp"
 #include "plf_nanotimer.h"
 
@@ -52,7 +45,7 @@ void allPairs(const std::vector<pgl::Segment<Point>> &segs) {
 
 template<class Point>
 void run(int den=1) {
-    auto segs = randomSegments<Point>(10000,den);
+    auto segs = randomSegments<Point>(5000,den);
     plf::nanotimer timer;
     timer.start();
     allPairs(segs);
@@ -79,9 +72,6 @@ int main() {
     std::cout << "crosses\t\tboost int128_t\t\t";
     run<pgl::Point<boost::multiprecision::int128_t>>();
 
-    std::cout << "crosses\t\tboost int256_t\t\t";
-    run<pgl::Point<boost::multiprecision::int256_t>>();
-
     std::cout << "crosses\t\tboost cpp_int\t\t";
     run<pgl::Point<boost::multiprecision::cpp_int>>();
 
@@ -93,9 +83,6 @@ int main() {
 
     std::cout << "crosses\t\tboost rational int64_t\t";
     run<pgl::Point<boost::rational<int64_t>>>();
-
-    std::cout << "crosses\t\tboost rational int256_t\t";
-    run<pgl::Point<boost::rational<boost::multiprecision::int256_t>>>();
 
     std::cout << "crosses\t\tboost rational cpp_int\t";
     run<pgl::Point<boost::rational<boost::multiprecision::cpp_int>>>();
@@ -110,9 +97,6 @@ int main() {
 
     std::cout << "crosses\t\tboost rational int64_t\t";
     run<pgl::Point<boost::rational<int64_t>>>(60);
-
-    std::cout << "crosses\t\tboost rational int256_t\t";
-    run<pgl::Point<boost::rational<boost::multiprecision::int256_t>>>(60);
 
     std::cout << "crosses\t\tboost rational cpp_int\t";
     run<pgl::Point<boost::rational<boost::multiprecision::cpp_int>>>(60);

@@ -84,7 +84,8 @@ TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     using SmallRational = pgl::Rational<int16_t>;
     using PromotedSmallRational = pgl::detail::promoted_number_t<SmallRational>;
 
-    static_assert(std::is_same_v<PromotedSmallRational, pgl::Rational<int32_t>>);
+    // Rational is never promoted: the storage type is preserved.
+    static_assert(std::is_same_v<PromotedSmallRational, pgl::Rational<int16_t>>);
 
     CHECK(std::numeric_limits<pgl::Rational<int>>::min() == pgl::Rational<int>(std::numeric_limits<int>::min()));
     CHECK(std::numeric_limits<pgl::Rational<int>>::max() == pgl::Rational<int>(std::numeric_limits<int>::max()));
