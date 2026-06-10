@@ -730,6 +730,13 @@ constexpr bool Convex<PointType>::intersects(const Rectangle<OtherPoint>& other)
         return true;
     }
 
+    if (!bbox().intersects(other)) {
+        return false;
+    }
+    if (bbox().separates(other) || other.separates(bbox())) {
+        return true;
+    }
+
     for (auto &edge : other.edges()) {
         if (intersects(edge)) {
             return true;
@@ -743,6 +750,12 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::intersects(const Triangle<OtherPoint>& other) const {
     if (other.contains(points_[0])) {
+        return true;
+    }
+    if (!bbox().intersects(other)) {
+        return false;
+    }
+    if (bbox().separates(other)) {
         return true;
     }
 
