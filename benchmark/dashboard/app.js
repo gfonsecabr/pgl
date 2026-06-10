@@ -138,8 +138,18 @@ function render() {
     section.className = "suite";
 
     const h = document.createElement("h2");
-    h.innerHTML = `${name}<span class="count">${s.functions.length}×${s.types.length}</span>`;
+    const title = s.source_url
+      ? `<a class="suite-link" href="${s.source_url}" target="_blank" rel="noopener">${name}</a>`
+      : name;
+    h.innerHTML = `${title}<span class="count">${s.functions.length}×${s.types.length}</span>`;
     section.appendChild(h);
+
+    if (s.description) {
+      const desc = document.createElement("p");
+      desc.className = "suite-desc";
+      desc.textContent = s.description;
+      section.appendChild(desc);
+    }
 
     const table = document.createElement("table");
     const thead = document.createElement("thead");

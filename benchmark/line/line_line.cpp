@@ -1,4 +1,5 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/line/line_line.cpp -o build/line_line_bench
+// @desc: Lines through two random points with x,y in [-500,500].
 #include <iostream>
 #include <random>
 #include <vector>

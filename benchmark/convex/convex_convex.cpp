@@ -1,4 +1,6 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/convex/convex_convex.cpp
+// @desc: Convex hulls of 100 random points in a radius-70 disk around a random
+//        center (x,y in [-500,500]); degenerate hulls discarded.
 #include <random>
 #include <vector>
 #include <iostream>

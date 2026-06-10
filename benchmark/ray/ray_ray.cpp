@@ -1,4 +1,6 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/ray/ray_ray.cpp -o build/ray_ray_bench
+// @desc: Rays from a random source through a random target, x,y in [-500,500];
+//        degenerate (zero-length) rays discarded.
 #include <random>
 #include <vector>
 #include <iostream>

@@ -1,4 +1,6 @@
 // g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/segment/bentleyottmann.cpp
+// @desc: 100k short segments: a random endpoint with x,y in [-1000,1000] plus a
+//        per-axis offset of up to +/-5. Sweep-line vs brute force.
 #include <random>
 #include <vector>
 #include <iostream>
