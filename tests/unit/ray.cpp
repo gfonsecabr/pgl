@@ -437,3 +437,20 @@ TEST_CASE("Ray intersection and distances support exact rational results") {
     CHECK(Ray({0, 0}, {4, 0}).squaredDistance(vertical) == doctest::Approx(25.0));
     CHECK(Ray({0, 0}, {4, 0}).squaredDistance(pgl::Line<Point>({-2, -2}, {-2, 2})) == doctest::Approx(4.0));
 }
+
+TEST_CASE("Ray interiorContains another ray") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+
+    const Ray ray({0, 0}, {1, 0});  // source (0,0), pointing toward +x
+
+    // A collinear sub-ray whose source is strictly past this source.
+    CHECK(ray.interiorContains(Ray({2, 0}, {5, 0})));
+    // Sharing the source: the source lies on the boundary, not the interior.
+    CHECK_FALSE(ray.interiorContains(Ray({0, 0}, {3, 0})));
+    CHECK_FALSE(ray.interiorContains(ray));
+    // A source behind this ray's source is not contained at all.
+    CHECK_FALSE(ray.interiorContains(Ray({-1, 0}, {5, 0})));
+    // Not collinear: the target leaves the ray.
+    CHECK_FALSE(ray.interiorContains(Ray({2, 0}, {2, 5})));
+}

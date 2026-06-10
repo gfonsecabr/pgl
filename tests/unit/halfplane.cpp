@@ -553,3 +553,23 @@ TEST_CASE("Halfplane intersections clip rays into points, segments, or rays") {
 
     CHECK_FALSE(upper.intersection(Ray({1, -2}, {3, -3})));
 }
+
+TEST_CASE("Halfplane contains and interiorContains another half-plane") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    // Left of (0,0)->(4,0) is the upper half-plane (interior y > 0, boundary y = 0).
+    const Halfplane upper({0, 0}, {4, 0});
+
+    // A half-plane contains another half-plane only when the latter degenerates
+    // to a point (source == target); that point must lie in the closed half-plane.
+    CHECK(upper.contains(Halfplane({2, 3}, {2, 3})));         // degenerate point, strictly inside
+    CHECK(upper.contains(Halfplane({2, 0}, {2, 0})));         // degenerate point, on the boundary
+    CHECK_FALSE(upper.contains(Halfplane({2, -3}, {2, -3}))); // degenerate point, outside
+    CHECK_FALSE(upper.contains(upper));                       // a proper half-plane is never contained
+
+    // interiorContains additionally requires the degenerate point to be strictly inside.
+    CHECK(upper.interiorContains(Halfplane({2, 3}, {2, 3})));
+    CHECK_FALSE(upper.interiorContains(Halfplane({2, 0}, {2, 0})));  // on the boundary
+    CHECK_FALSE(upper.interiorContains(upper));
+}

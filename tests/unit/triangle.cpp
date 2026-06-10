@@ -568,3 +568,49 @@ TEST_CASE("Triangle mixing number types") {
     CHECK_FALSE(t.contains(pgl::Point<pgl::Rational<int>>({1,8},{1,3})));
     CHECK(t.interiorContains(pgl::Point<pgl::Rational<int>>({1,5},-1)));
 }
+
+TEST_CASE("Triangle predicates against another triangle") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle base({0, 0}, {6, 0}, {0, 6});
+
+    SUBCASE("contains (closed)") {
+        CHECK(base.contains(Triangle({1, 1}, {2, 1}, {1, 2})));   // strictly inside
+        CHECK(base.contains(base));                               // closed: contains itself
+        CHECK(base.contains(Triangle({0, 0}, {6, 0}, {0, 3})));   // shares the bottom edge
+        CHECK_FALSE(base.contains(Triangle({1, 1}, {8, 1}, {1, 2})));        // one vertex outside
+        CHECK_FALSE(base.contains(Triangle({10, 10}, {11, 10}, {10, 11})));  // disjoint
+    }
+
+    SUBCASE("boundaryContains") {
+        // A degenerate (collinear) triangle lying along the bottom edge.
+        CHECK(base.boundaryContains(Triangle({1, 0}, {2, 0}, {3, 0})));
+        // Leaving the boundary into the interior is not boundary containment.
+        CHECK_FALSE(base.boundaryContains(Triangle({1, 0}, {2, 0}, {2, 2})));
+        // An interior triangle is not on the boundary at all.
+        CHECK_FALSE(base.boundaryContains(Triangle({1, 1}, {2, 1}, {1, 2})));
+    }
+
+    SUBCASE("interiorContains (strict)") {
+        CHECK(base.interiorContains(Triangle({1, 1}, {2, 1}, {1, 2})));          // strictly inside
+        CHECK_FALSE(base.interiorContains(Triangle({0, 1}, {2, 1}, {1, 2})));    // vertex on edge x=0
+        CHECK_FALSE(base.interiorContains(base));                               // own vertices on boundary
+    }
+
+    SUBCASE("intersects") {
+        CHECK(base.intersects(Triangle({2, 2}, {8, 2}, {2, 8})));   // overlapping area
+        CHECK(base.intersects(Triangle({6, 0}, {8, 0}, {8, 2})));   // touch only at the vertex (6,0)
+        CHECK(base.intersects(Triangle({2, -1}, {4, -1}, {3, 5}))); // edges cross, no vertex inside
+        CHECK_FALSE(base.intersects(Triangle({10, 10}, {11, 10}, {10, 11})));  // disjoint
+    }
+
+    SUBCASE("crosses") {
+        // A thin triangle stabbing through base: each separates the other.
+        CHECK(base.crosses(Triangle({2, -1}, {4, -1}, {3, 5})));
+        // Containment is not crossing.
+        CHECK_FALSE(base.crosses(Triangle({1, 1}, {2, 1}, {1, 2})));
+        // Disjoint is not crossing.
+        CHECK_FALSE(base.crosses(Triangle({10, 10}, {11, 10}, {10, 11})));
+    }
+}

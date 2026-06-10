@@ -310,3 +310,18 @@ TEST_CASE("OrientedLine covers the non-Convex contract through Line delegation")
     CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.crosses(Rectangle({1, -1}, {3, 1})));
 }
+
+TEST_CASE("OrientedLine interiorContains another oriented line") {
+    using Point = pgl::Point<int>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+
+    const OrientedLine axis({0, 0}, {4, 0});
+
+    // interiorContains delegates to contains and ignores orientation: it holds
+    // exactly when the underlying line matches.
+    CHECK(axis.interiorContains(axis));
+    CHECK(axis.interiorContains(OrientedLine({-3, 0}, {7, 0})));       // same line, same direction
+    CHECK(axis.interiorContains(OrientedLine({7, 0}, {-3, 0})));       // same line, opposite direction
+    CHECK_FALSE(axis.interiorContains(OrientedLine({0, 1}, {4, 1})));  // parallel but distinct
+    CHECK_FALSE(axis.interiorContains(OrientedLine({0, 0}, {0, 4})));  // crossing but distinct
+}

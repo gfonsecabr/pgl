@@ -313,3 +313,17 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
     CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.crosses(Rectangle({1, -1}, {3, 1})));
 }
+
+TEST_CASE("Line interiorContains another line") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+
+    const Line axis({0, 0}, {4, 0});  // the x-axis
+
+    // A line has no boundary, so interiorContains coincides with contains:
+    // it holds exactly when the other describes the same line.
+    CHECK(axis.interiorContains(axis));
+    CHECK(axis.interiorContains(Line({-3, 0}, {7, 0})));       // same line, other defining points
+    CHECK_FALSE(axis.interiorContains(Line({0, 1}, {4, 1})));  // parallel but distinct
+    CHECK_FALSE(axis.interiorContains(Line({0, 0}, {4, 4})));  // crossing but distinct
+}
