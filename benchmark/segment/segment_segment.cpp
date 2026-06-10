@@ -116,16 +116,6 @@ int main() {
     }
 
 
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "intersection\tint\t\t";
-        run<pgl::Point<int>>([](const pgl::Segment<pgl::Point<int>>& s, const pgl::Segment<pgl::Point<int>>& t){return s.intersection(t);});
-    }
-
-    if (pgl_benchmark::numberEnabled("double")) {
-        std::cout << "intersection\tdouble\t\t";
-        run<pgl::Point<double>>([](const pgl::Segment<pgl::Point<double>>& s, const pgl::Segment<pgl::Point<double>>& t){return s.intersection(t);});
-    }
-
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "intersection\tRational i64\t";
         run<pgl::Point<pgl::Rational<>>>([](const pgl::Segment<pgl::Point<pgl::Rational<>>>& s, const pgl::Segment<pgl::Point<pgl::Rational<>>>& t){return s.intersection(t);});

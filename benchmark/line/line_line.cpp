@@ -155,16 +155,6 @@ int main() {
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.crosses(second); }, 60);
     }
 
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "intersection\tint\t\t";
-        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.intersection(second); });
-    }
-
-    if (pgl_benchmark::numberEnabled("double")) {
-        std::cout << "intersection\tdouble\t\t";
-        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.intersection(second); });
-    }
-
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "intersection\tRational i64\t";
         run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.intersection(second); });
