@@ -90,6 +90,8 @@ html.dark-mode {
    ship both wordmarks as <img> and toggle them with CSS, matching the dark
    selectors doxygen-awesome uses: the reader's OS preference (when the site is
    not pinned to light) and the manual .dark-mode class if it is ever enabled. */
+.pgl-wordmark-light,
+.pgl-wordmark-dark { margin-left: 1.5em; }   /* gap from the floated logo icon */
 .pgl-wordmark-dark { display: none; }
 @media (prefers-color-scheme: dark) {
     html:not(.light-mode) .pgl-wordmark-light { display: none; }
