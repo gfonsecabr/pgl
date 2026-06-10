@@ -9,7 +9,9 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <type_traits>
 #include "forward.hpp"
 #include "numeric.hpp"
 #include "../pgl.hpp"
@@ -18,7 +20,19 @@ namespace pgl::detail {
 
 template <class T>
 inline void hashCombine(std::size_t& seed, const T& value) {
-    seed ^= std::hash<T>{}(value) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+#if defined(__SIZEOF_INT128__)
+    // libstdc++ does not provide std::hash for the 128-bit integer extension
+    // types under strict ISO modes (-std=c++NN), so hash their two 64-bit
+    // halves instead of relying on std::hash<__int128>.
+    if constexpr (std::is_same_v<T, __int128_t> || std::is_same_v<T, __uint128_t>) {
+        const auto bits = static_cast<__uint128_t>(value);
+        hashCombine(seed, static_cast<std::uint64_t>(bits));
+        hashCombine(seed, static_cast<std::uint64_t>(bits >> 64));
+    } else
+#endif
+    {
+        seed ^= std::hash<T>{}(value) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
+    }
 }
 
 }  // namespace pgl::detail
