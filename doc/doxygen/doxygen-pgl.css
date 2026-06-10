@@ -74,29 +74,29 @@ html.dark-mode {
     padding: 10px var(--spacing-large);
 }
 
-/* Wordmark: show the logo icon (PROJECT_LOGO) + the logotext SVG, no text.
-   The "Pangolin" text and the brief are replaced by the artwork. */
+/* Top bar: logo icon (PROJECT_LOGO) + the plain project name. The full
+   "Pangolin" wordmark lives in the page body, not the navbar. */
 #projectlogo img {
     max-height: 42px;
     margin-right: 12px;
     vertical-align: middle;
 }
-#projectname {
-    /* hide the text, render the logotext SVG in its place */
-    color: transparent;
-    font-size: 0;
-    line-height: 0;
-    white-space: nowrap;
-    background: url(logotext.svg) left center / auto 30px no-repeat;
-    display: inline-block;
-    width: 200px;          /* ~30px tall * 4.7 aspect ratio */
-    height: 38px;
-    vertical-align: middle;
-}
 #projectbrief,
 #projectnumber {
-    display: none;         /* the tagline is part of the logotext artwork */
+    display: none;         /* keep the top bar compact: just the icon and name */
 }
+
+/* In-page logotext (home). Doxygen's markdown drops <picture>/<source>, so we
+   ship both wordmarks as <img> and toggle them with CSS, matching the dark
+   selectors doxygen-awesome uses: the reader's OS preference (when the site is
+   not pinned to light) and the manual .dark-mode class if it is ever enabled. */
+.pgl-wordmark-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+    html:not(.light-mode) .pgl-wordmark-light { display: none; }
+    html:not(.light-mode) .pgl-wordmark-dark  { display: inline; }
+}
+html.dark-mode .pgl-wordmark-light { display: none; }
+html.dark-mode .pgl-wordmark-dark  { display: inline; }
 
 /* ------------------------------------------------------------------ */
 /*  Top navigation tabs (default, non-sidebar layout)                  */

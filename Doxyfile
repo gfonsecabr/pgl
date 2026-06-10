@@ -105,8 +105,7 @@ HTML_OUTPUT            = html
 HTML_COLORSTYLE        = LIGHT
 HTML_EXTRA_STYLESHEET  = build/doxygen-awesome/doxygen-awesome.css \
                          doc/doxygen/doxygen-pgl.css
-# Copied verbatim into the output so the CSS can use it as the title wordmark.
-HTML_EXTRA_FILES       = doc/figures/logotext.svg
+HTML_EXTRA_FILES       =
 HTML_COPY_CLIPBOARD    = NO
 
 QUIET                  = YES

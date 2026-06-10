@@ -2,19 +2,14 @@
 
 <img align="left" src="https://raw.githubusercontent.com/gfonsecabr/pgl/main/doc/figures/logo.png" width="23%"/>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/gfonsecabr/pgl/main/doc/figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="https://raw.githubusercontent.com/gfonsecabr/pgl/main/doc/figures/logotext.svg" width="65%"/>
-</picture>
+<img class="pgl-wordmark-light" alt="Pangolin: Plane Geometry Library" src="https://raw.githubusercontent.com/gfonsecabr/pgl/main/doc/figures/logotext.svg" width="65%"/>
+<img class="pgl-wordmark-dark" alt="Pangolin: Plane Geometry Library" src="https://raw.githubusercontent.com/gfonsecabr/pgl/main/doc/figures/logotextdark.svg" width="65%"/>
 
-[![GitHub](https://img.shields.io/badge/GitHub-gfonsecabr/pgl-rgb(40,40,40).svg?logo=github)](https://github.com/gfonsecabr/pgl)
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
 
 <br/>
-
-📦 **Source code:** [github.com/gfonsecabr/pgl](https://github.com/gfonsecabr/pgl)
 
 > ⚠️ **Work in Progress**: This library is still under construction and contains **bugs and missing features**. Use in production environments is not recommended.
 
