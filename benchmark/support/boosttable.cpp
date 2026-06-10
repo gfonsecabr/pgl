@@ -33,8 +33,8 @@ template<class Point>
 void allPairs(const std::vector<pgl::Segment<Point>> &segs) {
     int n = 0;
 
-    for(auto s : segs) {
-        for(auto t : segs) {
+    for(const auto& s : segs) {
+        for(const auto& t : segs) {
             auto b = s.crosses(t);
 
             if(b) {

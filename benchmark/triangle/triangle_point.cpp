@@ -43,8 +43,8 @@ std::vector<Point> randomPoints(size_t n, int den) {
     return ret;
 }
 
-template<class Shape, class Point, class Function>
-void allPairs(const std::vector<Shape> &shapes, const std::vector<Point> &points, Function f) {
+template<class S, class Point, class Function>
+void allPairs(const std::vector<S> &shapes, const std::vector<Point> &points, Function f) {
     int n = 0;
 
     for(const auto &s : shapes) {
@@ -77,125 +77,125 @@ int main() {
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "contains\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Triangle<pgl::Point<int>> s, pgl::Point<int> p){return s.contains(p);});
+        run<pgl::Point<int>>([](const pgl::Triangle<pgl::Point<int>>& s, const pgl::Point<int>& p){return s.contains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "contains\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Triangle<pgl::Point<double>> s, pgl::Point<double> p){return s.contains(p);});
+        run<pgl::Point<double>>([](const pgl::Triangle<pgl::Point<double>>& s, const pgl::Point<double>& p){return s.contains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "contains\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.contains(p);});
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.contains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "contains\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.contains(p);}, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.contains(p);}, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "contains\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.contains(p);});
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.contains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "contains\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.contains(p);}, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.contains(p);}, 60);
     }
 
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "interiorContains\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Triangle<pgl::Point<int>> s, pgl::Point<int> p){return s.interiorContains(p);});
+        run<pgl::Point<int>>([](const pgl::Triangle<pgl::Point<int>>& s, const pgl::Point<int>& p){return s.interiorContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "interiorContains\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Triangle<pgl::Point<double>> s, pgl::Point<double> p){return s.interiorContains(p);});
+        run<pgl::Point<double>>([](const pgl::Triangle<pgl::Point<double>>& s, const pgl::Point<double>& p){return s.interiorContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "interiorContains\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.interiorContains(p);});
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.interiorContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "interiorContains\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.interiorContains(p);}, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.interiorContains(p);}, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "interiorContains\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.interiorContains(p);});
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.interiorContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "interiorContains\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.interiorContains(p);}, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.interiorContains(p);}, 60);
     }
 
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "boundaryContains\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Triangle<pgl::Point<int>> s, pgl::Point<int> p){return s.boundaryContains(p);});
+        run<pgl::Point<int>>([](const pgl::Triangle<pgl::Point<int>>& s, const pgl::Point<int>& p){return s.boundaryContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "boundaryContains\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Triangle<pgl::Point<double>> s, pgl::Point<double> p){return s.boundaryContains(p);});
+        run<pgl::Point<double>>([](const pgl::Triangle<pgl::Point<double>>& s, const pgl::Point<double>& p){return s.boundaryContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "boundaryContains\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.boundaryContains(p);});
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.boundaryContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "boundaryContains\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.boundaryContains(p);}, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.boundaryContains(p);}, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "boundaryContains\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.boundaryContains(p);});
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.boundaryContains(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "boundaryContains\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.boundaryContains(p);}, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.boundaryContains(p);}, 60);
     }
 
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "verticesContain\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Triangle<pgl::Point<int>> s, pgl::Point<int> p){return s.verticesContain(p);});
+        run<pgl::Point<int>>([](const pgl::Triangle<pgl::Point<int>>& s, const pgl::Point<int>& p){return s.verticesContain(p);});
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "verticesContain\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Triangle<pgl::Point<double>> s, pgl::Point<double> p){return s.verticesContain(p);});
+        run<pgl::Point<double>>([](const pgl::Triangle<pgl::Point<double>>& s, const pgl::Point<double>& p){return s.verticesContain(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "verticesContain\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.verticesContain(p);});
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.verticesContain(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "verticesContain\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.verticesContain(p);}, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<>>>& s, const pgl::Point<pgl::Rational<>>& p){return s.verticesContain(p);}, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "verticesContain\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.verticesContain(p);});
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.verticesContain(p);});
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "verticesContain\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.verticesContain(p);}, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Point<pgl::Rational<pgl::BigInt>>& p){return s.verticesContain(p);}, 60);
     }
 
     return 0;
