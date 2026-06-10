@@ -1,6 +1,6 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/convex/convex_point.cpp
 // @desc: Point-containment tests of random points against convex hulls of 100
-//        random points in a radius-70 disk around a random center (x,y in [-500,500]).
+//        random points in a radius-500 disk around a random center (x,y in [-500,500]).
 #include <random>
 #include <vector>
 #include <iostream>
@@ -13,7 +13,7 @@ template<class Point>
 std::vector<pgl::Convex<Point>> randomShapes(size_t n, int den) {
     std::mt19937 rgen(1);
     std::vector<pgl::Convex<Point>> ret;
-    int radius = 70;
+    int radius = 500;
     static std::uniform_int_distribution<int> rradius(-radius, radius);
     static std::uniform_int_distribution<int> rcenter(-500,500);
 

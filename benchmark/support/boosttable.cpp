@@ -16,7 +16,6 @@
 #include "plf_nanotimer.h"
 
 
-
 template<class Point>
 std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
     std::mt19937 rgen(1);
@@ -25,7 +24,7 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
     using Number =  std::remove_reference_t<decltype(Point().x())>;
 
     for(size_t i = 0; i < n; i++) {
-        ret.emplace_back((Number)dist(rgen)/den,(Number)dist(rgen)/den,(Number)dist(rgen)/den,(Number)dist(rgen)/den);
+        ret.emplace_back(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
     }
     return ret;
 }
