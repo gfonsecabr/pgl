@@ -682,9 +682,7 @@ constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>&) const {
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::crosses(const OtherPoint&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Point) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+    return false;
 }
 
 template <class PointType, class LabelType>

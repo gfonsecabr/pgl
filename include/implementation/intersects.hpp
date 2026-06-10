@@ -1076,10 +1076,8 @@ constexpr bool Convex<PointType>::intersects(const Polygon<OtherPoint>& other) c
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Point) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint& point) const {
+    return contains(point);
 }
 
 template <class PointType, class LabelType>
