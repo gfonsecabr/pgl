@@ -271,6 +271,9 @@ constexpr bool Triangle<PointType>::contains(const Convex<OtherPoint>& other) co
     if (other.size() == 0) {
         return true;
     }
+    if (!bbox().contains(other.bbox())) {
+        return false;
+    }
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!contains(other[i])) {
             return false;
@@ -953,6 +956,9 @@ constexpr bool Disk<PointType, LabelType>::contains(const Shape<PointType>& othe
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::contains(const OtherPoint& point) const {
+    if (!bbox().contains(point)) {
+        return false;
+    }
     auto edges = edgesAtX(point.x());
     if (!edges) {
         return false;
@@ -1004,6 +1010,9 @@ constexpr bool Convex<PointType>::contains(const Halfplane<OtherPoint>&) const {
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::contains(const Rectangle<OtherPoint>& other) const {
+    if (!bbox().contains(other)) {
+        return false;
+    }
     for (size_t i = 0; i < 4; ++i) {
         if (!contains(other[i])) {
             return false;
@@ -1015,6 +1024,9 @@ constexpr bool Convex<PointType>::contains(const Rectangle<OtherPoint>& other) c
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::contains(const Triangle<OtherPoint>& other) const {
+    if (!bbox().contains(other)) {
+        return false;
+    }
     for (size_t i = 0; i < 3; ++i) {
         if (!contains(other[i])) {
             return false;
@@ -1031,6 +1043,9 @@ constexpr bool Convex<PointType>::contains(const Convex<OtherPoint>& other) cons
     }
     if (other.size() == 0) {
         return true;
+    }
+    if (!bbox().contains(other.bbox())) {
+        return false;
     }
 
     if (size() == 1) {
