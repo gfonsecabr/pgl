@@ -831,11 +831,12 @@ constexpr bool Convex<PointType>::isDegenerate() const {
 
 template <class PointType>
 constexpr size_t Convex<PointType>::maxIndex() const {
-    const size_t n = size();
-    if (n == 1) {
-        return 0;
+    assert(size() != 0);
+    if (maxIndex_ >= 0) {
+        return static_cast<size_t>(maxIndex_);
     }
 
+    const size_t n = size();
     size_t lo = 0;
     size_t hi = n - 1;
 
@@ -852,6 +853,7 @@ constexpr size_t Convex<PointType>::maxIndex() const {
         }
     }
 
+    maxIndex_ = static_cast<std::ptrdiff_t>(lo);
     return lo;
 }
 

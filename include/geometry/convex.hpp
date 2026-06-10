@@ -1664,8 +1664,17 @@ struct Convex {
   private:
     std::vector<PointType> points_{};
     PointType translation_{};
-    // Lazily computed by bbox() and reset by every mutating operation.
+    // Lazily computed caches, invalidated by resetCache() on every mutation.
+    // bbox_ is empty and maxIndex_ is -1 until first computed.
     mutable std::optional<Rectangle<PointType>> bbox_{};
+    mutable std::ptrdiff_t maxIndex_ = -1;
+
+    // Drops every memoized value; call after any operation that mutates the
+    // polygon's vertices or translation.
+    constexpr void resetCache() const {
+        bbox_ = {};
+        maxIndex_ = -1;
+    }
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {
