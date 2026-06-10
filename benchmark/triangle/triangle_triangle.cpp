@@ -17,9 +17,9 @@ std::vector<pgl::Triangle<Point>> randomTriangles(size_t n, int den) {
     using Number =  std::remove_reference_t<decltype(Point().x())>;
 
     while(ret.size() < n) {
-        Point a((Number)dist(rgen)/den,(Number)dist(rgen)/den);
-        Point b((Number)dist(rgen)/den,(Number)dist(rgen)/den);
-        Point c((Number)dist(rgen)/den,(Number)dist(rgen)/den);
+        Point a(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
+        Point b(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
+        Point c(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
         pgl::Triangle<Point> tri(a,b,c);
         if (!tri.isDegenerate()) {
             ret.push_back(tri);

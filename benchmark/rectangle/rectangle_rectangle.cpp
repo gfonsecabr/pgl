@@ -18,10 +18,10 @@ std::vector<pgl::Rectangle<Point>> randomRectangles(std::size_t n, int den) {
 
     for (std::size_t i = 0; i < n; ++i) {
         ret.emplace_back(
-            static_cast<Number>(dist(rgen)) / den,
-            static_cast<Number>(dist(rgen)) / den,
-            static_cast<Number>(dist(rgen)) / den,
-            static_cast<Number>(dist(rgen)) / den
+            pgl_benchmark::normalized(static_cast<Number>(dist(rgen)) / den),
+            pgl_benchmark::normalized(static_cast<Number>(dist(rgen)) / den),
+            pgl_benchmark::normalized(static_cast<Number>(dist(rgen)) / den),
+            pgl_benchmark::normalized(static_cast<Number>(dist(rgen)) / den)
         );
     }
 

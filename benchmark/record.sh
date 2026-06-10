@@ -53,4 +53,15 @@ python3 benchmark/support/record_to_history.py \
     --history benchmark/history
 
 echo
-echo "History updated. Review and commit benchmark/history/*.jsonl, then push."
+
+# Commit the refreshed history and push. The guard above guarantees the only
+# tracked changes are the jsonl files written just now, so staging the history
+# directory can't sweep up anything unrelated.
+git add benchmark/history
+if git diff --cached --quiet; then
+    echo "History unchanged — nothing to commit."
+else
+    git commit -m "Benchmark"
+    git push
+    echo "History committed and pushed."
+fi

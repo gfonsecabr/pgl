@@ -28,7 +28,14 @@ std::vector<pgl::Convex<Point>> randomConvexes(size_t n, int den) {
         }
         pgl::Convex<Point> c(vec);
         if (!c.isDegenerate()) {
-            ret.push_back(c/den);
+            std::vector<Point> scaled;
+            for (const Point& p : c / den) {
+                scaled.emplace_back(pgl_benchmark::normalized(p.x()),
+                                    pgl_benchmark::normalized(p.y()));
+            }
+            // Dividing by the positive denominator preserves the leftmost/ccw
+            // vertex order, so the rebuilt hull can be trusted as-is.
+            ret.emplace_back(scaled, true);
         }
     }
     return ret;
