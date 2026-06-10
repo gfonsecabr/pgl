@@ -991,10 +991,19 @@ constexpr bool OrientedSegment<PointType>::interiorContains(const Disk<OtherPoin
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: OrientedSegment::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedSegment<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    // A convex with area (more than two vertices) cannot fit in a 1D interior.
+    // Otherwise the segment is convex, so it interior-contains the convex iff it
+    // interior-contains every vertex.
+    if (other.size() > 2) {
+        return false;
+    }
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <class PointType>
@@ -1015,10 +1024,9 @@ constexpr bool Line<PointType>::interiorContains(const Disk<OtherPoint, OtherLab
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Line::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Line<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    // A line has no boundary, so its interior is the whole line.
+    return contains(other);
 }
 
 template <class PointType>
@@ -1039,10 +1047,9 @@ constexpr bool OrientedLine<PointType>::interiorContains(const Disk<OtherPoint, 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: OrientedLine::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedLine<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    // A line has no boundary, so its interior is the whole line.
+    return contains(other);
 }
 
 template <class PointType>
@@ -1063,10 +1070,19 @@ constexpr bool Ray<PointType>::interiorContains(const Disk<OtherPoint, OtherLabe
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Ray::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Ray<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    // A convex with area (more than two vertices) cannot fit in a 1D interior.
+    // Otherwise the ray is convex, so it interior-contains the convex iff it
+    // interior-contains every vertex.
+    if (other.size() > 2) {
+        return false;
+    }
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <class PointType>
@@ -1095,10 +1111,10 @@ constexpr bool Rectangle<PointType>::interiorContains(const Disk<OtherPoint, Oth
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Rectangle::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Rectangle<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    // For an axis-aligned rectangle, containing the convex strictly is equivalent
+    // to containing its (axis-aligned) bounding box strictly.
+    return other.size() == 0 || interiorContains(other.bbox());
 }
 
 template <class PointType>
@@ -1119,10 +1135,21 @@ constexpr bool Triangle<PointType>::interiorContains(const Disk<OtherPoint, Othe
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Triangle::interiorContains(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Triangle<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+    if (other.size() == 0) {
+        return true;
+    }
+    if (!bbox().interiorContains(other.bbox())) {
+        return false;
+    }
+    // The triangle is convex, so it interior-contains the convex iff it
+    // interior-contains every vertex.
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <class PointType>
