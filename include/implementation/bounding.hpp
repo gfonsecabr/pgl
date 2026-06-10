@@ -6,6 +6,7 @@
  */
 
 #include "../pgl.hpp"
+#include "geometry/rectangle.hpp"
 
 namespace pgl {
 
@@ -383,14 +384,39 @@ constexpr const Rectangle<PointType>& Convex<PointType>::bbox() const {
     if (points_.empty()) {
         return bbox_.emplace();
     }
-    // x is unimodal (vertices are CCW from the leftmost), so the x-extremes are
-    // the stored ends; y is unimodal only modulo rotation, so cyclicMax handles it.
+    if (points_.size() <= 6) {
+        return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+    }
+
+    // Find the peak of a plain unimodal range [first, last): the keys ascend
+    // weakly to a single maximum, then descend weakly. O(log n) binary search.
+    const auto unimodalMax = [](auto first, auto last, auto key) {
+        auto lo = first;
+        auto hi = last - 1;
+        while (lo < hi) {
+            const auto mid = lo + (hi - lo) / 2;
+            if (key(*mid) < key(*(mid + 1)))
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        return lo;
+    };
+
+    // The boundary splits at its leftmost (points_[0]) and rightmost (maxIndex())
+    // vertices into two x-monotone chains. On each chain y is plain unimodal (the
+    // split removes the rotation cyclicMax would otherwise have to handle). The
+    // lower chain [0, mi] is contiguous; the upper chain [mi, n) wraps back to
+    // points_[0], so that vertex is folded into the max_y candidate explicitly.
     const NumberType min_x = points_[0].x();
-    const NumberType max_x = points_[maxIndex()].x();
-    const NumberType min_y = detail::cyclicMax(points_.begin(), points_.end(),
+    const auto mi = maxIndex();
+    const NumberType max_x = points_[mi].x();
+    const NumberType min_y = unimodalMax(points_.begin(), points_.begin() + mi + 1,
         [](const PointType& p) { return -p.y(); })->y();
-    const NumberType max_y = detail::cyclicMax(points_.begin(), points_.end(),
-        [](const PointType& p) { return p.y(); })->y();
+    const NumberType max_y = std::max(
+        unimodalMax(points_.begin() + mi, points_.end(),
+            [](const PointType& p) { return p.y(); })->y(),
+        points_[0].y());
 
     return bbox_.emplace(Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_);
 }
