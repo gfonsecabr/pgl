@@ -417,3 +417,32 @@ TEST_CASE("OrientedSegment ordering and hashing keep opposite directions distinc
     unordered_set.insert(backward);
     CHECK(unordered_set.size() == 2);
 }
+
+TEST_CASE("OrientedSegment separates and crosses another oriented segment") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+
+    const OrientedSegment horizontal({-2, 0}, {2, 0});
+    const OrientedSegment vertical({0, -2}, {0, 2});       // crosses horizontal at the origin
+    const OrientedSegment reversed_vertical({0, 2}, {0, -2});
+    const OrientedSegment touching({2, 0}, {4, 2});        // meets only at the endpoint (2,0)
+    const OrientedSegment disjoint({3, 1}, {5, 1});
+
+    SUBCASE("crossing at an interior point") {
+        CHECK(horizontal.separates(vertical));
+        CHECK(vertical.separates(horizontal));
+        CHECK(horizontal.crosses(vertical));
+        // Separation delegates to the unoriented segments, so orientation is irrelevant.
+        CHECK(horizontal.separates(reversed_vertical));
+    }
+
+    SUBCASE("touching only at an endpoint does not separate") {
+        CHECK_FALSE(horizontal.separates(touching));
+        CHECK_FALSE(horizontal.crosses(touching));
+    }
+
+    SUBCASE("disjoint segments do not separate") {
+        CHECK_FALSE(horizontal.separates(disjoint));
+        CHECK_FALSE(horizontal.crosses(disjoint));
+    }
+}
