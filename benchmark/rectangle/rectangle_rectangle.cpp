@@ -125,32 +125,32 @@ int main() {
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "interiorsInter\tint\t\t";
+        std::cout << "interiorsIntersect\tint\t\t";
         run<pgl::Point<int>>([](pgl::Rectangle<pgl::Point<int>> first, pgl::Rectangle<pgl::Point<int>> second) { return first.interiorsIntersect(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
-        std::cout << "interiorsInter\tdouble\t\t";
+        std::cout << "interiorsIntersect\tdouble\t\t";
         run<pgl::Point<double>>([](pgl::Rectangle<pgl::Point<double>> first, pgl::Rectangle<pgl::Point<double>> second) { return first.interiorsIntersect(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
-        std::cout << "interiorsInter\tRational i64\t";
+        std::cout << "interiorsIntersect\tRational i64\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<>>> second) { return first.interiorsIntersect(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
-        std::cout << "interiorsInter\tRational/60\t";
+        std::cout << "interiorsIntersect\tRational/60\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<>>> second) { return first.interiorsIntersect(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "interiorsInter\tRational BigInt\t";
+        std::cout << "interiorsIntersect\tRational BigInt\t";
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.interiorsIntersect(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
-        std::cout << "interiorsInter\tRational BigInt/60\t";
+        std::cout << "interiorsIntersect\tRational BigInt/60\t";
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.interiorsIntersect(second); }, 60);
     }
 
