@@ -675,6 +675,9 @@ constexpr bool Convex<PointType>::interiorContains(const Halfplane<OtherPoint>&)
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+    if (!bbox().interiorContains(other)) {
+        return false;
+    }
     for (size_t i = 0; i < 4; ++i) {
         if (!interiorContains(other[i])) {
             return false;
@@ -686,6 +689,9 @@ constexpr bool Convex<PointType>::interiorContains(const Rectangle<OtherPoint>& 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+    if (!bbox().interiorContains(other)) {
+        return false;
+    }
     for (size_t i = 0; i < 3; ++i) {
         if (!interiorContains(other[i])) {
             return false;
@@ -702,6 +708,9 @@ constexpr bool Convex<PointType>::interiorContains(const Convex<OtherPoint>& oth
     }
     if (other.size() == 0) {
         return true;
+    }
+    if (!bbox().interiorContains(other.bbox())) {
+        return false;
     }
     if (other.size() == 1) {
         return interiorContains(other[0]);
