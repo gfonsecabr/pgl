@@ -106,6 +106,37 @@ int main() {
 
 
     if (pgl_benchmark::numberEnabled("int")) {
+        std::cout << "interiorContains\tint\t\t";
+        run<pgl::Point<int>>([](pgl::Ray<pgl::Point<int>> s, pgl::Point<int> p){return s.interiorContains(p);});
+    }
+
+    if (pgl_benchmark::numberEnabled("double")) {
+        std::cout << "interiorContains\tdouble\t\t";
+        run<pgl::Point<double>>([](pgl::Ray<pgl::Point<double>> s, pgl::Point<double> p){return s.interiorContains(p);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rational")) {
+        std::cout << "interiorContains\tRational i64\t";
+        run<pgl::Point<pgl::Rational<>>>([](pgl::Ray<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.interiorContains(p);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rational60")) {
+        std::cout << "interiorContains\tRational/60\t";
+        run<pgl::Point<pgl::Rational<>>>([](pgl::Ray<pgl::Point<pgl::Rational<>>> s, pgl::Point<pgl::Rational<>> p){return s.interiorContains(p);}, 60);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "interiorContains\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Ray<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.interiorContains(p);});
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "interiorContains\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Ray<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Point<pgl::Rational<pgl::BigInt>> p){return s.interiorContains(p);}, 60);
+    }
+
+
+    if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "boundaryContains\tint\t\t";
         run<pgl::Point<int>>([](pgl::Ray<pgl::Point<int>> s, pgl::Point<int> p){return s.boundaryContains(p);});
     }
