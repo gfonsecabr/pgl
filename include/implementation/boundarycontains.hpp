@@ -547,6 +547,10 @@ constexpr bool Convex<PointType>::boundaryContains(const OtherPoint& point) cons
     if (points_.empty()) {
         return false;
     }
+    if (!bbox().contains(point)) {
+        return false;
+    }
+
     using CommonNumberType = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
     Point<CommonNumberType> translatedPoint = static_cast<Point<CommonNumberType>>(point) -
                                               static_cast<Point<CommonNumberType>>(translation_);
