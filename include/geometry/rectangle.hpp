@@ -642,9 +642,38 @@ struct Rectangle {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    template<class S>
-        requires(!detail::is_point_v<S>)
-    [[nodiscard]] constexpr bool boundaryContains(const S& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Returns whether this rectangle intersects another rectangle.
