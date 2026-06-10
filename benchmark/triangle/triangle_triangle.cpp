@@ -184,32 +184,32 @@ int main() {
 
 
     if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "interiorsInter\tint\t\t";
+        std::cout << "interiorsIntersect\tint\t\t";
         run<pgl::Point<int>>([](pgl::Triangle<pgl::Point<int>> s, pgl::Triangle<pgl::Point<int>> t){return s.interiorsIntersect(t);});
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
-        std::cout << "interiorsInter\tdouble\t\t";
+        std::cout << "interiorsIntersect\tdouble\t\t";
         run<pgl::Point<double>>([](pgl::Triangle<pgl::Point<double>> s, pgl::Triangle<pgl::Point<double>> t){return s.interiorsIntersect(t);});
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
-        std::cout << "interiorsInter\tRational i64\t";
+        std::cout << "interiorsIntersect\tRational i64\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Triangle<pgl::Point<pgl::Rational<>>> t){return s.interiorsIntersect(t);});
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
-        std::cout << "interiorsInter\tRational/60\t";
+        std::cout << "interiorsIntersect\tRational/60\t";
         run<pgl::Point<pgl::Rational<>>>([](pgl::Triangle<pgl::Point<pgl::Rational<>>> s, pgl::Triangle<pgl::Point<pgl::Rational<>>> t){return s.interiorsIntersect(t);}, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "interiorsInter\tRational BigInt\t";
+        std::cout << "interiorsIntersect\tRational BigInt\t";
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.interiorsIntersect(t);});
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
-        std::cout << "interiorsInter\tRational BigInt/60\t";
+        std::cout << "interiorsIntersect\tRational BigInt/60\t";
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> s, pgl::Triangle<pgl::Point<pgl::Rational<pgl::BigInt>>> t){return s.interiorsIntersect(t);}, 60);
     }
 
