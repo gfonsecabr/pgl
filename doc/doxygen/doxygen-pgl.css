@@ -245,14 +245,13 @@ a.code, a.codeRef {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Small geometric flourish: dotted rule under the main title (home)  */
+/*  Hide the redundant main-page title (home). The wordmark in the top  */
+/*  bar and the logo artwork in the page already carry the name; the    */
+/*  "# Pangolin {#mainpage}" heading stays in the markdown only so      */
+/*  Doxygen keeps it as the main page. The home page is the only one    */
+/*  whose .contents holds the #mainpage anchor, so :has() scopes this   */
+/*  to the home title without touching class/file reference titles.     */
 /* ------------------------------------------------------------------ */
-div.contents h1.title {
-    background:
-        repeating-linear-gradient(90deg,
-            var(--primary-color) 0 8px,
-            var(--pgl-accent)     8px 16px,
-            var(--pgl-teal)       16px 24px) bottom / 100% 3px no-repeat;
-    padding-bottom: 8px;
-    border-bottom: none;
+.header:has(+ .contents #mainpage) .title {
+    display: none;
 }
