@@ -24,8 +24,8 @@ namespace pgl {
  */
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     return other.interiorContains(*this);
 }
 
@@ -67,8 +67,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherPoint&) const
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Segment<PointType, LabelType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     const int cross = boundingBoxesCross(other);
     if (cross == 0) {
         return false;
@@ -286,8 +286,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const Shape<PointType>& 
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     return !other.isDegenerate() && !contains(other.min()) && !contains(other.max()) && intersects(other);
 }
 
@@ -442,8 +442,8 @@ constexpr bool OrientedSegment<PointType>::separates(const OtherPoint& other) co
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedSegment<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asSegment().separates(other);
 }
 
@@ -517,8 +517,8 @@ constexpr bool Line<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Line<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -612,8 +612,8 @@ constexpr bool OrientedLine<PointType>::separates(const OtherPoint& other) const
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedLine<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asLine().separates(other);
 }
 
@@ -687,8 +687,8 @@ constexpr bool Ray<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Ray<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -903,8 +903,8 @@ constexpr bool Rectangle<PointType>::separates(const OrientedLine<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Rectangle<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     // Both endpoints outside the closed rectangle and the segment touching it
     // anywhere (boundary contact included) leave a piece on each side.
     return !other.isDegenerate() && !contains(other.min()) && !contains(other.max()) && intersects(other);
@@ -998,8 +998,8 @@ constexpr bool Halfplane<PointType>::separates(const OrientedLine<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Halfplane<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     (void)other;
     return false;
 }
@@ -1094,8 +1094,8 @@ constexpr bool Convex<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     // A contact anywhere on the convex polygon -- boundary touch included --
     // leaves a piece of the segment on each side when both endpoints are
     // outside, so this gates on closed intersection, not interior crossing.
@@ -1250,8 +1250,8 @@ constexpr bool Convex<PointType>::separates(const Disk<OtherPoint, OtherLabel>& 
  */
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Segment<OtherPoint>& other) const {
+template <PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate() || contains(other.min()) || contains(other.max())) {
         return false;
     }
@@ -1366,8 +1366,8 @@ constexpr bool Convex<PointType>::separates(const Shape<OtherPoint>& other) cons
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }

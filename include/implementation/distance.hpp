@@ -75,8 +75,8 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& 
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     if (intersects(other)) {
         using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
         return ResultNumber{};
@@ -94,8 +94,8 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<Othe
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     const auto this_min_to_other = other.squaredDistance(min());
     const auto this_max_to_other = other.squaredDistance(max());
     const auto other_min_to_this = squaredDistance(other.min());
@@ -117,8 +117,8 @@ constexpr auto OrientedSegment<PointType>::squaredDistance(const OtherPoint& poi
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto OrientedSegment<PointType>::squaredDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto OrientedSegment<PointType>::squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     return static_cast<Segment<PointType>>(*this).squaredDistance(other);
 }
 
@@ -129,8 +129,8 @@ constexpr auto OrientedSegment<PointType>::squaredDistance(const OrientedSegment
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto OrientedSegment<PointType>::squaredHausdorffDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto OrientedSegment<PointType>::squaredHausdorffDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     return static_cast<Segment<PointType>>(*this).squaredHausdorffDistance(other);
 }
 
@@ -253,8 +253,8 @@ constexpr auto Ray<PointType>::squaredDistance(const OrientedLine<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto Ray<PointType>::squaredDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto Ray<PointType>::squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     if (intersects(other)) {
         using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
         return ResultNumber{};
@@ -368,8 +368,8 @@ constexpr auto Rectangle<PointType>::squaredDistance(const OrientedLine<OtherPoi
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr auto Rectangle<PointType>::squaredDistance(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr auto Rectangle<PointType>::squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
 
     if (intersects(other)) {

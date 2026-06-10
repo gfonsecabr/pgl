@@ -49,8 +49,8 @@ constexpr bool Segment<PointType, LabelType>::intersects(const OtherPoint& other
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Segment<PointType, LabelType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherPoint::NumberType>) {
         int cross = boundingBoxesCross(other);
         if (cross == 0) {
@@ -137,8 +137,8 @@ constexpr bool Triangle<PointType>::intersects(const OrientedLine<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     // Either an endpoint lies in the closed triangle, or the segment crosses
     // one of the triangle's edges.
     if (contains(other.min()) || contains(other.max())) {
@@ -249,8 +249,8 @@ constexpr bool OrientedSegment<PointType>::intersects(const OtherPoint& other) c
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedSegment<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     return static_cast<Segment<PointType>>(*this).intersects(other);
 }
 
@@ -295,8 +295,8 @@ constexpr bool Line<PointType>::intersects(const Line<OtherPoint>& other) const 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Line<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -347,8 +347,8 @@ constexpr bool OrientedLine<PointType>::intersects(const OrientedLine<OtherPoint
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedLine<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asLine().intersects(other);
 }
 
@@ -404,8 +404,8 @@ constexpr bool Ray<PointType>::intersects(const OrientedLine<OtherPoint>& other)
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Ray<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -498,8 +498,8 @@ constexpr bool Rectangle<PointType>::intersects(const OrientedLine<OtherPoint>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Rectangle<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -609,8 +609,8 @@ constexpr bool Halfplane<PointType>::intersects(const OrientedLine<OtherPoint>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Halfplane<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
@@ -663,8 +663,8 @@ constexpr bool Halfplane<PointType>::intersects(const Shape<PointType>& other) c
 // Convex
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -827,8 +827,8 @@ constexpr bool Convex<PointType>::intersects(const Disk<OtherPoint, OtherLabel>&
 // Disk
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -890,8 +890,8 @@ constexpr bool Polygon<PointType>::intersects(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::intersects(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
     // Either an endpoint lies in the closed polygon, or the segment crosses
     // a boundary edge.
     if (contains(other.min()) || contains(other.max())) {

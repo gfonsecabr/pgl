@@ -508,8 +508,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
     /** @brief Tests whether a segment lies entirely on the boundary. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether an oriented segment lies entirely on the boundary. */
     template<PointConcept OtherPoint>
@@ -552,8 +552,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool contains(const OtherPoint& point) const;
 
     /** @brief Tests whether both endpoints of a segment lie in the closed triangle. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie in the closed triangle. */
     template<PointConcept OtherPoint>
@@ -603,8 +603,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
 
     /** @brief Tests whether both endpoints of a segment lie in the strict interior. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie in the strict interior. */
     template<PointConcept OtherPoint>
@@ -653,8 +653,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
 
     /** @brief Tests whether the triangle intersects a segment. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether the triangle intersects an oriented segment. */
     template<PointConcept OtherPoint>
@@ -697,8 +697,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
 
     /** @brief Tests whether a segment interior meets the strict triangle interior. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether an oriented segment interior meets the strict triangle interior. */
     template<PointConcept OtherPoint>
@@ -729,8 +729,8 @@ struct Triangle {
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
 
     /** @brief Tests whether the triangle separates a segment. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
@@ -793,8 +793,8 @@ struct Triangle {
 
 
     /** @brief Tests whether the triangle crosses a segment. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
@@ -858,9 +858,9 @@ struct Triangle {
     intersection(const OrientedLine<OtherPoint>& other) const;
 
     /** @brief Returns the intersection with a segment as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint>& other) const;
+    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Returns the intersection with an oriented segment as a point or segment. */
     template <class ResultNumber = NumberType, class OtherPoint>

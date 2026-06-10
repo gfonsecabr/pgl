@@ -393,8 +393,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
@@ -429,8 +429,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
@@ -456,8 +456,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool collinear(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool collinear(const OrientedSegment<OtherPoint>& other) const;
@@ -530,8 +530,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool parallel(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool parallel(const OrientedSegment<OtherPoint>& other) const;
@@ -548,8 +548,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
@@ -574,8 +574,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
@@ -597,8 +597,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
@@ -620,8 +620,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
@@ -684,9 +684,9 @@ struct Ray {
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedLine<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint>& other) const;
+    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template <class ResultNumber = NumberType, class OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -743,8 +743,8 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OrientedLine<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto squaredDistance(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr auto squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OrientedSegment<OtherPoint>& other) const;
