@@ -83,6 +83,7 @@ jobs:
           python3 benchmark/support/build_dashboard.py \
             --history benchmark/history \
             --dashboard benchmark/dashboard \
+            --repo-url "https://github.com/${GITHUB_REPOSITORY}/blob/main/" \
             --out site/benchmarks
 
       - name: Upload Pages artifact

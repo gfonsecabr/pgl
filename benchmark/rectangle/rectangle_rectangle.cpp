@@ -1,4 +1,5 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/rectangle/rectangle_rectangle.cpp -o build/rectangle_rectangle_bench
+// @desc: Axis-aligned rectangles from two random opposite corners, x,y in [-500,500].
 #include <iostream>
 #include <random>
 #include <vector>

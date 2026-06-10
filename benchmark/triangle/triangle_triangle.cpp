@@ -1,4 +1,6 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/triangle/triangle_triangle.cpp -o build/triangle_triangle_bench
+// @desc: Triangles from three random vertices with x,y in [-500,500];
+//        degenerate (collinear) triangles discarded.
 #include <random>
 #include <vector>
 #include <iostream>

@@ -1,4 +1,5 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/segment/segment_segment.cpp -o build/segment_segment_bench
+// @desc: Segments between two random endpoints with x,y in [-500,500].
 #include <random>
 #include <vector>
 #include <iostream>
