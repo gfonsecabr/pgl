@@ -96,6 +96,36 @@ int main() {
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
+        std::cout << "interiorContains\tint\t\t";
+        run<pgl::Point<int>>([](pgl::Rectangle<pgl::Point<int>> first, pgl::Rectangle<pgl::Point<int>> second) { return first.interiorContains(second); });
+    }
+
+    if (pgl_benchmark::numberEnabled("double")) {
+        std::cout << "interiorContains\tdouble\t\t";
+        run<pgl::Point<double>>([](pgl::Rectangle<pgl::Point<double>> first, pgl::Rectangle<pgl::Point<double>> second) { return first.interiorContains(second); });
+    }
+
+    if (pgl_benchmark::numberEnabled("rational")) {
+        std::cout << "interiorContains\tRational i64\t";
+        run<pgl::Point<pgl::Rational<>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<>>> second) { return first.interiorContains(second); });
+    }
+
+    if (pgl_benchmark::numberEnabled("rational60")) {
+        std::cout << "interiorContains\tRational/60\t";
+        run<pgl::Point<pgl::Rational<>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<>>> second) { return first.interiorContains(second); }, 60);
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "interiorContains\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.interiorContains(second); });
+    }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "interiorContains\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Rectangle<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.interiorContains(second); }, 60);
+    }
+
+    if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "intersects\tint\t\t";
         run<pgl::Point<int>>([](pgl::Rectangle<pgl::Point<int>> first, pgl::Rectangle<pgl::Point<int>> second) { return first.intersects(second); });
     }
