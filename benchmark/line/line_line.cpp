@@ -32,8 +32,8 @@ template <class Point, class Function>
 void allPairs(const std::vector<pgl::Line<Point>>& lines, Function f) {
     int n = 0;
 
-    for (auto first : lines) {
-        for (auto second : lines) {
+    for (const auto& first : lines) {
+        for (const auto& second : lines) {
             const auto value = f(first, second);
             if constexpr (std::is_same_v<decltype(value), bool>) {
                 if (value) {
@@ -67,132 +67,132 @@ int main() {
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "parallel\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Line<pgl::Point<int>> first, pgl::Line<pgl::Point<int>> second) { return first.parallel(second); });
+        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.parallel(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "parallel\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Line<pgl::Point<double>> first, pgl::Line<pgl::Point<double>> second) { return first.parallel(second); });
+        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.parallel(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "parallel\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.parallel(second); });
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.parallel(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "parallel\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.parallel(second); }, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.parallel(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "parallel\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.parallel(second); });
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.parallel(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "parallel\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.parallel(second); }, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.parallel(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "intersects\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Line<pgl::Point<int>> first, pgl::Line<pgl::Point<int>> second) { return first.intersects(second); });
+        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.intersects(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "intersects\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Line<pgl::Point<double>> first, pgl::Line<pgl::Point<double>> second) { return first.intersects(second); });
+        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.intersects(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "intersects\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.intersects(second); });
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.intersects(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "intersects\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.intersects(second); }, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.intersects(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "intersects\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.intersects(second); });
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.intersects(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "intersects\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.intersects(second); }, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.intersects(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "crosses\t\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Line<pgl::Point<int>> first, pgl::Line<pgl::Point<int>> second) { return first.crosses(second); });
+        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.crosses(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "crosses\t\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Line<pgl::Point<double>> first, pgl::Line<pgl::Point<double>> second) { return first.crosses(second); });
+        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.crosses(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "crosses\t\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.crosses(second); });
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.crosses(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "crosses\t\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.crosses(second); }, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.crosses(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "crosses\t\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.crosses(second); });
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.crosses(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "crosses\t\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.crosses(second); }, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.crosses(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "intersection\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Line<pgl::Point<int>> first, pgl::Line<pgl::Point<int>> second) { return first.intersection(second); });
+        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.intersection(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "intersection\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Line<pgl::Point<double>> first, pgl::Line<pgl::Point<double>> second) { return first.intersection(second); });
+        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.intersection(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "intersection\tRational i64\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.intersection(second); });
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.intersection(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rational60")) {
         std::cout << "intersection\tRational/60\t";
-        run<pgl::Point<pgl::Rational<>>>([](pgl::Line<pgl::Point<pgl::Rational<>>> first, pgl::Line<pgl::Point<pgl::Rational<>>> second) { return first.intersection(second); }, 60);
+        run<pgl::Point<pgl::Rational<>>>([](const pgl::Line<pgl::Point<pgl::Rational<>>>& first, const pgl::Line<pgl::Point<pgl::Rational<>>>& second) { return first.intersection(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint")) {
         std::cout << "intersection\tRational BigInt\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.intersection(second); });
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.intersection(second); });
     }
 
     if (pgl_benchmark::numberEnabled("rationalbigint60")) {
         std::cout << "intersection\tRational BigInt/60\t";
-        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> first, pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>> second) { return first.intersection(second); }, 60);
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& first, const pgl::Line<pgl::Point<pgl::Rational<pgl::BigInt>>>& second) { return first.intersection(second); }, 60);
     }
 
     if (pgl_benchmark::numberEnabled("int")) {
         std::cout << "sqDistance\tint\t\t";
-        run<pgl::Point<int>>([](pgl::Line<pgl::Point<int>> first, pgl::Line<pgl::Point<int>> second) { return first.squaredDistance(second); });
+        run<pgl::Point<int>>([](const pgl::Line<pgl::Point<int>>& first, const pgl::Line<pgl::Point<int>>& second) { return first.squaredDistance(second); });
     }
 
     if (pgl_benchmark::numberEnabled("double")) {
         std::cout << "sqDistance\tdouble\t\t";
-        run<pgl::Point<double>>([](pgl::Line<pgl::Point<double>> first, pgl::Line<pgl::Point<double>> second) { return first.squaredDistance(second); });
+        run<pgl::Point<double>>([](const pgl::Line<pgl::Point<double>>& first, const pgl::Line<pgl::Point<double>>& second) { return first.squaredDistance(second); });
     }
 
     return 0;
