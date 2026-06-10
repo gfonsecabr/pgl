@@ -1307,7 +1307,12 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& translation) {
     translation_ += translation;
-    resetCache();
+    // A pure translation leaves maxIndex_ valid (the extreme vertex index is
+    // translation-invariant) and merely shifts the bounding box, so update the
+    // cached bbox in place rather than discarding it.
+    if (bbox_) {
+        *bbox_ += translation;
+    }
     return *this;
 }
 
@@ -1315,7 +1320,9 @@ template <class PointType>
 template<PointConcept OtherPoint>
 constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& translation) {
     translation_ -= translation;
-    resetCache();
+    if (bbox_) {
+        *bbox_ -= translation;
+    }
     return *this;
 }
 

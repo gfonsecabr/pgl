@@ -1670,7 +1670,8 @@ struct Convex {
     mutable std::ptrdiff_t maxIndex_ = -1;
 
     // Drops every memoized value; call after any operation that mutates the
-    // polygon's vertices or translation.
+    // polygon's vertices. A pure translation does not need this: it leaves
+    // maxIndex_ valid and shifts the cached bbox in place (see operator+=).
     constexpr void resetCache() const {
         bbox_ = {};
         maxIndex_ = -1;
