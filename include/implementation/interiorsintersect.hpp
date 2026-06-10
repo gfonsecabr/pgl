@@ -41,8 +41,8 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherPoin
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherPoint::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
@@ -154,8 +154,8 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OrientedLine<OtherP
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -266,8 +266,8 @@ constexpr bool OrientedSegment<PointType>::interiorsIntersect(const OtherPoint& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedSegment<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asSegment().interiorsIntersect(other);
 }
 
@@ -306,8 +306,8 @@ constexpr bool Line<PointType>::interiorsIntersect(const Line<OtherPoint>& other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Line<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -364,8 +364,8 @@ constexpr bool OrientedLine<PointType>::interiorsIntersect(const OrientedLine<Ot
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool OrientedLine<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asLine().interiorsIntersect(other);
 }
 
@@ -423,8 +423,8 @@ constexpr bool Ray<PointType>::interiorsIntersect(const OrientedLine<OtherPoint>
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Ray<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -553,8 +553,8 @@ constexpr bool Rectangle<PointType>::interiorsIntersect(const OrientedLine<Other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Rectangle<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -651,8 +651,8 @@ constexpr bool Halfplane<PointType>::interiorsIntersect(const OrientedLine<Other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Halfplane<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -772,8 +772,8 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OrientedLine<OtherPoi
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -956,8 +956,8 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OrientedLine<OtherPo
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorsIntersect(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1196,8 +1196,8 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint& 
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint>&) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>&) const {
     throw std::runtime_error(
         "pgl: Disk::interiorsIntersect(Segment) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

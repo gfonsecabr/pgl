@@ -29,8 +29,8 @@ struct is_shape_alternative : std::false_type {};
 template <class PointType, class Number, class Label>
 struct is_shape_alternative<PointType, Point<Number, Label>> : std::bool_constant<std::same_as<PointType, Point<Number, Label>>> {};
 
-template <class PointType>
-struct is_shape_alternative<PointType, Segment<PointType>> : std::true_type {};
+template <class PointType, class Label>
+struct is_shape_alternative<PointType, Segment<PointType, Label>> : std::true_type {};
 
 template <class PointType>
 struct is_shape_alternative<PointType, OrientedSegment<PointType>> : std::true_type {};

@@ -591,8 +591,8 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the segment lies on the convex polygon boundary.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the boundary of the convex polygon contains the given oriented segment.
@@ -717,8 +717,8 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the convex polygon contains the segment, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the given oriented segment.
@@ -846,8 +846,8 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the interior of the convex polygon contains the segment, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given oriented segment.
@@ -961,8 +961,8 @@ struct Convex {
      * @param other The segment to check intersection with.
      * @return True if the convex polygon and segment intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given oriented segment.
@@ -1124,8 +1124,8 @@ struct Convex {
      * in O(log n); the interiors meet iff the intersect is a non-degenerate
      * chord not lying on the convex polygon boundary.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the oriented segment interior intersects the convex polygon interior.
@@ -1219,8 +1219,8 @@ struct Convex {
      * are not produced by removing the convex polygon's body. We therefore require
      * the segment to cross the convex polygon interior, not just intersect it.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if removing the convex polygon from an oriented segment disconnects it.
@@ -1320,8 +1320,8 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the convex polygon and oriented segment cross.
@@ -1416,9 +1416,9 @@ struct Convex {
      * @param other The segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint>& other) const;
+    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with an oriented segment.

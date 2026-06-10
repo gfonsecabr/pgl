@@ -378,8 +378,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if both endpoints of `other` lie on the line.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Returns whether the line contains an oriented segment.
@@ -422,8 +422,8 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const Line<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
@@ -463,8 +463,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if the segment lies on the line.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Returns whether the given oriented segment is collinear with the line.
@@ -587,8 +587,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Returns whether an oriented segment is parallel to this line.
@@ -635,8 +635,8 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const Line<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
@@ -665,8 +665,8 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
@@ -693,8 +693,8 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
@@ -710,8 +710,8 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
@@ -773,8 +773,8 @@ struct Line {
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,Line<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Line<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
-    [[nodiscard]] constexpr auto intersection(const Segment<OtherPoint>& other) const;
+    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr auto intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template <class ResultNumber = NumberType, class OtherPoint>
     [[nodiscard]] constexpr auto intersection(const OrientedSegment<OtherPoint>& other) const;

@@ -418,8 +418,8 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the closed polygon contains the given oriented segment.
@@ -512,8 +512,8 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given oriented segment.
@@ -598,8 +598,8 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
     template<PointConcept OtherPoint>
@@ -700,8 +700,8 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given oriented segment.
@@ -808,8 +808,8 @@ struct Polygon {
      *
      * Complexity: O(n^2) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given oriented segment.
@@ -880,8 +880,8 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
     template<PointConcept OtherPoint>
@@ -915,8 +915,8 @@ struct Polygon {
     [[nodiscard]] constexpr bool crosses(const OtherPoint&) const;
 
     /** @brief Tests whether the polygon and segment mutually separate each other. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
     template<PointConcept OtherPoint>

@@ -27,8 +27,8 @@ constexpr bool Point<Number, Label>::boundaryContains(const OtherPoint&) const {
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::boundaryContains(const Segment<OtherPoint>&) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::boundaryContains(const Segment<OtherPoint, OtherLabel>&) const {
     return false;
 }
 
@@ -108,8 +108,8 @@ constexpr bool Triangle<PointType>::boundaryContains(const OtherPoint& point) co
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::boundaryContains(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Triangle<PointType>::boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const {
     return detail::polygonBoundaryContainsSegment(*this, other);
 }
 
@@ -350,8 +350,8 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPoint& po
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::boundaryContains(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const {
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -527,8 +527,8 @@ constexpr bool Convex<PointType>::boundaryContains(const OtherPoint& point) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::boundaryContains(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Convex<PointType>::boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate()) {
         return boundaryContains(other.min());
     }
@@ -671,8 +671,8 @@ constexpr bool Polygon<PointType>::boundaryContains(const OtherPoint& point) con
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::boundaryContains(const Segment<OtherPoint>& other) const {
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Polygon<PointType>::boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate()) {
         return boundaryContains(other.min());
     }

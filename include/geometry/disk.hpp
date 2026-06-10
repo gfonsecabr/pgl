@@ -500,8 +500,8 @@ struct Disk {
     [[nodiscard]] constexpr bool contains(const OtherPoint& other) const;
 
     /** @brief Tests whether both endpoints of a segment lie in the closed disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint>& other) const;
+    template <PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie in the closed disk. */
     template <PointConcept OtherPoint>
@@ -553,8 +553,8 @@ struct Disk {
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& other) const;
 
     /** @brief Tests whether both endpoints of a segment lie strictly inside the disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint>& other) const;
+    template <PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie strictly inside the disk. */
     template <PointConcept OtherPoint>
@@ -592,8 +592,8 @@ struct Disk {
      * @brief Tests whether the closed segment shares at least one point with the
      *        closed disk (touching counts as intersecting).
      */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint>& other) const;
+    template <PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
      * @brief Tests whether the two closed disks share at least one point.
@@ -616,8 +616,8 @@ struct Disk {
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint>& other) const;
+    template <PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
@@ -684,8 +684,8 @@ struct Disk {
      * @brief Tests whether removing the disk from the segment splits it into
      *        two pieces (the disk crosses the segment's interior).
      */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint>& other) const;
+    template <PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Same as the segment overload, ignoring the segment's orientation. */
     template <PointConcept OtherPoint>
@@ -732,8 +732,8 @@ struct Disk {
     /** @brief interiorsIntersect: not-yet-implemented disk pairs (throw); see implementation. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
     template<PointConcept OtherPoint>
@@ -754,8 +754,8 @@ struct Disk {
     /** @brief crosses: not-yet-implemented disk pairs (throw); see implementation. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
     template<PointConcept OtherPoint>
