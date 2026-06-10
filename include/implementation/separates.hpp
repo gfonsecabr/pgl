@@ -53,6 +53,52 @@ constexpr bool Point<Number, Label>::separates(const Ray<OtherPoint>& other) con
     return other.interiorContains(*this);
 }
 
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const OtherPoint&) const {
+    return false;
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Halfplane<OtherPoint>&) const {
+    return false;
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Point<Number, Label>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+    return false;
+}
+
+// A point can only separate a 2D region when that region is degenerate to a
+// segment; its convex hull then has size 2, whose whole segment is the
+// region's boundary, so the point separates it iff that segment contains it.
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Convex<OtherPoint>& other) const {
+    return other.size() == 2 &&
+           Segment<OtherPoint>(other[0], other[1]).contains(*this);
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Rectangle<OtherPoint>& other) const {
+    return separates(static_cast<Convex<OtherPoint>>(other));
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Triangle<OtherPoint>& other) const {
+    return separates(static_cast<Convex<OtherPoint>>(other));
+}
+
+template <class Number, class Label>
+template<PointConcept OtherPoint>
+constexpr bool Point<Number, Label>::separates(const Polygon<OtherPoint>& other) const {
+    return separates(Convex<OtherPoint>(other.vertices()));
+}
+
 /**
  * @section predicates-segment Segment
  * Segment endpoint, boundary, containment, collinearity, intersection, and
@@ -1250,6 +1296,12 @@ constexpr bool Convex<PointType>::separates(const Disk<OtherPoint, OtherLabel>& 
  */
 
 template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherPoint&) const {
+    return false;
+}
+
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint, class OtherLabel>
 constexpr bool Disk<PointType, LabelType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
     if (other.isDegenerate() || contains(other.min()) || contains(other.max())) {
@@ -1364,6 +1416,12 @@ constexpr bool Convex<PointType>::separates(const Shape<OtherPoint>& other) cons
  * @section predicates-polygon Polygon
  * Polygon-vs-shape cut predicates.
  */
+
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const OtherPoint&) const {
+    return false;
+}
 
 template <class PointType>
 template<PointConcept OtherPoint, class OtherLabel>
@@ -1538,70 +1596,6 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>&) const {
 
 // --- asymmetric not-yet-implemented stubs ---
 
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const OtherPoint&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Point) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Halfplane<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Halfplane) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Rectangle<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Triangle<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::separates(const Disk<OtherPoint, OtherLabel>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Polygon<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Point::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const OtherPoint&) const {
-    throw std::runtime_error(
-        "pgl: Disk::separates(Point) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::separates(const Ray<OtherPoint>&) const {
@@ -1647,14 +1641,6 @@ template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::separates(const Polygon<OtherPoint>&) const {
     throw std::runtime_error(
         "pgl: Disk::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const OtherPoint&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Point) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
