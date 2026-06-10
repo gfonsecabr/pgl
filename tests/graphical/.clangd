@@ -1,2 +1,0 @@
-CompileFlags:
-  Add: ['-std=c++23', '-I/home/fonseca/Documents/src/pgl/pgl-public/include/']
