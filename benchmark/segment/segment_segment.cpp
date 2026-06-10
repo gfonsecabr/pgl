@@ -9,7 +9,7 @@
 
 
 template<class Point>
-std::vector<pgl::Segment<Point>> randomConvexes(size_t n, int den) {
+std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
     std::mt19937 rgen(1);
     std::vector<pgl::Segment<Point>> ret;
     static std::uniform_int_distribution<int> dist(-500,500);
@@ -40,7 +40,7 @@ void allPairs(const std::vector<pgl::Segment<Point>> &segs, Function f) {
 
 template<class Point, class Function>
 void run(Function f, int den=1) {
-    auto segs = randomConvexes<Point>(5000,den);
+    auto segs = randomSegments<Point>(5000,den);
     plf::nanotimer timer;
     timer.start();
     allPairs(segs, f);
