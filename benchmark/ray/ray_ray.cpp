@@ -17,8 +17,8 @@ std::vector<pgl::Ray<Point>> randomRays(size_t n, int den) {
     using Number =  std::remove_reference_t<decltype(Point().x())>;
 
     while(ret.size() < n) {
-        Point source((Number)dist(rgen)/den,(Number)dist(rgen)/den);
-        Point target((Number)dist(rgen)/den,(Number)dist(rgen)/den);
+        Point source(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
+        Point target(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
         pgl::Ray<Point> ray(source,target);
         if (!ray.isDegenerate()) {
             ret.push_back(ray);

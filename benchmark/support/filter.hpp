@@ -51,4 +51,19 @@ inline bool numberEnabled(std::string_view number) {
     return !token.empty() && canonicalNumber(token) == expected;
 }
 
+// Force a coordinate to lowest terms. Rational defers its gcd reduction, so a
+// value produced by dividing by the benchmark denominator stays unreduced until
+// something later triggers normalization. Rebuilding it from its (already
+// reduced) numerator/denominator makes the stored fraction canonical up front,
+// so the predicate under test isn't also paying for the deferred reduction.
+// A no-op for non-rational coordinate types (int, double).
+template <class T>
+constexpr T normalized(T value) {
+    if constexpr (requires { value.numerator(); value.denominator(); }) {
+        return T(value.numerator(), value.denominator(), true);
+    } else {
+        return value;
+    }
+}
+
 }  // namespace pgl_benchmark
