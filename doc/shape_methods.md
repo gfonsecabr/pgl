@@ -133,7 +133,7 @@ pgl::Point p = std::get<0>(*isec);
 - `pointInside()`: Returns a point strictly in the interior of the shape. Uses
   only division by a power of 2.
 
-- `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`.
+- `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`. Notice that two shapes (for example lines) may be equal (according to `==`) but still behave differently for verticesContain if they are defined by different points.
 
 ## Iterating
 
