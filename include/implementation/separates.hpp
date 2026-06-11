@@ -1131,82 +1131,44 @@ constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other)
         return false;
     }
 
-    // The exact boundary arithmetic uses BigInt; run it in a (non-constexpr)
-    // lambda so this constexpr predicate defines no non-literal locals.
-    auto disconnectsOutside = [&]() -> bool {
-        using Big = pgl::BigInt;
-        const std::size_t n = other.size();
-        const auto S = source();
-        const auto T = target();
-        const Big ux = Big(T.x()) - Big(S.x());
-        const Big uy = Big(T.y()) - Big(S.y());
+    const ptrdiff_t m = other.size();
 
-        // Signed side of a point w.r.t. the oriented boundary line: > 0 inside
-        // the half-plane (left), < 0 strictly outside (right), 0 on the line.
-        auto side = [&](const auto& p) -> Big {
-            return ux * (Big(p.y()) - Big(S.y())) - uy * (Big(p.x()) - Big(S.x()));
-        };
-        // Position of a point along the line direction u = T - S; the exact
-        // order key for the points where the boundary meets the line.
-        auto uOf = [&](const auto& p) -> Big {
-            return (Big(p.x()) - Big(S.x())) * ux + (Big(p.y()) - Big(S.y())) * uy;
-        };
+    ptrdiff_t start = 0;
+    for (; start < m && !contains(other[start]) ; ++start) {
+    }
 
-        // A crossing's line-position as a normalized fraction n / d with d > 0.
-        struct Frac { Big n, d; };
-        auto vertexFrac = [&](const auto& p) -> Frac { return {uOf(p), Big(1)}; };
-        auto crossFrac = [&](const auto& a, const auto& b) -> Frac {
-            // Crossing point a + t (b - a) with t = da / (da - db) gives line
-            // position (da * uOf(b) - db * uOf(a)) / (da - db).
-            const Big da = side(a);
-            const Big db = side(b);
-            Big num = da * uOf(b) - db * uOf(a);
-            Big den = da - db;
-            if (den < Big(0)) {
-                num = -num;
-                den = -den;
-            }
-            return {num, den};
-        };
-        auto less = [](const Frac& x, const Frac& y) -> bool {
-            return x.n * y.d < y.n * x.d;  // both denominators are positive
-        };
+    if (start == m) {
+        return false; // No vertex in the halfplane
+    }
+    // Now we know that other[start] is in the halfplane
 
-        // Walk the boundary and record, in order, each crossing between the
-        // inside and the strict outside (O = {side < 0}). The polygon is
-        // counterclockwise, so consecutive crossings alternate enter/exit and
-        // pair into "excursions" through O. An excursion that advances along u
-        // (its entry precedes its exit) opens a new outside region; one that
-        // retreats is a bay cutting into an existing region. Removing the closed
-        // half-plane disconnects the polygon iff at least two excursions open a
-        // region.
-        struct Crossing { Frac u; bool enter; };
-        std::vector<Crossing> crossings;
-        for (std::size_t i = 0; i < n; ++i) {
-            const auto a = other[i];
-            const auto b = other[(i + 1) % n];
-            const Big sa = side(a);
-            const Big sb = side(b);
-            const bool aOutside = sa < Big(0);
-            const bool bOutside = sb < Big(0);
-            if (!aOutside && bOutside) {
-                crossings.push_back({sa == Big(0) ? vertexFrac(a) : crossFrac(a, b), true});
-            } else if (aOutside && !bOutside) {
-                crossings.push_back({sb == Big(0) ? vertexFrac(b) : crossFrac(a, b), false});
+    int arcs = 0;
+    pgl::OrientedLine<PointType> boundary = asOrientedLine();
+    pgl::Line<OtherPoint> leaving;
+    start++; // Now other[start-1] is in the halfplane
+    bool prev_in = true;
+
+    for (ptrdiff_t i = start; i < start+m; ++i) {
+        const bool cur_in = contains(other.get(i));
+        if (prev_in && !cur_in) {
+            // Just went outside
+            leaving = pgl::Line<OtherPoint>(other.get(i), other.get(i-1));
+        }
+        if (cur_in && !prev_in) {
+            // Just came inside, must check order
+            pgl::Line<OtherPoint> entering(other.get(i), other.get(i-1));
+            if (boundary.crossingOrder(entering, leaving) >= 0) {
+                ++arcs;
+                if (arcs >= 2) {
+                    return true;
+                }
             }
         }
 
-        const std::size_t m = crossings.size();
-        int forward = 0;
-        for (std::size_t i = 0; i < m; ++i) {
-            if (crossings[i].enter && less(crossings[i].u, crossings[(i + 1) % m].u)) {
-                ++forward;
-            }
-        }
-        return forward >= 2;
-    };
+        prev_in = cur_in;
+    }
+    return false;
 
-    return disconnectsOutside();
 }
 
 template <class PointType>
