@@ -3,6 +3,8 @@
 
 #include "pgl.hpp"
 
+#include <variant>
+
 TEST_CASE("Polygon separates Ray") {
     using Point = pgl::Point<int>;
     using Ray = pgl::Ray<Point>;
@@ -179,4 +181,47 @@ TEST_CASE("Polygon separates a boundary-touching ray") {
     const Ray apex_graze({-3, 12}, {9, 12});
 
     CHECK(pentagon.separates(apex_graze));
+}
+
+// Polygon::intersection(Ray) is the supporting line clipped to the half-line
+// starting at the source.
+TEST_CASE("Polygon intersects Ray from the source outward") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Piece = std::variant<Point, Segment>;
+
+    const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
+
+    SUBCASE("a ray entering from the left cuts both prongs") {
+        const auto pieces = u.intersection(Ray({-5, 5}, {-4, 5}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a ray starting inside reaches only the pieces ahead of it") {
+        // Source at (5, 5) is in the open notch (outside); aimed right, it hits
+        // only the right prong.
+        const auto pieces = u.intersection(Ray({5, 5}, {6, 5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a ray pointing away from the polygon misses it") {
+        CHECK(u.intersection(Ray({-5, 5}, {-6, 5})).empty());
+    }
+
+    SUBCASE("a ray whose source is strictly inside starts the chord at the source") {
+        // Source (1,5) is inside the left prong; aimed right it exits the left
+        // prong, crosses the open notch, then re-enters the right prong.
+        const auto pieces = u.intersection(Ray({1, 5}, {2, 5}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({1, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
 }
