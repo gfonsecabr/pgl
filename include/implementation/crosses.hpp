@@ -620,26 +620,20 @@ constexpr bool Polygon<PointType>::crosses(const Halfplane<OtherPoint>&) const {
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Rectangle<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::crosses(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType>::crosses(const Rectangle<OtherPoint>&other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Triangle<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::crosses(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType>::crosses(const Triangle<OtherPoint>& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Convex<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::crosses(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType>::crosses(const Convex<OtherPoint>& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
@@ -652,10 +646,8 @@ constexpr bool Polygon<PointType>::crosses(const Disk<OtherPoint, OtherLabel>&) 
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Polygon<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::crosses(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType>::crosses(const Polygon<OtherPoint>& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
@@ -670,10 +662,8 @@ constexpr bool Polygon<PointType>::crosses(const Shape<OtherPoint>& other) const
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Convex::crosses(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 
