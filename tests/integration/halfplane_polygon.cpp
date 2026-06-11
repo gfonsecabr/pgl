@@ -3,6 +3,8 @@
 
 #include "pgl.hpp"
 
+#include <variant>
+
 // Halfplane::separates(Polygon) asks whether removing the (closed) half-plane
 // from the polygon leaves two or more pieces. Because the complement of a closed
 // half-plane is convex, a half-plane can only ever disconnect a *non-convex*
@@ -170,5 +172,71 @@ TEST_CASE("Half-plane separates Polygon: disjoint bites must not separate"
         // joins them through x < 9, so P\H is one piece.
         const Halfplane right({9, 1}, {9, 0});
         CHECK_FALSE(right.separates(horseshoe));
+    }
+}
+
+// Polygon::intersection(Halfplane) clips the polygon to the closed half-plane,
+// returning the surviving regions (polygons), plus any collinear boundary
+// overlaps (segments) and isolated touches (points).
+TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Piece = std::variant<Point, Segment, Polygon>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a half-plane through the middle keeps one half polygon") {
+        // Boundary y = 5 oriented +x; interior is the upper half (y >= 5).
+        const auto pieces = square.intersection(Halfplane({0, 5}, {10, 5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Polygon({0, 5, 10, 5, 10, 10, 0, 10})));
+    }
+
+    SUBCASE("a half-plane containing the polygon returns it whole") {
+        const auto pieces = square.intersection(Halfplane({-100, -5}, {100, -5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(square));
+    }
+
+    SUBCASE("a half-plane excluding the polygon returns nothing") {
+        // Boundary y = 15 oriented +x; interior y >= 15 misses the square.
+        CHECK(square.intersection(Halfplane({-100, 15}, {100, 15})).empty());
+    }
+
+    SUBCASE("a half-plane tangent along the top edge yields a segment") {
+        // Interior y >= 10 meets the square only along its top edge.
+        const auto pieces = square.intersection(Halfplane({0, 10}, {10, 10}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 10}, {10, 10})));
+    }
+
+    SUBCASE("a half-plane tangent at a single corner yields a point") {
+        // Boundary x + y = 20 through (10,10); interior x + y >= 20.
+        const auto pieces = square.intersection(Halfplane({0, 20}, {20, 0}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(10, 10)));
+    }
+
+    SUBCASE("a half-plane can split a non-convex polygon into two polygons") {
+        // U-shape: prongs x in [0,3] and [7,10], joined by the base y in [0,3].
+        const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
+        // Keep y >= 5: removes the base, leaving the two prongs disconnected.
+        const auto pieces = u.intersection(Halfplane({0, 5}, {10, 5}));
+
+        int polys = 0;
+        int totalTwiceArea = 0;
+        for (const auto& v : pieces)
+            if (std::holds_alternative<Polygon>(v)) {
+                ++polys;
+                totalTwiceArea += std::get<Polygon>(v).twiceArea();
+            }
+        CHECK(polys == 2);
+        CHECK(totalTwiceArea == 60);  // two 3 x 5 rectangles
     }
 }
