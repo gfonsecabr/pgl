@@ -140,3 +140,35 @@ TEST_CASE("Half-plane separates Polygon is invariant under translation") {
         CHECK_FALSE(hp({1, 3}, {0, 3}).separates(u));  // shallow -> still joined
     }
 }
+
+// KNOWN BUG (expected-fail): the arc-counting implementation reports "separated"
+// whenever the polygon boundary has >= 2 arcs outside the half-plane.  That
+// over-counts when the closed half-plane removes a region meeting the polygon in
+// two disjoint pieces while P\H stays connected: the correct answer is FALSE but
+// the implementation returns TRUE.  These cases assert the geometrically correct
+// answer, so they fail today; doctest::should_fail keeps the suite green and
+// will flag them (as unexpected passes) once the predicate is fixed.
+TEST_CASE("Half-plane separates Polygon: disjoint bites must not separate"
+          * doctest::should_fail()) {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Polygon u({0, 0, 10, 0, 10, 10, 6, 10, 6, 4, 4, 4, 4, 10, 0, 10});
+    // Horseshoe ("C") opening to the right.
+    const Polygon horseshoe({0, 0, 10, 0, 10, 3, 3, 3, 3, 7, 10, 7, 10, 10, 0, 10});
+
+    SUBCASE("removing both U arm tops leaves base + lower arms connected") {
+        // Interior y >= 9 trims the tops of both arms (two disjoint bites); the
+        // base still joins them, so P\H is one piece.
+        const Halfplane tops({0, 9}, {1, 9});
+        CHECK_FALSE(tops.separates(u));
+    }
+
+    SUBCASE("removing the horseshoe's right side leaves the spine connected") {
+        // Interior x >= 9 bites the right ends of both arms; the spine still
+        // joins them through x < 9, so P\H is one piece.
+        const Halfplane right({9, 1}, {9, 0});
+        CHECK_FALSE(right.separates(horseshoe));
+    }
+}
