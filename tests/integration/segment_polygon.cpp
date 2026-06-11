@@ -412,6 +412,74 @@ TEST_CASE("Polygon contains/intersects a segment for non-convex shapes") {
     }
 }
 
+// Polygon::intersection clips the segment against the closed region and returns
+// the disjoint pieces (points and sub-segments) in order along the segment.
+TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Piece = std::variant<Point, Segment>;
+
+    // Square with a rectangular notch (the gap x in (4,6), y in (4,10]).
+    const Polygon notch({0, 0, 10, 0, 10, 10, 6, 10, 6, 4, 4, 4, 4, 10, 0, 10});
+
+    SUBCASE("chord spanning both arms yields two disjoint pieces") {
+        const Segment s({1, 8}, {9, 8});
+        const auto pieces = notch.intersection(s);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({1, 8}, {4, 8})));
+        CHECK(pieces[1] == Piece(Segment({6, 8}, {9, 8})));
+    }
+
+    SUBCASE("orientation is ignored: pieces still run from min to max") {
+        const auto pieces = notch.intersection(OrientedSegment({9, 8}, {1, 8}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({1, 8}, {4, 8})));
+        CHECK(pieces[1] == Piece(Segment({6, 8}, {9, 8})));
+    }
+
+    SUBCASE("segment crossing the solid base is a single piece") {
+        const auto pieces = notch.intersection(Segment({-3, 1}, {13, 1}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 1}, {10, 1})));
+    }
+
+    SUBCASE("a segment dropping into the gap touches the floor at one point") {
+        // Vertical segment down the middle of the gap: only its endpoint on the
+        // notch floor (5, 4) lies in the closed region.
+        const auto pieces = notch.intersection(Segment({5, 4}, {5, 9}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(5, 4)));
+    }
+
+    SUBCASE("a segment missing the polygon yields nothing") {
+        const auto pieces = notch.intersection(Segment({-3, 8}, {-1, 8}));
+
+        CHECK(pieces.empty());
+    }
+
+    SUBCASE("fractional crossings need a rational result type") {
+        using Rat = pgl::Rational<long long>;
+        using RatPoint = pgl::Point<Rat>;
+        using RatSegment = pgl::Segment<RatPoint>;
+        using RatPiece = std::variant<RatPoint, RatSegment>;
+
+        // Triangle with hypotenuse x + y = 5; a horizontal chord at y = 2 meets
+        // the slanted edge at the half-integer point (3, 2)... here integer, so
+        // use a slope that lands off-lattice: chord from (0,1) to (5,4) crossing.
+        const Polygon tri({0, 0, 6, 0, 0, 6});  // hypotenuse x + y = 6
+        const auto pieces = tri.intersection<Rat>(Segment({-1, 1}, {6, 1}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(1)}, {Rat(5), Rat(1)})));
+    }
+}
+
 TEST_CASE("Polygon separates Segment matches Convex separates Segment") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
