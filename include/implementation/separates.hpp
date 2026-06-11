@@ -1121,6 +1121,40 @@ constexpr bool Halfplane<PointType>::separates(const Convex<OtherPoint>& other) 
 }
 
 template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    const ptrdiff_t m = other.size();
+    int arcs = 0;
+    bool prev_in = contains(other[m - 1]);
+    for (ptrdiff_t i = 0; i < m; ++i) {
+        const bool cur_in = contains(other[i]);
+        if (!prev_in && !cur_in) {
+            // Both endpoints are out, but maybe the edge went through this
+            Segment<OtherPoint> edge(other.get(i-1),other[i]);
+            if (intersects(edge)) {
+                ++arcs;
+                if (arcs >= 2) {
+                    return true;
+                }
+            }
+        }
+        else if (prev_in && !cur_in) {
+            // Just went outside
+            ++arcs;
+            if (arcs >= 2) {
+                return true;
+            }
+        }
+
+        prev_in = cur_in;
+    }
+    return false;
+}
+
+template <class PointType>
 constexpr bool Halfplane<PointType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -1543,6 +1577,12 @@ constexpr bool Polygon<PointType>::separates(const OrientedLine<OtherPoint>& oth
     return separates(other.asLine());
 }
 
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::separates(const Halfplane<OtherPoint>&) const {
+    return false;  // A polygon never separates a halfplane
+}
+
 
 template <class PointType>
 template<PointConcept OtherPoint>
@@ -1577,13 +1617,7 @@ constexpr bool Triangle<PointType>::separates(const Polygon<OtherPoint>& other) 
     return asConvex().separates(other);
 }
 
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Halfplane::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
+// --- asymmetric not-yet-implemented stubs ---
 
 template <class PointType>
 template<PointConcept OtherPoint>
@@ -1592,9 +1626,6 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>&) const {
         "pgl: Convex::separates(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
-
-
-// --- asymmetric not-yet-implemented stubs ---
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
@@ -1641,14 +1672,6 @@ template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::separates(const Polygon<OtherPoint>&) const {
     throw std::runtime_error(
         "pgl: Disk::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Halfplane<OtherPoint>&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Halfplane) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
