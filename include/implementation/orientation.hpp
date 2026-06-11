@@ -62,9 +62,9 @@ constexpr auto orientationDeterminant(
  */
 template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
 constexpr std::partial_ordering orientationSign(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<CNumber, CLabel>& c) {
+    const Point<ANumber, ALabel> a,
+    const Point<BNumber, BLabel> b,
+    const Point<CNumber, CLabel> c) {
     using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
 
     const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
