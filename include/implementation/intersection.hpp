@@ -1475,7 +1475,8 @@ Polygon<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) c
     using Piece = std::variant<ResultPoint, ResultSegment>;
 
     std::vector<Piece> result;
-    if (size() == 0) {
+    const std::size_t n = size();
+    if (n == 0) {
         return result;
     }
 
@@ -1490,68 +1491,119 @@ Polygon<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) c
         return result;
     }
 
-    // Collect the points at which the segment meets the boundary, plus the two
-    // endpoints, then sort them along the segment. Between two consecutive such
-    // points the segment lies wholly inside or wholly outside the closed region.
-    std::vector<ResultPoint> splits;
-    splits.push_back(a);
-    splits.push_back(b);
-    for (const auto& edge : edges()) {
-        const auto isec = edge.template intersection<ResultNumber>(other);
-        if (!isec) {
+    // Parametrize the supporting line by t = (p - a) . (b - a): t runs from 0 at
+    // `a` to T at `b`, orders points exactly (no division), and -- since every
+    // point handled here lies on that line -- identifies each point uniquely.
+    const ResultPoint direction = b - a;
+    const ResultNumber T = direction * direction;
+    auto tOf = [&](const ResultPoint& p) -> ResultNumber { return (p - a) * direction; };
+
+    // Signed side of a vertex w.r.t. the line (CCW positive, 0 on the line).
+    auto sideOf = [&](const ResultPoint& v) -> int {
+        const auto o = orientationSign(a, b, v);
+        if (o > 0) return 1;
+        if (o < 0) return -1;
+        return 0;
+    };
+
+    // Closed pieces of (line ∩ polygon), as intervals [lo, hi] in t with the
+    // matching endpoints; a degenerate interval (lo == hi) is a single point.
+    struct Span { ResultNumber lo, hi; ResultPoint plo, phi; };
+    auto makeSpan = [](ResultNumber t1, ResultNumber t2, const ResultPoint& p1, const ResultPoint& p2) -> Span {
+        return (t1 <= t2) ? Span{t1, t2, p1, p2} : Span{t2, t1, p2, p1};
+    };
+    std::vector<Span> spans;
+
+    // Boundary crossings of the *whole* line, used to recover inside/outside by
+    // ray parity. A vertex on the line is treated as if perturbed to the -1
+    // side, which counts vertex touches and collinear edges consistently: each
+    // edge whose perturbed endpoint signs differ contributes one crossing.
+    std::vector<std::pair<ResultNumber, ResultPoint>> crossings;
+
+    for (std::size_t i = 0; i < n; ++i) {
+        const ResultPoint u = static_cast<ResultPoint>((*this)[i]);
+        const ResultPoint w = static_cast<ResultPoint>((*this)[(i + 1) % n]);
+        const int su = sideOf(u);
+        const int sw = sideOf(w);
+
+        if (su == 0 && sw == 0) {
+            // Edge collinear with the line: a boundary overlap, always closed.
+            spans.push_back(makeSpan(tOf(u), tOf(w), u, w));
             continue;
         }
-        if (std::holds_alternative<ResultPoint>(*isec)) {
-            splits.push_back(std::get<ResultPoint>(*isec));
+        if (su == 0) {
+            // Vertex on the line: a boundary touch point (recorded once, here,
+            // as the starting vertex of its edge).
+            spans.push_back({tOf(u), tOf(u), u, u});
+        }
+
+        if (su != 0 && sw != 0 && su != sw) {
+            // Transversal crossing through the edge interior.
+            const Line<ResultPoint> line(a, b);
+            const auto isec = line.template intersection<ResultNumber>(
+                Segment<PointType>((*this)[i], (*this)[(i + 1) % n]));
+            if (isec && std::holds_alternative<ResultPoint>(*isec)) {
+                const ResultPoint c = std::get<ResultPoint>(*isec);
+                spans.push_back({tOf(c), tOf(c), c, c});
+                crossings.emplace_back(tOf(c), c);
+            }
         } else {
-            const auto& overlap = std::get<ResultSegment>(*isec);
-            splits.push_back(overlap.min());
-            splits.push_back(overlap.max());
+            // Perturbed crossing located at whichever endpoint is on the line.
+            const int eu = (su != 0) ? su : -1;
+            const int ew = (sw != 0) ? sw : -1;
+            if (eu != ew) {
+                const ResultPoint& onLine = (su == 0) ? u : w;
+                crossings.emplace_back(tOf(onLine), onLine);
+            }
         }
     }
 
-    // Order by signed projection onto the segment direction (exact, no division)
-    // and drop duplicates so each cell is bounded by two distinct points.
-    const auto direction = b - a;
-    auto projection = [&](const ResultPoint& p) { return (p - a) * direction; };
-    std::sort(splits.begin(), splits.end(),
-              [&](const ResultPoint& p, const ResultPoint& q) { return projection(p) < projection(q); });
-    splits.erase(std::unique(splits.begin(), splits.end()), splits.end());
-
-    const std::size_t k = splits.size();
-    if (k == 1) {
-        // The segment touches the region (if at all) only at this single point.
-        if (contains(splits[0])) {
-            result.emplace_back(splits[0]);
+    // Walk the crossings in order; the open cell to the right of a crossing is
+    // inside the polygon exactly when an odd number of crossings lie to its
+    // left. Each maximal inside cell becomes a closed interval (its endpoints
+    // are boundary crossings, hence in the closed region too).
+    std::sort(crossings.begin(), crossings.end(),
+              [](const auto& x, const auto& y) { return x.first < y.first; });
+    std::size_t idx = 0;
+    int parity = 0;
+    while (idx < crossings.size()) {
+        const ResultNumber tcur = crossings[idx].first;
+        const ResultPoint pcur = crossings[idx].second;
+        std::size_t next = idx;
+        while (next < crossings.size() && crossings[next].first == tcur) {
+            ++next;
         }
-        return result;
+        parity += static_cast<int>(next - idx);
+        if ((parity & 1) && next < crossings.size()) {
+            spans.push_back({tcur, crossings[next].first, pcur, crossings[next].second});
+        }
+        idx = next;
     }
 
-    // Classify each cell [splits[i], splits[i+1]] by its midpoint. Testing the
-    // doubled region against the (undivided) sum splits[i] + splits[i+1] keeps
-    // the midpoint test exact in integer arithmetic.
-    const auto doubled = *this * NumberType(2);
-    std::vector<bool> inside(k - 1, false);
-    for (std::size_t i = 0; i + 1 < k; ++i) {
-        inside[i] = doubled.contains(splits[i] + splits[i + 1]);
+    // Union the spans (sort by lo, merge touching/overlapping), then clip to the
+    // segment range [0, T] and emit each piece in order along the segment.
+    std::sort(spans.begin(), spans.end(),
+              [](const Span& x, const Span& y) { return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi; });
+    std::vector<Span> merged;
+    for (const Span& s : spans) {
+        if (merged.empty() || s.lo > merged.back().hi) {
+            merged.push_back(s);
+        } else if (s.hi > merged.back().hi) {
+            merged.back().hi = s.hi;
+            merged.back().phi = s.phi;
+        }
     }
 
-    // Emit maximal runs of inside cells as segments, and contained split points
-    // not covered by an adjacent inside cell as isolated points, in order.
-    std::size_t i = 0;
-    while (i < k) {
-        if (i + 1 < k && inside[i]) {
-            const std::size_t start = i;
-            while (i + 1 < k && inside[i]) {
-                ++i;
-            }
-            result.emplace_back(ResultSegment(splits[start], splits[i]));
+    for (const Span& s : merged) {
+        if (s.hi < ResultNumber(0) || s.lo > T) {
+            continue;
+        }
+        const ResultPoint lo = (s.lo < ResultNumber(0)) ? a : s.plo;
+        const ResultPoint hi = (s.hi > T) ? b : s.phi;
+        if (lo == hi) {
+            result.emplace_back(lo);
         } else {
-            const bool coveredOnLeft = (i > 0) && inside[i - 1];
-            if (!coveredOnLeft && contains(splits[i])) {
-                result.emplace_back(splits[i]);
-            }
-            ++i;
+            result.emplace_back(ResultSegment(lo, hi));
         }
     }
 

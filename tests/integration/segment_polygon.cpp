@@ -463,6 +463,16 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
         CHECK(pieces.empty());
     }
 
+    SUBCASE("a segment running along the top boundary spans both top edges") {
+        // y = 10 grazes the boundary on x in [0,4] and [6,10]; the notch opens
+        // the top between them (x in (4,6)), so the overlap is two pieces.
+        const auto pieces = notch.intersection(Segment({-1, 10}, {11, 10}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 10}, {4, 10})));
+        CHECK(pieces[1] == Piece(Segment({6, 10}, {10, 10})));
+    }
+
     SUBCASE("fractional crossings need a rational result type") {
         using Rat = pgl::Rational<long long>;
         using RatPoint = pgl::Point<Rat>;
