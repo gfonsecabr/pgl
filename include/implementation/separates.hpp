@@ -1126,22 +1126,26 @@ constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other)
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    const ptrdiff_t m = other.size();
-    int arcs = 0;
-    bool prev_in = contains(other[m - 1]);
-    for (ptrdiff_t i = 0; i < m; ++i) {
-        const bool cur_in = contains(other[i]);
-        if (prev_in && !cur_in) {
-            // Just went outside
-            ++arcs;
-            if (arcs >= 2) {
-                return true;
-            }
-        }
 
-        prev_in = cur_in;
-    }
-    return false;
+    return intersection<pgl::BigInt>(other).size() >= 2;
+
+    // Bogus implementation that I'd like to fix
+    // const ptrdiff_t m = other.size();
+    // int arcs = 0;
+    // bool prev_in = contains(other[m - 1]);
+    // for (ptrdiff_t i = 0; i < m; ++i) {
+    //     const bool cur_in = contains(other[i]);
+    //     if (prev_in && !cur_in) {
+    //         // Just went outside
+    //         ++arcs;
+    //         if (arcs >= 2) {
+    //             return true;
+    //         }
+    //     }
+
+    //     prev_in = cur_in;
+    // }
+    // return false;
 }
 
 template <class PointType>
@@ -1607,14 +1611,15 @@ constexpr bool Triangle<PointType>::separates(const Polygon<OtherPoint>& other) 
     return asConvex().separates(other);
 }
 
-// --- asymmetric not-yet-implemented stubs ---
-
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
+
+    // FIXME: This is false
+
     const ptrdiff_t m = other.size();
     int arcs = 0;
     bool prev_in = contains(other[m - 1]);
