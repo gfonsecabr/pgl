@@ -972,12 +972,12 @@ struct Polygon {
      * @ref Point (an isolated boundary touch) or a @ref Segment (a maximal
      * overlap with the closed region). An empty vector means no intersection.
      *
-     * The segment is split at every boundary crossing and each cell is
-     * classified by an exact (division-free) interior test, so the result is
-     * correct for reflex polygons where both endpoints may lie inside yet the
-     * segment dips out through a notch.
+     * The supporting line is split at every boundary crossing and each cell is
+     * classified by exact (division-free) ray parity, so the result is correct
+     * for reflex polygons where both endpoints may lie inside yet the segment
+     * dips out through a notch.
      *
-     * Complexity: O(n^2) for n vertices.
+     * Complexity: O(n log n) for n vertices.
      *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the segment.
@@ -993,7 +993,7 @@ struct Polygon {
      *
      * Same as the @ref Segment overload, ignoring orientation.
      *
-     * Complexity: O(n^2) for n vertices.
+     * Complexity: O(n log n) for n vertices.
      */
     template <class ResultNumber = NumberType, class OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
