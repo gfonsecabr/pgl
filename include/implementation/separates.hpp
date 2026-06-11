@@ -5,9 +5,14 @@
  * @brief Implementations of the 'separates' predicate.
  **/
 
+#include <algorithm>
+#include <compare>
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <limits>
+#include <utility>
+#include <vector>
 #include "../pgl.hpp"
 #include "geometry/orientedline.hpp"
 #include "geometry/orientedsegment.hpp"
@@ -1640,33 +1645,243 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
 
-    // FIXME: This is false
+    // Removing the convex body C from the polygon P disconnects P iff some
+    // connected component of C ∩ P touches ∂P in two or more pieces. Counting
+    // boundary arcs (as the Convex overload does) is not enough here: a reflex
+    // polygon can dip into C through several separate pockets while P \ C
+    // stays connected. Instead, walk around ∂C: P is cut exactly when some
+    // maximal arc of ∂C through the open interior of P joins two contacts
+    // belonging to *different* components of ∂P ∩ C. This also catches a
+    // convex body inside P that pinches ∂P at two isolated touch points.
+    //
+    // Events are the contacts of ∂P with ∂C, each labelled with the component
+    // of ∂P ∩ C it belongs to and located on its convex edge by a line that
+    // crosses the edge at the contact, so no intersection point is ever
+    // constructed. Each event also records the local feature of ∂P at the
+    // contact (the crossing edge, or the wedge at a polygon vertex), so that
+    // whether the ∂C arc leaving a contact enters the interior of P is decided
+    // by orientation signs at that contact alone. Stretches where the two
+    // boundaries overlap are bounded by events of the same component and can
+    // therefore never fire the test.
 
-    const ptrdiff_t m = other.size();
-    int arcs = 0;
-    bool prev_in = contains(other[m - 1]);
-    for (ptrdiff_t i = 0; i < m; ++i) {
-        const bool cur_in = contains(other[i]);
-        if (!prev_in && !cur_in) {
-            // Both endpoints are out, but maybe the edge went through this
-            Segment<OtherPoint> edge(other.get(i-1),other[i]);
-            if (intersects(edge)) {
-                ++arcs;
-                if (arcs >= 2) {
-                    return true;
+    using CommonNumber = std::common_type_t<typename PointType::NumberType,
+                                            typename OtherPoint::NumberType>;
+    using CommonPoint = Point<CommonNumber>;
+    using PosLine = Line<CommonPoint>;
+
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(other.size());
+    const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(size());
+
+    const auto common = [](const auto& p) {
+        return CommonPoint(static_cast<CommonNumber>(p.x()),
+                           static_cast<CommonNumber>(p.y()));
+    };
+
+    // A line through `at` perpendicular to convex edge k; it crosses that
+    // edge exactly at `at`, placing a contact point that is known explicitly.
+    const auto perpendicularAt = [&](const CommonPoint& at, std::ptrdiff_t k) {
+        const CommonPoint a = common(get(k));
+        const CommonPoint b = common(get(k + 1));
+        return PosLine(at, CommonPoint(at.x() - (b.y() - a.y()),
+                                       at.y() + (b.x() - a.x())));
+    };
+
+    struct Event {
+        std::ptrdiff_t cedge;  // convex edge carrying the contact
+        PosLine where;         // crosses that edge at the contact point
+        int component;         // component of ∂P ∩ C the contact belongs to
+        CommonPoint a, b, c;   // ∂P at the contact: edge a->b, or wedge a->b->c
+        bool atVertex;         // contact is the polygon vertex b
+    };
+    std::vector<Event> events;
+
+    // The first (mode first) or last contact of polygon edge pa->pb with ∂C.
+    // Contacts are ordered along pa->pb by where the convex edge's line
+    // crosses it; that line is parallel to pa->pb only for a collinear
+    // overlap, whose near and far ends are explicit endpoints. A contact
+    // landing exactly on the run's vertex inside C is dropped when requested:
+    // the vertex's own wedge events describe that contact better.
+    const auto extremeContact = [&](const OtherPoint& pa, const OtherPoint& pb,
+                                    bool first, bool skipAtRunVertex)
+        -> std::optional<std::pair<std::ptrdiff_t, PosLine>> {
+        const CommonPoint a = common(pa);
+        const CommonPoint b = common(pb);
+        const Segment<CommonPoint> s(a, b);
+        const OrientedLine<CommonPoint> axis(a, b);
+        std::optional<std::pair<std::ptrdiff_t, PosLine>> best;
+        std::optional<PosLine> bestAlong;
+        const auto consider = [&](std::ptrdiff_t k, const PosLine& where,
+                                  const PosLine& along) {
+            if (bestAlong) {
+                const auto order = axis.crossingOrder(along, *bestAlong);
+                const bool improves =
+                    first ? order == std::partial_ordering::less
+                          : order == std::partial_ordering::greater;
+                if (!improves) {
+                    return;
                 }
             }
-        }
-        else if (prev_in && !cur_in) {
-            // Just went outside
-            ++arcs;
-            if (arcs >= 2) {
-                return true;
+            best.emplace(k, where);
+            bestAlong = along;
+        };
+        for (std::ptrdiff_t k = 0; k < m; ++k) {
+            const Segment<CommonPoint> edge(common(get(k)), common(get(k + 1)));
+            if (!edge.intersects(s)) {
+                continue;
+            }
+            if (s.parallel(edge)) {
+                const CommonPoint lo = std::max(s.min(), edge.min());
+                const CommonPoint hi = std::min(s.max(), edge.max());
+                const CommonPoint at = (first == (a < b)) ? lo : hi;
+                const PosLine across = perpendicularAt(at, k);
+                consider(k, across, across);
+            } else {
+                consider(k, PosLine(a, b),
+                         PosLine(common(get(k)), common(get(k + 1))));
             }
         }
+        if (best && skipAtRunVertex) {
+            const CommonPoint inVertex = first ? b : a;
+            const PosLine atInVertex(
+                inVertex, CommonPoint(inVertex.x() - (b.y() - a.y()),
+                                      inVertex.y() + (b.x() - a.x())));
+            if (axis.crossingOrder(*bestAlong, atInVertex) ==
+                std::partial_ordering::equivalent) {
+                return std::nullopt;
+            }
+        }
+        return best;
+    };
 
-        prev_in = cur_in;
+    std::vector<char> in(static_cast<std::size_t>(n));
+    std::ptrdiff_t start = -1;
+    for (std::ptrdiff_t i = 0; i < n; ++i) {
+        in[static_cast<std::size_t>(i)] = contains(other.get(i));
+        if (!in[static_cast<std::size_t>(i)]) {
+            start = i;
+        }
+    }
+    if (start < 0) {
+        return false;  // the whole polygon lies inside the convex body
+    }
+
+    int component = 0;
+
+    // A polygon vertex inside C that lies on ∂C is a contact in its own
+    // right; the pair of wedge events splits the ∂C arcs it sits between
+    // (the two-touch pinch case) without affecting any other arc.
+    const auto addVertexContact = [&](std::ptrdiff_t i) {
+        const OtherPoint vertex = other.get(i);
+        if (!boundaryContains(vertex)) {
+            return;
+        }
+        const CommonPoint v = common(vertex);
+        for (std::ptrdiff_t k = 0; k < m; ++k) {
+            const Segment<CommonPoint> edge(common(get(k)), common(get(k + 1)));
+            if (edge.contains(v)) {
+                const PosLine across = perpendicularAt(v, k);
+                const Event event{k, across, component,
+                                  common(other.get(i - 1)), v,
+                                  common(other.get(i + 1)), true};
+                events.push_back(event);
+                events.push_back(event);
+                return;
+            }
+        }
+    };
+
+    bool previous = false;  // in[start] is false
+    for (std::ptrdiff_t i = start + 1; i <= start + n; ++i) {
+        const bool current = in[static_cast<std::size_t>(i % n)];
+        const auto u = other.get(i - 1);
+        const auto v = other.get(i);
+        if (current && !previous) {
+            ++component;
+            if (const auto contact = extremeContact(u, v, true, true)) {
+                events.push_back({contact->first, contact->second, component,
+                                  common(u), common(v), common(v), false});
+            }
+        } else if (!current && previous) {
+            if (const auto contact = extremeContact(u, v, false, true)) {
+                events.push_back({contact->first, contact->second, component,
+                                  common(u), common(v), common(v), false});
+            }
+        } else if (!current && intersects(Segment<OtherPoint>(u, v))) {
+            // Both endpoints outside: the edge meets the convex body in a
+            // single sub-segment or touch point, a component of its own.
+            ++component;
+            if (const auto contact = extremeContact(u, v, true, false)) {
+                events.push_back({contact->first, contact->second, component,
+                                  common(u), common(v), common(v), false});
+            }
+            if (const auto contact = extremeContact(u, v, false, false)) {
+                events.push_back({contact->first, contact->second, component,
+                                  common(u), common(v), common(v), false});
+            }
+        }
+        if (current) {
+            addVertexContact(i);
+        }
+        previous = current;
+    }
+
+    if (events.empty()) {
+        return false;  // the boundaries never meet: nested or disjoint
+    }
+
+    std::sort(events.begin(), events.end(),
+              [&](const Event& x, const Event& y) {
+        if (x.cedge != y.cedge) {
+            return x.cedge < y.cedge;
+        }
+        const OrientedLine<CommonPoint> edge(common(get(x.cedge)),
+                                             common(get(x.cedge + 1)));
+        return edge.crossingOrder(x.where, y.where) ==
+               std::partial_ordering::less;
+    });
+
+    // Whether ∂C heads strictly into the interior of P as it leaves the
+    // event's contact point, decided against the recorded ∂P feature there.
+    const auto entersInterior = [&](const Event& event) {
+        const std::ptrdiff_t k = event.cedge;
+        const OrientedLine<CommonPoint> edgeLine(common(get(k)),
+                                                 common(get(k + 1)));
+        const bool atEdgeEnd =
+            edgeLine.crossingOrder(event.where,
+                                   perpendicularAt(common(get(k + 1)), k)) ==
+            std::partial_ordering::equivalent;
+        const CommonPoint from = common(get(k + (atEdgeEnd ? 1 : 0)));
+        const CommonPoint to = common(get(k + (atEdgeEnd ? 2 : 1)));
+        const CommonNumber dx = to.x() - from.x();
+        const CommonNumber dy = to.y() - from.y();
+        if (!event.atVertex) {
+            // Contact interior to polygon edge a->b: P's interior is strictly
+            // to its left, so the arc dives inside iff it heads left.
+            return orientationSign(event.a, event.b,
+                                   CommonPoint(event.a.x() + dx,
+                                               event.a.y() + dy)) > 0;
+        }
+        // Contact at polygon vertex b: the direction must point strictly into
+        // the interior wedge between the edges a->b and b->c.
+        const CommonPoint probe(event.b.x() + dx, event.b.y() + dy);
+        const auto sideIn = orientationSign(event.a, event.b, probe);
+        const auto sideOut = orientationSign(event.b, event.c, probe);
+        return orientationSign(event.a, event.b, event.c) >= 0
+                   ? (sideIn > 0 && sideOut > 0)
+                   : (sideIn > 0 || sideOut > 0);
+    };
+
+    const std::size_t count = events.size();
+    for (std::size_t t = 0; t < count; ++t) {
+        const Event& current = events[t];
+        const Event& next = events[(t + 1) % count];
+        if (current.component != next.component && entersInterior(current)) {
+            return true;
+        }
     }
     return false;
 }

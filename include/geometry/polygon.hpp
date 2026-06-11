@@ -278,6 +278,26 @@ struct Polygon {
     }
 
     /**
+     * @brief Computes the bounding box of the polygon.
+     *
+     * Unlike @ref Convex::bbox, a simple polygon has no monotone boundary
+     * structure to exploit, so the corners come from a linear scan.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return The rectangle bounding the polygon.
+     */
+    constexpr Rectangle<PointType> bbox() const;
+
+    /**
+     * @brief Computes the floating-point bounding box of the polygon.
+     * @tparam ResultNumber The floating-point type for the result.
+     * @return A rectangle with floating-point coordinates representing the bounding box.
+     */
+    template <std::floating_point ResultNumber = double>
+    constexpr Rectangle<Point<ResultNumber>> fbox() const;
+
+    /**
      * @brief Returns the vertices of the polygon (translation applied).
      */
     constexpr std::vector<PointType> vertices() const {
