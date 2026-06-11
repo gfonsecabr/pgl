@@ -1000,6 +1000,63 @@ struct Polygon {
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
     /**
+     * @brief Computes the intersection of the (closed) polygon with a line.
+     *
+     * Since a polygon is bounded, the intersection of its closed region with an
+     * infinite line is a bounded set of disjoint pieces: each is either a
+     * @ref Point (an isolated boundary touch) or a @ref Segment (a maximal
+     * chord), returned in order along the line. An empty vector means no
+     * intersection.
+     *
+     * Uses the same exact, division-free ray-parity sweep as
+     * @ref intersection(const Segment&), but without clipping to a finite range.
+     *
+     * Complexity: O(n log n) for n vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPoint The point type of the line.
+     * @param other The line to intersect with.
+     * @return The disjoint intersection pieces in order along the line.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const Line<OtherPoint>& other) const;
+
+    /**
+     * @brief Computes the intersection of the (closed) polygon with an oriented line.
+     *
+     * Same as the @ref Line overload, ignoring orientation.
+     *
+     * Complexity: O(n log n) for n vertices.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OrientedLine<OtherPoint>& other) const;
+
+    /**
+     * @brief Computes the intersection of the (closed) polygon with a ray.
+     *
+     * A ray is its supporting line restricted to the half starting at the
+     * source, so the result is the disjoint pieces of that half inside the
+     * closed polygon: each is either a @ref Point (an isolated boundary touch)
+     * or a @ref Segment (a maximal chord), returned in order from the source
+     * outward. An empty vector means no intersection.
+     *
+     * Uses the same exact, division-free ray-parity sweep as
+     * @ref intersection(const Line&), clipped to the ray's half-line.
+     *
+     * Complexity: O(n log n) for n vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPoint The point type of the ray.
+     * @param other The ray to intersect with.
+     * @return The disjoint intersection pieces in order from the source outward.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const Ray<OtherPoint>& other) const;
+
+    /**
      * @brief Computes the intersection of two (closed) polygons.
      *
      * The boundary of the intersection region `A ∩ B` is exactly
