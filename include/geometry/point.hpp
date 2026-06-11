@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <utility>
 #include <array>
+#include <vector>
 
 #include "../pgl.hpp"
 
@@ -881,5 +882,18 @@ template <class Number, class Label, class Scalar>
  */
 template <class Number, class Label>
 std::ostream& operator<<(std::ostream& stream, const Point<Number, Label>& point);
+
+/**
+ * @brief An open polyline: an ordered sequence of points.
+ *
+ * @note Stub: this is a placeholder alias for a `Polyline` class that has not
+ * been implemented yet. For now it is simply a `std::vector` of points, with no
+ * normalization or closure invariant. It is expected to be replaced by a proper
+ * shape type (with its own predicates and constructions) in the future.
+ *
+ * @tparam PointType The vertex point type.
+ */
+template <class PointType = Point<>>
+using Polyline = std::vector<PointType>;
 
 }//pgl

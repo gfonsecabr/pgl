@@ -1000,6 +1000,30 @@ struct Polygon {
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
     /**
+     * @brief Computes the intersection of two (closed) polygons.
+     *
+     * The boundary of the intersection region `A ∩ B` is exactly
+     * `(∂A ∩ B) ∪ (∂B ∩ A)`, so the method clips every edge of each polygon
+     * against the other (via @ref intersection(const Segment&)) and collects the
+     * resulting boundary pieces into a deduplicated set of points and segments.
+     * The segments are assembled into a graph whose nodes are endpoints; in a
+     * non-degenerate configuration every node has degree at most two (asserted),
+     * so each connected component is an isolated node, a simple path, or a simple
+     * cycle. These become a @ref Point, a @ref Polyline, and a @ref Polygon
+     * respectively, returned in no particular order.
+     *
+     * Complexity: O(n m log(n + m)) for polygons with n and m vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPoint The point type of the other polygon.
+     * @param other The other polygon to intersect with.
+     * @return The intersection components: points, polylines, and polygons.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const Polygon<OtherPoint>& other) const;
+
+    /**
      * @brief Returns the polygon rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
