@@ -1463,4 +1463,106 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     return convex;
 }
 
+// ---------------------------------------------------------------------------
+// Polygon
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint, class OtherLabel>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment>;
+
+    std::vector<Piece> result;
+    if (size() == 0) {
+        return result;
+    }
+
+    const ResultPoint a(other.min());
+    const ResultPoint b(other.max());
+
+    // A degenerate segment is just its single point.
+    if (other.isDegenerate()) {
+        if (contains(a)) {
+            result.emplace_back(a);
+        }
+        return result;
+    }
+
+    // Collect the points at which the segment meets the boundary, plus the two
+    // endpoints, then sort them along the segment. Between two consecutive such
+    // points the segment lies wholly inside or wholly outside the closed region.
+    std::vector<ResultPoint> splits;
+    splits.push_back(a);
+    splits.push_back(b);
+    for (const auto& edge : edges()) {
+        const auto isec = edge.template intersection<ResultNumber>(other);
+        if (!isec) {
+            continue;
+        }
+        if (std::holds_alternative<ResultPoint>(*isec)) {
+            splits.push_back(std::get<ResultPoint>(*isec));
+        } else {
+            const auto& overlap = std::get<ResultSegment>(*isec);
+            splits.push_back(overlap.min());
+            splits.push_back(overlap.max());
+        }
+    }
+
+    // Order by signed projection onto the segment direction (exact, no division)
+    // and drop duplicates so each cell is bounded by two distinct points.
+    const auto direction = b - a;
+    auto projection = [&](const ResultPoint& p) { return (p - a) * direction; };
+    std::sort(splits.begin(), splits.end(),
+              [&](const ResultPoint& p, const ResultPoint& q) { return projection(p) < projection(q); });
+    splits.erase(std::unique(splits.begin(), splits.end()), splits.end());
+
+    const std::size_t k = splits.size();
+    if (k == 1) {
+        // The segment touches the region (if at all) only at this single point.
+        if (contains(splits[0])) {
+            result.emplace_back(splits[0]);
+        }
+        return result;
+    }
+
+    // Classify each cell [splits[i], splits[i+1]] by its midpoint. Testing the
+    // doubled region against the (undivided) sum splits[i] + splits[i+1] keeps
+    // the midpoint test exact in integer arithmetic.
+    const auto doubled = *this * NumberType(2);
+    std::vector<bool> inside(k - 1, false);
+    for (std::size_t i = 0; i + 1 < k; ++i) {
+        inside[i] = doubled.contains(splits[i] + splits[i + 1]);
+    }
+
+    // Emit maximal runs of inside cells as segments, and contained split points
+    // not covered by an adjacent inside cell as isolated points, in order.
+    std::size_t i = 0;
+    while (i < k) {
+        if (i + 1 < k && inside[i]) {
+            const std::size_t start = i;
+            while (i + 1 < k && inside[i]) {
+                ++i;
+            }
+            result.emplace_back(ResultSegment(splits[start], splits[i]));
+        } else {
+            const bool coveredOnLeft = (i > 0) && inside[i - 1];
+            if (!coveredOnLeft && contains(splits[i])) {
+                result.emplace_back(splits[i]);
+            }
+            ++i;
+        }
+    }
+
+    return result;
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
+    return intersection<ResultNumber>(Segment<OtherPoint>(other[0], other[1]));
+}
+
 }  // namespace pgl

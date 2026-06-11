@@ -963,6 +963,43 @@ struct Polygon {
     [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
     /**
+     * @brief Computes the intersection of the (closed) polygon with a segment.
+     *
+     * Unlike @ref Convex::intersection, a simple polygon need not be convex, so
+     * the intersection of its closed region with a segment can be several
+     * disjoint pieces. The pieces are returned in order along the segment (from
+     * its `min()` endpoint to its `max()` endpoint); each piece is either a
+     * @ref Point (an isolated boundary touch) or a @ref Segment (a maximal
+     * overlap with the closed region). An empty vector means no intersection.
+     *
+     * The segment is split at every boundary crossing and each cell is
+     * classified by an exact (division-free) interior test, so the result is
+     * correct for reflex polygons where both endpoints may lie inside yet the
+     * segment dips out through a notch.
+     *
+     * Complexity: O(n^2) for n vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPoint The point type of the segment.
+     * @param other The segment to intersect with.
+     * @return The disjoint intersection pieces in order along the segment.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
+
+    /**
+     * @brief Computes the intersection of the (closed) polygon with an oriented segment.
+     *
+     * Same as the @ref Segment overload, ignoring orientation.
+     *
+     * Complexity: O(n^2) for n vertices.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OrientedSegment<OtherPoint>& other) const;
+
+    /**
      * @brief Returns the polygon rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
