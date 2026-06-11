@@ -1289,7 +1289,20 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool separates(const Convex<OtherPoint>& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /**
+     * @brief Checks if removing the convex polygon disconnects the given simple polygon.
+     *
+     * Unlike the Convex overload, a reflex polygon can dip into the convex
+     * body through several separate pockets while staying connected, so
+     * counting boundary arcs is not enough. The polygon is cut iff some
+     * connected component of the intersection touches the polygon boundary in
+     * two or more pieces, detected by walking the contacts around the convex
+     * boundary; this includes a convex body inside the polygon that pinches
+     * the boundary at two touch points.
+     *
+     * Complexity: O(n log m + c m + c log c) for n polygon vertices, m convex
+     * polygon vertices, and c boundary contacts.
+     */
     template<PointConcept OtherPoint>
     constexpr bool separates(const Polygon<OtherPoint>& other) const;
 

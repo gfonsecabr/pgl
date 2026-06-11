@@ -97,15 +97,11 @@ TEST_CASE("Rectangle separates Polygon delegates to the convex overload") {
     }
 }
 
-// KNOWN BUG (expected-fail): the arc-counting implementation reports "separated"
-// whenever the polygon boundary has >= 2 arcs outside the convex region.  That
-// over-counts when the convex region takes two disjoint "bites" out of a
-// non-convex polygon while P\C stays connected: the correct answer is FALSE but
-// the implementation returns TRUE.  These cases assert the geometrically correct
-// answer, so they fail today; doctest::should_fail keeps the suite green and
-// will flag this case (as an unexpected pass) once the predicate is fixed.
-TEST_CASE("Convex separates Polygon: disjoint bites must not separate"
-          * doctest::should_fail()) {
+// Regression cases for the old arc-counting implementation, which reported
+// "separated" whenever the polygon boundary had >= 2 arcs outside the convex
+// region.  That over-counts when the convex region takes two disjoint "bites"
+// out of a non-convex polygon while P\C stays connected.
+TEST_CASE("Convex separates Polygon: disjoint bites must not separate") {
     using Point = pgl::Point<int>;
     using Polygon = pgl::Polygon<Point>;
     using Convex = pgl::Convex<Point>;
@@ -123,8 +119,18 @@ TEST_CASE("Convex separates Polygon: disjoint bites must not separate"
     }
 
     SUBCASE("triangle trimming both U arm tips leaves it connected") {
-        const Triangle both_tips({0, 9}, {10, 9}, {5, 12});
+        // Strictly between the walls, so each arm keeps a free column beside
+        // the bite and stays connected to the base.
+        const Triangle both_tips({1, 9}, {9, 9}, {5, 12});
         CHECK_FALSE(both_tips.separates(u));
+    }
+
+    SUBCASE("triangle whose base corners touch the walls seals off pockets") {
+        // Same shape, widened until the base corners touch the outer walls at
+        // (0,9) and (10,9): the slanted sides then close little triangular
+        // pockets against each arm's tip, so this one does separate.
+        const Triangle touching({0, 9}, {10, 9}, {5, 12});
+        CHECK(touching.separates(u));
     }
 
     SUBCASE("convex trimming both horseshoe tips leaves it connected") {
@@ -132,4 +138,90 @@ TEST_CASE("Convex separates Polygon: disjoint bites must not separate"
         const Convex tips({{9, 2}, {11, 2}, {11, 8}, {9, 8}});
         CHECK_FALSE(tips.separates(horseshoe));
     }
+
+    SUBCASE("cutting through a single U arm separates it") {
+        // Same shape family as the bites, but this band severs the left arm
+        // completely: its tip detaches from the rest.
+        const Convex arm_cut({{-1, 6}, {5, 6}, {5, 8}, {-1, 8}});
+        CHECK(arm_cut.separates(u));
+    }
+}
+
+TEST_CASE("Convex separates Polygon through boundary touch points") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a diamond inside the square pinching two opposite edges cuts it") {
+        // The diamond touches the bottom edge at (5,0) and the top edge at
+        // (5,10) without poking outside; the square falls into two halves
+        // joined only at those two removed points.
+        const Convex pinch({{5, 0}, {8, 5}, {5, 10}, {2, 5}});
+        CHECK(pinch.separates(square));
+    }
+
+    SUBCASE("a diamond touching only one edge leaves the square connected") {
+        const Convex one_touch({{5, 0}, {8, 5}, {5, 9}, {2, 5}});
+        CHECK_FALSE(one_touch.separates(square));
+    }
+
+    SUBCASE("a band whose ends lie exactly on the boundary still cuts") {
+        // The band spans the square wall to wall without crossing outside.
+        const Convex band({{0, 4}, {10, 4}, {10, 6}, {0, 6}});
+        CHECK(band.separates(square));
+    }
+}
+
+TEST_CASE("Convex separates Polygon with collinear boundary contact") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a full-height band sharing the top and bottom edges cuts") {
+        const Convex band({{4, 0}, {6, 0}, {6, 10}, {4, 10}});
+        CHECK(band.separates(square));
+    }
+
+    SUBCASE("a slab sharing a side wall only shortens the square") {
+        // Covers the top part; the boundary overlap along both side walls
+        // must not be mistaken for a second cut.
+        const Convex slab({{0, 4}, {10, 4}, {10, 12}, {0, 12}});
+        CHECK_FALSE(slab.separates(square));
+    }
+}
+
+TEST_CASE("Convex separates Polygon into more than two pieces") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a triangle poking through three edges leaves three pieces") {
+        const Convex poker({{-1, 5}, {5, -1}, {11, 5}});
+        CHECK(poker.separates(square));
+    }
+
+    SUBCASE("a diamond poking through all four edges leaves the corners") {
+        const Convex diamond({{5, -2}, {12, 5}, {5, 12}, {-2, 5}});
+        CHECK(diamond.separates(square));
+    }
+}
+
+TEST_CASE("Convex separates Polygon mixing a cut with a disjoint bite") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    // U opening upward, as above.
+    const Polygon u({0, 0, 10, 0, 10, 10, 6, 10, 6, 4, 4, 4, 4, 10, 0, 10});
+
+    // Severs the left arm and also takes a separate bite out of the right
+    // arm's inner wall: still a genuine cut despite the extra pocket.
+    const Convex wide({{-1, 6}, {7, 6}, {7, 8}, {-1, 8}});
+    CHECK(wide.separates(u));
 }
