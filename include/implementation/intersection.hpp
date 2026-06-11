@@ -2008,4 +2008,125 @@ Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
     return result;
 }
 
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultPolygon = Polygon<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment, ResultPolygon>;
+
+    std::vector<Piece> result;
+    if (size() == 0) {
+        return result;
+    }
+
+    // A degenerate half-plane is a single point.
+    if (other.isDegenerate()) {
+        const ResultPoint p(other.source());
+        if (contains(p)) {
+            result.emplace_back(p);
+        }
+        return result;
+    }
+
+    // The boundary of P ∩ H is (∂P ∩ H) ∪ (∂H ∩ P): clip each polygon edge to
+    // the closed half-plane, and clip the half-plane's boundary line to the
+    // polygon. The sets deduplicate shared boundary.
+    std::set<ResultSegment> segments;
+    std::set<ResultPoint> touchPoints;
+
+    auto collect = [&](const std::optional<std::variant<ResultPoint, ResultSegment>>& piece) {
+        if (!piece) {
+            return;
+        }
+        if (std::holds_alternative<ResultPoint>(*piece)) {
+            touchPoints.insert(std::get<ResultPoint>(*piece));
+        } else {
+            segments.insert(std::get<ResultSegment>(*piece));
+        }
+    };
+
+    for (const auto& edge : edges()) {
+        collect(other.template intersection<ResultNumber>(edge));
+    }
+    for (const auto& piece : intersection<ResultNumber>(Line<OtherPoint>(other.source(), other.target()))) {
+        if (std::holds_alternative<ResultPoint>(piece)) {
+            touchPoints.insert(std::get<ResultPoint>(piece));
+        } else {
+            segments.insert(std::get<ResultSegment>(piece));
+        }
+    }
+
+    // Build the undirected graph: nodes are endpoints, edges are the segments.
+    std::map<ResultPoint, std::vector<ResultPoint>> adjacency;
+    for (const auto& segment : segments) {
+        adjacency[segment.min()].push_back(segment.max());
+        adjacency[segment.max()].push_back(segment.min());
+    }
+    for (const auto& [node, neighbors] : adjacency) {
+        assert(neighbors.size() <= 2 && "polygon/half-plane intersection graph node has degree > 2");
+        static_cast<void>(node);
+    }
+
+    // A touch point that no segment uses is an isolated intersection point.
+    for (const auto& point : touchPoints) {
+        if (adjacency.find(point) == adjacency.end()) {
+            result.emplace_back(point);
+        }
+    }
+
+    // Walk the graph. Degree-1 nodes start open paths; since every 1D piece lies
+    // on the half-plane's straight boundary, such a path is collinear and is
+    // returned as the single segment spanning its two ends. The remaining
+    // unvisited nodes (all degree 2) close into cycles (polygons).
+    std::set<ResultPoint> visited;
+    auto step = [&](const ResultPoint& current, const ResultPoint& previous) {
+        const auto& neighbors = adjacency.at(current);
+        return (neighbors[0] == previous && neighbors.size() == 2) ? neighbors[1] : neighbors[0];
+    };
+
+    for (const auto& [start, neighbors] : adjacency) {
+        if (neighbors.size() != 1 || visited.count(start)) {
+            continue;
+        }
+        visited.insert(start);
+        ResultPoint previous = start;
+        ResultPoint current = neighbors[0];
+        ResultPoint last = start;
+        while (true) {
+            visited.insert(current);
+            last = current;
+            if (adjacency.at(current).size() == 1) {
+                break;  // the other open end
+            }
+            const ResultPoint next = step(current, previous);
+            previous = current;
+            current = next;
+        }
+        result.emplace_back(ResultSegment(start, last));
+    }
+
+    for (const auto& [start, neighbors] : adjacency) {
+        if (visited.count(start)) {
+            continue;
+        }
+        std::vector<ResultPoint> cycle{start};
+        visited.insert(start);
+        ResultPoint previous = start;
+        ResultPoint current = neighbors[0];
+        while (current != start) {
+            cycle.push_back(current);
+            visited.insert(current);
+            const ResultPoint next = step(current, previous);
+            previous = current;
+            current = next;
+        }
+        result.emplace_back(ResultPolygon(cycle));
+    }
+
+    return result;
+}
+
 }  // namespace pgl

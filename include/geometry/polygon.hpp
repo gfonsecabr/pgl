@@ -1081,6 +1081,31 @@ struct Polygon {
     intersection(const Polygon<OtherPoint>& other) const;
 
     /**
+     * @brief Computes the intersection of the (closed) polygon with a half-plane.
+     *
+     * The boundary of the intersection region `P ∩ H` is `(∂P ∩ H) ∪ (∂H ∩ P)`,
+     * so the method clips every polygon edge to the closed half-plane and clips
+     * the half-plane's boundary line to the polygon (via
+     * @ref intersection(const Line&)), collecting the pieces into a deduplicated
+     * set. They are assembled exactly as in @ref intersection(const Polygon&) --
+     * a graph whose nodes have degree at most two (asserted) -- into isolated
+     * @ref Point components, @ref Segment components, and @ref Polygon components,
+     * returned in no particular order. Unlike the polygon overload the 1D pieces
+     * are @ref Segment rather than @ref Polyline, because every 1D part of the
+     * intersection lies on the half-plane's straight boundary and so is collinear.
+     *
+     * Complexity: O(n log n) for n vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPoint The point type of the half-plane.
+     * @param other The half-plane to intersect with.
+     * @return The intersection components: points, segments, and polygons.
+     */
+    template <class ResultNumber = NumberType, class OtherPoint>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const Halfplane<OtherPoint>& other) const;
+
+    /**
      * @brief Returns the polygon rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
