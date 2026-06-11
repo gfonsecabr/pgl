@@ -143,15 +143,7 @@ TEST_CASE("Half-plane separates Polygon is invariant under translation") {
     }
 }
 
-// KNOWN BUG (expected-fail): the arc-counting implementation reports "separated"
-// whenever the polygon boundary has >= 2 arcs outside the half-plane.  That
-// over-counts when the closed half-plane removes a region meeting the polygon in
-// two disjoint pieces while P\H stays connected: the correct answer is FALSE but
-// the implementation returns TRUE.  These cases assert the geometrically correct
-// answer, so they fail today; doctest::should_fail keeps the suite green and
-// will flag them (as unexpected passes) once the predicate is fixed.
-TEST_CASE("Half-plane separates Polygon: disjoint bites must not separate"
-          * doctest::should_fail()) {
+TEST_CASE("Half-plane separates Polygon: disjoint bites must not separate") {
     using Point = pgl::Point<int>;
     using Polygon = pgl::Polygon<Point>;
     using Halfplane = pgl::Halfplane<Point>;
