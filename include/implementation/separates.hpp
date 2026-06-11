@@ -1131,17 +1131,7 @@ constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other)
     bool prev_in = contains(other[m - 1]);
     for (ptrdiff_t i = 0; i < m; ++i) {
         const bool cur_in = contains(other[i]);
-        if (!prev_in && !cur_in) {
-            // Both endpoints are out, but maybe the edge went through this
-            Segment<OtherPoint> edge(other.get(i-1),other[i]);
-            if (intersects(edge)) {
-                ++arcs;
-                if (arcs >= 2) {
-                    return true;
-                }
-            }
-        }
-        else if (prev_in && !cur_in) {
+        if (prev_in && !cur_in) {
             // Just went outside
             ++arcs;
             if (arcs >= 2) {
