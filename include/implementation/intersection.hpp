@@ -6,6 +6,9 @@
  */
 
 #include <algorithm>
+#include <cassert>
+#include <map>
+#include <set>
 
 #include "../pgl.hpp"
 
@@ -1615,6 +1618,106 @@ template <class ResultNumber, class OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(Segment<OtherPoint>(other[0], other[1]));
+}
+
+template <class PointType>
+template <class ResultNumber, class OtherPoint>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultPolyline = Polyline<ResultPoint>;
+    using ResultPolygon = Polygon<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultPolyline, ResultPolygon>;
+
+    // The boundary of A ∩ B is (∂A ∩ B) ∪ (∂B ∩ A): clip every edge of each
+    // polygon against the other and collect the resulting boundary pieces. The
+    // sets deduplicate shared boundary so each segment/point is stored once.
+    std::set<ResultSegment> segments;
+    std::set<ResultPoint> touchPoints;
+
+    auto clipEdgesAgainst = [&](const auto& edgePolygon, const auto& clipPolygon) {
+        for (const auto& edge : edgePolygon.edges()) {
+            for (const auto& piece : clipPolygon.template intersection<ResultNumber>(edge)) {
+                if (std::holds_alternative<ResultPoint>(piece)) {
+                    touchPoints.insert(std::get<ResultPoint>(piece));
+                } else {
+                    segments.insert(std::get<ResultSegment>(piece));
+                }
+            }
+        }
+    };
+    clipEdgesAgainst(*this, other);
+    clipEdgesAgainst(other, *this);
+
+    // Build the undirected graph: nodes are endpoints, edges are the segments.
+    std::map<ResultPoint, std::vector<ResultPoint>> adjacency;
+    for (const auto& segment : segments) {
+        adjacency[segment.min()].push_back(segment.max());
+        adjacency[segment.max()].push_back(segment.min());
+    }
+    for (const auto& [node, neighbors] : adjacency) {
+        assert(neighbors.size() <= 2 && "polygon intersection graph node has degree > 2");
+        static_cast<void>(node);
+    }
+
+    std::vector<Piece> result;
+
+    // A touch point that no segment uses is an isolated intersection point.
+    for (const auto& point : touchPoints) {
+        if (adjacency.find(point) == adjacency.end()) {
+            result.emplace_back(point);
+        }
+    }
+
+    // Walk the graph. Degree-1 nodes start open paths (polylines); the remaining
+    // unvisited nodes (all degree 2) close into cycles (polygons).
+    std::set<ResultPoint> visited;
+    auto step = [&](const ResultPoint& current, const ResultPoint& previous) {
+        const auto& neighbors = adjacency.at(current);
+        return (neighbors[0] == previous && neighbors.size() == 2) ? neighbors[1] : neighbors[0];
+    };
+
+    for (const auto& [start, neighbors] : adjacency) {
+        if (neighbors.size() != 1 || visited.count(start)) {
+            continue;
+        }
+        ResultPolyline path{start};
+        visited.insert(start);
+        ResultPoint previous = start;
+        ResultPoint current = neighbors[0];
+        while (true) {
+            path.push_back(current);
+            visited.insert(current);
+            if (adjacency.at(current).size() == 1) {
+                break;  // the other open end
+            }
+            const ResultPoint next = step(current, previous);
+            previous = current;
+            current = next;
+        }
+        result.emplace_back(std::move(path));
+    }
+
+    for (const auto& [start, neighbors] : adjacency) {
+        if (visited.count(start)) {
+            continue;
+        }
+        std::vector<ResultPoint> cycle{start};
+        visited.insert(start);
+        ResultPoint previous = start;
+        ResultPoint current = neighbors[0];
+        while (current != start) {
+            cycle.push_back(current);
+            visited.insert(current);
+            const ResultPoint next = step(current, previous);
+            previous = current;
+            current = next;
+        }
+        result.emplace_back(ResultPolygon(cycle));
+    }
+
+    return result;
 }
 
 }  // namespace pgl
