@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -19,7 +20,7 @@
 The following shapes are supported by Pangolin:
 
 ##### 0-dimensional shapes:
-- [`Point`](#point): Unoriented straight line segment.
+- [`Point`](#point): A point in the plane.
 
 ##### 1-dimensional shapes:
 - [`Segment`](#segment): Unoriented straight line segment.
@@ -101,7 +102,7 @@ A point has methods:
 
 ### Segment
 
-The `Segment` class template defines an unoriented straight line segment. The segment always store the endpoints in increasing order. 
+The `Segment` class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order. 
 
 ```C++
 pgl::Segment s(1,2,3,4), t(3,4,1,2);
@@ -129,7 +130,7 @@ if (!s.interiorsIntersect(t)) std::cout << " Interiors do not intersect!\n";
 
 A segment `s` has methods such as:
 
-- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handle divisions by powers of 2 exactly.
+- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handles divisions by powers of 2 exactly.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -148,7 +149,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Oriented Segment
 
-The `Segment` class template defines an oriented straight line segment. The user chooses the order of the two endpoints, which are named `source` and `target`, respectively.
+The `OrientedSegment` class template defines an oriented straight line segment. The user chooses the order of the two endpoints, which are named `source` and `target`, respectively.
 
 ```C++
 pgl::OrientedSegment s(1,2,3,4), t(3,4,1,2);
@@ -167,9 +168,9 @@ std::cout << s << std::endl;
 // Output: (5,2)->(7,4)
 ```
 
-Am oriented segment `s` has all methods of the `Segment` class, which the only difference being for the slope, which may be negative:
+An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
 
-- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handle divisions by powers of 2 exactly.
+- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handles divisions by powers of 2 exactly.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -195,7 +196,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### EmptyShape
 
-Represents the empty set. It's `size()` is 0, it intersects nothing, and it is contained in everything.
+Represents the empty set. Its `size()` is 0, it intersects nothing, and it is contained in everything.
 
 ### Line
 
@@ -248,11 +249,11 @@ An oriented line `l` has methods such as:
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the oriented line with source and target interchanged.
-- `l.slope()`: Returns `l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
+- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
-- `l.orientation(p)`: Given a point `p`, returns the orientation sign of `s[0],s[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
+- `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
@@ -284,12 +285,12 @@ A ray `l` has methods such as:
 - `l.isDegenerate()`: Returns `l[0] == l[1]`.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
-- `l.opposite()`: Returns the oriented line with source and target interchanged.
-- `l.slope()`: Returns `l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
+- `l.opposite()`: Returns the ray with source and target interchanged.
+- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
-- `l.orientation(p)`: Given a point `p`, returns the orientation sign of `s[0],s[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
+- `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
 - `l.rightHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) <= 0`.
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns an `std::optional` with the value of the ray y coordinate at the given coordinate `x`.
@@ -324,7 +325,7 @@ A half-plane `h` has methods such as:
 - `h.isVertical()`: Returns `h[0].x() == h[1].x()`.
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
-- `h.slope()`: Returns `l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
+- `h.slope()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -365,7 +366,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Rectangle
 
-The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y  and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
+The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
 
 ```C++
 pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
@@ -410,7 +411,7 @@ std::cout << d2 << std::endl;
 
 Disk does not have the `intersection` method and cannot be scaled on a single axis. A disk `d` has methods such as:
 
-- `d.isDegenerate()`: Returns true if the points are colinear or equal.
+- `d.isDegenerate()`: Returns true if the points are collinear or equal.
 - `d.radius()`: Returns the radius length.
 - `d.squaredRadius()`: Returns the squared radius.
 - `d.center()`: Returns the center point.

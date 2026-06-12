@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -160,7 +161,6 @@ Infinite primitives are clipped to the visible viewport:
 - `OrientedLine` behaves the same but keeps its orientation arrow;
 - `Ray` starts at its source and stops at the first viewport boundary it meets;
 - `Halfplane` is clipped to the viewport as a polygonal region.
-- `Triangle`.
 
 The generated SVG uses `vector-effect="non-scaling-stroke"`, so stroke widths
 stay visually constant even when the geometry is scaled to fit the output box.

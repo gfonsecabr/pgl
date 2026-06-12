@@ -34,7 +34,7 @@ int main() {
 
 | Family | Shapes |
 | --- | --- |
-| 0-dimensional | [`Point`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#point) |
+| 0-dimensional | [`Point`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#point), [`EmptyShape`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#emptyshape) |
 | 1-dimensional | [`Segment`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#segment), [`OrientedSegment`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#oriented-segment), [`Line`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#line), [`OrientedLine`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#oriented-line), [`Ray`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#ray), ~~[`Polyline`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#polyline), [`PolyFunction`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#monotone-polyline)~~ |
 | 2-dimensional | [`Halfplane`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#half-plane), [`Triangle`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#triangle), [`Rectangle`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#rectangle), [`Disk`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#disk), [`Convex`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#convex), [`Polygon`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#polygon) |
 | Polymorphism | [`Shape`](https://github.com/gfonsecabr/pgl/blob/main/doc/shapes.md#shape) |
@@ -45,7 +45,7 @@ The following [predicates](https://github.com/gfonsecabr/pgl/blob/main/doc/shape
 - `boundaryContains(Shape)` Does its boundary contain the other shape?
 - `interiorContains(Shape)` Does it contain the other shape in the interior?
 - `intersects(Shape)` Do the two shapes intersect?
-- `interiorsIntersect(Shape)` Do the interior of the two shapes intersect?
+- `interiorsIntersect(Shape)` Do the interiors of the two shapes intersect?
 - `separates(Shape)` Does one shape cut the other into two (or more) components?
 - `crosses(Shape)` Do both shapes separate each other?
 

@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -21,7 +22,7 @@
 
 ### Polyline
 
-The class template `Polyline` represents a polyline,also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance.
+The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance.
 
 A polyline `P` has methods such as:
 
@@ -37,10 +38,10 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 
 - `P.isDegenerate()`: Returns true if all vertices are equal.
 - `P.insert(P2)`: Extends the polyfunction in order to contain another point `P2` as a vertex.
-- `P.insert(points)`: Extends the polyfunction in order to contain other given vertices`.
+- `P.insert(points)`: Extends the polyfunction in order to contain other given vertices.
 - `s.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x`.  Takes $O(\log n)$ time for $n$ vertices.
 - `s.indexAtX(x)`: Returns an `std::optional<size_t>` that is true if the polyline contains a point of x-coordinate equal to x. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices. 
-- `P.iSBelow(p)`: Returns an `std::optional<size_t>` that is true if a ray shot down from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
+- `P.isBelow(p)`: Returns an `std::optional<size_t>` that is true if a ray shot down from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
 - `P.isAbove(p)`: Returns an `std::optional<size_t>` that is true if a ray shot up from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
 
 If the polyfunction `P` has $n$ vertices, then:

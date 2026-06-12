@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -21,13 +22,13 @@ Any two shapes `A`,`B` support the following [predicates](#predicates), where $\
 
 - `A.contains(B)` Does `A` contain `B`, that is $A \supseteq B$?
 - `A.boundaryContains(B)` Does the boundary of `A` contain `B`, that is $\partial A \supseteq B$?
-- `A.interiorContains(B)` Does `A` contain `B`, that is $(A \setminus \partial A) \supseteq B$?
+- `A.interiorContains(B)` Does the interior of `A` contain `B`, that is $(A \setminus \partial A) \supseteq B$?
 - `A.intersects(B)` Do the two shapes intersect, that is $A \cap B \neq \emptyset$?
-- `A.interiorsIntersect(B)` Do the interior of the two shapes intersect, that is $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$? Attention: for segments and rays, the boundary $\partial S$ is defined as the endpoint(s).
+- `A.interiorsIntersect(B)` Do the interiors of the two shapes intersect, that is $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$? Attention: for segments and rays, the boundary $\partial S$ is defined as the endpoint(s).
 - `A.separates(B)` Does $B \setminus A$ contain two or more connected components?
 - `A.crosses(B)` Do both $A \setminus B$ and $B \setminus A$ contain two or more connected components?
 
-The following table illustrate the result of the predicates for a triangle and a line segment.
+The following table illustrates the result of the predicates for a triangle and a line segment.
 
 | Predicate | <img width="100%" src="figures/predicate1.svg"/> | <img width="100%" src="figures/predicate2.svg"/> | <img width="100%" src="figures/predicate3.svg"/> | <img width="100%" src="figures/predicate4.svg"/> | <img width="100%" src="figures/predicate5.svg"/> | <img width="100%" src="figures/predicate6.svg"/> | <img width="100%" src="figures/predicate7.svg"/> | <img width="100%" src="figures/predicate8.svg"/> |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -43,7 +44,7 @@ The following table illustrate the result of the predicates for a triangle and a
 | `B.separates(A)`          | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `A.crosses(B)`            | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-All predicates are calculated exactly for integers (except for possible overflows detailed in [types](types.md).
+All predicates are calculated exactly for integers (except for possible overflows detailed in [types](types.md)).
 
 
 ### Operators
@@ -122,7 +123,7 @@ pgl::Point p = std::get<0>(*isec);
 
 - `bbox()`: Returns the minimum bounding box of the shape.
 
-- `fbox<T>()`: Returns a bounding box of the shape using floating point coordinates of type `T`. The bounding box may not be minimun but must contain the entire shape. The `min` coordinates are rounded down and the `max` are rounded up to the nearest floating point. If `!s1.fbox().intersects(s2.fbox()))` then `!s1.bbox().intersects(s2.bbox()))`. Also, if `s1.fbox().crosses(s2.fbox()))` then `s1.bbox().crosses(s2.bbox()))`.
+- `fbox<T>()`: Returns a bounding box of the shape using floating point coordinates of type `T`. The bounding box may not be minimum but must contain the entire shape. The `min` coordinates are rounded down and the `max` are rounded up to the nearest floating point. If `!s1.fbox().intersects(s2.fbox()))` then `!s1.bbox().intersects(s2.bbox()))`. Also, if `s1.fbox().crosses(s2.fbox()))` then `s1.bbox().crosses(s2.bbox()))`.
 
 - `area()`: Returns the area.
 
