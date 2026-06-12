@@ -22,6 +22,7 @@ async function load() {
     sel.appendChild(o);
   }
   sel.addEventListener("change", render);
+  document.getElementById("filter").addEventListener("input", render);
   document.getElementById("chart-close")
     .addEventListener("click", () => document.getElementById("chart-dialog").close());
 
@@ -125,12 +126,40 @@ function cellSpark(points, w, h) {
   );
 }
 
+// Compiles the filter box value into a case-insensitive RegExp matched against
+// suite names. Returns null when the box is empty or holds an invalid pattern
+// (invalid is flagged on the input but leaves all suites visible).
+function filterRegex() {
+  const input = document.getElementById("filter");
+  const raw = input.value.trim();
+  if (!raw) {
+    input.classList.remove("invalid");
+    return null;
+  }
+  try {
+    const re = new RegExp(raw, "i");
+    input.classList.remove("invalid");
+    return re;
+  } catch {
+    input.classList.add("invalid");
+    return null;
+  }
+}
+
 function render() {
   const machine = document.getElementById("machine").value;
   const root = document.getElementById("suites");
   root.innerHTML = "";
 
-  for (const name of Object.keys(DB.suites).sort()) {
+  const re = filterRegex();
+  const names = Object.keys(DB.suites).sort().filter((n) => !re || re.test(n));
+
+  if (!names.length) {
+    root.innerHTML = '<p class="empty-state">No benchmarks match the filter.</p>';
+    return;
+  }
+
+  for (const name of names) {
     const s = DB.suites[name];
     const machineData = s.data[machine] || {};
 
