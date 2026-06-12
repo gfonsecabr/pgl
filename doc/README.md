@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -21,7 +22,7 @@ The coordinates are of type `int` by default, but [other types](types.md) includ
 
 All shapes support [many predicates](shape_methods.md#predicates) and several other [methods and operators](shape_methods.md). Fundamental [algorithms and data structures](algorithms.md) are also provided.
 
-A `Canvas` class is provided for [easy visualisation](canvas.md):
+A `Canvas` class is provided for [easy visualization](canvas.md).
 
 As a header-only library with no dependency, you can compile your code directly with `g++` or `clang++` (the standard needs to be at least c++20):
 

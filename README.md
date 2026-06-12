@@ -2,12 +2,13 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="doc/figures/logotextdark.svg"/>
-  <img alt="Pangoling: Plane Geometry Library" src="doc/figures/logotext.svg" width="65%"/>
+  <img alt="Pangolin: Plane Geometry Library" src="doc/figures/logotext.svg" width="65%"/>
 </picture>
 
 [![Tests](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml/badge.svg)](https://github.com/gfonsecabr/pgl/actions/workflows/tests.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-20/23/26-rgb(10,66,158).svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization)
 [![License](https://img.shields.io/badge/license-MIT-rgb(216,134,42).svg)](https://opensource.org/licenses/MIT)
+[![Benchmarks](https://img.shields.io/badge/benchmarks-online-rgb(21,153,135).svg)](https://gfonsecabr.github.io/pgl/benchmarks/index.html)
 
 <br/>
 
@@ -44,7 +45,7 @@ The following [predicates](doc/shape_methods.md#predicates) are implemented as m
 - `boundaryContains(Shape)` Does its boundary contain the other shape?
 - `interiorContains(Shape)` Does it contain the other shape in the interior?
 - `intersects(Shape)` Do the two shapes intersect?
-- `interiorsIntersect(Shape)` Do the interior of the two shapes intersect?
+- `interiorsIntersect(Shape)` Do the interiors of the two shapes intersect?
 - `separates(Shape)` Does one shape cut the other into two (or more) components?
 - `crosses(Shape)` Do both shapes separate each other?
 
