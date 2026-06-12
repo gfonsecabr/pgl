@@ -26,6 +26,9 @@ namespace detail {
 template <class PointType, class T>
 struct is_shape_alternative : std::false_type {};
 
+template <class PointType>
+struct is_shape_alternative<PointType, EmptyShape<PointType>> : std::true_type {};
+
 template <class PointType, class Number, class Label>
 struct is_shape_alternative<PointType, Point<Number, Label>> : std::bool_constant<std::same_as<PointType, Point<Number, Label>>> {};
 
@@ -95,8 +98,10 @@ struct Shape {
     using NumberType = PointType::NumberType;
     /** Label type of the stored point type. */
     using LabelType = PointType::LabelType;
-    /** Variant type used for storage and visitation. */
+    /** Variant type used for storage and visitation. The leading
+     * `EmptyShape` is the empty state of a default-constructed `Shape`. */
     using Variant = std::variant<
+        EmptyShape<PointType>,
         PointType,
         Segment<PointType>,
         OrientedSegment<PointType>,
@@ -106,8 +111,8 @@ struct Shape {
         Halfplane<PointType>,
         Rectangle<PointType>,
         Triangle<PointType>,
-        Convex<PointType>,
         Disk<PointType>,
+        Convex<PointType>,
         Polygon<PointType>>;
 
     /**
@@ -166,6 +171,15 @@ struct Shape {
      */
     constexpr Variant& variant() {
         return value_;
+    }
+
+    /**
+     * @brief Tests whether the wrapper holds the empty shape.
+     *
+     * @return `true` for a default-constructed (empty) shape.
+     */
+    [[nodiscard]] constexpr bool empty() const {
+        return std::holds_alternative<EmptyShape<PointType>>(value_);
     }
 
     /**

@@ -513,6 +513,22 @@ struct Polygon {
      */
     constexpr bool contains(const Shape<PointType>& other) const;
 
+    // The empty set is a subset of every shape, so its containment relations are
+    // true; symmetric crossing reaches the empty set through the generic
+    // OtherShape fallback declared below.
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
     /**
      * @brief Checks if the open interior of the polygon contains the given point.
      *
@@ -981,6 +997,13 @@ struct Polygon {
     /** @brief Dispatches crossing to the wrapped shape alternative. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
+
+    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return other.crosses(*this);
+    }
 
     /**
      * @brief Computes the intersection of the (closed) polygon with a segment.

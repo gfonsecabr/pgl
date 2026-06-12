@@ -8,17 +8,19 @@
 
 #include "pgl.hpp"
 
-TEST_CASE("Shape defaults to a point and stores the active alternative") {
+TEST_CASE("Shape defaults to empty and stores the active alternative") {
     using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
     using Segment = pgl::Segment<Point>;
     using Triangle = pgl::Triangle<Point>;
     using Convex = pgl::Convex<Point>;
     using Shape = pgl::Shape<Point>;
 
-    const Shape origin;
-    REQUIRE(origin.holdsAlternative<Point>());
-    CHECK(origin.getIf<Point>() != nullptr);
-    CHECK(*origin.getIf<Point>() == Point(0, 0));
+    const Shape empty;
+    REQUIRE(empty.empty());
+    REQUIRE(empty.holdsAlternative<EmptyShape>());
+    CHECK(empty.getIf<EmptyShape>() != nullptr);
+    CHECK(empty.size() == 0);
 
     const Shape segment = Segment({1, 2}, {3, 4});
     REQUIRE(segment.holdsAlternative<Segment>());

@@ -542,6 +542,22 @@ struct Disk {
     /** @brief Dispatches to the matching overload for the runtime type of @p other. */
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
+    // The empty set is a subset of every shape, so its containment relations are
+    // true; the symmetric intersection/crossing predicates reach the empty set
+    // through Disk's existing generic OtherShape fallbacks.
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
     /**
      * @brief Tests whether the point @p other lies in the open disk.
      *

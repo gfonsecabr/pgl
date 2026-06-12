@@ -253,6 +253,16 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for EmptyShape.
+     */
+    template <class PointType>
+    struct hash<pgl::EmptyShape<PointType>> {
+        std::size_t operator()(const pgl::EmptyShape<PointType>&) const {
+            return 16;
+        }
+    };
+
+    /**
      * @brief Hash support for Shape.
      */
     template <class PointType>
