@@ -55,6 +55,18 @@ body {
   width: 84px; height: 8px; border-radius: 5px;
   background: linear-gradient(90deg, hsl(130 68% 38%), hsl(60 68% 42%), hsl(0 68% 42%));
 }
+.filter-box { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.filter-box input {
+  font-family: var(--mono); font-size: 12.5px;
+  padding: 7px 11px; width: 210px; max-width: 42vw; color: var(--fg);
+  background: #fff; border: 1px solid var(--sep); border-radius: 8px;
+  transition: border-color .12s;
+}
+.filter-box input::placeholder { color: var(--faint); }
+.filter-box input:hover { border-color: var(--blue); }
+.filter-box input:focus { outline: none; border-color: var(--blue); }
+.filter-box input.invalid, .filter-box input.invalid:focus { border-color: var(--red); }
+
 .machine-picker { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .machine-picker select {
   font-family: var(--font); font-size: 13px; font-weight: 500;
