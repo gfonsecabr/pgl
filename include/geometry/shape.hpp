@@ -77,79 +77,6 @@ struct is_shape<Shape<PointType>> : std::true_type {};
 template <class T>
 inline constexpr bool is_shape_v = is_shape<std::remove_cvref_t<T>>::value;
 
-template <class Left, class Right>
-constexpr bool dispatchContains(const Left& left, const Right& right) {
-    if constexpr (requires { left.contains(right); }) {
-        return left.contains(right);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchBoundaryContains(const Left& left, const Right& right) {
-    if constexpr (requires { left.boundaryContains(right); }) {
-        return left.boundaryContains(right);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchInteriorContains(const Left& left, const Right& right) {
-    if constexpr (requires { left.interiorContains(right); }) {
-        return left.interiorContains(right);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchIntersects(const Left& left, const Right& right) {
-    if constexpr (requires { left.intersects(right); }) {
-        return left.intersects(right);
-    } else if constexpr (requires { right.intersects(left); }) {
-        return right.intersects(left);
-    } else if constexpr (is_point_v<Left> && requires { right.contains(left); }) {
-        return right.contains(left);
-    } else if constexpr (is_point_v<Right> && requires { left.contains(right); }) {
-        return left.contains(right);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchInteriorsIntersect(const Left& left, const Right& right) {
-    if constexpr (requires { left.interiorsIntersect(right); }) {
-        return left.interiorsIntersect(right);
-    } else if constexpr (requires { right.interiorsIntersect(left); }) {
-        return right.interiorsIntersect(left);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchSeparates(const Left& left, const Right& right) {
-    if constexpr (requires { left.separates(right); }) {
-        return left.separates(right);
-    } else {
-        return false;
-    }
-}
-
-template <class Left, class Right>
-constexpr bool dispatchCrosses(const Left& left, const Right& right) {
-    if constexpr (requires { left.crosses(right); }) {
-        return left.crosses(right);
-    } else if constexpr (requires { right.crosses(left); }) {
-        return right.crosses(left);
-    } else {
-        return false;
-    }
-}
-
 }  // namespace detail
 
 /**
@@ -399,230 +326,182 @@ struct Shape {
     }
 
     /**
-     * @brief Tests geometric containment between two wrapped shapes.
+     * @brief Tests geometric containment against a shape or concrete alternative.
      *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `contains`.
      */
-    constexpr bool contains(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool contains(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchContains(left, right);
+                if constexpr (requires { left.contains(right); }) {
+                    return left.contains(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape contains one concrete alternative.
+     * @brief Tests boundary containment against a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `contains`.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool contains(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchContains(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests boundary containment between two wrapped shapes.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `boundaryContains`.
      */
-    constexpr bool boundaryContains(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool boundaryContains(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchBoundaryContains(left, right);
+                if constexpr (requires { left.boundaryContains(right); }) {
+                    return left.boundaryContains(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape boundary contains one concrete alternative.
+     * @brief Tests interior containment against a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `boundaryContains`.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool boundaryContains(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchBoundaryContains(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests interior containment between two wrapped shapes.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `interiorContains`.
      */
-    constexpr bool interiorContains(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool interiorContains(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchInteriorContains(left, right);
+                if constexpr (requires { left.interiorContains(right); }) {
+                    return left.interiorContains(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape strictly contains one concrete alternative.
+     * @brief Tests intersection against a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `interiorContains`.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool interiorContains(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchInteriorContains(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests intersection between two wrapped shapes.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `intersects`.
      */
-    constexpr bool intersects(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool intersects(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchIntersects(left, right);
+                if constexpr (requires { left.intersects(right); }) {
+                    return left.intersects(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape intersects one concrete alternative.
+     * @brief Tests whether interiors intersect against a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `intersects`.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool intersects(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchIntersects(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests whether interiors intersect between two wrapped shapes.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `interiorsIntersect`.
      */
-    constexpr bool interiorsIntersect(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool interiorsIntersect(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchInteriorsIntersect(left, right);
+                if constexpr (requires { left.interiorsIntersect(right); }) {
+                    return left.interiorsIntersect(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape has interior intersection with one concrete alternative.
+     * @brief Tests whether the wrapped shape separates a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `interiorsIntersect`.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool interiorsIntersect(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchInteriorsIntersect(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests whether the wrapped shape separates another wrapped shape.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `separates` when available.
      */
-    constexpr bool separates(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool separates(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchSeparates(left, right);
+                if constexpr (requires { left.separates(right); }) {
+                    return left.separates(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
+            other);
     }
 
     /**
-     * @brief Tests whether the wrapped shape separates one concrete alternative.
+     * @brief Tests whether the wrapped shape crosses a shape or concrete alternative.
      *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `separates` when available.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool separates(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchSeparates(self, other);
-            },
-            value_);
-    }
-
-    /**
-     * @brief Tests whether the wrapped shape crosses another wrapped shape.
-     *
-     * @param other Shape to test.
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Operand to test.
      * @return Result of dispatching `crosses` when available.
      */
-    constexpr bool crosses(const Shape& other) const {
-        return std::visit(
+    template <class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr bool crosses(const Other& other) const {
+        return applyPredicate(
             [](const auto& left, const auto& right) {
-                return detail::dispatchCrosses(left, right);
+                if constexpr (requires { left.crosses(right); }) {
+                    return left.crosses(right);
+                } else {
+                    return false;
+                }
             },
-            value_,
-            other.value_);
-    }
-
-    /**
-     * @brief Tests whether the wrapped shape crosses one concrete alternative.
-     *
-     * @tparam T Alternative type.
-     * @param other Shape to test.
-     * @return Result of dispatching `crosses` when available.
-     */
-    template <class T>
-        requires(detail::ShapeAlternative<PointType, T>)
-    constexpr bool crosses(const T& other) const {
-        return std::visit(
-            [&other](const auto& self) {
-                return detail::dispatchCrosses(self, other);
-            },
-            value_);
+            other);
     }
 
   private:
+    /**
+     * @brief Dispatches a binary predicate against a shape or concrete alternative.
+     *
+     * Unwraps the stored value (and @p other when it is itself a `Shape`) and
+     * forwards the operands to @p dispatch. This is the shared plumbing behind
+     * every public predicate, so the `Shape` and alternative overloads need not
+     * be written twice.
+     *
+     * @tparam Dispatch Callable taking the two unwrapped operands.
+     * @tparam Other `Shape` or a supported alternative type.
+     */
+    template <class Dispatch, class Other>
+    constexpr bool applyPredicate(Dispatch dispatch, const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [&dispatch](const auto& left, const auto& right) {
+                    return dispatch(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&dispatch, &other](const auto& self) {
+                    return dispatch(self, other);
+                },
+                value_);
+        }
+    }
+
     Variant value_{};
 };
 
