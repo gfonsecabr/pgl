@@ -338,6 +338,12 @@ class Canvas {
         return push(Polygon<Point<double>>(polygon), polygon);
     }
 
+    /** @brief Appends nothing: the empty shape has no geometry to draw. */
+    template <class PointType>
+    Canvas& operator<<(const EmptyShape<PointType>&) {
+        return *this;
+    }
+
     /** @brief Appends the currently stored alternative of a runtime shape. */
     template <class PointType>
     Canvas& operator<<(const Shape<PointType>& shape) {

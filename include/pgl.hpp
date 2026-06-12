@@ -22,6 +22,7 @@
 #include "core/bigint.hpp"
 #include "core/rational.hpp"
 #include "geometry/point.hpp"
+#include "geometry/emptyshape.hpp"
 #include "implementation/orientation.hpp"
 #include "geometry/segment.hpp"
 #include "geometry/orientedsegment.hpp"

@@ -401,6 +401,24 @@ struct Point {
 
     [[nodiscard]] constexpr bool contains(const Shape<Point<TNumber, TLabel>>& other) const;
 
+    [[nodiscard]] constexpr bool boundaryContains(const Shape<Point<TNumber, TLabel>>& other) const;
+
+    // The empty set is a subset of every shape, so it is contained in all of
+    // them. This lets an EmptyShape flow through Shape's variant dispatch
+    // without special-casing.
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
     /**
      * @brief Returns whether the point boundary contains another point.
      *

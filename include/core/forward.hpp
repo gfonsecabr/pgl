@@ -28,6 +28,10 @@ class BigInt;
 template <class T>
 class Rational;
 
+/** @brief The empty set of points in the plane. */
+template <class PointType>
+struct EmptyShape;
+
 /**
  * @brief Two-dimensional point with optional label payload.
  *

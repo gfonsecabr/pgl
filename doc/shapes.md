@@ -193,6 +193,9 @@ It knows how to convert itself with an explicit cast to:
 - `(pgl::OrientedLine) s` or `s.asOrientedLine()`: Returns the line that contains `s` and has the same orientation.
 - `(pgl::Ray) s`  or `s.asRay()`: Returns the half-line that contains `s` and has the same source.
 
+### EmptyShape
+
+Represents the empty set. It's `size()` is 0, it intersects nothing, and it is contained in everything.
 
 ### Line
 

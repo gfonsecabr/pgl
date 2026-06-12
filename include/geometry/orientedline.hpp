@@ -403,6 +403,29 @@ struct OrientedLine {
 
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
+    [[nodiscard]] constexpr bool boundaryContains(const Shape<PointType>& other) const;
+
+    // The empty set is a subset of every shape (contained in all of them) and
+    // disjoint from all of them, so containment is true while separation is
+    // false. These overloads let an EmptyShape flow through Shape's variant
+    // dispatch without special-casing.
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
 

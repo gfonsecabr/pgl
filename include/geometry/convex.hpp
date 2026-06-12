@@ -825,6 +825,27 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool contains(const Shape<OtherPoint>& other) const;
 
+    // The empty set is a subset of every shape, so its containment relations are
+    // true. separates has no symmetric fallback, so it gets an explicit overload
+    // too; the symmetric intersection/crossing predicates instead reach the
+    // empty set through the generic OtherShape fallbacks declared below.
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
     /**
      * @brief Checks if the interior of the convex polygon contains the given point.
      *
@@ -1091,6 +1112,13 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool intersects(const Shape<OtherPoint>& other) const;
 
+    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
+    }
+
     /**
      * @brief Checks if the interior of the convex polygon intersects a point.
      *
@@ -1199,6 +1227,13 @@ struct Convex {
      */
     template<PointConcept OtherPoint>
     constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
+
+    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
+    }
 
     /**
      * @brief A convex polygon never separates a point.
@@ -1418,6 +1453,13 @@ struct Convex {
      */
     template<PointConcept OtherPoint>
     constexpr bool crosses(const Shape<OtherPoint>& other) const;
+
+    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape>)
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return other.crosses(*this);
+    }
 
     /**
      * @brief Computes the intersection of the convex polygon with a segment.
