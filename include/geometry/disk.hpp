@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file disk.hpp
  * @brief Declaration of pgl::Disk.
@@ -24,7 +28,6 @@
 #include <utility>
 #include <stdexcept>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

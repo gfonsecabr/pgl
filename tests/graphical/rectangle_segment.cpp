@@ -4,7 +4,6 @@
 #include <vector>
 #include <iostream>
 #include "pgl.hpp"
-#include "visualization/canvas.hpp"
 
 using Point = pgl::Point<>;
 using Segment = pgl::Segment<Point>;

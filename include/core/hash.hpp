@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file hash.hpp
  * @brief Hash support for Pangolin value types.
@@ -14,7 +18,6 @@
 #include <type_traits>
 #include "forward.hpp"
 #include "numeric.hpp"
-#include "../pgl.hpp"
 
 namespace pgl::detail {
 

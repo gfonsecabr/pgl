@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file segment.hpp
  * @brief Public declaration of pgl::Segment.
@@ -20,7 +24,6 @@
 #include <variant>
 #include <optional>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

@@ -1,12 +1,15 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file interiorsintersect.hpp
  * @brief Implementations of the 'interiorsIntersect' predicate.
  **/
 
 #include <limits>
-#include "../pgl.hpp"
 #include "predicates_helpers.hpp"
 
 

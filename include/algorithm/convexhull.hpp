@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file convexhull.hpp
  * @brief Convex hull algorithms built from Pangolin point predicates.
@@ -10,7 +14,6 @@
 
 #include <vector>
 
-#include "../pgl.hpp"
 
 
 namespace pgl {

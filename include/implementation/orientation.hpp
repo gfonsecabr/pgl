@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file orientation.hpp
  * @brief Exact low-level orientation and incircle predicates.
@@ -11,7 +15,6 @@
 #include <compare>
 #include <type_traits>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

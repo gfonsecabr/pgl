@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file point.hpp
  * @brief Public declaration of pgl::Point and point-label helpers.
@@ -20,7 +24,6 @@
 #include <array>
 #include <vector>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

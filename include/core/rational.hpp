@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file rational.hpp
  * @brief Exact rational number type used when geometric results need fractions.
@@ -21,7 +25,6 @@
 #include <concepts>
 #include <cassert>
 
-#include "../pgl.hpp"
 
 
 namespace pgl {

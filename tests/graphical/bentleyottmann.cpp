@@ -9,7 +9,6 @@
 #include <map>
 #include <random>
 #include "../include/pgl.hpp"
-#include "algorithm/intersections.hpp"
 
 template<class Point>
 std::vector<pgl::Segment<Point>> randomSegments(size_t n1, size_t n2, size_t seed) {

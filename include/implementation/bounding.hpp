@@ -1,11 +1,14 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file bounding.hpp
  * @brief Bounding-box and rectangle-boundary operations.
  */
 
-#include "../pgl.hpp"
 #include "geometry/rectangle.hpp"
 
 namespace pgl {

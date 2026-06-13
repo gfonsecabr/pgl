@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file crosses.hpp
  * @brief Implementations of the 'crosses' predicate.
@@ -7,7 +11,6 @@
 
 #include <limits>
 #include <stdexcept>
-#include "../pgl.hpp"
 #include "predicates_helpers.hpp"
 
 

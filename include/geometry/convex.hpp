@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 #include <algorithm>
 #include <vector>
 #include <cassert>
@@ -12,7 +16,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "../pgl.hpp"
 
 namespace pgl::detail {
 /**

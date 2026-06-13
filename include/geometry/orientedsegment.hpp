@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file orientedsegment.hpp
  * @brief Public declaration of pgl::OrientedSegment.
@@ -8,7 +12,6 @@
  * order for orientation-sensitive operations.
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

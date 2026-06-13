@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file distance.hpp
  * @brief Distance and Hausdorff-style measurements between shapes.
@@ -8,7 +12,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file intersection.hpp
  * @brief Implementations of the 'intersection' predicate.
@@ -10,7 +14,6 @@
 #include <map>
 #include <set>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

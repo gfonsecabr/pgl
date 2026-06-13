@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file orientedline.hpp
  * @brief Public declaration of pgl::OrientedLine.
@@ -20,7 +24,6 @@
 #include <utility>
 #include <variant>
 
-#include "../pgl.hpp"
 
 
 namespace pgl {
