@@ -871,37 +871,37 @@ struct Triangle {
     intersection(const OtherPoint& other) const;
 
     /** @brief Returns the intersection with a line as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Line<OtherPoint>& other) const;
 
     /** @brief Returns the intersection with an oriented line as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedLine<OtherPoint>& other) const;
 
     /** @brief Returns the intersection with a segment as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /** @brief Returns the intersection with an oriented segment as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
     /** @brief Returns the intersection with a ray as a point or segment. */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Ray<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const Halfplane<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const Rectangle<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const Triangle<OtherPoint>& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>

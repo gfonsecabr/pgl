@@ -41,7 +41,7 @@ Segment<PointType, LabelType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Segment<PointType, LabelType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -130,13 +130,13 @@ OrientedSegment<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr auto OrientedSegment<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto OrientedSegment<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(
         static_cast<Segment<OtherPoint>>(other));
@@ -156,7 +156,7 @@ Line<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -207,7 +207,7 @@ Line<PointType>::intersection(const Line<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr auto Line<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
@@ -228,7 +228,7 @@ constexpr auto Line<PointType>::intersection(const Segment<OtherPoint, OtherLabe
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Line<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
 }
@@ -244,7 +244,7 @@ OrientedLine<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -254,7 +254,7 @@ OrientedLine<PointType>::intersection(const Line<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -265,13 +265,13 @@ OrientedLine<PointType>::intersection(const OrientedLine<OtherPoint>& other) con
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr auto OrientedLine<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto OrientedLine<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
@@ -290,7 +290,7 @@ Ray<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -322,7 +322,7 @@ Ray<PointType>::intersection(const Line<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -332,7 +332,7 @@ Ray<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -394,7 +394,7 @@ Ray<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -404,7 +404,7 @@ Ray<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -491,7 +491,7 @@ Halfplane<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -546,7 +546,7 @@ Halfplane<PointType>::intersection(const Line<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -557,7 +557,7 @@ Halfplane<PointType>::intersection(const OrientedLine<OtherPoint>& other) const 
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -604,7 +604,7 @@ Halfplane<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other)
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -614,7 +614,7 @@ Halfplane<PointType>::intersection(const OrientedSegment<OtherPoint>& other) con
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
@@ -953,7 +953,7 @@ Rectangle<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Rectangle<Point<ResultNumber, typename PointType::LabelType>>>
 Rectangle<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -974,42 +974,42 @@ Rectangle<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType>::intersection(const Line<OtherPoint>& other) const {
     return detail::rectangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     return detail::rectangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType>::intersection(const Ray<OtherPoint>& other) const {
     return detail::rectangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
@@ -1040,42 +1040,42 @@ Triangle<PointType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Triangle<PointType>::intersection(const Line<OtherPoint>& other) const {
     return detail::triangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Triangle<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Triangle<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     return detail::triangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Triangle<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Triangle<PointType>::intersection(const Ray<OtherPoint>& other) const {
     return detail::triangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Triangle<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
@@ -1093,7 +1093,7 @@ constexpr auto Triangle<PointType>::intersection(const Halfplane<OtherPoint>& ot
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Triangle<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
@@ -1111,7 +1111,7 @@ constexpr auto Triangle<PointType>::intersection(const Rectangle<OtherPoint>& ot
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Triangle<PointType>::intersection(const Triangle<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
@@ -1133,7 +1133,7 @@ constexpr auto Triangle<PointType>::intersection(const Triangle<OtherPoint>& oth
 // Convex
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     auto isec = this->template intersection<ResultNumber>(Line<OtherPoint>(other));
     if (!isec) {
@@ -1152,13 +1152,13 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(Segment<OtherPoint>(other[0], other[1]));
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Line<OtherPoint>& other) const {
     if (points_.empty()) {
         return {};
@@ -1362,13 +1362,13 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
     return intersection<ResultNumber>(Line<OtherPoint>(other[0], other[1]));
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Ray<OtherPoint>& other) const {
     auto line_isec =  intersection<ResultNumber>(Line<OtherPoint>(other[0], other[1]));
     if (!line_isec) {
@@ -1387,19 +1387,19 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Rectangle<OtherPoint>& other) const {
     return intersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Triangle<OtherPoint>& other) const {
     return intersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const Convex<OtherPoint>& other) const {
     if (size() == 0 || other.size() == 0 || !intersects(other)) {
         return {};
@@ -1470,7 +1470,7 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 // Polygon
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint, class OtherLabel>
+template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -1614,14 +1614,14 @@ Polygon<PointType>::intersection(const Segment<OtherPoint, OtherLabel>& other) c
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
     return intersection<ResultNumber>(Segment<OtherPoint>(other[0], other[1]));
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const Line<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -1759,14 +1759,14 @@ Polygon<PointType>::intersection(const Line<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const Ray<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -1909,7 +1909,7 @@ Polygon<PointType>::intersection(const Ray<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -2009,7 +2009,7 @@ Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;

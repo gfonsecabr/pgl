@@ -1027,7 +1027,7 @@ struct Polygon {
      * @param other The segment to intersect with.
      * @return The disjoint intersection pieces in order along the segment.
      */
-    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
@@ -1038,7 +1038,7 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
@@ -1061,7 +1061,7 @@ struct Polygon {
      * @param other The line to intersect with.
      * @return The disjoint intersection pieces in order along the line.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Line<OtherPoint>& other) const;
 
@@ -1072,7 +1072,7 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedLine<OtherPoint>& other) const;
 
@@ -1095,7 +1095,7 @@ struct Polygon {
      * @param other The ray to intersect with.
      * @return The disjoint intersection pieces in order from the source outward.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Ray<OtherPoint>& other) const;
 
@@ -1119,7 +1119,7 @@ struct Polygon {
      * @param other The other polygon to intersect with.
      * @return The intersection components: points, polylines, and polygons.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Polygon<OtherPoint>& other) const;
 
@@ -1144,7 +1144,7 @@ struct Polygon {
      * @param other The half-plane to intersect with.
      * @return The intersection components: points, segments, and polygons.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Halfplane<OtherPoint>& other) const;
 

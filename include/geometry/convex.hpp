@@ -1471,7 +1471,7 @@ struct Convex {
      * @param other The segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
@@ -1485,7 +1485,7 @@ struct Convex {
      * @param other The oriented segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
@@ -1499,7 +1499,7 @@ struct Convex {
      * @param other The line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Line<OtherPoint>& other) const;
 
@@ -1513,7 +1513,7 @@ struct Convex {
      * @param other The oriented line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedLine<OtherPoint>& other) const;
 
@@ -1527,7 +1527,7 @@ struct Convex {
      * @param other The ray to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Ray<OtherPoint>& other) const;
 
@@ -1541,7 +1541,7 @@ struct Convex {
      * @param other The rectangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Rectangle<OtherPoint>& other) const;
 
@@ -1556,7 +1556,7 @@ struct Convex {
      * @param other The triangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Triangle<OtherPoint>& other) const;
 
@@ -1570,7 +1570,7 @@ struct Convex {
      * @param other The other convex polygon to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Convex<OtherPoint>& other) const;
 

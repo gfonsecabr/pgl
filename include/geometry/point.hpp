@@ -616,7 +616,7 @@ struct Point {
      * @param other Other point.
      * @return Euclidean distance.
      */
-    template <class ApproximateNumber = double, class OtherPoint>
+    template <class ApproximateNumber = double, PointConcept OtherPoint>
     [[nodiscard]] ApproximateNumber distance(const OtherPoint& other) const;
 
     /**

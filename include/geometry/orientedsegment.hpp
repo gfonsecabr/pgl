@@ -677,7 +677,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr auto intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     /**
@@ -689,7 +689,7 @@ struct OrientedSegment {
      * @param other Other oriented segment.
      * @return Empty if disjoint, otherwise a point or an unordered segment.
      */
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const OrientedSegment<OtherPoint>& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>

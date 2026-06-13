@@ -89,7 +89,7 @@ struct EmptyShape {
         return false;
     }
     /** @brief The empty set contains the empty set. */
-    template <class OtherPoint>
+    template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
@@ -100,7 +100,7 @@ struct EmptyShape {
         return false;
     }
     /** @brief The empty set boundary-contains the empty set. */
-    template <class OtherPoint>
+    template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
@@ -111,7 +111,7 @@ struct EmptyShape {
         return false;
     }
     /** @brief The empty set interior-contains the empty set. */
-    template <class OtherPoint>
+    template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
