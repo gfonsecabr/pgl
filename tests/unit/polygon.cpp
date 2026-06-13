@@ -111,3 +111,25 @@ TEST_CASE("Polygon intersects Polygon with fractional crossings (rational result
             CHECK(std::get<QPolygon>(v).twiceArea() > Q(0));
         }
 }
+
+// Regression: two polygons sharing only a boundary segment must NOT report
+// interiorsIntersect, and the predicate must be symmetric. The 1x5 rectangle's
+// left edge (x=50) overlaps part of the L-shape's right edge (x=50, y in
+// [13,14]); their interiors lie on opposite sides of that line.
+TEST_CASE("Polygon interiorsIntersect: shared boundary segment is not an interior overlap") {
+    using Polygon = pgl::Polygon<pgl::Point<int>>;
+    const Polygon rect({50, 12, 51, 12, 51, 17, 50, 17});
+    const Polygon ell({48, 13, 50, 13, 50, 14, 49, 14, 49, 15, 48, 15});
+
+    CHECK_FALSE(rect.interiorsIntersect(ell));
+    CHECK_FALSE(ell.interiorsIntersect(rect));  // was erroneously true
+    CHECK(rect.interiorsIntersect(ell) == ell.interiorsIntersect(rect));
+
+    // They do touch along the boundary, so the (closed) intersection predicate holds.
+    CHECK(rect.intersects(ell));
+
+    // A genuine interior overlap is still detected, both directions.
+    const Polygon shifted({49, 12, 51, 12, 51, 17, 49, 17});  // covers x in [49,51]
+    CHECK(shifted.interiorsIntersect(ell));
+    CHECK(ell.interiorsIntersect(shifted));
+}
