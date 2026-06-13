@@ -943,6 +943,9 @@ constexpr bool Polygon<PointType>::interiorContains(const Polygon<OtherPoint>& o
     if (other.size() == 0) {
         return true;
     }
+    if (!bbox().interiorContains(other.bbox())) {
+        return false;
+    }
     if (other.size() == 1) {
         return interiorContains(other[0]);
     }
