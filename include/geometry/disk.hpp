@@ -675,26 +675,12 @@ struct Disk {
     [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
 
     template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
-
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Ray<OtherPoint>& other) const;
-
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
-
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
-
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
-
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
-
-    template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
 
+
+    /** @brief A disk never separates an isolated point. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
     /**
      * @brief Tests whether removing the disk from the segment splits it into
@@ -718,6 +704,26 @@ struct Disk {
     /** @brief Tests whether removing the disk from the convex polygon splits it. */
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
+
+    /** @brief Tests whether removing the disk from the ray splits it. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Ray<OtherPoint>& other) const;
+
+    /** @brief A disk never separates a halfplane. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+
+    /** @brief Tests whether removing the disk from the rectangle splits it. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+
+    /** @brief Tests whether removing the disk from the triangle splits it. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+
+    /** @brief A disk never separates another disk. */
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
 
     // --- Symmetric predicate dispatch: intersects / interiorsIntersect / crosses ---
     // For a symmetric predicate a.method(b) == b.method(a). The canonical
