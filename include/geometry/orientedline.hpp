@@ -702,7 +702,7 @@ struct OrientedLine {
     [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
 
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
@@ -721,7 +721,11 @@ struct OrientedLine {
     [[nodiscard]] constexpr auto intersection(const OrientedSegment<OtherPoint>& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
+                  && requires(const OtherShape& o, const OrientedLine& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
     }

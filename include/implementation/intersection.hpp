@@ -18,7 +18,7 @@ namespace pgl {
 // Point
 
 template <class Number, class Label>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, Label>>
 Point<Number, Label>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
@@ -31,7 +31,7 @@ Point<Number, Label>::intersection(const OtherPoint& other) const {
 // Segment
 
 template <class PointType, class LabelType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 Segment<PointType, LabelType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
@@ -123,7 +123,7 @@ Segment<PointType, LabelType>::intersection(const Segment<OtherPoint, OtherLabel
 // OrientedSegment
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 OrientedSegment<PointType>::intersection(const OtherPoint& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
@@ -146,7 +146,7 @@ constexpr auto OrientedSegment<PointType>::intersection(const OrientedSegment<Ot
 // Line
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 Line<PointType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
@@ -237,7 +237,7 @@ constexpr auto Line<PointType>::intersection(const OrientedSegment<OtherPoint>& 
 // OrientedLine
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 OrientedLine<PointType>::intersection(const OtherPoint& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
@@ -280,7 +280,7 @@ constexpr auto OrientedLine<PointType>::intersection(const OrientedSegment<Other
 // Ray
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 Ray<PointType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
@@ -328,7 +328,7 @@ constexpr std::optional<
         Point<ResultNumber, typename PointType::LabelType>,
         Ray<Point<ResultNumber, typename PointType::LabelType>>>>
 Ray<PointType>::intersection(const OrientedLine<OtherPoint>& other) const {
-    return intersection(other.asLine());
+    return intersection<ResultNumber>(other.asLine());
 }
 
 template <class PointType>
@@ -400,7 +400,7 @@ constexpr std::optional<
         Point<ResultNumber, typename PointType::LabelType>,
         Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Ray<PointType>::intersection(const OrientedSegment<OtherPoint>& other) const {
-    return intersection(static_cast<Segment<OtherPoint>>(other));
+    return intersection<ResultNumber>(static_cast<Segment<OtherPoint>>(other));
 }
 
 template <class PointType>
@@ -481,7 +481,7 @@ constexpr ResultPoint extendRayAlongLine(const ResultPoint& intersection, const 
 }  // namespace detail
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 Halfplane<PointType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
@@ -943,7 +943,7 @@ constexpr auto triangleRayIntersection(const TriangleType& triangle, const RayTy
 }  // namespace detail
 
 template <class PointType>
-template <class ResultNumber, class OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
 Rectangle<PointType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {

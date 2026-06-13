@@ -905,7 +905,11 @@ struct Triangle {
     [[nodiscard]] constexpr auto intersection(const Triangle<OtherPoint>& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
     }
