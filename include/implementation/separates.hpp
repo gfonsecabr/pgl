@@ -1458,6 +1458,59 @@ constexpr bool Disk<PointType, LabelType>::separates(const Convex<OtherPoint>& o
     return false;
 }
 
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Ray<OtherPoint>& other) const {
+    return !contains(other.source()) && intersects(other);
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Halfplane<OtherPoint>&) const {
+    return false;  // A disk never separates a halfplane
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Rectangle<OtherPoint>& other) const {
+    int count = 0;
+    for (int i = 0; i < 3; i++) {
+        pgl::Segment<OtherPoint> edge(other.get(i),other.get(i+1));
+        if (separates(edge)) {
+            count++;
+            OtherPoint opposite1 = other.get(i+2);
+            OtherPoint opposite2 = other.get(i+3);
+            if (contains(opposite1) || contains(opposite2)) {
+                return true;
+            }
+        }
+    }
+    return count >= 2;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>& other) const {
+    int count = 0;
+    for (int i = 0; i < 3; i++) {
+        pgl::Segment<OtherPoint> edge(other.get(i),other.get(i+1));
+        if (separates(edge)) {
+            count++;
+            OtherPoint opposite = other.get(i+2);
+            if (contains(opposite)) {
+                return true;
+            }
+        }
+    }
+    return count >= 2;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint, class OtherLabel>
+constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+    return false;  // a disk never separates another disk
+}
+
 template <class PointType>
 template <PointConcept OtherPoint>
 constexpr bool Convex<PointType>::separates(const Shape<OtherPoint>& other) const {
@@ -1884,44 +1937,6 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
         }
     }
     return false;
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Ray<OtherPoint>& other) const {
-    return !contains(other.source()) && intersects(other);
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Halfplane<OtherPoint>&) const {
-    return false;  // A disk never separates a halfplane
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Rectangle<OtherPoint>& other) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>& other) const {
-    int count = 0;
-    for (auto &edge : other) {
-        if (separates(other)) {
-            count++;
-        }
-    }
-    return count >= 2;
-}
-
-template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
-    return false;  // a disk never separates another disk
 }
 
 template <class PointType, class LabelType>
