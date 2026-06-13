@@ -663,6 +663,15 @@ constexpr bool Polygon<PointType>::crosses(const Shape<OtherPoint>& other) const
         other.variant());
 }
 
+template <class Number, class Label>
+constexpr bool Point<Number, Label>::crosses(const Shape<Point<Number, Label>>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->crosses(value);
+        },
+        other.variant());
+}
+
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>& other) const {

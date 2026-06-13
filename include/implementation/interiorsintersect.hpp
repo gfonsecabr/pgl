@@ -1194,6 +1194,25 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Polygon<OtherPoint>& 
     return other.interiorsIntersect(*this);
 }
 
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
+template <class Number, class Label>
+constexpr bool Point<Number, Label>::interiorsIntersect(const Shape<Point<Number, Label>>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
 
 // --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
 

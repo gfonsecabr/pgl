@@ -1115,11 +1115,17 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool intersects(const Shape<OtherPoint>& other) const;
 
-    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /**
@@ -1231,11 +1237,17 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
 
-    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /**
@@ -1457,11 +1469,17 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
-    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /**
@@ -1576,6 +1594,12 @@ struct Convex {
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Convex<OtherPoint>& other) const;
+
+    /** @brief Intersecting with the empty set yields the empty set. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
 
     /**
      * @brief Translates the convex polygon by the given point.

@@ -806,21 +806,39 @@ struct Disk {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
-    /** @brief Later shapes (Convex, Polygon) implement the pair; forward to them. */
+    /** @brief Forwards to a higher-ranked shape, the canonical implementor of the symmetric pair. */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /**
