@@ -24,7 +24,7 @@ constexpr auto Point<Number, Label>::squaredDistance(const OtherPoint& other) co
 }
 
 template <class Number, class Label>
-template <class ApproximateNumber, class OtherPoint>
+template <class ApproximateNumber, PointConcept OtherPoint>
 ApproximateNumber Point<Number, Label>::distance(const OtherPoint& other) const {
     return std::sqrt(static_cast<ApproximateNumber>(squaredDistance(other)));
 }

@@ -589,30 +589,30 @@ struct Halfplane {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Line<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedLine<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OrientedSegment<OtherPoint>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Ray<OtherPoint>& other) const;
 
     // Intersecting two half-planes is intentionally unsupported. Deleting the
     // overload makes such a call a compile error rather than letting it fall
     // through to the reversing fallback below, which would recurse forever.
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     constexpr auto intersection(const Halfplane<OtherPoint>& other) const = delete;
 
     template <class ResultNumber = NumberType, typename OtherShape>
