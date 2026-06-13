@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file canvas.hpp
  * @brief Lightweight SVG canvas for drawing Pangolin shapes.
@@ -18,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

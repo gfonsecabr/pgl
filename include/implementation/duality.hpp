@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file duality.hpp
  * @brief Projective duality and polar-transform helpers.
@@ -8,7 +12,6 @@
  * several exact constructions in the library.
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

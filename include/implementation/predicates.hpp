@@ -1,12 +1,15 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file predicates.hpp
  * @brief Method definitions for the shapes.
  **/
 
 #include <limits>
-#include "../pgl.hpp"
 #include "predicates_helpers.hpp"
 #include "boundarycontains.hpp"
 #include "contains.hpp"

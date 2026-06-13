@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file transformations.hpp
  * @brief Arithmetic transformations and explicit conversions between primitives.
@@ -7,7 +11,6 @@
  * Translation, scaling, negation, axis swapping, and cross-primitive conversion
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

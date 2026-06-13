@@ -1,11 +1,14 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file predicates_helpers.hpp
  * @brief Small dispatch traits and geometry helpers reused by the implementations.
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

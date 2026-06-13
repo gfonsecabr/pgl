@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file intersections.hpp
  * @brief Segment intersection and crossing algorithms.
@@ -15,7 +19,6 @@
 #include <set>
 #include <map>
 
-#include "../pgl.hpp"
 
 namespace pgl::detail{
 template <class Rational, class Point>

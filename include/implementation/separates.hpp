@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file separates.hpp
  * @brief Implementations of the 'separates' predicate.
@@ -13,7 +17,6 @@
 #include <limits>
 #include <utility>
 #include <vector>
-#include "../pgl.hpp"
 #include "geometry/orientedline.hpp"
 #include "geometry/orientedsegment.hpp"
 #include "implementation/orientation.hpp"

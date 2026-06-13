@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file triangle.hpp
  * @brief Public declaration of pgl::Triangle.
@@ -18,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

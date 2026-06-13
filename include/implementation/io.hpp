@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file io.hpp
  * @brief Stream output helpers for Pangolin value types.
@@ -8,7 +12,6 @@
  * so formatted output is implemented centrally here.
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

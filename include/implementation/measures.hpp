@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file measures.hpp
  * @brief Geometric measurements and canonical representative-point helpers.
@@ -8,7 +12,6 @@
  * together here so shapes can share the same arithmetic conventions.
  */
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

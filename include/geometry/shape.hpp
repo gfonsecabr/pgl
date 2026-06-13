@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef PGL_HPP_INCLUDED
+#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
+#endif
+
 /**
  * @file shape.hpp
  * @brief Runtime variant wrapper over the currently implemented shape types.
@@ -19,7 +23,6 @@
 #include <variant>
 #include <vector>
 
-#include "../pgl.hpp"
 
 namespace pgl {
 

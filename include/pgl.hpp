@@ -17,6 +17,12 @@
 
 #undef PGL_CPLUSPLUS
 
+// Marks that the umbrella header is being processed. Every other PGL header
+// checks this and rejects being included directly (before pgl.hpp); see the
+// guard at the top of each. An include after pgl.hpp is harmlessly skipped by
+// the headers' own `#pragma once`.
+#define PGL_HPP_INCLUDED
+
 #include "core/forward.hpp"
 #include "core/numeric.hpp"
 #include "core/bigint.hpp"

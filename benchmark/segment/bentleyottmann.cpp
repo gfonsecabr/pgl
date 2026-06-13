@@ -4,7 +4,6 @@
 #include <random>
 #include <vector>
 #include <iostream>
-#include "algorithm/intersections.hpp"
 #include "pgl.hpp"
 #include "../support/plf_nanotimer.h"
 #include "../support/filter.hpp"
