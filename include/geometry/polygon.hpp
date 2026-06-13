@@ -1001,11 +1001,37 @@ struct Polygon {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
-    /** @brief Symmetric fallback delegating to the other shape (e.g. EmptyShape). */
+    /** @brief Dispatches intersection to the wrapped shape alternative. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Shape<OtherPoint>& other) const;
+
+    /** @brief Dispatches interior intersection to the wrapped shape alternative. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
+
+    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     /**
@@ -1125,6 +1151,12 @@ struct Polygon {
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const Polygon<OtherPoint>& other) const;
+
+    /** @brief Intersecting with the empty set yields the empty set. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
 
     /**
      * @brief Computes the intersection of the (closed) polygon with a half-plane.

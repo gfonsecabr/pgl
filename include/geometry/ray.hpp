@@ -586,9 +586,15 @@ struct Ray {
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     template<PointConcept OtherPoint>
@@ -610,9 +616,15 @@ struct Ray {
     [[nodiscard]] constexpr bool interiorsIntersect(const Ray<OtherPoint>& other) const;
 
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
@@ -636,9 +648,15 @@ struct Ray {
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief The empty set never meets another shape. */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
     }
 
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
@@ -730,6 +748,12 @@ struct Ray {
                      })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
+    }
+
+    /** @brief Intersecting with the empty set yields the empty set. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
     }
 
     /**

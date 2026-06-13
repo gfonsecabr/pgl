@@ -1087,6 +1087,16 @@ constexpr bool Convex<PointType>::intersects(const Polygon<OtherPoint>& other) c
     return other.intersects(*this);
 }
 
+template <class PointType>
+template<PointConcept OtherPoint>
+constexpr bool Polygon<PointType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
+
 
 // --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
 
