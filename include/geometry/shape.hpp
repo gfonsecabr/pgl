@@ -11,11 +11,13 @@
 #include <compare>
 #include <concepts>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "../pgl.hpp"
 
@@ -79,6 +81,22 @@ struct is_shape<Shape<PointType>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_shape_v = is_shape<std::remove_cvref_t<T>>::value;
+
+// Minimal shape detectors for the standard wrappers an intersection may return.
+template <class T>
+struct is_std_optional : std::false_type {};
+template <class T>
+struct is_std_optional<std::optional<T>> : std::true_type {};
+
+template <class T>
+struct is_std_vector : std::false_type {};
+template <class T, class A>
+struct is_std_vector<std::vector<T, A>> : std::true_type {};
+
+template <class T>
+struct is_std_variant : std::false_type {};
+template <class... Ts>
+struct is_std_variant<std::variant<Ts...>> : std::true_type {};
 
 }  // namespace detail
 
@@ -486,6 +504,43 @@ struct Shape {
             other);
     }
 
+    /**
+     * @brief Computes the intersection with another shape, returned as a Shape.
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`),
+     * delegates to the concrete `intersection` requesting @p ResultNumber
+     * coordinates, and re-wraps the result. An empty intersection becomes an
+     * `EmptyShape`. The returned wrapper is parameterized on the result point
+     * type, which may differ from this wrapper's.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to this
+     *   wrapper's `NumberType`).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to intersect with.
+     * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
+     * @throws std::logic_error when the result cannot be represented by a single
+     *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
+     *   whose intersection is unsupported (anything against a `Disk`).
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr Shape<Point<ResultNumber, LabelType>> intersection(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return intersectionOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return intersectionOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
   private:
     /**
      * @brief Dispatches a binary predicate against a shape or concrete alternative.
@@ -513,6 +568,64 @@ struct Shape {
                     return dispatch(self, other);
                 },
                 value_);
+        }
+    }
+
+    // Intersect two unwrapped alternatives and wrap the result as a Shape over
+    // the result point type. The empty set on either side gives the empty shape;
+    // otherwise the pair is dispatched to the concrete `intersection` when one
+    // exists. Thanks to the rank-constrained fallbacks, the `requires` probe is
+    // SFINAE-safe and self-maintaining: a pair with no intersection (Disk, or
+    // two shapes neither of which implements the other) simply takes the throw.
+    template <class ResultNumber, class Left, class Right>
+    static constexpr Shape<Point<ResultNumber, LabelType>> intersectionOf(const Left& left, const Right& right) {
+        using ResultPoint = Point<ResultNumber, LabelType>;
+        if constexpr (std::same_as<Left, EmptyShape<PointType>> ||
+                      std::same_as<Right, EmptyShape<PointType>>) {
+            return Shape<ResultPoint>{EmptyShape<ResultPoint>{}};
+        } else if constexpr (requires { left.template intersection<ResultNumber>(right); }) {
+            return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
+        } else {
+            throw std::logic_error("Shape::intersection is not defined for this shape pair");
+        }
+    }
+
+    // Unwrap a concrete intersection result (optional<T> or vector<T>) into a
+    // Shape. An absent/empty result is the empty shape; a disconnected result
+    // (more than one component) cannot be a single Shape and throws.
+    template <class ResultNumber, class Result>
+    static constexpr Shape<Point<ResultNumber, LabelType>> resultToShape(const Result& result) {
+        if constexpr (detail::is_std_optional<Result>::value) {
+            if (!result) {
+                return Shape<Point<ResultNumber, LabelType>>{EmptyShape<Point<ResultNumber, LabelType>>{}};
+            }
+            return wrapResult<ResultNumber>(*result);
+        } else if constexpr (detail::is_std_vector<Result>::value) {
+            if (result.empty()) {
+                return Shape<Point<ResultNumber, LabelType>>{EmptyShape<Point<ResultNumber, LabelType>>{}};
+            }
+            if (result.size() > 1) {
+                throw std::logic_error(
+                    "Shape::intersection: disconnected result cannot be a single Shape");
+            }
+            return wrapResult<ResultNumber>(result.front());
+        } else {
+            return wrapResult<ResultNumber>(result);
+        }
+    }
+
+    // Wrap a concrete value, or the active member of a result variant, into a
+    // Shape over the result point type, throwing when the value's type is not
+    // one of that Shape's alternatives (for example a Polyline).
+    template <class ResultNumber, class Value>
+    static constexpr Shape<Point<ResultNumber, LabelType>> wrapResult(const Value& value) {
+        using ResultPoint = Point<ResultNumber, LabelType>;
+        if constexpr (detail::is_std_variant<Value>::value) {
+            return std::visit([](const auto& alt) { return wrapResult<ResultNumber>(alt); }, value);
+        } else if constexpr (detail::ShapeAlternative<ResultPoint, Value>) {
+            return Shape<ResultPoint>{value};
+        } else {
+            throw std::logic_error("Shape::intersection: result is not representable as a Shape");
         }
     }
 

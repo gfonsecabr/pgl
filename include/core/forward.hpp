@@ -106,4 +106,48 @@ struct Shape;
 /** @brief Lightweight SVG canvas for visualizing Pangolin primitives. */
 class Canvas;
 
+namespace detail {
+
+/**
+ * @brief Conceptual rank of each shape kind.
+ *
+ * Gives the per-shape `intersection` fallbacks a single canonical delegation
+ * direction: a shape only delegates `a.intersection(b)` to `b.intersection(a)`
+ * when `rank(b) > rank(a)`, so the higher-ranked shape is the one that owns the
+ * concrete overload. This breaks the otherwise mutual fallback recursion and
+ * lets `Shape::intersection` detect support with a plain `requires`. Gaps of 10
+ * leave room to slot in new shapes without renumbering.
+ */
+template <class T>
+inline constexpr int shapeRank = -1;
+
+template <class PointType>
+inline constexpr int shapeRank<EmptyShape<PointType>> = 0;
+template <class Number, class Label>
+inline constexpr int shapeRank<Point<Number, Label>> = 10;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Segment<PointType, Label>> = 20;
+template <class PointType>
+inline constexpr int shapeRank<OrientedSegment<PointType>> = 30;
+template <class PointType>
+inline constexpr int shapeRank<Line<PointType>> = 40;
+template <class PointType>
+inline constexpr int shapeRank<OrientedLine<PointType>> = 50;
+template <class PointType>
+inline constexpr int shapeRank<Ray<PointType>> = 60;
+template <class PointType>
+inline constexpr int shapeRank<Halfplane<PointType>> = 70;
+template <class PointType>
+inline constexpr int shapeRank<Rectangle<PointType>> = 80;
+template <class PointType>
+inline constexpr int shapeRank<Triangle<PointType>> = 90;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Disk<PointType, Label>> = 100;
+template <class PointType>
+inline constexpr int shapeRank<Convex<PointType>> = 110;
+template <class PointType>
+inline constexpr int shapeRank<Polygon<PointType>> = 120;
+
+}  // namespace detail
+
 }  // namespace pgl

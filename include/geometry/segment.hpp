@@ -830,7 +830,7 @@ struct Segment {
      * @return An std::optional of std::variant of Point and Segment representing the intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber=NumberType, class OtherPoint>
+    template <class ResultNumber=NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
@@ -839,7 +839,11 @@ struct Segment {
     intersection(const Segment<OtherPoint, OtherLabel>& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
+                  && requires(const OtherShape& o, const Segment& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
     }

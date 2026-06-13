@@ -585,7 +585,7 @@ struct Halfplane {
 
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
-    template <class ResultNumber = NumberType, class OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
@@ -616,7 +616,11 @@ struct Halfplane {
     constexpr auto intersection(const Halfplane<OtherPoint>& other) const = delete;
 
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires (!PointConcept<OtherShape>)
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
+                  && requires(const OtherShape& o, const Halfplane& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
     }
