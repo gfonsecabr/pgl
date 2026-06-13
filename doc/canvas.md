@@ -54,13 +54,13 @@ int main() {
 
     if (s.intersects(t)) {
         // when they cross, we can highlight the exact intersection too!
-        auto crossing = s.intersection<pgl::Rational<int>>(t);
+        pgl::Shape crossing(s.intersection<pgl::Rational<int>>(t));
         canvas << pgl::stroke("crimson")
                << pgl::fill("crimson")
-               << std::get<pgl::Point<pgl::Rational<int>>>(*crossing);
+               << crossing;
     }
 
-    // And that's it ! One call writes the finished SVG.
+    // One call writes the finished SVG.
     canvas.writeSVG("example1.svg");
 }
 ```

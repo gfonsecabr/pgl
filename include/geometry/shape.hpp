@@ -123,6 +123,22 @@ template <class PointType, class T>
 inline constexpr bool is_shape_optional_variant_v =
     is_shape_optional_variant<PointType, std::remove_cvref_t<T>>::value;
 
+// Point type carried by a shape alternative: a Point is its own point type;
+// every other alternative exposes it as a nested PointType. Used by the Shape
+// deduction guides to recover the wrapper's point type from a result variant.
+template <class T>
+struct shape_point_type {
+    using type = typename T::PointType;
+};
+
+template <class Number, class Label>
+struct shape_point_type<Point<Number, Label>> {
+    using type = Point<Number, Label>;
+};
+
+template <class T>
+using shape_point_type_t = typename shape_point_type<T>::type;
+
 }  // namespace detail
 
 /**
@@ -409,6 +425,22 @@ struct Shape {
     }
 
     /**
+     * @brief Converts to the currently stored alternative.
+     *
+     * Lets an unwrapped alternative be recovered directly, e.g.
+     * `Point cross = shape;` when @p shape holds a `Point`.
+     *
+     * @tparam T Alternative type to extract.
+     * @return A copy of the stored value.
+     * @throws std::bad_variant_access if the wrapper holds a different alternative.
+     */
+    template <class T>
+        requires(detail::ShapeAlternative<PointType, T>)
+    constexpr explicit operator T() const {
+        return std::get<std::remove_cvref_t<T>>(value_);
+    }
+
+    /**
      * @brief Tests geometric containment against a shape or concrete alternative.
      *
      * @tparam Other `Shape` or a supported alternative type.
@@ -664,6 +696,16 @@ struct Shape {
 
     Variant value_{};
 };
+
+// Deduce the wrapper's point type from the alternatives of a result variant (or
+// an optional thereof), so `Shape s = a.intersection<N>(b);` names the right
+// type. The point type is taken from the variant's first alternative; every
+// alternative shares it.
+template <class T, class... Ts>
+Shape(const std::variant<T, Ts...>&) -> Shape<detail::shape_point_type_t<T>>;
+
+template <class T, class... Ts>
+Shape(const std::optional<std::variant<T, Ts...>>&) -> Shape<detail::shape_point_type_t<T>>;
 
 /**
  * @brief Streams the currently stored alternative.

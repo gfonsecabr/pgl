@@ -125,44 +125,32 @@ In case of overflow problems or critical applications, `pgl::Rational<pgl::BigIn
 Using rational coordinates is fairly easy:
 
 ```c++
-#include <iostream>
-#include "pgl.hpp"
+using Point = pgl::Point<pgl::Rational<pgl::BigInt>>; // Rational coordinates with BigInt numerator and denominator
+using Segment = pgl::Segment<Point>;
 
-int main() {
-    using Point = pgl::Point<pgl::Rational<pgl::BigInt>>; // Rational coordinates with BigInt numerator and denominator
-    using Segment = pgl::Segment<Point>;
-
-    Point p = {1,0}, q = {4,7};
-    Segment s = {p,q}, t = {0,8,2,1};
-    if (s.intersects(t)) {
-        std::cout << s << " intersects " << t << " at point ";
-        auto isec = s.intersection(t);
-        Point cross = std::get<0>(*isec);
-        std::cout << cross << std::endl;
-    }
-
-    return 0;
-} // Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
+Point p = {1,0}, q = {4,7};
+Segment s = {p,q}, t = {0,8,2,1};
+if (s.intersects(t)) {
+    std::cout << s << " intersects " << t << " at point ";
+    pgl::Shape isec(s.intersection(t));
+    Point cross(isec);
+    std::cout << cross << std::endl;
+}
+// Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
 ```
 
 However, rational numbers are significantly slower than integers and floating point numbers. Hence, it is a good idea to defer usage of rational coordinates until necessary:
 
 ```c++
-#include <iostream>
-#include "pgl.hpp"
-
-int main() {
-    pgl::Point p = {1,0}, q = {4,7};
-    pgl::Segment s = {p,q}, t = {0,8,2,1};
-    if (s.intersects(t)) {
-        std::cout << s << " intersects " << t << " at point ";
-        auto isec = s.intersection<pgl::Rational<int>>(t); // Use rational here
-        pgl::Point<pgl::Rational<int>> cross = std::get<0>(*isec);
-        std::cout << cross << std::endl;
-    }
-
-    return 0;
-} // Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
+pgl::Point p = {1,0}, q = {4,7};
+pgl::Segment s = {p,q}, t = {0,8,2,1};
+if (s.intersects(t)) {
+    std::cout << s << " intersects " << t << " at point ";
+    pgl::Shape isec(s.intersection<pgl::Rational<int>>(t)); // Use rational here
+    pgl::Point<pgl::Rational<int>> cross(isec);
+    std::cout << cross << std::endl;
+}
+// Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
 ```
 
 You may have noticed that the `intersection` method does not return a point. This is because the intersection of two segments may be null, a point, or a segment. Hence, the result is an [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional.html) of [`std::variant`](https://en.cppreference.com/w/cpp/utility/variant.html) of both point and segment.

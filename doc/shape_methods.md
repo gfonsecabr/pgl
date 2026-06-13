@@ -83,12 +83,20 @@ The intersection of any two shapes may be calculated as follows. Note that the i
 
 ```c++
 pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
-auto isec = s.intersection(t);
+auto isec(s.intersection(t));
 // The type of isec here is std::optional<std::variant<pgl::Point,pgl::Segment>>
 pgl::Point p = std::get<0>(*isec);
 // p = (3,3)
 ```
 
+When the intersection can be represented as a `Shape`, you can convert directly:
+
+```c++
+pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
+pgl::Shape isec(s.intersection(t));
+pgl::Point<> p(isec);
+// p = (3,3)
+```
 
 ### Other Methods for Shapes
 
