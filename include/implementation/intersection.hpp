@@ -1941,15 +1941,49 @@ Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
     clipEdgesAgainst(*this, other);
     clipEdgesAgainst(other, *this);
 
+    // Make the collected boundary a consistent planar graph: split any segment at
+    // another segment's endpoint lying in its interior, then dedup, so partially
+    // overlapping collinear (shared) boundary collapses onto common edges. Only
+    // genuine pinch points keep degree > 2 afterwards.
+    auto planarize = [](const std::set<ResultSegment>& input) {
+        std::vector<ResultPoint> vertices;
+        for (const auto& s : input) {
+            vertices.push_back(s.min());
+            vertices.push_back(s.max());
+        }
+        std::sort(vertices.begin(), vertices.end());
+        vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+
+        std::set<ResultSegment> out;
+        for (const auto& s : input) {
+            const ResultPoint a = s.min();
+            const ResultPoint b = s.max();
+            std::vector<ResultPoint> cut{a, b};
+            for (const auto& v : vertices) {
+                if (v == a || v == b || !collinear(a, b, v)) {
+                    continue;
+                }
+                if (v.x() < std::min(a.x(), b.x()) || v.x() > std::max(a.x(), b.x()) ||
+                    v.y() < std::min(a.y(), b.y()) || v.y() > std::max(a.y(), b.y())) {
+                    continue;  // collinear but outside the segment
+                }
+                cut.push_back(v);
+            }
+            std::sort(cut.begin(), cut.end());
+            cut.erase(std::unique(cut.begin(), cut.end()), cut.end());
+            for (std::size_t i = 0; i + 1 < cut.size(); ++i) {
+                out.insert(ResultSegment(cut[i], cut[i + 1]));
+            }
+        }
+        return out;
+    };
+    segments = planarize(segments);
+
     // Build the undirected graph: nodes are endpoints, edges are the segments.
     std::map<ResultPoint, std::vector<ResultPoint>> adjacency;
     for (const auto& segment : segments) {
         adjacency[segment.min()].push_back(segment.max());
         adjacency[segment.max()].push_back(segment.min());
-    }
-    for (const auto& [node, neighbors] : adjacency) {
-        assert(neighbors.size() <= 2 && "polygon intersection graph node has degree > 2");
-        static_cast<void>(node);
     }
 
     std::vector<Piece> result;
@@ -1961,51 +1995,116 @@ Polygon<PointType>::intersection(const Polygon<OtherPoint>& other) const {
         }
     }
 
-    // Walk the graph. Degree-1 nodes start open paths (polylines); the remaining
-    // unvisited nodes (all degree 2) close into cycles (polygons).
-    std::set<ResultPoint> visited;
-    auto step = [&](const ResultPoint& current, const ResultPoint& previous) {
-        const auto& neighbors = adjacency.at(current);
-        return (neighbors[0] == previous && neighbors.size() == 2) ? neighbors[1] : neighbors[0];
+    using Number = ResultNumber;
+    auto degree = [&adjacency](const ResultPoint& p) {
+        const auto it = adjacency.find(p);
+        return it == adjacency.end() ? std::size_t(0) : it->second.size();
+    };
+    auto removeEdge = [&adjacency](const ResultPoint& u, const ResultPoint& v) {
+        auto& au = adjacency[u];
+        au.erase(std::find(au.begin(), au.end(), v));
+        auto& av = adjacency[v];
+        av.erase(std::find(av.begin(), av.end(), u));
     };
 
-    for (const auto& [start, neighbors] : adjacency) {
-        if (neighbors.size() != 1 || visited.count(start)) {
-            continue;
-        }
-        ResultPolyline path{start};
-        visited.insert(start);
-        ResultPoint previous = start;
-        ResultPoint current = neighbors[0];
-        while (true) {
-            path.push_back(current);
-            visited.insert(current);
-            if (adjacency.at(current).size() == 1) {
-                break;  // the other open end
+    // Peel the open boundary (degree-1 chains, and whiskers hanging off a cycle)
+    // into polylines, removing their edges. What remains is a union of closed
+    // cycles that may share articulation (pinch) vertices.
+    while (true) {
+        const ResultPoint* leaf = nullptr;
+        for (const auto& [p, neighbors] : adjacency) {
+            if (neighbors.size() == 1) {
+                leaf = &p;
+                break;
             }
-            const ResultPoint next = step(current, previous);
-            previous = current;
+        }
+        if (!leaf) {
+            break;
+        }
+        ResultPolyline path;
+        ResultPoint current = *leaf;
+        path.push_back(current);
+        while (degree(current) == 1) {
+            const ResultPoint next = adjacency.at(current)[0];
+            removeEdge(current, next);
+            path.push_back(next);
             current = next;
         }
         result.emplace_back(std::move(path));
     }
 
-    for (const auto& [start, neighbors] : adjacency) {
-        if (visited.count(start)) {
-            continue;
+    // Trace the remaining cycles as faces of the planar graph: following, at each
+    // vertex, the neighbour immediately clockwise from the edge we arrived on
+    // visits every face once and hugs its interior. Counterclockwise faces are
+    // the filled intersection pieces; the clockwise outer face is dropped. This
+    // resolves the articulation (degree > 2) vertices into their separate cycles.
+    auto rotationalNext = [&adjacency](const ResultPoint& at, const ResultPoint& from) {
+        const auto& neighbors = adjacency.at(at);
+        auto dx = [&](const ResultPoint& p) { return p.x() - at.x(); };
+        auto dy = [&](const ResultPoint& p) { return p.y() - at.y(); };
+        // 0 for directions in [0, 180) degrees, 1 for [180, 360); orders the circle.
+        auto half = [&](const ResultPoint& p) {
+            const Number y = dy(p);
+            if (y > Number(0)) return 0;
+            if (y < Number(0)) return 1;
+            return dx(p) >= Number(0) ? 0 : 1;
+        };
+        auto ccwBefore = [&](const ResultPoint& u, const ResultPoint& w) {  // u strictly CCW-before w
+            const int hu = half(u), hw = half(w);
+            if (hu != hw) {
+                return hu < hw;
+            }
+            return dx(u) * dy(w) - dy(u) * dx(w) > Number(0);
+        };
+        // The neighbour immediately clockwise from `from`: the CCW-largest one
+        // that is CCW-before `from`, wrapping to the CCW-largest overall.
+        const ResultPoint* best = nullptr;
+        for (const auto& n : neighbors) {
+            if (n == from || !ccwBefore(n, from)) {
+                continue;
+            }
+            if (!best || ccwBefore(*best, n)) {
+                best = &n;
+            }
         }
-        std::vector<ResultPoint> cycle{start};
-        visited.insert(start);
-        ResultPoint previous = start;
-        ResultPoint current = neighbors[0];
-        while (current != start) {
-            cycle.push_back(current);
-            visited.insert(current);
-            const ResultPoint next = step(current, previous);
-            previous = current;
-            current = next;
+        if (!best) {
+            for (const auto& n : neighbors) {
+                if (n != from && (!best || ccwBefore(*best, n))) {
+                    best = &n;
+                }
+            }
         }
-        result.emplace_back(ResultPolygon(cycle));
+        return *best;
+    };
+
+    std::set<std::pair<ResultPoint, ResultPoint>> usedDart;
+    for (const auto& [u, neighbors] : adjacency) {
+        for (const auto& v : neighbors) {
+            if (usedDart.count({u, v})) {
+                continue;
+            }
+            std::vector<ResultPoint> cycle;
+            ResultPoint a = u;
+            ResultPoint b = v;
+            do {
+                usedDart.insert({a, b});
+                cycle.push_back(a);
+                const ResultPoint c = rotationalNext(b, a);
+                a = b;
+                b = c;
+            } while (a != u || b != v);
+
+            // Shoelace twice-area; keep counterclockwise (filled) faces only.
+            Number twiceArea(0);
+            for (std::size_t i = 0; i < cycle.size(); ++i) {
+                const ResultPoint& p = cycle[i];
+                const ResultPoint& q = cycle[(i + 1) % cycle.size()];
+                twiceArea += p.x() * q.y() - q.x() * p.y();
+            }
+            if (twiceArea > Number(0)) {
+                result.emplace_back(ResultPolygon(cycle));
+            }
+        }
     }
 
     return result;
@@ -2062,15 +2161,48 @@ Polygon<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
         }
     }
 
+    // Make the collected boundary a consistent planar graph (see the polygon
+    // overload): split each segment at any other segment's endpoint in its
+    // interior, then dedup, so overlapping collinear shared boundary collapses.
+    auto planarize = [](const std::set<ResultSegment>& input) {
+        std::vector<ResultPoint> vertices;
+        for (const auto& s : input) {
+            vertices.push_back(s.min());
+            vertices.push_back(s.max());
+        }
+        std::sort(vertices.begin(), vertices.end());
+        vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+
+        std::set<ResultSegment> out;
+        for (const auto& s : input) {
+            const ResultPoint a = s.min();
+            const ResultPoint b = s.max();
+            std::vector<ResultPoint> cut{a, b};
+            for (const auto& v : vertices) {
+                if (v == a || v == b || !collinear(a, b, v)) {
+                    continue;
+                }
+                if (v.x() < std::min(a.x(), b.x()) || v.x() > std::max(a.x(), b.x()) ||
+                    v.y() < std::min(a.y(), b.y()) || v.y() > std::max(a.y(), b.y())) {
+                    continue;
+                }
+                cut.push_back(v);
+            }
+            std::sort(cut.begin(), cut.end());
+            cut.erase(std::unique(cut.begin(), cut.end()), cut.end());
+            for (std::size_t i = 0; i + 1 < cut.size(); ++i) {
+                out.insert(ResultSegment(cut[i], cut[i + 1]));
+            }
+        }
+        return out;
+    };
+    segments = planarize(segments);
+
     // Build the undirected graph: nodes are endpoints, edges are the segments.
     std::map<ResultPoint, std::vector<ResultPoint>> adjacency;
     for (const auto& segment : segments) {
         adjacency[segment.min()].push_back(segment.max());
         adjacency[segment.max()].push_back(segment.min());
-    }
-    for (const auto& [node, neighbors] : adjacency) {
-        assert(neighbors.size() <= 2 && "polygon/half-plane intersection graph node has degree > 2");
-        static_cast<void>(node);
     }
 
     // A touch point that no segment uses is an isolated intersection point.
@@ -2080,53 +2212,107 @@ Polygon<PointType>::intersection(const Halfplane<OtherPoint>& other) const {
         }
     }
 
-    // Walk the graph. Degree-1 nodes start open paths; since every 1D piece lies
-    // on the half-plane's straight boundary, such a path is collinear and is
-    // returned as the single segment spanning its two ends. The remaining
-    // unvisited nodes (all degree 2) close into cycles (polygons).
-    std::set<ResultPoint> visited;
-    auto step = [&](const ResultPoint& current, const ResultPoint& previous) {
-        const auto& neighbors = adjacency.at(current);
-        return (neighbors[0] == previous && neighbors.size() == 2) ? neighbors[1] : neighbors[0];
+    using Number = ResultNumber;
+    auto degree = [&adjacency](const ResultPoint& p) {
+        const auto it = adjacency.find(p);
+        return it == adjacency.end() ? std::size_t(0) : it->second.size();
+    };
+    auto removeEdge = [&adjacency](const ResultPoint& u, const ResultPoint& v) {
+        auto& au = adjacency[u];
+        au.erase(std::find(au.begin(), au.end(), v));
+        auto& av = adjacency[v];
+        av.erase(std::find(av.begin(), av.end(), u));
     };
 
-    for (const auto& [start, neighbors] : adjacency) {
-        if (neighbors.size() != 1 || visited.count(start)) {
-            continue;
-        }
-        visited.insert(start);
-        ResultPoint previous = start;
-        ResultPoint current = neighbors[0];
-        ResultPoint last = start;
-        while (true) {
-            visited.insert(current);
-            last = current;
-            if (adjacency.at(current).size() == 1) {
-                break;  // the other open end
+    // Peel the open boundary into segments. Every 1D piece lies on the
+    // half-plane's straight boundary, so each peeled chain is collinear and is
+    // returned as the single segment spanning its two ends.
+    while (true) {
+        const ResultPoint* leaf = nullptr;
+        for (const auto& [p, neighbors] : adjacency) {
+            if (neighbors.size() == 1) {
+                leaf = &p;
+                break;
             }
-            const ResultPoint next = step(current, previous);
-            previous = current;
+        }
+        if (!leaf) {
+            break;
+        }
+        const ResultPoint start = *leaf;
+        ResultPoint current = start;
+        while (degree(current) == 1) {
+            const ResultPoint next = adjacency.at(current)[0];
+            removeEdge(current, next);
             current = next;
         }
-        result.emplace_back(ResultSegment(start, last));
+        result.emplace_back(ResultSegment(start, current));
     }
 
-    for (const auto& [start, neighbors] : adjacency) {
-        if (visited.count(start)) {
-            continue;
+    // Trace the remaining cycles as faces; keep the counterclockwise (filled)
+    // ones. The clockwise-next rule resolves any articulation (pinch) vertices.
+    auto rotationalNext = [&adjacency](const ResultPoint& at, const ResultPoint& from) {
+        const auto& neighbors = adjacency.at(at);
+        auto dx = [&](const ResultPoint& p) { return p.x() - at.x(); };
+        auto dy = [&](const ResultPoint& p) { return p.y() - at.y(); };
+        auto half = [&](const ResultPoint& p) {
+            const Number y = dy(p);
+            if (y > Number(0)) return 0;
+            if (y < Number(0)) return 1;
+            return dx(p) >= Number(0) ? 0 : 1;
+        };
+        auto ccwBefore = [&](const ResultPoint& u, const ResultPoint& w) {
+            const int hu = half(u), hw = half(w);
+            if (hu != hw) {
+                return hu < hw;
+            }
+            return dx(u) * dy(w) - dy(u) * dx(w) > Number(0);
+        };
+        const ResultPoint* best = nullptr;
+        for (const auto& n : neighbors) {
+            if (n == from || !ccwBefore(n, from)) {
+                continue;
+            }
+            if (!best || ccwBefore(*best, n)) {
+                best = &n;
+            }
         }
-        std::vector<ResultPoint> cycle{start};
-        visited.insert(start);
-        ResultPoint previous = start;
-        ResultPoint current = neighbors[0];
-        while (current != start) {
-            cycle.push_back(current);
-            visited.insert(current);
-            const ResultPoint next = step(current, previous);
-            previous = current;
-            current = next;
+        if (!best) {
+            for (const auto& n : neighbors) {
+                if (n != from && (!best || ccwBefore(*best, n))) {
+                    best = &n;
+                }
+            }
         }
-        result.emplace_back(ResultPolygon(cycle));
+        return *best;
+    };
+
+    std::set<std::pair<ResultPoint, ResultPoint>> usedDart;
+    for (const auto& [u, neighbors] : adjacency) {
+        for (const auto& v : neighbors) {
+            if (usedDart.count({u, v})) {
+                continue;
+            }
+            std::vector<ResultPoint> cycle;
+            ResultPoint a = u;
+            ResultPoint b = v;
+            do {
+                usedDart.insert({a, b});
+                cycle.push_back(a);
+                const ResultPoint c = rotationalNext(b, a);
+                a = b;
+                b = c;
+            } while (a != u || b != v);
+
+            Number twiceArea(0);
+            for (std::size_t i = 0; i < cycle.size(); ++i) {
+                const ResultPoint& p = cycle[i];
+                const ResultPoint& q = cycle[(i + 1) % cycle.size()];
+                twiceArea += p.x() * q.y() - q.x() * p.y();
+            }
+            if (twiceArea > Number(0)) {
+                result.emplace_back(ResultPolygon(cycle));
+            }
+        }
     }
 
     return result;

@@ -133,3 +133,44 @@ TEST_CASE("Polygon interiorsIntersect: shared boundary segment is not an interio
     CHECK(shifted.interiorsIntersect(ell));
     CHECK(ell.interiorsIntersect(shifted));
 }
+
+// The boundary reassembly must handle graph nodes of degree > 2, which arise
+// where the intersection pinches (two pieces meeting at a point) or where the
+// two polygons share collinear boundary. These used to trip an assertion.
+TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+
+    auto polygons = [](const auto& pieces) {
+        std::vector<Polygon> out;
+        for (const auto& v : pieces)
+            if (std::holds_alternative<Polygon>(v)) out.push_back(std::get<Polygon>(v));
+        return out;
+    };
+    auto twiceArea = [](const std::vector<Polygon>& ps) {
+        int a = 0;
+        for (const auto& p : ps) a += p.twiceArea();
+        return a;
+    };
+
+    SUBCASE("bowtie pinch splits into two triangles (degree-4 node)") {
+        // Square notched from the right and the left; the notch apexes meet at
+        // (2,2), so the intersection is two triangles touching at that point.
+        const Polygon a({0, 0, 4, 0, 2, 2, 4, 4, 0, 4});
+        const Polygon b({0, 0, 2, 2, 0, 4, 4, 4, 4, 0});
+        const auto ps = polygons(a.intersection(b));
+        CHECK(ps.size() == 2);
+        for (const auto& p : ps) CHECK(p.size() == 3);     // two triangles
+        CHECK(twiceArea(ps) == 16);                        // area 4 each
+    }
+
+    SUBCASE("shared collinear boundary yields one polygon (degree-3 node)") {
+        // 1x5 bar vs an L whose right edge overlaps the bar's right edge; the
+        // true intersection is the simple rectangle [0,1] x [0,4].
+        const Polygon bar({0, 0, 1, 0, 1, 5, 0, 5});
+        const Polygon ell({0, 0, 2, 0, 2, 1, 1, 1, 1, 4, 0, 4});
+        const auto ps = polygons(bar.intersection(ell));
+        CHECK(ps.size() == 1);
+        CHECK(twiceArea(ps) == 8);                         // area 4
+    }
+}

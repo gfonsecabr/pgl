@@ -232,3 +232,45 @@ TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
         CHECK(totalTwiceArea == 60);  // two 3 x 5 rectangles
     }
 }
+
+// Polygon::intersection(Halfplane) reassembles boundary pieces through the same
+// planar-graph walk as the polygon/polygon case, so it must likewise handle
+// degree > 2 nodes (a pinch, or boundary shared with the half-plane's line).
+TEST_CASE("Polygon intersects Halfplane through degree>2 boundary nodes") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Halfplane upper(Point{0, 0}, Point{1, 0});  // interior y >= 0
+
+    auto polygons = [](const auto& pieces) {
+        std::vector<Polygon> out;
+        for (const auto& v : pieces)
+            if (std::holds_alternative<Polygon>(v)) out.push_back(std::get<Polygon>(v));
+        return out;
+    };
+    auto twiceArea = [](const std::vector<Polygon>& ps) {
+        int a = 0;
+        for (const auto& p : ps) a += p.twiceArea();
+        return a;
+    };
+
+    SUBCASE("a downward notch touching the boundary splits into two triangles") {
+        // The top edge dips to (0,0) on the boundary line, so the part above the
+        // line is two triangles meeting at (0,0) (a degree-4 pinch).
+        const Polygon p({-2, 2, 0, 0, 2, 2, 2, -1, -2, -1});
+        const auto ps = polygons(p.intersection(upper));
+        CHECK(ps.size() == 2);
+        for (const auto& piece : ps) CHECK(piece.size() == 3);
+        CHECK(twiceArea(ps) == 8);                          // area 2 each
+    }
+
+    SUBCASE("an edge lying on the boundary line gives one polygon") {
+        // The square's bottom edge is collinear with the half-plane boundary, so
+        // that boundary is shared (degree-3 overlap); the result is the square.
+        const Polygon square({0, 0, 4, 0, 4, 4, 0, 4});
+        const auto ps = polygons(square.intersection(upper));
+        CHECK(ps.size() == 1);
+        CHECK(twiceArea(ps) == 32);                         // area 16
+    }
+}

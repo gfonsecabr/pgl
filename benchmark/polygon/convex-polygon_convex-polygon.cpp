@@ -1,6 +1,5 @@
 // g++ -Ofast -Iinclude -std=c++23 benchmark/convex/convex_convex.cpp
-// @desc: Convex hulls of 100 random points in a radius-70 disk around a random
-//        center (x,y in [-500,500]); degenerate hulls discarded.
+// @desc: Same as convex_convex but stored as Polygon
 #include <random>
 #include <vector>
 #include <iostream>
@@ -133,25 +132,16 @@ int main() {
     }
 
 
-    // if (pgl_benchmark::numberEnabled("rational")) {
-    //     std::cout << "intersection\tRational i64\t";
-    //     run<pgl::Point<pgl::Rational<>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<>>>& t){return s.intersection(t);});
-    // }
 
-    // if (pgl_benchmark::numberEnabled("rational60")) {
-    //     std::cout << "intersection\tRational/60\t";
-    //     run<pgl::Point<pgl::Rational<>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<>>>& t){return s.intersection(t);}, 60);
-    // }
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "intersection\tRational BigInt\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersection(t).size() != 0;});
+    }
 
-    // if (pgl_benchmark::numberEnabled("rationalbigint")) {
-    //     std::cout << "intersection\tRational BigInt\t";
-    //     run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersection(t);});
-    // }
-
-    // if (pgl_benchmark::numberEnabled("rationalbigint60")) {
-    //     std::cout << "intersection\tRational BigInt/60\t";
-    //     run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersection(t);}, 60);
-    // }
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "intersection\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersection(t).size() != 0;}, 60);
+    }
 
 
     // if (pgl_benchmark::numberEnabled("int")) {
