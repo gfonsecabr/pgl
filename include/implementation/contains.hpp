@@ -1313,6 +1313,9 @@ constexpr bool Polygon<PointType>::contains(const Polygon<OtherPoint>& other) co
     if (other.size() == 0) {
         return true;
     }
+    if (!bbox().contains(other.bbox())) {
+        return false;
+    }
     if (other.size() == 1) {
         return contains(other[0]);
     }

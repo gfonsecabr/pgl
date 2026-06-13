@@ -1077,6 +1077,13 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Rectangle<OtherPoint
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
+    if (!bbox().interiorsIntersect(other.bbox())) {
+        return false;
+    }    
+    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
+        return true;
+    }
+
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
             return true;

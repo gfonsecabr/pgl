@@ -1061,6 +1061,16 @@ constexpr bool Polygon<PointType>::intersects(const Convex<OtherPoint>& other) c
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Polygon<PointType>::intersects(const Polygon<OtherPoint>& other) const {
+    if (size() == 0 || other.size() == 0) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
+        return true;
+    }
+
     for (const auto& vertex : other.vertices()) {
         if (contains(vertex)) {
             return true;
