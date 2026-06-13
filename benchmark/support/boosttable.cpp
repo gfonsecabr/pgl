@@ -14,17 +14,22 @@
 #define PGL_DISABLE_PROMOTION
 #include "pgl.hpp"
 #include "plf_nanotimer.h"
-
+#include "filter.hpp"
 
 template<class Point>
 std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
     std::mt19937 rgen(1);
     std::vector<pgl::Segment<Point>> ret;
-    static std::uniform_int_distribution<int> dist(-500,500);
     using Number =  std::remove_reference_t<decltype(Point().x())>;
 
+    auto random = [&rgen, den]() {
+        std::uniform_int_distribution<int> dist(-500,500);
+        pgl::Rational<int> r(dist(rgen),den); // To force simpleification
+        return (Number) r.numerator() /  (Number) r.denominator();
+    };
+
     for(size_t i = 0; i < n; i++) {
-        ret.emplace_back(pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den),pgl_benchmark::normalized((Number)dist(rgen)/den));
+        ret.emplace_back(random(),random(),random(),random());
     }
     return ret;
 }

@@ -6,6 +6,7 @@
 // #define PGL_DISABLE_PROMOTION
 #include "pgl.hpp"
 #include "plf_nanotimer.h"
+#include "filter.hpp"
 
 
 template<class Point>
