@@ -289,4 +289,41 @@ std::vector<Polygon<Point<T>>> polyominoes(std::size_t size) {
     return result;
 }
 
+/**
+ * @brief Enumerates the free polyominoes of every size in `[n1, n2]`.
+ *
+ * Concatenates @ref polyominoes for each size from @p n1 to @p n2 inclusive,
+ * smallest first. An empty range (`n1 > n2`) yields no polyominoes.
+ *
+ * @tparam T Coordinate type of the returned points (defaults to `int`).
+ * @param n1 Smallest size to include.
+ * @param n2 Largest size to include.
+ * @return The hole-free free polyominoes of every size in the range.
+ */
+template <class T = int>
+std::vector<Polygon<Point<T>>> polyominoes(std::size_t n1, std::size_t n2) {
+    std::vector<Polygon<Point<T>>> result;
+    for (std::size_t size = n1; size <= n2; ++size) {
+        std::vector<Polygon<Point<T>>> sized = polyominoes<T>(size);
+        result.insert(result.end(), std::make_move_iterator(sized.begin()),
+                      std::make_move_iterator(sized.end()));
+    }
+    return result;
+}
+
+/**
+ * @brief Enumerates the free polyominoes of every size from `1` to @p n.
+ *
+ * Convenience for @ref polyominoes(std::size_t, std::size_t) with a lower bound
+ * of one, smallest first.
+ *
+ * @tparam T Coordinate type of the returned points (defaults to `int`).
+ * @param n Largest size to include.
+ * @return The hole-free free polyominoes of every size up to @p n.
+ */
+template <class T = int>
+std::vector<Polygon<Point<T>>> polyominoesUpTo(std::size_t n) {
+    return polyominoes<T>(1, n);
+}
+
 }  // namespace pgl

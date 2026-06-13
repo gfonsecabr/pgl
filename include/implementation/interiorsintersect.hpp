@@ -1155,12 +1155,8 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Polygon<OtherPoint>&
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    // Exact coincidence shares the whole interior but exposes no strictly-inside
-    // vertex or crossing edge, so test it directly (only when comparable).
-    if constexpr (std::same_as<OtherPoint, PointType>) {
-        if (*this == other) {
-            return true;
-        }
+    if (*this == other) {
+        return true;
     }
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
@@ -1177,6 +1173,16 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Polygon<OtherPoint>&
             if (edge.crosses(otherEdge)) {
                 return true;
             }
+        }
+    }
+    for (const auto& edge : edges()) {
+        if (edge.separates(other)) {
+            return true;
+        }
+    }
+    for (const auto& edge : other.edges()) {
+        if (edge.separates(*this)) {
+            return true;
         }
     }
     return false;
