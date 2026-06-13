@@ -174,34 +174,33 @@ To give an idea of the cost of using different number types, we show a benchmark
 
 | Type                | promotion <br/> integer | no promotion <br/> integer | no promotion <br/> integer / 60 |
 | ------------------- | ----------------------: | -------------------------: | ------------------------------: |
-| `int16_t`           |                    4.58 |                       4.62 |                                 |
-| `int32_t`           |                    4.56 |                       4.38 |                                 |
-| `int64_t`           |                    7.07 |                       4.40 |                                 |
-| `int128`            |                   48.64 |                       7.97 |                                 |
-| `pgl::BigInt`       |                         |                      53.69 |                                 |
-| `float`             |                    6.30 |                       5.57 |                                 |
-| `double`            |                   10.55 |                       5.61 |                                 |
-| `long double`       |                         |                      14.08 |                                 |
-| `Rational<int32_t>` |                         |                      34.68 |                          104.05 |
-| `Rational<int64_t>` |                         |                      27.07 |                           38.90 |
-| `Rational<int128>`  |                         |                      46.24 |                           65.64 |
-| `Rational<BigInt>`  |                         |                     204.21 |                          204.34 |
+| `int16_t`           |                    4.63 |                       4.62 |                                 |
+| `int32_t`           |                    4.59 |                       4.39 |                                 |
+| `int64_t`           |                    7.14 |                       4.40 |                                 |
+| `int128`            |                   48.74 |                       7.99 |                                 |
+| `pgl::BigInt`       |                         |                      34.47 |                                 |
+| `float`             |                    6.29 |                       5.76 |                                 |
+| `double`            |                   10.33 |                       5.81 |                                 |
+| `long double`       |                         |                      12.61 |                                 |
+| `Rational<int32_t>` |                         |                      36.82 |                           83.62 |
+| `Rational<int64_t>` |                         |                      29.64 |                           30.39 |
+| `Rational<int128>`  |                         |                      49.24 |                           53.76 |
+| `Rational<BigInt>`  |                         |                     185.28 |                          187.05 |
 
 ### Boost Number Types
 
 Boost number types work well with pgl, but are slower in our tests.
-We perform tests on the time of the `pgl::Segment::cross` predicate using boost types, including boost GMP wrappers (native GMP wrappers cannot be used because pgl uses `auto` types). All tests are performed without promotion in the same setting as the previous benchmarks:
+We perform tests on the time of the `Segment::crosses` predicate using boost types, including boost GMP wrappers (native GMP wrappers cannot be used because pgl uses `auto` types). All tests are performed without promotion in the same setting as the previous benchmarks:
 
 | Type                              | integer | integer / 60 |
 | --------------------------------- | ------: | -----------: |
-| `int128`                          |    8.01 |              |
-| `boost::multiprecision::int128_t` |   20.65 |              |
-| `pgl::BigInt`                     |   52.14 |              |
-| `boost::cpp_int`                  |  189.02 |              |
-| `GMP mpz_int`                     |  350.55 |              |
-| `pgl::Rational<int64_t>`          |   27.83 |        39.41 |
-| `boost::rational<int64_t>`        |  108.96 |       224.06 |
-| `pgl::Rational<pgl::BigInt>`      |  207.14 |       209.50 |
-| `boost::rational<boost::cpp_int>` | 1864.56 |      1978.69 |
-| `GMP mpq_rational`                | 1251.52 |      1692.22 |
-
+| `int128`                          |    8.09 |              |
+| `boost::multiprecision::int128_t` |   20.34 |              |
+| `pgl::BigInt`                     |   51.04 |              |
+| `boost::cpp_int`                  |  188.71 |              |
+| `GMP mpz_int`                     |  338.66 |              |
+| `pgl::Rational<int64_t>`          |   29.56 |        36.04 |
+| `boost::rational<int64_t>`        |  105.75 |       225.51 |
+| `pgl::Rational<pgl::BigInt>`      |  205.57 |       214.43 |
+| `boost::rational<boost::cpp_int>` | 1818.49 |      1931.34 |
+| `GMP mpq_rational`                | 1146.64 |      1569.48 |
