@@ -266,6 +266,22 @@ struct Polygon {
     }
 
     /**
+     * @brief Tests whether the polygon is simple (its boundary does not
+     *        touch or cross itself).
+     *
+     * Uses a brute-force pairwise edge test in O(n^2) for few vertices (n <= 8)
+     * or floating-point coordinates, and the Bentley-Ottmann sweep (O(n log n))
+     * for larger exact (integer or rational) polygons. A polygon with fewer than
+     * three vertices, or a zero-length edge (a repeated consecutive vertex), is
+     * not simple.
+     *
+     * @tparam Rational Exact rational type used by the sweep for large polygons.
+     * @return `true` if no two edges meet except adjacent edges at their shared vertex.
+     */
+    template <class Rational = pgl::Rational<pgl::BigInt>>
+    [[nodiscard]] bool isSimple() const;
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The farthest pair of vertices of a simple polygon lies on its convex

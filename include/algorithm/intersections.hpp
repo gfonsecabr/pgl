@@ -527,8 +527,8 @@ public:
         return false;
     }
 
-    // Tests if every vertex appears in exactly 2 segments
-    // and has no intersection elsewhere
+    // Tests whether the segments form a simple polygon: every vertex appears in
+    // exactly 2 segments, and the only intersections are those shared vertices.
     bool testPolygon(const std::vector<Segment> &segments) {
         std::map<Point,size_t> adjacent;
         for (const Segment &s : segments) {
@@ -541,11 +541,27 @@ public:
             }
         }
 
+        // Collect every intersecting pair. The sweep reports the shared vertices
+        // of consecutive edges too, so allow exactly those: a pair sharing one
+        // endpoint and meeting nowhere else. A proper crossing, a collinear
+        // overlap, or a touch away from a shared endpoint means not simple.
         onlyCrossings = false;
-        detectOnly = true;
+        detectOnly = false;
         run(segments);
 
-        return crossingsSet.empty() && intersectionSet.empty();
+        if (!crossingsSet.empty()) {
+            return false;
+        }
+        for (const auto &pair : intersectionSet) {
+            const Segment &a = pair[0];
+            const Segment &b = pair[1];
+            const int shared = (a.min() == b.min()) + (a.min() == b.max())
+                             + (a.max() == b.min()) + (a.max() == b.max());
+            if (shared != 1 || a.interiorsIntersect(b)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // Tests if every vertex appears in exactly 2 segments
@@ -590,6 +606,7 @@ namespace pgl {
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return Vector of intersecting segment pairs.
+ * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findIntersections(const Container &segments) {
@@ -610,6 +627,7 @@ auto findIntersections(const Container &segments) {
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return Vector of crossing segment pairs.
+ * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findCrossings(const Container &segments) {
@@ -630,6 +648,7 @@ auto findCrossings(const Container &segments) {
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return `true` if at least one intersecting pair exists.
+ * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectIntersections(const Container &segments) {
@@ -649,6 +668,7 @@ bool detectIntersections(const Container &segments) {
  * @tparam Container Container of segment-like values.
  * @param segments Input segment container.
  * @return `true` if at least one crossing pair exists.
+ * @warning Needs rational numbers, preferably with unbonded size
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectCrossings(const Container &segments) {
@@ -722,6 +742,49 @@ auto bruteForceIntersections(const Container &segments) {
     }
 
     return ret;
+}
+
+template <class PointType_>
+template <class Rational>
+bool Polygon<PointType_>::isSimple() const {
+    using Number = typename PointType::NumberType;
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    if (n < 3) {
+        return false;
+    }
+
+    std::vector<pgl::Segment<PointType>> edges;
+    edges.reserve(static_cast<std::size_t>(n));
+    for (std::ptrdiff_t i = 0; i < n; ++i) {
+        pgl::Segment<PointType> edge(get(i), get(i + 1));
+        if (edge.isDegenerate()) {
+            return false;  // zero-length edge / repeated vertex
+        }
+        edges.push_back(edge);
+    }
+
+    // Exact sweep for large integer/rational polygons; brute force for small ones
+    // or floating-point coordinates (which the exact sweep cannot handle).
+    if constexpr (!std::is_floating_point_v<Number>) {
+        if (n > 8) {
+            pgl::detail::BentleyOttmann<Rational, PointType> bo;
+            return bo.testPolygon(edges);
+        }
+    }
+
+    for (std::ptrdiff_t i = 0; i < n; ++i) {
+        for (std::ptrdiff_t j = i + 1; j < n; ++j) {
+            const bool adjacent = (j == i + 1) || (i == 0 && j == n - 1);
+            if (adjacent) {
+                if (edges[i].interiorsIntersect(edges[j])) {
+                    return false;  // consecutive edges overlap beyond the shared vertex
+                }
+            } else if (edges[i].intersects(edges[j])) {
+                return false;  // non-adjacent edges must be disjoint
+            }
+        }
+    }
+    return true;
 }
 
 } // namespace pgl

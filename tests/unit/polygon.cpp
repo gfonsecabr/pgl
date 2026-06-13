@@ -174,3 +174,35 @@ TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
         CHECK(twiceArea(ps) == 8);                         // area 4
     }
 }
+
+// Polygon::isSimple(): small/floating-point polygons take the O(n^2) pairwise
+// path; larger exact ones take the Bentley-Ottmann sweep. Both must agree, and
+// degenerate inputs are not simple.
+TEST_CASE("Polygon::isSimple recognizes simple and non-simple polygons") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+
+    SUBCASE("small simple polygons (brute-force path)") {
+        CHECK(Polygon({0, 0, 4, 0, 4, 4, 0, 4}).isSimple());          // square
+        CHECK(Polygon({0, 0, 4, 0, 2, 3}).isSimple());                // triangle
+        CHECK(Polygon({0, 0, 4, 0, 2, 2, 4, 4, 0, 4}).isSimple());    // non-convex
+        CHECK(Polygon({0, 0, 2, 0, 4, 0, 4, 4, 0, 4}).isSimple());    // flat collinear vertex
+    }
+
+    SUBCASE("small non-simple polygons") {
+        CHECK_FALSE(Polygon({0, 0, 4, 4, 4, 0, 0, 4}).isSimple());    // self-crossing quad
+        CHECK_FALSE(Polygon({0, 0, 2, 0, 4, 0}).isSimple());          // collinear (degenerate)
+    }
+
+    SUBCASE("large polygons take the Bentley-Ottmann path and still agree") {
+        // A simple 10-vertex staircase outline (> 8 vertices => sweep).
+        const Polygon simple10({0, 0, 1, 0, 1, 1, 3, 1, 3, 2, 2, 2, 2, 3, 1, 3, 1, 2, 0, 2});
+        REQUIRE(simple10.size() == 10);
+        CHECK(simple10.isSimple());
+
+        // A 10-vertex polygon whose edges cross.
+        const Polygon bad10({0, 0, 6, 6, 0, 6, 6, 0, 3, 8, 1, 1, 5, 1, 2, 7, 4, 7, 3, -2});
+        REQUIRE(bad10.size() == 10);
+        CHECK_FALSE(bad10.isSimple());
+    }
+}
