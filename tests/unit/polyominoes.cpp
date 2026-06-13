@@ -48,6 +48,32 @@ TEST_CASE("results are distinct and honor the coordinate type") {
     CHECK(wide.size() == 2);
 }
 
+TEST_CASE("range and up-to overloads concatenate per-size results") {
+    // [n1, n2] is the sum of the individual sizes.
+    CHECK(pgl::polyominoes(4, 6).size() == 5 + 12 + 35);
+    CHECK(pgl::polyominoes(1, 4).size() == 1 + 1 + 2 + 5);
+    CHECK(pgl::polyominoes(5, 5).size() == 12);
+
+    // Empty / degenerate ranges.
+    CHECK(pgl::polyominoes(6, 4).size() == 0);
+    CHECK(pgl::polyominoes(0, 0).size() == 0);
+
+    // Up-to n is the same as the range [1, n].
+    CHECK(pgl::polyominoesUpTo(5).size() == 1 + 1 + 2 + 5 + 12);
+    CHECK(pgl::polyominoesUpTo(5).size() == pgl::polyominoes(1, 5).size());
+
+    // Smallest first: the first entry is the single monomino (one cell).
+    const auto upTo = pgl::polyominoesUpTo(4);
+    REQUIRE(!upTo.empty());
+    CHECK(upTo.front().area() == 1);
+
+    // The template argument carries through the overloads.
+    auto wide = pgl::polyominoes<std::int64_t>(2, 3);
+    static_assert(
+        std::is_same_v<decltype(wide), std::vector<pgl::Polygon<pgl::Point<std::int64_t>>>>);
+    CHECK(wide.size() == 1 + 2);
+}
+
 TEST_CASE("the single domino is a 1x2 rectangle outline") {
     const auto dominoes = pgl::polyominoes(2);
     REQUIRE(dominoes.size() == 1);

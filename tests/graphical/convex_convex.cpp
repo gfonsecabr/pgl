@@ -73,14 +73,11 @@ void run(Function f, const std::string& name) {
 }
 
 int main() {
-    for (size_t i=0; i<20; i++) {
-        run([](Convex convex, Convex other) { return convex.crosses(other); }, "crosses");
-        run([](Convex convex, Convex other) { return convex.intersects(other); }, "intersects");
-        run([](Convex convex, Convex other) { return convex.interiorsIntersect(other); }, "interiorsintersect");
-        run([](Convex convex, Convex other) { return other.separates(convex) || convex.separates(other); }, "separates");
-        run([](Convex convex, Convex other) { return convex.intersection<pgl::Rational<>>(other).has_value(); }, "intersection");
-        //std::cout << "it" << i << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
+    run([](Convex convex, Convex other) { return convex.crosses(other); }, "crosses");
+    run([](Convex convex, Convex other) { return convex.intersects(other); }, "intersects");
+    run([](Convex convex, Convex other) { return convex.interiorsIntersect(other); }, "interiorsintersect");
+    run([](Convex convex, Convex other) { return other.separates(convex) || convex.separates(other); }, "separates");
+    run([](Convex convex, Convex other) { return convex.intersection<pgl::Rational<>>(other).has_value(); }, "intersection");
+    
     return 0;
 }
