@@ -24,7 +24,7 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n, int den) {
 
     auto random = [&rgen, den]() {
         std::uniform_int_distribution<int> dist(-500,500);
-        pgl::Rational<int> r(dist(rgen),den); // To force simpleification
+        pgl::Rational<int> r(dist(rgen),den); // To force simplification
         return (Number) r.numerator() /  (Number) r.denominator();
     };
 

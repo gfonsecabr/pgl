@@ -98,6 +98,31 @@ struct is_std_variant : std::false_type {};
 template <class... Ts>
 struct is_std_variant<std::variant<Ts...>> : std::true_type {};
 
+// True iff T is a std::variant whose every alternative is a supported shape for
+// PointType. Gates the variant-unwrapping Shape constructor so a variant that
+// could hold a non-shape is rejected at compile time.
+template <class PointType, class T>
+struct is_shape_variant : std::false_type {};
+
+template <class PointType, class... Ts>
+struct is_shape_variant<PointType, std::variant<Ts...>>
+    : std::bool_constant<(is_shape_alternative_v<PointType, Ts> && ...)> {};
+
+template <class PointType, class T>
+inline constexpr bool is_shape_variant_v = is_shape_variant<PointType, std::remove_cvref_t<T>>::value;
+
+// True iff T is a std::optional wrapping such a shape variant.
+template <class PointType, class T>
+struct is_shape_optional_variant : std::false_type {};
+
+template <class PointType, class V>
+struct is_shape_optional_variant<PointType, std::optional<V>>
+    : std::bool_constant<is_shape_variant_v<PointType, V>> {};
+
+template <class PointType, class T>
+inline constexpr bool is_shape_optional_variant_v =
+    is_shape_optional_variant<PointType, std::remove_cvref_t<T>>::value;
+
 }  // namespace detail
 
 /**
@@ -148,6 +173,32 @@ struct Shape {
         requires(detail::ShapeAlternative<PointType, T>)
     constexpr Shape(T&& value)
         : value_(std::forward<T>(value)) {}
+
+    /**
+     * @brief Constructs a shape from a variant over supported alternatives.
+     *
+     * Accepts a `std::variant` whose alternatives are all supported shape types,
+     * or such a variant wrapped in a `std::optional`. The active alternative is
+     * forwarded to the single-alternative constructor; a valueless `std::optional`
+     * yields the empty shape. The variant's alternatives are checked at compile
+     * time, so a variant that could hold a non-shape is rejected.
+     *
+     * @tparam Result `std::variant` of alternatives, or `std::optional` thereof.
+     * @param result Variant (optionally absent) to unwrap.
+     */
+    template <class Result>
+        requires(detail::is_shape_variant_v<PointType, Result> ||
+                 detail::is_shape_optional_variant_v<PointType, Result>)
+    constexpr Shape(const Result& result) {
+        if constexpr (detail::is_shape_optional_variant_v<PointType, Result>) {
+            if (result) {
+                *this = Shape(*result);
+            }
+        } else {
+            std::visit(
+                [this](const auto& alternative) { *this = Shape(alternative); }, result);
+        }
+    }
 
     /**
      * @brief Replaces the stored alternative.
@@ -590,42 +641,24 @@ struct Shape {
         }
     }
 
-    // Unwrap a concrete intersection result (optional<T> or vector<T>) into a
-    // Shape. An absent/empty result is the empty shape; a disconnected result
-    // (more than one component) cannot be a single Shape and throws.
+    // Unwrap a concrete intersection result (optional<T> or vector<T>, where T is
+    // a single alternative or a variant over alternatives) into a Shape. An
+    // absent/empty result is the empty shape; a disconnected result (more than
+    // one component) cannot be a single Shape and throws. The actual wrapping of
+    // a value or variant is handled by the Shape constructors.
     template <class ResultNumber, class Result>
     static constexpr Shape<Point<ResultNumber, LabelType>> resultToShape(const Result& result) {
+        using ResultShape = Shape<Point<ResultNumber, LabelType>>;
         if constexpr (detail::is_std_optional<Result>::value) {
-            if (!result) {
-                return Shape<Point<ResultNumber, LabelType>>{EmptyShape<Point<ResultNumber, LabelType>>{}};
-            }
-            return wrapResult<ResultNumber>(*result);
+            return result ? ResultShape(*result) : ResultShape{};
         } else if constexpr (detail::is_std_vector<Result>::value) {
-            if (result.empty()) {
-                return Shape<Point<ResultNumber, LabelType>>{EmptyShape<Point<ResultNumber, LabelType>>{}};
-            }
             if (result.size() > 1) {
                 throw std::logic_error(
                     "Shape::intersection: disconnected result cannot be a single Shape");
             }
-            return wrapResult<ResultNumber>(result.front());
+            return result.empty() ? ResultShape{} : ResultShape(result.front());
         } else {
-            return wrapResult<ResultNumber>(result);
-        }
-    }
-
-    // Wrap a concrete value, or the active member of a result variant, into a
-    // Shape over the result point type, throwing when the value's type is not
-    // one of that Shape's alternatives (for example a Polyline).
-    template <class ResultNumber, class Value>
-    static constexpr Shape<Point<ResultNumber, LabelType>> wrapResult(const Value& value) {
-        using ResultPoint = Point<ResultNumber, LabelType>;
-        if constexpr (detail::is_std_variant<Value>::value) {
-            return std::visit([](const auto& alt) { return wrapResult<ResultNumber>(alt); }, value);
-        } else if constexpr (detail::ShapeAlternative<ResultPoint, Value>) {
-            return Shape<ResultPoint>{value};
-        } else {
-            throw std::logic_error("Shape::intersection: result is not representable as a Shape");
+            return ResultShape(result);
         }
     }
 
