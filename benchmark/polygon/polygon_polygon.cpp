@@ -128,10 +128,10 @@ int main() {
         run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersects(t);});
     }
 
-    // if (pgl_benchmark::numberEnabled("rationalbigint60")) {
-    //     std::cout << "intersects\tRational BigInt/60\t";
-    //     run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersects(t);}, 60);
-    // }
+    if (pgl_benchmark::numberEnabled("rationalbigint60")) {
+        std::cout << "intersects\tRational BigInt/60\t";
+        run<pgl::Point<pgl::Rational<pgl::BigInt>>>([](const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& s, const pgl::Polygon<pgl::Point<pgl::Rational<pgl::BigInt>>>& t){return s.intersects(t);}, 60);
+    }
 
 
     if (pgl_benchmark::numberEnabled("rational")) {
