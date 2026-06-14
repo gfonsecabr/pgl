@@ -460,64 +460,64 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool contains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the closed polygon contains the given oriented segment.
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool contains(const OtherOrientedSegment& other) const;
 
     /**
      * @brief A bounded polygon contains a line only if the line is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool contains(const OtherLine& other) const;
 
     /**
      * @brief A bounded polygon contains an oriented line only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool contains(const OtherOrientedLine& other) const;
 
     /**
      * @brief A bounded polygon contains a ray only if the ray is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool contains(const OtherRay& other) const;
 
     /**
      * @brief A bounded polygon contains a half-plane only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool contains(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if the polygon contains the given rectangle.
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool contains(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the polygon contains the given triangle.
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool contains(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the polygon contains the given convex polygon.
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool contains(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the polygon contains the given polygon.
@@ -527,8 +527,8 @@ struct Polygon {
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool contains(const OtherPolygon& other) const;
 
     /**
      * @brief Checks if the polygon contains the wrapped shape.
@@ -570,64 +570,64 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given oriented segment.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
     /**
      * @brief A bounded polygon's interior contains a line only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool interiorContains(const OtherLine& other) const;
 
     /**
      * @brief A bounded polygon's interior contains an oriented line only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool interiorContains(const OtherOrientedLine& other) const;
 
     /**
      * @brief A bounded polygon's interior contains a ray only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool interiorContains(const OtherRay& other) const;
 
     /**
      * @brief A bounded polygon's interior contains a half-plane only if it is degenerate.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool interiorContains(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given rectangle.
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given triangle.
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given convex polygon.
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool interiorContains(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the open interior of the polygon contains the given polygon.
@@ -637,8 +637,8 @@ struct Polygon {
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool interiorContains(const OtherPolygon& other) const;
 
     /**
      * @brief Checks if the boundary of the polygon contains the given point.
@@ -656,62 +656,62 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool boundaryContains(const OtherSegment& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
     /** @brief Degenerate lines are on the boundary iff their unique point is. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool boundaryContains(const OtherLine& other) const;
 
     /** @brief Degenerate oriented lines are on the boundary iff their unique point is. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
     /** @brief Degenerate rays are on the boundary iff their source point is. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool boundaryContains(const OtherRay& other) const;
 
     /** @brief Degenerate half-planes are on the boundary iff their source point is. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if every rectangle edge lies on the polygon boundary.
      *
      * Complexity: O(n) per edge for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool boundaryContains(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if every triangle edge lies on the polygon boundary.
      *
      * Complexity: O(n) per edge for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool boundaryContains(const OtherTriangle& other) const;
 
     /**
      * @brief A convex polygon lies on the boundary only if it has at most two vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool boundaryContains(const OtherConvex& other) const;
 
     /**
      * @brief A polygon lies on the boundary only if it has at most two vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool boundaryContains(const OtherPolygon& other) const;
 
     /**
      * @brief A disk lies on the boundary only if it is a single point on the boundary.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool boundaryContains(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the polygon boundary contains the wrapped shape.
@@ -720,29 +720,29 @@ struct Polygon {
     constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
 
     /**
@@ -758,84 +758,84 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool intersects(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given oriented segment.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given line.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool intersects(const OtherLine& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given oriented line.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool intersects(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given ray.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool intersects(const OtherRay& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given half-plane.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool intersects(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given rectangle.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool intersects(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given triangle.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool intersects(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given convex polygon.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool intersects(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the polygon intersects the given polygon.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool intersects(const OtherPolygon& other) const;
 
     /** @brief Not yet supported; throws (Polygon cannot yet `intersects` a disk). */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool intersects(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool intersects(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the polygon interior strictly contains the given point.
@@ -850,84 +850,84 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool interiorsIntersect(const OtherLine& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given oriented line.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given segment.
      *
      * Complexity: O(n^2) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given oriented segment.
      *
      * Complexity: O(n^2) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given ray.
      *
      * Complexity: O(n^2) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool interiorsIntersect(const OtherRay& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given half-plane.
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given rectangle interior.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool interiorsIntersect(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given triangle interior.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool interiorsIntersect(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given convex polygon interior.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool interiorsIntersect(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the polygon interior meets the given polygon interior.
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool interiorsIntersect(const OtherPolygon& other) const;
 
     /** @brief Not yet supported; throws (Polygon cannot yet `interiorsIntersect` a disk). */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool interiorsIntersect(const OtherDisk& other) const;
 
     /**
      * @brief Checks if removing the polygon disconnects the given segment.
@@ -938,12 +938,12 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool separates(const OtherSegment& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool separates(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if removing the polygon disconnects the given ray.
@@ -954,67 +954,67 @@ struct Polygon {
      *
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool separates(const OtherRay& other) const;
 
     /**
      * @brief Checks if removing the polygon disconnects the given line.
      * Complexity: O(n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool separates(const OtherLine& other) const;
 
     /** @brief Same as the line overload, ignoring orientation. */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool separates(const OtherOrientedLine& other) const;
 
     /** @brief A polygon never crosses a point. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint&) const;
 
     /** @brief Tests whether the polygon and segment mutually separate each other. */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
     /** @brief Same as the segment overload, ignoring orientation. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
 
     /** @brief Tests whether the polygon and ray mutually separate each other. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
 
     /** @brief Tests whether the polygon and line mutually separate each other. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
 
     /** @brief Same as the line overload, ignoring orientation. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
 
     /** @brief A polygon never crosses a half-plane in this API. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Halfplane<OtherPoint>&) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool crosses(const OtherHalfplane&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Rectangle<OtherPoint>&) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool crosses(const OtherRectangle&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Triangle<OtherPoint>&) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool crosses(const OtherTriangle&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Convex<OtherPoint>&) const;
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool crosses(const OtherConvex&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Disk<OtherPoint, OtherLabel>&) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool crosses(const OtherDisk&) const;
 
     /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Polygon<OtherPoint>&) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool crosses(const OtherPolygon&) const;
 
     /** @brief Dispatches crossing to the wrapped shape alternative. */
     template<PointConcept OtherPoint>
@@ -1075,9 +1075,9 @@ struct Polygon {
      * @param other The segment to intersect with.
      * @return The disjoint intersection pieces in order along the segment.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
+    intersection(const OtherSegment& other) const;
 
     /**
      * @brief Computes the intersection of the (closed) polygon with an oriented segment.
@@ -1086,9 +1086,9 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OrientedSegment<OtherPoint>& other) const;
+    intersection(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Computes the intersection of the (closed) polygon with a line.
@@ -1109,9 +1109,9 @@ struct Polygon {
      * @param other The line to intersect with.
      * @return The disjoint intersection pieces in order along the line.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Line<OtherPoint>& other) const;
+    intersection(const OtherLine& other) const;
 
     /**
      * @brief Computes the intersection of the (closed) polygon with an oriented line.
@@ -1120,9 +1120,9 @@ struct Polygon {
      *
      * Complexity: O(n log n) for n vertices.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OrientedLine<OtherPoint>& other) const;
+    intersection(const OtherOrientedLine& other) const;
 
     /**
      * @brief Computes the intersection of the (closed) polygon with a ray.
@@ -1143,9 +1143,9 @@ struct Polygon {
      * @param other The ray to intersect with.
      * @return The disjoint intersection pieces in order from the source outward.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Ray<OtherPoint>& other) const;
+    intersection(const OtherRay& other) const;
 
     /**
      * @brief Computes the intersection of two (closed) polygons.
@@ -1167,9 +1167,9 @@ struct Polygon {
      * @param other The other polygon to intersect with.
      * @return The intersection components: points, polylines, and polygons.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Polygon<OtherPoint>& other) const;
+    intersection(const OtherPolygon& other) const;
 
     /** @brief Intersecting with the empty set yields the empty set. */
     template <class ResultNumber = NumberType, class EmptyPoint>
@@ -1198,9 +1198,9 @@ struct Polygon {
      * @param other The half-plane to intersect with.
      * @return The intersection components: points, segments, and polygons.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Halfplane<OtherPoint>& other) const;
+    intersection(const OtherHalfplane& other) const;
 
     /**
      * @brief Returns the polygon rotated by 90k degrees around the origin.

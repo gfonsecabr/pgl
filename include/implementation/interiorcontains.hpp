@@ -34,56 +34,56 @@ constexpr bool Point<Number, Label>::interiorContains(const OtherSegment& other)
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Point<Number, Label>::interiorContains(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Point<Number, Label>::interiorContains(const OtherLine& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Point<Number, Label>::interiorContains(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Point<Number, Label>::interiorContains(const OtherRay& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Point<Number, Label>::interiorContains(const OtherHalfplane& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Point<Number, Label>::interiorContains(const OtherRectangle& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Point<Number, Label>::interiorContains(const OtherTriangle& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Point<Number, Label>::interiorContains(const OtherConvex& other) const {
     return contains(other);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::interiorContains(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Point<Number, Label>::interiorContains(const OtherPolygon& other) const {
     return contains(other);
 }
 
@@ -115,14 +115,14 @@ constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherSegmen
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
@@ -149,44 +149,44 @@ constexpr bool Triangle<PointType>::interiorContains(const OtherPoint& point) co
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Triangle<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Triangle<PointType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Triangle<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Triangle<PointType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Triangle<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Triangle<PointType>::interiorContains(const OtherRay& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Triangle<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Triangle<PointType>::interiorContains(const OtherRectangle& other) const {
     const auto vertices = other.vertices();
     for (const auto& vertex : vertices) {
         if (!interiorContains(vertex)) {
@@ -197,14 +197,14 @@ constexpr bool Triangle<PointType>::interiorContains(const Rectangle<OtherPoint>
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Triangle<PointType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Triangle<PointType>::interiorContains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -234,56 +234,56 @@ constexpr bool OrientedSegment<PointType>::interiorContains(const OtherPoint& po
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherRay& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherRectangle& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherConvex& other) const {
     // A convex with area (more than two vertices) cannot fit in a 1D interior.
     // Otherwise the segment is convex, so it interior-contains the convex iff it
     // interior-contains every vertex.
@@ -311,56 +311,56 @@ constexpr bool Line<PointType>::interiorContains(const OtherPoint& point) const 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Line<PointType>::interiorContains(const OtherLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Line<PointType>::interiorContains(const OtherSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Line<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Line<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Line<PointType>::interiorContains(const OtherRay& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Line<PointType>::interiorContains(const OtherHalfplane& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Line<PointType>::interiorContains(const OtherRectangle& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Line<PointType>::interiorContains(const OtherTriangle& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Line<PointType>::interiorContains(const OtherConvex& other) const {
     // A line has no boundary, so its interior is the whole line.
     return contains(other);
 }
@@ -378,56 +378,56 @@ constexpr bool OrientedLine<PointType>::interiorContains(const OtherPoint& point
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherRay& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherHalfplane& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherRectangle& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherTriangle& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherConvex& other) const {
     // A line has no boundary, so its interior is the whole line.
     return contains(other);
 }
@@ -445,58 +445,58 @@ constexpr bool Ray<PointType>::interiorContains(const OtherPoint& point) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Ray<PointType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Ray<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Ray<PointType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Ray<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Ray<PointType>::interiorContains(const OtherRay& other) const {
     return interiorContains(other.source()) && contains(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Ray<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Ray<PointType>::interiorContains(const OtherRectangle& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Ray<PointType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) &&
            interiorContains(other.b()) &&
            interiorContains(other.c());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Ray<PointType>::interiorContains(const OtherConvex& other) const {
     // A convex with area (more than two vertices) cannot fit in a 1D interior.
     // Otherwise the ray is convex, so it interior-contains the convex iff it
     // interior-contains every vertex.
@@ -525,56 +525,56 @@ constexpr bool Rectangle<PointType>::interiorContains(const OtherPoint& point) c
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Rectangle<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherRay& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherRectangle& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherConvex& other) const {
     // For an axis-aligned rectangle, containing the convex strictly is equivalent
     // to containing its (axis-aligned) bounding box strictly.
     return other.size() == 0 || interiorContains(other.bbox());
@@ -593,8 +593,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherPoint& point) c
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.min());
     }
@@ -605,8 +605,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const Line<OtherPoint>& ot
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherOrientedLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.source());
     }
@@ -617,8 +617,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const OrientedLine<OtherPo
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Halfplane<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherSegment& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -626,8 +626,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const Segment<OtherPoint, 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -635,8 +635,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const OrientedSegment<Othe
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -649,8 +649,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const Ray<OtherPoint>& oth
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherRectangle& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -664,8 +664,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const Rectangle<OtherPoint
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -674,8 +674,8 @@ constexpr bool Halfplane<PointType>::interiorContains(const Convex<OtherPoint>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Halfplane<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherDisk& other) const {
     // The closed disk lies in the open half-plane iff its center is strictly on
     // the interior side and its distance to the boundary line exceeds the
     // radius. Squaring keeps the test exact: with the boundary direction AB and
@@ -691,14 +691,14 @@ constexpr bool Halfplane<PointType>::interiorContains(const Disk<OtherPoint, Oth
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
@@ -718,44 +718,44 @@ constexpr bool Convex<PointType>::interiorContains(const OtherPoint& point) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Convex<PointType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other[0]) && interiorContains(other[1]);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Convex<PointType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other[0]) && interiorContains(other[1]);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Line<OtherPoint>&) const {
+template<LineConcept OtherLine>
+constexpr bool Convex<PointType>::interiorContains(const OtherLine&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const OrientedLine<OtherPoint>&) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Convex<PointType>::interiorContains(const OtherOrientedLine&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Ray<OtherPoint>&) const {
+template<RayConcept OtherRay>
+constexpr bool Convex<PointType>::interiorContains(const OtherRay&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Convex<PointType>::interiorContains(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Convex<PointType>::interiorContains(const OtherRectangle& other) const {
     if (!bbox().interiorContains(other)) {
         return false;
     }
@@ -768,8 +768,8 @@ constexpr bool Convex<PointType>::interiorContains(const Rectangle<OtherPoint>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Convex<PointType>::interiorContains(const OtherTriangle& other) const {
     if (!bbox().interiorContains(other)) {
         return false;
     }
@@ -782,8 +782,8 @@ constexpr bool Convex<PointType>::interiorContains(const Triangle<OtherPoint>& o
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Convex<PointType>::interiorContains(const OtherConvex& other) const {
     if (size() <= 2) {
         return false;
     }
@@ -797,7 +797,7 @@ constexpr bool Convex<PointType>::interiorContains(const Convex<OtherPoint>& oth
         return interiorContains(other[0]);
     }
     if (other.size() == 2) {
-        return interiorContains(Segment<OtherPoint>(other[0], other[1]));
+        return interiorContains(Segment<typename OtherConvex::PointType>(other[0], other[1]));
     }
 
     if (other.size() <= 2*size()) {
@@ -817,8 +817,8 @@ constexpr bool Convex<PointType>::interiorContains(const Convex<OtherPoint>& oth
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Convex<PointType>::interiorContains(const OtherDisk& other) const {
     for (auto &edge : orientedEdges()) {
         if (!edge.leftHalfplane().interiorContains(other)) {
             return false;
@@ -850,8 +850,8 @@ constexpr bool Polygon<PointType>::interiorContains(const OtherPoint& point) con
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Polygon<PointType>::interiorContains(const OtherSegment& other) const {
     if (size() < 3) {
         return false;
     }
@@ -870,42 +870,42 @@ constexpr bool Polygon<PointType>::interiorContains(const Segment<OtherPoint, Ot
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
-    return interiorContains(Segment<OtherPoint>(other.source(), other.target()));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polygon<PointType>::interiorContains(const OtherOrientedSegment& other) const {
+    return interiorContains(Segment<typename OtherOrientedSegment::PointType>(other.source(), other.target()));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Polygon<PointType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polygon<PointType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Polygon<PointType>::interiorContains(const OtherRay& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polygon<PointType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 // For a simple polygon (no holes) the region overloads reduce to an
 // edge-by-edge interior check, mirroring the contains() overloads.
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Polygon<PointType>::interiorContains(const OtherRectangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(Segment<OtherPoint>(other[i], other[(i + 1) % other.size()]))) {
+        if (!interiorContains(Segment<typename OtherRectangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
         }
     }
@@ -913,10 +913,10 @@ constexpr bool Polygon<PointType>::interiorContains(const Rectangle<OtherPoint>&
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Polygon<PointType>::interiorContains(const OtherTriangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(Segment<OtherPoint>(other[i], other[(i + 1) % other.size()]))) {
+        if (!interiorContains(Segment<typename OtherTriangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
         }
     }
@@ -924,8 +924,8 @@ constexpr bool Polygon<PointType>::interiorContains(const Triangle<OtherPoint>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Polygon<PointType>::interiorContains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -933,7 +933,7 @@ constexpr bool Polygon<PointType>::interiorContains(const Convex<OtherPoint>& ot
         return interiorContains(other[0]);
     }
     for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(Segment<OtherPoint>(other[i], other[(i + 1) % other.size()]))) {
+        if (!interiorContains(Segment<typename OtherConvex::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
         }
     }
@@ -941,8 +941,8 @@ constexpr bool Polygon<PointType>::interiorContains(const Convex<OtherPoint>& ot
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType>::interiorContains(const OtherPolygon& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -953,7 +953,7 @@ constexpr bool Polygon<PointType>::interiorContains(const Polygon<OtherPoint>& o
         return interiorContains(other[0]);
     }
     for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(Segment<OtherPoint>(other[i], other[(i + 1) % other.size()]))) {
+        if (!interiorContains(Segment<typename OtherPolygon::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
         }
     }
@@ -970,58 +970,58 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPoint& po
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Line<OtherPoint>&) const {
+template<LineConcept OtherLine>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherLine&) const {
     return false;
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const OrientedLine<OtherPoint>&) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherOrientedLine&) const {
     return false;
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Ray<OtherPoint>&) const {
+template<RayConcept OtherRay>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherRay&) const {
     return false;
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
     const auto vertices = other.vertices();
     return interiorContains(vertices[0]) && interiorContains(vertices[1]) &&
            interiorContains(vertices[2]) && interiorContains(vertices[3]);
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
     for (const auto& point : other) {
         if (!interiorContains(point)) {
             return false;
@@ -1031,8 +1031,8 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const Convex<OtherPo
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
     using R = detail::promoted_number_t<std::common_type_t<
         decltype(squaredRadius()),
         decltype(other.squaredRadius())>>;
@@ -1049,8 +1049,8 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const Disk<OtherPoin
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorContains(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Convex<PointType>::interiorContains(const OtherPolygon& other) const {
     if (size() <= 2) {
         return false;
     }
@@ -1066,120 +1066,120 @@ constexpr bool Convex<PointType>::interiorContains(const Polygon<OtherPoint>& ot
 // --- asymmetric not-yet-implemented stubs ---
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: OrientedSegment::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool OrientedSegment<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: OrientedSegment::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Line<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Line::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Line<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Line::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: OrientedLine::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool OrientedLine<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: OrientedLine::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Ray<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Ray::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Ray<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Ray::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Halfplane<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Halfplane::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Rectangle<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Rectangle::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Rectangle<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Rectangle::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Triangle<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Triangle<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Triangle::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Triangle<PointType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Triangle::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Disk::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::interiorContains(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Polygon<PointType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

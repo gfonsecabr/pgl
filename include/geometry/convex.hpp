@@ -594,64 +594,64 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the segment lies on the convex polygon boundary.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool boundaryContains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the boundary of the convex polygon contains the given oriented segment.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Degenerate lines are on the boundary iff their unique point is.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool boundaryContains(const OtherLine& other) const;
 
     /**
      * @brief Degenerate oriented lines are on the boundary iff their unique point is.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
     /**
      * @brief Degenerate rays are on the boundary iff their source point is.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool boundaryContains(const OtherRay& other) const;
 
     /**
      * @brief Degenerate half-planes are on the boundary iff their source point is.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if every rectangle edge lies on the boundary of the convex polygon.
      *
      * Complexity: O(log n) for n vertices (four edge checks).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool boundaryContains(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if every triangle edge lies on the boundary of the convex polygon.
      *
      * Complexity: O(log n) for n vertices (three edge checks).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool boundaryContains(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if every edge of the other convex polygon lies on the boundary.
@@ -659,12 +659,12 @@ struct Convex {
      * Returns false unless the convex polygon has at most two vertices.
      * Complexity: O(log n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool boundaryContains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool boundaryContains(const OtherPolygon& other) const;
 
     /**
      * @brief Checks if the disk lies on the boundary of this convex polygon.
@@ -672,8 +672,8 @@ struct Convex {
      * Returns false unless all disk points are the same and that point is on the boundary of this convex polygon.
      * Complexity: O(log n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool boundaryContains(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the boundary of the convex polygon contains the wrapped shape.
@@ -720,8 +720,8 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the convex polygon contains the segment, false otherwise.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool contains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the given oriented segment.
@@ -732,8 +732,8 @@ struct Convex {
      * @param other The oriented segment to check.
      * @return True if the convex polygon contains the oriented segment, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool contains(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the given line.
@@ -741,8 +741,8 @@ struct Convex {
      * @param other The line to check.
      * @return Always returns false since a line cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Line<OtherPoint>&) const;
+    template<LineConcept OtherLine>
+    constexpr bool contains(const OtherLine&) const;
 
     /**
      * @brief Checks if the convex polygon contains the given oriented line.
@@ -750,8 +750,8 @@ struct Convex {
      * @param other The oriented line to check.
      * @return Always returns false since an oriented line cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const OrientedLine<OtherPoint>&) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool contains(const OtherOrientedLine&) const;
 
     /**
      * @brief Checks if the convex polygon contains the given ray.
@@ -759,8 +759,8 @@ struct Convex {
      * @param other The ray to check.
      * @return Always returns false since a ray cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Ray<OtherPoint>&) const;
+    template<RayConcept OtherRay>
+    constexpr bool contains(const OtherRay&) const;
 
     /**
      * @brief Checks if the convex polygon contains the given halfplane.
@@ -768,8 +768,8 @@ struct Convex {
      * @param other The halfplane to check.
      * @return Always returns false since a halfplane cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Halfplane<OtherPoint>&) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool contains(const OtherHalfplane&) const;
 
     /**
      * @brief Checks if the convex polygon contains the given rectangle.
@@ -780,8 +780,8 @@ struct Convex {
      * @param other The rectangle to check.
      * @return True if the convex polygon contains the rectangle, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool contains(const OtherRectangle& other) const;
 
 
     /**
@@ -793,8 +793,8 @@ struct Convex {
      * @param other The triangle to check.
      * @return True if the convex polygon contains the triangle, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool contains(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the given convex polygon.
@@ -806,12 +806,12 @@ struct Convex {
      * @return True if the convex polygon contains the convex polygon, false otherwise.
      * @todo Optimize with bounding boxes and early exits.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool contains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool contains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool contains(const OtherPolygon& other) const;
   
 
     /**
@@ -819,8 +819,8 @@ struct Convex {
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool contains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool contains(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the convex polygon contains the wrapped shape.
@@ -870,8 +870,8 @@ struct Convex {
      * @param other The segment to check.
      * @return True if the interior of the convex polygon contains the segment, false otherwise.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given oriented segment.
@@ -882,8 +882,8 @@ struct Convex {
      * @param other The oriented segment to check.
      * @return True if the interior of the convex polygon contains the oriented segment, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given line.
@@ -891,8 +891,8 @@ struct Convex {
      * @param other The line to check.
      * @return Always returns false since a line cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Line<OtherPoint>&) const;
+    template<LineConcept OtherLine>
+    constexpr bool interiorContains(const OtherLine&) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given oriented line.
@@ -900,8 +900,8 @@ struct Convex {
      * @param other The oriented line to check.
      * @return Always returns false since an oriented line cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const OrientedLine<OtherPoint>&) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool interiorContains(const OtherOrientedLine&) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given ray.
@@ -909,8 +909,8 @@ struct Convex {
      * @param other The ray to check.
      * @return Always returns false since a ray cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Ray<OtherPoint>&) const;
+    template<RayConcept OtherRay>
+    constexpr bool interiorContains(const OtherRay&) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given halfplane.
@@ -918,8 +918,8 @@ struct Convex {
      * @param other The halfplane to check.
      * @return Always returns false since a halfplane cannot be fully contained in A convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Halfplane<OtherPoint>&) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool interiorContains(const OtherHalfplane&) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given rectangle.
@@ -930,8 +930,8 @@ struct Convex {
      * @param other The rectangle to check.
      * @return True if the interior of the convex polygon contains the rectangle, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given triangle.
@@ -942,8 +942,8 @@ struct Convex {
      * @param other The triangle to check.
      * @return True if the interior of the convex polygon contains the triangle, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the given convex polygon.
@@ -955,20 +955,20 @@ struct Convex {
      * @return True if the interior of the convex polygon contains the convex polygon, false otherwise.
      * @todo Optimize with bounding boxes and early exits.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool interiorContains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool interiorContains(const OtherPolygon& other) const;
 
     /**
      * @brief Checks if the disk is contained in the interior of this convex polygon.
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool interiorContains(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon contains the wrapped shape.
@@ -985,8 +985,8 @@ struct Convex {
      * @param other The segment to check intersection with.
      * @return True if the convex polygon and segment intersect, false otherwise.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool intersects(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given oriented segment.
@@ -997,8 +997,8 @@ struct Convex {
      * @param other The oriented segment to check intersection with.
      * @return True if the convex polygon and oriented segment intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given line.
@@ -1009,8 +1009,8 @@ struct Convex {
      * @param other The line to check intersection with.
      * @return True if the convex polygon and line intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool intersects(const OtherLine& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given oriented line.
@@ -1021,8 +1021,8 @@ struct Convex {
      * @param other The oriented line to check intersection with.
      * @return True if the convex polygon and oriented line intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool intersects(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given ray.
@@ -1033,8 +1033,8 @@ struct Convex {
      * @param other The ray to check intersection with.
      * @return True if the convex polygon and ray intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool intersects(const OtherRay& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given rectangle.
@@ -1045,8 +1045,8 @@ struct Convex {
      * @param other The rectangle to check intersection with.
      * @return True if the convex polygon and rectangle intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool intersects(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given triangle.
@@ -1057,8 +1057,8 @@ struct Convex {
      * @param other The triangle to check intersection with.
      * @return True if the convex polygon and triangle intersect, false otherwise.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool intersects(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given point.
@@ -1081,8 +1081,8 @@ struct Convex {
      * @param other The half-plane to check intersection with.
      * @return True if any polygon vertex lies in the closed half-plane.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool intersects(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the given convex polygon.
@@ -1094,16 +1094,16 @@ struct Convex {
      * @param other The convex polygon to check intersection with.
      * @return True if the convex polygons share any point.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool intersects(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the disk intersects this convex polygon.
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool intersects(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool intersects(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the convex polygon intersects the wrapped shape.
@@ -1137,16 +1137,16 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool interiorsIntersect(const OtherLine& other) const;
 
     /**
      * @brief Checks if the convex polygon interior intersects an oriented line.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if the segment interior intersects the convex polygon interior.
@@ -1157,16 +1157,16 @@ struct Convex {
      * in O(log n); the interiors meet iff the intersect is a non-degenerate
      * chord not lying on the convex polygon boundary.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the oriented segment interior intersects the convex polygon interior.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the ray interior intersects the convex polygon interior.
@@ -1177,16 +1177,16 @@ struct Convex {
      * O(log n); the interiors meet iff the intersect is a non-degenerate
      * chord not lying on the convex polygon boundary.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool interiorsIntersect(const OtherRay& other) const;
 
     /**
      * @brief Checks if a half-plane interior intersects the convex polygon interior.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
     /**
      * @brief Checks if a rectangle interior intersects the convex polygon interior.
@@ -1194,8 +1194,8 @@ struct Convex {
      * Complexity: O(log n) for n vertices.
      *
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool interiorsIntersect(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if a triangle interior intersects the convex polygon interior.
@@ -1203,8 +1203,8 @@ struct Convex {
      * Complexity: O(log n) for n vertices.
      *
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool interiorsIntersect(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if two convex polygon interiors intersect.
@@ -1212,16 +1212,16 @@ struct Convex {
      * Complexity: O(min(n,m) log(m+n)) for polygons with n and m vertices.
      * A bounding-box test filters disjoint inputs in O(1).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool interiorsIntersect(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon intersects a disk.
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool interiorsIntersect(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon intersects the interior of the wrapped shape.
@@ -1261,32 +1261,32 @@ struct Convex {
      * are not produced by removing the convex polygon's body. We therefore require
      * the segment to cross the convex polygon interior, not just intersect it.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool separates(const OtherSegment& other) const;
 
     /**
      * @brief Checks if removing the convex polygon from an oriented segment disconnects it.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool separates(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if removing the convex polygon from a line disconnects it.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool separates(const OtherLine& other) const;
 
     /**
      * @brief Checks if removing the convex polygon from an oriented line disconnects it.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool separates(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if removing the convex polygon from a ray disconnects it.
@@ -1296,40 +1296,40 @@ struct Convex {
      * The ray is split iff its source lies outside the closed polygon (so
      * the leading piece survives) and the ray actually intersects the convex polygon.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool separates(const OtherRay& other) const;
 
     /**
      * @brief Polygons never separate half-planes.
      *
      * Complexity: O(1).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Halfplane<OtherPoint>&) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool separates(const OtherHalfplane&) const;
 
     /**
      * @brief Checks if the convex polygon separates a rectangle.
      *
      * Complexity: O(log n) for n vertices (four edge checks).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool separates(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the convex polygon separates a triangle.
      *
      * Complexity: O(log n) for n vertices (three edge checks).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool separates(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the convex polygon separates another convex polygon.
      *
      * Complexity: O(min(n,m) log(m+n)) for convex polygons with n vertices and m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool separates(const OtherConvex& other) const;
 
     /**
      * @brief Checks if removing the convex polygon disconnects the given simple polygon.
@@ -1345,16 +1345,16 @@ struct Convex {
      * Complexity: O(n log m + c m + c log c) for n polygon vertices, m convex
      * polygon vertices, and c boundary contacts.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool separates(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    constexpr bool separates(const OtherPolygon& other) const;
 
     /**
      * @brief Checks if the convex polygon separates a disk.
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool separates(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the convex polygon separates the wrapped shape.
@@ -1375,64 +1375,64 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool crosses(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon and oriented segment cross.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    constexpr bool crosses(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Checks if the convex polygon and line cross.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    constexpr bool crosses(const OtherLine& other) const;
 
     /**
      * @brief Checks if the convex polygon and oriented line cross.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    constexpr bool crosses(const OtherOrientedLine& other) const;
 
     /**
      * @brief Checks if the convex polygon and ray cross.
      *
      * Complexity: O(log n) for n vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    constexpr bool crosses(const OtherRay& other) const;
 
     /**
      * @brief Convex polygons never cross half-planes.
      *
      * Complexity: O(1).
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Halfplane<OtherPoint>&) const;
+    template<HalfplaneConcept OtherHalfplane>
+    constexpr bool crosses(const OtherHalfplane&) const;
 
     /**
      * @brief Checks if the convex polygon crosses a rectangle.
      *
      * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    constexpr bool crosses(const OtherRectangle& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses a triangle.
      *
      * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    constexpr bool crosses(const OtherTriangle& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses another convex polygon.
@@ -1440,16 +1440,16 @@ struct Convex {
      * Complexity: O(n log m + m log n) for this polygon with n vertices and
      * the other with m vertices.
      */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    constexpr bool crosses(const OtherConvex& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses a disk.
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool crosses(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    constexpr bool crosses(const OtherDisk& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses the wrapped shape.
@@ -1480,9 +1480,9 @@ struct Convex {
      * @param other The segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
+    intersection(const OtherSegment& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with an oriented segment.
@@ -1494,9 +1494,9 @@ struct Convex {
      * @param other The oriented segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OrientedSegment<OtherPoint>& other) const;
+    intersection(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with a line.
@@ -1508,9 +1508,9 @@ struct Convex {
      * @param other The line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Line<OtherPoint>& other) const;
+    intersection(const OtherLine& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with an oriented line.
@@ -1522,9 +1522,9 @@ struct Convex {
      * @param other The oriented line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OrientedLine<OtherPoint>& other) const;
+    intersection(const OtherOrientedLine& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with a ray.
@@ -1536,9 +1536,9 @@ struct Convex {
      * @param other The ray to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Ray<OtherPoint>& other) const;
+    intersection(const OtherRay& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with a rectangle.
@@ -1550,9 +1550,9 @@ struct Convex {
      * @param other The rectangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Rectangle<OtherPoint>& other) const;
+    intersection(const OtherRectangle& other) const;
 
 
     /**
@@ -1565,9 +1565,9 @@ struct Convex {
      * @param other The triangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Triangle<OtherPoint>& other) const;
+    intersection(const OtherTriangle& other) const;
 
     /**
      * @brief Computes the intersection of the convex polygon with another convex polygon.
@@ -1579,9 +1579,9 @@ struct Convex {
      * @param other The other convex polygon to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Convex<OtherPoint>& other) const;
+    intersection(const OtherConvex& other) const;
 
     /** @brief Intersecting with the empty set yields the empty set. */
     template <class ResultNumber = NumberType, class EmptyPoint>
