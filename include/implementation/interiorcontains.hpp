@@ -28,8 +28,8 @@ constexpr bool Point<Number, Label>::interiorContains(const OtherPoint& other) c
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Point<Number, Label>::interiorContains(const OtherSegment& other) const {
     return contains(other);
 }
 
@@ -88,8 +88,8 @@ constexpr bool Point<Number, Label>::interiorContains(const Polygon<OtherPoint>&
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::interiorContains(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Point<Number, Label>::interiorContains(const OtherDisk& other) const {
     // The interior of a point is the point itself, so this matches contains:
     // it holds only for a disk that degenerates to this very point.
     return other.a() == other.b() && other.b() == other.c() && contains(other.a());
@@ -109,8 +109,8 @@ constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherPoint&
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::interiorContains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
@@ -127,10 +127,13 @@ constexpr bool Segment<PointType, LabelType>::interiorContains(const Triangle<Ot
 }
 
 template <class PointType, class LabelType>
-template<class S>
-    requires(!detail::is_point_v<S>)
-constexpr bool Segment<PointType, LabelType>::interiorContains(const S&) const {
-    return false;
+template<PointConcept OtherPoint>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return interiorContains(value);
+        },
+        other.variant());
 }
 
 /**

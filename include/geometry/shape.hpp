@@ -76,15 +76,6 @@ inline constexpr bool is_shape_alternative_v = is_shape_alternative<PointType, s
 template <class PointType, class T>
 concept ShapeAlternative = is_shape_alternative_v<PointType, T>;
 
-template <class T>
-struct is_shape : std::false_type {};
-
-template <class PointType>
-struct is_shape<Shape<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_shape_v = is_shape<std::remove_cvref_t<T>>::value;
-
 // Minimal shape detectors for the standard wrappers an intersection may return.
 template <class T>
 struct is_std_optional : std::false_type {};
@@ -143,10 +134,6 @@ template <class T>
 using shape_point_type_t = typename shape_point_type<T>::type;
 
 }  // namespace detail
-
-/** @brief Satisfied by any specialization of @ref Shape. */
-template <class T>
-concept ShapeConcept = detail::is_shape_v<T>;
 
 /**
  * @brief Type-erased wrapper over the finite set of supported primitive shapes.

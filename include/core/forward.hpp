@@ -12,6 +12,8 @@
  * forcing all definitions to be parsed immediately.
  */
 
+#include <type_traits>
+
 namespace pgl {
 
 /**
@@ -152,6 +154,85 @@ inline constexpr int shapeRank<Convex<PointType>> = 110;
 template <class PointType>
 inline constexpr int shapeRank<Polygon<PointType>> = 120;
 
+// Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
+// specialization of that shape. They back the public XxxConcept concepts below
+// and the generic 'Shape' routing in predicates.hpp. Defined here, before any
+// shape header, so every header can use any shape's concept regardless of the
+// order shapes are included in pgl.hpp.
+template <class T> struct is_empty_shape : std::false_type {};
+template <class PointType> struct is_empty_shape<EmptyShape<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_empty_shape_v = is_empty_shape<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_point : std::false_type {};
+template <class Number, class Label> struct is_point<Point<Number, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_point_v = is_point<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_segment : std::false_type {};
+template <class PointType, class Label> struct is_segment<Segment<PointType, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_oriented_segment : std::false_type {};
+template <class PointType> struct is_oriented_segment<OrientedSegment<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_line : std::false_type {};
+template <class PointType> struct is_line<Line<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_line_v = is_line<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_oriented_line : std::false_type {};
+template <class PointType> struct is_oriented_line<OrientedLine<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_oriented_line_v = is_oriented_line<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_ray : std::false_type {};
+template <class PointType> struct is_ray<Ray<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_ray_v = is_ray<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_halfplane : std::false_type {};
+template <class PointType> struct is_halfplane<Halfplane<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_halfplane_v = is_halfplane<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_rectangle : std::false_type {};
+template <class PointType> struct is_rectangle<Rectangle<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_rectangle_v = is_rectangle<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_triangle : std::false_type {};
+template <class PointType> struct is_triangle<Triangle<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_triangle_v = is_triangle<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_convex : std::false_type {};
+template <class PointType> struct is_convex<Convex<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_convex_v = is_convex<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_polygon : std::false_type {};
+template <class PointType> struct is_polygon<Polygon<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_disk : std::false_type {};
+template <class PointType, class Label> struct is_disk<Disk<PointType, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_disk_v = is_disk<std::remove_cvref_t<T>>::value;
+
+template <class T> struct is_shape : std::false_type {};
+template <class PointType> struct is_shape<Shape<PointType>> : std::true_type {};
+template <class T> inline constexpr bool is_shape_v = is_shape<std::remove_cvref_t<T>>::value;
+
 }  // namespace detail
+
+// Public per-shape concepts: each is satisfied by any specialization of that
+// shape (ignoring cv/ref). They live here so every shape and implementation
+// header can constrain on them, e.g. `template<SegmentConcept S> ...`.
+template <class T> concept EmptyShapeConcept = detail::is_empty_shape_v<T>;
+template <class T> concept PointConcept = detail::is_point_v<T>;
+template <class T> concept SegmentConcept = detail::is_segment_v<T>;
+template <class T> concept OrientedSegmentConcept = detail::is_oriented_segment_v<T>;
+template <class T> concept LineConcept = detail::is_line_v<T>;
+template <class T> concept OrientedLineConcept = detail::is_oriented_line_v<T>;
+template <class T> concept RayConcept = detail::is_ray_v<T>;
+template <class T> concept HalfplaneConcept = detail::is_halfplane_v<T>;
+template <class T> concept RectangleConcept = detail::is_rectangle_v<T>;
+template <class T> concept TriangleConcept = detail::is_triangle_v<T>;
+template <class T> concept ConvexConcept = detail::is_convex_v<T>;
+template <class T> concept PolygonConcept = detail::is_polygon_v<T>;
+template <class T> concept DiskConcept = detail::is_disk_v<T>;
+template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 
 }  // namespace pgl

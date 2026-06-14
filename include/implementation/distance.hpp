@@ -78,10 +78,10 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& 
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
-        using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
+        using ResultNumber = std::common_type_t<NumberType, typename OtherSegment::NumberType, double>;
         return ResultNumber{};
     }
 
@@ -97,8 +97,8 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const Segment<Othe
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
     const auto this_min_to_other = other.squaredDistance(min());
     const auto this_max_to_other = other.squaredDistance(max());
     const auto other_min_to_this = squaredDistance(other.min());

@@ -52,14 +52,6 @@ namespace detail {
     template <class Label>
     inline constexpr bool has_label_v = !std::same_as<Label, NoLabel>;
 
-    template <class T>
-    struct is_point : std::false_type {};
-
-    template <class Number, class Label>
-    struct is_point<Point<Number, Label>> : std::true_type {};
-
-    template <class T>
-    inline constexpr bool is_point_v = is_point<std::remove_cvref_t<T>>::value;
 
     /**
      * @brief Checks whether a target label can be built from a source one.
@@ -94,9 +86,6 @@ namespace detail {
     }
 
 } //detail
-
-template <class T>
-concept PointConcept = detail::is_point_v<T>;
 
 
 /**
@@ -371,8 +360,8 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
@@ -432,8 +421,8 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
@@ -470,8 +459,8 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
@@ -500,12 +489,12 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
@@ -525,8 +514,8 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
@@ -575,8 +564,8 @@ struct Point {
         return false;
     }
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
