@@ -806,17 +806,17 @@ constexpr bool Convex<PointType>::intersects(const Halfplane<OtherPoint>& other)
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::intersects(const Convex<OtherPoint>& other) const {
+    if (size() > other.size()) {
+        return other.intersects(*this);
+    }
     if (size() == 0 || other.size() == 0) {
         return false;
     }
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
-    if (bbox().separates(other.bbox()) || other.bbox().separates(*this)) {
+    if (bbox().separates(other.bbox()) || other.bbox().separates(this->bbox())) {
         return true;
-    }
-    if (size() > other.size()) {
-        return other.intersects(*this);
     }
     if (contains(other[0]) || other.contains((*this)[0])) {
         return true;
