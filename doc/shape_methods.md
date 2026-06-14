@@ -20,13 +20,15 @@
 
 Any two shapes `A`,`B` support the following [predicates](#predicates), where $\partial A$ denotes the manifold boundary of $A$. Notice that the boundary of a one-dimensional shape is defined as its endpoints (see also [shapes](shapes.md)).
 
-- `A.contains(B)` Does `A` contain `B`, that is $A \supseteq B$?
-- `A.boundaryContains(B)` Does the boundary of `A` contain `B`, that is $\partial A \supseteq B$?
-- `A.interiorContains(B)` Does the interior of `A` contain `B`, that is $(A \setminus \partial A) \supseteq B$?
-- `A.intersects(B)` Do the two shapes intersect, that is $A \cap B \neq \emptyset$?
-- `A.interiorsIntersect(B)` Do the interiors of the two shapes intersect, that is $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$? Attention: for segments and rays, the boundary $\partial S$ is defined as the endpoint(s).
-- `A.separates(B)` Does $B \setminus A$ contain two or more connected components?
-- `A.crosses(B)` Do both $A \setminus B$ and $B \setminus A$ contain two or more connected components?
+| Predicate | Definition | Question |
+| --------- | ---------- | --------- |
+| `A.contains(B)` | $A \supseteq B$ | Does `A` contain `B`? |
+| `A.boundaryContains(B)` | $\partial A \supseteq B$ | Does the boundary of `A` contain `B`? |
+| `A.interiorContains(B)` | $(A \setminus \partial A) \supseteq B$ | Does the interior of `A` contain `B`? |
+| `A.intersects(B)` | $A \cap B \neq \emptyset$ | Do `A` and `B` intersect? |
+| `A.interiorsIntersect(B)` | $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
+| `A.separates(B)` | $B \setminus A$ disconnected | Does the removal of `A` separates `B`? |
+| `A.crosses(B)` | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separates the other? |
 
 The following table illustrates the result of the predicates for a triangle and a line segment.
 
