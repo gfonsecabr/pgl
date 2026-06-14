@@ -38,26 +38,26 @@ constexpr bool Point<Number, Label>::separates(const OtherSegment& other) const 
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const OrientedSegment<OtherPoint>& other) const {
-    return static_cast<Segment<OtherPoint>>(other).interiorContains(*this);
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Point<Number, Label>::separates(const OtherOrientedSegment& other) const {
+    return static_cast<Segment<typename OtherOrientedSegment::PointType>>(other).interiorContains(*this);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Point<Number, Label>::separates(const OtherLine& other) const {
     return other.contains(*this);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Point<Number, Label>::separates(const OtherOrientedLine& other) const {
     return other.asLine().contains(*this);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Point<Number, Label>::separates(const OtherRay& other) const {
     return other.interiorContains(*this);
 }
 
@@ -68,8 +68,8 @@ constexpr bool Point<Number, Label>::separates(const OtherPoint&) const {
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Point<Number, Label>::separates(const OtherHalfplane&) const {
     return false;
 }
 
@@ -83,28 +83,28 @@ constexpr bool Point<Number, Label>::separates(const OtherDisk&) const {
 // segment; its convex hull then has size 2, whose whole segment is the
 // region's boundary, so the point separates it iff that segment contains it.
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Point<Number, Label>::separates(const OtherConvex& other) const {
     return other.size() == 2 &&
-           Segment<OtherPoint>(other[0], other[1]).contains(*this);
+           Segment<typename OtherConvex::PointType>(other[0], other[1]).contains(*this);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Rectangle<OtherPoint>& other) const {
-    return separates(static_cast<Convex<OtherPoint>>(other));
+template<RectangleConcept OtherRectangle>
+constexpr bool Point<Number, Label>::separates(const OtherRectangle& other) const {
+    return separates(static_cast<Convex<typename OtherRectangle::PointType>>(other));
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Triangle<OtherPoint>& other) const {
-    return separates(static_cast<Convex<OtherPoint>>(other));
+template<TriangleConcept OtherTriangle>
+constexpr bool Point<Number, Label>::separates(const OtherTriangle& other) const {
+    return separates(static_cast<Convex<typename OtherTriangle::PointType>>(other));
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
-constexpr bool Point<Number, Label>::separates(const Polygon<OtherPoint>& other) const {
-    return separates(Convex<OtherPoint>(other.vertices()));
+template<PolygonConcept OtherPolygon>
+constexpr bool Point<Number, Label>::separates(const OtherPolygon& other) const {
+    return separates(Convex<typename OtherPolygon::PointType>(other.vertices()));
 }
 
 /**
@@ -156,26 +156,26 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherSegment& othe
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherLine& other) const {
     return intersects(other);
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     return intersects(other);
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherRay& other) const {
     // The segment splits the ray only when it meets the ray ahead of the
     // source: a piece then survives between the source and the segment, and
     // another runs to infinity. If the source lies on the segment, the near
@@ -184,20 +184,20 @@ constexpr bool Segment<PointType, LabelType>::separates(const Ray<OtherPoint>& o
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherRectangle& other) const {
     return other.interiorsIntersect(*this) && !other.interiorContains(min()) && !other.interiorContains(max());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherHalfplane& other) const {
     return other.separates(*this);
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherTriangle& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -241,8 +241,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const Triangle<OtherPoin
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherConvex& other) const {
     // The segment separates the polygon iff its intersection with the polygon
     // is a true chord through the interior — neither endpoint lies strictly
     // inside (otherwise the segment ends midway and leaves a slit, not a
@@ -255,8 +255,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const Convex<OtherPoint>
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -276,7 +276,7 @@ constexpr bool Segment<PointType, LabelType>::separates(const Polygon<OtherPoint
                 return true;
             }
         }
-        else if (!cv && !cw && separates(Segment<OtherPoint>(v, w))) {
+        else if (!cv && !cw && separates(Segment<typename OtherPolygon::PointType>(v, w))) {
             if (++cross_count >= 2 + interior_count) {
                 return true;
             }
@@ -287,8 +287,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const Polygon<OtherPoint
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherDisk& other) const {
     // Removing the segment disconnects the disk iff the segment carries a
     // complete chord through the interior: the line must genuinely cross the
     // circle (two distinct intersections) and both of those intersection points
@@ -340,8 +340,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const Shape<PointType>& 
  */
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Triangle<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Triangle<PointType>::separates(const OtherSegment& other) const {
     return !other.isDegenerate() && !contains(other.min()) && !contains(other.max()) && intersects(other);
 }
 
@@ -352,26 +352,26 @@ constexpr bool Triangle<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
-    return separates(static_cast<Segment<OtherPoint>>(other));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Triangle<PointType>::separates(const OtherOrientedSegment& other) const {
+    return separates(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Triangle<PointType>::separates(const OtherLine& other) const {
     return !other.isDegenerate() && intersects(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Triangle<PointType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Triangle<PointType>::separates(const OtherRay& other) const {
     // Removing the triangle splits the ray iff the ray reaches it with its
     // source outside: the far end runs to infinity (always outside), so any
     // contact -- including a tangential touch of the boundary -- leaves a piece
@@ -381,14 +381,14 @@ constexpr bool Triangle<PointType>::separates(const Ray<OtherPoint>& other) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Triangle<PointType>::separates(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Triangle<PointType>::separates(const OtherRectangle& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -416,8 +416,8 @@ constexpr bool Triangle<PointType>::separates(const Rectangle<OtherPoint>& other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Triangle<PointType>::separates(const OtherTriangle& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -441,8 +441,8 @@ constexpr bool Triangle<PointType>::separates(const Triangle<OtherPoint>& other)
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Triangle<PointType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -496,56 +496,56 @@ constexpr bool OrientedSegment<PointType>::separates(const OtherPoint& other) co
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedSegment<PointType>::separates(const OtherSegment& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedSegment<PointType>::separates(const OtherOrientedSegment& other) const {
     return this->asSegment().separates(other.asSegment());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedSegment<PointType>::separates(const OtherLine& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedSegment<PointType>::separates(const OtherOrientedLine& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedSegment<PointType>::separates(const OtherRay& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool OrientedSegment<PointType>::separates(const OtherRectangle& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool OrientedSegment<PointType>::separates(const OtherTriangle& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool OrientedSegment<PointType>::separates(const OtherHalfplane& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool OrientedSegment<PointType>::separates(const OtherConvex& other) const {
     return this->asSegment().separates(other);
 }
 
@@ -571,8 +571,8 @@ constexpr bool Line<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Line<PointType>::separates(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -582,27 +582,27 @@ constexpr bool Line<PointType>::separates(const Segment<OtherPoint, OtherLabel>&
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Line<PointType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Line<PointType>::separates(const OtherLine& other) const {
     return !isDegenerate() && !other.isDegenerate() &&
            intersects(other) && !collinear(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Line<PointType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Line<PointType>::separates(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -615,14 +615,14 @@ constexpr bool Line<PointType>::separates(const Ray<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Line<PointType>::separates(const OtherRectangle& other) const {
     return other.interiorsIntersect(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Line<PointType>::separates(const OtherTriangle& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -630,14 +630,14 @@ constexpr bool Line<PointType>::separates(const Triangle<OtherPoint>& other) con
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Line<PointType>::separates(const OtherHalfplane& other) const {
     return other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Line<PointType>::separates(const OtherConvex& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -666,56 +666,56 @@ constexpr bool OrientedLine<PointType>::separates(const OtherPoint& other) const
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedLine<PointType>::separates(const OtherSegment& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedLine<PointType>::separates(const OtherOrientedSegment& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedLine<PointType>::separates(const OtherLine& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedLine<PointType>::separates(const OtherOrientedLine& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedLine<PointType>::separates(const OtherRay& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool OrientedLine<PointType>::separates(const OtherRectangle& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool OrientedLine<PointType>::separates(const OtherTriangle& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool OrientedLine<PointType>::separates(const OtherHalfplane& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool OrientedLine<PointType>::separates(const OtherConvex& other) const {
     return this->asLine().separates(other);
 }
 
@@ -741,8 +741,8 @@ constexpr bool Ray<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Ray<PointType>::separates(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -766,27 +766,27 @@ constexpr bool Ray<PointType>::separates(const Segment<OtherPoint, OtherLabel>& 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Ray<PointType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Ray<PointType>::separates(const OtherLine& other) const {
     return !isDegenerate() && !other.isDegenerate() &&
            intersects(other) && !collinear(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Ray<PointType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Ray<PointType>::separates(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -812,20 +812,20 @@ constexpr bool Ray<PointType>::separates(const Ray<OtherPoint>& other) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Ray<PointType>::separates(const OtherHalfplane& other) const {
     return other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Ray<PointType>::separates(const OtherRectangle& other) const {
     return !other.interiorContains(source()) && other.interiorsIntersect(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Ray<PointType>::separates(const OtherTriangle& other) const {
     if (isDegenerate() || other.isDegenerate() || other.interiorContains(source())) {
         return false;
     }
@@ -858,8 +858,8 @@ constexpr bool Ray<PointType>::separates(const Triangle<OtherPoint>& other) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Ray<PointType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -871,8 +871,8 @@ constexpr bool Ray<PointType>::separates(const Convex<OtherPoint>& other) const 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Ray<PointType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -895,7 +895,7 @@ constexpr bool Ray<PointType>::separates(const Polygon<OtherPoint>& other) const
                 return true;
             }
         }
-        else if (!cv && !cw && separates(Segment<OtherPoint>(v, w))) {
+        else if (!cv && !cw && separates(Segment<typename OtherPolygon::PointType>(v, w))) {
             if (++cross_count >= 2 + interior_count) {
                 return true;
             }
@@ -920,8 +920,8 @@ constexpr bool Ray<PointType>::separates(const Shape<PointType>& other) const {
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Rectangle<PointType>::separates(const OtherRectangle& other) const {
     const bool splits_horizontally =
         other.min().x() < min().x() &&
         max().x() < other.max().x() &&
@@ -945,49 +945,49 @@ constexpr bool Rectangle<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Rectangle<PointType>::separates(const OtherLine& other) const {
     return intersects(other) && !contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Rectangle<PointType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Rectangle<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Rectangle<PointType>::separates(const OtherSegment& other) const {
     // Both endpoints outside the closed rectangle and the segment touching it
     // anywhere (boundary contact included) leave a piece on each side.
     return !other.isDegenerate() && !contains(other.min()) && !contains(other.max()) && intersects(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
-    return separates(static_cast<Segment<OtherPoint>>(other));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Rectangle<PointType>::separates(const OtherOrientedSegment& other) const {
+    return separates(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Rectangle<PointType>::separates(const OtherRay& other) const {
     return !other.isDegenerate() &&
            !contains(other.source()) &&
            intersects(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Rectangle<PointType>::separates(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Rectangle<PointType>::separates(const OtherTriangle& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -1011,8 +1011,8 @@ constexpr bool Rectangle<PointType>::separates(const Triangle<OtherPoint>& other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Rectangle<PointType>::separates(const OtherConvex& other) const {
     return asConvex().separates(other);
 }
 
@@ -1038,64 +1038,64 @@ constexpr bool Halfplane<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Halfplane<PointType>::separates(const OtherLine& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Halfplane<PointType>::separates(const OtherOrientedLine& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Halfplane<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Halfplane<PointType>::separates(const OtherSegment& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Halfplane<PointType>::separates(const OtherOrientedSegment& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Halfplane<PointType>::separates(const OtherRay& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Halfplane<PointType>::separates(const OtherRectangle& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Halfplane<PointType>::separates(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Halfplane<PointType>::separates(const OtherTriangle& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Halfplane<PointType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -1129,8 +1129,8 @@ constexpr bool Halfplane<PointType>::separates(const Convex<OtherPoint>& other) 
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Halfplane<PointType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1152,7 +1152,7 @@ constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other)
 
     int arcs = 0;
     pgl::OrientedLine<PointType> boundary = asOrientedLine();
-    pgl::Line<OtherPoint> leaving;
+    pgl::Line<typename OtherPolygon::PointType> leaving;
     start++; // Now other[start-1] is in the halfplane
     bool prev_in = true;
 
@@ -1160,11 +1160,11 @@ constexpr bool Halfplane<PointType>::separates(const Polygon<OtherPoint>& other)
         const bool cur_in = contains(other.get(i));
         if (prev_in && !cur_in) {
             // Just went outside
-            leaving = pgl::Line<OtherPoint>(other.get(i), other.get(i-1));
+            leaving = pgl::Line<typename OtherPolygon::PointType>(other.get(i), other.get(i-1));
         }
         if (cur_in && !prev_in) {
             // Just came inside, must check order
-            pgl::Line<OtherPoint> entering(other.get(i), other.get(i-1));
+            pgl::Line<typename OtherPolygon::PointType> entering(other.get(i), other.get(i-1));
             if (boundary.crossingOrder(entering, leaving) >= 0) {
                 ++arcs;
                 if (arcs >= 2) {
@@ -1199,8 +1199,8 @@ constexpr bool Convex<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Convex<PointType>::separates(const OtherSegment& other) const {
     // A contact anywhere on the convex polygon -- boundary touch included --
     // leaves a piece of the segment on each side when both endpoints are
     // outside, so this gates on closed intersection, not interior crossing.
@@ -1208,51 +1208,51 @@ constexpr bool Convex<PointType>::separates(const Segment<OtherPoint, OtherLabel
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
-    return separates(static_cast<Segment<OtherPoint>>(other));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Convex<PointType>::separates(const OtherOrientedSegment& other) const {
+    return separates(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Convex<PointType>::separates(const OtherLine& other) const {
     return !other.isDegenerate() && intersects(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
-    return separates(static_cast<Line<OtherPoint>>(other));
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Convex<PointType>::separates(const OtherOrientedLine& other) const {
+    return separates(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Convex<PointType>::separates(const OtherRay& other) const {
     return !other.isDegenerate() && !isDegenerate() &&
            !contains(other.source()) && intersects(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Convex<PointType>::separates(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Convex<PointType>::separates(const OtherRectangle& other) const {
     return separates(other.asConvex());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Convex<PointType>::separates(const OtherTriangle& other) const {
     return separates(other.asConvex());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Convex<PointType>::separates(const OtherConvex& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1268,7 +1268,7 @@ constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) con
             const bool cur_in = contains(other[i]);
             if (!prev_in && !cur_in) {
                 // Both endpoints are out, but maybe the edge went through this
-                Segment<OtherPoint> edge(other.get(i-1),other[i]);
+                Segment<typename OtherConvex::PointType> edge(other.get(i-1),other[i]);
                 if (intersects(edge)) {
                     ++arcs;
                     if (arcs >= 2) {
@@ -1295,7 +1295,7 @@ constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) con
             const bool cur_in = other.interiorContains((*this)[i]);
             if (!prev_in && !cur_in) {
                 // Both endpoints are out, but maybe the edge went through this
-                Segment<OtherPoint> edge(get(i-1),(*this)[i]);
+                Segment<typename OtherConvex::PointType> edge(get(i-1),(*this)[i]);
                 if (edge.separates(other)) {
                     ++arcs;
                     if (arcs >= 2) {
@@ -1319,8 +1319,8 @@ constexpr bool Convex<PointType>::separates(const Convex<OtherPoint>& other) con
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::separates(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Convex<PointType>::separates(const OtherDisk& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1361,14 +1361,14 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template <SegmentConcept OtherSegment>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherSegment& other) const {
     if (other.isDegenerate() || contains(other.min()) || contains(other.max())) {
         return false;
     }
 
     using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherPoint::NumberType>>;
+        decltype(squaredRadius()), typename OtherSegment::NumberType>>;
     const auto center_point = center<R>();
     const R squared_radius = squaredRadius<R>();
 
@@ -1391,20 +1391,20 @@ constexpr bool Disk<PointType, LabelType>::separates(const Segment<OtherPoint, O
 }
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Line<OtherPoint>& other) const {
+template <LineConcept OtherLine>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherLine& other) const {
     if (other.isDegenerate()) {
         return false;
     }
 
     using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherPoint::NumberType>>;
+        decltype(squaredRadius()), typename OtherLine::NumberType>>;
     const auto center_point = center<R>();
     const R squared_radius = squaredRadius<R>();
 
@@ -1421,14 +1421,14 @@ constexpr bool Disk<PointType, LabelType>::separates(const Line<OtherPoint>& oth
 }
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const OrientedLine<OtherPoint>& other) const {
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType, class LabelType>
-template <PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Convex<OtherPoint>& other) const {
+template <ConvexConcept OtherConvex>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherConvex& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1440,7 +1440,7 @@ constexpr bool Disk<PointType, LabelType>::separates(const Convex<OtherPoint>& o
         const bool cur_in = contains(other[i]);
         if (!prev_in && !cur_in) {
             // Both endpoints are out, but maybe the edge went through this
-            Segment<OtherPoint> edge(other.get(i-1),other[i]);
+            Segment<typename OtherConvex::PointType> edge(other.get(i-1),other[i]);
             if (intersects(edge)) {
                 ++arcs;
                 if (arcs >= 2) {
@@ -1462,27 +1462,27 @@ constexpr bool Disk<PointType, LabelType>::separates(const Convex<OtherPoint>& o
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherRay& other) const {
     return !contains(other.source()) && intersects(other);
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherHalfplane&) const {
     return false;  // A disk never separates a halfplane
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherRectangle& other) const {
     int count = 0;
     for (int i = 0; i < 3; i++) {
-        pgl::Segment<OtherPoint> edge(other.get(i),other.get(i+1));
+        pgl::Segment<typename OtherRectangle::PointType> edge(other.get(i),other.get(i+1));
         if (separates(edge)) {
             count++;
-            OtherPoint opposite1 = other.get(i+2);
-            OtherPoint opposite2 = other.get(i+3);
+            typename OtherRectangle::PointType opposite1 = other.get(i+2);
+            typename OtherRectangle::PointType opposite2 = other.get(i+3);
             if (contains(opposite1) || contains(opposite2)) {
                 return true;
             }
@@ -1492,14 +1492,14 @@ constexpr bool Disk<PointType, LabelType>::separates(const Rectangle<OtherPoint>
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherTriangle& other) const {
     int count = 0;
     for (int i = 0; i < 3; i++) {
-        pgl::Segment<OtherPoint> edge(other.get(i),other.get(i+1));
+        pgl::Segment<typename OtherTriangle::PointType> edge(other.get(i),other.get(i+1));
         if (separates(edge)) {
             count++;
-            OtherPoint opposite = other.get(i+2);
+            typename OtherTriangle::PointType opposite = other.get(i+2);
             if (contains(opposite)) {
                 return true;
             }
@@ -1509,8 +1509,8 @@ constexpr bool Disk<PointType, LabelType>::separates(const Triangle<OtherPoint>&
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherDisk&) const {
     return false;  // a disk never separates another disk
 }
 
@@ -1536,15 +1536,15 @@ constexpr bool Polygon<PointType>::separates(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Polygon<PointType>::separates(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
 
     std::optional<pgl::OrientedSegment<PointType>> minSeg, maxSeg;
 
-    auto crossingOrder = [](const pgl::Segment<OtherPoint> &s, const pgl::OrientedSegment<PointType> &a, const pgl::OrientedSegment<PointType> &b) {
+    auto crossingOrder = [](const pgl::Segment<typename OtherSegment::PointType> &s, const pgl::OrientedSegment<PointType> &a, const pgl::OrientedSegment<PointType> &b) {
         bool gte = pgl::Triangle<PointType>(s[0],a[0],a[1]).interiorsIntersect(pgl::Triangle<PointType>(s[1],b[0],b[1]));
         bool lte = pgl::Triangle<PointType>(s[0],b[0],b[1]).interiorsIntersect(pgl::Triangle<PointType>(s[1],a[0],a[1]));
         if (gte && !lte) return std::partial_ordering::greater;
@@ -1602,13 +1602,13 @@ constexpr bool Polygon<PointType>::separates(const Segment<OtherPoint, OtherLabe
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Polygon<PointType>::separates(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
 
-    pgl::OrientedLine<OtherPoint> ol(other[0],other[1]);
+    pgl::OrientedLine<typename OtherRay::PointType> ol(other[0],other[1]);
 
     for (ptrdiff_t i = 0; i < (ptrdiff_t) size(); ++i) {
         pgl::OrientedSegment<PointType> edge(get(i), get(i+1));
@@ -1635,8 +1635,8 @@ constexpr bool Polygon<PointType>::separates(const Ray<OtherPoint>& other) const
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Polygon<PointType>::separates(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1644,39 +1644,39 @@ constexpr bool Polygon<PointType>::separates(const Line<OtherPoint>& other) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polygon<PointType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polygon<PointType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polygon<PointType>::separates(const OtherHalfplane&) const {
     return false;  // A polygon never separates a halfplane
 }
 
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool OrientedSegment<PointType>::separates(const OtherPolygon& other) const {
     return this->asSegment().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool OrientedLine<PointType>::separates(const OtherPolygon& other) const {
     return this->asLine().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Line<PointType>::separates(const OtherPolygon& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -1684,20 +1684,20 @@ constexpr bool Line<PointType>::separates(const Polygon<OtherPoint>& other) cons
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Rectangle<PointType>::separates(const OtherPolygon& other) const {
     return asConvex().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Triangle<PointType>::separates(const OtherPolygon& other) const {
     return asConvex().separates(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Convex<PointType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1725,7 +1725,7 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
     // therefore never fire the test.
 
     using CommonNumber = std::common_type_t<typename PointType::NumberType,
-                                            typename OtherPoint::NumberType>;
+                                            typename OtherPolygon::NumberType>;
     using CommonPoint = Point<CommonNumber>;
     using PosLine = Line<CommonPoint>;
 
@@ -1761,7 +1761,7 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
     // overlap, whose near and far ends are explicit endpoints. A contact
     // landing exactly on the run's vertex inside C is dropped when requested:
     // the vertex's own wedge events describe that contact better.
-    const auto extremeContact = [&](const OtherPoint& pa, const OtherPoint& pb,
+    const auto extremeContact = [&](const typename OtherPolygon::PointType& pa, const typename OtherPolygon::PointType& pb,
                                     bool first, bool skipAtRunVertex)
         -> std::optional<std::pair<std::ptrdiff_t, PosLine>> {
         const CommonPoint a = common(pa);
@@ -1831,7 +1831,7 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
     // right; the pair of wedge events splits the ∂C arcs it sits between
     // (the two-touch pinch case) without affecting any other arc.
     const auto addVertexContact = [&](std::ptrdiff_t i) {
-        const OtherPoint vertex = other.get(i);
+        const typename OtherPolygon::PointType vertex = other.get(i);
         if (!boundaryContains(vertex)) {
             return;
         }
@@ -1866,7 +1866,7 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
                 events.push_back({contact->first, contact->second, component,
                                   common(u), common(v), common(v), false});
             }
-        } else if (!current && intersects(Segment<OtherPoint>(u, v))) {
+        } else if (!current && intersects(Segment<typename OtherPolygon::PointType>(u, v))) {
             // Both endpoints outside: the edge meets the convex body in a
             // single sub-segment or touch point, a component of its own.
             ++component;
@@ -1943,48 +1943,48 @@ constexpr bool Convex<PointType>::separates(const Polygon<OtherPoint>& other) co
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::separates(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Disk::separates(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Rectangle<OtherPoint>&) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Polygon<PointType>::separates(const OtherRectangle&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Rectangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Triangle<OtherPoint>&) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Polygon<PointType>::separates(const OtherTriangle&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Triangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Polygon<PointType>::separates(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Convex<OtherPoint>&) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Polygon<PointType>::separates(const OtherConvex&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Convex) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const Polygon<OtherPoint>&) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType>::separates(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

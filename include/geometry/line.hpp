@@ -345,28 +345,28 @@ struct Line {
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
     // A line has empty boundary, so it boundary-contains no non-point shape.
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>&) const { return false; }
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>&) const { return false; }
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment&) const { return false; }
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherLine&) const { return false; }
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine&) const { return false; }
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRay&) const { return false; }
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane&) const { return false; }
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle&) const { return false; }
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle&) const { return false; }
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex&) const { return false; }
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon&) const { return false; }
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
 
     /**
      * @brief Returns whether the line contains the given point.
@@ -390,8 +390,8 @@ struct Line {
      * @param other Other line.
      * @return `true` if both lines are equal.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
 
     /**
      * @brief Returns whether the line contains a segment.
@@ -401,8 +401,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if both endpoints of `other` lie on the line.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether the line contains an oriented segment.
@@ -412,30 +412,30 @@ struct Line {
      * @param other Other oriented segment.
      * @return `true` if both endpoints of `other` lie on the line.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
 
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
@@ -465,29 +465,29 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherLine& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
      * @brief Returns whether the line interior contains the given point.
@@ -509,8 +509,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if the segment lies on the line.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool collinear(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether the given oriented segment is collinear with the line.
@@ -520,8 +520,8 @@ struct Line {
      * @param other Other oriented segment.
      * @return `true` if the segment lies on the line.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool collinear(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Returns whether another line is collinear with this line.
@@ -531,8 +531,8 @@ struct Line {
      * @param other Other line.
      * @return `true` if the two lines coincide.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool collinear(const OtherLine& other) const;
 
     /**
      * @brief Returns whether an oriented line is collinear with this line.
@@ -541,8 +541,8 @@ struct Line {
      * @param other Other oriented line.
      * @return `true` if both lines coincide as point sets.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool collinear(const OtherOrientedLine& other) const;
 
     /**
      * @brief Returns whether a ray is collinear with this line.
@@ -551,8 +551,8 @@ struct Line {
      * @param other Ray to test.
      * @return `true` if the ray lies on the supporting line.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool collinear(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
 
     /**
      * @brief Returns the absolute slope of the line.
@@ -622,8 +622,8 @@ struct Line {
      * @param other Other line.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool parallel(const OtherLine& other) const;
 
     /**
      * @brief Returns whether a segment is parallel to this line.
@@ -633,8 +633,8 @@ struct Line {
      * @param other Other segment.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether an oriented segment is parallel to this line.
@@ -644,8 +644,8 @@ struct Line {
      * @param other Other oriented segment.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
 
     /**
      * @brief Returns whether an oriented line is parallel to this line.
@@ -654,8 +654,8 @@ struct Line {
      * @param other Other oriented line.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool parallel(const OtherOrientedLine& other) const;
 
     /**
      * @brief Returns whether a ray is parallel to this line.
@@ -664,8 +664,8 @@ struct Line {
      * @param other Ray to test.
      * @return `true` if both directions are proportional.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool parallel(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
@@ -678,14 +678,14 @@ struct Line {
      * @param other Other line.
      * @return `true` if the lines share at least one point.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool intersects(const OtherLine& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
@@ -714,14 +714,14 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Line>)
@@ -745,17 +745,17 @@ struct Line {
      * @param other Other line.
      * @return `true` if the lines are distinct and not parallel.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
 
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Line>)
@@ -774,48 +774,48 @@ struct Line {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OrientedLine<OtherPoint>& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
 
 
     /**
@@ -833,15 +833,15 @@ struct Line {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,Line<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Line<OtherPoint>& other) const;
+    intersection(const OtherLine& other) const;
 
-    template <class ResultNumber = NumberType, PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr auto intersection(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto intersection(const OtherSegment& other) const;
 
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto intersection(const OrientedSegment<OtherPoint>& other) const;
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto intersection(const OtherOrientedSegment& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
@@ -878,8 +878,8 @@ struct Line {
      * @param other Other line.
      * @return Squared Euclidean distance.
      */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr auto squaredDistance(const Line<OtherPoint>& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
     /**
      * @brief Translates both defining points in place.

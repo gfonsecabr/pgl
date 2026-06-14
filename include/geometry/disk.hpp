@@ -503,44 +503,44 @@ struct Disk {
     [[nodiscard]] constexpr bool contains(const OtherPoint& other) const;
 
     /** @brief Tests whether both endpoints of a segment lie in the closed disk. */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie in the closed disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const OrientedSegment<OtherPoint>& other) const;
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Line<OtherPoint>& other) const;
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const OrientedLine<OtherPoint>& other) const;
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Ray<OtherPoint>& other) const;
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Halfplane<OtherPoint>& other) const;
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
 
     /** @brief Tests whether every triangle vertex lies in the closed disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Triangle<OtherPoint>& other) const;
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
 
     /** @brief Tests whether every rectangle vertex lies in the closed disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Rectangle<OtherPoint>& other) const;
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
 
     /** @brief Tests whether every vertex of a convex polygon lies in the closed disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Convex<OtherPoint>& other) const;
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool contains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
 
     /** @brief Tests whether this disk encloses the other disk's boundary circle. */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool contains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
 
     /** @brief Dispatches to the matching overload for the runtime type of @p other. */
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
@@ -572,47 +572,47 @@ struct Disk {
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& other) const;
 
     /** @brief Tests whether both endpoints of a segment lie strictly inside the disk. */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
     /** @brief Tests whether both endpoints of an oriented segment lie strictly inside the disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const OrientedSegment<OtherPoint>& other) const;
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Line<OtherPoint>& other) const;
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const OrientedLine<OtherPoint>& other) const;
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Ray<OtherPoint>& other) const;
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Halfplane<OtherPoint>& other) const;
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
 
     /** @brief Tests whether every triangle vertex lies strictly inside the disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /** @brief Tests whether every rectangle vertex lies strictly inside the disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Rectangle<OtherPoint>& other) const;
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /** @brief Tests whether every vertex of a convex polygon lies strictly inside the disk. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>& other) const;
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
 
     /** @brief Tests whether this disk strictly encloses the other disk's boundary circle. */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
     /**
      * @brief Tests whether the closed segment shares at least one point with the
      *        closed disk (touching counts as intersecting).
      */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
 
     /**
      * @brief Tests whether the two closed disks share at least one point.
@@ -620,8 +620,8 @@ struct Disk {
      * True when the distance between the centers is at most the sum of the radii
      * (touching disks count as intersecting).
      */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool intersects(const Disk<OtherPoint, OtherLabel>& other) const;
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool intersects(const OtherDisk& other) const;
 
     /**
      * @brief Tests whether the point @p other lies exactly on the boundary circle.
@@ -635,50 +635,50 @@ struct Disk {
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& other) const;
 
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>& other) const;
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>& other) const;
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>& other) const;
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRay& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>& other) const;
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>& other) const;
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>& other) const;
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const;
 
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>& other) const;
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const;
 
     /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const;
 
     /** @brief Tests whether the other disk's boundary circle coincides exactly with this one's. */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>& other) const;
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const;
 
     /** @brief Dispatches to the matching overload for the runtime type of @p other. */
     [[nodiscard]] constexpr bool boundaryContains(const Shape<PointType>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
 
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Polygon<OtherPoint>& other) const;
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
 
     /** @brief A disk never separates an isolated point. */
@@ -689,44 +689,44 @@ struct Disk {
      * @brief Tests whether removing the disk from the segment splits it into
      *        two pieces (the disk crosses the segment's interior).
      */
-    template <PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
     /** @brief Same as the segment overload, ignoring the segment's orientation. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
 
     /** @brief Tests whether the disk meets the line, cutting it into two rays. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Line<OtherPoint>& other) const;
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
 
     /** @brief Same as the line overload, ignoring the line's orientation. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OrientedLine<OtherPoint>& other) const;
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
 
     /** @brief Tests whether removing the disk from the convex polygon splits it. */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Convex<OtherPoint>& other) const;
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
     /** @brief Tests whether removing the disk from the ray splits it. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Ray<OtherPoint>& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
 
     /** @brief A disk never separates a halfplane. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Halfplane<OtherPoint>& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
     /** @brief Tests whether removing the disk from the rectangle splits it. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Rectangle<OtherPoint>& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
     /** @brief Tests whether removing the disk from the triangle splits it. */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const Triangle<OtherPoint>& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
     /** @brief A disk never separates another disk. */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
     // --- Symmetric predicate dispatch: intersects / interiorsIntersect / crosses ---
     // For a symmetric predicate a.method(b) == b.method(a). The canonical
@@ -739,64 +739,64 @@ struct Disk {
     /** @brief intersects: not-yet-implemented disk pairs (throw); see implementation. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const OrientedSegment<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Line<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const OrientedLine<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Ray<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Halfplane<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Rectangle<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool intersects(const Triangle<OtherPoint>& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool intersects(const OtherLine& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedLine& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool intersects(const OtherRectangle& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool intersects(const OtherTriangle& other) const;
 
     /** @brief interiorsIntersect: not-yet-implemented disk pairs (throw); see implementation. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OrientedSegment<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Line<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OrientedLine<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Ray<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Halfplane<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Rectangle<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Triangle<OtherPoint>& other) const;
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRectangle& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherTriangle& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherDisk& other) const;
 
     /** @brief crosses: not-yet-implemented disk pairs (throw); see implementation. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OrientedSegment<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Line<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OrientedLine<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Ray<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Halfplane<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Rectangle<OtherPoint>& other) const;
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const Triangle<OtherPoint>& other) const;
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Disk<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool crosses(const OtherHalfplane& other) const;
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool crosses(const OtherRectangle& other) const;
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool crosses(const OtherTriangle& other) const;
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool crosses(const OtherDisk& other) const;
 
     /** @brief Dispatches to the matching overload for the runtime type of @p other. */
     template<PointConcept OtherPoint>

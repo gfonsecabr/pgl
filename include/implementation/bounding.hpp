@@ -341,8 +341,8 @@ constexpr void Rectangle<PointType>::insert(const OtherPoint& point) {
 }
 
 template <class PointType>
-template <PointConcept OtherPoint>
-constexpr void Rectangle<PointType>::insert(const Rectangle<OtherPoint>& other) {
+template <RectangleConcept OtherRectangle>
+constexpr void Rectangle<PointType>::insert(const OtherRectangle& other) {
     insert(other.min());
     insert(other.max());
 }

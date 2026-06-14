@@ -88,8 +88,8 @@ constexpr bool Segment<PointType, LabelType>::crosses(const Shape<PointType>& ot
  */
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Triangle<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Triangle<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
@@ -100,44 +100,44 @@ constexpr bool Triangle<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Triangle<PointType>::crosses(const OtherOrientedSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Triangle<PointType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Triangle<PointType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Triangle<PointType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Triangle<PointType>::crosses(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Triangle<PointType>::crosses(const OtherRectangle& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::crosses(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Triangle<PointType>::crosses(const OtherTriangle& other) const {
     return separates(other) && other.separates(*this);
 }
 
@@ -157,14 +157,14 @@ constexpr bool Triangle<PointType>::crosses(const Shape<PointType>& other) const
  */
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedSegment<PointType>::crosses(const OtherSegment& other) const {
     return this->asSegment().crosses(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedSegment<PointType>::crosses(const OtherOrientedSegment& other) const {
     return this->asSegment().crosses(other.asSegment());
 }
 
@@ -190,8 +190,8 @@ constexpr bool OrientedSegment<PointType>::crosses(const Shape<PointType>& other
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Line<PointType>::crosses(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate() || *this == other) {
         return false;
     }
@@ -205,14 +205,14 @@ constexpr bool Line<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Line<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Line<PointType>::crosses(const OtherOrientedSegment& other) const {
     return crosses(other.asSegment());
 }
 
@@ -232,14 +232,14 @@ constexpr bool Line<PointType>::crosses(const Shape<PointType>& other) const {
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedLine<PointType>::crosses(const OtherLine& other) const {
     return this->asLine().crosses(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedLine<PointType>::crosses(const OtherOrientedLine& other) const {
     return this->asLine().crosses(other.asLine());
 }
 
@@ -250,14 +250,14 @@ constexpr bool OrientedLine<PointType>::crosses(const OtherPoint& other) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedLine<PointType>::crosses(const OtherSegment& other) const {
     return this->asLine().crosses(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedLine<PointType>::crosses(const OtherOrientedSegment& other) const {
     return this->asLine().crosses(other);
 }
 
@@ -271,16 +271,16 @@ constexpr bool OrientedLine<PointType>::crosses(const Shape<PointType>& other) c
 }
 
 template <class PointType>
-template <PointConcept OtherPoint>
+template <LineConcept OtherLine>
 constexpr std::partial_ordering
-OrientedLine<PointType>::crossingOrder(const Line<OtherPoint>& first,
-                                       const Line<OtherPoint>& second) const {
+OrientedLine<PointType>::crossingOrder(const OtherLine& first,
+                                       const OtherLine& second) const {
     // A point source() + t*(target() - source()) lies on a line L = (P, Q) where
     // the affine function orientationDeterminant(P, Q, .) = p + t*(q - p)
     // vanishes, i.e. at parameter t = p / (p - q). The denominator p - q is the
     // cross product of the two line directions and is zero exactly when L is
     // parallel to this oriented line.
-    const auto crossing = [&](const Line<OtherPoint>& line) {
+    const auto crossing = [&](const OtherLine& line) {
         const auto p = orientationDeterminant(line[0], line[1], source());
         const auto q = orientationDeterminant(line[0], line[1], target());
         return std::pair{p, p - q};   // crossing parameter is p / (p - q)
@@ -312,32 +312,32 @@ OrientedLine<PointType>::crossingOrder(const Line<OtherPoint>& first,
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Ray<PointType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Ray<PointType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Ray<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Ray<PointType>::crosses(const OtherOrientedSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Ray<PointType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
@@ -363,8 +363,8 @@ constexpr bool Ray<PointType>::crosses(const Shape<PointType>& other) const {
  */
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Rectangle<PointType>::crosses(const OtherRectangle& other) const {
     const bool hor_ver =
         min().x() < other.min().x() &&
         other.max().x() < max().x() &&
@@ -388,38 +388,38 @@ constexpr bool Rectangle<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Rectangle<PointType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Rectangle<PointType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Rectangle<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Rectangle<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Rectangle<PointType>::crosses(const OtherOrientedSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Rectangle<PointType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Rectangle<PointType>::crosses(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
@@ -446,43 +446,43 @@ constexpr bool Halfplane<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Halfplane<PointType>::crosses(const OtherLine& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Halfplane<PointType>::crosses(const OtherOrientedLine& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Halfplane<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Halfplane<PointType>::crosses(const OtherSegment& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Halfplane<PointType>::crosses(const OtherOrientedSegment& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Halfplane<PointType>::crosses(const OtherRay& other) const {
     (void)other;
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const Halfplane<OtherPoint>& other) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Halfplane<PointType>::crosses(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
@@ -507,56 +507,56 @@ constexpr bool Convex<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Convex<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
-    return crosses(static_cast<Segment<OtherPoint>>(other));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Convex<PointType>::crosses(const OtherOrientedSegment& other) const {
+    return crosses(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Convex<PointType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
-    return crosses(static_cast<Line<OtherPoint>>(other));
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Convex<PointType>::crosses(const OtherOrientedLine& other) const {
+    return crosses(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Convex<PointType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Convex<PointType>::crosses(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Rectangle<OtherPoint>& other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Convex<PointType>::crosses(const OtherRectangle& other) const {
     return crosses(other.asConvex());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Convex<PointType>::crosses(const OtherTriangle& other) const {
     return crosses(other.asConvex());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Convex<PointType>::crosses(const OtherConvex& other) const {
     if (bbox().crosses(other.bbox())) {
         return true;
     }
@@ -564,8 +564,8 @@ constexpr bool Convex<PointType>::crosses(const Convex<OtherPoint>& other) const
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Convex<PointType>::crosses(const Disk<OtherPoint, OtherLabel>& other) const {
+template<DiskConcept OtherDisk>
+constexpr bool Convex<PointType>::crosses(const OtherDisk& other) const {
     return (separates(other) && other.separates(*this));
 }
 
@@ -586,70 +586,70 @@ constexpr bool Polygon<PointType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::crosses(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Polygon<PointType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polygon<PointType>::crosses(const OtherOrientedSegment& other) const {
     return crosses(other.asSegment());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Polygon<PointType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Polygon<PointType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polygon<PointType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polygon<PointType>::crosses(const OtherHalfplane&) const {
     return false;
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Rectangle<OtherPoint>&other) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Polygon<PointType>::crosses(const OtherRectangle&other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Triangle<OtherPoint>& other) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Polygon<PointType>::crosses(const OtherTriangle& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Convex<OtherPoint>& other) const {
+template<ConvexConcept OtherConvex>
+constexpr bool Polygon<PointType>::crosses(const OtherConvex& other) const {
     return separates(other) && other.separates(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Polygon<PointType>::crosses(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Polygon<PointType>::crosses(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::crosses(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::crosses(const Polygon<OtherPoint>& other) const {
+template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType>::crosses(const OtherPolygon& other) const {
     return separates(other) && other.separates(*this);
 }
 
@@ -682,72 +682,72 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherPoint&) const {
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::crosses(const Segment<OtherPoint, OtherLabel>&) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherSegment&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Segment) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const OrientedSegment<OtherPoint>&) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedSegment&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(OrientedSegment) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const Line<OtherPoint>&) const {
+template<LineConcept OtherLine>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherLine&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Line) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const OrientedLine<OtherPoint>&) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedLine&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(OrientedLine) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const Ray<OtherPoint>&) const {
+template<RayConcept OtherRay>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherRay&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Ray) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const Halfplane<OtherPoint>&) const {
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherHalfplane&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Halfplane) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const Rectangle<OtherPoint>&) const {
+template<RectangleConcept OtherRectangle>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherRectangle&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Rectangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Disk<PointType, LabelType>::crosses(const Triangle<OtherPoint>&) const {
+template<TriangleConcept OtherTriangle>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherTriangle&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Triangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Disk<PointType, LabelType>::crosses(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Disk::crosses(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

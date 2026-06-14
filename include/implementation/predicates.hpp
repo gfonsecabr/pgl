@@ -168,32 +168,32 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherSegment& other
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::collinear(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Segment<PointType, LabelType>::collinear(const OtherOrientedSegment& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::collinear(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Segment<PointType, LabelType>::collinear(const OtherLine& other) const {
     return collinear(other.min()) && collinear(other.max());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::collinear(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Segment<PointType, LabelType>::collinear(const OtherOrientedLine& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::collinear(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Segment<PointType, LabelType>::collinear(const OtherRay& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::parallel(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Segment<PointType, LabelType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(min(), max(), other.source(), other.target());
 }
 
@@ -263,32 +263,32 @@ constexpr bool OrientedSegment<PointType>::collinear(const OtherPoint& point) co
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::collinear(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedSegment<PointType>::collinear(const OtherSegment& other) const {
     return collinear(other.min()) && collinear(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::collinear(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedSegment<PointType>::collinear(const OtherOrientedSegment& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::collinear(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedSegment<PointType>::collinear(const OtherLine& other) const {
     return collinear(other.min()) && collinear(other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::collinear(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedSegment<PointType>::collinear(const OtherOrientedLine& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::collinear(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedSegment<PointType>::collinear(const OtherRay& other) const {
     return collinear(other.source()) && collinear(other.target());
 }
 
@@ -299,32 +299,32 @@ constexpr std::partial_ordering OrientedSegment<PointType>::orientation(const Ot
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedSegment<PointType>::parallel(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedSegment<PointType>::parallel(const OtherSegment& other) const {
     return static_cast<Segment<PointType>>(*this).parallel(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
-    return static_cast<Segment<PointType>>(*this).parallel(static_cast<Segment<OtherPoint>>(other));
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedSegment<PointType>::parallel(const OtherOrientedSegment& other) const {
+    return static_cast<Segment<PointType>>(*this).parallel(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::parallel(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedSegment<PointType>::parallel(const OtherLine& other) const {
     return other.parallel(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedSegment<PointType>::parallel(const OtherOrientedLine& other) const {
     return other.parallel(*this);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::parallel(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedSegment<PointType>::parallel(const OtherRay& other) const {
     return other.parallel(*this);
 }
 
@@ -380,8 +380,8 @@ constexpr bool Line<PointType>::isHorizontal() const {
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::parallel(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Segment<PointType, LabelType>::parallel(const OtherLine& other) const {
     return other.parallel(*this);
 }
 
@@ -398,62 +398,62 @@ constexpr bool Line<PointType>::collinear(const OtherPoint& point) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::collinear(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Line<PointType>::collinear(const OtherSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::collinear(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Line<PointType>::collinear(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::collinear(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Line<PointType>::collinear(const OtherLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::parallel(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Line<PointType>::parallel(const OtherLine& other) const {
     return sameDirection(min(), max(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Line<PointType>::parallel(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Line<PointType>::parallel(const OtherSegment& other) const {
     return sameDirection(min(), max(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Line<PointType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(min(), max(), other.source(), other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Line<PointType>::parallel(const OtherOrientedLine& other) const {
     return parallel(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::parallel(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Line<PointType>::parallel(const OtherRay& other) const {
     return parallel(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::collinear(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Line<PointType>::collinear(const OtherOrientedLine& other) const {
     return collinear(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::collinear(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Line<PointType>::collinear(const OtherRay& other) const {
     return collinear(other.asLine());
 }
 
@@ -502,8 +502,8 @@ constexpr bool OrientedLine<PointType>::isHorizontal() const {
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::parallel(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Segment<PointType, LabelType>::parallel(const OtherOrientedLine& other) const {
     return other.parallel(*this);
 }
 
@@ -520,32 +520,32 @@ constexpr bool OrientedLine<PointType>::collinear(const OtherPoint& point) const
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::collinear(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedLine<PointType>::collinear(const OtherLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::collinear(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedLine<PointType>::collinear(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::collinear(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedLine<PointType>::collinear(const OtherSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::collinear(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedLine<PointType>::collinear(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::collinear(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool OrientedLine<PointType>::collinear(const OtherRay& other) const {
     return collinear(other.asLine());
 }
 
@@ -556,26 +556,26 @@ constexpr std::partial_ordering OrientedLine<PointType>::orientation(const Other
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::parallel(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool OrientedLine<PointType>::parallel(const OtherLine& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool OrientedLine<PointType>::parallel(const OtherOrientedLine& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool OrientedLine<PointType>::parallel(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool OrientedLine<PointType>::parallel(const OtherSegment& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool OrientedLine<PointType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
@@ -659,32 +659,32 @@ constexpr bool Ray<PointType>::collinear(const OtherPoint& point) const {
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::collinear(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Ray<PointType>::collinear(const OtherLine& other) const {
     return this->asLine().contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::collinear(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Ray<PointType>::collinear(const OtherOrientedLine& other) const {
     return this->asLine().contains(other.asLine());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::collinear(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Ray<PointType>::collinear(const OtherSegment& other) const {
     return this->asLine().contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::collinear(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Ray<PointType>::collinear(const OtherOrientedSegment& other) const {
     return this->asLine().contains(other);
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::collinear(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Ray<PointType>::collinear(const OtherRay& other) const {
     return this->asLine().contains(other.asLine());
 }
 
@@ -695,38 +695,38 @@ constexpr std::partial_ordering Ray<PointType>::orientation(const OtherPoint& po
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::parallel(const Line<OtherPoint>& other) const {
+template<LineConcept OtherLine>
+constexpr bool Ray<PointType>::parallel(const OtherLine& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::parallel(const OrientedLine<OtherPoint>& other) const {
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Ray<PointType>::parallel(const OtherOrientedLine& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Ray<PointType>::parallel(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Ray<PointType>::parallel(const OtherSegment& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::parallel(const OrientedSegment<OtherPoint>& other) const {
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Ray<PointType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::parallel(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Ray<PointType>::parallel(const OtherRay& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint>
-constexpr bool Segment<PointType, LabelType>::parallel(const Ray<OtherPoint>& other) const {
+template<RayConcept OtherRay>
+constexpr bool Segment<PointType, LabelType>::parallel(const OtherRay& other) const {
     return other.parallel(*this);
 }
 
