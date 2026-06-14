@@ -777,7 +777,7 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OrientedLine<OtherPoi
 template <class PointType>
 template<PointConcept OtherPoint, class OtherLabel>
 constexpr bool Convex<PointType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (isDegenerate() || other.isDegenerate() || !bbox().intersects(other.bbox())) {
         return false;
     }
     if (interiorContains(other.min()) || interiorContains(other.max())) {
@@ -863,10 +863,7 @@ constexpr bool Convex<PointType>::interiorsIntersect(const Triangle<OtherPoint>&
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::interiorsIntersect(const Convex<OtherPoint>& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
-        return false;
-    }
-    if (!bbox().intersects(other.bbox())) {
+    if (isDegenerate() || other.isDegenerate() || !bbox().interiorsIntersect(other.bbox())) {
         return false;
     }
     if (bbox().crosses(other.bbox())) {
@@ -1133,8 +1130,11 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Triangle<OtherPoint>
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Polygon<PointType>::interiorsIntersect(const Convex<OtherPoint>& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (isDegenerate() || other.isDegenerate() || !bbox().intersects(other.bbox())) {
         return false;
+    }
+    if (bbox().crosses(other.bbox())) {
+        return true;
     }
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
@@ -1159,6 +1159,14 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Convex<OtherPoint>& 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Polygon<PointType>::interiorsIntersect(const Polygon<OtherPoint>& other) const {
+    // Cheap bounding-box reject: if the closed boxes are disjoint the interiors
+    // cannot meet, so the O(n^2) machinery below is skipped for distant pairs.
+    if (size() == 0 || other.size() == 0 || !bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().crosses(other.bbox())) {
+        return true;
+    }
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1195,11 +1203,6 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const Polygon<OtherPoint>&
     return false;
 }
 
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const Polygon<OtherPoint>& other) const {
-    return other.interiorsIntersect(*this);
-}
 
 template <class PointType>
 template<PointConcept OtherPoint>

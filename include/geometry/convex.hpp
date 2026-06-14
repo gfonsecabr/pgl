@@ -1097,10 +1097,6 @@ struct Convex {
     template<PointConcept OtherPoint>
     constexpr bool intersects(const Convex<OtherPoint>& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool intersects(const Polygon<OtherPoint>& other) const;
-
     /**
      * @brief Checks if the disk intersects this convex polygon.
      *
@@ -1218,10 +1214,6 @@ struct Convex {
      */
     template<PointConcept OtherPoint>
     constexpr bool interiorsIntersect(const Convex<OtherPoint>& other) const;
-
-    /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool interiorsIntersect(const Polygon<OtherPoint>& other) const;
 
     /**
      * @brief Checks if the interior of the convex polygon intersects a disk.
@@ -1450,10 +1442,6 @@ struct Convex {
      */
     template<PointConcept OtherPoint>
     constexpr bool crosses(const Convex<OtherPoint>& other) const;
-
-    /** @brief Polygon overload; see the Convex overload. */
-    template<PointConcept OtherPoint>
-    constexpr bool crosses(const Polygon<OtherPoint>& other) const;
 
     /**
      * @brief Checks if the convex polygon crosses a disk.

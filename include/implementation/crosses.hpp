@@ -672,12 +672,6 @@ constexpr bool Point<Number, Label>::crosses(const Shape<Point<Number, Label>>& 
         other.variant());
 }
 
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Polygon<OtherPoint>& other) const {
-    return separates(other) && other.separates(*this);
-}
-
 
 // --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
 
