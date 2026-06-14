@@ -44,9 +44,9 @@ Segment<PointType, LabelType>::intersection(const OtherPoint& other) const {
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber, PointConcept OtherPoint, class OtherLabel>
+template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Segment<PointType, LabelType>::intersection(const Segment<OtherPoint, OtherLabel>& other) const {
+Segment<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
 
@@ -59,7 +59,8 @@ Segment<PointType, LabelType>::intersection(const Segment<OtherPoint, OtherLabel
 
     if (d1 == 0 && d2 == 0) {
         // Both segments are collinear: compare endpoints in ResultPoint so the
-        // ternary and ordering stay well-typed when PointType and OtherPoint
+        // ternary and ordering stay well-typed when PointType and the other
+        // segment's point type
         // differ (e.g. Convex chord clipped from int into Rational).
         const ResultPoint a_min(min());
         const ResultPoint a_max(max());

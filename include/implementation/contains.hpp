@@ -31,8 +31,8 @@ constexpr bool Point<Number, Label>::contains(const OtherPoint& other) const {
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::contains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Point<Number, Label>::contains(const OtherSegment& other) const {
     return other.isDegenerate() && contains(other.min());
 }
 
@@ -111,8 +111,8 @@ constexpr bool Segment<PointType, LabelType>::contains(const OtherPoint& point) 
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::contains(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::contains(const OtherSegment& other) const {
     return contains(other.min()) && contains(other.max());
 }
 

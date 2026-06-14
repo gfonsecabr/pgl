@@ -30,19 +30,6 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Halfplane;
 
-namespace detail {
-template <class T>
-struct is_halfplane : std::false_type {};
-template <class PointType>
-struct is_halfplane<Halfplane<PointType>> : std::true_type {};
-template <class T>
-inline constexpr bool is_halfplane_v = is_halfplane<std::remove_cvref_t<T>>::value;
-}  // namespace detail
-
-/** @brief Satisfied by any specialization of @ref Halfplane. */
-template <class T>
-concept HalfplaneConcept = detail::is_halfplane_v<T>;
-
 Halfplane() -> Halfplane<Point<>>;
 
 template <class PointType>
@@ -374,9 +361,31 @@ struct Halfplane {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    template<class S>
-        requires(!detail::is_point_v<S>)
-    [[nodiscard]] constexpr bool boundaryContains(const S& other) const;
+    // The boundary of a half-plane is its edge line. A 1D shape lies on the
+    // boundary iff its defining points do; an area must additionally be
+    // degenerate (collapsed onto that line). See the implementations.
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>&) const { return false; }
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OtherPoint& point) const;

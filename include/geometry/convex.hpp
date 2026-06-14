@@ -150,19 +150,6 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Convex;
 
-namespace detail {
-template <class T>
-struct is_convex : std::false_type {};
-template <class PointType>
-struct is_convex<Convex<PointType>> : std::true_type {};
-template <class T>
-inline constexpr bool is_convex_v = is_convex<std::remove_cvref_t<T>>::value;
-}  // namespace detail
-
-/** @brief Satisfied by any specialization of @ref Convex. */
-template <class T>
-concept ConvexConcept = detail::is_convex_v<T>;
-
 Convex() -> Convex<Point<>>;
 
 template <std::ranges::input_range Range>

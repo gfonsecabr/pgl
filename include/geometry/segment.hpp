@@ -30,19 +30,6 @@ namespace pgl {
 template <class PointType = Point<>, class Label>
 struct Segment;
 
-namespace detail {
-template <class T>
-struct is_segment : std::false_type {};
-template <class PointType, class LabelType>
-struct is_segment<Segment<PointType, LabelType>> : std::true_type {};
-template <class T>
-inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;
-}  // namespace detail
-
-/** @brief Satisfied by any specialization of @ref Segment. */
-template <class T>
-concept SegmentConcept = detail::is_segment_v<T>;
-
 Segment() -> Segment<Point<>, NoLabel>;
 
 template <class PointType>
@@ -479,9 +466,30 @@ struct Segment {
      * @param other Shape to check.
      * @return The result of the shape-specific boundaryContains method.
      */
-    template<class S>
-        requires(!detail::is_point_v<S>)
-    [[nodiscard]] constexpr bool boundaryContains(const S& other) const;
+    // The boundary of a segment is exactly its two endpoints, a finite point
+    // set, so it contains no positive-length or two-dimensional shape.
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>&) const { return false; }
 
     /**
      * @brief Returns whether the segment contains the given point that is collinear with the segment.
@@ -516,8 +524,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if both endpoints of `other` lie on this segment.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool contains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether the segment contains an oriented segment.
@@ -667,8 +675,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if all points of `other` lie in the interior of this segment.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorContains(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
      * @brief Checks if the segment contains the given oriented segment in its interior.
@@ -690,9 +698,28 @@ struct Segment {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const Triangle<OtherPoint>& other) const;
 
-    template<class S>
-        requires(!detail::is_point_v<S>)
-    [[nodiscard]] constexpr bool interiorContains(const S& other) const;
+    // A segment is one-dimensional: its interior is the open segment, which
+    // cannot contain any unbounded or two-dimensional shape.
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Line<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const OrientedLine<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Ray<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Halfplane<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Rectangle<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Convex<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Polygon<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool interiorContains(const Disk<OtherPoint, OtherLabel>&) const { return false; }
+
+    /** @brief Dispatches interior containment over the wrapped shape. */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
 
     /**
      * @brief Returns whether the given point lies on the supporting line.
@@ -711,8 +738,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if both endpoints of `other` are collinear with this segment.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool collinear(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool collinear(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether an oriented segment lies on the same supporting line.
@@ -763,8 +790,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if both direction vectors are proportional.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool parallel(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
 
     /**
      * @brief Returns whether an oriented segment is parallel to this one.
@@ -821,8 +848,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if the segments share at least one point.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool intersects(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
 
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
@@ -856,9 +883,9 @@ struct Segment {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    template <class ResultNumber=NumberType, PointConcept OtherPoint, class OtherLabel>
+    template <class ResultNumber=NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const Segment<OtherPoint, OtherLabel>& other) const;
+    intersection(const OtherSegment& other) const;
 
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
@@ -926,8 +953,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if removing this segment splits the other one.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool separates(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OrientedSegment<OtherPoint>& other) const;
@@ -985,8 +1012,8 @@ struct Segment {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
@@ -1015,8 +1042,8 @@ struct Segment {
      * @param other Other segment.
      * @return `true` if the segments cross through their interiors.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr bool crosses(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
@@ -1057,8 +1084,8 @@ struct Segment {
      * @param other Other segment.
      * @return Squared Euclidean distance.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr auto squaredDistance(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
      * @brief Returns the squared Hausdorff distance to another segment.
@@ -1071,8 +1098,8 @@ struct Segment {
      * @param other Other segment.
      * @return Squared Hausdorff distance.
      */
-    template<PointConcept OtherPoint, class OtherLabel>
-    [[nodiscard]] constexpr auto squaredHausdorffDistance(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
 
     /**
      * @brief Returns a segment defining the diameter.
@@ -1163,12 +1190,12 @@ struct Segment {
     template <std::floating_point ResultNumber, class Value>
     static constexpr ResultNumber upperCoordinateBound(const Value& value);
 
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr bool boundingBoxesOverlap(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr bool boundingBoxesOverlap(const OtherSegment& other) const;
 
     // Returns 0 for no overlap, 1 for overlap but no cross, 2 for cross
-    template<PointConcept OtherPoint, class OtherLabel>
-    constexpr int boundingBoxesCross(const Segment<OtherPoint, OtherLabel>& other) const;
+    template<SegmentConcept OtherSegment>
+    constexpr int boundingBoxesCross(const OtherSegment& other) const;
 
     std::array<PointType,2> points_{};
     [[no_unique_address]] LabelType label_{};

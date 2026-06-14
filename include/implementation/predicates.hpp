@@ -68,9 +68,9 @@ constexpr bool Segment<PointType, LabelType>::isHorizontal() const {
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::boundingBoxesOverlap(const Segment<OtherPoint, OtherLabel>& other) const {
-    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::boundingBoxesOverlap(const OtherSegment& other) const {
+    using Compare = std::common_type_t<NumberType, typename OtherSegment::NumberType>;
     const auto& a = min();
     const auto& b = max();
     const auto& c = other.min();
@@ -94,9 +94,9 @@ constexpr bool Segment<PointType, LabelType>::boundingBoxesOverlap(const Segment
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr int Segment<PointType, LabelType>::boundingBoxesCross(const Segment<OtherPoint, OtherLabel>& other) const {
-    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+template<SegmentConcept OtherSegment>
+constexpr int Segment<PointType, LabelType>::boundingBoxesCross(const OtherSegment& other) const {
+    using Compare = std::common_type_t<NumberType, typename OtherSegment::NumberType>;
     const auto& a = min();
     const auto& b = max();
     const auto& c = other.min();
@@ -156,14 +156,14 @@ constexpr bool Segment<PointType, LabelType>::collinear(const OtherPoint& point)
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::collinear(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::collinear(const OtherSegment& other) const {
     return collinear(other.min()) && collinear(other.max());
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::parallel(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::parallel(const OtherSegment& other) const {
     return sameDirection(min(), max(), other.min(), other.max());
 }
 

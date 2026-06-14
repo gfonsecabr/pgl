@@ -32,8 +32,8 @@ namespace pgl {
  */
 
 template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Point<Number, Label>::separates(const OtherSegment& other) const {
     return other.interiorContains(*this);
 }
 
@@ -74,8 +74,8 @@ constexpr bool Point<Number, Label>::separates(const Halfplane<OtherPoint>&) con
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Point<Number, Label>::separates(const Disk<OtherPoint, OtherLabel>&) const {
+template<DiskConcept OtherDisk>
+constexpr bool Point<Number, Label>::separates(const OtherDisk&) const {
     return false;
 }
 
@@ -121,8 +121,8 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherPoint&) const
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::separates(const Segment<OtherPoint, OtherLabel>& other) const {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherSegment& other) const {
     const int cross = boundingBoxesCross(other);
     if (cross == 0) {
         return false;

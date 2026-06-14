@@ -12,25 +12,11 @@
  * order for orientation-sensitive operations.
  */
 
-#include <type_traits>
 
 namespace pgl {
 
 template <class PointType = Point<>>
 struct OrientedSegment;
-
-namespace detail {
-template <class T>
-struct is_oriented_segment : std::false_type {};
-template <class PointType>
-struct is_oriented_segment<OrientedSegment<PointType>> : std::true_type {};
-template <class T>
-inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
-}  // namespace detail
-
-/** @brief Satisfied by any specialization of @ref OrientedSegment. */
-template <class T>
-concept OrientedSegmentConcept = detail::is_oriented_segment_v<T>;
 
 OrientedSegment() -> OrientedSegment<Point<>>;
 
@@ -458,9 +444,30 @@ struct OrientedSegment {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    template<class S>
-        requires(!detail::is_point_v<S>)
-    [[nodiscard]] constexpr bool boundaryContains(const S& other) const;
+    // The boundary of an oriented segment is its two endpoints, a finite point
+    // set, so it contains no positive-length or two-dimensional shape.
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Segment<OtherPoint, OtherLabel>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedSegment<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Line<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const OrientedLine<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Ray<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Halfplane<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Rectangle<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Triangle<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Convex<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Polygon<OtherPoint>&) const { return false; }
+    template<PointConcept OtherPoint, class OtherLabel>
+    [[nodiscard]] constexpr bool boundaryContains(const Disk<OtherPoint, OtherLabel>&) const { return false; }
 
     /**
      * @brief Returns whether the segment contains the given point that is collinear with the segment.

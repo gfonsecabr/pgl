@@ -44,9 +44,9 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherPoin
 }
 
 template <class PointType, class LabelType>
-template<PointConcept OtherPoint, class OtherLabel>
-constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const Segment<OtherPoint, OtherLabel>& other) const {
-    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherPoint::NumberType>) {
+template<SegmentConcept OtherSegment>
+constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
             return false;
