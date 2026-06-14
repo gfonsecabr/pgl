@@ -434,11 +434,14 @@ constexpr Rectangle<Point<ResultNumber>> Convex<PointType>::fbox() const {
 // Polygon
 
 template <class PointType>
-constexpr Rectangle<PointType> Polygon<PointType>::bbox() const {
-    if (points_.empty()) {
-        return Rectangle<PointType>();
+constexpr const Rectangle<PointType>& Polygon<PointType>::bbox() const {
+    if (bbox_) {
+        return *bbox_;
     }
-    return Rectangle<PointType>(points_) + translation_;
+    if (points_.empty()) {
+        return bbox_.emplace();
+    }
+    return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
 }
 
 template <class PointType>

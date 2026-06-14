@@ -11,6 +11,7 @@
 #include <concepts>
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -300,13 +301,15 @@ struct Polygon {
      * @brief Computes the bounding box of the polygon.
      *
      * Unlike @ref Convex::bbox, a simple polygon has no monotone boundary
-     * structure to exploit, so the corners come from a linear scan.
+     * structure to exploit, so the corners come from a linear scan. The result
+     * is computed on the first call and cached in @ref bbox_; later calls return
+     * the stored value. Any operation that modifies the polygon resets the cache.
      *
-     * Complexity: O(n) for n vertices.
+     * Complexity: O(n) for n vertices on the first call, O(1) thereafter.
      *
-     * @return The rectangle bounding the polygon.
+     * @return A constant reference to the rectangle bounding the polygon.
      */
-    constexpr Rectangle<PointType> bbox() const;
+    constexpr const Rectangle<PointType>& bbox() const;
 
     /**
      * @brief Computes the floating-point bounding box of the polygon.
@@ -1254,6 +1257,11 @@ struct Polygon {
     template<PointConcept OtherPoint>
     constexpr Polygon& operator+=(const OtherPoint& translation) {
         translation_ += translation;
+        // A pure translation merely shifts the bounding box, so update the
+        // cached bbox in place rather than discarding it.
+        if (bbox_) {
+            *bbox_ += translation;
+        }
         return *this;
     }
 
@@ -1265,6 +1273,9 @@ struct Polygon {
     template<PointConcept OtherPoint>
     constexpr Polygon& operator-=(const OtherPoint& translation) {
         translation_ -= translation;
+        if (bbox_) {
+            *bbox_ -= translation;
+        }
         return *this;
     }
 
@@ -1282,6 +1293,7 @@ struct Polygon {
         }
         translation_ *= scalar;
         normalize();
+        resetCache();
         return *this;
     }
 
@@ -1298,6 +1310,7 @@ struct Polygon {
         }
         translation_ /= scalar;
         normalize();
+        resetCache();
         return *this;
     }
 
@@ -1349,6 +1362,16 @@ struct Polygon {
   private:
     std::vector<PointType> points_{};
     PointType translation_{};
+    // Lazily computed bounding box, invalidated by resetCache() on every
+    // mutation. Empty until first computed.
+    mutable std::optional<Rectangle<PointType>> bbox_{};
+
+    // Drops the memoized bounding box; call after any operation that mutates the
+    // polygon's vertices. A pure translation does not need this: it merely shifts
+    // the cached bbox in place (see operator+=).
+    constexpr void resetCache() const {
+        bbox_ = {};
+    }
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {
