@@ -818,6 +818,7 @@ constexpr bool Convex<PointType>::intersects(const Convex<OtherPoint>& other) co
     if (bbox().separates(other.bbox()) || other.bbox().separates(this->bbox())) {
         return true;
     }
+
     if (contains(other[0]) || other.contains((*this)[0])) {
         return true;
     }
