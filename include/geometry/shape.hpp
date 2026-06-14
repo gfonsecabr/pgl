@@ -144,6 +144,10 @@ using shape_point_type_t = typename shape_point_type<T>::type;
 
 }  // namespace detail
 
+/** @brief Satisfied by any specialization of @ref Shape. */
+template <class T>
+concept ShapeConcept = detail::is_shape_v<T>;
+
 /**
  * @brief Type-erased wrapper over the finite set of supported primitive shapes.
  *

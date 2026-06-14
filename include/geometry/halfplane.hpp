@@ -30,6 +30,19 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Halfplane;
 
+namespace detail {
+template <class T>
+struct is_halfplane : std::false_type {};
+template <class PointType>
+struct is_halfplane<Halfplane<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_halfplane_v = is_halfplane<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Halfplane. */
+template <class T>
+concept HalfplaneConcept = detail::is_halfplane_v<T>;
+
 Halfplane() -> Halfplane<Point<>>;
 
 template <class PointType>

@@ -19,9 +19,23 @@
 #include <cstddef>
 #include <ostream>
 #include <stdexcept>
+#include <type_traits>
 
 
 namespace pgl {
+
+namespace detail {
+template <class T>
+struct is_emptyshape : std::false_type {};
+template <class PointType>
+struct is_emptyshape<EmptyShape<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_emptyshape_v = is_emptyshape<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref EmptyShape. */
+template <class T>
+concept EmptyShapeConcept = detail::is_emptyshape_v<T>;
 
 /**
  * @brief The empty set of points in the plane.

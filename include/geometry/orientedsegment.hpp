@@ -12,11 +12,25 @@
  * order for orientation-sensitive operations.
  */
 
+#include <type_traits>
 
 namespace pgl {
 
 template <class PointType = Point<>>
 struct OrientedSegment;
+
+namespace detail {
+template <class T>
+struct is_oriented_segment : std::false_type {};
+template <class PointType>
+struct is_oriented_segment<OrientedSegment<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref OrientedSegment. */
+template <class T>
+concept OrientedSegmentConcept = detail::is_oriented_segment_v<T>;
 
 OrientedSegment() -> OrientedSegment<Point<>>;
 

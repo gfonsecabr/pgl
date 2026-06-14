@@ -22,6 +22,19 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Polygon;
 
+namespace detail {
+template <class T>
+struct is_polygon : std::false_type {};
+template <class PointType>
+struct is_polygon<Polygon<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Polygon. */
+template <class T>
+concept PolygonConcept = detail::is_polygon_v<T>;
+
 Polygon() -> Polygon<Point<>>;
 
 template <std::ranges::input_range Range>

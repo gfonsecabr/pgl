@@ -31,6 +31,19 @@ namespace pgl {
 template <class PointType = Point<>>
 struct OrientedLine;
 
+namespace detail {
+template <class T>
+struct is_oriented_line : std::false_type {};
+template <class PointType>
+struct is_oriented_line<OrientedLine<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_oriented_line_v = is_oriented_line<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref OrientedLine. */
+template <class T>
+concept OrientedLineConcept = detail::is_oriented_line_v<T>;
+
 OrientedLine() -> OrientedLine<Point<>>;
 
 template <class PointType>
