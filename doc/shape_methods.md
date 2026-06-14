@@ -27,8 +27,8 @@ Any two shapes `A`,`B` support the following [predicates](#predicates), where $\
 | `A.interiorContains(B)` | $(A \setminus \partial A) \supseteq B$ | Does the interior of `A` contain `B`? |
 | `A.intersects(B)` | $A \cap B \neq \emptyset$ | Do `A` and `B` intersect? |
 | `A.interiorsIntersect(B)` | $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
-| `A.separates(B)` | $B \setminus A$ disconnected | Does the removal of `A` separates `B`? |
-| `A.crosses(B)` | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separates the other? |
+| `A.separates(B)` | $B \setminus A$ disconnected | Does the removal of `A` separate `B`? |
+| `A.crosses(B)` | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separate the other? |
 
 The following table illustrates the result of the predicates for a triangle and a line segment.
 
