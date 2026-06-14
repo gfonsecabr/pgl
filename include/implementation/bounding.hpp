@@ -427,7 +427,7 @@ constexpr const Rectangle<PointType>& Convex<PointType>::bbox() const {
 template <class PointType>
 template <std::floating_point ResultNumber>
 constexpr Rectangle<Point<ResultNumber>> Convex<PointType>::fbox() const {
-    return Rectangle<PointType>(points_).template fbox<ResultNumber>() + translation_;
+    return bbox().template fbox<ResultNumber>();
 }
 
 // ---------------------------------------------------------------------------
@@ -447,7 +447,7 @@ constexpr const Rectangle<PointType>& Polygon<PointType>::bbox() const {
 template <class PointType>
 template <std::floating_point ResultNumber>
 constexpr Rectangle<Point<ResultNumber>> Polygon<PointType>::fbox() const {
-    return Rectangle<PointType>(points_).template fbox<ResultNumber>() + translation_;
+    return bbox().template fbox<ResultNumber>();
 }
 
 }  // namespace pgl
