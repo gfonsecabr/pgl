@@ -28,6 +28,19 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Triangle;
 
+namespace detail {
+template <class T>
+struct is_triangle : std::false_type {};
+template <class PointType>
+struct is_triangle<Triangle<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_triangle_v = is_triangle<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Triangle. */
+template <class T>
+concept TriangleConcept = detail::is_triangle_v<T>;
+
 Triangle() -> Triangle<Point<>>;
 
 template <class PointType>

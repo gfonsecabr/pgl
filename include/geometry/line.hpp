@@ -30,6 +30,19 @@ namespace pgl {
 template <class PointType = Point<>>
 struct Line;
 
+namespace detail {
+template <class T>
+struct is_line : std::false_type {};
+template <class PointType>
+struct is_line<Line<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_line_v = is_line<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Line. */
+template <class T>
+concept LineConcept = detail::is_line_v<T>;
+
 Line() -> Line<Point<>>;
 
 template <class PointType>

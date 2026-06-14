@@ -53,6 +53,19 @@ constexpr ResultNumber upperFloatingBound(const Value& value) {
 template <class PointType = Point<>>
 struct Rectangle;
 
+namespace detail {
+template <class T>
+struct is_rectangle : std::false_type {};
+template <class PointType>
+struct is_rectangle<Rectangle<PointType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_rectangle_v = is_rectangle<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Rectangle. */
+template <class T>
+concept RectangleConcept = detail::is_rectangle_v<T>;
+
 Rectangle() -> Rectangle<Point<>>;
 
 template <class PointType>

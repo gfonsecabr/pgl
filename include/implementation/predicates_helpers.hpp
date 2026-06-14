@@ -17,80 +17,10 @@ namespace detail {
 /**
  * @name Shape Category Traits
  * predicates.hpp uses these traits to route generic 'Shape' overloads toward
- * the correct helper at compile time.
+ * the correct helper at compile time. The single-shape detectors (is_segment,
+ * is_line, ...) live next to their shape in the geometry headers, alongside the
+ * public XxxConcept they back; this file keeps only the composite detectors.
  */
-
-template <class T>
-struct is_segment : std::false_type {};
-
-template <class PointType, class LabelType>
-struct is_segment<Segment<PointType, LabelType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_oriented_segment : std::false_type {};
-
-template <class PointType>
-struct is_oriented_segment<OrientedSegment<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_line : std::false_type {};
-
-template <class PointType>
-struct is_line<Line<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_line_v = is_line<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_oriented_line : std::false_type {};
-
-template <class PointType>
-struct is_oriented_line<OrientedLine<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_oriented_line_v = is_oriented_line<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_ray : std::false_type {};
-
-template <class PointType>
-struct is_ray<Ray<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_ray_v = is_ray<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_rectangle : std::false_type {};
-
-template <class PointType>
-struct is_rectangle<Rectangle<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_rectangle_v = is_rectangle<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_triangle : std::false_type {};
-
-template <class PointType>
-struct is_triangle<Triangle<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_triangle_v = is_triangle<std::remove_cvref_t<T>>::value;
-
-template <class T>
-struct is_halfplane : std::false_type {};
-
-template <class PointType>
-struct is_halfplane<Halfplane<PointType>> : std::true_type {};
-
-template <class T>
-inline constexpr bool is_halfplane_v = is_halfplane<std::remove_cvref_t<T>>::value;
 
 template <class T>
 struct is_area_cut_target : std::false_type {};

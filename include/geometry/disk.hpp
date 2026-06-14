@@ -34,6 +34,19 @@ namespace pgl {
 template <class PointType = Point<>, class Label = NoLabel>
 struct Disk;
 
+namespace detail {
+template <class T>
+struct is_disk : std::false_type {};
+template <class PointType, class Label>
+struct is_disk<Disk<PointType, Label>> : std::true_type {};
+template <class T>
+inline constexpr bool is_disk_v = is_disk<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Disk. */
+template <class T>
+concept DiskConcept = detail::is_disk_v<T>;
+
 /// @brief Deduces a default disk with `Point<>` boundary points and no label.
 Disk() -> Disk<Point<>, NoLabel>;
 

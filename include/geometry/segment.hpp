@@ -30,6 +30,19 @@ namespace pgl {
 template <class PointType = Point<>, class Label>
 struct Segment;
 
+namespace detail {
+template <class T>
+struct is_segment : std::false_type {};
+template <class PointType, class LabelType>
+struct is_segment<Segment<PointType, LabelType>> : std::true_type {};
+template <class T>
+inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;
+}  // namespace detail
+
+/** @brief Satisfied by any specialization of @ref Segment. */
+template <class T>
+concept SegmentConcept = detail::is_segment_v<T>;
+
 Segment() -> Segment<Point<>, NoLabel>;
 
 template <class PointType>
