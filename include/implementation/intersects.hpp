@@ -668,6 +668,9 @@ constexpr bool Halfplane<PointType>::intersects(const Shape<PointType>& other) c
 template <class PointType>
 template<PointConcept OtherPoint, class OtherLabel>
 constexpr bool Convex<PointType>::intersects(const Segment<OtherPoint, OtherLabel>& other) const {
+    if (size() == 0 || !bbox().intersects(other.bbox())) {
+        return false;
+    }
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -728,15 +731,15 @@ constexpr bool Convex<PointType>::intersects(const Ray<OtherPoint>& other) const
 
 template <class PointType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::intersects(const Rectangle<OtherPoint>& other) const {
-    if (other.contains(points_[0])) {
-        return true;
-    }
-
-    if (!bbox().intersects(other)) {
+constexpr bool Convex<PointType>::intersects(const Rectangle<OtherPoint>& other) const {    
+    if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
     if (bbox().separates(other) || other.separates(bbox())) {
+        return true;
+    }
+
+    if (other.contains(points_[0])) {
         return true;
     }
 
@@ -752,13 +755,13 @@ constexpr bool Convex<PointType>::intersects(const Rectangle<OtherPoint>& other)
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::intersects(const Triangle<OtherPoint>& other) const {
-    if (other.contains(points_[0])) {
-        return true;
-    }
-    if (!bbox().intersects(other)) {
+    if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
-    if (bbox().separates(other)) {
+    if (bbox().separates(other) || other.separates(bbox())) {
+        return true;
+    }
+    if (other.contains(points_[0])) {
         return true;
     }
 
@@ -774,7 +777,10 @@ constexpr bool Convex<PointType>::intersects(const Triangle<OtherPoint>& other) 
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType>::intersects(const OtherPoint& other) const {
-    return contains(other);
+    if (size() == 0) {
+        return false;
+    }
+    return bbox().contains(other) && contains(other);
 }
 
 template <class PointType>
@@ -806,7 +812,7 @@ constexpr bool Convex<PointType>::intersects(const Convex<OtherPoint>& other) co
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
-    if (bbox().crosses(other.bbox())) {
+    if (bbox().separates(other.bbox()) || other.bbox().separates(*this)) {
         return true;
     }
     if (size() > other.size()) {
@@ -1038,6 +1044,15 @@ constexpr bool Polygon<PointType>::intersects(const Triangle<OtherPoint>& other)
 template <class PointType>
 template<PointConcept OtherPoint>
 constexpr bool Polygon<PointType>::intersects(const Convex<OtherPoint>& other) const {
+    if (size() == 0 || other.size() == 0) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox()) || other.bbox().separates(*this)) {
+        return true;
+    }
     for (const auto& vertex : other.vertices()) {
         if (contains(vertex)) {
             return true;
@@ -1089,12 +1104,6 @@ constexpr bool Polygon<PointType>::intersects(const Polygon<OtherPoint>& other) 
         }
     }
     return false;
-}
-
-template <class PointType>
-template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::intersects(const Polygon<OtherPoint>& other) const {
-    return other.intersects(*this);
 }
 
 template <class PointType>
