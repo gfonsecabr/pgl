@@ -39,7 +39,7 @@ std::ostream& operator<<(std::ostream& stream, const Point<Number, Label>& point
 // Segment
 
 /**
- * @brief Streams a segment as `p--q`.
+ * @brief Streams a segment as `p--q`, or `label:{p--q}` when it carries a label.
  *
  * @param stream Output stream.
  * @param segment Segment to print.
@@ -47,7 +47,11 @@ std::ostream& operator<<(std::ostream& stream, const Point<Number, Label>& point
  */
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Segment<PointType, LabelType>& segment) {
-    stream << segment.min() << "--" << segment.max();
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << segment.label() << ":{" << segment.min() << "--" << segment.max() << "}";
+    } else {
+        stream << segment.min() << "--" << segment.max();
+    }
     return stream;
 }
 
@@ -55,7 +59,9 @@ std::ostream& operator<<(std::ostream& stream, const Segment<PointType, LabelTyp
 // OrientedSegment
 
 /**
- * @brief Streams an oriented segment as `p->q`.
+ * @brief Streams an oriented segment as `p->q`, or `label:{p->q}` when it carries a label.
+ *
+ * Uses source()/target() (not min()/max()): the orientation is part of the value.
  *
  * @param stream Output stream.
  * @param segment Oriented segment to print.
@@ -63,7 +69,11 @@ std::ostream& operator<<(std::ostream& stream, const Segment<PointType, LabelTyp
  */
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType, LabelType>& segment) {
-    stream << segment.source() << "->" << segment.target();
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << segment.label() << ":{" << segment.source() << "->" << segment.target() << "}";
+    } else {
+        stream << segment.source() << "->" << segment.target();
+    }
     return stream;
 }
 
@@ -79,7 +89,12 @@ std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType, 
  */
 template <class PointType>
 std::ostream& operator<<(std::ostream& stream, const Line<PointType>& line) {
-    stream << '-' << line.min() << "--" << line.max() << '-';
+    // Line has no own label yet; when it gains one, mirror Segment:
+    // if constexpr (detail::has_label_v<LabelType>) {
+    //     stream << line.label() << ":{-" << line.min() << "--" << line.max() << "-}";
+    // } else {
+        stream << '-' << line.min() << "--" << line.max() << '-';
+    // }
     return stream;
 }
 
@@ -95,7 +110,12 @@ std::ostream& operator<<(std::ostream& stream, const Line<PointType>& line) {
  */
 template <class PointType>
 std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType>& line) {
-    stream << '-' << line.source() << "--" << line.target() << "->";
+    // OrientedLine has no own label yet; when it gains one, mirror OrientedSegment
+    // if constexpr (detail::has_label_v<LabelType>) {
+    //     stream << line.label() << ":{-" << line.source() << "--" << line.target() << "->}";
+    // } else {
+        stream << '-' << line.source() << "--" << line.target() << "->";
+    // }
     return stream;
 }
 
@@ -111,7 +131,12 @@ std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType>& li
  */
 template <class PointType>
 std::ostream& operator<<(std::ostream& stream, const Ray<PointType>& ray) {
-    stream << ray.source() << "--" << ray.target() << "->";
+    // Ray has no own label yet; when it gains one, mirror OrientedSegment
+    // if constexpr (detail::has_label_v<LabelType>) {
+    //     stream << ray.label() << ":{" << ray.source() << "--" << ray.target() << "->}";
+    // } else {
+        stream << ray.source() << "--" << ray.target() << "->";
+    // }
     return stream;
 }
 
