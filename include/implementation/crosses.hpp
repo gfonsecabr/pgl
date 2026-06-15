@@ -156,26 +156,26 @@ constexpr bool Triangle<PointType>::crosses(const Shape<PointType>& other) const
  * segment view, with local methods kept for orientation-sensitive behavior.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedSegment<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return this->asSegment().crosses(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedSegment<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return this->asSegment().crosses(other.asSegment());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::crosses(const OtherPoint& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::crosses(const OtherPoint& other) const {
     return this->asSegment().crosses(other);
 }
 
-template <class PointType>
-constexpr bool OrientedSegment<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

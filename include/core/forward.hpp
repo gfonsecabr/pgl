@@ -65,8 +65,8 @@ constexpr bool collinear(
 template <class PointType, class Label = NoLabel>
 struct Segment;
 
-/** @brief Directed segment preserving source-to-target order. */
-template <class PointType>
+/** @brief Directed segment preserving source-to-target order plus optional segment label. */
+template <class PointType, class Label = NoLabel>
 struct OrientedSegment;
 
 /** @brief Unoriented infinite line. */
@@ -133,8 +133,8 @@ template <class Number, class Label>
 inline constexpr int shapeRank<Point<Number, Label>> = 10;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Segment<PointType, Label>> = 20;
-template <class PointType>
-inline constexpr int shapeRank<OrientedSegment<PointType>> = 30;
+template <class PointType, class Label>
+inline constexpr int shapeRank<OrientedSegment<PointType, Label>> = 30;
 template <class PointType>
 inline constexpr int shapeRank<Line<PointType>> = 40;
 template <class PointType>
@@ -172,7 +172,7 @@ template <class PointType, class Label> struct is_segment<Segment<PointType, Lab
 template <class T> inline constexpr bool is_segment_v = is_segment<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_oriented_segment : std::false_type {};
-template <class PointType> struct is_oriented_segment<OrientedSegment<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_oriented_segment<OrientedSegment<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_line : std::false_type {};

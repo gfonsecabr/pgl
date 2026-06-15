@@ -203,9 +203,9 @@ constexpr bool Triangle<PointType>::boundaryContains(const OtherConvex& other) c
  * segment view, with local methods kept for orientation-sensitive behavior.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     return verticesContain(point);
 }
 
@@ -951,8 +951,8 @@ constexpr bool Segment<PointType, LabelType>::boundaryContains(const Shape<Other
         other.variant());
 }
 
-template <class PointType>
-constexpr bool OrientedSegment<PointType>::boundaryContains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return boundaryContains(value);

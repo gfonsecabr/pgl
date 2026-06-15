@@ -126,22 +126,22 @@ Segment<PointType, LabelType>::intersection(const OtherSegment& other) const {
 // -----------------------------------------------------------------------------
 // OrientedSegment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-OrientedSegment<PointType>::intersection(const OtherPoint& other) const {
+OrientedSegment<PointType, LabelType>::intersection(const OtherPoint& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto OrientedSegment<PointType>::intersection(const OtherSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::intersection(const OtherSegment& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto OrientedSegment<PointType>::intersection(const OtherOrientedSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return static_cast<Segment<PointType>>(*this).template intersection<ResultNumber>(
         static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }

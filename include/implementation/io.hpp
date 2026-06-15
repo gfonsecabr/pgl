@@ -61,8 +61,8 @@ std::ostream& operator<<(std::ostream& stream, const Segment<PointType, LabelTyp
  * @param segment Oriented segment to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType>& segment) {
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType, LabelType>& segment) {
     stream << segment.source() << "->" << segment.target();
     return stream;
 }

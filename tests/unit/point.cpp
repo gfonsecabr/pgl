@@ -82,7 +82,7 @@ TEST_CASE("Point exposes a degenerate bounding box and empty edge sets") {
     CHECK(oriented_edges.empty());
 }
 
-TEST_CASE("Point arithmetic preserves point labels") {
+TEST_CASE("Point arithmetic and label propagation") {
     using Point = pgl::Point<int, std::string>;
 
     Point point(3, 5, "center");
@@ -90,12 +90,14 @@ TEST_CASE("Point arithmetic preserves point labels") {
     const Point translated = point - pgl::Point<int>(1, 2);
     point += scaled;
 
-    CHECK(point == Point(9, 15, "center"));
+    // In-place arithmetic modifies the existing point and keeps its label.
+    CHECK(point == Point(9, 15));
     CHECK(point.label() == "center");
-    CHECK(scaled == Point(6, 10, "center"));
-    CHECK(scaled.label() == "center");
-    CHECK(translated == Point(2, 3, "center"));
-    CHECK(translated.label() == "center");
+    // Value-returning arithmetic creates a fresh point with a default label.
+    CHECK(scaled == Point(6, 10));
+    CHECK(scaled.label().empty());
+    CHECK(translated == Point(2, 3));
+    CHECK(translated.label().empty());
 }
 
 

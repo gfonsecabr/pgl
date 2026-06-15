@@ -262,26 +262,26 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const Shape<PointType>& o
  * segment view, with local methods kept for orientation-sensitive behavior.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     return this->asSegment().interiorsIntersect(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedSegment<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     return this->asSegment().interiorsIntersect(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedSegment<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return this->asSegment().interiorsIntersect(other.asSegment());
 }
 
-template <class PointType>
-constexpr bool OrientedSegment<PointType>::interiorsIntersect(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::interiorsIntersect(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

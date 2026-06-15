@@ -102,10 +102,10 @@ namespace std {
     /**
      * @brief Hash support for OrientedSegment.
      */
-    template <class PointType>
-    struct hash<pgl::OrientedSegment<PointType>> {
-        std::size_t operator()(const pgl::OrientedSegment<PointType>& segment) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedSegment<PointType>>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::OrientedSegment<PointType, LabelType>> {
+        std::size_t operator()(const pgl::OrientedSegment<PointType, LabelType>& segment) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedSegment<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, segment.source());
             pgl::detail::hashCombine(seed, segment.target());
             return seed;
