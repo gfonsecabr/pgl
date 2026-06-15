@@ -177,7 +177,7 @@ td.empty { text-align: right; color: var(--faint); }
 
 /* ---- chart dialog ---- */
 dialog#chart-dialog {
-  width: min(780px, 94vw); padding: 0;
+  width: 94vw; max-width: 94vw; padding: 0;
   border: 1px solid var(--sep); border-radius: 14px;
   box-shadow: 0 18px 50px rgba(16, 24, 40, .28);
 }
@@ -202,4 +202,4 @@ dialog#chart-dialog::backdrop {
   color: var(--muted); cursor: pointer;
 }
 #chart-close:hover { color: var(--orange-d); }
-.dialog-body { height: 380px; padding: 16px; }
+.dialog-body { height: calc(92vh - 52px); padding: 16px; }

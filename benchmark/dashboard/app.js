@@ -331,7 +331,7 @@ function showChart(suite, op, type, machine, points, unit) {
           pointBorderWidth: 1,
           pointRadius: pointRadii,
           pointHoverRadius: 7,
-          tension: 0.25,
+          tension: 0,
           fill: true,
           order: 1,
         },
