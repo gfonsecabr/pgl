@@ -3,6 +3,8 @@
 
 #include "pgl.hpp"
 
+#include <functional>
+#include <unordered_set>
 #include <variant>
 
 // Polygon::intersection(Polygon) clips the boundary of each polygon against the
@@ -204,5 +206,61 @@ TEST_CASE("Polygon::isSimple recognizes simple and non-simple polygons") {
         const Polygon bad10({0, 0, 6, 6, 0, 6, 6, 0, 3, 8, 1, 1, 5, 1, 2, 7, 4, 7, 3, -2});
         REQUIRE(bad10.size() == 10);
         CHECK_FALSE(bad10.isSimple());
+    }
+}
+
+TEST_CASE("Polygon hashing is consistent and cached across mutations") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    const std::hash<Polygon> hasher{};
+
+    const Polygon square({0, 0, 4, 0, 4, 3, 0, 3});
+
+    SUBCASE("equal polygons hash equally regardless of starting vertex") {
+        // Same square, vertices listed starting from a different corner.
+        const Polygon rotated({4, 3, 0, 3, 0, 0, 4, 0});
+        REQUIRE(square == rotated);
+        CHECK(hasher(square) == hasher(rotated));
+    }
+
+    SUBCASE("repeated hashing returns the same cached value") {
+        const auto first = hasher(square);
+        CHECK(hasher(square) == first);
+        CHECK(hasher(square) == first);
+    }
+
+    SUBCASE("translation invalidates the cache and recomputes correctly") {
+        Polygon p = square;
+        const auto original = hasher(p);  // primes the cache
+
+        p += Point(10, 7);
+        const Polygon shifted({10, 7, 14, 7, 14, 10, 10, 10});
+        REQUIRE(p == shifted);
+        CHECK(hasher(p) == hasher(shifted));
+
+        p -= Point(10, 7);  // back to the original position
+        REQUIRE(p == square);
+        CHECK(hasher(p) == original);
+    }
+
+    SUBCASE("scaling invalidates the cache") {
+        Polygon p = square;
+        const auto original = hasher(p);  // primes the cache
+        p *= 2;
+        const Polygon scaled({0, 0, 8, 0, 8, 6, 0, 6});
+        REQUIRE(p == scaled);
+        CHECK(hasher(p) == hasher(scaled));
+        p /= 2;
+        REQUIRE(p == square);
+        CHECK(hasher(p) == original);
+    }
+
+    SUBCASE("usable as a key in an unordered_set") {
+        std::unordered_set<Polygon> seen;
+        seen.insert(square);
+        seen.insert(Polygon({4, 3, 0, 3, 0, 0, 4, 0}));  // equal
+        CHECK(seen.size() == 1);
+        seen.insert(Polygon({0, 0, 1, 0, 0, 1}));  // different
+        CHECK(seen.size() == 2);
     }
 }
