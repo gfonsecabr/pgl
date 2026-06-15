@@ -10,7 +10,9 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <type_traits>
@@ -1739,12 +1741,23 @@ struct Convex {
     mutable std::optional<Rectangle<PointType>> bbox_{};
     mutable std::ptrdiff_t maxIndex_ = -1;
 
+    // Memoized hash, computed lazily by std::hash<Convex>. hashUnset_ means "not
+    // yet computed"; SIZE_MAX is chosen as the sentinel because it is a rare hash
+    // output, and the one true hash that would collide with it is remapped to
+    // hashUnset_ - 1 so the sentinel is never stored as a real value. Unlike the
+    // bbox, the hash is not translation-invariant, so operator+=/-= reset it.
+    static constexpr std::size_t hashUnset_ = std::numeric_limits<std::size_t>::max();
+    mutable std::size_t hash_ = hashUnset_;
+    friend struct std::hash<Convex>;
+
     // Drops every memoized value; call after any operation that mutates the
-    // polygon's vertices. A pure translation does not need this: it leaves
-    // maxIndex_ valid and shifts the cached bbox in place (see operator+=).
+    // polygon's vertices. A pure translation does not need to drop bbox_/maxIndex_
+    // (maxIndex_ stays valid and the bbox shifts in place, see operator+=), but it
+    // must still reset hash_, which depends on the absolute vertex positions.
     constexpr void resetCache() const {
         bbox_ = {};
         maxIndex_ = -1;
+        hash_ = hashUnset_;
     }
 
     template <bool Oriented>

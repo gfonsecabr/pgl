@@ -10,7 +10,9 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <type_traits>
@@ -1258,10 +1260,12 @@ struct Polygon {
     constexpr Polygon& operator+=(const OtherPoint& translation) {
         translation_ += translation;
         // A pure translation merely shifts the bounding box, so update the
-        // cached bbox in place rather than discarding it.
+        // cached bbox in place rather than discarding it. The hash, however,
+        // depends on the absolute vertex positions, so it must be invalidated.
         if (bbox_) {
             *bbox_ += translation;
         }
+        hash_ = hashUnset_;
         return *this;
     }
 
@@ -1276,6 +1280,7 @@ struct Polygon {
         if (bbox_) {
             *bbox_ -= translation;
         }
+        hash_ = hashUnset_;
         return *this;
     }
 
@@ -1366,11 +1371,22 @@ struct Polygon {
     // mutation. Empty until first computed.
     mutable std::optional<Rectangle<PointType>> bbox_{};
 
-    // Drops the memoized bounding box; call after any operation that mutates the
-    // polygon's vertices. A pure translation does not need this: it merely shifts
-    // the cached bbox in place (see operator+=).
+    // Memoized hash, computed lazily by std::hash<Polygon>. hashUnset_ means "not
+    // yet computed"; SIZE_MAX is chosen as the sentinel because it is a rare hash
+    // output, and the one true hash that would collide with it is remapped to
+    // hashUnset_ - 1 so the sentinel is never stored as a real value. Unlike the
+    // bbox, the hash is not translation-invariant, so operator+=/-= reset it.
+    static constexpr std::size_t hashUnset_ = std::numeric_limits<std::size_t>::max();
+    mutable std::size_t hash_ = hashUnset_;
+    friend struct std::hash<Polygon>;
+
+    // Drops the memoized caches; call after any operation that mutates the
+    // polygon's vertices. A pure translation does not need to drop bbox_ (it
+    // shifts in place, see operator+=), but it must still reset hash_, which
+    // depends on the absolute vertex positions.
     constexpr void resetCache() const {
         bbox_ = {};
+        hash_ = hashUnset_;
     }
 
     template <bool Oriented>

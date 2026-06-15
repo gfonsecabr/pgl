@@ -49,7 +49,7 @@ namespace std {
     template <class Number, class Label>
     struct hash<pgl::Point<Number, Label>> {
         std::size_t operator()(const pgl::Point<Number, Label>& point) const {
-            std::size_t seed = 0;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Point<Number, Label>>;
             pgl::detail::hashCombine(seed, point.x());
             pgl::detail::hashCombine(seed, point.y());
             return seed;
@@ -92,7 +92,7 @@ namespace std {
     template <class PointType, class LabelType>
     struct hash<pgl::Segment<PointType, LabelType>> {
         std::size_t operator()(const pgl::Segment<PointType, LabelType>& segment) const {
-            std::size_t seed = 2;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Segment<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, segment.min());
             pgl::detail::hashCombine(seed, segment.max());
             return seed;
@@ -105,7 +105,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::OrientedSegment<PointType>> {
         std::size_t operator()(const pgl::OrientedSegment<PointType>& segment) const {
-            std::size_t seed = 3;
+            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedSegment<PointType>>;
             pgl::detail::hashCombine(seed, segment.source());
             pgl::detail::hashCombine(seed, segment.target());
             return seed;
@@ -119,7 +119,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Line<PointType>> {
         std::size_t operator()(const pgl::Line<PointType>& line) const {
-            std::size_t seed = 4;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Line<PointType>>;
             if (line.isDegenerate()) {
                 pgl::detail::hashCombine(seed, line.min());
             }
@@ -145,7 +145,8 @@ namespace std {
     template <class PointType>
     struct hash<pgl::OrientedLine<PointType>> {
         std::size_t operator()(const pgl::OrientedLine<PointType>& line) const {
-            std::size_t seed = line.source() < line.target() ? 5 : 6;
+            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedLine<PointType>>
+                             + (line.source() < line.target() ? 0u : 1u);
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(line));
             return seed;
@@ -159,7 +160,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Ray<PointType>> {
         std::size_t operator()(const pgl::Ray<PointType>& ray) const {
-            std::size_t seed = 7;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Ray<PointType>>;
             pgl::detail::hashCombine(seed, ray.source());
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(ray));
@@ -173,7 +174,8 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Halfplane<PointType>> {
         std::size_t operator()(const pgl::Halfplane<PointType>& halfplane) const {
-            std::size_t seed = halfplane.source() < halfplane.target() ? 8 : 9;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Halfplane<PointType>>
+                             + (halfplane.source() < halfplane.target() ? 0u : 1u);
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(halfplane));
             return seed;
@@ -186,7 +188,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Rectangle<PointType>> {
         std::size_t operator()(const pgl::Rectangle<PointType>& rectangle) const {
-            std::size_t seed = 10;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Rectangle<PointType>>;
             pgl::detail::hashCombine(seed, rectangle.min());
             pgl::detail::hashCombine(seed, rectangle.max());
             return seed;
@@ -199,7 +201,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Triangle<PointType>> {
         std::size_t operator()(const pgl::Triangle<PointType>& triangle) const {
-            std::size_t seed = 11;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Triangle<PointType>>;
             pgl::detail::hashCombine(seed, triangle.a());
             pgl::detail::hashCombine(seed, triangle.b());
             pgl::detail::hashCombine(seed, triangle.c());
@@ -213,7 +215,7 @@ namespace std {
     template <class PointType, class LabelType>
     struct hash<pgl::Disk<PointType, LabelType>> {
         std::size_t operator()(const pgl::Disk<PointType, LabelType>& disk) const {
-            std::size_t seed = 14;
+            std::size_t seed = pgl::detail::shapeRank<pgl::Disk<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, disk.isDegenerate());
             if (disk.isDegenerate()) {
                 pgl::detail::hashCombine(seed, disk.a());
@@ -233,10 +235,20 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Convex<PointType>> {
         std::size_t operator()(const pgl::Convex<PointType>& convex) const {
-            std::size_t seed = 13;
+            using Shape = pgl::Convex<PointType>;
+            if (convex.hash_ != Shape::hashUnset_) {
+                return convex.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
             for (const auto& vertex : convex) {
                 pgl::detail::hashCombine(seed, vertex);
             }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            convex.hash_ = seed;
             return seed;
         }
     };
@@ -247,10 +259,20 @@ namespace std {
     template <class PointType>
     struct hash<pgl::Polygon<PointType>> {
         std::size_t operator()(const pgl::Polygon<PointType>& polygon) const {
-            std::size_t seed = 13;
+            using Shape = pgl::Polygon<PointType>;
+            if (polygon.hash_ != Shape::hashUnset_) {
+                return polygon.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
             for (const auto& vertex : polygon) {
                 pgl::detail::hashCombine(seed, vertex);
             }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            polygon.hash_ = seed;
             return seed;
         }
     };
@@ -261,7 +283,7 @@ namespace std {
     template <class PointType>
     struct hash<pgl::EmptyShape<PointType>> {
         std::size_t operator()(const pgl::EmptyShape<PointType>&) const {
-            return 16;
+            return pgl::detail::shapeRank<pgl::EmptyShape<PointType>>;
         }
     };
 

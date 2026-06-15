@@ -2,10 +2,12 @@
 #include "doctest.h"
 
 #include <cstdint>
+#include <functional>
 #include <random>
 #include <set>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -823,5 +825,61 @@ TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
         CHECK(pt.max() == BPoint(3, 7));
         const auto seg = Convex(std::vector<BPoint>{{0, 0}, {6, 8}}).diameter();
         CHECK(seg.min().squaredDistance(seg.max()) == 100);
+    }
+}
+
+TEST_CASE("Convex hashing is consistent and cached across mutations") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    const std::hash<Convex> hasher{};
+
+    const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 3}, {0, 3}});
+
+    SUBCASE("equal polygons hash equally regardless of input vertex order") {
+        // Same square, vertices given starting from a different corner.
+        const Convex rotated(std::vector<Point>{{4, 3}, {0, 3}, {0, 0}, {4, 0}});
+        REQUIRE(square == rotated);
+        CHECK(hasher(square) == hasher(rotated));
+    }
+
+    SUBCASE("repeated hashing returns the same cached value") {
+        const auto first = hasher(square);
+        CHECK(hasher(square) == first);
+        CHECK(hasher(square) == first);
+    }
+
+    SUBCASE("translation invalidates the cache and recomputes correctly") {
+        Convex c = square;
+        const auto original = hasher(c);  // primes the cache
+
+        c += Point(10, 7);
+        const Convex shifted(std::vector<Point>{{10, 7}, {14, 7}, {14, 10}, {10, 10}});
+        REQUIRE(c == shifted);
+        CHECK(hasher(c) == hasher(shifted));
+
+        c -= Point(10, 7);  // back to the original position
+        REQUIRE(c == square);
+        CHECK(hasher(c) == original);
+    }
+
+    SUBCASE("scaling invalidates the cache") {
+        Convex c = square;
+        const auto original = hasher(c);  // primes the cache
+        c *= 2;
+        const Convex scaled(std::vector<Point>{{0, 0}, {8, 0}, {8, 6}, {0, 6}});
+        REQUIRE(c == scaled);
+        CHECK(hasher(c) == hasher(scaled));
+        c /= 2;
+        REQUIRE(c == square);
+        CHECK(hasher(c) == original);
+    }
+
+    SUBCASE("usable as a key in an unordered_set") {
+        std::unordered_set<Convex> seen;
+        seen.insert(square);
+        seen.insert(Convex(std::vector<Point>{{4, 3}, {0, 3}, {0, 0}, {4, 0}}));  // equal
+        CHECK(seen.size() == 1);
+        seen.insert(Convex(std::vector<Point>{{0, 0}, {1, 0}, {0, 1}}));  // different
+        CHECK(seen.size() == 2);
     }
 }

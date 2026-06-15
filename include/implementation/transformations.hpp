@@ -1312,10 +1312,12 @@ constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& tra
     translation_ += translation;
     // A pure translation leaves maxIndex_ valid (the extreme vertex index is
     // translation-invariant) and merely shifts the bounding box, so update the
-    // cached bbox in place rather than discarding it.
+    // cached bbox in place rather than discarding it. The hash, however, depends
+    // on the absolute vertex positions, so it must be invalidated.
     if (bbox_) {
         *bbox_ += translation;
     }
+    hash_ = hashUnset_;
     return *this;
 }
 
@@ -1326,6 +1328,7 @@ constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& tra
     if (bbox_) {
         *bbox_ -= translation;
     }
+    hash_ = hashUnset_;
     return *this;
 }
 
