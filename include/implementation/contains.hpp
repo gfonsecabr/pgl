@@ -300,66 +300,66 @@ constexpr bool Triangle<PointType>::contains(const Shape<PointType>& other) cons
  * segment view, with local methods kept for orientation-sensitive behavior.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedSegment<PointType>::contains(const OtherPoint& point) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherPoint& point) const {
     if (point < min() || max() < point) {
         return false;
     }
     return pgl::collinear(source(), target(), point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedSegment<PointType>::contains(const OtherSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherSegment& other) const {
     return contains(other.min()) && contains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedSegment<PointType>::contains(const OtherOrientedSegment& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
     return contains(other.source()) && contains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedSegment<PointType>::contains(const OtherLine& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherLine& other) const {
     return other.isDegenerate() && contains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedSegment<PointType>::contains(const OtherOrientedLine& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool OrientedSegment<PointType>::contains(const OtherRay& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRay& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool OrientedSegment<PointType>::contains(const OtherHalfplane& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherHalfplane& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool OrientedSegment<PointType>::contains(const OtherRectangle& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRectangle& other) const {
     return contains(other.min()) && contains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool OrientedSegment<PointType>::contains(const OtherTriangle& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherTriangle& other) const {
     return contains(other.a()) && contains(other.b()) && contains(other.c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool OrientedSegment<PointType>::contains(const OtherConvex& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherConvex& other) const {
     if (other.size() > 2) {
         return false;
     }
@@ -371,8 +371,8 @@ constexpr bool OrientedSegment<PointType>::contains(const OtherConvex& other) co
     return true;
 }
 
-template <class PointType>
-constexpr bool OrientedSegment<PointType>::contains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return contains(value);
@@ -1368,9 +1368,9 @@ constexpr bool Segment<PointType, LabelType>::contains(const OtherPolygon& other
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool OrientedSegment<PointType>::contains(const OtherPolygon& other) const {
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherPolygon& other) const {
     for (const auto& vertex : other) {
         if (!contains(vertex)) {
             return false;

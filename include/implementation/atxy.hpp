@@ -91,10 +91,10 @@ constexpr std::optional<ResultNumber> Segment<PointType, LabelType>::xAtY(const 
  * The orientation does not affect the returned geometric point, so this
  * delegates to the corresponding unordered segment.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-OrientedSegment<PointType>::yAtX(const OtherNumber &x) const {
+OrientedSegment<PointType, LabelType>::yAtX(const OtherNumber &x) const {
     return static_cast<Segment<PointType>>(*this).template yAtX<ResultNumber>(x);
 }
 
@@ -104,10 +104,10 @@ OrientedSegment<PointType>::yAtX(const OtherNumber &x) const {
  * The orientation does not affect the returned geometric point, so this
  * delegates to the corresponding unordered segment.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-OrientedSegment<PointType>::xAtY(const OtherNumber &y) const {
+OrientedSegment<PointType, LabelType>::xAtY(const OtherNumber &y) const {
     return static_cast<Segment<PointType>>(*this).template xAtY<ResultNumber>(y);
 }
 

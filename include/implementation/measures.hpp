@@ -88,61 +88,61 @@ constexpr Point<ResultNumber> Segment<PointType, LabelType>::pointInside() const
 // -----------------------------------------------------------------------------
 // OrientedSegment
 
-template <class PointType>
-constexpr typename OrientedSegment<PointType>::NumberType OrientedSegment<PointType>::area() const {
+template <class PointType, class LabelType>
+constexpr typename OrientedSegment<PointType, LabelType>::NumberType OrientedSegment<PointType, LabelType>::area() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr typename OrientedSegment<PointType>::NumberType OrientedSegment<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr typename OrientedSegment<PointType, LabelType>::NumberType OrientedSegment<PointType, LabelType>::twiceArea() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr auto OrientedSegment<PointType>::squaredLength() const {
+template <class PointType, class LabelType>
+constexpr auto OrientedSegment<PointType, LabelType>::squaredLength() const {
     return source().squaredDistance(target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ApproximateNumber>
-ApproximateNumber OrientedSegment<PointType>::length() const {
+ApproximateNumber OrientedSegment<PointType, LabelType>::length() const {
     return source().template distance<ApproximateNumber>(target());
 }
 
-template <class PointType>
-constexpr auto OrientedSegment<PointType>::lengthL1() const {
+template <class PointType, class LabelType>
+constexpr auto OrientedSegment<PointType, LabelType>::lengthL1() const {
     return source().distanceL1(target());
 }
 
-template <class PointType>
-constexpr auto OrientedSegment<PointType>::lengthLInf() const {
+template <class PointType, class LabelType>
+constexpr auto OrientedSegment<PointType, LabelType>::lengthLInf() const {
     return source().distanceLInf(target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber OrientedSegment<PointType>::slope() const {
+constexpr ResultNumber OrientedSegment<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
     const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
     return dy / dx;
 }
 
-template <class PointType>
-constexpr Segment<PointType> OrientedSegment<PointType>::diameter() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType> OrientedSegment<PointType, LabelType>::diameter() const {
     return static_cast<Segment<PointType>>(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> OrientedSegment<PointType>::midpoint() const {
+constexpr Point<ResultNumber> OrientedSegment<PointType, LabelType>::midpoint() const {
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(source().x()) + static_cast<ResultNumber>(target().x())) / static_cast<ResultNumber>(2),
         (static_cast<ResultNumber>(source().y()) + static_cast<ResultNumber>(target().y())) / static_cast<ResultNumber>(2));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> OrientedSegment<PointType>::pointInside() const {
+constexpr Point<ResultNumber> OrientedSegment<PointType, LabelType>::pointInside() const {
     return midpoint<ResultNumber>();
 }
 

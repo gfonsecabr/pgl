@@ -113,33 +113,33 @@ constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Oth
 // -----------------------------------------------------------------------------
 // OrientedSegment
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto OrientedSegment<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto OrientedSegment<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     return static_cast<Segment<PointType>>(*this).squaredDistance(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr auto OrientedSegment<PointType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     return static_cast<Segment<PointType>>(*this).squaredDistance(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto OrientedSegment<PointType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     return static_cast<Segment<PointType>>(*this).squaredDistance(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr auto OrientedSegment<PointType>::squaredHausdorffDistance(const OtherSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
     return static_cast<Segment<PointType>>(*this).squaredHausdorffDistance(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto OrientedSegment<PointType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
+constexpr auto OrientedSegment<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
     return static_cast<Segment<PointType>>(*this).squaredHausdorffDistance(
         static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }

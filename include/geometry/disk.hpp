@@ -1060,6 +1060,9 @@ template <class PointType, class LabelType, class TranslationNumber, class Trans
 constexpr auto operator+(const Disk<PointType, LabelType>& disk, const Point<TranslationNumber, TranslationLabel>& translation) {
     auto result = disk;
     result += translation;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
@@ -1074,6 +1077,9 @@ template <class PointType, class LabelType, class TranslationNumber, class Trans
 constexpr auto operator-(const Disk<PointType, LabelType>& disk, const Point<TranslationNumber, TranslationLabel>& translation) {
     auto result = disk;
     result -= translation;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
@@ -1083,6 +1089,9 @@ template <class PointType, class LabelType, class Scalar>
 constexpr auto operator*(const Disk<PointType, LabelType>& disk, const Scalar& scalar) {
     auto result = disk;
     result *= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
@@ -1099,6 +1108,9 @@ template <class PointType, class LabelType, class Scalar>
 constexpr auto operator/(const Disk<PointType, LabelType>& disk, const Scalar& scalar) {
     auto result = disk;
     result /= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 

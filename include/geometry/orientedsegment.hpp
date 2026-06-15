@@ -15,29 +15,38 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct OrientedSegment;
 
-OrientedSegment() -> OrientedSegment<Point<>>;
+OrientedSegment() -> OrientedSegment<Point<>, NoLabel>;
 
 template <class PointType>
-OrientedSegment(PointType, PointType) -> OrientedSegment<PointType>;
+OrientedSegment(PointType, PointType) -> OrientedSegment<PointType, NoLabel>;
+
+template <class PointType, class A>
+OrientedSegment(PointType, PointType, A) -> OrientedSegment<PointType, std::decay_t<A>>;
 
 template <class Number>
-OrientedSegment(Number, Number, Number, Number) -> OrientedSegment<Point<Number>>;
+OrientedSegment(Number, Number, Number, Number) -> OrientedSegment<Point<Number>, NoLabel>;
 
 /**
  * @brief Oriented segment connecting two endpoints in source-to-target order.
  *
  * Unlike @ref Segment, the stored endpoint order is preserved.
  *
+ * Like @ref Segment, an oriented segment may carry an optional @ref LabelType
+ * value, independent of the endpoint point label. The label is metadata: it is
+ * ignored by equality, ordering and hashing, but it is copied across
+ * conversions and preserved by in-place transformations.
+ *
  * @tparam PointType Endpoint point type.
+ * @tparam TLabel Optional label type carried with the segment (`NoLabel` to omit).
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct OrientedSegment {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
 
     static_assert(detail::is_point_v<PointType>, "OrientedSegment requires pgl::Point endpoints");
 
@@ -68,16 +77,49 @@ struct OrientedSegment {
     constexpr OrientedSegment(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
         : OrientedSegment(PointType(x1, y1), PointType(x2, y2)) {}
 
-    template<PointConcept OtherPointType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr OrientedSegment(const OrientedSegment<OtherPointType>& other)
-        : OrientedSegment(PointType(other.source()), PointType(other.target())) {}
+    /**
+     * @brief Creates an oriented segment from a source and target and stores a label.
+     *
+     * The endpoint order is preserved exactly as provided.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     * @param source Source endpoint.
+     * @param target Target endpoint.
+     * @param label Segment label, forwarded into the stored label.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr OrientedSegment(PointType source, PointType target, A&& label)
+        : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
-    template<PointConcept OtherPointType>
+    /** @brief Same as the four-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr OrientedSegment(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : OrientedSegment(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+
+    /**
+     * @brief Converts an oriented segment with a different point and/or label type.
+     *
+     * The endpoints are converted to @ref PointType, preserving their order, and
+     * the label is copied when both sides carry one.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr OrientedSegment& operator=(const OrientedSegment<OtherPointType>& other) {
+    constexpr OrientedSegment(const OrientedSegment<OtherPointType, OtherLabelType>& other)
+        : OrientedSegment(PointType(other.source()), PointType(other.target())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
+
+    /**
+     * @brief Assigns from an oriented segment with compatible point and label types.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
+        requires(std::constructible_from<PointType, const OtherPointType&>)
+    constexpr OrientedSegment& operator=(const OrientedSegment<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -223,12 +265,46 @@ struct OrientedSegment {
     }
 
     /**
+     * @brief Compares two oriented segments by their endpoints; the label is ignored.
+     *
+     * @param other Oriented segment to compare with.
+     * @return `true` if both segments have the same ordered endpoints.
+     */
+    constexpr bool operator==(const OrientedSegment& other) const {
+        return points_ == other.points_;
+    }
+
+    /**
      * @brief Provides lexicographic ordering on `(source, target)`.
+     *
+     * The label is ignored, mirroring @ref Point and @ref Segment.
      *
      * @param other Oriented segment to compare with.
      * @return -1, 0, or 1.
      */
-    constexpr auto operator<=>(const OrientedSegment& other) const = default;
+    constexpr auto operator<=>(const OrientedSegment& other) const {
+        return points_ <=> other.points_;
+    }
+
+    /**
+     * @brief Returns the segment label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the segment label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Converts to the unordered geometric segment with the same endpoints.
@@ -1046,6 +1122,7 @@ struct OrientedSegment {
 
   public:
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
 /**
@@ -1059,8 +1136,8 @@ struct OrientedSegment {
  * @param translation Translation vector.
  * @return Translated oriented segment.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedSegment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const OrientedSegment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Translates an oriented segment by a point written on the left.
@@ -1073,8 +1150,8 @@ constexpr auto operator+(const OrientedSegment<PointType>& segment, const Point<
  * @param segment Oriented segment to translate.
  * @return Translated oriented segment.
  */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedSegment<PointType>& segment);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedSegment<PointType, LabelType>& segment);
 
 /**
  * @brief Translates an oriented segment by the opposite of a point.
@@ -1087,8 +1164,8 @@ constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& trans
  * @param translation Translation vector to subtract.
  * @return Translated oriented segment.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const OrientedSegment<PointType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const OrientedSegment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Scales an oriented segment by a scalar.
@@ -1100,9 +1177,9 @@ constexpr auto operator-(const OrientedSegment<PointType>& segment, const Point<
  * @param scalar Scale factor.
  * @return Scaled oriented segment.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const OrientedSegment<PointType>& segment, const Scalar& scalar);
+constexpr auto operator*(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**
  * @brief Scales an oriented segment by a scalar written on the left.
@@ -1114,9 +1191,9 @@ constexpr auto operator*(const OrientedSegment<PointType>& segment, const Scalar
  * @param segment Oriented segment to scale.
  * @return Scaled oriented segment.
  */
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType>& segment);
+constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType, LabelType>& segment);
 
 /**
  * @brief Divides both endpoints by a scalar.
@@ -1128,9 +1205,9 @@ constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType>&
  * @param scalar Divisor.
  * @return Scaled oriented segment.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const OrientedSegment<PointType>& segment, const Scalar& scalar);
+constexpr auto operator/(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**
  * @brief Streams an oriented segment as `p->q`.
@@ -1141,8 +1218,8 @@ constexpr auto operator/(const OrientedSegment<PointType>& segment, const Scalar
  * @param segment Oriented segment to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType>& segment);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType, LabelType>& segment);
 
 }  // namespace pgl
 

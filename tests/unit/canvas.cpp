@@ -65,7 +65,10 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
     CHECK(svg.find("<title>(10,20)</title>") != std::string::npos);
     CHECK(svg.find("<title>left:(45,35)--right:(65,85)</title>") != std::string::npos);
     CHECK(svg.find("<title>-(0,100)--(100,0)-</title>") != std::string::npos);
-    CHECK(svg.find("<title>right:(100,100)-&gt;left:(80,50)</title>") != std::string::npos);
+    // third_segment is built from value-returning Point::operator+ (max()+translation),
+    // so per the label rules the endpoint labels are default-constructed: the label
+    // type (std::string) is kept but the value is empty, which IO prints as a bare ":".
+    CHECK(svg.find("<title>:(100,100)-&gt;:(80,50)</title>") != std::string::npos);
     CHECK(svg.find("marker-mid=\"url(#pgl-arrowhead)\"") != std::string::npos);
     CHECK(svg.find("x1=\"132\" y1=\"776\" x2=\"316\" y2=\"316\"") != std::string::npos);
     CHECK(svg.find("cx=\"132\" cy=\"776\" r=\"5\"") != std::string::npos);
