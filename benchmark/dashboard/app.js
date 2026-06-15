@@ -111,7 +111,10 @@ function sparkline(points, w, h) {
 // Compact inline sparkline shown inside every cell — muted line, status dot.
 function cellSpark(points, w, h) {
   const times = points.map((p) => p.time);
-  const lo = Math.min(...times), hi = Math.max(...times);
+  const lo = Math.min(...times);
+  // Cap the vertical zoom: the top of the scale is at least 1.5x the bottom,
+  // so a tiny absolute spread doesn't get magnified into a dramatic wiggle.
+  const hi = Math.max(...times, lo * 1.5);
   const span = hi - lo || 1;
   const n = points.length;
   const x = (i) => (n === 1 ? w / 2 : (i / (n - 1)) * (w - 4) + 2);
