@@ -1,5 +1,5 @@
 // g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithus/shapetree.cpp
-// @desc: ShapeTree over 10k random triangles with vertices in [0,100]^2  translated by [0,1000]^2. Average time for query rectangles in [0,1000]^2 compared agains Brute Force.
+// @desc: ShapeTree over 10k random triangles with vertices in [0,50]^2  translated by [0,1000]^2. Average time for query rectangles in [0,1000]^2 compared agains Brute Force.
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -28,15 +28,16 @@ template <class Number>
 std::vector<pgl::Triangle<pgl::Point<Number>>> randomTriangles(int n) {
     using Point = pgl::Point<Number>;
     using Triangle = pgl::Triangle<Point>;
+    const int sz = 50;
     Rng rng{1};
     std::vector<Triangle> v;
     v.reserve(static_cast<std::size_t>(n));
     while (static_cast<int>(v.size()) < n) {
         const int x = rng.range(0, 1000);
         const int y = rng.range(0, 1000);
-        const Point a(Number(x + rng.range(0, 100)), Number(y + rng.range(0, 100)));
-        const Point b(Number(x + rng.range(0, 100)), Number(y + rng.range(0, 100)));
-        const Point c(Number(x + rng.range(0, 100)), Number(y + rng.range(0, 100)));
+        const Point a(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
+        const Point b(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
+        const Point c(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
         if (pgl::orientationSign(a, b, c) == 0) {
             continue;
         }
@@ -84,17 +85,17 @@ void run(const char* label) {
               << timer.get_elapsed_us() / windows.size() << std::endl;
 
     // Brute-force baseline for the same counts.
-    timer.start();
-    std::size_t bfHits = 0;
-    for (const auto& q : windows) {
-        for (const auto& t : tris) {
-            if (q.intersects(t)) {
-                bfHits++;
-            }
-        }
-    }
-    std::cout << "countIntersectsBF\t" << label << "\t\t" << bfHits << "\t"
-              << timer.get_elapsed_us()  / windows.size() << std::endl;
+    // timer.start();
+    // std::size_t bfHits = 0;
+    // for (const auto& q : windows) {
+    //     for (const auto& t : tris) {
+    //         if (q.intersects(t)) {
+    //             bfHits++;
+    //         }
+    //     }
+    // }
+    // std::cout << "countIntersectsBF\t" << label << "\t\t" << bfHits << "\t"
+    //           << timer.get_elapsed_us()  / windows.size() << std::endl;
 
     // Tree-pruned containment counting (element contained in the query window).
     timer.start();
@@ -106,17 +107,17 @@ void run(const char* label) {
               << timer.get_elapsed_us()  / windows.size() << std::endl;
 
     // Brute-force baseline for the same counts.
-    timer.start();
-    std::size_t bfHits2 = 0;
-    for (const auto& q : windows) {
-        for (const auto& t : tris) {
-            if (q.contains(t)) {
-                bfHits2++;
-            }
-        }
-    }
-    std::cout << "countContainsBF\t" << label << "\t\t" << bfHits2 << "\t"
-              << timer.get_elapsed_us()  / windows.size() << std::endl;
+    // timer.start();
+    // std::size_t bfHits2 = 0;
+    // for (const auto& q : windows) {
+    //     for (const auto& t : tris) {
+    //         if (q.contains(t)) {
+    //             bfHits2++;
+    //         }
+    //     }
+    // }
+    // std::cout << "countContainsBF\t" << label << "\t\t" << bfHits2 << "\t"
+    //           << timer.get_elapsed_us()  / windows.size() << std::endl;
 
 }
 
