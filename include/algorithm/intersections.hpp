@@ -36,14 +36,14 @@ class BentleyOttmann {
     struct Event {
         Rational x;
         EventEnum type;
-        Segment s1, s2;
+        Segment s1;
 
         auto operator<(const Event &other) const { // Order is backwards by x
             return other.x < x;
         }
 
         friend std::ostream &operator<<(std::ostream &out, const Event &e) {
-            return out << e.type << "@" << e.x << ": " << e.s1 << " " << e.s2;
+            return out << e.type << "@" << e.x << ": " << e.s1;
         }
     };
 
@@ -81,10 +81,10 @@ class BentleyOttmann {
     void initQueue(const std::vector<Segment> &segments) {
         for (const Segment &s :segments) {
             if(s.isVertical()) {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::VERTICAL, s, s);
+                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::VERTICAL, s);
             }
             else {
-                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::LEFT, s, s);
+                queue.emplace(static_cast<Rational>(s.min().x()), EventEnum::LEFT, s);
             }
         }
     }
@@ -221,7 +221,7 @@ class BentleyOttmann {
             RPoint cross = std::get<RPoint>(*sa.template intersection<Rational>(sb));
             if (cross.x() > line) {
                 // assert(CompareAlongLine(sa,sb));
-                queue.emplace(cross.x(), EventEnum::CROSS, sa, sb);
+                queue.emplace(cross.x(), EventEnum::CROSS, sa);
                 addCrossing(pair);
             }
         }
@@ -414,7 +414,7 @@ class BentleyOttmann {
             auto it0 = it1; --it0;
             auto it2 = it1; ++it2;
 
-            queue.emplace(static_cast<Rational>(ev.s1.max().x()), EventEnum::RIGHT, ev.s1, ev.s1);
+            queue.emplace(static_cast<Rational>(ev.s1.max().x()), EventEnum::RIGHT, ev.s1);
             possibleCrossing(it0, it1);
             possibleCrossing(it1, it2);
 
