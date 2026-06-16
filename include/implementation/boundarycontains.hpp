@@ -213,9 +213,9 @@ constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const Oth
  * intersection against 1D and 2D shapes, and generic separation dispatch.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool Line<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     (void)point;
     return false;
 }
@@ -958,8 +958,8 @@ constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const Sha
         other.variant());
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::boundaryContains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return boundaryContains(value);

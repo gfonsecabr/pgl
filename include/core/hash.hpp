@@ -114,10 +114,10 @@ namespace std {
     /**
      * @brief Hash support for Line.
      */
-    template <class PointType>
-    struct hash<pgl::Line<PointType>> {
-        std::size_t operator()(const pgl::Line<PointType>& line) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::Line<PointType>>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Line<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Line<PointType, LabelType>& line) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::Line<PointType, LabelType>>;
             if (line.isDegenerate()) {
                 pgl::detail::hashCombine(seed, line.min());
             }

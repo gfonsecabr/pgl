@@ -187,35 +187,35 @@ constexpr bool OrientedSegment<PointType, LabelType>::crosses(const Shape<PointT
  * intersection against 1D and 2D shapes, and generic separation dispatch.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Line<PointType>::crosses(const OtherLine& other) const {
+constexpr bool Line<PointType, LabelType>::crosses(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate() || *this == other) {
         return false;
     }
     return !parallel(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Line<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Line<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool Line<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Line<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool Line<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return crosses(other.asSegment());
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

@@ -124,10 +124,10 @@ OrientedSegment<PointType, LabelType>::xAtY(const OtherNumber &y) const {
  * @param x Query x-coordinate.
  * @return Corresponding y-coordinate, or empty when undefined.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-Line<PointType>::yAtX(const OtherNumber& x) const {
+Line<PointType, LabelType>::yAtX(const OtherNumber& x) const {
     if (isVertical()) {
         if (x == min().x()) {
             return static_cast<ResultNumber>(min().y());
@@ -162,10 +162,10 @@ Line<PointType>::yAtX(const OtherNumber& x) const {
  * @param y Query y-coordinate.
  * @return Corresponding x-coordinate, or empty when undefined.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-Line<PointType>::xAtY(const OtherNumber& y) const {
+Line<PointType, LabelType>::xAtY(const OtherNumber& y) const {
     if (isHorizontal()) {
         if (y == min().y()) {
             return static_cast<ResultNumber>(min().x());

@@ -293,22 +293,22 @@ constexpr bool OrientedSegment<PointType, LabelType>::interiorsIntersect(const S
  * intersection against 1D and 2D shapes, and generic separation dispatch.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool Line<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool Line<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
     return intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool Line<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -325,14 +325,14 @@ constexpr bool Line<PointType>::interiorsIntersect(const OtherSegment& other) co
     return first_side != second_side;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Line<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool Line<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::interiorsIntersect(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::interiorsIntersect(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

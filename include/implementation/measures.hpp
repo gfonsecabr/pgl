@@ -147,27 +147,27 @@ constexpr Point<ResultNumber> OrientedSegment<PointType, LabelType>::pointInside
 // -----------------------------------------------------------------------------
 // Line
 
-template <class PointType>
-constexpr typename Line<PointType>::NumberType Line<PointType>::area() const {
+template <class PointType, class LabelType>
+constexpr typename Line<PointType, LabelType>::NumberType Line<PointType, LabelType>::area() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr typename Line<PointType>::NumberType Line<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr typename Line<PointType, LabelType>::NumberType Line<PointType, LabelType>::twiceArea() const {
     return NumberType{};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber Line<PointType>::slope() const {
+constexpr ResultNumber Line<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
     const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
     return detail::abs(dy / dx);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Line<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Line<PointType, LabelType>::pointInside() const {
     return Point<ResultNumber>(min());
 }
 

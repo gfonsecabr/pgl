@@ -147,23 +147,23 @@ constexpr auto OrientedSegment<PointType, LabelType>::intersection(const OtherOr
 // -----------------------------------------------------------------------------
 // Line
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-Line<PointType>::intersection(const OtherPoint& other) const {
+Line<PointType, LabelType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
         return Point<ResultNumber, typename PointType::LabelType>(other);
     }
     return {};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Line<Point<ResultNumber, typename PointType::LabelType>>>>
-Line<PointType>::intersection(const OtherLine& other) const {
+Line<PointType, LabelType>::intersection(const OtherLine& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultLine = Line<ResultPoint>;
 
@@ -208,9 +208,9 @@ Line<PointType>::intersection(const OtherLine& other) const {
     return ResultPoint(px, py);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto Line<PointType>::intersection(const OtherSegment& other) const {
+constexpr auto Line<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using ResultType = std::optional<std::variant<ResultPoint, ResultSegment>>;
@@ -229,9 +229,9 @@ constexpr auto Line<PointType>::intersection(const OtherSegment& other) const {
     return ResultType(ResultSegment(ResultPoint(other.min()), ResultPoint(other.max())));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto Line<PointType>::intersection(const OtherOrientedSegment& other) const {
+constexpr auto Line<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return intersection<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
