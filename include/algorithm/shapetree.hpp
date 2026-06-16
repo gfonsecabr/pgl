@@ -336,7 +336,7 @@ class ShapeTree {
         }
     };
 
-    static constexpr std::size_t defaultLeafSize = 8;
+    static constexpr std::size_t defaultLeafSize = 6;
 
     std::vector<ShapeType> elements_;
     std::vector<Node> nodes_;
