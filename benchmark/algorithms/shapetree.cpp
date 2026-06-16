@@ -60,23 +60,6 @@ std::vector<pgl::Rectangle<pgl::Point<Number>>> queryWindows(int n) {
     return w;
 }
 
-static void draw(const std::string &filename,
-                 const auto& tree) {
-    pgl::Canvas canvas;
-
-    // The shape tree node boxes, lightly filled at 20% opacity.
-    canvas << pgl::stroke("#2f9aff") << pgl::strokeWidth("1")
-           << pgl::fill("#000000") << pgl::fillOpacity("0.2");
-    canvas << tree;
-
-    canvas << pgl::stroke("#10b305") << pgl::fill("#10b305") << pgl::fillOpacity(".5");
-    for (auto& s : tree) {
-        canvas << s;
-    }
-
-    canvas.writeSVG(filename);
-}
-
 
 template <class Number>
 void run(const char* label) {
@@ -89,7 +72,6 @@ void run(const char* label) {
     plf::nanotimer timer;
     timer.start();
     pgl::ShapeTree<Triangle> tree(tris);
-    draw("tst.svg", tree);
     const double buildus = timer.get_elapsed_us();
     std::cout << "build\t\t\t" << label << "\t\t" << tree.size() << "\t" << buildus << std::endl;
 
