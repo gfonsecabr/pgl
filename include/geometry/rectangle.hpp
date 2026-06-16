@@ -940,52 +940,90 @@ struct Rectangle {
     /**
      * @brief Returns the squared Euclidean distance to a point.
      *
+     * The closest point of an axis-aligned rectangle has integer coordinate
+     * gaps, so this overload involves no division and is exact.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to measure from.
      * @return Squared Euclidean distance.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
-    template<LineConcept OtherLine>
+    /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
-    template<OrientedLineConcept OtherOrientedLine>
+    /** @copydoc squaredDistance(const OtherLine&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
 
-    template<SegmentConcept OtherSegment>
+    /** @copydoc squaredDistance(const OtherLine&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
-    template<OrientedSegmentConcept OtherOrientedSegment>
+    /** @copydoc squaredDistance(const OtherLine&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
-    template<RayConcept OtherRay>
+    /** @copydoc squaredDistance(const OtherLine&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to another rectangle.
      *
+     * Rectangle-to-rectangle distance uses axis gaps only and is exact.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other rectangle corners.
      * @tparam OtherPoint::LabelType Label type of the other rectangle corners.
      * @param other Other rectangle.
      * @return Squared Euclidean distance.
      */
-    template<RectangleConcept OtherRectangle>
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the squared Hausdorff distance to another rectangle.
      *
      * For axis-aligned rectangles, the directed Hausdorff distance is attained
-     * at a vertex.
+     * at a vertex. It uses only point-to-rectangle distances and is exact.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other rectangle corners.
      * @tparam OtherPoint::LabelType Label type of the other rectangle corners.
      * @param other Other rectangle.
      * @return Squared Hausdorff distance.
      */
-    template<RectangleConcept OtherRectangle>
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRectangle& other) const;
 
     /**
@@ -1296,7 +1334,7 @@ struct Rectangle {
     //     requires std::constructible_from<PointType, std::ranges::range_reference_t<Range>>
     // constexpr void assignBoundingBox(Range&& points);
 
-    template<RectangleConcept OtherRectangle>
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     constexpr auto maxVertexDistanceTo(const OtherRectangle& other) const;
 
     std::array<PointType, 2> points_{};

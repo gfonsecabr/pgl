@@ -912,24 +912,81 @@ struct Line {
     /**
      * @brief Returns the squared Euclidean distance to a point.
      *
+     * The squared perpendicular distance divides the squared doubled triangle
+     * area by the squared line length.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to measure from.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance to another line.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other line defining points.
      * @tparam OtherPoint::LabelType Label type of the other line defining points.
      * @param other Other line.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
      */
-    template<LineConcept OtherLine>
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a segment.
+     *
+     * Zero when the segment crosses the line; otherwise the segment lies on one
+     * side and, because distance to a line is affine along the segment, the
+     * minimum is attained at an endpoint.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherSegment Type of the segment.
+     * @param other Segment to measure from.
+     * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Line>)
+                  && requires(const OtherShape& o, const Line& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
 
     /**
      * @brief Translates both defining points in place.

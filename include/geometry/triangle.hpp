@@ -939,6 +939,62 @@ struct Triangle {
         return {};
     }
 
+    /**
+     * @brief Returns the squared Euclidean distance to a point.
+     *
+     * Zero when the triangle contains the point; otherwise the smallest squared
+     * distance from the point to a triangle edge.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
     /** @brief Translates all vertices by a point in place. */
     template<PointConcept OtherPoint>
     constexpr Triangle& operator+=(const OtherPoint& translation);
@@ -998,6 +1054,26 @@ struct Triangle {
 
   private:
     static constexpr std::size_t edgeCount = 3;
+
+    /**
+     * @brief Smallest squared distance from a triangle edge to a disjoint shape.
+     *
+     * Used when the triangle does not intersect @p other and the closest point
+     * of the triangle therefore lies on its boundary. Requires the edge segment
+     * to support `squaredDistance(OtherShape)` (directly or via forwarding).
+     */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinSquaredDistance(const OtherShape& other) const;
+
+    /**
+     * @brief Smallest squared distance from a triangle vertex to a disjoint shape.
+     *
+     * Used for unbounded straight shapes (lines): when such a shape misses the
+     * triangle, the whole triangle lies on one side and the closest point is a
+     * vertex, so @p other must support `squaredDistance(Point)`.
+     */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber vertexMinSquaredDistance(const OtherShape& other) const;
 
     static constexpr std::array<PointType, 3> canonicalizeVertices(PointType first, PointType second, PointType third) {
         std::array<PointType, 3> vertices{

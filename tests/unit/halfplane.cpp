@@ -573,3 +573,44 @@ TEST_CASE("Halfplane contains and interiorContains another half-plane") {
     CHECK_FALSE(upper.interiorContains(Halfplane({2, 0}, {2, 0})));  // on the boundary
     CHECK_FALSE(upper.interiorContains(upper));
 }
+
+TEST_CASE("Halfplane measures squared distance as zero inside or distance to its boundary line") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rational = pgl::Rational<int64_t>;
+
+    // Left of (0,0)->(4,0) is the upper half-plane (interior y > 0, boundary y = 0).
+    const Halfplane upper({0, 0}, {4, 0});
+
+    SUBCASE("shapes meeting the half-plane are at distance zero") {
+        CHECK(upper.squaredDistance(Point(5, 5)) == 0);                        // interior point
+        CHECK(upper.squaredDistance(Point(5, 0)) == 0);                        // on the boundary
+        CHECK(upper.squaredDistance(pgl::Segment<Point>({1, -2}, {1, 3})) == 0); // crosses boundary
+        CHECK(upper.squaredDistance(pgl::Line<Point>({0, 1}, {1, 2})) == 0);   // non-parallel line always enters
+        CHECK(upper.squaredDistance(pgl::Ray<Point>({2, -1}, {2, 5})) == 0);   // ray enters the half-plane
+    }
+
+    SUBCASE("shapes outside fall back to the boundary line distance") {
+        CHECK(upper.squaredDistance(Point(5, -5)) == 25);
+        CHECK(upper.squaredDistance(pgl::Segment<Point>({2, -3}, {8, -7})) == 9);   // nearest endpoint (2,-3)
+        CHECK(upper.squaredDistance(pgl::OrientedSegment<Point>({2, -3}, {8, -7})) == 9);
+        CHECK(upper.squaredDistance(pgl::Line<Point>({0, -4}, {1, -4})) == 16);     // parallel line y=-4
+        CHECK(upper.squaredDistance(pgl::OrientedLine<Point>({1, -4}, {0, -4})) == 16);
+        CHECK(upper.squaredDistance(pgl::Ray<Point>({2, -3}, {2, -9})) == 9);       // points further away
+
+        // Each equals the distance to the boundary line asLine().
+        CHECK(upper.squaredDistance(Point(5, -5)) == upper.asLine().squaredDistance(Point(5, -5)));
+    }
+
+    SUBCASE("the relation is symmetric and honors ResultNumber") {
+        const Point outside(5, -5);
+        CHECK(outside.squaredDistance(upper) == upper.squaredDistance(outside));
+
+        // A point whose squared distance to the boundary is fractional.
+        const Halfplane diagonal({0, 0}, {2, 2});            // boundary y = x
+        const Point q(3, 0);                                 // exact squared distance 9/2
+        CHECK(diagonal.squaredDistance(q) == 4);             // integer default truncates
+        CHECK(diagonal.squaredDistance<double>(q) == doctest::Approx(4.5));
+        CHECK(diagonal.squaredDistance<Rational>(q) == Rational(9, 2));
+    }
+}

@@ -614,3 +614,45 @@ TEST_CASE("Triangle predicates against another triangle") {
         CHECK_FALSE(base.crosses(Triangle({10, 10}, {11, 10}, {10, 11})));
     }
 }
+
+TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {
+    using P = pgl::Point<int>;
+    using Rational = pgl::Rational<int64_t>;
+    const pgl::Triangle<P> tri({0, 0}, {4, 0}, {0, 4});
+
+    SUBCASE("intersecting shapes are at distance zero") {
+        CHECK(tri.squaredDistance(P(1, 1)) == 0);                              // interior point
+        CHECK(tri.squaredDistance(pgl::Line<P>({0, 1}, {1, 1})) == 0);         // y=1 cuts the triangle
+        CHECK(tri.squaredDistance(pgl::Segment<P>({-1, 1}, {5, 1})) == 0);     // crossing segment
+        CHECK(tri.squaredDistance(pgl::Rectangle<P>({1, 1}, {2, 2})) == 0);    // rectangle inside
+    }
+
+    SUBCASE("disjoint shapes whose nearest feature is a vertex are integer-exact") {
+        CHECK(tri.squaredDistance(P(10, 0)) == 36);                            // -> vertex (4,0)
+        CHECK(tri.squaredDistance(pgl::Segment<P>({10, 0}, {10, 4})) == 36);
+        CHECK(tri.squaredDistance(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 36);
+        CHECK(tri.squaredDistance(pgl::Ray<P>({10, 0}, {11, 0})) == 36);
+        CHECK(tri.squaredDistance(pgl::Line<P>({0, -1}, {1, -1})) == 1);       // bottom edge to y=-1
+        CHECK(tri.squaredDistance(pgl::OrientedLine<P>({0, -1}, {1, -1})) == 1);
+    }
+
+    SUBCASE("fractional distances need a floating-point or rational ResultNumber") {
+        const P near_hypotenuse(2, 3);                                        // exact squared distance 1/2
+        CHECK(tri.squaredDistance(near_hypotenuse) == 0);                     // integer default truncates
+        CHECK(tri.squaredDistance<double>(near_hypotenuse) == doctest::Approx(0.5));
+        CHECK(tri.squaredDistance<Rational>(near_hypotenuse) == Rational(1, 2));
+
+        // A line parallel to the hypotenuse, just outside the triangle.
+        CHECK(tri.squaredDistance<double>(pgl::Line<P>({5, 0}, {0, 5})) == doctest::Approx(0.5));
+    }
+
+    SUBCASE("the relation is symmetric: lower-ranked shapes forward to the triangle") {
+        CHECK(P(10, 0).squaredDistance(tri) == tri.squaredDistance(P(10, 0)));
+        CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredDistance(tri)
+              == tri.squaredDistance(pgl::Segment<P>({10, 0}, {10, 4})));
+        CHECK(pgl::Line<P>({0, -1}, {1, -1}).squaredDistance(tri)
+              == tri.squaredDistance(pgl::Line<P>({0, -1}, {1, -1})));
+        CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredDistance(tri)
+              == tri.squaredDistance(pgl::Rectangle<P>({10, 10}, {12, 12})));
+    }
+}

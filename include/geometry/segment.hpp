@@ -1066,24 +1066,53 @@ struct Segment {
      * The computation uses a projection on the supporting line and divides by
      * the squared segment length when the closest point lies in the interior.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to measure from.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance to another segment.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
      */
-    template<SegmentConcept OtherSegment>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
+                  && requires(const OtherShape& o, const Segment& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the squared Hausdorff distance to another segment.
@@ -1091,12 +1120,19 @@ struct Segment {
      * Since the distance to a segment is convex along a segment, the directed
      * Hausdorff distance is attained at an endpoint.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
      * @return Squared Hausdorff distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(other)`, for
+     *          an accurate value.
      */
-    template<SegmentConcept OtherSegment>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
 
     /**

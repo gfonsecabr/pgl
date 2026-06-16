@@ -209,8 +209,30 @@ TEST_CASE("Line intersection and distances support exact rational results") {
     CHECK(rising.intersection(pgl::Point<int>(2, 2)) == pgl::Point<int>(2, 2));
     CHECK_FALSE(rising.intersection(pgl::Point<int>(2, 3)));
 
-    CHECK(rising.squaredDistance(pgl::Point<int>(2, 0)) == doctest::Approx(2.0));
-    CHECK(rising.squaredDistance(parallel) == doctest::Approx(0.5));
+    // Euclidean squared distance is generally fractional, so request a
+    // floating-point ResultNumber; the integer default would truncate.
+    CHECK(rising.squaredDistance<double>(pgl::Point<int>(2, 0)) == doctest::Approx(2.0));
+    CHECK(rising.squaredDistance<double>(parallel) == doctest::Approx(0.5));
+}
+
+TEST_CASE("Line measures squared distance to segments via the nearest endpoint") {
+    using Point = pgl::Point<int>;
+    using Rational = pgl::Rational<int64_t>;
+    const pgl::Line<Point> diagonal({0, 0}, {1, 1});   // y = x
+
+    // A crossing segment is at distance zero.
+    CHECK(diagonal.squaredDistance(pgl::Segment<Point>({0, 2}, {2, 0})) == 0);
+    CHECK(diagonal.squaredDistance(pgl::OrientedSegment<Point>({0, 2}, {2, 0})) == 0);
+
+    // A disjoint segment: nearest endpoint (3,0) has exact squared distance 9/2.
+    const pgl::Segment<Point> off({3, 0}, {5, 0});
+    CHECK(diagonal.squaredDistance(off) == 4);                       // integer default truncates
+    CHECK(diagonal.squaredDistance<double>(off) == doctest::Approx(4.5));
+    CHECK(diagonal.squaredDistance<Rational>(off) == Rational(9, 2));
+
+    // The pair is symmetric: the segment forwards to the line.
+    CHECK(off.squaredDistance(diagonal) == diagonal.squaredDistance(off));
+    CHECK(off.squaredDistance<double>(diagonal) == doctest::Approx(4.5));
 }
 
 TEST_CASE("Line evaluates coordinates at fixed x and y when the query is well-defined") {
