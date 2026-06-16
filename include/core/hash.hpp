@@ -140,10 +140,10 @@ namespace std {
     /**
      * @brief Hash support for OrientedLine.
      */
-    template <class PointType>
-    struct hash<pgl::OrientedLine<PointType>> {
-        std::size_t operator()(const pgl::OrientedLine<PointType>& line) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedLine<PointType>>
+    template <class PointType, class LabelType>
+    struct hash<pgl::OrientedLine<PointType, LabelType>> {
+        std::size_t operator()(const pgl::OrientedLine<PointType, LabelType>& line) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::OrientedLine<PointType, LabelType>>
                              + (line.source() < line.target() ? 0u : 1u);
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(line));

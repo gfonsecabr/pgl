@@ -657,68 +657,68 @@ constexpr bool Line<PointType>::separates(const Shape<PointType>& other) const {
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::separates(const OtherPoint& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherPoint& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::separates(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherSegment& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::separates(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::separates(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherLine& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::separates(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool OrientedLine<PointType>::separates(const OtherRay& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRay& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool OrientedLine<PointType>::separates(const OtherRectangle& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRectangle& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool OrientedLine<PointType>::separates(const OtherTriangle& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherTriangle& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool OrientedLine<PointType>::separates(const OtherHalfplane& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherHalfplane& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool OrientedLine<PointType>::separates(const OtherConvex& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherConvex& other) const {
     return this->asLine().separates(other);
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::separates(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->separates(value);
@@ -1666,9 +1666,9 @@ constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherPolyg
     return this->asSegment().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool OrientedLine<PointType>::separates(const OtherPolygon& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherPolygon& other) const {
     return this->asLine().separates(other);
 }
 

@@ -329,38 +329,38 @@ constexpr bool Line<PointType>::intersects(const Shape<PointType>& other) const 
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return this->asLine().intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::intersects(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherLine& other) const {
     return this->asLine().intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     return this->asLine().intersects(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherSegment& other) const {
     return this->asLine().intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return this->asLine().intersects(other);
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

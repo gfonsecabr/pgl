@@ -592,76 +592,84 @@ constexpr void Line<PointType>::scaleDownY(const OtherNumber scalar) {
 // -----------------------------------------------------------------------------
 // OrientedLine
 
-template <class PointType>
-constexpr OrientedLine<PointType>::operator Line<PointType>() const {
+template <class PointType, class LabelType>
+constexpr OrientedLine<PointType, LabelType>::operator Line<PointType>() const {
     return Line<PointType>(source(), target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator+=(const OtherPoint& translation) {
+constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator-=(const OtherPoint& translation) {
+constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator*=(const Scalar& scalar) {
+constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr OrientedLine<PointType>& OrientedLine<PointType>::operator/=(const Scalar& scalar) {
+constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return OrientedLine(line.source() + translation, line.target() + translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = line.source() + translation;
+    const auto second = line.target() + translation;
+    return OrientedLine<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType>& line) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType, LabelType>& line) {
     return line + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return OrientedLine(line.source() - translation, line.target() - translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = line.source() - translation;
+    const auto second = line.target() - translation;
+    return OrientedLine<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const OrientedLine<PointType>& line, const Scalar& scalar) {
-    return OrientedLine(line.source() * scalar, line.target() * scalar);
+constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar) {
+    const auto first = line.source() * scalar;
+    const auto second = line.target() * scalar;
+    return OrientedLine<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType>& line) {
+constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType, LabelType>& line) {
     return line * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const OrientedLine<PointType>& line, const Scalar& scalar) {
-    return OrientedLine(line.source() / scalar, line.target() / scalar);
+constexpr auto operator/(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar) {
+    const auto first = line.source() / scalar;
+    const auto second = line.target() / scalar;
+    return OrientedLine<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
 template <class PointType, class LabelType>
@@ -674,62 +682,67 @@ constexpr Halfplane<PointType>::operator OrientedLine<PointType>() const {
     return OrientedLine<PointType>(source(), target());
 }
 
-template <class PointType>
-constexpr OrientedLine<PointType> OrientedLine<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr OrientedLine<PointType, LabelType> OrientedLine<PointType, LabelType>::rotated90(int k) const {
     return OrientedLine(source().rotated90(k), target().rotated90(k));
 }
 
-template <class PointType>
-constexpr void OrientedLine<PointType>::rotate90(int k) {
-    *this = rotated90(k);
+template <class PointType, class LabelType>
+constexpr void OrientedLine<PointType, LabelType>::rotate90(int k) {
+    points_[0].rotate90(k);
+    points_[1].rotate90(k);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr OrientedLine<PointType, LabelType> OrientedLine<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     return OrientedLine(source().scaledUpX(scalar), target().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void OrientedLine<PointType>::scaleUpX(const OtherNumber scalar) {
-    *this = scaledUpX(scalar);
+constexpr void OrientedLine<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    points_[0].scaleUpX(scalar);
+    points_[1].scaleUpX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr OrientedLine<PointType, LabelType> OrientedLine<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     return OrientedLine(source().scaledUpY(scalar), target().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void OrientedLine<PointType>::scaleUpY(const OtherNumber scalar) {
-    *this = scaledUpY(scalar);
+constexpr void OrientedLine<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    points_[0].scaleUpY(scalar);
+    points_[1].scaleUpY(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr OrientedLine<PointType, LabelType> OrientedLine<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     return OrientedLine(source().scaledDownX(scalar), target().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void OrientedLine<PointType>::scaleDownX(const OtherNumber scalar) {
-    *this = scaledDownX(scalar);
+constexpr void OrientedLine<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    points_[0].scaleDownX(scalar);
+    points_[1].scaleDownX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr OrientedLine<PointType> OrientedLine<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr OrientedLine<PointType, LabelType> OrientedLine<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     return OrientedLine(source().scaledDownY(scalar), target().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void OrientedLine<PointType>::scaleDownY(const OtherNumber scalar) {
-    *this = scaledDownY(scalar);
+constexpr void OrientedLine<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    points_[0].scaleDownY(scalar);
+    points_[1].scaleDownY(scalar);
 }
 
 // -----------------------------------------------------------------------------

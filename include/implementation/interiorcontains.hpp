@@ -369,63 +369,63 @@ constexpr bool Line<PointType>::interiorContains(const OtherConvex& other) const
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherPoint& point) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
     return contains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherLine& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherRay& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherRay& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherHalfplane& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherRectangle& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherTriangle& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherConvex& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
     // A line has no boundary, so its interior is the whole line.
     return contains(other);
 }
@@ -1095,17 +1095,17 @@ constexpr bool Line<PointType>::interiorContains(const OtherPolygon&) const {
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherDisk&) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: OrientedLine::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool OrientedLine<PointType>::interiorContains(const OtherPolygon&) const {
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: OrientedLine::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

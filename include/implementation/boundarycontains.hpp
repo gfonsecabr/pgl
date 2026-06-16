@@ -226,9 +226,9 @@ constexpr bool Line<PointType>::boundaryContains(const OtherPoint& point) const 
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     (void)point;
     return false;
 }
@@ -967,8 +967,8 @@ constexpr bool Line<PointType>::boundaryContains(const Shape<PointType>& other) 
         other.variant());
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::boundaryContains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return boundaryContains(value);

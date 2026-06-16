@@ -238,43 +238,43 @@ constexpr auto Line<PointType>::intersection(const OtherOrientedSegment& other) 
 // -----------------------------------------------------------------------------
 // OrientedLine
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-OrientedLine<PointType>::intersection(const OtherPoint& other) const {
+OrientedLine<PointType, LabelType>::intersection(const OtherPoint& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Line<Point<ResultNumber, typename PointType::LabelType>>>>
-OrientedLine<PointType>::intersection(const OtherLine& other) const {
+OrientedLine<PointType, LabelType>::intersection(const OtherLine& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Line<Point<ResultNumber, typename PointType::LabelType>>>>
-OrientedLine<PointType>::intersection(const OtherOrientedLine& other) const {
+OrientedLine<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
     return this->asLine().template intersection<ResultNumber>(
         other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto OrientedLine<PointType>::intersection(const OtherSegment& other) const {
+constexpr auto OrientedLine<PointType, LabelType>::intersection(const OtherSegment& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto OrientedLine<PointType>::intersection(const OtherOrientedSegment& other) const {
+constexpr auto OrientedLine<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return this->asLine().template intersection<ResultNumber>(other);
 }
 
