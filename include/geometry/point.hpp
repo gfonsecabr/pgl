@@ -617,13 +617,32 @@ struct Point {
     /**
      * @brief Returns the squared Euclidean distance to another point.
      *
+     * Point-to-point distance involves no division and is therefore exact for
+     * every @p ResultNumber.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other point.
      * @tparam OtherPoint::LabelType Label type of the other point.
      * @param other Other point.
      * @return Squared Euclidean distance.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the Euclidean distance to another point.

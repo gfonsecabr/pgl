@@ -249,8 +249,10 @@ TEST_CASE("OrientedLine intersection and distances support exact rational result
     REQUIRE(same_line_intersection);
     REQUIRE(std::holds_alternative<pgl::Line<pgl::Point<Rational>>>(*same_line_intersection));
 
-    CHECK(rising.squaredDistance(pgl::Point<int>(2, 0)) == doctest::Approx(2.0));
-    CHECK(rising.squaredDistance(parallel) == doctest::Approx(0.5));
+    // Euclidean squared distance is generally fractional, so request a
+    // floating-point ResultNumber; the integer default would truncate.
+    CHECK(rising.squaredDistance<double>(pgl::Point<int>(2, 0)) == doctest::Approx(2.0));
+    CHECK(rising.squaredDistance<double>(parallel) == doctest::Approx(0.5));
 }
 
 TEST_CASE("OrientedLine evaluates coordinates like its supporting line") {

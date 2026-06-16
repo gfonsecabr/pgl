@@ -986,56 +986,106 @@ struct OrientedSegment {
     /**
      * @brief Returns the squared Euclidean distance to a point.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to measure from.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance to another unordered segment.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
      */
-    template<SegmentConcept OtherSegment>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to another oriented segment.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other oriented segment.
      * @return Squared Euclidean distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(other)`, for an
+     *          accurate value.
      */
-    template<OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<OrientedSegment>)
+                  && requires(const OtherShape& o, const OrientedSegment& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the squared Hausdorff distance to another unordered segment.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
      * @return Squared Hausdorff distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(other)`, for
+     *          an accurate value.
      */
-    template<SegmentConcept OtherSegment>
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
 
     /**
      * @brief Returns the squared Hausdorff distance to another oriented segment.
      *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other oriented segment.
      * @return Squared Hausdorff distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(other)`, for
+     *          an accurate value.
      */
-    template<OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
 
     /**

@@ -127,9 +127,17 @@ pgl::Point<> p(isec);
 
 - `scaleDownY(Number)`: Divides the y-coordinate by a number.
 
-- `squaredDistance(Shape)`: Returns the squared distance.
+- `squaredDistance<ResultNumber = NumberType>(Shape)`: Returns the squared
+  distance, computed in `ResultNumber` (default: the shape's coordinate type),
+  mirroring `intersection`. **Warning:** distances to a line, segment or ray
+  divide by a squared length, so with an integer `ResultNumber` the result is
+  truncated; request a floating-point or `Rational` type, e.g.
+  `a.squaredDistance<double>(b)`, for an accurate value. Distances between
+  points and between axis-aligned rectangles use no division and are exact.
 
-- `squaredHausdorffDistance(Shape)`: Returns the squared Hausdorff distance.
+- `squaredHausdorffDistance<ResultNumber = NumberType>(Shape)`: Returns the
+  squared Hausdorff distance, with the same `ResultNumber` convention and
+  truncation warning as `squaredDistance`.
 
 - `bbox()`: Returns the minimum bounding box of the shape.
 
