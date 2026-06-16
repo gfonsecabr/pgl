@@ -229,38 +229,38 @@ constexpr bool Line<PointType>::crosses(const Shape<PointType>& other) const {
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::crosses(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const OtherLine& other) const {
     return this->asLine().crosses(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
     return this->asLine().crosses(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::crosses(const OtherPoint& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const OtherPoint& other) const {
     return this->asLine().crosses(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return this->asLine().crosses(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return this->asLine().crosses(other);
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);
@@ -268,10 +268,10 @@ constexpr bool OrientedLine<PointType>::crosses(const Shape<PointType>& other) c
         other.variant());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <LineConcept OtherLine>
 constexpr std::partial_ordering
-OrientedLine<PointType>::crossingOrder(const OtherLine& first,
+OrientedLine<PointType, LabelType>::crossingOrder(const OtherLine& first,
                                        const OtherLine& second) const {
     // A point source() + t*(target() - source()) lies on a line L = (P, Q) where
     // the affine function orientationDeterminant(P, Q, .) = p + t*(q - p)

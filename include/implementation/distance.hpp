@@ -179,21 +179,21 @@ constexpr auto Line<PointType>::squaredDistance(const OtherLine& other) const {
 // -----------------------------------------------------------------------------
 // OrientedLine
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto OrientedLine<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     return this->asLine().squaredDistance(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr auto OrientedLine<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     return this->asLine().squaredDistance(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr auto OrientedLine<PointType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     return this->asLine().squaredDistance(other.asLine());
 }
 

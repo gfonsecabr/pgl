@@ -26,16 +26,19 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct OrientedLine;
 
-OrientedLine() -> OrientedLine<Point<>>;
+OrientedLine() -> OrientedLine<Point<>, NoLabel>;
 
 template <class PointType>
-OrientedLine(PointType, PointType) -> OrientedLine<PointType>;
+OrientedLine(PointType, PointType) -> OrientedLine<PointType, NoLabel>;
+
+template <class PointType, class A>
+OrientedLine(PointType, PointType, A) -> OrientedLine<PointType, std::decay_t<A>>;
 
 template <class Number>
-OrientedLine(Number, Number, Number, Number) -> OrientedLine<Point<Number>>;
+OrientedLine(Number, Number, Number, Number) -> OrientedLine<Point<Number>, NoLabel>;
 
 /**
  * @brief Infinite oriented straight line.
@@ -46,11 +49,11 @@ OrientedLine(Number, Number, Number, Number) -> OrientedLine<Point<Number>>;
  *
  * @tparam PointType Defining point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct OrientedLine {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
     static_assert(detail::is_point_v<PointType>, "OrientedLine requires pgl::Point defining points");
@@ -82,16 +85,43 @@ struct OrientedLine {
     constexpr OrientedLine(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
         : OrientedLine(PointType(x1, y1), PointType(x2, y2)) {}
 
-    template<PointConcept OtherPointType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr OrientedLine(const OrientedLine<OtherPointType>& other)
-        : OrientedLine(PointType(other.source()), PointType(other.target())) {}
+    /**
+     * @brief Creates an oriented line from two defining points and stores a label.
+     *
+     * The point order is preserved exactly as provided.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr OrientedLine(PointType source, PointType target, A&& label)
+        : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
-    template<PointConcept OtherPointType>
+    /** @brief Same as the four-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr OrientedLine(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : OrientedLine(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+
+    /**
+     * @brief Converts an oriented line with a different point and/or label type.
+     *
+     * The defining points are converted to @ref PointType, preserving their
+     * order, and the label is copied when both sides carry one.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr OrientedLine& operator=(const OrientedLine<OtherPointType>& other) {
+    constexpr OrientedLine(const OrientedLine<OtherPointType, OtherLabelType>& other)
+        : OrientedLine(PointType(other.source()), PointType(other.target())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
+
+    template<PointConcept OtherPointType, class OtherLabelType>
+        requires(std::constructible_from<PointType, const OtherPointType&>)
+    constexpr OrientedLine& operator=(const OrientedLine<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -255,6 +285,26 @@ struct OrientedLine {
      * @warning Coordinates are cubed but a single promotion is used.
      */
     [[nodiscard]] constexpr auto operator<=>(const OrientedLine& other) const;
+
+    /**
+     * @brief Returns the line label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the line label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Converts to the unoriented line with the same supporting set.
@@ -813,30 +863,31 @@ struct OrientedLine {
     using promoted_number_t = std::common_type_t<CoordinateType, detail::promoted_number_t<OtherNumber>>;
 
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType>& line);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType, LabelType>& line);
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const OrientedLine<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const OrientedLine<PointType>& line, const Scalar& scalar);
+constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType>& line);
+constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType, LabelType>& line);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const OrientedLine<PointType>& line, const Scalar& scalar);
+constexpr auto operator/(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType>& line);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType, LabelType>& line);
 
 }  // namespace pgl

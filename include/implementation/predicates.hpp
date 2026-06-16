@@ -471,31 +471,31 @@ constexpr Halfplane<PointType> Line<PointType>::halfplaneBelow() const {
  * unoriented line view, while orientation-specific methods stay local here.
  */
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::operator==(const OrientedLine& other) const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::operator==(const OrientedLine& other) const {
     return contains(other) && ((source() <=> target()) == (other.source() <=> other.target()));
 }
 
-template <class PointType>
-constexpr auto OrientedLine<PointType>::operator<=>(const OrientedLine& other) const {
+template <class PointType, class LabelType>
+constexpr auto OrientedLine<PointType, LabelType>::operator<=>(const OrientedLine& other) const {
     if (source() < target() && other.source() > other.target()) {
         return std::strong_ordering::less;
     }
     return this->asLine() <=> other.asLine();
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::isDegenerate() const {
     return source() == target();
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::isVertical() const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::isVertical() const {
     return source().x() == target().x();
 }
 
-template <class PointType>
-constexpr bool OrientedLine<PointType>::isHorizontal() const {
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::isHorizontal() const {
     return source().y() == target().y();
 }
 
@@ -505,95 +505,95 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherOrientedLine& 
     return other.parallel(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool OrientedLine<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return point == source() || point == target();
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool OrientedLine<PointType>::collinear(const OtherPoint& point) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherPoint& point) const {
     return contains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::collinear(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherLine& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::collinear(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherOrientedLine& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::collinear(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::collinear(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool OrientedLine<PointType>::collinear(const OtherRay& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::collinear(const OtherRay& other) const {
     return collinear(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr std::partial_ordering OrientedLine<PointType>::orientation(const OtherPoint& point) const {
+constexpr std::partial_ordering OrientedLine<PointType, LabelType>::orientation(const OtherPoint& point) const {
     return orientationSign(source(), target(), point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool OrientedLine<PointType>::parallel(const OtherLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherLine& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool OrientedLine<PointType>::parallel(const OtherOrientedLine& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherOrientedLine& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool OrientedLine<PointType>::parallel(const OtherSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherSegment& other) const {
     return sameDirection(source(), target(), other.min(), other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool OrientedLine<PointType>::parallel(const OtherOrientedSegment& other) const {
+constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(source(), target(), other.source(), other.target());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> OrientedLine<PointType>::halfplaneAbove() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::halfplaneAbove() const {
     return Halfplane<PointType>(max(), min());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> OrientedLine<PointType>::halfplaneBelow() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::halfplaneBelow() const {
     return Halfplane<PointType>(min(), max());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> OrientedLine<PointType>::rightHalfplane() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::rightHalfplane() const {
     return Halfplane<PointType>(target(), source());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> OrientedLine<PointType>::leftHalfplane() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::leftHalfplane() const {
     return Halfplane<PointType>(source(), target());
 }
 

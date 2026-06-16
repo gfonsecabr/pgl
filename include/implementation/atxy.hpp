@@ -202,10 +202,10 @@ Line<PointType>::xAtY(const OtherNumber& y) const {
  * @param x Query x-coordinate.
  * @return Corresponding y-coordinate, or empty when undefined.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-OrientedLine<PointType>::yAtX(const OtherNumber& x) const {
+OrientedLine<PointType, LabelType>::yAtX(const OtherNumber& x) const {
     return this->asLine().template yAtX<ResultNumber>(x);
 }
 
@@ -220,10 +220,10 @@ OrientedLine<PointType>::yAtX(const OtherNumber& x) const {
  * @param y Query y-coordinate.
  * @return Corresponding x-coordinate, or empty when undefined.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-OrientedLine<PointType>::xAtY(const OtherNumber& y) const {
+OrientedLine<PointType, LabelType>::xAtY(const OtherNumber& y) const {
     return this->asLine().template xAtY<ResultNumber>(y);
 }
 
