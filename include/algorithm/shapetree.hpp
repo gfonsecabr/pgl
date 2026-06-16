@@ -25,31 +25,58 @@
 
 namespace pgl {
 
+namespace detail {
+
+// Default weight: an empty type that is its own additive identity, so the
+// per-node weight sum occupies no storage (via [[no_unique_address]]) and costs
+// nothing unless a real weight function is supplied.
+struct EmptyWeight {
+    constexpr EmptyWeight operator+(const EmptyWeight&) const { return {}; }
+};
+struct EmptyWeightFn {
+    template <class Shape>
+    constexpr EmptyWeight operator()(const Shape&) const { return {}; }
+};
+
+}  // namespace detail
+
 /**
  * @brief Static shape tree of bounded shapes.
  *
  * @tparam S Any shape type exposing `bbox()` (Point, Segment, Triangle,
  *         Rectangle, Convex, Polygon, ...). Infinite shapes such as Line, Ray
  *         and Halfplane have no finite bounding box and are not supported.
+ * @tparam WeightFn Callable mapping a `ShapeType` to a weight (any type with
+ *         `operator+` whose value-initialization is the additive identity).
+ *         Defaults to a no-op returning an empty type, so weights are ignored
+ *         unless a real function is supplied.
  */
-template <class S>
+template <class S, class WeightFn = detail::EmptyWeightFn>
 class ShapeTree {
   public:
     using ShapeType = S;
+    using WeightFunction = WeightFn;
     using Rect = std::remove_cvref_t<decltype(std::declval<const S&>().bbox())>;
     using PointType = typename Rect::PointType;
     using NumberType = typename PointType::NumberType;
+    using WeightType = std::remove_cvref_t<std::invoke_result_t<const WeightFn&, const ShapeType&>>;
 
   private:
     struct Node {
         Rect box;  // Union bounding box of the whole subtree.
         std::ptrdiff_t left = -1, right = -1;
+        std::size_t count = 0;  // Number of elements in the whole subtree.
+        [[no_unique_address]] WeightType weightSum{};  // Sum of subtree weights.
         std::vector<std::size_t> elementIndices;  // Elements owned by this node.
 
         template <class Q>
         [[nodiscard]] std::size_t countIntersects(const ShapeTree& tree, const Q& q) const {
             if (!q.intersects(box)) {
                 return 0;
+            }
+            if (q.contains(box)) {
+                // The whole subtree lies inside q, so every element intersects it.
+                return count;
             }
             std::size_t ret = 0;
             for (std::size_t i : elementIndices) {
@@ -65,6 +92,126 @@ class ShapeTree {
             }
             return ret;
         }
+
+        template <class Q>
+        [[nodiscard]] WeightType sumIntersects(const ShapeTree& tree, const Q& q) const {
+            if (!q.intersects(box)) {
+                return WeightType{};
+            }
+            if (q.contains(box)) {
+                // The whole subtree lies inside q, so it contributes its full sum.
+                return weightSum;
+            }
+            WeightType ret{};
+            for (std::size_t i : elementIndices) {
+                if (tree.elements_[i].intersects(q)) {
+                    ret = ret + tree.weight_(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                ret = ret + tree.nodes_[left].sumIntersects(tree, q);
+            }
+            if (right != -1) {
+                ret = ret + tree.nodes_[right].sumIntersects(tree, q);
+            }
+            return ret;
+        }
+
+        // Appends every element in this subtree, with no intersection test.
+        void collectAll(const ShapeTree& tree, std::vector<ShapeType>& out) const {
+            for (std::size_t i : elementIndices) {
+                out.push_back(tree.elements_[i]);
+            }
+            if (left != -1) {
+                tree.nodes_[left].collectAll(tree, out);
+            }
+            if (right != -1) {
+                tree.nodes_[right].collectAll(tree, out);
+            }
+        }
+
+        template <class Q>
+        void reportIntersects(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
+            if (!q.intersects(box)) {
+                return;
+            }
+            if (q.contains(box)) {
+                // The whole subtree lies inside q, so every element intersects it.
+                collectAll(tree, out);
+                return;
+            }
+            for (std::size_t i : elementIndices) {
+                if (tree.elements_[i].intersects(q)) {
+                    out.push_back(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                tree.nodes_[left].reportIntersects(tree, q, out);
+            }
+            if (right != -1) {
+                tree.nodes_[right].reportIntersects(tree, q, out);
+            }
+        }
+
+        // Calls fn on every element in this subtree, with no intersection test.
+        template <class Fn>
+        void visitAll(const ShapeTree& tree, Fn& fn) const {
+            for (std::size_t i : elementIndices) {
+                fn(tree.elements_[i]);
+            }
+            if (left != -1) {
+                tree.nodes_[left].visitAll(tree, fn);
+            }
+            if (right != -1) {
+                tree.nodes_[right].visitAll(tree, fn);
+            }
+        }
+
+        template <class Q, class Fn>
+        void visitIntersects(const ShapeTree& tree, const Q& q, Fn& fn) const {
+            if (!q.intersects(box)) {
+                return;
+            }
+            if (q.contains(box)) {
+                // The whole subtree lies inside q, so every element intersects it.
+                visitAll(tree, fn);
+                return;
+            }
+            for (std::size_t i : elementIndices) {
+                if (tree.elements_[i].intersects(q)) {
+                    fn(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                tree.nodes_[left].visitIntersects(tree, q, fn);
+            }
+            if (right != -1) {
+                tree.nodes_[right].visitIntersects(tree, q, fn);
+            }
+        }
+
+        template <class Q>
+        [[nodiscard]] bool anyIntersects(const ShapeTree& tree, const Q& q) const {
+            if (!q.intersects(box)) {
+                return false;
+            }
+            if (q.contains(box)) {
+                // The whole (non-empty) subtree lies inside q.
+                return true;
+            }
+            for (std::size_t i : elementIndices) {
+                if (tree.elements_[i].intersects(q)) {
+                    return true;
+                }
+            }
+            if (left != -1 && tree.nodes_[left].anyIntersects(tree, q)) {
+                return true;
+            }
+            if (right != -1 && tree.nodes_[right].anyIntersects(tree, q)) {
+                return true;
+            }
+            return false;
+        }
     };
 
     static constexpr std::size_t defaultLeafSize = 8;
@@ -73,6 +220,7 @@ class ShapeTree {
     std::vector<Node> nodes_;
     std::ptrdiff_t root_ = -1;
     std::size_t leafSize_ = defaultLeafSize;
+    [[no_unique_address]] WeightFn weight_{};
 
     // The best split found on a single axis.
     struct Split {
@@ -139,8 +287,10 @@ class ShapeTree {
     // score the same).
     std::ptrdiff_t build(const std::vector<std::size_t>& indices, int level) {
         Rect box = Rect(elements_[indices[0]].bbox());
+        WeightType weightSum = weight_(elements_[indices[0]]);
         for (std::size_t k = 1; k < indices.size(); ++k) {
             box.insert(elements_[indices[k]].bbox());
+            weightSum = weightSum + weight_(elements_[indices[k]]);
         }
 
         // Reserve this node's slot now; recursion may reallocate nodes_, so the
@@ -148,6 +298,8 @@ class ShapeTree {
         const std::ptrdiff_t id = static_cast<std::ptrdiff_t>(nodes_.size());
         nodes_.push_back(Node{});
         nodes_[id].box = box;
+        nodes_[id].count = indices.size();
+        nodes_[id].weightSum = weightSum;
 
         if (indices.size() <= leafSize_) {
             nodes_[id].elementIndices = indices;
@@ -218,10 +370,12 @@ class ShapeTree {
      * @tparam Container Range whose value type is convertible to @ref ShapeType.
      * @param shapes Shapes to store.
      * @param leafSize Maximum elements kept at a leaf before it is split.
+     * @param weight Weight function applied to each shape (defaults to a no-op).
      */
     template <class Container>
-    explicit ShapeTree(const Container& shapes, std::size_t leafSize = defaultLeafSize)
-        : leafSize_(leafSize > 0 ? leafSize : 1) {
+    explicit ShapeTree(const Container& shapes, std::size_t leafSize = defaultLeafSize,
+                       WeightFn weight = WeightFn{})
+        : leafSize_(leafSize > 0 ? leafSize : 1), weight_(std::move(weight)) {
         for (const auto& s : shapes) {
             elements_.push_back(s);
         }
@@ -235,6 +389,19 @@ class ShapeTree {
         nodes_.reserve(2 * elements_.size() / leafSize_ + 1);
         root_ = build(indices, 0);
     }
+
+    /**
+     * @brief Builds the tree from a container of shapes with a weight function.
+     *
+     * Uses the default leaf size.
+     *
+     * @tparam Container Range whose value type is convertible to @ref ShapeType.
+     * @param shapes Shapes to store.
+     * @param weight Weight function applied to each shape.
+     */
+    template <class Container>
+    explicit ShapeTree(const Container& shapes, WeightFn weight)
+        : ShapeTree(shapes, defaultLeafSize, std::move(weight)) {}
 
     /** @brief Returns the number of stored shapes. */
     [[nodiscard]] std::size_t size() const {
@@ -259,6 +426,74 @@ class ShapeTree {
     template <class Q>
     [[nodiscard]] std::size_t countIntersects(const Q& q) const {
         return root_ == -1 ? 0 : nodes_[root_].countIntersects(*this, q);
+    }
+
+    /**
+     * @brief Sums the weights of the stored shapes intersecting a query shape.
+     *
+     * Like @ref countIntersects, but accumulates the weight function instead of
+     * counting. Subtrees fully inside the query contribute their cached weight
+     * sum without descending.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return Sum of weights over the stored shapes intersecting `q`.
+     */
+    template <class Q>
+    [[nodiscard]] WeightType sumIntersects(const Q& q) const {
+        return root_ == -1 ? WeightType{} : nodes_[root_].sumIntersects(*this, q);
+    }
+
+    /**
+     * @brief Returns copies of the stored shapes intersecting a query shape.
+     *
+     * Subtrees whose bounding box does not meet the query are pruned; subtrees
+     * fully inside the query are collected without per-element tests.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return Vector of the stored shapes intersecting `q`.
+     */
+    template <class Q>
+    [[nodiscard]] std::vector<ShapeType> reportIntersects(const Q& q) const {
+        std::vector<ShapeType> out;
+        if (root_ != -1) {
+            nodes_[root_].reportIntersects(*this, q, out);
+        }
+        return out;
+    }
+
+    /**
+     * @brief Calls `fn` on each stored shape intersecting a query shape.
+     *
+     * Shapes are visited as they are found during traversal. Subtrees disjoint
+     * from the query are pruned; subtrees fully inside it are visited without
+     * per-element tests.
+     *
+     * @tparam Q Query shape type.
+     * @tparam Fn Callable invocable with `const ShapeType&`.
+     * @param q Query shape.
+     * @param fn Function to call on each intersecting shape.
+     */
+    template <class Q, class Fn>
+    void visitIntersects(const Q& q, Fn fn) const {
+        if (root_ != -1) {
+            nodes_[root_].visitIntersects(*this, q, fn);
+        }
+    }
+
+    /**
+     * @brief Returns whether no stored shape intersects a query shape.
+     *
+     * Stops as soon as an intersecting shape is found.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return `true` if no stored shape intersects `q`, `false` otherwise.
+     */
+    template <class Q>
+    [[nodiscard]] bool emptyIntersects(const Q& q) const {
+        return root_ == -1 ? true : !nodes_[root_].anyIntersects(*this, q);
     }
 
     /**
