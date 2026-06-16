@@ -25,16 +25,19 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Line;
 
-Line() -> Line<Point<>>;
+Line() -> Line<Point<>, NoLabel>;
 
 template <class PointType>
-Line(PointType, PointType) -> Line<PointType>;
+Line(PointType, PointType) -> Line<PointType, NoLabel>;
+
+template <class PointType, class A>
+Line(PointType, PointType, A) -> Line<PointType, std::decay_t<A>>;
 
 template <class Number>
-Line(Number, Number, Number, Number) -> Line<Point<Number>>;
+Line(Number, Number, Number, Number) -> Line<Point<Number>, NoLabel>;
 
 /**
  * @brief Infinite unoriented straight line.
@@ -45,11 +48,11 @@ Line(Number, Number, Number, Number) -> Line<Point<Number>>;
  *
  * @tparam PointType Defining point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Line {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
     static_assert(detail::is_point_v<PointType>, "Line requires pgl::Point defining points");
@@ -86,16 +89,45 @@ struct Line {
     constexpr Line(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
         : Line(PointType(x1, y1), PointType(x2, y2)) {}
 
-    template<PointConcept OtherPointType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Line(const Line<OtherPointType>& other)
-        : Line(PointType(other.min()), PointType(other.max())) {}
+    /**
+     * @brief Creates a line from two defining points and stores a label.
+     *
+     * The stored points are reordered so that `min() <= max()`.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Line(PointType first, PointType second, A&& label)
+        : Line(std::move(first), std::move(second)) {
+        label_ = std::forward<A>(label);
+    }
 
-    template<PointConcept OtherPointType>
+    /** @brief Same as the four-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Line(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : Line(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+
+    /**
+     * @brief Converts a line with a different point and/or label type.
+     *
+     * The defining points are converted to @ref PointType and re-sorted, and the
+     * label is copied when both sides carry one.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Line& operator=(const Line<OtherPointType>& other) {
+    constexpr Line(const Line<OtherPointType, OtherLabelType>& other)
+        : Line(PointType(other.min()), PointType(other.max())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
+
+    template<PointConcept OtherPointType, class OtherLabelType>
+        requires(std::constructible_from<PointType, const OtherPointType&>)
+    constexpr Line& operator=(const Line<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.min());
         points_[1] = PointType(other.max());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -211,6 +243,26 @@ struct Line {
      * @warning Coordinates are cubed but a single promotion is used.
      */
     [[nodiscard]] constexpr auto operator<=>(const Line& other) const;
+
+    /**
+     * @brief Returns the line label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the line label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Returns the dual point.
@@ -945,6 +997,7 @@ struct Line {
     [[nodiscard]] constexpr auto polarCoordinates() const;
 
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
 /**
@@ -957,8 +1010,8 @@ struct Line {
  * @param translation Translation vector.
  * @return Translated line.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Translates a line by a point written on the left.
@@ -970,8 +1023,8 @@ constexpr auto operator+(const Line<PointType>& line, const Point<TranslationNum
  * @param line Line to translate.
  * @return Translated line.
  */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType>& line);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType, LabelType>& line);
 
 /**
  * @brief Translates a line by the opposite of a point.
@@ -983,8 +1036,8 @@ constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& trans
  * @param translation Translation vector to subtract.
  * @return Translated line.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Scales a line by a scalar.
@@ -995,9 +1048,9 @@ constexpr auto operator-(const Line<PointType>& line, const Point<TranslationNum
  * @param scalar Scale factor.
  * @return Scaled line.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Line<PointType>& line, const Scalar& scalar);
+constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& scalar);
 
 /**
  * @brief Scales a line by a scalar written on the left.
@@ -1008,9 +1061,9 @@ constexpr auto operator*(const Line<PointType>& line, const Scalar& scalar);
  * @param line Line to scale.
  * @return Scaled line.
  */
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Line<PointType>& line);
+constexpr auto operator*(const Scalar& scalar, const Line<PointType, LabelType>& line);
 
 /**
  * @brief Divides both defining points by a scalar.
@@ -1021,9 +1074,9 @@ constexpr auto operator*(const Scalar& scalar, const Line<PointType>& line);
  * @param scalar Divisor.
  * @return Scaled line.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Line<PointType>& line, const Scalar& scalar);
+constexpr auto operator/(const Line<PointType, LabelType>& line, const Scalar& scalar);
 
 /**
  * @brief Streams a line as `-p--q-`.
@@ -1033,7 +1086,7 @@ constexpr auto operator/(const Line<PointType>& line, const Scalar& scalar);
  * @param line Line to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Line<PointType>& line);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Line<PointType, LabelType>& line);
 
 }  // namespace pgl

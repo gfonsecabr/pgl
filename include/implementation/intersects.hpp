@@ -277,15 +277,15 @@ constexpr bool OrientedSegment<PointType, LabelType>::intersects(const Shape<Poi
  * intersection against 1D and 2D shapes, and generic separation dispatch.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Line<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Line<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Line<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (isDegenerate()) {
         return other.contains(min());
     }
@@ -295,9 +295,9 @@ constexpr bool Line<PointType>::intersects(const OtherLine& other) const {
     return !parallel(other) || contains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Line<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Line<PointType, LabelType>::intersects(const OtherSegment& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -308,14 +308,14 @@ constexpr bool Line<PointType>::intersects(const OtherSegment& other) const {
            first != second;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Line<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Line<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

@@ -63,9 +63,9 @@ constexpr Line<Point<ResultNumber, Label>> Point<Number, Label>::polar() const {
  * @tparam ResultNumber Numeric type of the returned tuple.
  * @return Tuple `(a_num, b_num, den)` representing `y = (a_num/den)x - b_num/den`.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr auto Line<PointType>::dualCoordinates() const {
+constexpr auto Line<PointType, LabelType>::dualCoordinates() const {
     ResultNumber qx = static_cast<ResultNumber>(min().x());
     ResultNumber qy = static_cast<ResultNumber>(min().y());
     ResultNumber px = static_cast<ResultNumber>(max().x());
@@ -83,9 +83,9 @@ constexpr auto Line<PointType>::dualCoordinates() const {
  * @tparam ResultNumber Numeric type of the returned tuple.
  * @return Tuple `(a_num, b_num, den)` representing `(a_num/den)x + (b_num/den)y = 1`.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr auto Line<PointType>::polarCoordinates() const {
+constexpr auto Line<PointType, LabelType>::polarCoordinates() const {
     ResultNumber qx = static_cast<ResultNumber>(min().x());
     ResultNumber qy = static_cast<ResultNumber>(min().y());
     ResultNumber px = static_cast<ResultNumber>(max().x());
@@ -103,9 +103,9 @@ constexpr auto Line<PointType>::polarCoordinates() const {
  * @tparam ResultNumber Coordinate type of the dual point.
  * @return Dual point of this line.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType>::dual() const {
+constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType, LabelType>::dual() const {
     assert(!isVertical());
 
     // Line equation: y = anum/den * x - bnum/den.
@@ -119,9 +119,9 @@ constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType>::du
  * @tparam ResultNumber Coordinate type of the polar point.
  * @return Polar point of this line.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType>::polar() const {
+constexpr Point<ResultNumber, typename PointType::LabelType> Line<PointType, LabelType>::polar() const {
     // Line equation: anum/den * x + bnum/den y = 1.
     const auto [anum, bnum, den] = polarCoordinates<ResultNumber>();
     assert(den != 0);

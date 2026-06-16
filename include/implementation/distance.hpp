@@ -145,9 +145,9 @@ constexpr auto OrientedSegment<PointType, LabelType>::squaredHausdorffDistance(c
 // -----------------------------------------------------------------------------
 // Line
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Line<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Line<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
 
     if (isDegenerate()) {
@@ -164,9 +164,9 @@ constexpr auto Line<PointType>::squaredDistance(const OtherPoint& point) const {
     return (twice_triangle_area * twice_triangle_area) / squared_length;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr auto Line<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto Line<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherLine::NumberType, double>;
 
     if (intersects(other)) {

@@ -456,69 +456,81 @@ constexpr void OrientedSegment<PointType, LabelType>::scaleDownY(const OtherNumb
 // -----------------------------------------------------------------------------
 // Line
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Line<PointType>& Line<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Line<PointType>& Line<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Line<PointType>& Line<PointType>::operator*=(const Scalar& scalar) {
-    *this = *this * scalar;
+constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator*=(const Scalar& scalar) {
+    points_[0] *= scalar;
+    points_[1] *= scalar;
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Line<PointType>& Line<PointType>::operator/=(const Scalar& scalar) {
-    *this = *this / scalar;
+constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator/=(const Scalar& scalar) {
+    points_[0] /= scalar;
+    points_[1] /= scalar;
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Line(line.min() + translation, line.max() + translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = line.min() + translation;
+    const auto second = line.max() + translation;
+    return Line<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType>& line) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType, LabelType>& line) {
     return line + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Line<PointType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Line(line.min() - translation, line.max() - translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = line.min() - translation;
+    const auto second = line.max() - translation;
+    return Line<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Line<PointType>& line, const Scalar& scalar) {
-    return Line(line.min() * scalar, line.max() * scalar);
+constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& scalar) {
+    const auto first = line.min() * scalar;
+    const auto second = line.max() * scalar;
+    return Line<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Line<PointType>& line) {
+constexpr auto operator*(const Scalar& scalar, const Line<PointType, LabelType>& line) {
     return line * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Line<PointType>& line, const Scalar& scalar) {
-    return Line(line.min() / scalar, line.max() / scalar);
+constexpr auto operator/(const Line<PointType, LabelType>& line, const Scalar& scalar) {
+    const auto first = line.min() / scalar;
+    const auto second = line.max() / scalar;
+    return Line<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
 template <class PointType, class LabelType>
@@ -531,62 +543,72 @@ constexpr Halfplane<PointType>::operator Line<PointType>() const {
     return Line<PointType>(source(), target());
 }
 
-template <class PointType>
-constexpr Line<PointType> Line<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Line<PointType, LabelType> Line<PointType, LabelType>::rotated90(int k) const {
     return Line(min().rotated90(k), max().rotated90(k));
 }
 
-template <class PointType>
-constexpr void Line<PointType>::rotate90(int k) {
-    *this = rotated90(k);
+template <class PointType, class LabelType>
+constexpr void Line<PointType, LabelType>::rotate90(int k) {
+    points_[0].rotate90(k);
+    points_[1].rotate90(k);
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Line<PointType> Line<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Line<PointType, LabelType> Line<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     return Line(min().scaledUpX(scalar), max().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Line<PointType>::scaleUpX(const OtherNumber scalar) {
-    *this = scaledUpX(scalar);
+constexpr void Line<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    points_[0].scaleUpX(scalar);
+    points_[1].scaleUpX(scalar);
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Line<PointType> Line<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Line<PointType, LabelType> Line<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     return Line(min().scaledUpY(scalar), max().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Line<PointType>::scaleUpY(const OtherNumber scalar) {
-    *this = scaledUpY(scalar);
+constexpr void Line<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    points_[0].scaleUpY(scalar);
+    points_[1].scaleUpY(scalar);
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Line<PointType> Line<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Line<PointType, LabelType> Line<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     return Line(min().scaledDownX(scalar), max().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Line<PointType>::scaleDownX(const OtherNumber scalar) {
-    *this = scaledDownX(scalar);
+constexpr void Line<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    points_[0].scaleDownX(scalar);
+    points_[1].scaleDownX(scalar);
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Line<PointType> Line<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Line<PointType, LabelType> Line<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     return Line(min().scaledDownY(scalar), max().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Line<PointType>::scaleDownY(const OtherNumber scalar) {
-    *this = scaledDownY(scalar);
+constexpr void Line<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    points_[0].scaleDownY(scalar);
+    points_[1].scaleDownY(scalar);
+    if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
 }
 
 // -----------------------------------------------------------------------------

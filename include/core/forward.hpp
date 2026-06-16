@@ -68,7 +68,7 @@ template <class PointType, class Label = NoLabel>
 struct OrientedSegment;
 
 /** @brief Unoriented infinite line. */
-template <class PointType>
+template <class PointType, class Label = NoLabel>
 struct Line;
 
 /** @brief Directed infinite line with left/right side semantics plus optional line label. */
@@ -133,8 +133,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Segment<PointType, Label>> = 20;
 template <class PointType, class Label>
 inline constexpr int shapeRank<OrientedSegment<PointType, Label>> = 30;
-template <class PointType>
-inline constexpr int shapeRank<Line<PointType>> = 40;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Line<PointType, Label>> = 40;
 template <class PointType, class Label>
 inline constexpr int shapeRank<OrientedLine<PointType, Label>> = 50;
 template <class PointType, class Label>
@@ -174,7 +174,7 @@ template <class PointType, class Label> struct is_oriented_segment<OrientedSegme
 template <class T> inline constexpr bool is_oriented_segment_v = is_oriented_segment<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_line : std::false_type {};
-template <class PointType> struct is_line<Line<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_line<Line<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_line_v = is_line<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_oriented_line : std::false_type {};

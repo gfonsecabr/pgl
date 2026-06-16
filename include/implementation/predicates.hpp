@@ -342,13 +342,13 @@ constexpr Halfplane<PointType> OrientedSegment<PointType, LabelType>::leftHalfpl
  * intersection against 1D and 2D shapes, and generic separation dispatch.
  */
 
-template <class PointType>
-constexpr bool Line<PointType>::operator==(const Line& other) const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::operator==(const Line& other) const {
     return contains(other);
 }
 
-template <class PointType>
-constexpr auto Line<PointType>::operator<=>(const Line& other) const {
+template <class PointType, class LabelType>
+constexpr auto Line<PointType, LabelType>::operator<=>(const Line& other) const {
     if (isVertical()) {
         return detail::strongOrder(min().y(), max().y());
     }
@@ -362,18 +362,18 @@ constexpr auto Line<PointType>::operator<=>(const Line& other) const {
     return detail::strongOrder(bnum * other_den, other_bnum * den);
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::isDegenerate() const {
     return min() == max();
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::isVertical() const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::isVertical() const {
     return min().x() == max().x();
 }
 
-template <class PointType>
-constexpr bool Line<PointType>::isHorizontal() const {
+template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::isHorizontal() const {
     return min().y() == max().y();
 }
 
@@ -383,85 +383,85 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherLine& other) c
     return other.parallel(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool Line<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return point == min() || point == max();
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Line<PointType>::collinear(const OtherPoint& point) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherPoint& point) const {
     return contains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Line<PointType>::collinear(const OtherSegment& other) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Line<PointType>::collinear(const OtherOrientedSegment& other) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherOrientedSegment& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Line<PointType>::collinear(const OtherLine& other) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherLine& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Line<PointType>::parallel(const OtherLine& other) const {
+constexpr bool Line<PointType, LabelType>::parallel(const OtherLine& other) const {
     return sameDirection(min(), max(), other.min(), other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Line<PointType>::parallel(const OtherSegment& other) const {
+constexpr bool Line<PointType, LabelType>::parallel(const OtherSegment& other) const {
     return sameDirection(min(), max(), other.min(), other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Line<PointType>::parallel(const OtherOrientedSegment& other) const {
+constexpr bool Line<PointType, LabelType>::parallel(const OtherOrientedSegment& other) const {
     return sameDirection(min(), max(), other.source(), other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Line<PointType>::parallel(const OtherOrientedLine& other) const {
+constexpr bool Line<PointType, LabelType>::parallel(const OtherOrientedLine& other) const {
     return parallel(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Line<PointType>::parallel(const OtherRay& other) const {
+constexpr bool Line<PointType, LabelType>::parallel(const OtherRay& other) const {
     return parallel(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Line<PointType>::collinear(const OtherOrientedLine& other) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherOrientedLine& other) const {
     return collinear(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Line<PointType>::collinear(const OtherRay& other) const {
+constexpr bool Line<PointType, LabelType>::collinear(const OtherRay& other) const {
     return collinear(other.asLine());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> Line<PointType>::halfplaneAbove() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> Line<PointType, LabelType>::halfplaneAbove() const {
     return Halfplane<PointType>(max(), min());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType> Line<PointType>::halfplaneBelow() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType> Line<PointType, LabelType>::halfplaneBelow() const {
     return Halfplane<PointType>(min(), max());
 }
 
