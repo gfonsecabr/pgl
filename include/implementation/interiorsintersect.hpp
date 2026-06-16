@@ -391,16 +391,16 @@ constexpr bool OrientedLine<PointType, LabelType>::interiorsIntersect(const Shap
  * where the asymmetric behavior of a half-infinite 1D primitive is implemented.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
     if (other.isDegenerate() || isDegenerate()) {
         return false;
     }
@@ -417,15 +417,15 @@ constexpr bool Ray<PointType>::interiorsIntersect(const OtherLine& other) const 
     return direction_side != 0 && direction_side != source_side;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherOrientedLine& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
     return interiorsIntersect(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -460,15 +460,15 @@ constexpr bool Ray<PointType>::interiorsIntersect(const OtherSegment& other) con
            direction_side != source_side;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Ray<PointType>::interiorsIntersect(const OtherRay& other) const {
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -497,8 +497,8 @@ constexpr bool Ray<PointType>::interiorsIntersect(const OtherRay& other) const {
     return !boundaryContains(other.source()) && !other.boundaryContains(source());
 }
 
-template <class PointType>
-constexpr bool Ray<PointType>::interiorsIntersect(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

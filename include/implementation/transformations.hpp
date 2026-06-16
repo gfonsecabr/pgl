@@ -748,81 +748,89 @@ constexpr void OrientedLine<PointType, LabelType>::scaleDownY(const OtherNumber 
 // -----------------------------------------------------------------------------
 // Ray
 
-template <class PointType>
-constexpr Ray<PointType>::operator Line<PointType>() const {
+template <class PointType, class LabelType>
+constexpr Ray<PointType, LabelType>::operator Line<PointType>() const {
     return Line<PointType>(source(), target());
 }
 
-template <class PointType>
-constexpr Ray<PointType>::operator OrientedLine<PointType>() const {
+template <class PointType, class LabelType>
+constexpr Ray<PointType, LabelType>::operator OrientedLine<PointType>() const {
     return OrientedLine<PointType>(source(), target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Ray<PointType>& Ray<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Ray<PointType>& Ray<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Ray<PointType>& Ray<PointType>::operator*=(const Scalar& scalar) {
+constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Ray<PointType>& Ray<PointType>::operator/=(const Scalar& scalar) {
+constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Ray(ray.source() + translation, ray.target() + translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = ray.source() + translation;
+    const auto second = ray.target() + translation;
+    return Ray<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType>& ray) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType, LabelType>& ray) {
     return ray + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Ray(ray.source() - translation, ray.target() - translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = ray.source() - translation;
+    const auto second = ray.target() - translation;
+    return Ray<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Ray<PointType>& ray, const Scalar& scalar) {
-    return Ray(ray.source() * scalar, ray.target() * scalar);
+constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& scalar) {
+    const auto first = ray.source() * scalar;
+    const auto second = ray.target() * scalar;
+    return Ray<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Ray<PointType>& ray) {
+constexpr auto operator*(const Scalar& scalar, const Ray<PointType, LabelType>& ray) {
     return ray * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Ray<PointType>& ray, const Scalar& scalar) {
-    return Ray(ray.source() / scalar, ray.target() / scalar);
+constexpr auto operator/(const Ray<PointType, LabelType>& ray, const Scalar& scalar) {
+    const auto first = ray.source() / scalar;
+    const auto second = ray.target() / scalar;
+    return Ray<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
 template <class PointType, class LabelType>
@@ -830,62 +838,67 @@ constexpr OrientedSegment<PointType, LabelType>::operator Ray<PointType>() const
     return Ray<PointType>(source(), target());
 }
 
-template <class PointType>
-constexpr Ray<PointType> Ray<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Ray<PointType, LabelType> Ray<PointType, LabelType>::rotated90(int k) const {
     return Ray(source().rotated90(k), target().rotated90(k));
 }
 
-template <class PointType>
-constexpr void Ray<PointType>::rotate90(int k) {
-    *this = rotated90(k);
+template <class PointType, class LabelType>
+constexpr void Ray<PointType, LabelType>::rotate90(int k) {
+    points_[0].rotate90(k);
+    points_[1].rotate90(k);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Ray<PointType> Ray<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Ray<PointType, LabelType> Ray<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     return Ray(source().scaledUpX(scalar), target().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Ray<PointType>::scaleUpX(const OtherNumber scalar) {
-    *this = scaledUpX(scalar);
+constexpr void Ray<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    points_[0].scaleUpX(scalar);
+    points_[1].scaleUpX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Ray<PointType> Ray<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Ray<PointType, LabelType> Ray<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     return Ray(source().scaledUpY(scalar), target().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Ray<PointType>::scaleUpY(const OtherNumber scalar) {
-    *this = scaledUpY(scalar);
+constexpr void Ray<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    points_[0].scaleUpY(scalar);
+    points_[1].scaleUpY(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Ray<PointType> Ray<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Ray<PointType, LabelType> Ray<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     return Ray(source().scaledDownX(scalar), target().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Ray<PointType>::scaleDownX(const OtherNumber scalar) {
-    *this = scaledDownX(scalar);
+constexpr void Ray<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    points_[0].scaleDownX(scalar);
+    points_[1].scaleDownX(scalar);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Ray<PointType> Ray<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Ray<PointType, LabelType> Ray<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     return Ray(source().scaledDownY(scalar), target().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Ray<PointType>::scaleDownY(const OtherNumber scalar) {
-    *this = scaledDownY(scalar);
+constexpr void Ray<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    points_[0].scaleDownY(scalar);
+    points_[1].scaleDownY(scalar);
 }
 
 // -----------------------------------------------------------------------------

@@ -309,44 +309,44 @@ OrientedLine<PointType, LabelType>::crossingOrder(const OtherLine& first,
  * where the asymmetric behavior of a half-infinite 1D primitive is implemented.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Ray<PointType>::crosses(const OtherLine& other) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Ray<PointType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Ray<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Ray<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Ray<PointType>::crosses(const OtherRay& other) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Ray<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
-constexpr bool Ray<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Ray<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

@@ -374,15 +374,15 @@ constexpr bool OrientedLine<PointType, LabelType>::intersects(const Shape<PointT
  * where the asymmetric behavior of a half-infinite 1D primitive is implemented.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Ray<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -398,15 +398,15 @@ constexpr bool Ray<PointType>::intersects(const OtherLine& other) const {
     return direction_side != 0 && direction_side != source_side;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Ray<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     return intersects(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Ray<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherSegment& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -424,15 +424,15 @@ constexpr bool Ray<PointType>::intersects(const OtherSegment& other) const {
            this->asLine().intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Ray<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Ray<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Ray<PointType, LabelType>::intersects(const OtherRay& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
@@ -452,8 +452,8 @@ constexpr bool Ray<PointType>::intersects(const OtherRay& other) const {
            this->asLine().intersects(other);
 }
 
-template <class PointType>
-constexpr bool Ray<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Ray<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

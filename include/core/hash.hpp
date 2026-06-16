@@ -155,10 +155,10 @@ namespace std {
     /**
      * @brief Hash support for Ray.
      */
-    template <class PointType>
-    struct hash<pgl::Ray<PointType>> {
-        std::size_t operator()(const pgl::Ray<PointType>& ray) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::Ray<PointType>>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Ray<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Ray<PointType, LabelType>& ray) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::Ray<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, ray.source());
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(ray));

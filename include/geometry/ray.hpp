@@ -25,16 +25,19 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Ray;
 
-Ray() -> Ray<Point<>>;
+Ray() -> Ray<Point<>, NoLabel>;
 
 template <class PointType>
-Ray(PointType, PointType) -> Ray<PointType>;
+Ray(PointType, PointType) -> Ray<PointType, NoLabel>;
+
+template <class PointType, class A>
+Ray(PointType, PointType, A) -> Ray<PointType, std::decay_t<A>>;
 
 template <class Number>
-Ray(Number, Number, Number, Number) -> Ray<Point<Number>>;
+Ray(Number, Number, Number, Number) -> Ray<Point<Number>, NoLabel>;
 
 /**
  * @brief Half-line starting at a source point and extending through a target.
@@ -44,11 +47,11 @@ Ray(Number, Number, Number, Number) -> Ray<Point<Number>>;
  *
  * @tparam PointType Defining point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Ray {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
     static_assert(detail::is_point_v<PointType>, "Ray requires pgl::Point defining points");
@@ -80,16 +83,43 @@ struct Ray {
     constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
         : Ray(PointType(x1, y1), PointType(x2, y2)) {}
 
-    template<PointConcept OtherPointType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Ray(const Ray<OtherPointType>& other)
-        : Ray(PointType(other.source()), PointType(other.target())) {}
+    /**
+     * @brief Creates a ray from a source and a second point and stores a label.
+     *
+     * The point order is preserved exactly as provided.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Ray(PointType source, PointType target, A&& label)
+        : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
-    template<PointConcept OtherPointType>
+    /** @brief Same as the four-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : Ray(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+
+    /**
+     * @brief Converts a ray with a different point and/or label type.
+     *
+     * The defining points are converted to @ref PointType, preserving their
+     * order, and the label is copied when both sides carry one.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Ray& operator=(const Ray<OtherPointType>& other) {
+    constexpr Ray(const Ray<OtherPointType, OtherLabelType>& other)
+        : Ray(PointType(other.source()), PointType(other.target())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
+
+    template<PointConcept OtherPointType, class OtherLabelType>
+        requires(std::constructible_from<PointType, const OtherPointType&>)
+    constexpr Ray& operator=(const Ray<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -253,6 +283,26 @@ struct Ray {
      * @warning Coordinates are cubed but a single promotion is used.
      */
     [[nodiscard]] constexpr auto operator<=>(const Ray& other) const;
+
+    /**
+     * @brief Returns the ray label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the ray label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Converts to the unoriented supporting line.
@@ -854,30 +904,31 @@ private:
     using promoted_number_t = std::common_type_t<CoordinateType, detail::promoted_number_t<OtherNumber>>;
 
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType>& ray);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType, LabelType>& ray);
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Ray<PointType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Ray<PointType>& ray, const Scalar& scalar);
+constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Ray<PointType>& ray);
+constexpr auto operator*(const Scalar& scalar, const Ray<PointType, LabelType>& ray);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Ray<PointType>& ray, const Scalar& scalar);
+constexpr auto operator/(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
 
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Ray<PointType>& ray);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& ray);
 
 }  // namespace pgl
