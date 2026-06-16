@@ -55,4 +55,5 @@
 #include "core/hash.hpp"
 #include "algorithm/intersections.hpp"
 #include "algorithm/convexhull.hpp"
+#include "algorithm/sortaround.hpp"
 #include "algorithm/polyominoes.hpp"

@@ -66,6 +66,18 @@ TEST_CASE_TEMPLATE("Find intersections among segments", Point, pgl::Point<int>, 
     CHECK(bf == bo);
 }
 
+// Regression: a convex polygon is always simple, but isSimple()'s sweep path
+// (n > 8) used to report a spurious self-intersection when the polygon has a
+// unique leftmost vertex whose two incident edges share that left endpoint.
+TEST_CASE("Convex polygon with a unique leftmost vertex is simple") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> vertices = {
+        {0,4},{4,0},{6,0},{8,1},{9,4},{8,7},{6,8},{4,8},{1,6},
+    };
+    pgl::Polygon<Point> poly(vertices);
+    CHECK(poly.isSimple());
+}
+
 TEST_CASE_TEMPLATE("Detect crossings and intersections among segments", Point, pgl::Point<int>, pgl::Point<float>) {
     std::vector<pgl::Segment<Point>> segs;
     for(int i = 1; i < 5; i++) {
