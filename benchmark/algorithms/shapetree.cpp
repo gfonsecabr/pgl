@@ -84,7 +84,7 @@ void run(const char* label) {
     std::cout << "countIntersecting\t" << label << "\t\t" << hits << "\t"
               << timer.get_elapsed_us() / windows.size() << std::endl;
 
-    Brute-force baseline for the same counts.
+    // Brute-force baseline for the same counts.
     timer.start();
     std::size_t bfHits = 0;
     for (const auto& q : windows) {
@@ -106,7 +106,7 @@ void run(const char* label) {
     std::cout << "countContainedIn\t" << label << "\t\t" << inHits << "\t"
               << timer.get_elapsed_us()  / windows.size() << std::endl;
 
-    Brute-force baseline for the same counts.
+    //Brute-force baseline for the same counts.
     timer.start();
     std::size_t bfHits2 = 0;
     for (const auto& q : windows) {
