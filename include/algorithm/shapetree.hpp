@@ -403,6 +403,44 @@ class ShapeTree {
         return best;
     }
 
+    // Chooses the best split over `indices`, trying the depth-parity axis first
+    // so equal-scoring splits alternate direction.
+    Split chooseSplit(const std::vector<std::size_t>& indices, int level) const {
+        Split best;
+        for (int k = 0; k < 2; ++k) {
+            const std::size_t axis = static_cast<std::size_t>((level + k) % 2);
+            const Split candidate = bestSplitOnAxis(indices, axis);
+            if (!candidate.found) {
+                continue;
+            }
+            if (!best.found || candidate.score < best.score ||
+                (candidate.score == best.score && candidate.straddlers < best.straddlers)) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    // Partitions indices by a split: strictly-left (hi <= value), strictly-right
+    // (lo > value), and straddlers (kept at the node).
+    void partitionBySplit(const std::vector<std::size_t>& indices, const Split& split,
+                          std::vector<std::size_t>& leftIndices,
+                          std::vector<std::size_t>& rightIndices,
+                          std::vector<std::size_t>& straddlers) const {
+        const auto a = static_cast<std::size_t>(split.axis);
+        for (std::size_t i : indices) {
+            const NumberType lo = elements_[i].bbox().min()[a];
+            const NumberType hi = elements_[i].bbox().max()[a];
+            if (hi <= split.value) {
+                leftIndices.push_back(i);
+            } else if (lo > split.value) {
+                rightIndices.push_back(i);
+            } else {
+                straddlers.push_back(i);
+            }
+        }
+    }
+
     // Builds a subtree from the given element indices and returns its node index.
     // `level` is the depth, used only to break ties between equally good axes so
     // the split direction alternates (e.g. for points, where both axes always
@@ -428,22 +466,7 @@ class ShapeTree {
             return id;
         }
 
-        // Choose the axis with the lower score, then fewer straddlers. Remaining
-        // ties go to the first axis tried; trying the depth-parity axis first
-        // makes the split direction alternate when both axes are fully equal.
-        Split best;
-        for (int k = 0; k < 2; ++k) {
-            const std::size_t axis = static_cast<std::size_t>((level + k) % 2);
-            const Split candidate = bestSplitOnAxis(indices, axis);
-            if (!candidate.found) {
-                continue;
-            }
-            if (!best.found || candidate.score < best.score ||
-                (candidate.score == best.score && candidate.straddlers < best.straddlers)) {
-                best = candidate;
-            }
-        }
-
+        const Split best = chooseSplit(indices, level);
         if (!best.found) {
             // No axis can separate the elements (e.g. many identical boxes):
             // keep them all here as a leaf.
@@ -452,18 +475,7 @@ class ShapeTree {
         }
 
         std::vector<std::size_t> leftIndices, rightIndices, straddlers;
-        const auto a = static_cast<std::size_t>(best.axis);
-        for (std::size_t i : indices) {
-            const NumberType lo = elements_[i].bbox().min()[a];
-            const NumberType hi = elements_[i].bbox().max()[a];
-            if (hi <= best.value) {
-                leftIndices.push_back(i);
-            } else if (lo > best.value) {
-                rightIndices.push_back(i);
-            } else {
-                straddlers.push_back(i);
-            }
-        }
+        partitionBySplit(indices, best, leftIndices, rightIndices, straddlers);
 
         const std::ptrdiff_t leftChild = leftIndices.empty() ? -1 : build(leftIndices, level + 1);
         const std::ptrdiff_t rightChild = rightIndices.empty() ? -1 : build(rightIndices, level + 1);
@@ -471,6 +483,88 @@ class ShapeTree {
         nodes_[id].right = rightChild;
         nodes_[id].elementIndices = std::move(straddlers);
         return id;
+    }
+
+    // Splits an overflowing leaf in place with the best split. Its box, count
+    // and weight sum are unchanged since the same elements stay in the subtree.
+    void splitNode(std::ptrdiff_t id, int level) {
+        std::vector<std::size_t> indices = std::move(nodes_[id].elementIndices);
+        nodes_[id].elementIndices.clear();
+
+        const Split best = chooseSplit(indices, level);
+        if (!best.found) {
+            // Cannot separate (e.g. identical boxes): stays an oversized leaf.
+            nodes_[id].elementIndices = std::move(indices);
+            return;
+        }
+
+        std::vector<std::size_t> leftIndices, rightIndices, straddlers;
+        partitionBySplit(indices, best, leftIndices, rightIndices, straddlers);
+
+        const std::ptrdiff_t leftChild = leftIndices.empty() ? -1 : build(leftIndices, level + 1);
+        const std::ptrdiff_t rightChild = rightIndices.empty() ? -1 : build(rightIndices, level + 1);
+        nodes_[id].left = leftChild;
+        nodes_[id].right = rightChild;
+        nodes_[id].elementIndices = std::move(straddlers);
+    }
+
+    // Area increase of `box` when grown to also include `other`.
+    static auto enlargement(const Rect& box, const Rect& other) {
+        Rect grown = box;
+        grown.insert(other);
+        return grown.area() - box.area();
+    }
+
+    // Routes element i (bounding box eb) down from node id, maintaining every
+    // visited node's box, count and weight sum, and keeping sibling boxes
+    // disjoint.
+    void insertInto(std::ptrdiff_t id, std::size_t i, const Rect& eb, int level) {
+        nodes_[id].box.insert(eb);
+        nodes_[id].count += 1;
+        nodes_[id].weightSum = nodes_[id].weightSum + weight_(elements_[i]);
+
+        if (nodes_[id].left == -1 && nodes_[id].right == -1) {
+            nodes_[id].elementIndices.push_back(i);
+            if (nodes_[id].elementIndices.size() > leafSize_) {
+                splitNode(id, level);
+            }
+            return;
+        }
+
+        const std::ptrdiff_t L = nodes_[id].left;
+        const std::ptrdiff_t R = nodes_[id].right;
+
+        // A child may take the element only if its grown box stays disjoint from
+        // its sibling's box.
+        bool leftOk = false;
+        bool rightOk = false;
+        if (L != -1) {
+            Rect grown = nodes_[L].box;
+            grown.insert(eb);
+            leftOk = (R == -1) || !grown.intersects(nodes_[R].box);
+        }
+        if (R != -1) {
+            Rect grown = nodes_[R].box;
+            grown.insert(eb);
+            rightOk = (L == -1) || !grown.intersects(nodes_[L].box);
+        }
+
+        std::ptrdiff_t target = -1;
+        if (leftOk && rightOk) {
+            // Both keep disjointness: descend into the one enlarged least.
+            target = enlargement(nodes_[L].box, eb) <= enlargement(nodes_[R].box, eb) ? L : R;
+        } else if (leftOk) {
+            target = L;
+        } else if (rightOk) {
+            target = R;
+        }
+
+        if (target == -1) {
+            // Neither child can stay disjoint: keep the element at this node.
+            nodes_[id].elementIndices.push_back(i);
+            return;
+        }
+        insertInto(target, i, eb, level + 1);
     }
 
     // Sends the subtree bounding boxes to the canvas in pre-order.
@@ -558,6 +652,39 @@ class ShapeTree {
     /** @brief Returns an iterator past the last stored shape. */
     [[nodiscard]] const_iterator cend() const {
         return elements_.cend();
+    }
+
+    /**
+     * @brief Inserts a shape without rebalancing the existing tree.
+     *
+     * The element is routed down the tree, keeping every visited node's box,
+     * count and weight sum up to date and preserving the invariant that the two
+     * child boxes of a node stay disjoint: a child takes the element only if its
+     * grown box remains disjoint from its sibling's; when both qualify the one
+     * enlarged least is chosen; when neither does the element is kept at the
+     * node. A leaf that overflows the leaf size is split with the best split.
+     *
+     * Each insertion is `O(height)` and never reshapes the existing nodes, so
+     * the tree quality degrades over many insertions; rebuild from @ref shapes()
+     * to restore it.
+     *
+     * @param shape Shape to insert.
+     */
+    void insert(const ShapeType& shape) {
+        const std::size_t i = elements_.size();
+        elements_.push_back(shape);
+        const Rect eb = Rect(elements_[i].bbox());
+
+        if (root_ == -1) {
+            root_ = static_cast<std::ptrdiff_t>(nodes_.size());
+            nodes_.push_back(Node{});
+            nodes_[root_].box = eb;
+            nodes_[root_].count = 1;
+            nodes_[root_].weightSum = weight_(elements_[i]);
+            nodes_[root_].elementIndices.push_back(i);
+            return;
+        }
+        insertInto(root_, i, eb, 0);
     }
 
     /**

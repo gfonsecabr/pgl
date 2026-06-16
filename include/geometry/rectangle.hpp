@@ -1022,18 +1022,22 @@ struct Rectangle {
      * @param shape Shape to insert.
      */
     template <class TShape>
-        requires(!detail::is_point_v<TShape> && requires(const TShape& shape) { shape.bbox(); })
+        requires(!detail::is_point_v<TShape> && !RectangleConcept<TShape> && requires(const TShape& shape) { shape.bbox(); })
     constexpr void insert(const TShape& shape);
 
     /**
      * @brief Enlarges the rectangle so that it contains every point in a range.
+     *
+     * A single bounded shape (which exposes `bbox()`) is handled by the
+     * shape overload, even though it may itself be iterable as a range.
      *
      * @tparam Range Range of points.
      * @param range Points to insert.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
-             std::convertible_to<std::ranges::range_value_t<Range>, PointType>
+             std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
+             (!requires(const std::remove_cvref_t<Range>& shape) { shape.bbox(); })
     constexpr void insert(Range&& range);
 
     /**

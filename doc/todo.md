@@ -58,5 +58,3 @@ If the polyfunction `P` has $n$ vertices, then:
 
 ### Fair-Split Tree
 
-### KD-Tree
-
