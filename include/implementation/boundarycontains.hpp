@@ -239,9 +239,9 @@ constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const OtherP
  * where the asymmetric behavior of a half-infinite 1D primitive is implemented.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Ray<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool Ray<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     return point == source();
 }
 
@@ -976,8 +976,8 @@ constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const Shape<
         other.variant());
 }
 
-template <class PointType>
-constexpr bool Ray<PointType>::boundaryContains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Ray<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return boundaryContains(value);

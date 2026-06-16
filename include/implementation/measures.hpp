@@ -201,27 +201,27 @@ constexpr Point<ResultNumber> OrientedLine<PointType, LabelType>::pointInside() 
 // -----------------------------------------------------------------------------
 // Ray
 
-template <class PointType>
-constexpr typename Ray<PointType>::NumberType Ray<PointType>::area() const {
+template <class PointType, class LabelType>
+constexpr typename Ray<PointType, LabelType>::NumberType Ray<PointType, LabelType>::area() const {
     return NumberType{};
 }
 
-template <class PointType>
-constexpr typename Ray<PointType>::NumberType Ray<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr typename Ray<PointType, LabelType>::NumberType Ray<PointType, LabelType>::twiceArea() const {
     return NumberType{};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber Ray<PointType>::slope() const {
+constexpr ResultNumber Ray<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
     const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
     return dy / dx;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Ray<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Ray<PointType, LabelType>::pointInside() const {
     return Point<ResultNumber>(target());
 }
 

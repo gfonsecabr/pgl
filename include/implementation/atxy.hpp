@@ -236,10 +236,10 @@ OrientedLine<PointType, LabelType>::xAtY(const OtherNumber& y) const {
  * The supporting line computes the candidate coordinate; the ray direction
  * decides whether that candidate lies on the half-line.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-Ray<PointType>::yAtX(const OtherNumber &x) const {
+Ray<PointType, LabelType>::yAtX(const OtherNumber &x) const {
     const Line<PointType> supporting_line(*this);
     const std::optional<ResultNumber> candidate_y = supporting_line.template yAtX<ResultNumber>(x);
     if (!candidate_y.has_value()) {
@@ -261,10 +261,10 @@ Ray<PointType>::yAtX(const OtherNumber &x) const {
  * The supporting line computes the candidate coordinate; the ray direction
  * decides whether that candidate lies on the half-line.
  */
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-Ray<PointType>::xAtY(const OtherNumber &y) const {
+Ray<PointType, LabelType>::xAtY(const OtherNumber &y) const {
     const Line<PointType> supporting_line(*this);
     const std::optional<ResultNumber> candidate_x = supporting_line.template xAtY<ResultNumber>(y);
     if (!candidate_x.has_value()) {

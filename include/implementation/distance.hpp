@@ -200,9 +200,9 @@ constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherOr
 // -----------------------------------------------------------------------------
 // Ray
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr auto Ray<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherPoint::NumberType, double>;
 
     if (isDegenerate()) {
@@ -229,9 +229,9 @@ constexpr auto Ray<PointType>::squaredDistance(const OtherPoint& point) const {
     return (twice_triangle_area * twice_triangle_area) / squared_length;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr auto Ray<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherLine::NumberType, double>;
 
     if (intersects(other)) {
@@ -241,9 +241,9 @@ constexpr auto Ray<PointType>::squaredDistance(const OtherLine& other) const {
     return static_cast<ResultNumber>(other.squaredDistance(source()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr auto Ray<PointType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherOrientedLine::NumberType, double>;
 
     if (intersects(other)) {
@@ -253,9 +253,9 @@ constexpr auto Ray<PointType>::squaredDistance(const OtherOrientedLine& other) c
     return static_cast<ResultNumber>(other.squaredDistance(source()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr auto Ray<PointType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
         using ResultNumber = std::common_type_t<NumberType, typename OtherSegment::NumberType, double>;
         return ResultNumber{};
@@ -268,9 +268,9 @@ constexpr auto Ray<PointType>::squaredDistance(const OtherSegment& other) const 
     return source_to_other < best_from_segment ? source_to_other : best_from_segment;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto Ray<PointType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     if (intersects(other)) {
         using ResultNumber = std::common_type_t<NumberType, typename OtherOrientedSegment::NumberType, double>;
         return ResultNumber{};
@@ -283,9 +283,9 @@ constexpr auto Ray<PointType>::squaredDistance(const OtherOrientedSegment& other
     return source_to_other < best_from_segment ? source_to_other : best_from_segment;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr auto Ray<PointType>::squaredDistance(const OtherRay& other) const {
+constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
     using ResultNumber = std::common_type_t<NumberType, typename OtherRay::NumberType, double>;
 
     if (intersects(other)) {

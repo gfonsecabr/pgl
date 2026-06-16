@@ -126,14 +126,13 @@ std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType, Lab
  * @param ray Ray to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Ray<PointType>& ray) {
-    // Ray has no own label yet; when it gains one, mirror OrientedSegment
-    // if constexpr (detail::has_label_v<LabelType>) {
-    //     stream << ray.label() << ":{" << ray.source() << "--" << ray.target() << "->}";
-    // } else {
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& ray) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << ray.label() << ":{" << ray.source() << "--" << ray.target() << "->}";
+    } else {
         stream << ray.source() << "--" << ray.target() << "->";
-    // }
+    }
     return stream;
 }
 

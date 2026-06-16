@@ -75,8 +75,8 @@ struct Line;
 template <class PointType, class Label = NoLabel>
 struct OrientedLine;
 
-/** @brief Half-infinite line starting from one source point. */
-template <class PointType>
+/** @brief Half-infinite line starting from one source point plus optional ray label. */
+template <class PointType, class Label = NoLabel>
 struct Ray;
 
 /** @brief Closed half-plane defined by an oriented boundary line. */
@@ -137,8 +137,8 @@ template <class PointType>
 inline constexpr int shapeRank<Line<PointType>> = 40;
 template <class PointType, class Label>
 inline constexpr int shapeRank<OrientedLine<PointType, Label>> = 50;
-template <class PointType>
-inline constexpr int shapeRank<Ray<PointType>> = 60;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Ray<PointType, Label>> = 60;
 template <class PointType>
 inline constexpr int shapeRank<Halfplane<PointType>> = 70;
 template <class PointType>
@@ -182,7 +182,7 @@ template <class PointType, class Label> struct is_oriented_line<OrientedLine<Poi
 template <class T> inline constexpr bool is_oriented_line_v = is_oriented_line<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_ray : std::false_type {};
-template <class PointType> struct is_ray<Ray<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_ray<Ray<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_ray_v = is_ray<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_halfplane : std::false_type {};
