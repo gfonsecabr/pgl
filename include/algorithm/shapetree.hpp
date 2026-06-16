@@ -61,6 +61,13 @@ class ShapeTree {
     using NumberType = typename PointType::NumberType;
     using WeightType = std::remove_cvref_t<std::invoke_result_t<const WeightFn&, const ShapeType&>>;
 
+    // Container-like aliases so a ShapeTree can be iterated and passed where a
+    // container of shapes is expected.
+    using value_type = ShapeType;
+    using size_type = std::size_t;
+    using const_iterator = typename std::vector<ShapeType>::const_iterator;
+    using const_reference = const ShapeType&;
+
   private:
     struct Node {
         Rect box;  // Union bounding box of the whole subtree.
@@ -70,7 +77,7 @@ class ShapeTree {
         std::vector<std::size_t> elementIndices;  // Elements owned by this node.
 
         template <class Q>
-        [[nodiscard]] std::size_t countIntersects(const ShapeTree& tree, const Q& q) const {
+        [[nodiscard]] std::size_t countIntersecting(const ShapeTree& tree, const Q& q) const {
             if (!q.intersects(box)) {
                 return 0;
             }
@@ -85,16 +92,16 @@ class ShapeTree {
                 }
             }
             if (left != -1) {
-                ret += tree.nodes_[left].countIntersects(tree, q);
+                ret += tree.nodes_[left].countIntersecting(tree, q);
             }
             if (right != -1) {
-                ret += tree.nodes_[right].countIntersects(tree, q);
+                ret += tree.nodes_[right].countIntersecting(tree, q);
             }
             return ret;
         }
 
         template <class Q>
-        [[nodiscard]] WeightType sumIntersects(const ShapeTree& tree, const Q& q) const {
+        [[nodiscard]] WeightType sumIntersecting(const ShapeTree& tree, const Q& q) const {
             if (!q.intersects(box)) {
                 return WeightType{};
             }
@@ -109,10 +116,10 @@ class ShapeTree {
                 }
             }
             if (left != -1) {
-                ret = ret + tree.nodes_[left].sumIntersects(tree, q);
+                ret = ret + tree.nodes_[left].sumIntersecting(tree, q);
             }
             if (right != -1) {
-                ret = ret + tree.nodes_[right].sumIntersects(tree, q);
+                ret = ret + tree.nodes_[right].sumIntersecting(tree, q);
             }
             return ret;
         }
@@ -131,7 +138,7 @@ class ShapeTree {
         }
 
         template <class Q>
-        void reportIntersects(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
+        void reportIntersecting(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
             if (!q.intersects(box)) {
                 return;
             }
@@ -146,10 +153,10 @@ class ShapeTree {
                 }
             }
             if (left != -1) {
-                tree.nodes_[left].reportIntersects(tree, q, out);
+                tree.nodes_[left].reportIntersecting(tree, q, out);
             }
             if (right != -1) {
-                tree.nodes_[right].reportIntersects(tree, q, out);
+                tree.nodes_[right].reportIntersecting(tree, q, out);
             }
         }
 
@@ -168,7 +175,7 @@ class ShapeTree {
         }
 
         template <class Q, class Fn>
-        void visitIntersects(const ShapeTree& tree, const Q& q, Fn& fn) const {
+        void visitIntersecting(const ShapeTree& tree, const Q& q, Fn& fn) const {
             if (!q.intersects(box)) {
                 return;
             }
@@ -183,15 +190,15 @@ class ShapeTree {
                 }
             }
             if (left != -1) {
-                tree.nodes_[left].visitIntersects(tree, q, fn);
+                tree.nodes_[left].visitIntersecting(tree, q, fn);
             }
             if (right != -1) {
-                tree.nodes_[right].visitIntersects(tree, q, fn);
+                tree.nodes_[right].visitIntersecting(tree, q, fn);
             }
         }
 
         template <class Q>
-        [[nodiscard]] bool anyIntersects(const ShapeTree& tree, const Q& q) const {
+        [[nodiscard]] bool anyIntersecting(const ShapeTree& tree, const Q& q) const {
             if (!q.intersects(box)) {
                 return false;
             }
@@ -204,10 +211,125 @@ class ShapeTree {
                     return true;
                 }
             }
-            if (left != -1 && tree.nodes_[left].anyIntersects(tree, q)) {
+            if (left != -1 && tree.nodes_[left].anyIntersecting(tree, q)) {
                 return true;
             }
-            if (right != -1 && tree.nodes_[right].anyIntersects(tree, q)) {
+            if (right != -1 && tree.nodes_[right].anyIntersecting(tree, q)) {
+                return true;
+            }
+            return false;
+        }
+
+        // --- containment: stored element contained in the query (element ⊆ q) ---
+
+        template <class Q>
+        [[nodiscard]] std::size_t countContainedIn(const ShapeTree& tree, const Q& q) const {
+            if (!q.intersects(box)) {
+                return 0;
+            }
+            if (q.contains(box)) {
+                // Every element ⊆ box ⊆ q.
+                return count;
+            }
+            std::size_t ret = 0;
+            for (std::size_t i : elementIndices) {
+                if (q.contains(tree.elements_[i])) {
+                    ret++;
+                }
+            }
+            if (left != -1) {
+                ret += tree.nodes_[left].countContainedIn(tree, q);
+            }
+            if (right != -1) {
+                ret += tree.nodes_[right].countContainedIn(tree, q);
+            }
+            return ret;
+        }
+
+        template <class Q>
+        [[nodiscard]] WeightType sumContainedIn(const ShapeTree& tree, const Q& q) const {
+            if (!q.intersects(box)) {
+                return WeightType{};
+            }
+            if (q.contains(box)) {
+                return weightSum;
+            }
+            WeightType ret{};
+            for (std::size_t i : elementIndices) {
+                if (q.contains(tree.elements_[i])) {
+                    ret = ret + tree.weight_(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                ret = ret + tree.nodes_[left].sumContainedIn(tree, q);
+            }
+            if (right != -1) {
+                ret = ret + tree.nodes_[right].sumContainedIn(tree, q);
+            }
+            return ret;
+        }
+
+        template <class Q>
+        void reportContainedIn(const ShapeTree& tree, const Q& q, std::vector<ShapeType>& out) const {
+            if (!q.intersects(box)) {
+                return;
+            }
+            if (q.contains(box)) {
+                collectAll(tree, out);
+                return;
+            }
+            for (std::size_t i : elementIndices) {
+                if (q.contains(tree.elements_[i])) {
+                    out.push_back(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                tree.nodes_[left].reportContainedIn(tree, q, out);
+            }
+            if (right != -1) {
+                tree.nodes_[right].reportContainedIn(tree, q, out);
+            }
+        }
+
+        template <class Q, class Fn>
+        void visitContainedIn(const ShapeTree& tree, const Q& q, Fn& fn) const {
+            if (!q.intersects(box)) {
+                return;
+            }
+            if (q.contains(box)) {
+                visitAll(tree, fn);
+                return;
+            }
+            for (std::size_t i : elementIndices) {
+                if (q.contains(tree.elements_[i])) {
+                    fn(tree.elements_[i]);
+                }
+            }
+            if (left != -1) {
+                tree.nodes_[left].visitContainedIn(tree, q, fn);
+            }
+            if (right != -1) {
+                tree.nodes_[right].visitContainedIn(tree, q, fn);
+            }
+        }
+
+        template <class Q>
+        [[nodiscard]] bool anyContainedIn(const ShapeTree& tree, const Q& q) const {
+            if (!q.intersects(box)) {
+                return false;
+            }
+            if (q.contains(box)) {
+                return true;
+            }
+            for (std::size_t i : elementIndices) {
+                if (q.contains(tree.elements_[i])) {
+                    return true;
+                }
+            }
+            if (left != -1 && tree.nodes_[left].anyContainedIn(tree, q)) {
+                return true;
+            }
+            if (right != -1 && tree.nodes_[right].anyContainedIn(tree, q)) {
                 return true;
             }
             return false;
@@ -413,6 +535,31 @@ class ShapeTree {
         return elements_.empty();
     }
 
+    /** @brief Returns the stored shapes in their internal order. */
+    [[nodiscard]] const std::vector<ShapeType>& shapes() const {
+        return elements_;
+    }
+
+    /** @brief Returns an iterator to the first stored shape. */
+    [[nodiscard]] const_iterator begin() const {
+        return elements_.begin();
+    }
+
+    /** @brief Returns an iterator past the last stored shape. */
+    [[nodiscard]] const_iterator end() const {
+        return elements_.end();
+    }
+
+    /** @brief Returns an iterator to the first stored shape. */
+    [[nodiscard]] const_iterator cbegin() const {
+        return elements_.cbegin();
+    }
+
+    /** @brief Returns an iterator past the last stored shape. */
+    [[nodiscard]] const_iterator cend() const {
+        return elements_.cend();
+    }
+
     /**
      * @brief Counts the stored shapes intersecting a query shape.
      *
@@ -424,14 +571,14 @@ class ShapeTree {
      * @return Number of stored shapes intersecting `q`.
      */
     template <class Q>
-    [[nodiscard]] std::size_t countIntersects(const Q& q) const {
-        return root_ == -1 ? 0 : nodes_[root_].countIntersects(*this, q);
+    [[nodiscard]] std::size_t countIntersecting(const Q& q) const {
+        return root_ == -1 ? 0 : nodes_[root_].countIntersecting(*this, q);
     }
 
     /**
      * @brief Sums the weights of the stored shapes intersecting a query shape.
      *
-     * Like @ref countIntersects, but accumulates the weight function instead of
+     * Like @ref countIntersecting, but accumulates the weight function instead of
      * counting. Subtrees fully inside the query contribute their cached weight
      * sum without descending.
      *
@@ -440,8 +587,8 @@ class ShapeTree {
      * @return Sum of weights over the stored shapes intersecting `q`.
      */
     template <class Q>
-    [[nodiscard]] WeightType sumIntersects(const Q& q) const {
-        return root_ == -1 ? WeightType{} : nodes_[root_].sumIntersects(*this, q);
+    [[nodiscard]] WeightType sumIntersecting(const Q& q) const {
+        return root_ == -1 ? WeightType{} : nodes_[root_].sumIntersecting(*this, q);
     }
 
     /**
@@ -455,10 +602,10 @@ class ShapeTree {
      * @return Vector of the stored shapes intersecting `q`.
      */
     template <class Q>
-    [[nodiscard]] std::vector<ShapeType> reportIntersects(const Q& q) const {
+    [[nodiscard]] std::vector<ShapeType> reportIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
         if (root_ != -1) {
-            nodes_[root_].reportIntersects(*this, q, out);
+            nodes_[root_].reportIntersecting(*this, q, out);
         }
         return out;
     }
@@ -476,9 +623,9 @@ class ShapeTree {
      * @param fn Function to call on each intersecting shape.
      */
     template <class Q, class Fn>
-    void visitIntersects(const Q& q, Fn fn) const {
+    void visitIntersecting(const Q& q, Fn fn) const {
         if (root_ != -1) {
-            nodes_[root_].visitIntersects(*this, q, fn);
+            nodes_[root_].visitIntersecting(*this, q, fn);
         }
     }
 
@@ -492,8 +639,81 @@ class ShapeTree {
      * @return `true` if no stored shape intersects `q`, `false` otherwise.
      */
     template <class Q>
-    [[nodiscard]] bool emptyIntersects(const Q& q) const {
-        return root_ == -1 ? true : !nodes_[root_].anyIntersects(*this, q);
+    [[nodiscard]] bool emptyIntersecting(const Q& q) const {
+        return root_ == -1 ? true : !nodes_[root_].anyIntersecting(*this, q);
+    }
+
+    /**
+     * @brief Counts the stored shapes contained in a query shape.
+     *
+     * A stored shape matches when it lies inside `q` (`q.contains(element)`).
+     * Note this is directional: `q.contains(element)` is not the same as
+     * `element.contains(q)`.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return Number of stored shapes contained in `q`.
+     */
+    template <class Q>
+    [[nodiscard]] std::size_t countContainedIn(const Q& q) const {
+        return root_ == -1 ? 0 : nodes_[root_].countContainedIn(*this, q);
+    }
+
+    /**
+     * @brief Sums the weights of the stored shapes contained in a query shape.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return Sum of weights over the stored shapes contained in `q`.
+     */
+    template <class Q>
+    [[nodiscard]] WeightType sumContainedIn(const Q& q) const {
+        return root_ == -1 ? WeightType{} : nodes_[root_].sumContainedIn(*this, q);
+    }
+
+    /**
+     * @brief Returns copies of the stored shapes contained in a query shape.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return Vector of the stored shapes contained in `q`.
+     */
+    template <class Q>
+    [[nodiscard]] std::vector<ShapeType> reportContainedIn(const Q& q) const {
+        std::vector<ShapeType> out;
+        if (root_ != -1) {
+            nodes_[root_].reportContainedIn(*this, q, out);
+        }
+        return out;
+    }
+
+    /**
+     * @brief Calls `fn` on each stored shape contained in a query shape.
+     *
+     * @tparam Q Query shape type.
+     * @tparam Fn Callable invocable with `const ShapeType&`.
+     * @param q Query shape.
+     * @param fn Function to call on each contained shape.
+     */
+    template <class Q, class Fn>
+    void visitContainedIn(const Q& q, Fn fn) const {
+        if (root_ != -1) {
+            nodes_[root_].visitContainedIn(*this, q, fn);
+        }
+    }
+
+    /**
+     * @brief Returns whether no stored shape is contained in a query shape.
+     *
+     * Stops as soon as a contained shape is found.
+     *
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return `true` if no stored shape lies inside `q`, `false` otherwise.
+     */
+    template <class Q>
+    [[nodiscard]] bool emptyContainedIn(const Q& q) const {
+        return root_ == -1 ? true : !nodes_[root_].anyContainedIn(*this, q);
     }
 
     /**
