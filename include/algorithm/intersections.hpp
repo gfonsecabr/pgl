@@ -1,8 +1,6 @@
 #pragma once
 
-#ifndef PGL_HPP_INCLUDED
-#error "Do not include this Pangolin header directly; include \"pgl.hpp\" instead."
-#endif
+#include "pgl.hpp"
 
 /**
  * @file intersections.hpp
@@ -12,6 +10,7 @@
  * the public helpers that expose it through the Pangolin API.
  */
 
+#include <functional>
 #include <queue>
 #include <utility>
 #include <array>
@@ -54,8 +53,30 @@ class BentleyOttmann {
     using Tree = std::set<Segment,std::function<bool(const Segment&a, const Segment &b)>>;
     Tree tree;
     std::set<CrossingPair> crossingsSet, intersectionSet;
+    std::function<bool(const CrossingPair&)> onCrossing = [](const CrossingPair&){return false;},
+                                       onIntersection = [](const CrossingPair&){return false;};
     bool onlyCrossings = true;
-    bool detectOnly = false;
+    bool stopNow = false;
+
+    bool addCrossing(const CrossingPair &p) {
+        crossingsSet.insert(p);
+        if (onCrossing(p)) {
+            stopNow = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    bool addIntersection(const CrossingPair &p) {
+        intersectionSet.insert(p);
+        if (onIntersection(p)) {
+            stopNow = true;
+            return true;
+        }
+
+        return false;
+    }
 
     void initQueue(const std::vector<Segment> &segments) {
         for (const Segment &s :segments) {
@@ -201,7 +222,7 @@ class BentleyOttmann {
             if (cross.x() > line) {
                 // assert(CompareAlongLine(sa,sb));
                 queue.emplace(cross.x(), EventEnum::CROSS, sa, sb);
-                crossingsSet.insert(pair);
+                addCrossing(pair);
             }
         }
     }
@@ -303,9 +324,9 @@ class BentleyOttmann {
                     if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
 
                     if (pair[0].crosses(pair[1])) {
-                        crossingsSet.insert(pair);
-                        if (detectOnly)
+                        if (addCrossing(pair)) {
                             return;
+                        }
                     }
                 }
             }
@@ -328,9 +349,9 @@ class BentleyOttmann {
             for (; it != tree.end() && it->contains(ev.s1.max()); ++it) {
                 CrossingPair pair{ev.s1,*it};
                 if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                intersectionSet.insert(pair);
-                if (detectOnly)
+                if (addIntersection(pair)) {
                     return;
+                }
             }
         }
     }
@@ -344,14 +365,14 @@ class BentleyOttmann {
                     if (ev.s1.crosses(*it)) {
                         CrossingPair pair{ev.s1, *it};
                         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                        crossingsSet.insert(pair);
+                        addCrossing(pair);
                     }
                 }
                 else {
                     if (ev.s1.intersects(*it)) {
                         CrossingPair pair{ev.s1, *it};
                         if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                        crossingsSet.insert(pair);
+                        addCrossing(pair);
                     }
                 }
             }
@@ -380,8 +401,9 @@ class BentleyOttmann {
                  ++it) {
                 CrossingPair pair{ev.s1, it->second};
                 if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                if (pair[0] != pair[1])
-                    intersectionSet.insert(pair);
+                if (pair[0] != pair[1]) {
+                    addIntersection(pair);
+                }
             }
         }
     }
@@ -400,14 +422,17 @@ class BentleyOttmann {
                 while (it0->contains(ev.s1.min())) {
                     CrossingPair pair{*it0, ev.s1};
                     if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                    crossingsSet.insert(pair);
+                    addIntersection(pair);
                     --it0;
                 }
                 while (it2->contains(ev.s1.min())) {
                     CrossingPair pair{*it2, ev.s1};
                     if (pair[1] < pair[0]) std::swap(pair[0],pair[1]);
-                    crossingsSet.insert(pair);
+                    addIntersection(pair);
                     ++it2;
+                }
+                if (stopNow) {
+                    break;
                 }
             }
         }
@@ -443,7 +468,7 @@ class BentleyOttmann {
 
             if (!onlyCrossings) {
                 processRIGHT_interior(events[(size_t)EventEnum::RIGHT]);
-                if (detectOnly && !intersectionSet.empty())
+                if (stopNow)
                     break;
             }
 
@@ -453,14 +478,14 @@ class BentleyOttmann {
                 processVERTICAL_interior(events[(size_t)EventEnum::VERTICAL],
                                          events[(size_t)EventEnum::RIGHT],
                                          events[(size_t)EventEnum::LEFT]);
-                if (detectOnly && !intersectionSet.empty())
+                if (stopNow)
                     break;
             }
 
             // 11) Do all LEFT events
             processLEFT(events[(size_t)EventEnum::LEFT]);
 
-            if (detectOnly && !crossingsSet.empty())
+            if (stopNow)
                 break;
         }
     }
@@ -468,14 +493,12 @@ class BentleyOttmann {
 public:
     std::vector<CrossingPair> findCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
-        detectOnly = false;
         run(segments);
         return std::vector(crossingsSet.begin(), crossingsSet.end());
     }
 
     std::vector<CrossingPair> findIntersections(const std::vector<Segment> &segments) {
         onlyCrossings = false;
-        detectOnly = false;
         run(segments);
         intersectionSet.insert(crossingsSet.begin(), crossingsSet.end());
 
@@ -500,14 +523,15 @@ public:
 
     bool detectCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
-        detectOnly = true;
+        onCrossing = [] (const CrossingPair &) {return true;};
         run(segments);
         return !crossingsSet.empty();
     }
 
     bool detectIntersections(const std::vector<Segment> &segments) {
         onlyCrossings = false;
-        detectOnly = true;
+        onCrossing = [] (const CrossingPair &) {return true;};
+        onIntersection = [] (const CrossingPair &) {return true;};
         run(segments);
 
         if (!crossingsSet.empty() || !intersectionSet.empty())
@@ -530,66 +554,62 @@ public:
     // Tests whether the segments form a simple polygon: every vertex appears in
     // exactly 2 segments, and the only intersections are those shared vertices.
     bool testPolygon(const std::vector<Segment> &segments) {
-        std::map<Point,size_t> adjacent;
-        for (const Segment &s : segments) {
-            adjacent[s.min()]++;
-            adjacent[s.max()]++;
-        }
-        for (const auto &[_,cnt] : adjacent) {
-            if (cnt != 2) {
-                return false;
-            }
-        }
-
-        // Collect every intersecting pair. The sweep reports the shared vertices
-        // of consecutive edges too, so allow exactly those: a pair sharing one
-        // endpoint and meeting nowhere else. A proper crossing, a collinear
-        // overlap, or a touch away from a shared endpoint means not simple.
         onlyCrossings = false;
-        detectOnly = false;
+        bool notSimple = false;
+        onCrossing = [&notSimple] (const CrossingPair &) {notSimple = true; return true;};
+        size_t count = 0;
+        size_t n = segments.size();
+        onIntersection = [n,&count, &notSimple] (const CrossingPair &p) {
+                if (p[0].collinear(p[1]) && p[0].interiorsIntersect(p[1])) {
+                    notSimple = true; // Collinear overlap
+                    return true;
+                }
+                const int shared = (p[0].min() == p[1].min()) + (p[0].min() == p[1].max())
+                                 + (p[0].max() == p[1].min()) + (p[0].max() == p[1].max());
+                if (!shared) {
+                    notSimple = true; // Vertex inside an edge
+                    return true;
+                }
+                count++;
+                if (count > 2*n) { // A vertex appears twice
+                    notSimple = true;
+                }
+                return notSimple;
+            };
         run(segments);
 
-        if (!crossingsSet.empty()) {
-            return false;
-        }
-        for (const auto &pair : intersectionSet) {
-            const Segment &a = pair[0];
-            const Segment &b = pair[1];
-            const int shared = (a.min() == b.min()) + (a.min() == b.max())
-                             + (a.max() == b.min()) + (a.max() == b.max());
-            if (shared != 1 || a.interiorsIntersect(b)) {
-                return false;
-            }
-        }
-        return true;
+        return !notSimple;
     }
 
     // Tests if every vertex appears in exactly 2 segments
     // except for two vertices appearing only once
     // and has no intersection elsewhere
     bool testPolyLine(const std::vector<Segment> &segments) {
-        std::map<Point,size_t> adjacent;
-        int endpoints = 0;
-        for (const Segment &s : segments) {
-            adjacent[s.min()]++;
-            adjacent[s.max()]++;
-        }
-        for (const auto &[_,cnt] : adjacent) {
-            if (cnt > 2) {
-                return false;
-            }
-            if (cnt == 1) {
-                if (++endpoints > 2) {
-                    return false;
-                }
-            }
-        }
-
         onlyCrossings = false;
-        detectOnly = true;
+        bool notSimple = false;
+        onCrossing = [&notSimple] (const CrossingPair &) {notSimple = true; return true;};
+        size_t count = 0;
+        size_t n = segments.size();
+        onIntersection = [n,&count, &notSimple] (const CrossingPair &p) {
+                if (p[0].collinear(p[1]) && p[0].interiorsIntersect(p[1])) {
+                    notSimple = true; // Collinear overlap
+                    return true;
+                }
+                const int shared = (p[0].min() == p[1].min()) + (p[0].min() == p[1].max())
+                                 + (p[0].max() == p[1].min()) + (p[0].max() == p[1].max());
+                if (!shared) {
+                    notSimple = true; // Vertex inside an edge
+                    return true;
+                }
+                count++;
+                if (count > 2*n - 2) { // A vertex appears twice
+                    notSimple = true;
+                }
+                return notSimple;
+            };
         run(segments);
 
-        return crossingsSet.empty() && intersectionSet.empty();
+        return !notSimple;
     }
 }; // class BentleyOttmann
 } // namespace pgl::detail

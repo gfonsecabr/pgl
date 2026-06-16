@@ -1,6 +1,7 @@
-// g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/segment/bentleyottmann.cpp
+// g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithms/bentleyottmann.cpp
 // @desc: 100k short segments: a random endpoint with x,y in [-1000,1000] plus a
-//        per-axis offset of up to +/-5. Sweep-line vs brute force.
+//        per-axis offset of up to +/-5. Sweep-line vs brute force. Polygons made of 100k
+//        random points in [-1000,1000].
 #include <random>
 #include <vector>
 #include <iostream>
@@ -45,8 +46,47 @@ void run(bool crossingsOnly, bool bruteForce) {
 
     std::cout << v.size() << "\t";
 
-    double ns = timer.get_elapsed_ms();
-    std::cout << ns << std::endl;
+    double t = timer.get_elapsed_ms();
+    std::cout << t << std::endl;
+}
+
+template<class Point>
+std::vector<Point> randomPoints(size_t n) {
+    std::mt19937 rgen(1);
+    std::set<Point> ret_set;
+    static std::uniform_int_distribution<int> base(-100000,100000);
+
+    for (size_t i = 0; i < n; i++) {
+        Point p(base(rgen),base(rgen));
+        ret_set.insert(p);
+    }
+
+    return std::vector<Point>(ret_set.begin(),ret_set.end());
+}
+
+void simplicity(bool star) {
+    using Point = pgl::Point<int>;
+
+    auto points = randomPoints<Point>(1000);
+    if (star) {
+        pgl::sortAround(points, Point());
+    }
+    else {
+        std::mt19937 rgen(1);
+        std::shuffle(points.begin(),points.end(), rgen);
+    }
+    pgl::Polygon<Point> poly(points);
+
+    plf::nanotimer timer;
+    timer.start();
+    bool result = poly.isSimple();
+
+    std::cout << result << "\t";
+
+    double t = timer.get_elapsed_ms();
+    std::cout << t << std::endl;
+
+
 }
 
 
@@ -72,6 +112,11 @@ int main() {
         run<pgl::Rational<pgl::BigInt>>(true, false);
     }
 
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "star.isSimple\t\tRational BigInt\t\t";
+        simplicity(true);
+    }
+
     if (pgl_benchmark::numberEnabled("rational")) {
         std::cout << "intersections\t\tRational int128\t\t";
         run<pgl::Rational<pgl::int128>>(false, false);
@@ -81,5 +126,12 @@ int main() {
         std::cout << "crossings\t\tRational int128\t\t";
         run<pgl::Rational<pgl::int128>>(true, false);
     }
+
+    if (pgl_benchmark::numberEnabled("rationalbigint")) {
+        std::cout << "random.isSimple\t\tRational BigInt\t\t";
+        simplicity(false);
+    }
+
+
     return 0;
 }
