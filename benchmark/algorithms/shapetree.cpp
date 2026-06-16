@@ -84,18 +84,18 @@ void run(const char* label) {
     std::cout << "countIntersecting\t" << label << "\t\t" << hits << "\t"
               << timer.get_elapsed_us() / windows.size() << std::endl;
 
-    // Brute-force baseline for the same counts.
-    // timer.start();
-    // std::size_t bfHits = 0;
-    // for (const auto& q : windows) {
-    //     for (const auto& t : tris) {
-    //         if (q.intersects(t)) {
-    //             bfHits++;
-    //         }
-    //     }
-    // }
-    // std::cout << "countIntersectsBF\t" << label << "\t\t" << bfHits << "\t"
-    //           << timer.get_elapsed_us()  / windows.size() << std::endl;
+    Brute-force baseline for the same counts.
+    timer.start();
+    std::size_t bfHits = 0;
+    for (const auto& q : windows) {
+        for (const auto& t : tris) {
+            if (q.intersects(t)) {
+                bfHits++;
+            }
+        }
+    }
+    std::cout << "countIntersectsBF\t" << label << "\t\t" << bfHits << "\t"
+              << timer.get_elapsed_us()  / windows.size() << std::endl;
 
     // Tree-pruned containment counting (element contained in the query window).
     timer.start();
@@ -106,18 +106,18 @@ void run(const char* label) {
     std::cout << "countContainedIn\t" << label << "\t\t" << inHits << "\t"
               << timer.get_elapsed_us()  / windows.size() << std::endl;
 
-    // Brute-force baseline for the same counts.
-    // timer.start();
-    // std::size_t bfHits2 = 0;
-    // for (const auto& q : windows) {
-    //     for (const auto& t : tris) {
-    //         if (q.contains(t)) {
-    //             bfHits2++;
-    //         }
-    //     }
-    // }
-    // std::cout << "countContainsBF\t" << label << "\t\t" << bfHits2 << "\t"
-    //           << timer.get_elapsed_us()  / windows.size() << std::endl;
+    Brute-force baseline for the same counts.
+    timer.start();
+    std::size_t bfHits2 = 0;
+    for (const auto& q : windows) {
+        for (const auto& t : tris) {
+            if (q.contains(t)) {
+                bfHits2++;
+            }
+        }
+    }
+    std::cout << "countContainsBF\t" << label << "\t\t" << bfHits2 << "\t"
+              << timer.get_elapsed_us()  / windows.size() << std::endl;
 
 }
 
