@@ -1,5 +1,5 @@
 // g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithus/shapetree.cpp
-// @desc: ShapeTree over 10k random triangles with vertices in [0,50]^2  translated by [0,1000]^2. Average time for query rectangles in [0,1000]^2 compared agains Brute Force.
+// @desc: ShapeTree over 10k random triangles with vertices in [0,100]^2  translated by [0,10k]^2. Average time for query rectangles in [0,10k]^2 compared against Brute Force.
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -7,7 +7,6 @@
 #include "../support/plf_nanotimer.h"
 #include "../support/filter.hpp"
 
-namespace {
 
 constexpr int kShapes = 10000;
 
@@ -28,13 +27,13 @@ template <class Number>
 std::vector<pgl::Triangle<pgl::Point<Number>>> randomTriangles(int n) {
     using Point = pgl::Point<Number>;
     using Triangle = pgl::Triangle<Point>;
-    const int sz = 50;
+    const int sz = 100;
     Rng rng{1};
     std::vector<Triangle> v;
     v.reserve(static_cast<std::size_t>(n));
     while (static_cast<int>(v.size()) < n) {
-        const int x = rng.range(0, 1000);
-        const int y = rng.range(0, 1000);
+        const int x = rng.range(0, 10000);
+        const int y = rng.range(0, 10000);
         const Point a(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
         const Point b(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
         const Point c(Number(x + rng.range(0, sz)), Number(y + rng.range(0, sz)));
@@ -52,14 +51,32 @@ std::vector<pgl::Rectangle<pgl::Point<Number>>> queryWindows(int n) {
     std::vector<Rect> w;
     Rng rng{1234};
     for (int i = 0; i < n; ++i) {
-        const int x1 = rng.range(0, 1000);
-        const int y1 = rng.range(0, 1000);
-        const int x2 = rng.range(0, 1000);
-        const int y2 = rng.range(0, 1000);
+        const int x1 = rng.range(0, 10000);
+        const int y1 = rng.range(0, 10000);
+        const int x2 = rng.range(0, 10000);
+        const int y2 = rng.range(0, 10000);
         w.emplace_back(Number(x1), Number(y1), Number(x2), Number(y2));
     }
     return w;
 }
+
+static void draw(const std::string &filename,
+                 const auto& tree) {
+    pgl::Canvas canvas;
+
+    // The shape tree node boxes, lightly filled at 20% opacity.
+    canvas << pgl::stroke("#2f9aff") << pgl::strokeWidth("1")
+           << pgl::fill("#000000") << pgl::fillOpacity("0.2");
+    canvas << tree;
+
+    canvas << pgl::stroke("#10b305") << pgl::fill("#10b305") << pgl::fillOpacity(".5");
+    for (auto& s : tree) {
+        canvas << s;
+    }
+
+    canvas.writeSVG(filename);
+}
+
 
 template <class Number>
 void run(const char* label) {
@@ -72,8 +89,9 @@ void run(const char* label) {
     plf::nanotimer timer;
     timer.start();
     pgl::ShapeTree<Triangle> tree(tris);
+    draw("tst.svg", tree);
     const double buildus = timer.get_elapsed_us();
-    std::cout << "build\t\t" << label << "\t\t" << tree.size() << "\t" << buildus << std::endl;
+    std::cout << "build\t\t\t" << label << "\t\t" << tree.size() << "\t" << buildus << std::endl;
 
     // Tree-pruned intersection counting across all query windows.
     timer.start();
@@ -121,7 +139,6 @@ void run(const char* label) {
 
 }
 
-}  // namespace
 
 int main() {
     std::cout << "Operation\t\tNumber\t\tResult\tTime(μs)" << std::endl;

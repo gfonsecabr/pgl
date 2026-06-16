@@ -40,7 +40,6 @@ static void draw(const std::string &filename,
                  const auto& shapes2,
                  const auto& shapes3) {
     pgl::Canvas canvas;
-    canvas.size(800, 800).pointRadius(4);
 
     // The shape tree node boxes, lightly filled at 20% opacity.
     canvas << pgl::stroke("#2f9aff") << pgl::strokeWidth("1")
