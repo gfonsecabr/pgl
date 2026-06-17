@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
+#include <type_traits>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -219,6 +221,39 @@ TEST_CASE("ShapeTree on points") {
         // For points, "intersects a rectangle" and "contained in it" coincide.
         CHECK(tree.countContainedIn(q) == expected);
     }
+}
+
+TEST_CASE("ShapeTree deduces the stored shape type from the container") {
+    const std::vector<Triangle> tris = makeTriangles(20, 7);
+
+    // No template arguments: S is deduced as the container's value type.
+    pgl::ShapeTree deduced(tris);
+    static_assert(std::is_same_v<decltype(deduced)::ShapeType, Triangle>);
+
+    // The leaf-size overload still deduces the default (empty) weight.
+    pgl::ShapeTree withLeaf(tris, 3);
+    static_assert(std::is_same_v<decltype(withLeaf)::ShapeType, Triangle>);
+
+    CHECK(deduced.size() == tris.size());
+    CHECK(withLeaf.size() == tris.size());
+}
+
+TEST_CASE("Deduced ShapeTree preserves segment labels") {
+    using LabeledSegment = pgl::Segment<Point, std::string>;
+    std::vector<LabeledSegment> segs;
+    segs.emplace_back(Point(0, 0), Point(10, 0), "a");
+    segs.emplace_back(Point(0, 5), Point(10, 5), "b");
+
+    // CTAD must carry the label type through, not flatten to Segment<Point>.
+    pgl::ShapeTree tree(segs);
+    static_assert(std::is_same_v<decltype(tree)::ShapeType, LabeledSegment>);
+
+    const Rect window(-1, -1, 11, 11);  // contains both segments
+    auto found = tree.reportIntersecting(window);
+    REQUIRE(found.size() == 2);
+    std::vector<std::string> labels{found[0].label(), found[1].label()};
+    std::sort(labels.begin(), labels.end());
+    CHECK(labels == std::vector<std::string>{"a", "b"});
 }
 
 TEST_CASE("ShapeTree draws node boxes to a canvas") {

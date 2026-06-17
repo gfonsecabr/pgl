@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <type_traits>
 #include <vector>
 
 
@@ -858,5 +859,26 @@ class ShapeTree {
         return canvas;
     }
 };
+
+// Deduction guides: the shape type S is not deducible from the templated
+// constructors on their own (the constructor is templated on the container,
+// not the element), so without these CTAD fails and S must always be named.
+// These deduce S from the container's value type, preserving its label.
+template <class Container>
+ShapeTree(const Container&) -> ShapeTree<typename Container::value_type>;
+
+template <class Container>
+ShapeTree(const Container&, std::size_t) -> ShapeTree<typename Container::value_type>;
+
+template <class Container, class WeightFn>
+ShapeTree(const Container&, std::size_t, WeightFn)
+    -> ShapeTree<typename Container::value_type, WeightFn>;
+
+// A weight given without a leaf size: constrained off the integral overload so
+// `ShapeTree(shapes, leafSize)` still deduces the default weight.
+template <class Container, class WeightFn>
+    requires(!std::is_integral_v<WeightFn>)
+ShapeTree(const Container&, WeightFn)
+    -> ShapeTree<typename Container::value_type, WeightFn>;
 
 }  // namespace pgl
