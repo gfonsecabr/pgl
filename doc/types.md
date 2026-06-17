@@ -16,21 +16,18 @@
 
 ## Template Types
 
-`pgl::Point` is shorthand for `pgl::Point<int>`. All other geometry classes are
-templates of a point type.
+`pgl::Point` is shorthand for `pgl::Point<int>`. All other geometry classes are templates of a point type.
 
 ```c++
 pgl::Point<double> p = {3,5}, q = {7,9};
 pgl::Segment<pgl::Point<double>> s = {p,q};
 ```
 
-You may use integer, floating-point, rational, or custom numeric coordinate
-types as long as they support the required arithmetic.
+You may use integer, floating-point, rational, or custom numeric coordinate types as long as they support the required arithmetic.
 
-### Point Label
+### Labels
 
-Points may carry an additional label so that they can stay associated with a
-name, id, or payload without going through an external map.
+Shapes may carry an additional label so that they can stay associated with a name, id, or weight without going through an external map.
 
 ```C++
 pgl::Point<int,std::string> p = {3,5,"center"}, q = p;
@@ -46,13 +43,10 @@ Important label conventions:
 
 - labels are not compared;
 - labels are not hashed;
-- copy construction and point-type conversion copy the label when the target
-  label type can be built from the source label type;
-- arithmetic that modifies an existing point keeps its label;
-- arithmetic that creates a new point returns a fresh point whose label is
-  default-constructed;
-- algorithms that select and return points from an input set preserve the labels
-  of the returned input points.
+- copy construction and point-type conversion copy the label when the target label type can be built from the source label type;
+- operations that modify an existing shape keep the label;
+- operations that create a new shape return a default-constructed label;
+- algorithms that select and return shapes from an input set preserve the labels of the returned shapes.
 
 
 ```c++
@@ -174,6 +168,8 @@ To give an idea of the cost of using different number types, we show a benchmark
 | `Rational<int64_t>` |                         |                      29.64 |                           30.39 |
 | `Rational<int128>`  |                         |                      49.24 |                           53.76 |
 | `Rational<BigInt>`  |                         |                     185.28 |                          187.05 |
+
+Notice that the exact `pgl::Rational<BigInt>` type is around 40 times slower than a 32-bit `int` type, even when a 32-bit `int` is enough to calculate the predicate exactly. If performance is not critical, we encourage you to use `pgl::Rational<BigInt>` everywhere (as the python binding does), but if performance is important, avoid using rational numbers when they are not needed (for example, calculating predicates between shapes with integer coordinates).
 
 ### Boost Number Types
 
