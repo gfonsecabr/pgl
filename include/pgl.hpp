@@ -58,3 +58,4 @@
 #include "algorithm/shapetree.hpp"
 #include "algorithm/sortaround.hpp"
 #include "algorithm/polyominoes.hpp"
+#include "algorithm/triangulation.hpp"
