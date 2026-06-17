@@ -310,54 +310,54 @@ constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherRay& other)
 // -----------------------------------------------------------------------------
 // Halfplane
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     if (intersects(point)) {
         return ResultNumber{};
     }
     return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(point));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
-constexpr auto Halfplane<PointType>::squaredDistance(const OtherRay& other) const {
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }

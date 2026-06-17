@@ -25,16 +25,19 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Halfplane;
 
-Halfplane() -> Halfplane<Point<>>;
+Halfplane() -> Halfplane<Point<>, NoLabel>;
 
 template <class PointType>
-Halfplane(PointType, PointType) -> Halfplane<PointType>;
+Halfplane(PointType, PointType) -> Halfplane<PointType, NoLabel>;
+
+template <class PointType, class A>
+Halfplane(PointType, PointType, A) -> Halfplane<PointType, std::decay_t<A>>;
 
 template <class Number>
-Halfplane(Number, Number, Number, Number) -> Halfplane<Point<Number>>;
+Halfplane(Number, Number, Number, Number) -> Halfplane<Point<Number>, NoLabel>;
 
 /**
  * @brief Closed half-plane stored by an oriented boundary line.
@@ -44,11 +47,11 @@ Halfplane(Number, Number, Number, Number) -> Halfplane<Point<Number>>;
  *
  * @tparam PointType Defining point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Halfplane {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
     static_assert(detail::is_point_v<PointType>, "Halfplane requires pgl::Point defining points");
@@ -80,16 +83,43 @@ struct Halfplane {
     constexpr Halfplane(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
         : Halfplane(PointType(x1, y1), PointType(x2, y2)) {}
 
-    template<PointConcept OtherPointType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Halfplane(const Halfplane<OtherPointType>& other)
-        : Halfplane(PointType(other.source()), PointType(other.target())) {}
+    /**
+     * @brief Creates a half-plane from an oriented boundary and stores a label.
+     *
+     * The point order is preserved exactly as provided.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Halfplane(PointType source, PointType target, A&& label)
+        : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
-    template<PointConcept OtherPointType>
+    /** @brief Same as the four-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Halfplane(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : Halfplane(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+
+    /**
+     * @brief Converts a half-plane with a different point and/or label type.
+     *
+     * The boundary points are converted to @ref PointType, preserving their
+     * order, and the label is copied when both sides carry one.
+     */
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Halfplane& operator=(const Halfplane<OtherPointType>& other) {
+    constexpr Halfplane(const Halfplane<OtherPointType, OtherLabelType>& other)
+        : Halfplane(PointType(other.source()), PointType(other.target())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
+
+    template<PointConcept OtherPointType, class OtherLabelType>
+        requires(std::constructible_from<PointType, const OtherPointType&>)
+    constexpr Halfplane& operator=(const Halfplane<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -252,6 +282,26 @@ struct Halfplane {
      * @warning Coordinates are cubed but a single promotion is used.
      */
     [[nodiscard]] constexpr auto operator<=>(const Halfplane& other) const;
+
+    /**
+     * @brief Returns the half-plane label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the half-plane label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Converts to the unoriented boundary line.
@@ -761,30 +811,31 @@ struct Halfplane {
   private:
 
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType>& halfplane);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType, LabelType>& halfplane);
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Halfplane<PointType>& halfplane, const Scalar& scalar);
+constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType>& halfplane);
+constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType, LabelType>& halfplane);
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Halfplane<PointType>& halfplane, const Scalar& scalar);
+constexpr auto operator/(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
 
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType>& halfplane);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType, LabelType>& halfplane);
 
 }  // namespace pgl

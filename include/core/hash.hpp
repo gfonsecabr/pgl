@@ -169,10 +169,10 @@ namespace std {
     /**
      * @brief Hash support for Halfplane.
      */
-    template <class PointType>
-    struct hash<pgl::Halfplane<PointType>> {
-        std::size_t operator()(const pgl::Halfplane<PointType>& halfplane) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::Halfplane<PointType>>
+    template <class PointType, class LabelType>
+    struct hash<pgl::Halfplane<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Halfplane<PointType, LabelType>& halfplane) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::Halfplane<PointType, LabelType>>
                              + (halfplane.source() < halfplane.target() ? 0u : 1u);
             using T = pgl::Line<PointType>;
             pgl::detail::hashCombine(seed, static_cast<T>(halfplane));

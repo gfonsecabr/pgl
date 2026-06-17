@@ -788,36 +788,36 @@ constexpr bool Rectangle<PointType>::verticesContain(const OtherPoint& point) co
  */
 
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::operator==(const Halfplane& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::operator==(const Halfplane& other) const {
     using otherPointType = std::remove_cvref_t<decltype(other.source())>;
     return static_cast<OrientedLine<PointType>>(*this) == static_cast<OrientedLine<otherPointType>>(other);
 }
 
-template <class PointType>
-constexpr auto Halfplane<PointType>::operator<=>(const Halfplane& other) const {
+template <class PointType, class LabelType>
+constexpr auto Halfplane<PointType, LabelType>::operator<=>(const Halfplane& other) const {
     using otherPointType = std::remove_cvref_t<decltype(other.source())>;
     return static_cast<OrientedLine<PointType>>(*this) <=> static_cast<OrientedLine<otherPointType>>(other);
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::isDegenerate() const {
     return source() == target();
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::isVertical() const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::isVertical() const {
     return source().x() == target().x();
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::isHorizontal() const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::isHorizontal() const {
     return source().y() == target().y();
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool Halfplane<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return point == source() || point == target();
 }
 

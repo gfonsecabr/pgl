@@ -437,56 +437,56 @@ constexpr bool Rectangle<PointType>::crosses(const Shape<PointType>& other) cons
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::crosses(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherLine& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherSegment& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::crosses(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherRay& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::crosses(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

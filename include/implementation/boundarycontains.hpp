@@ -345,65 +345,65 @@ constexpr bool Rectangle<PointType>::boundaryContains(const OtherConvex& other) 
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
     if (isDegenerate()) {
         return point == source();
     }
     return pgl::collinear(source(), target(), point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
     return boundaryContains(other.min()) && boundaryContains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
     return boundaryContains(other.min()) && boundaryContains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
     return boundaryContains(other.source()) && boundaryContains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
     return boundaryContains(other.source()) && boundaryContains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
     return boundaryContains(other.source()) && boundaryContains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherRectangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
     return other.isDegenerate() &&
            boundaryContains(other.min()) &&
            boundaryContains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherTriangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
     return other.isDegenerate() &&
            boundaryContains(other.a()) &&
            boundaryContains(other.b()) &&
            boundaryContains(other.c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::boundaryContains(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherHalfplane& other) const {
     return other.isDegenerate() &&
            boundaryContains(other.source()) &&
            boundaryContains(other.target());
@@ -985,8 +985,8 @@ constexpr bool Ray<PointType, LabelType>::boundaryContains(const Shape<PointType
         other.variant());
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::boundaryContains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return boundaryContains(value);

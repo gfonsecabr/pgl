@@ -378,17 +378,17 @@ constexpr bool Triangle<PointType>::isIsosceles() const {
 // -----------------------------------------------------------------------------
 // Halfplane
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber Halfplane<PointType>::slope() const {
+constexpr ResultNumber Halfplane<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
     const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
     return dy / dx;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Halfplane<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Halfplane<PointType, LabelType>::pointInside() const {
     const ResultNumber x = static_cast<ResultNumber>(source().x());
     const ResultNumber y = static_cast<ResultNumber>(source().y());
     const ResultNumber one = static_cast<ResultNumber>(1);
