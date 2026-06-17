@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <cstdint>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <sstream>
@@ -76,6 +77,45 @@ TEST_CASE("Convex polygon with a unique leftmost vertex is simple") {
     };
     pgl::Polygon<Point> poly(vertices);
     CHECK(poly.isSimple());
+}
+
+// Segment labels are metadata: ignored by equality/ordering/hashing, but they
+// must survive the trip through the sweep line and reappear on the segments in
+// the returned pairs.
+TEST_CASE("Find{Crossings,Intersections} preserve segment labels in the result") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point, std::string>;
+
+    // Two crossing diagonals plus a disjoint segment.
+    std::vector<Segment> segs;
+    segs.emplace_back(Point(0, 0), Point(10, 10), "up");
+    segs.emplace_back(Point(0, 10), Point(10, 0), "down");
+    segs.emplace_back(Point(20, 0), Point(30, 10), "away");
+
+    // Endpoints -> expected label. The map ignores labels in its ordering, so a
+    // returned segment looks up the label its endpoints were created with,
+    // regardless of which order the algorithm reports the pair in.
+    std::map<Segment, std::string> expected;
+    for (const auto &s : segs)
+        expected[s] = s.label();
+
+    auto crossings = pgl::findCrossings(segs);
+    REQUIRE(crossings.size() == 1);
+    for (const auto &pair : crossings) {
+        for (const auto &s : pair) {
+            REQUIRE(expected.count(s) == 1);
+            CHECK(s.label() == expected.at(s));
+        }
+    }
+
+    auto intersections = pgl::findIntersections(segs);
+    REQUIRE(intersections.size() == 1);
+    for (const auto &pair : intersections) {
+        for (const auto &s : pair) {
+            REQUIRE(expected.count(s) == 1);
+            CHECK(s.label() == expected.at(s));
+        }
+    }
 }
 
 TEST_CASE_TEMPLATE("Detect crossings and intersections among segments", Point, pgl::Point<int>, pgl::Point<float>) {

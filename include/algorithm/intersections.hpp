@@ -20,10 +20,10 @@
 
 
 namespace pgl::detail{
-template <class Rational, class Point>
+template <class Rational, SegmentConcept Segment>
 class BentleyOttmann {
+    using Point = Segment::PointType;
     using Number = Point::NumberType;
-    using Segment = pgl::Segment<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using RPoint = pgl::Point<Rational>;
     using RSegment = pgl::Segment<RPoint>;
@@ -630,10 +630,10 @@ namespace pgl {
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findIntersections(const Container &segments) {
-    using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational, Point> bo;
+    pgl::detail::BentleyOttmann<Rational, Segment> bo;
     return bo.findIntersections(v);
 }
 
@@ -651,10 +651,10 @@ auto findIntersections(const Container &segments) {
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto findCrossings(const Container &segments) {
-    using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Point> bo;
+    pgl::detail::BentleyOttmann<Rational,Segment> bo;
     return bo.findCrossings(v);
 }
 
@@ -672,10 +672,10 @@ auto findCrossings(const Container &segments) {
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectIntersections(const Container &segments) {
-    using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Point> bo;
+    pgl::detail::BentleyOttmann<Rational,Segment> bo;
     return bo.detectIntersections(v);
 }
 
@@ -692,10 +692,10 @@ bool detectIntersections(const Container &segments) {
  */
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 bool detectCrossings(const Container &segments) {
-    using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v(segments.begin(),segments.end());
+    using Segment = Container::value_type;
+    std::vector<Segment> v(segments.begin(),segments.end());
 
-    pgl::detail::BentleyOttmann<Rational,Point> bo;
+    pgl::detail::BentleyOttmann<Rational,Segment> bo;
     return bo.detectCrossings(v);
 }
 
@@ -787,7 +787,7 @@ bool Polygon<PointType_>::isSimple() const {
     // or floating-point coordinates (which the exact sweep cannot handle).
     if constexpr (!std::is_floating_point_v<Number>) {
         if (n > 8) {
-            pgl::detail::BentleyOttmann<Rational, PointType> bo;
+            pgl::detail::BentleyOttmann<Rational, pgl::Segment<PointType>> bo;
             return bo.testPolygon(edges);
         }
     }
