@@ -53,7 +53,7 @@ The query methods come in two families. The *intersecting* family matches stored
 
 - `reportIntersecting(q)` / `reportContainedIn(q)` return a vector with a copy of each matching stored shape.
 
-- `visitIntersecting(q, f)` / `visitContainedIn(q, f)` call `f(s)` on each matching stored shape `s` as it is found.
+- `visitIntersecting(q, f)` / `visitContainedIn(q, f)` call `f(s)` on each matching stored shape `s` as it is found. If `f` returns `true` the visit stops.
 
 - `emptyIntersecting(q)` / `emptyContainedIn(q)` return true if no stored shape matches.
 

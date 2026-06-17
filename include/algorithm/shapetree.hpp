@@ -39,6 +39,20 @@ struct EmptyWeightFn {
     constexpr EmptyWeight operator()(const Shape&) const { return {}; }
 };
 
+// Invokes a visitor on one element and reports whether traversal should stop.
+// A visitor returning bool stops the traversal as soon as it returns true; a
+// visitor returning void never stops. This lets the visit* methods accept both
+// plain side-effecting callbacks and early-exit callbacks.
+template <class Fn, class Arg>
+[[nodiscard]] bool invokeVisitor(Fn& fn, const Arg& arg) {
+    if constexpr (std::is_same_v<std::invoke_result_t<Fn&, const Arg&>, bool>) {
+        return fn(arg);
+    } else {
+        fn(arg);
+        return false;
+    }
+}
+
 }  // namespace detail
 
 /**
@@ -162,40 +176,45 @@ class ShapeTree {
         }
 
         // Calls fn on every element in this subtree, with no intersection test.
+        // Returns true as soon as fn requests a stop (see detail::invokeVisitor).
         template <class Fn>
-        void visitAll(const ShapeTree& tree, Fn& fn) const {
+        [[nodiscard]] bool visitAll(const ShapeTree& tree, Fn& fn) const {
             for (std::size_t i : elementIndices) {
-                fn(tree.elements_[i]);
+                if (detail::invokeVisitor(fn, tree.elements_[i])) {
+                    return true;
+                }
             }
-            if (left != -1) {
-                tree.nodes_[left].visitAll(tree, fn);
+            if (left != -1 && tree.nodes_[left].visitAll(tree, fn)) {
+                return true;
             }
-            if (right != -1) {
-                tree.nodes_[right].visitAll(tree, fn);
+            if (right != -1 && tree.nodes_[right].visitAll(tree, fn)) {
+                return true;
             }
+            return false;
         }
 
         template <class Q, class Fn>
-        void visitIntersecting(const ShapeTree& tree, const Q& q, Fn& fn) const {
+        [[nodiscard]] bool visitIntersecting(const ShapeTree& tree, const Q& q, Fn& fn) const {
             if (!q.intersects(box)) {
-                return;
+                return false;
             }
             if (q.contains(box)) {
                 // The whole subtree lies inside q, so every element intersects it.
-                visitAll(tree, fn);
-                return;
+                return visitAll(tree, fn);
             }
             for (std::size_t i : elementIndices) {
-                if (tree.elements_[i].intersects(q)) {
-                    fn(tree.elements_[i]);
+                if (tree.elements_[i].intersects(q) &&
+                    detail::invokeVisitor(fn, tree.elements_[i])) {
+                    return true;
                 }
             }
-            if (left != -1) {
-                tree.nodes_[left].visitIntersecting(tree, q, fn);
+            if (left != -1 && tree.nodes_[left].visitIntersecting(tree, q, fn)) {
+                return true;
             }
-            if (right != -1) {
-                tree.nodes_[right].visitIntersecting(tree, q, fn);
+            if (right != -1 && tree.nodes_[right].visitIntersecting(tree, q, fn)) {
+                return true;
             }
+            return false;
         }
 
         template <class Q>
@@ -293,25 +312,26 @@ class ShapeTree {
         }
 
         template <class Q, class Fn>
-        void visitContainedIn(const ShapeTree& tree, const Q& q, Fn& fn) const {
+        [[nodiscard]] bool visitContainedIn(const ShapeTree& tree, const Q& q, Fn& fn) const {
             if (!q.intersects(box)) {
-                return;
+                return false;
             }
             if (q.contains(box)) {
-                visitAll(tree, fn);
-                return;
+                return visitAll(tree, fn);
             }
             for (std::size_t i : elementIndices) {
-                if (q.contains(tree.elements_[i])) {
-                    fn(tree.elements_[i]);
+                if (q.contains(tree.elements_[i]) &&
+                    detail::invokeVisitor(fn, tree.elements_[i])) {
+                    return true;
                 }
             }
-            if (left != -1) {
-                tree.nodes_[left].visitContainedIn(tree, q, fn);
+            if (left != -1 && tree.nodes_[left].visitContainedIn(tree, q, fn)) {
+                return true;
             }
-            if (right != -1) {
-                tree.nodes_[right].visitContainedIn(tree, q, fn);
+            if (right != -1 && tree.nodes_[right].visitContainedIn(tree, q, fn)) {
+                return true;
             }
+            return false;
         }
 
         template <class Q>
@@ -745,16 +765,19 @@ class ShapeTree {
      * from the query are pruned; subtrees fully inside it are visited without
      * per-element tests.
      *
+     * If `fn` returns `bool`, returning `true` stops the traversal immediately;
+     * a `void`-returning `fn` always visits every match.
+     *
      * @tparam Q Query shape type.
-     * @tparam Fn Callable invocable with `const ShapeType&`.
+     * @tparam Fn Callable invocable with `const ShapeType&`, returning `void`
+     *         or `bool` (return `true` to stop).
      * @param q Query shape.
      * @param fn Function to call on each intersecting shape.
+     * @return `true` if `fn` requested an early stop, `false` otherwise.
      */
     template <class Q, class Fn>
-    void visitIntersecting(const Q& q, Fn fn) const {
-        if (root_ != -1) {
-            nodes_[root_].visitIntersecting(*this, q, fn);
-        }
+    bool visitIntersecting(const Q& q, Fn fn) const {
+        return root_ == -1 ? false : nodes_[root_].visitIntersecting(*this, q, fn);
     }
 
     /**
@@ -818,16 +841,19 @@ class ShapeTree {
     /**
      * @brief Calls `fn` on each stored shape contained in a query shape.
      *
+     * If `fn` returns `bool`, returning `true` stops the traversal immediately;
+     * a `void`-returning `fn` always visits every match.
+     *
      * @tparam Q Query shape type.
-     * @tparam Fn Callable invocable with `const ShapeType&`.
+     * @tparam Fn Callable invocable with `const ShapeType&`, returning `void`
+     *         or `bool` (return `true` to stop).
      * @param q Query shape.
      * @param fn Function to call on each contained shape.
+     * @return `true` if `fn` requested an early stop, `false` otherwise.
      */
     template <class Q, class Fn>
-    void visitContainedIn(const Q& q, Fn fn) const {
-        if (root_ != -1) {
-            nodes_[root_].visitContainedIn(*this, q, fn);
-        }
+    bool visitContainedIn(const Q& q, Fn fn) const {
+        return root_ == -1 ? false : nodes_[root_].visitContainedIn(*this, q, fn);
     }
 
     /**

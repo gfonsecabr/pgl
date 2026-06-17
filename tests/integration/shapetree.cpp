@@ -183,6 +183,45 @@ TEST_CASE("ShapeTree containedIn family matches brute force") {
     }
 }
 
+TEST_CASE("ShapeTree visit stops when the visitor returns true") {
+    const std::vector<Triangle> tris = makeTriangles(250, 13);
+    const std::vector<Rect> windows = queryWindows();
+    const pgl::ShapeTree<Triangle> tree(tris, 4);
+
+    for (const Rect& q : windows) {
+        const std::size_t total = tree.countIntersecting(q);
+
+        // Stopping after the first match visits exactly one shape and reports
+        // the early stop; a void visitor never stops and visits them all.
+        std::size_t visited = 0;
+        const bool stopped = tree.visitIntersecting(q, [&](const Triangle&) {
+            ++visited;
+            return true;
+        });
+        CHECK(stopped == (total > 0));
+        CHECK(visited == (total > 0 ? std::size_t{1} : std::size_t{0}));
+
+        // A bool visitor that never asks to stop behaves like a void visitor.
+        visited = 0;
+        const bool stopped2 = tree.visitIntersecting(q, [&](const Triangle&) {
+            ++visited;
+            return false;
+        });
+        CHECK_FALSE(stopped2);
+        CHECK(visited == total);
+
+        // Same contract for containedIn: stop after a fixed number of matches.
+        const std::size_t contained = tree.countContainedIn(q);
+        const std::size_t limit = 2;
+        visited = 0;
+        const bool stopped3 = tree.visitContainedIn(q, [&](const Triangle&) {
+            return ++visited >= limit;
+        });
+        CHECK(stopped3 == (contained >= limit));
+        CHECK(visited == std::min(contained, limit));
+    }
+}
+
 TEST_CASE("ShapeTree weighted sums match brute force") {
     const std::vector<Triangle> tris = makeTriangles(200, 5);
     const std::vector<Rect> windows = queryWindows();
