@@ -30,6 +30,7 @@
  *       from an already-known set of triangles.
  */
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -303,21 +304,59 @@ struct Triangulation {
         return out;
     }
 
-    /** @brief Calls `fn(Triangle)` on every triangle. */
+    /**
+     * @brief Calls `fn(Triangle)` on every triangle.
+     *
+     * If @p fn returns a value convertible to `bool`, the visit stops early as
+     * soon as it returns `true`; a `void`-returning @p fn visits every triangle.
+     *
+     * @return `true` if the visit was stopped early, `false` otherwise.
+     */
     template <class Fn>
-    void visitTriangles(Fn fn) const {
+    bool visitTriangles(Fn fn) const {
         for (TriId t = 0; t < firstGhost_; ++t) {
-            fn(triangleValue(t));
+            if (detail::invokeVisitor(fn, triangleValue(t))) {
+                return true;
+            }
         }
+        return false;
     }
 
-    /** @brief Calls `fn(Segment)` on every edge, with its stored label. */
+    /**
+     * @brief Calls `fn(Segment)` on every edge, with its stored label.
+     *
+     * If @p fn returns a value convertible to `bool`, the visit stops early as
+     * soon as it returns `true`; a `void`-returning @p fn visits every edge.
+     *
+     * @return `true` if the visit was stopped early, `false` otherwise.
+     */
     template <class Fn>
-    void visitEdges(Fn fn) const {
+    bool visitEdges(Fn fn) const {
         for (const auto& [seg, e] : segToEdge_) {
             (void)seg;
-            fn(edgeSegment(e));
+            if (detail::invokeVisitor(fn, edgeSegment(e))) {
+                return true;
+            }
         }
+        return false;
+    }
+
+    /** @brief Returns all triangles, sorted. */
+    [[nodiscard]] std::vector<TriangleType> triangles() const {
+        std::vector<TriangleType> out;
+        out.reserve(numTriangles());
+        visitTriangles([&](const TriangleType& t) { out.push_back(t); });
+        std::sort(out.begin(), out.end());
+        return out;
+    }
+
+    /** @brief Returns all edges, sorted, each with its stored label. */
+    [[nodiscard]] std::vector<SegmentType> edges() const {
+        std::vector<SegmentType> out;
+        out.reserve(numEdges());
+        visitEdges([&](const SegmentType& s) { out.push_back(s); });
+        std::sort(out.begin(), out.end());
+        return out;
     }
 
     // ---- point location --------------------------------------------------
