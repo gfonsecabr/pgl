@@ -538,8 +538,8 @@ constexpr Segment<PointType, LabelType>::operator Line<PointType>() const {
     return Line<PointType>(min(), max());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType>::operator Line<PointType>() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType, LabelType>::operator Line<PointType>() const {
     return Line<PointType>(source(), target());
 }
 
@@ -699,8 +699,8 @@ constexpr OrientedSegment<PointType, LabelType>::operator OrientedLine<PointType
     return OrientedLine<PointType>(source(), target());
 }
 
-template <class PointType>
-constexpr Halfplane<PointType>::operator OrientedLine<PointType>() const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType, LabelType>::operator OrientedLine<PointType>() const {
     return OrientedLine<PointType>(source(), target());
 }
 
@@ -1196,87 +1196,97 @@ constexpr void Triangle<PointType>::scaleDownY(const OtherNumber scalar) {
 // -----------------------------------------------------------------------------
 // Halfplane
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Halfplane<PointType>& Halfplane<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Halfplane<PointType>& Halfplane<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Halfplane<PointType>& Halfplane<PointType>::operator*=(const Scalar& scalar) {
+constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Halfplane<PointType>& Halfplane<PointType>::operator/=(const Scalar& scalar) {
+constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Halfplane(halfplane.source() + translation, halfplane.target() + translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = halfplane.source() + translation;
+    const auto second = halfplane.target() + translation;
+    return Halfplane<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType>& halfplane) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType, LabelType>& halfplane) {
     return halfplane + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Halfplane<PointType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Halfplane(halfplane.source() - translation, halfplane.target() - translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = halfplane.source() - translation;
+    const auto second = halfplane.target() - translation;
+    return Halfplane<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Halfplane<PointType>& halfplane, const Scalar& scalar) {
-    return Halfplane(halfplane.source() * scalar, halfplane.target() * scalar);
+constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar) {
+    const auto first = halfplane.source() * scalar;
+    const auto second = halfplane.target() * scalar;
+    return Halfplane<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType>& halfplane) {
+constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType, LabelType>& halfplane) {
     return halfplane * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Halfplane<PointType>& halfplane, const Scalar& scalar) {
-    return Halfplane(halfplane.source() / scalar, halfplane.target() / scalar);
+constexpr auto operator/(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar) {
+    const auto first = halfplane.source() / scalar;
+    const auto second = halfplane.target() / scalar;
+    return Halfplane<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
 
-template <class PointType>
-constexpr Halfplane<PointType> Halfplane<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Halfplane<PointType, LabelType> Halfplane<PointType, LabelType>::rotated90(int k) const {
     return Halfplane(source().rotated90(k), target().rotated90(k));
 }
 
-template <class PointType>
-constexpr void Halfplane<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Halfplane<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
     *this = rotated90(k);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Halfplane<PointType, LabelType> Halfplane<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     // A negative factor reflects the plane, flipping the inside side; swap
     // source and target so the oriented boundary keeps the correct side.
     if (scalar < OtherNumber{})
@@ -1284,15 +1294,17 @@ constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpX(const OtherNumber
     return Halfplane(source().scaledUpX(scalar), target().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Halfplane<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Halfplane<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Halfplane<PointType, LabelType> Halfplane<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     // A negative factor reflects the plane, flipping the inside side; swap
     // source and target so the oriented boundary keeps the correct side.
     if (scalar < OtherNumber{})
@@ -1300,15 +1312,17 @@ constexpr Halfplane<PointType> Halfplane<PointType>::scaledUpY(const OtherNumber
     return Halfplane(source().scaledUpY(scalar), target().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Halfplane<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Halfplane<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpY(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Halfplane<PointType, LabelType> Halfplane<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     // A negative factor reflects the plane, flipping the inside side; swap
     // source and target so the oriented boundary keeps the correct side.
     if (scalar < OtherNumber{})
@@ -1316,15 +1330,17 @@ constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownX(const OtherNumb
     return Halfplane(source().scaledDownX(scalar), target().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Halfplane<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Halfplane<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Halfplane<PointType, LabelType> Halfplane<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     // A negative factor reflects the plane, flipping the inside side; swap
     // source and target so the oriented boundary keeps the correct side.
     if (scalar < OtherNumber{})
@@ -1332,10 +1348,12 @@ constexpr Halfplane<PointType> Halfplane<PointType>::scaledDownY(const OtherNumb
     return Halfplane(source().scaledDownY(scalar), target().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Halfplane<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Halfplane<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownY(scalar);
+    label_ = std::move(saved);
 }
 
 // ---------------------------------------------------------------------------

@@ -177,9 +177,13 @@ std::ostream& operator<<(std::ostream& stream, const Triangle<PointType>& triang
  * @param halfplane Half-plane to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType>& halfplane) {
-    stream << "^-" << halfplane.source() << "--" << halfplane.target() << "-^";
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType, LabelType>& halfplane) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << halfplane.label() << ":{^-" << halfplane.source() << "--" << halfplane.target() << "-^}";
+    } else {
+        stream << "^-" << halfplane.source() << "--" << halfplane.target() << "-^";
+    }
     return stream;
 }
 

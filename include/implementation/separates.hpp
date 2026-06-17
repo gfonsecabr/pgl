@@ -1029,71 +1029,71 @@ constexpr bool Rectangle<PointType>::separates(const Shape<PointType>& other) co
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::separates(const OtherPoint&) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::separates(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherLine& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::separates(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::separates(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherSegment& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::separates(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::separates(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRay& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Halfplane<PointType>::separates(const OtherRectangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRectangle& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::separates(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Halfplane<PointType>::separates(const OtherTriangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherTriangle& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Halfplane<PointType>::separates(const OtherConvex& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
         return false;
     }
@@ -1126,9 +1126,9 @@ constexpr bool Halfplane<PointType>::separates(const OtherConvex& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Halfplane<PointType>::separates(const OtherPolygon& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1177,8 +1177,8 @@ constexpr bool Halfplane<PointType>::separates(const OtherPolygon& other) const 
 
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::separates(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->separates(value);

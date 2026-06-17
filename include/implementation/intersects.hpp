@@ -573,15 +573,15 @@ constexpr bool Rectangle<PointType>::intersects(const Shape<PointType>& other) c
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
@@ -594,9 +594,9 @@ constexpr bool Halfplane<PointType>::intersects(const OtherLine& other) const {
     return direction_side != decltype(direction_side){} || contains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
@@ -609,27 +609,27 @@ constexpr bool Halfplane<PointType>::intersects(const OtherOrientedLine& other) 
     return direction_side != decltype(direction_side){} || contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherSegment& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
     return contains(other.min()) || contains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
     return contains(other.source()) || contains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherRay& other) const {
     if (isDegenerate()) {
         return other.contains(source());
     }
@@ -644,14 +644,14 @@ constexpr bool Halfplane<PointType>::intersects(const OtherRay& other) const {
     return !(source_side < zero) || zero < direction_side;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::intersects(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
     return contains(other.source()) || contains(other.target()) || other.contains(source()) || other.contains(target());
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

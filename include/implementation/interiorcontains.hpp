@@ -584,15 +584,15 @@ constexpr bool Rectangle<PointType>::interiorContains(const OtherConvex& other) 
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherPoint& point) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
     return contains(point) && !boundaryContains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.min());
     }
@@ -602,9 +602,9 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherLine& other) co
     return direction_side == decltype(direction_side){} && interiorContains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.source());
     }
@@ -614,27 +614,27 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherOrientedLine& o
     return direction_side == decltype(direction_side){} && interiorContains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
     if (isDegenerate()) {
         return false;
     }
     return interiorContains(other.min()) && interiorContains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     if (isDegenerate()) {
         return false;
     }
     return interiorContains(other.source()) && interiorContains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -646,9 +646,9 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherRay& other) con
     return zero < source_side && !(direction_side < zero);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherRectangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -661,9 +661,9 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherRectangle& othe
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherConvex& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -671,9 +671,9 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherConvex& other) 
     return interiorContains(other[0]) && !static_cast<Line<PointType>>(*this).intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherDisk& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
     // The closed disk lies in the open half-plane iff its center is strictly on
     // the interior side and its distance to the boundary line exceeds the
     // radius. Squaring keeps the test exact: with the boundary direction AB and
@@ -688,15 +688,15 @@ constexpr bool Halfplane<PointType>::interiorContains(const OtherDisk& other) co
     return cross * cross > other.squaredRadius() * squaredLength;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherTriangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
     return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
 }
 
@@ -1127,9 +1127,9 @@ constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherPolygon&) 
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Halfplane<PointType>::interiorContains(const OtherPolygon&) const {
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Halfplane::interiorContains(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

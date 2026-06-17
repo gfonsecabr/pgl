@@ -482,24 +482,24 @@ constexpr ResultPoint extendRayAlongLine(const ResultPoint& intersection, const 
 
 }  // namespace detail
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-Halfplane<PointType>::intersection(const OtherPoint& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
         return Point<ResultNumber, typename PointType::LabelType>(other);
     }
     return {};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Line<Point<ResultNumber, typename PointType::LabelType>>,
         Ray<Point<ResultNumber, typename PointType::LabelType>>>>
-Halfplane<PointType>::intersection(const OtherLine& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherLine& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultLine = Line<ResultPoint>;
     using ResultRay = Ray<ResultPoint>;
@@ -547,24 +547,24 @@ Halfplane<PointType>::intersection(const OtherLine& other) const {
     return ResultLine(ResultPoint(other.min()), ResultPoint(other.max()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Line<Point<ResultNumber, typename PointType::LabelType>>,
         Ray<Point<ResultNumber, typename PointType::LabelType>>>>
-Halfplane<PointType>::intersection(const OtherOrientedLine& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Halfplane<PointType>::intersection(const OtherSegment& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using ResultLine = Line<ResultPoint>;
@@ -605,24 +605,24 @@ Halfplane<PointType>::intersection(const OtherSegment& other) const {
     return std::get<ResultRay>(*supporting_intersection).template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Halfplane<PointType>::intersection(const OtherOrientedSegment& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return intersection<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::optional<
     std::variant<
         Point<ResultNumber, typename PointType::LabelType>,
         Segment<Point<ResultNumber, typename PointType::LabelType>>,
         Ray<Point<ResultNumber, typename PointType::LabelType>>>>
-Halfplane<PointType>::intersection(const OtherRay& other) const {
+Halfplane<PointType, LabelType>::intersection(const OtherRay& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultRay = Ray<ResultPoint>;
 

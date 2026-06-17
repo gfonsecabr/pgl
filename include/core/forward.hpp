@@ -80,7 +80,7 @@ template <class PointType, class Label = NoLabel>
 struct Ray;
 
 /** @brief Closed half-plane defined by an oriented boundary line. */
-template <class PointType>
+template <class PointType, class Label = NoLabel>
 struct Halfplane;
 
 /** @brief Axis-aligned rectangle stored by minimum and maximum corners. */
@@ -139,8 +139,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<OrientedLine<PointType, Label>> = 50;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Ray<PointType, Label>> = 60;
-template <class PointType>
-inline constexpr int shapeRank<Halfplane<PointType>> = 70;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Halfplane<PointType, Label>> = 70;
 template <class PointType>
 inline constexpr int shapeRank<Rectangle<PointType>> = 80;
 template <class PointType>
@@ -186,7 +186,7 @@ template <class PointType, class Label> struct is_ray<Ray<PointType, Label>> : s
 template <class T> inline constexpr bool is_ray_v = is_ray<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_halfplane : std::false_type {};
-template <class PointType> struct is_halfplane<Halfplane<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_halfplane<Halfplane<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_halfplane_v = is_halfplane<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_rectangle : std::false_type {};

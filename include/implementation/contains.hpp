@@ -717,9 +717,9 @@ constexpr bool Rectangle<PointType>::contains(const Shape<PointType>& other) con
  * with the helper routines used for strict side/interior tests.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Halfplane<PointType>::contains(const OtherPoint& point) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherPoint& point) const {
     if (isDegenerate()) {
         return point == source();
     }
@@ -727,42 +727,42 @@ constexpr bool Halfplane<PointType>::contains(const OtherPoint& point) const {
     return side == std::partial_ordering::greater || side == std::partial_ordering::equivalent;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Halfplane<PointType>::contains(const OtherLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && contains(other.min());
     }
     return contains(other.min()) && this->asLine().parallel(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Halfplane<PointType>::contains(const OtherOrientedLine& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
     return contains(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Halfplane<PointType>::contains(const OtherSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherSegment& other) const {
     if (isDegenerate()) {
         return other.isDegenerate() && contains(other.min());
     }
     return contains(other.min()) && contains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Halfplane<PointType>::contains(const OtherOrientedSegment& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
     if (isDegenerate()) {
         return other.isDegenerate() && contains(other.source());
     }
     return contains(other.source()) && contains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Halfplane<PointType>::contains(const OtherRay& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && contains(other.source());
     }
@@ -777,9 +777,9 @@ constexpr bool Halfplane<PointType>::contains(const OtherRay& other) const {
     return !(direction_side < zero);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Halfplane<PointType>::contains(const OtherRectangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherRectangle& other) const {
     const auto vertices = other.vertices();
     for (const auto& vertex : vertices) {
         if (!contains(vertex)) {
@@ -789,21 +789,21 @@ constexpr bool Halfplane<PointType>::contains(const OtherRectangle& other) const
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Halfplane<PointType>::contains(const OtherHalfplane& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherHalfplane& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Halfplane<PointType>::contains(const OtherTriangle& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherTriangle& other) const {
     return contains(other.a()) && contains(other.b()) && contains(other.c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Halfplane<PointType>::contains(const OtherConvex& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -817,9 +817,9 @@ constexpr bool Halfplane<PointType>::contains(const OtherConvex& other) const {
     return contains(other[0]) && contains(other[1]) && contains(other[2]) && !static_cast<Line<PointType>>(*this).interiorsIntersect(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Halfplane<PointType>::contains(const OtherDisk& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherDisk& other) const {
     // The closed disk lies in the closed half-plane iff its center is on the
     // interior side and its distance to the boundary line is at least the
     // radius. With cross = det(AB, A->center) = |AB| * signedDistance(center),
@@ -834,8 +834,8 @@ constexpr bool Halfplane<PointType>::contains(const OtherDisk& other) const {
     return cross * cross >= other.squaredRadius() * squaredLength;
 }
 
-template <class PointType>
-constexpr bool Halfplane<PointType>::contains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return contains(value);
@@ -1410,9 +1410,9 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherPolygon& other) co
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Halfplane<PointType>::contains(const OtherPolygon& other) const {
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherPolygon& other) const {
     for (const auto& vertex : other) {
         if (!contains(vertex)) {
             return false;
