@@ -1229,13 +1229,24 @@ struct Triangulation {
     }
 
     // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) via
-    // Bowyer–Watson insertion. A single symbolic "vertex at infinity" (INF)
-    // closes the convex hull instead of a containing super-triangle: every hull
-    // edge a->b carries a ghost triangle {a,b,INF} that tiles the exterior. No
-    // far-away coordinates are ever constructed, so every in-circle / orientation
-    // test runs on the real point coordinates at the library's normal exactness
-    // — no BigInt, and no magnitude assumption (which is why a super-triangle is
-    // unsound for rational points: its required scale is unbounded). O(n^2).
+    // incremental Bowyer–Watson insertion. A single symbolic "vertex at infinity"
+    // (INF) closes the convex hull instead of a containing super-triangle: every
+    // hull edge a->b carries a ghost triangle {b,a,INF} that tiles the exterior,
+    // so the working triangulation is a closed surface in which every triangle has
+    // three neighbours. No far-away coordinates are ever constructed, so every
+    // in-circle / orientation test runs on the real point coordinates at the
+    // library's normal exactness — no BigInt, and no magnitude assumption (which
+    // is why a super-triangle is unsound for rational points: its required scale
+    // is unbounded).
+    //
+    // Each point is located by a visibility walk over the neighbour links (the
+    // same walk locateId() runs on the finished structure) and inserted by
+    // carving out the triangles whose open circumdisk contains it — found by a
+    // local flood-fill from the located triangle, not a global scan — then
+    // re-fanning the star-shaped cavity to the new vertex. With the random
+    // insertion order the walk is short (seeded from the previously inserted
+    // triangle), so the build is ~O(n^1.5) here rather than the O(n^2) of testing
+    // every triangle against every point.
     static std::vector<std::array<VertexId, 3>>
     delaunayTriples(const std::vector<PointType>& pts) {
         const VertexId n = static_cast<VertexId>(pts.size());
@@ -1245,32 +1256,57 @@ struct Triangulation {
         }
         const VertexId INF = n;  // the symbolic vertex at infinity
 
-        // Strict inside-circumdisk test for a CCW triangle, finite or ghost. The
-        // circle through two finite points and INF degenerates to the line
-        // through them, so for a ghost triangle "inside the open disk" reduces to
-        // "strictly left of the finite directed edge" — a plain orientation test.
-        // The finite edge of a ghost {.,.,INF} is the one opposite INF, taken in
-        // the triangle's CCW order so its left side is the hull exterior.
-        auto inDisk = [&](const std::array<VertexId, 3>& t, VertexId p) -> bool {
-            int inf = -1;
-            for (int k = 0; k < 3; ++k) {
-                if (t[k] == INF) {
-                    inf = k;
-                }
+        // Local closed triangulation: CCW vertices (ghosts contain INF) and three
+        // neighbours each (nbr[i] is across the edge opposite v[i]). Killed
+        // triangles keep `dead` set and recycle their slots through freeList; no
+        // live triangle ever references a dead slot, so `dead` doubles as the
+        // per-insertion "already in the cavity" mark during the flood-fill.
+        struct LTri {
+            std::array<VertexId, 3> v{};
+            std::array<int, 3> nbr{-1, -1, -1};
+            bool dead = false;
+        };
+        std::vector<LTri> tri;
+        std::vector<int> freeList;
+
+        auto newTri = [&](VertexId a, VertexId b, VertexId d) -> int {
+            int id;
+            if (!freeList.empty()) {
+                id = freeList.back();
+                freeList.pop_back();
+                tri[id] = LTri{{a, b, d}, {-1, -1, -1}, false};
+            } else {
+                id = static_cast<int>(tri.size());
+                tri.push_back(LTri{{a, b, d}, {-1, -1, -1}, false});
             }
+            return id;
+        };
+
+        auto isGhost = [&](int t) {
+            const auto& q = tri[t].v;
+            return q[0] == INF || q[1] == INF || q[2] == INF;
+        };
+
+        // Strict inside-circumdisk test, finite or ghost. The circle through two
+        // finite points and INF degenerates to the line through them, so for a
+        // ghost {.,.,INF} "inside the open disk" reduces to "strictly left of the
+        // finite directed edge" (the edge opposite INF, in CCW order so its left
+        // is the hull exterior) — a plain orientation test.
+        auto inDisk = [&](int t, VertexId p) -> bool {
+            const auto& q = tri[t].v;
+            const int inf = q[0] == INF ? 0 : (q[1] == INF ? 1 : (q[2] == INF ? 2 : -1));
             if (inf < 0) {
-                return inCircleSign(pts[t[0]], pts[t[1]], pts[t[2]], pts[p]) ==
+                return inCircleSign(pts[q[0]], pts[q[1]], pts[q[2]], pts[p]) ==
                        std::partial_ordering::greater;
             }
-            const VertexId u = t[(inf + 1) % 3];
-            const VertexId v = t[(inf + 2) % 3];
-            return orientationSign(pts[u], pts[v], pts[p]) ==
-                   std::partial_ordering::greater;
+            const VertexId u = q[(inf + 1) % 3];
+            const VertexId w = q[(inf + 2) % 3];
+            return orientationSign(pts[u], pts[w], pts[p]) == std::partial_ordering::greater;
         };
 
         // Seed with the first non-collinear triple, oriented CCW, plus the three
-        // ghost triangles covering the exterior of its hull edges. Points 2..c-1
-        // (if any) are collinear with 0 and 1 and get inserted in the main loop.
+        // ghost triangles covering its hull edges. Points 2..c-1 (if any) are
+        // collinear with 0 and 1 and get inserted in the main loop like any other.
         VertexId c = 2;
         while (c < n && orientationSign(pts[0], pts[1], pts[c]) == 0) {
             ++c;
@@ -1279,47 +1315,166 @@ struct Triangulation {
             return out;  // all points collinear: the Delaunay triangulation is empty
         }
         const std::array<VertexId, 3> seed =
-            orientationSign(pts[0], pts[1], pts[c]) == std::partial_ordering::greater
-                ? std::array<VertexId, 3>{0, 1, c}
-                : std::array<VertexId, 3>{1, 0, c};
-        std::vector<std::array<VertexId, 3>> tris = {
-            {seed[0], seed[1], seed[2]},
-            {seed[1], seed[0], INF},  // ghost outside edge seed0->seed1
-            {seed[2], seed[1], INF},  // ghost outside edge seed1->seed2
-            {seed[0], seed[2], INF},  // ghost outside edge seed2->seed0
+            orientationSign(pts[0], pts[1], pts[c]) > 0 ? std::array<VertexId, 3>{0, 1, c}
+                                                        : std::array<VertexId, 3>{1, 0, c};
+        const int seedTris[4] = {
+            newTri(seed[0], seed[1], seed[2]),
+            newTri(seed[1], seed[0], INF),  // ghost outside edge seed0->seed1
+            newTri(seed[2], seed[1], INF),  // ghost outside edge seed1->seed2
+            newTri(seed[0], seed[2], INF),  // ghost outside edge seed2->seed0
+        };
+        // Link the seed: match each directed edge (a,b) to the neighbour carrying
+        // its reverse (b,a). The four triangles tile the sphere, so every side
+        // finds a partner.
+        for (int t : seedTris) {
+            for (int s = 0; s < 3; ++s) {
+                const VertexId a = tri[t].v[(s + 1) % 3];
+                const VertexId b = tri[t].v[(s + 2) % 3];
+                for (int u : seedTris) {
+                    for (int q = 0; q < 3; ++q) {
+                        if (tri[u].v[(q + 1) % 3] == b && tri[u].v[(q + 2) % 3] == a) {
+                            tri[t].nbr[s] = u;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Visibility walk: from triangle t, step across whichever edge p lies
+        // strictly to the right of (outside), until p is inside the current
+        // triangle (no such edge) or a ghost is reached (p outside the hull). A
+        // randomised start edge guarantees termination; the step cap is a safety
+        // net only.
+        std::uint64_t rngState = 0x9e3779b97f4a7c15ULL;
+        auto walk = [&](VertexId p, int t) -> int {
+            int from = -1;
+            const long cap = 3L * static_cast<long>(tri.size()) + 16;
+            for (long step = 0; step < cap; ++step) {
+                if (isGhost(t)) {
+                    return t;
+                }
+                rngState = rngState * 6364136223846793005ULL + 1442695040888963407ULL;
+                const int begin = static_cast<int>((rngState >> 33) % 3);
+                int next = -1;
+                for (int k = 0; k < 3; ++k) {
+                    const int s = (begin + k) % 3;
+                    if (tri[t].nbr[s] == from) {
+                        continue;
+                    }
+                    const VertexId ea = tri[t].v[(s + 1) % 3];
+                    const VertexId eb = tri[t].v[(s + 2) % 3];
+                    if (orientationSign(pts[ea], pts[eb], pts[p]) < 0) {
+                        next = tri[t].nbr[s];
+                        break;
+                    }
+                }
+                if (next < 0) {
+                    return t;
+                }
+                from = t;
+                t = next;
+            }
+            return t;
         };
 
-        std::vector<std::array<VertexId, 3>> next;
+        std::vector<int> cavity;
+        // A boundary edge of the cavity: its directed edge (a,b), the surviving
+        // triangle behind it, and that triangle's side facing the cavity.
+        struct Bnd {
+            VertexId a, b;
+            int surv, survSide;
+        };
+        std::vector<Bnd> boundary;
+        // Spoke edges {vertex,p} awaiting their partner among the new triangles.
+        struct Spoke {
+            VertexId vertex;
+            int tri, side;
+        };
+        std::vector<Spoke> spokes;
+
+        int hint = seedTris[0];
         for (VertexId i = 0; i < n; ++i) {
             if (i == seed[0] || i == seed[1] || i == seed[2]) {
                 continue;
             }
-            // Cavity = triangles whose open circumdisk contains point i (ghost
-            // triangles included, which is how the hull grows). Its boundary is
-            // every directed edge (a,b) of a cavity triangle whose reverse (b,a)
-            // is not also a cavity edge.
-            std::set<std::pair<VertexId, VertexId>> dir;
-            next.clear();
-            for (const auto& t : tris) {
-                if (inDisk(t, i)) {
-                    dir.insert({t[0], t[1]});
-                    dir.insert({t[1], t[2]});
-                    dir.insert({t[2], t[0]});
-                } else {
-                    next.push_back(t);
+            const int start = walk(i, hint);
+            if (!inDisk(start, i)) {
+                continue;  // i lies in no open circumdisk (collinear/duplicate): skip
+            }
+
+            // Flood-fill the cavity: every triangle whose open disk contains i,
+            // reachable from `start` through neighbours. Mark them dead as we go
+            // (so they double as the visited set); record each edge where the
+            // flood meets a surviving triangle.
+            cavity.clear();
+            boundary.clear();
+            tri[start].dead = true;
+            cavity.push_back(start);
+            for (std::size_t qi = 0; qi < cavity.size(); ++qi) {
+                const int t = cavity[qi];
+                for (int s = 0; s < 3; ++s) {
+                    const int nb = tri[t].nbr[s];
+                    if (tri[nb].dead) {
+                        continue;  // already carved into the cavity this insertion
+                    }
+                    if (inDisk(nb, i)) {
+                        tri[nb].dead = true;
+                        cavity.push_back(nb);
+                    } else {
+                        const int survSide =
+                            tri[nb].nbr[0] == t ? 0 : (tri[nb].nbr[1] == t ? 1 : 2);
+                        boundary.push_back(
+                            {tri[t].v[(s + 1) % 3], tri[t].v[(s + 2) % 3], nb, survSide});
+                    }
                 }
             }
-            for (const auto& [a, b] : dir) {
-                if (!dir.count({b, a})) {
-                    next.push_back({a, b, i});  // CCW: i lies left of a->b
+            for (int t : cavity) {
+                freeList.push_back(t);
+            }
+
+            // Re-fan: one new triangle {a,b,i} per boundary edge, linked across its
+            // base {a,b} to the surviving triangle and across its two spokes
+            // {b,i}/{a,i} to the adjacent new triangles, paired by shared vertex.
+            spokes.clear();
+            int newReal = -1;
+            for (const Bnd& e : boundary) {
+                const int nt = newTri(e.a, e.b, i);
+                tri[nt].nbr[2] = e.surv;  // side 2 (opposite i) is the base edge {a,b}
+                tri[e.surv].nbr[e.survSide] = nt;
+                if (newReal < 0 && !isGhost(nt)) {
+                    newReal = nt;
+                }
+                // side 0 (opposite a) is edge {b,i}; side 1 (opposite b) is {a,i}.
+                for (const auto& [vertex, side] :
+                     {std::pair<VertexId, int>{e.b, 0}, std::pair<VertexId, int>{e.a, 1}}) {
+                    bool paired = false;
+                    for (std::size_t k = 0; k < spokes.size(); ++k) {
+                        if (spokes[k].vertex == vertex) {
+                            tri[nt].nbr[side] = spokes[k].tri;
+                            tri[spokes[k].tri].nbr[spokes[k].side] = nt;
+                            spokes[k] = spokes.back();
+                            spokes.pop_back();
+                            paired = true;
+                            break;
+                        }
+                    }
+                    if (!paired) {
+                        spokes.push_back({vertex, nt, side});
+                    }
                 }
             }
-            tris.swap(next);
+            if (newReal >= 0) {
+                hint = newReal;
+            }
         }
 
-        for (const auto& t : tris) {
-            if (t[0] != INF && t[1] != INF && t[2] != INF) {
-                out.push_back(t);
+        for (int t = 0; t < static_cast<int>(tri.size()); ++t) {
+            if (tri[t].dead) {
+                continue;
+            }
+            const auto& q = tri[t].v;
+            if (q[0] != INF && q[1] != INF && q[2] != INF) {
+                out.push_back({q[0], q[1], q[2]});
             }
         }
         return out;
