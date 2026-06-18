@@ -61,3 +61,10 @@ The query methods come in two families. The *intersecting* family matches stored
 
 Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bounding boxes. Is is possible to insert a new element with `insert`, but no rebalancing is performed.
 
+
+### Triangulation
+
+`Triangulation` stores a mutable triangulation of either a fixed polygon or a fixed point set. It may be constructed from a Polygon (constrained Delaunay triangulation), a container of points (Delaunay triangulation), segments, or triangles, always keeping labels. Attention, the segments or triangles must define a valid triangulation (of the convex hull or any polygon), otherwise the behavior is undefined.
+
+
+

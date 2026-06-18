@@ -22,12 +22,6 @@
  * `Triangle` is resolved by taking one of its edges, looking up that handle, and
  * selecting the incident side whose apex matches the triangle — so no
  * triangle-keyed map is needed.
- *
- * @note Builders that *compute* a triangulation (Delaunay over a point set,
- *       ear-clipping/monotone over a polygon, `flipToDelaunay`) are layered on
- *       top of this structure and live separately; this header provides the
- *       storage, navigation, and the local `flip` mutation, plus construction
- *       from an already-known set of triangles.
  */
 
 #include <algorithm>
@@ -35,6 +29,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <random>
@@ -216,6 +211,62 @@ struct Triangulation {
         }
     }
 
+    /**
+     * @brief Builds the Delaunay triangulation of a set of points.
+     *
+     * The vertex set is the points (deduplicated; fixed thereafter) and the
+     * connectivity is their Delaunay triangulation, computed exactly. Points
+     * that are collinear with all others, or duplicated, simply carry no
+     * incident triangle.
+     *
+     * @tparam PointRange Range whose elements are `pgl::Point`.
+     * @param pts Points to triangulate.
+     */
+    template <class PointRange>
+        requires PointConcept<typename PointRange::value_type>
+    explicit Triangulation(const PointRange& pts) {
+        std::unordered_map<PointType, VertexId> vid;
+        const auto idOfPoint = makeVertexInterner(vid);
+        for (const auto& p : pts) {
+            idOfPoint(PointType(p));
+        }
+        auto triples = delaunayTriples(vertices_);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+    }
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of a simple polygon.
+     *
+     * The convex hull of the polygon's vertices is Delaunay-triangulated, the
+     * polygon's boundary edges are inserted as constraints, and the triangles
+     * lying outside the polygon (between it and its convex hull) are marked
+     * out-of-domain. The public view — @ref triangles, @ref numTriangles,
+     * @ref locate, ... — then sees exactly the polygon's interior; @ref locate
+     * therefore works for non-convex polygons.
+     *
+     * @param poly Simple polygon (convex or not) to triangulate.
+     * @pre @p poly is simple (non-self-intersecting) and non-degenerate.
+     */
+    explicit Triangulation(const Polygon<PointType>& poly) {
+        std::unordered_map<PointType, VertexId> vid;
+        const auto idOfPoint = makeVertexInterner(vid);
+        std::vector<VertexId> loop;
+        loop.reserve(poly.size());
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            loop.push_back(idOfPoint(poly[i]));
+        }
+        auto triples = delaunayTriples(vertices_);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+
+        // Insert each polygon edge as a constraint, then carve away everything
+        // the boundary fences off from the outside.
+        for (std::size_t i = 0; i < loop.size(); ++i) {
+            insertConstraint(loop[i], loop[(i + 1) % loop.size()]);
+        }
+        restoreConstrainedDelaunay();
+        markOutOfDomain();
+    }
+
     // ---- sizes -----------------------------------------------------------
 
     /** @brief Number of real vertices (excludes the ghost vertex). */
@@ -223,24 +274,34 @@ struct Triangulation {
         return ghost_ == NO_TRI ? vertices_.size() : vertices_.size() - 1;
     }
 
-    /** @brief Number of triangles (excludes ghost triangles). */
-    [[nodiscard]] std::size_t numTriangles() const {
-        return static_cast<std::size_t>(firstGhost_);
+    /** @brief Number of triangles (excludes ghost and out-of-domain fill triangles). */
+    [[nodiscard]] std::size_t numTriangles() const { return domainTriangleCount_; }
+
+    /** @brief Number of undirected edges incident to the visible triangulation. */
+    [[nodiscard]] std::size_t numEdges() const {
+        std::size_t count = 0;
+        for (const auto& [seg, e] : segToEdge_) {
+            (void)seg;
+            if (edgeInDomain(e)) {
+                ++count;
+            }
+        }
+        return count;
     }
 
-    /** @brief Number of undirected edges. */
-    [[nodiscard]] std::size_t numEdges() const { return segToEdge_.size(); }
-
-    /** @brief True if the triangulation stores no triangles. */
-    [[nodiscard]] bool empty() const { return firstGhost_ == 0; }
+    /** @brief True if the triangulation stores no in-domain triangles. */
+    [[nodiscard]] bool empty() const { return domainTriangleCount_ == 0; }
 
     // ---- membership ------------------------------------------------------
 
     /** @brief True if @p t is one of the triangles of this triangulation. */
-    [[nodiscard]] bool contains(const TriangleType& t) const { return idOf(t) != NO_TRI; }
+    [[nodiscard]] bool contains(const TriangleType& t) const { return inDomain(idOf(t)); }
 
-    /** @brief True if @p s is one of the edges of this triangulation. */
-    [[nodiscard]] bool contains(const SegmentType& s) const { return segToEdge_.contains(s); }
+    /** @brief True if @p s is an edge incident to the visible triangulation. */
+    [[nodiscard]] bool contains(const SegmentType& s) const {
+        auto se = segToEdge_.find(s);
+        return se != segToEdge_.end() && edgeInDomain(se->second);
+    }
 
     // ---- navigation ------------------------------------------------------
 
@@ -266,7 +327,7 @@ struct Triangulation {
         const TriId i1 = e.tri;
         const TriId i2 = mirror(e).tri;
         TriId other = (given == i1) ? i2 : (given == i2 ? i1 : NO_TRI);
-        if (other == NO_TRI || isGhost(other)) {
+        if (!inDomain(other)) {
             return std::nullopt;  // shared not on t, or boundary
         }
         return triangleValue(other);
@@ -281,7 +342,7 @@ struct Triangulation {
         }
         for (int s = 0; s < 3; ++s) {
             const TriId nb = triangles_[id].nbr[s];
-            if (nb != NO_TRI && !isGhost(nb)) {
+            if (inDomain(nb)) {
                 out.push_back(triangleValue(nb));
             }
         }
@@ -296,9 +357,11 @@ struct Triangulation {
             return out;
         }
         const Edge e = se->second;
-        out.push_back(triangleValue(e.tri));
+        if (inDomain(e.tri)) {
+            out.push_back(triangleValue(e.tri));
+        }
         const TriId other = mirror(e).tri;
-        if (other != NO_TRI && !isGhost(other)) {
+        if (inDomain(other)) {
             out.push_back(triangleValue(other));
         }
         return out;
@@ -315,6 +378,9 @@ struct Triangulation {
     template <class Fn>
     bool visitTriangles(Fn fn) const {
         for (TriId t = 0; t < firstGhost_; ++t) {
+            if (!inDomain(t)) {
+                continue;
+            }
             if (detail::invokeVisitor(fn, triangleValue(t))) {
                 return true;
             }
@@ -334,6 +400,9 @@ struct Triangulation {
     bool visitEdges(Fn fn) const {
         for (const auto& [seg, e] : segToEdge_) {
             (void)seg;
+            if (!edgeInDomain(e)) {
+                continue;
+            }
             if (detail::invokeVisitor(fn, edgeSegment(e))) {
                 return true;
             }
@@ -359,6 +428,377 @@ struct Triangulation {
         return out;
     }
 
+    // ---- traversal along an oriented segment -----------------------------
+
+    /**
+     * @brief Visits every triangle met by the oriented segment @p s, in order.
+     *
+     * Locates `s.source()`, visits the triangles touching it (if any), then
+     * traces `s` to `s.target()`, visiting each triangle crossed — including the
+     * fan where `s` passes through a vertex, and the triangles touching the
+     * target. The set of triangles `t` passed to @p f is exactly
+     * `{ t : s.intersects(t) }` over the in-domain triangles, in the order they
+     * are met along `s`. Ghost triangles and (for a polygon) out-of-domain
+     * hull-fill triangles are traversed for navigation but never reported, so a
+     * segment leaving and re-entering the polygon through a reflex pocket simply
+     * shows a gap.
+     *
+     * @p f follows the visitor convention: returning `true` stops the walk
+     * early, a `void` return visits all. Returns whether it stopped early.
+     * @p s may use a different point type than the triangulation.
+     */
+    template <OrientedSegmentConcept OS, class Fn>
+    bool visitTrianglesIntersecting(const OS& s, Fn f) const {
+        if (firstGhost_ == 0) return false;
+        const auto a = s.source();
+        const auto b = s.target();
+
+        // "Already emitted" is tracked by a per-triangle mark bit rather than a
+        // hash set: O(1) test, no per-lookup allocation. `marked` records which
+        // bits were set; the guard clears every one of them on the way out —
+        // normal return, early exit, or an exception from f — so the const walk
+        // leaves the triangulation pristine. NOTE: because the mark lives on the
+        // triangulation, the walk is not reentrant: f must not start another
+        // walk on the same Triangulation.
+        std::vector<TriId> marked;
+        struct MarkClearer {
+            const std::vector<Tri>& tris;
+            const std::vector<TriId>& marked;
+            ~MarkClearer() { for (TriId t : marked) tris[t].walkMark = 0; }
+        } markClearer{triangles_, marked};
+        bool stop = false;
+        // Emit a triangle to f, once. Ghost and out-of-domain (polygon hull-fill)
+        // triangles are walked through for navigation but never reported, so the
+        // reported set is exactly the in-domain triangles s meets.
+        const auto emit = [&](TriId t) {
+            if (!stop && inDomain(t) && !triangles_[t].walkMark) {
+                triangles_[t].walkMark = 1;
+                marked.push_back(t);
+                if (detail::invokeVisitor(f, triangleValue(t))) stop = true;
+            }
+        };
+        // The next triangle when rotating around vertex w, having arrived from
+        // `from` (NO_TRI to start). Orientation-independent (ghost triangles are
+        // not CCW-normalized): leave through the w-incident edge we didn't enter.
+        const auto rotateAround = [&](TriId cur, VertexId w, TriId from) -> TriId {
+            const int lw = localIndex(cur, w);
+            int s1 = -1, s2 = -1;
+            for (int s = 0; s < 3; ++s) {
+                if (s != lw) {
+                    if (s1 < 0) s1 = s; else s2 = s;
+                }
+            }
+            return triangles_[cur].nbr[triangles_[cur].nbr[s1] == from ? s2 : s1];
+        };
+        // Every real triangle of vertex w's fan (rotate around w through ghosts).
+        const auto emitFan = [&](VertexId w, TriId startTri) {
+            TriId cur = startTri, from = NO_TRI;
+            std::size_t g = 0, lim = triangles_.size() + 1;
+            do {
+                emit(cur);
+                const TriId next = rotateAround(cur, w, from);
+                from = cur;
+                cur = next;
+            } while (cur != startTri && cur != NO_TRI && !stop && ++g < lim);
+        };
+        // Does the ray from p (on closure of t) toward b enter t's interior?
+        // 1 = enters, 0 = no, -1 = runs collinearly along an edge of t.
+        const auto rayEnters = [&](TriId t, const auto& p) -> int {
+            const auto& v = triangles_[t].v;
+            for (int k = 0; k < 3; ++k) {
+                const auto& u = vertices_[v[(k + 1) % 3]];
+                const auto& w = vertices_[v[(k + 2) % 3]];
+                if (orientationSign(u, w, p) == 0) {
+                    const auto ob = orientationSign(u, w, b);
+                    if (ob < 0) return 0;
+                    if (ob == 0) return -1;
+                }
+            }
+            return 1;
+        };
+        // The fan triangle around w whose interior the ray w->b enters (or NO_TRI).
+        const auto forwardAround = [&](VertexId w, TriId startTri) -> TriId {
+            TriId cur = startTri, from = NO_TRI;
+            std::size_t g = 0, lim = triangles_.size() + 1;
+            do {
+                if (!isGhost(cur) && rayEnters(cur, vertices_[w]) == 1) return cur;
+                const TriId next = rotateAround(cur, w, from);
+                from = cur;
+                cur = next;
+            } while (cur != startTri && cur != NO_TRI && ++g < lim);
+            return NO_TRI;
+        };
+        // Signed progress of vertex w along the directed line a->b (monotone along
+        // it); 0 at a, `pmax` at b. Used to keep motion within the segment.
+        const auto progress = [&](VertexId w) {
+            return (vertices_[w].x() - a.x()) * (b.x() - a.x()) +
+                   (vertices_[w].y() - a.y()) * (b.y() - a.y());
+        };
+        // progress(b): the value at the target, i.e. |a->b|^2; the upper bound.
+        const auto pmax = (b.x() - a.x()) * (b.x() - a.x()) + (b.y() - a.y()) * (b.y() - a.y());
+        // From a vertex w on the segment, emit its fan and follow the segment: if
+        // it enters a triangle interior return that triangle (resume the trace);
+        // if it continues collinearly along an edge, hop to the next on-segment
+        // vertex and repeat; return NO_TRI when the segment leaves/ends here.
+        const auto advanceFromVertex = [&](VertexId w, TriId anchor) -> TriId {
+            std::size_t hops = 0, lim = vertices_.size() + 1;
+            while (!stop && ++hops < lim) {
+                emitFan(w, anchor);
+                if (stop) return NO_TRI;
+                if (progress(w) >= pmax) return NO_TRI;  // reached the target end
+                const TriId interior = forwardAround(w, anchor);
+                if (interior != NO_TRI) return interior;
+                // Look for a forward neighbor x with edge {w,x} collinear with a->b,
+                // not past the target.
+                VertexId nextV = NO_TRI;
+                TriId nextAnchor = NO_TRI;
+                TriId cur = anchor, from = NO_TRI;
+                std::size_t g = 0, glim = triangles_.size() + 1;
+                do {
+                    if (!isGhost(cur)) {
+                        for (VertexId y : triangles_[cur].v) {
+                            if (y != w && orientationSign(a, b, vertices_[y]) == 0 &&
+                                progress(y) > progress(w) && progress(y) <= pmax) {
+                                nextV = y;
+                                nextAnchor = cur;
+                                break;
+                            }
+                        }
+                    }
+                    if (nextV != NO_TRI) break;
+                    const TriId next = rotateAround(cur, w, from);
+                    from = cur;
+                    cur = next;
+                } while (cur != anchor && cur != NO_TRI && ++g < glim);
+                if (nextV == NO_TRI) return NO_TRI;  // segment leaves or ends at w
+                w = nextV;
+                anchor = nextAnchor;
+            }
+            return NO_TRI;
+        };
+
+        // When s starts outside the convex hull, find the ghost triangle whose
+        // hull edge s crosses to enter it — by *following the ghost ring*, not
+        // scanning the whole boundary. The triangulated region is the convex
+        // hull, so s meets it in a single interval: one entry suffices.
+        //
+        // Ghost triangles share a single placeholder apex (they are topological,
+        // not Euclidean), so navigation uses only the real hull endpoints: at
+        // each ghost step toward whichever endpoint of its hull edge is closer
+        // to the supporting line a->b (smaller |orientation determinant|). Once
+        // an edge straddles that line, test whether s actually reaches it. This
+        // walks O(arc) ghosts toward the crossing rather than all of them.
+        const auto enterFromGhost = [&](TriId g0) -> TriId {
+            TriId g = g0;
+            std::size_t guard = 0, lim = triangles_.size() + 1;
+            while (g != NO_TRI && isGhost(g) && ++guard < lim) {
+                const VertexId va = triangles_[g].v[0];
+                const VertexId vb = triangles_[g].v[1];
+                const auto da = orientationDeterminant(a, b, vertices_[va]);
+                const auto db = orientationDeterminant(a, b, vertices_[vb]);
+                const bool straddle = da == 0 || db == 0 || (da > 0) != (db > 0);
+                if (straddle) {
+                    // The hull edge crosses the line a->b; s enters here iff it
+                    // actually reaches the edge (else it never meets the hull).
+                    return s.intersects(edgeSegment(Edge{g, 2})) ? g : NO_TRI;
+                }
+                // Same side of the line: step toward the closer endpoint. The
+                // ghost sharing va is nbr[1]; the one sharing vb is nbr[0].
+                const auto absA = da < 0 ? -da : da;
+                const auto absB = db < 0 ? -db : db;
+                g = triangles_[g].nbr[absA < absB ? 1 : 0];
+            }
+            return NO_TRI;
+        };
+
+        // Pick the triangle to begin tracing the component reached at `start`,
+        // which contains point `p`; visit p's contact triangles along the way.
+        const auto enterAt = [&](const auto& p, TriId start) -> TriId {
+            const auto& v = triangles_[start].v;
+            int zeros = 0, z0 = -1, z1 = -1;
+            for (int k = 0; k < 3; ++k) {
+                if (orientationSign(vertices_[v[(k + 1) % 3]], vertices_[v[(k + 2) % 3]], p) == 0) {
+                    ++zeros;
+                    if (z0 < 0) z0 = k; else z1 = k;
+                }
+            }
+            if (zeros >= 2) {  // p is a vertex: visit its fan, then continue
+                return advanceFromVertex(v[3 - z0 - z1], start);
+            }
+            if (zeros == 1) {  // p on an edge: visit both sides, continue into the forward one
+                const TriId other = triangles_[start].nbr[z0];
+                emit(start);
+                emit(other);
+                if (rayEnters(start, p) == 1) return start;
+                if (other != NO_TRI && !isGhost(other) && rayEnters(other, p) == 1) return other;
+                const VertexId e1 = v[(z0 + 1) % 3];
+                const VertexId e2 = v[(z0 + 2) % 3];
+                // Continue only if the segment runs ALONG the shared edge (hop to
+                // its forward endpoint). Otherwise the segment crosses the edge
+                // into the other side already emitted — if that side is outside
+                // the hull, nothing more lies on this side.
+                if (orientationSign(vertices_[e1], vertices_[e2], b) != 0) {
+                    return NO_TRI;
+                }
+                return advanceFromVertex(progress(e1) > progress(e2) ? e1 : e2, start);
+            }
+            emit(start);  // p strictly inside
+            return start;
+        };
+
+        // Emit exactly the triangle(s) whose closure contains the target b — the
+        // one triangle it is interior to, both triangles sharing the edge it lies
+        // on, or the whole fan if b is a mesh vertex — then the walk ends. (Unlike
+        // enterAt, this never continues, so it cannot over-emit a vertex fan when
+        // b merely lies on an edge.)
+        const auto emitTargetContacts = [&](TriId t) {
+            const auto& v = triangles_[t].v;
+            int zeros = 0, z0 = -1, z1 = -1;
+            for (int k = 0; k < 3; ++k) {
+                if (orientationSign(vertices_[v[(k + 1) % 3]], vertices_[v[(k + 2) % 3]], b) == 0) {
+                    ++zeros;
+                    if (z0 < 0) z0 = k; else z1 = k;
+                }
+            }
+            if (zeros >= 2) {  // b is a mesh vertex: every incident triangle touches it
+                emitFan(v[3 - z0 - z1], t);
+                return;
+            }
+            emit(t);
+            if (zeros == 1) {  // b on an edge: the triangle on the far side also touches it
+                emit(triangles_[t].nbr[z0]);
+            }
+        };
+
+        TriId t = locateId(a);
+        TriId prev = NO_TRI;
+        if (t == NO_TRI) {
+            return false;  // empty triangulation
+        }
+        if (isGhost(t)) {
+            // Source outside the hull: walk the ghost ring to the entry edge.
+            const TriId g = enterFromGhost(t);
+            if (g == NO_TRI) {
+                return false;  // s never meets the triangulated region
+            }
+            prev = g;  // entry boundary edge; don't step back out through it
+            t = triangles_[g].nbr[2];
+            if (!(t != NO_TRI && !isGhost(t))) {
+                return false;
+            }
+        } else {
+            t = enterAt(a, t);
+        }
+
+        const std::size_t cap = triangles_.size() * 4 + 16;
+        std::size_t guard = 0;
+        while (!stop && t != NO_TRI) {
+            if (++guard > cap) break;  // safety net
+            emit(t);
+            if (stop) break;
+            if (pointInClosure(b, t)) {  // target reached: visit its contact triangles
+                emitTargetContacts(t);
+                break;
+            }
+            const auto& v = triangles_[t].v;
+            // Forward exit edge: segment ab properly crosses it and it isn't where we came from.
+            int exitK = -1;
+            for (int k = 0; k < 3; ++k) {
+                if (triangles_[t].nbr[k] == prev) continue;
+                const auto& u = vertices_[v[(k + 1) % 3]];
+                const auto& w = vertices_[v[(k + 2) % 3]];
+                const auto du = orientationSign(a, b, u);
+                const auto dw = orientationSign(a, b, w);
+                const auto ea = orientationSign(u, w, a);
+                const auto eb = orientationSign(u, w, b);
+                const bool straddleLine = (du > 0 && dw < 0) || (du < 0 && dw > 0);
+                const bool straddleSeg = (ea > 0 && eb < 0) || (ea < 0 && eb > 0);
+                if (straddleLine && straddleSeg) { exitK = k; break; }
+            }
+            if (exitK != -1) {
+                prev = t;
+                t = triangles_[t].nbr[exitK];
+                if (isGhost(t)) {
+                    break;  // left the convex hull; by convexity s cannot re-enter
+                }
+                continue;
+            }
+            // Degenerate: s leaves t through a vertex or runs along an edge.
+            int onCount = 0, on0 = -1, on1 = -1;
+            for (int m = 0; m < 3; ++m) {
+                if (orientationSign(a, b, vertices_[v[m]]) == 0) {
+                    ++onCount;
+                    if (on0 < 0) on0 = m; else on1 = m;
+                }
+            }
+            if (onCount >= 1) {
+                // s leaves t through the on-line vertex farthest along a->b; from
+                // there, advance (fan + collinear hops) until it re-enters an interior.
+                const int m = (onCount >= 2 && progress(v[on1]) > progress(v[on0])) ? on1 : on0;
+                t = advanceFromVertex(v[m], t);
+                prev = NO_TRI;
+                continue;
+            }
+            break;  // no progress (should not happen for a valid triangulation)
+        }
+        return stop;
+    }
+
+    /**
+     * @brief Returns the triangles met by the oriented segment @p s, in order.
+     *
+     * A materialized form of @ref visitTrianglesIntersecting: the in-domain
+     * triangles `t` with `s.intersects(t)`, in the order they are encountered
+     * along `s`. The order is preserved (not sorted), since it is the point of
+     * the traversal.
+     *
+     * @param s Oriented segment to trace; may use a different point type.
+     */
+    template <OrientedSegmentConcept OS>
+    [[nodiscard]] std::vector<TriangleType> trianglesIntersecting(const OS& s) const {
+        std::vector<TriangleType> out;
+        visitTrianglesIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
+        return out;
+    }
+
+    /**
+     * @brief Visits the triangles whose interior @p s actually enters, in order.
+     *
+     * Like @ref visitTrianglesIntersecting but reports only the triangles `t`
+     * with `t.interiorsIntersect(s)` — dropping those merely touched along an
+     * edge or at a vertex. The traversal still passes through every met triangle
+     * for navigation; the filtered ones simply are not reported.
+     *
+     * @p f follows the visitor convention (return `true` to stop early, `void`
+     * to visit all); returns whether the walk stopped early. @p s may use a
+     * different point type than the triangulation.
+     */
+    template <OrientedSegmentConcept OS, class Fn>
+    bool visitTrianglesInteriorIntersecting(const OS& s, Fn f) const {
+        return visitTrianglesIntersecting(s, [&](const TriangleType& t) -> bool {
+            if (t.interiorsIntersect(s)) {
+                return detail::invokeVisitor(f, t);
+            }
+            return false;  // only boundary contact: skip, but keep walking
+        });
+    }
+
+    /**
+     * @brief Returns the triangles whose interior @p s enters, in order.
+     *
+     * A materialized form of @ref visitTrianglesInteriorIntersecting: the
+     * in-domain triangles `t` with `t.interiorsIntersect(s)`, in the order they
+     * are encountered along `s` (preserved, not sorted).
+     *
+     * @param s Oriented segment to trace; may use a different point type.
+     */
+    template <OrientedSegmentConcept OS>
+    [[nodiscard]] std::vector<TriangleType> trianglesInteriorIntersecting(const OS& s) const {
+        std::vector<TriangleType> out;
+        visitTrianglesInteriorIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
+        return out;
+    }
+
     // ---- point location --------------------------------------------------
 
     /**
@@ -374,8 +814,8 @@ struct Triangulation {
      */
     [[nodiscard]] std::optional<TriangleType> locate(const PointType& p) const {
         const TriId id = locateId(p);
-        if (id == NO_TRI || isGhost(id)) {
-            return std::nullopt;
+        if (!inDomain(id)) {
+            return std::nullopt;  // outside the region, or in a hull-fill triangle
         }
         return triangleValue(id);
     }
@@ -480,6 +920,19 @@ struct Triangulation {
         return true;
     }
 
+    /**
+     * @brief Draws every triangle to a canvas.
+     * @param canvas Destination canvas.
+     * @param triangulation Triangulation whose triangles are drawn.
+     * @return The canvas.
+     */
+    friend Canvas& operator<<(Canvas& canvas, const Triangulation& triangulation) {
+        for (const auto &t : triangulation.triangles()) {
+            canvas << t;
+        }
+        return canvas;
+    }
+
   private:
     // ---- internal vocabulary (never exposed) -----------------------------
 
@@ -497,11 +950,17 @@ struct Triangulation {
     };
 
     // One triangle record: three CCW vertices, three neighbors (neighbor i is
-    // across the edge opposite v[i]), a constrained-edge mask, and the label.
+    // across the edge opposite v[i]), a constrained-edge mask, an out-of-domain
+    // flag (set for hull-fill triangles outside a polygon), a transient
+    // walk-visited mark (used by visitTrianglesIntersecting in lieu of a hash
+    // set; always cleared again before that const method returns), and the
+    // label. `walkMark` is mutable because the walk is a const query.
     struct Tri {
         std::array<VertexId, 3> v{NO_TRI, NO_TRI, NO_TRI};
         std::array<TriId, 3> nbr{NO_TRI, NO_TRI, NO_TRI};
         std::uint8_t constrainedMask = 0;
+        std::uint8_t outOfDomain = 0;
+        mutable std::uint8_t walkMark = 0;
         [[no_unique_address]] TriangleLabel triLabel{};
     };
     static_assert(sizeof(Tri) == 28 || detail::has_label_v<TriangleLabel>,
@@ -512,20 +971,33 @@ struct Triangulation {
     std::unordered_map<SegmentType, Edge> segToEdge_;  // outside edge -> internal handle
     VertexId ghost_ = NO_TRI;          // index of the ghost vertex
     TriId firstGhost_ = 0;             // first ghost triangle index
+    std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
     mutable TriId hint_ = NO_TRI;      // last located triangle (walk seed)
     mutable std::mt19937 rng_;         // drives the stochastic walk in locateId
 
     // ---- small helpers ---------------------------------------------------
 
+    // Reads bit `i` of a 3-bit edge mask (e.g. constrainedMask).
     static constexpr bool bit(std::uint8_t mask, int i) { return (mask >> i) & 1; }
+    // Sets or clears bit `i` of a 3-bit edge mask.
     static constexpr void setBit(std::uint8_t& mask, int i, bool value) {
         mask = static_cast<std::uint8_t>(value ? (mask | (1u << i)) : (mask & ~(1u << i)));
     }
+    // Packs three per-edge flags into a 3-bit mask (bit i is edge i).
     static constexpr std::uint8_t mask(bool b0, bool b1, bool b2) {
         return static_cast<std::uint8_t>((b0 ? 1 : 0) | (b1 ? 2 : 0) | (b2 ? 4 : 0));
     }
 
+    // True if t is one of the boundary-closing ghost triangles (stored last).
     [[nodiscard]] bool isGhost(TriId t) const { return t >= firstGhost_; }
+
+    // A real triangle that is part of the visible triangulation: not a ghost and
+    // not a hull-fill triangle outside a polygon's boundary. The public view
+    // (sizes, navigation, locate) speaks only of in-domain triangles, while the
+    // internal walks still traverse every real triangle, including fill ones.
+    [[nodiscard]] bool inDomain(TriId t) const {
+        return t != NO_TRI && t < firstGhost_ && !triangles_[t].outOfDomain;
+    }
 
     // Side of triangle x whose neighbor is `target` (x shares <=1 edge with it).
     [[nodiscard]] std::int8_t findSide(TriId x, TriId target) const {
@@ -533,6 +1005,14 @@ struct Triangulation {
         return static_cast<std::int8_t>(n[0] == target ? 0 : (n[1] == target ? 1 : 2));
     }
 
+    // An edge belongs to the visible triangulation if at least one of its two
+    // incident triangles is in-domain.
+    [[nodiscard]] bool edgeInDomain(Edge e) const {
+        return inDomain(e.tri) || inDomain(mirror(e).tri);
+    }
+
+    // The same edge seen from the triangle on its other side (an invalid Edge if
+    // there is none). mirror(e).tri is the neighbor across e.
     [[nodiscard]] Edge mirror(Edge e) const {
         const TriId t2 = triangles_[e.tri].nbr[e.side];
         if (t2 == NO_TRI) {
@@ -541,6 +1021,7 @@ struct Triangulation {
         return Edge{t2, findSide(t2, e.tri)};
     }
 
+    // Materializes triangle t as a public Triangle value (with its label, if any).
     [[nodiscard]] TriangleType triangleValue(TriId t) const {
         const auto& T = triangles_[t];
         TriangleType tri(vertices_[T.v[0]], vertices_[T.v[1]], vertices_[T.v[2]]);
@@ -594,12 +1075,30 @@ struct Triangulation {
         return NO_TRI;
     }
 
+    // True if p lies in the closed triangle t (interior or boundary). Assumes t
+    // is CCW; @p p may use a different point type.
+    template <class QueryPoint>
+    [[nodiscard]] bool pointInClosure(const QueryPoint& p, TriId t) const {
+        const auto& v = triangles_[t].v;
+        return orientationSign(vertices_[v[0]], vertices_[v[1]], p) >= 0 &&
+               orientationSign(vertices_[v[1]], vertices_[v[2]], p) >= 0 &&
+               orientationSign(vertices_[v[2]], vertices_[v[0]], p) >= 0;
+    }
+
+    // Position (0,1,2) of vertex w within triangle t.
+    [[nodiscard]] int localIndex(TriId t, VertexId w) const {
+        const auto& v = triangles_[t].v;
+        return v[0] == w ? 0 : (v[1] == w ? 1 : 2);
+    }
+
+    // Inserts t's three edges into the segment-to-edge map, keyed by Segment.
     void registerSides(TriId t) {
         for (std::int8_t s = 0; s < 3; ++s) {
             segToEdge_[edgeSegment(Edge{t, s})] = Edge{t, s};
         }
     }
 
+    // Builds the segment-to-edge map over all real triangles.
     void buildMap() {
         for (TriId t = 0; t < firstGhost_; ++t) {
             registerSides(t);
@@ -621,6 +1120,274 @@ struct Triangulation {
         };
     }
 
+    // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) via
+    // Bowyer–Watson insertion over a containing super-triangle. The predicates
+    // run in BigInt, so the working super-triangle coordinates never overflow
+    // and every in-circle / orientation test is exact. O(n^2) in the points.
+    static std::vector<std::array<VertexId, 3>>
+    delaunayTriples(const std::vector<PointType>& pts) {
+        using Big = Point<BigInt>;
+        const VertexId n = static_cast<VertexId>(pts.size());
+        std::vector<std::array<VertexId, 3>> out;
+        if (n < 3) {
+            return out;
+        }
+        std::vector<Big> w;
+        w.reserve(static_cast<std::size_t>(n) + 3);
+        BigInt minx{pts[0].x()}, maxx{pts[0].x()}, miny{pts[0].y()}, maxy{pts[0].y()};
+        for (VertexId i = 0; i < n; ++i) {
+            BigInt x{pts[i].x()};
+            BigInt y{pts[i].y()};
+            w.emplace_back(x, y);
+            minx = x < minx ? x : minx;
+            maxx = maxx < x ? x : maxx;
+            miny = y < miny ? y : miny;
+            maxy = maxy < y ? y : maxy;
+        }
+        // Super-triangle (a right triangle) that strictly contains the bounding
+        // box with ALL THREE vertices far outside it. The scale R must exceed
+        // the largest possible circumradius of a real Delaunay triangle, so no
+        // super vertex ever lies inside one (which would "steal" hull edges and
+        // drop real triangles). For integer points in a box of side D that
+        // circumradius is O(D^3) — a near-degenerate triangle of area 1/2 — so a
+        // scale ~D is not enough; R is cubic in the box size. BigInt keeps it
+        // exact at any magnitude. No division needed, and it is CCW.
+        const BigInt s = (maxx - minx) + (maxy - miny) + BigInt{1};
+        const BigInt R = s * s * s * BigInt{64} + BigInt{64};
+        const BigInt R3 = R * BigInt{3};
+        w.emplace_back(minx - R, miny - R);              // super vertex n
+        w.emplace_back(maxx + R3, miny - R);             // super vertex n+1
+        w.emplace_back(minx - R, maxy + R3);             // super vertex n+2
+
+        std::vector<std::array<VertexId, 3>> tris;
+        tris.push_back({n, n + 1, n + 2});  // CCW
+
+        std::vector<std::array<VertexId, 3>> next;
+        for (VertexId i = 0; i < n; ++i) {
+            // Cavity = triangles whose open circumdisk contains point i. Its
+            // boundary is every directed edge (a,b) of a cavity triangle whose
+            // reverse (b,a) is not also a cavity edge.
+            std::set<std::pair<VertexId, VertexId>> dir;
+            next.clear();
+            for (const auto& t : tris) {
+                const bool bad = inCircleSign(w[t[0]], w[t[1]], w[t[2]], w[i]) ==
+                                 std::partial_ordering::greater;
+                if (bad) {
+                    dir.insert({t[0], t[1]});
+                    dir.insert({t[1], t[2]});
+                    dir.insert({t[2], t[0]});
+                } else {
+                    next.push_back(t);
+                }
+            }
+            for (const auto& [a, b] : dir) {
+                if (!dir.count({b, a})) {
+                    next.push_back({a, b, i});  // CCW: i lies left of a->b
+                }
+            }
+            tris.swap(next);
+        }
+
+        for (const auto& t : tris) {
+            if (t[0] < n && t[1] < n && t[2] < n) {
+                out.push_back(t);
+            }
+        }
+        return out;
+    }
+
+    // ---- constrained Delaunay (polygon constructor) ----------------------
+
+    // True if the open segments AB and CD cross properly (no shared endpoint,
+    // no collinear contact). Exact via orientationSign.
+    [[nodiscard]] bool properCross(const PointType& a, const PointType& b,
+                                   const PointType& c, const PointType& d) const {
+        const auto s1 = orientationSign(a, b, c);
+        const auto s2 = orientationSign(a, b, d);
+        const auto s3 = orientationSign(c, d, a);
+        const auto s4 = orientationSign(c, d, b);
+        if (s1 == 0 || s2 == 0 || s3 == 0 || s4 == 0) {
+            return false;
+        }
+        return ((s1 > 0) != (s2 > 0)) && ((s3 > 0) != (s4 > 0));
+    }
+
+    // The current internal handle of edge {p,q}, or an invalid edge if absent.
+    [[nodiscard]] Edge edgeHandle(VertexId p, VertexId q) const {
+        auto se = segToEdge_.find(SegmentType(vertices_[p], vertices_[q]));
+        return se == segToEdge_.end() ? Edge{NO_TRI, 0} : se->second;
+    }
+
+    [[nodiscard]] bool edgeExists(VertexId p, VertexId q) const {
+        return segToEdge_.contains(SegmentType(vertices_[p], vertices_[q]));
+    }
+
+    // The interior edges that the open segment va->vb crosses, as vertex pairs,
+    // in order from va to vb. Empty when {va,vb} is already an edge. Assumes no
+    // vertex lies in the interior of the segment (true for simple-polygon edges).
+    [[nodiscard]] std::vector<std::pair<VertexId, VertexId>>
+    collectCrossings(VertexId va, VertexId vb) const {
+        const PointType& A = vertices_[va];
+        const PointType& B = vertices_[vb];
+        std::vector<std::pair<VertexId, VertexId>> out;
+
+        // Find the triangle incident to va that the segment first enters.
+        TriId t = NO_TRI;
+        std::pair<VertexId, VertexId> entry{NO_TRI, NO_TRI};
+        for (TriId k = 0; k < firstGhost_ && t == NO_TRI; ++k) {
+            const auto& v = triangles_[k].v;
+            for (int i = 0; i < 3; ++i) {
+                if (v[i] != va) {
+                    continue;
+                }
+                const VertexId p = v[(i + 1) % 3];
+                const VertexId q = v[(i + 2) % 3];
+                if (properCross(A, B, vertices_[p], vertices_[q])) {
+                    t = triangles_[k].nbr[i];
+                    entry = {p, q};
+                    out.push_back({p, q});
+                }
+                break;
+            }
+        }
+        if (t == NO_TRI) {
+            return out;  // {va,vb} is already an edge (or va not incident anywhere)
+        }
+
+        // Walk across the crossed edges until a triangle holds vb.
+        std::size_t guard = 0, cap = triangles_.size() + 1;
+        while (++guard < cap) {
+            const auto& v = triangles_[t].v;
+            if (v[0] == vb || v[1] == vb || v[2] == vb) {
+                break;
+            }
+            int exitK = -1;
+            for (int k = 0; k < 3; ++k) {
+                const VertexId p = v[(k + 1) % 3];
+                const VertexId q = v[(k + 2) % 3];
+                const bool sameEntry = (p == entry.first && q == entry.second) ||
+                                       (p == entry.second && q == entry.first);
+                if (sameEntry) {
+                    continue;
+                }
+                if (properCross(A, B, vertices_[p], vertices_[q])) {
+                    exitK = k;
+                    entry = {p, q};
+                    out.push_back({p, q});
+                    break;
+                }
+            }
+            if (exitK < 0) {
+                break;  // should not happen for a valid triangulation
+            }
+            t = triangles_[t].nbr[exitK];
+        }
+        return out;
+    }
+
+    // Inserts the segment {va,vb} as an edge by flipping the edges it crosses
+    // (Sloan's flip algorithm), then flags it constrained on both sides.
+    //
+    // A FIFO queue of crossing edges is processed front-to-back: a convex
+    // crossing edge is flipped, and if its new diagonal still crosses the
+    // constraint it goes to the back; a non-convex one is deferred to the back
+    // until its quad becomes convex. This ordering guarantees progress (a naive
+    // "flip the first convex one" can oscillate, repeatedly flipping a diagonal
+    // back and forth).
+    void insertConstraint(VertexId va, VertexId vb) {
+        if (va == vb || edgeExists(va, vb)) {
+            setConstrained(SegmentType(vertices_[va], vertices_[vb]), true);
+            return;
+        }
+        const PointType& A = vertices_[va];
+        const PointType& B = vertices_[vb];
+        std::deque<std::pair<VertexId, VertexId>> queue;
+        for (const auto& pq : collectCrossings(va, vb)) {
+            queue.push_back(pq);
+        }
+        std::size_t guard = 0, cap = (queue.size() + 1) * (triangles_.size() + 1) * 4 + 64;
+        while (!queue.empty() && ++guard < cap) {
+            auto [p, q] = queue.front();
+            queue.pop_front();
+            const Edge e = edgeHandle(p, q);
+            if (e.tri == NO_TRI || !properCross(A, B, vertices_[p], vertices_[q])) {
+                continue;  // edge gone, or no longer crosses the constraint
+            }
+            if (!flippableEdge(e)) {
+                queue.push_back({p, q});  // quad not yet convex; revisit later
+                continue;
+            }
+            const VertexId r = triangles_[e.tri].v[e.side];        // apex on one side
+            const Edge m = mirror(e);
+            const VertexId l = triangles_[m.tri].v[m.side];        // apex on the other
+            flip(SegmentType(vertices_[p], vertices_[q]));
+            if (properCross(A, B, vertices_[r], vertices_[l])) {
+                queue.push_back({r, l});  // new diagonal still crosses; re-queue
+            }
+        }
+        setConstrained(SegmentType(vertices_[va], vertices_[vb]), true);
+    }
+
+    // Restores the constrained Delaunay property: flip every non-constrained
+    // interior edge whose opposite apex lies inside the incident circumcircle,
+    // until none remain. Constrained edges are never flipped.
+    void restoreConstrainedDelaunay() {
+        bool changed = true;
+        std::size_t guard = 0, cap = triangles_.size() * triangles_.size() + 64;
+        while (changed && ++guard < cap) {
+            changed = false;
+            const auto snapshot = segToEdge_;
+            for (const auto& [seg, handle] : snapshot) {
+                (void)handle;
+                auto se = segToEdge_.find(seg);
+                if (se == segToEdge_.end() || !flippableEdge(se->second)) {
+                    continue;
+                }
+                const Edge cur = se->second;
+                const auto& T = triangles_[cur.tri];
+                const VertexId d = triangles_[mirror(cur).tri].v[mirror(cur).side];
+                if (inCircleSign(vertices_[T.v[0]], vertices_[T.v[1]], vertices_[T.v[2]],
+                                 vertices_[d]) == std::partial_ordering::greater) {
+                    flip(seg);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    // Flood-fills from the ghost (outside) across non-constrained edges, marking
+    // every real triangle reachable without crossing the polygon boundary as
+    // out-of-domain (the hull-fill triangles between polygon and convex hull).
+    void markOutOfDomain() {
+        std::vector<char> seen(triangles_.size(), 0);
+        std::vector<TriId> stack;
+        for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+            seen[g] = 1;
+            stack.push_back(g);
+        }
+        std::size_t marked = 0;
+        while (!stack.empty()) {
+            const TriId t = stack.back();
+            stack.pop_back();
+            for (int s = 0; s < 3; ++s) {
+                if (bit(triangles_[t].constrainedMask, s)) {
+                    continue;  // the polygon boundary fences off the interior
+                }
+                const TriId nb = triangles_[t].nbr[s];
+                if (nb == NO_TRI || seen[nb]) {
+                    continue;
+                }
+                seen[nb] = 1;
+                if (!isGhost(nb)) {
+                    triangles_[nb].outOfDomain = 1;
+                    ++marked;
+                }
+                stack.push_back(nb);
+            }
+        }
+        domainTriangleCount_ = static_cast<std::size_t>(firstGhost_) - marked;
+    }
+
     // Appends the ghost vertex, materializes the triangle records (normalized to
     // CCW) from vertex-index triples and their parallel labels, then links
     // adjacency and the edge map.
@@ -636,9 +1403,10 @@ struct Triangulation {
             }
             assert(orientationSign(vertices_[x], vertices_[y], vertices_[z]) > 0 &&
                    "Triangulation: degenerate triangle");
-            triangles_.push_back(Tri{{x, y, z}, {NO_TRI, NO_TRI, NO_TRI}, 0, triLabels[k]});
+            triangles_.push_back(Tri{{x, y, z}, {NO_TRI, NO_TRI, NO_TRI}, 0, 0, 0, triLabels[k]});
         }
         firstGhost_ = static_cast<TriId>(triangles_.size());
+        domainTriangleCount_ = static_cast<std::size_t>(firstGhost_);
         buildAdjacency();
         buildMap();
         assert(checkInvariants());
@@ -646,6 +1414,8 @@ struct Triangulation {
 
     // ---- internal predicates / mutation ----------------------------------
 
+    // True if edge e can be flipped: unconstrained, interior (both sides real),
+    // and the two incident triangles form a strictly convex quadrilateral.
     [[nodiscard]] bool flippableEdge(Edge e) const {
         const TriId t = e.tri;
         if (t == NO_TRI || bit(triangles_[t].constrainedMask, e.side)) {
@@ -665,6 +1435,11 @@ struct Triangulation {
         return (oa > 0 && ob < 0) || (oa < 0 && ob > 0);  // strictly convex quad
     }
 
+    // Replaces edge e by the opposite diagonal of its quadrilateral, rewriting
+    // the two incident triangle records and relinking the four outer neighbors.
+    // Surrounding constrained flags are carried over; the new diagonal is
+    // unconstrained. Does not touch segToEdge_ (callers re-register). Returns
+    // false if e is not flippable.
     bool flipEdge(Edge e) {
         if (!flippableEdge(e)) {
             return false;
@@ -712,7 +1487,12 @@ struct Triangulation {
         return true;
     }
 
-    [[nodiscard]] TriId locateId(const PointType& p) const {
+    // Locates the triangle containing p by a stochastic visibility walk (random
+    // start edge guarantees termination). Returns a ghost triangle if p is
+    // outside the triangulated region, NO_TRI only if empty. Seeds from, and
+    // updates, hint_; @p p may use a different point type.
+    template <class QueryPoint>
+    [[nodiscard]] TriId locateId(const QueryPoint& p) const {
         if (triangles_.empty()) {
             return NO_TRI;
         }
@@ -749,7 +1529,11 @@ struct Triangulation {
         return t;
     }
 
+    // Links neighbor pointers between real triangles sharing an edge, then closes
+    // every still-unmatched (boundary) edge with a ghost triangle to the ghost
+    // vertex and links those ghosts into a ring, so every edge has two sides.
     void buildAdjacency() {
+        // Undirected edge key (endpoints sorted) for matching the two sides.
         const auto key = [](VertexId u, VertexId w) {
             return u < w ? std::pair<VertexId, VertexId>{u, w} : std::pair<VertexId, VertexId>{w, u};
         };
@@ -813,5 +1597,13 @@ template <class SegmentRange>
 Triangulation(const SegmentRange&)
     -> Triangulation<Triangle<typename SegmentRange::value_type::PointType>,
                      typename SegmentRange::value_type>;
+
+template <class PointRange>
+    requires PointConcept<typename PointRange::value_type>
+Triangulation(const PointRange&)
+    -> Triangulation<Triangle<Point<typename PointRange::value_type::NumberType>>>;
+
+template <class PointType>
+Triangulation(const Polygon<PointType>&) -> Triangulation<Triangle<PointType>>;
 
 }  // namespace pgl
