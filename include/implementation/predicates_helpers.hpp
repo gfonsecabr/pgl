@@ -23,11 +23,11 @@ namespace detail {
 template <class T>
 struct is_area_cut_target : std::false_type {};
 
-template <class PointType>
-struct is_area_cut_target<Rectangle<PointType>> : std::true_type {};
+template <class PointType, class Label>
+struct is_area_cut_target<Rectangle<PointType, Label>> : std::true_type {};
 
-template <class PointType>
-struct is_area_cut_target<Triangle<PointType>> : std::true_type {};
+template <class PointType, class Label>
+struct is_area_cut_target<Triangle<PointType, Label>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_area_cut_target_v = is_area_cut_target<std::remove_cvref_t<T>>::value;

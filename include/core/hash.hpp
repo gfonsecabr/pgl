@@ -196,10 +196,10 @@ namespace std {
     /**
      * @brief Hash support for Triangle.
      */
-    template <class PointType>
-    struct hash<pgl::Triangle<PointType>> {
-        std::size_t operator()(const pgl::Triangle<PointType>& triangle) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::Triangle<PointType>>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Triangle<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Triangle<PointType, LabelType>& triangle) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::Triangle<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, triangle.a());
             pgl::detail::hashCombine(seed, triangle.b());
             pgl::detail::hashCombine(seed, triangle.c());
