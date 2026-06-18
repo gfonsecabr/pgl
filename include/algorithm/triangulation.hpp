@@ -1331,11 +1331,18 @@ struct Triangulation {
             return q[0] == INF || q[1] == INF || q[2] == INF;
         };
 
-        // Strict inside-circumdisk test, finite or ghost. The circle through two
-        // finite points and INF degenerates to the line through them, so for a
-        // ghost {.,.,INF} "inside the open disk" reduces to "strictly left of the
-        // finite directed edge" (the edge opposite INF, in CCW order so its left
-        // is the hull exterior) — a plain orientation test.
+        // Inside-circumdisk test, finite or ghost. The circle through two finite
+        // points and INF degenerates to the line through them, so for a ghost
+        // {.,.,INF} "inside the open disk" reduces to "left of the finite directed
+        // edge" (the edge opposite INF, in CCW order so its left is the hull
+        // exterior).
+        //
+        // The collinear boundary case (orientation 0) is decided so the re-fan
+        // never builds a zero-area triangle: p exactly on the open hull-edge
+        // segment counts as inside, pulling the ghost into the cavity so the edge
+        // splits in two instead of spanning a degenerate {edge, p}. p on the
+        // edge's line but beyond an endpoint stays outside — the hull just extends
+        // straight along the line, no degenerate triangle either way.
         auto inDisk = [&](int t, VertexId p) -> bool {
             const auto& q = tri[t].v;
             const int inf = q[0] == INF ? 0 : (q[1] == INF ? 1 : (q[2] == INF ? 2 : -1));
@@ -1345,7 +1352,15 @@ struct Triangulation {
             }
             const VertexId u = q[(inf + 1) % 3];
             const VertexId w = q[(inf + 2) % 3];
-            return orientationSign(pts[u], pts[w], pts[p]) == std::partial_ordering::greater;
+            const auto side = orientationSign(pts[u], pts[w], pts[p]);
+            if (side > 0) {
+                return true;
+            }
+            if (side == 0) {  // collinear: inside iff strictly between u and w
+                return (pts[p] - pts[u]) * (pts[w] - pts[u]) > 0 &&
+                       (pts[p] - pts[w]) * (pts[u] - pts[w]) > 0;
+            }
+            return false;
         };
 
         // Seed with the first non-collinear triple, oriented CCW, plus the three
