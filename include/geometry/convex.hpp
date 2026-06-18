@@ -147,28 +147,29 @@ constexpr RandomIt cyclicMaxOrPositive(RandomIt first, RandomIt last, Key key = 
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Convex;
 
-Convex() -> Convex<Point<>>;
+Convex() -> Convex<Point<>, NoLabel>;
 
 template <std::ranges::input_range Range>
 requires detail::is_point_v<std::ranges::range_value_t<Range>>
-Convex(Range&&) -> Convex<std::remove_cvref_t<std::ranges::range_value_t<Range>>>;
+Convex(Range&&) -> Convex<std::remove_cvref_t<std::ranges::range_value_t<Range>>, NoLabel>;
 
 template <class Number>
 requires (!detail::is_point_v<Number>)
-Convex(std::initializer_list<Number>) -> Convex<Point<Number>>;
+Convex(std::initializer_list<Number>) -> Convex<Point<Number>, NoLabel>;
 
 template <class Number>
 requires (!detail::is_point_v<Number>)
-Convex(std::initializer_list<Number>, bool) -> Convex<Point<Number>>;
+Convex(std::initializer_list<Number>, bool) -> Convex<Point<Number>, NoLabel>;
 
 
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Convex {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
+    using LabelType = TLabel;
     static_assert(detail::is_point_v<PointType>, "Convex requires pgl::Point vertices");
 
     template <bool Oriented>
@@ -239,9 +240,30 @@ struct Convex {
      * @tparam OtherPointType Source vertex type.
      * @param other Source convex.
      */
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Convex(const Convex<OtherPointType>& other) : points_(other.begin(), other.end()) {}
+    constexpr Convex(const Convex<OtherPointType, OtherLabelType>& other)
+        : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
+
+    /**
+     * @brief Returns the convex-polygon label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the convex-polygon label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Accesses a vertex by index.
@@ -1733,6 +1755,7 @@ struct Convex {
 
   private:
     std::vector<PointType> points_{};
+    [[no_unique_address]] LabelType label_{};
     PointType translation_{};
     // Lazily computed caches, invalidated by resetCache() on every mutation.
     // bbox_ is empty and maxIndex_ is -1 until first computed.
@@ -1860,50 +1883,62 @@ struct Convex {
     };
 }; // class Convex
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Convex<PointType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Convex<PointType, LabelType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {
     return translation + convex;
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Convex<PointType>& convex) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Convex<PointType, LabelType>& convex) {
     using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    Convex<ResultPointType> result(convex);
+    Convex<ResultPointType, LabelType> result(convex);
     result += translation;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Convex<PointType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Convex<PointType, LabelType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {
     return convex + (-translation);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Convex<PointType>& convex, const Scalar& scalar) {
+constexpr auto operator*(const Convex<PointType, LabelType>& convex, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() * scalar), typename PointType::LabelType>;
-    Convex<ResultPointType> result(convex);
+    Convex<ResultPointType, LabelType> result(convex);
     result *= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Convex<PointType>& convex) {
+constexpr auto operator*(const Scalar& scalar, const Convex<PointType, LabelType>& convex) {
     return convex * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Convex<PointType>& convex, const Scalar& scalar) {
+constexpr auto operator/(const Convex<PointType, LabelType>& convex, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() / scalar), typename PointType::LabelType>;
-    Convex<ResultPointType> result(convex);
+    Convex<ResultPointType, LabelType> result(convex);
     result /= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Convex<PointType>& convex) {
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Convex<PointType, LabelType>& convex) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << convex.label() << ':';
+    }
     stream << "Convex[";
     for (size_t i = 0; i < convex.size(); ++i) {
         if (i > 0) {

@@ -409,8 +409,8 @@ constexpr Point<ResultNumber> Halfplane<PointType, LabelType>::pointInside() con
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
-constexpr auto Convex<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr auto Convex<PointType, LabelType>::twiceArea() const {
     if (points_.size() < 3) {
         return NumberType(0);
     }
@@ -423,16 +423,16 @@ constexpr auto Convex<PointType>::twiceArea() const {
     return pgl::detail::abs(sum);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr auto Convex<PointType>::area() const {
+constexpr auto Convex<PointType, LabelType>::area() const {
     ResultNumber result = static_cast<ResultNumber>(twiceArea());
     return result / ResultNumber(2);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Convex<PointType>::centroid() const {
+constexpr Point<ResultNumber> Convex<PointType, LabelType>::centroid() const {
     if (points_.empty()) {
         return Point<ResultNumber>();
     }
@@ -458,9 +458,9 @@ constexpr Point<ResultNumber> Convex<PointType>::centroid() const {
            + static_cast<Point<ResultNumber>>(translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Convex<PointType>::verticesCentroid() const {
+constexpr Point<ResultNumber> Convex<PointType, LabelType>::verticesCentroid() const {
     if (points_.empty()) {
         return Point<ResultNumber>();
     }
@@ -474,9 +474,9 @@ constexpr Point<ResultNumber> Convex<PointType>::verticesCentroid() const {
            + static_cast<Point<ResultNumber>>(translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Convex<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Convex<PointType, LabelType>::pointInside() const {
     if (points_.empty()) {
         return Point<ResultNumber>();
     }
@@ -495,9 +495,9 @@ constexpr Point<ResultNumber> Convex<PointType>::pointInside() const {
            + static_cast<Point<ResultNumber>>(translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 constexpr std::vector<std::pair<std::size_t, std::size_t>>
-Convex<PointType>::antipodalPairs() const {
+Convex<PointType, LabelType>::antipodalPairs() const {
     const std::size_t n = size();
     std::vector<std::pair<std::size_t, std::size_t>> pairs;
     if (n < 2) {
@@ -577,8 +577,8 @@ Convex<PointType>::antipodalPairs() const {
     return pairs;
 }
 
-template <class PointType>
-constexpr Segment<PointType> Convex<PointType>::diameter() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType> Convex<PointType, LabelType>::diameter() const {
     const std::size_t n = size();
     if (n == 0) {
         return Segment<PointType>();

@@ -92,7 +92,7 @@ template <class PointType, class Label = NoLabel>
 struct Triangle;
 
 /** @brief Closed convex polygon stored by its vertices. */
-template <class PointType>
+template <class PointType, class Label = NoLabel>
 struct Convex;
 
 /** @brief Closed simple polygon stored by its vertices. */
@@ -147,8 +147,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Triangle<PointType, Label>> = 90;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Disk<PointType, Label>> = 100;
-template <class PointType>
-inline constexpr int shapeRank<Convex<PointType>> = 110;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Convex<PointType, Label>> = 110;
 template <class PointType>
 inline constexpr int shapeRank<Polygon<PointType>> = 120;
 
@@ -198,7 +198,7 @@ template <class PointType, class Label> struct is_triangle<Triangle<PointType, L
 template <class T> inline constexpr bool is_triangle_v = is_triangle<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_convex : std::false_type {};
-template <class PointType> struct is_convex<Convex<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_convex<Convex<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_convex_v = is_convex<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_polygon : std::false_type {};

@@ -498,78 +498,78 @@ constexpr bool Halfplane<PointType, LabelType>::crosses(const Shape<PointType>& 
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Convex<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Convex<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return crosses(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Convex<PointType>::crosses(const OtherLine& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Convex<PointType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
     return crosses(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Convex<PointType>::crosses(const OtherRay& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Convex<PointType>::crosses(const OtherHalfplane&) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherHalfplane&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Convex<PointType>::crosses(const OtherRectangle& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherRectangle& other) const {
     return crosses(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Convex<PointType>::crosses(const OtherTriangle& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherTriangle& other) const {
     return crosses(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Convex<PointType>::crosses(const OtherConvex& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherConvex& other) const {
     if (bbox().crosses(other.bbox())) {
         return true;
     }
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Convex<PointType>::crosses(const OtherDisk& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const OtherDisk& other) const {
     return (separates(other) && other.separates(*this));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
-constexpr bool Convex<PointType>::crosses(const Shape<OtherPoint>& other) const {
+constexpr bool Convex<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

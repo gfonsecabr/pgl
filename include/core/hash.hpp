@@ -230,10 +230,10 @@ namespace std {
     /**
      * @brief Hash support for Convex.
      */
-    template <class PointType>
-    struct hash<pgl::Convex<PointType>> {
-        std::size_t operator()(const pgl::Convex<PointType>& convex) const {
-            using Shape = pgl::Convex<PointType>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Convex<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Convex<PointType, LabelType>& convex) const {
+            using Shape = pgl::Convex<PointType, LabelType>;
             if (convex.hash_ != Shape::hashUnset_) {
                 return convex.hash_;
             }

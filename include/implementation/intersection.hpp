@@ -1134,9 +1134,9 @@ constexpr auto Triangle<PointType, LabelType>::intersection(const OtherTriangle&
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherSegment& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherSegment& other) const {
     auto isec = this->template intersection<ResultNumber>(Line<typename OtherSegment::PointType>(other));
     if (!isec) {
         return {};
@@ -1153,15 +1153,15 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     return seg.template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherOrientedSegment& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return intersection<ResultNumber>(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherLine& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherLine& other) const {
     if (points_.empty()) {
         return {};
     }
@@ -1363,15 +1363,15 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
                                                                       translatePoint(points.back()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherOrientedLine& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
     return intersection<ResultNumber>(Line<typename OtherOrientedLine::PointType>(other[0], other[1]));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherRay& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherRay& other) const {
     auto line_isec =  intersection<ResultNumber>(Line<typename OtherRay::PointType>(other[0], other[1]));
     if (!line_isec) {
         return {};
@@ -1388,21 +1388,21 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     return seg.template intersection<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherRectangle& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherRectangle& other) const {
     return intersection<ResultNumber>(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherTriangle& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherTriangle& other) const {
     return intersection<ResultNumber>(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, ConvexConcept OtherConvex>
-constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType>::intersection(const OtherConvex& other) const {
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherConvex& other) const {
     if (size() == 0 || other.size() == 0 || !intersects(other)) {
         return {};
     }

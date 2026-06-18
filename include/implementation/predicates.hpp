@@ -825,13 +825,13 @@ constexpr bool Halfplane<PointType, LabelType>::verticesContain(const OtherPoint
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
-constexpr bool Convex<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool Convex<PointType, LabelType>::isDegenerate() const {
     return size() < 3;
 }
 
-template <class PointType>
-constexpr size_t Convex<PointType>::maxIndex() const {
+template <class PointType, class LabelType>
+constexpr size_t Convex<PointType, LabelType>::maxIndex() const {
     assert(size() != 0);
     if (maxIndex_ >= 0) {
         return static_cast<size_t>(maxIndex_);
@@ -858,9 +858,9 @@ constexpr size_t Convex<PointType>::maxIndex() const {
     return lo;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool Convex<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     if (points_.empty()) {
         return false;
     }
@@ -893,8 +893,8 @@ constexpr bool Convex<PointType>::verticesContain(const OtherPoint& point) const
     return translatedPoint == points_[0] || translatedPoint == points_[max_i];
 }
 
-template <class PointType>
-constexpr std::ptrdiff_t Convex<PointType>::index(const PointType& point) const {
+template <class PointType, class LabelType>
+constexpr std::ptrdiff_t Convex<PointType, LabelType>::index(const PointType& point) const {
     const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
     if (n == 0) {
         return -1;

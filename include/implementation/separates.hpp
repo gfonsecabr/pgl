@@ -1190,67 +1190,67 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const Shape<PointType>
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const OtherPoint&) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Convex<PointType>::separates(const OtherSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherSegment& other) const {
     // A contact anywhere on the convex polygon -- boundary touch included --
     // leaves a piece of the segment on each side when both endpoints are
     // outside, so this gates on closed intersection, not interior crossing.
     return !other.isDegenerate() && !contains(other.min()) && !contains(other.max()) && intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Convex<PointType>::separates(const OtherOrientedSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     return separates(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Convex<PointType>::separates(const OtherLine& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherLine& other) const {
     return !other.isDegenerate() && intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Convex<PointType>::separates(const OtherOrientedLine& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     return separates(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Convex<PointType>::separates(const OtherRay& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherRay& other) const {
     return !other.isDegenerate() && !isDegenerate() &&
            !contains(other.source()) && intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Convex<PointType>::separates(const OtherHalfplane&) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherHalfplane&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Convex<PointType>::separates(const OtherRectangle& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherRectangle& other) const {
     return separates(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Convex<PointType>::separates(const OtherTriangle& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherTriangle& other) const {
     return separates(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Convex<PointType>::separates(const OtherConvex& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1316,9 +1316,9 @@ constexpr bool Convex<PointType>::separates(const OtherConvex& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Convex<PointType>::separates(const OtherDisk& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherDisk& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1512,9 +1512,9 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherDisk&) const {
     return false;  // a disk never separates another disk
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
-constexpr bool Convex<PointType>::separates(const Shape<OtherPoint>& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->separates(value);
@@ -1693,9 +1693,9 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherPolygon& oth
     return asConvex().separates(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Convex<PointType>::separates(const OtherPolygon& other) const {
+constexpr bool Convex<PointType, LabelType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
