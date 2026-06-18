@@ -148,7 +148,7 @@ std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& 
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelType>& rectangle) {
     if constexpr (detail::has_label_v<LabelType>) {
-        stream << rectangle.label() << ":{[" << rectangle.min() << ',' << rectangle.max() << "]}";
+        stream << rectangle.label() << ":[" << rectangle.min() << ',' << rectangle.max() << "]";
     } else {
         stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
     }
@@ -165,9 +165,13 @@ std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelT
  * @param triangle Triangle to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Triangle<PointType>& triangle) {
-    stream << '<' << triangle.a() << triangle.b() << triangle.c() << '>';
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Triangle<PointType, LabelType>& triangle) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << triangle.label() << ":<" << triangle.a() << triangle.b() << triangle.c() << ">";
+    } else {
+        stream << '<' << triangle.a() << triangle.b() << triangle.c() << '>';
+    }
     return stream;
 }
 

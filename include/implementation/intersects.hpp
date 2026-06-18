@@ -102,15 +102,15 @@ constexpr bool Segment<PointType, LabelType>::intersects(const Shape<PointType>&
  * triangle-vs-rectangle and triangle-vs-triangle topological cases.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Triangle<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -131,15 +131,15 @@ constexpr bool Triangle<PointType>::intersects(const OtherLine& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Triangle<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     return intersects(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Triangle<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherSegment& other) const {
     // Either an endpoint lies in the closed triangle, or the segment crosses
     // one of the triangle's edges.
     if (contains(other.min()) || contains(other.max())) {
@@ -153,15 +153,15 @@ constexpr bool Triangle<PointType>::intersects(const OtherSegment& other) const 
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Triangle<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Triangle<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherRay& other) const {
     // Either the source lies in the closed triangle, or the ray crosses an edge.
     if (contains(other.source())) {
         return true;
@@ -174,9 +174,9 @@ constexpr bool Triangle<PointType>::intersects(const OtherRay& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Triangle<PointType>::intersects(const OtherHalfplane& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
     if (other.contains(a()) || other.contains(b()) || other.contains(c())) {
         return true;
     }
@@ -188,9 +188,9 @@ constexpr bool Triangle<PointType>::intersects(const OtherHalfplane& other) cons
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Triangle<PointType>::intersects(const OtherRectangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherRectangle& other) const {
     if (other.contains(a()) || other.contains(b()) || other.contains(c())) {
         return true;
     }
@@ -209,9 +209,9 @@ constexpr bool Triangle<PointType>::intersects(const OtherRectangle& other) cons
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Triangle<PointType>::intersects(const OtherTriangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::intersects(const OtherTriangle& other) const {
     if (contains(other.a()) || contains(other.b()) || contains(other.c()) ||
         other.contains(a()) || other.contains(b()) || other.contains(c())) {
         return true;
@@ -228,8 +228,8 @@ constexpr bool Triangle<PointType>::intersects(const OtherTriangle& other) const
     return false;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);

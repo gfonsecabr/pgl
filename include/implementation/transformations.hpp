@@ -1074,9 +1074,9 @@ constexpr void Rectangle<PointType, LabelType>::scaleDownY(const OtherNumber sca
 // -----------------------------------------------------------------------------
 // Triangle
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Triangle<PointType>& Triangle<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     points_[2] += translation;
@@ -1084,9 +1084,9 @@ constexpr Triangle<PointType>& Triangle<PointType>::operator+=(const OtherPoint&
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Triangle<PointType>& Triangle<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     points_[2] -= translation;
@@ -1094,10 +1094,10 @@ constexpr Triangle<PointType>& Triangle<PointType>::operator-=(const OtherPoint&
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Triangle<PointType>& Triangle<PointType>::operator*=(const Scalar& scalar) {
+constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
     points_[2] *= scalar;
@@ -1105,10 +1105,10 @@ constexpr Triangle<PointType>& Triangle<PointType>::operator*=(const Scalar& sca
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Triangle<PointType>& Triangle<PointType>::operator/=(const Scalar& scalar) {
+constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
     points_[2] /= scalar;
@@ -1116,95 +1116,117 @@ constexpr Triangle<PointType>& Triangle<PointType>::operator/=(const Scalar& sca
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Triangle(triangle.a() + translation, triangle.b() + translation, triangle.c() + translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = triangle.a() + translation;
+    const auto second = triangle.b() + translation;
+    const auto third = triangle.c() + translation;
+    return Triangle<std::decay_t<decltype(first)>, LabelType>(first, second, third);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType>& triangle) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType, LabelType>& triangle) {
     return triangle + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return Triangle(triangle.a() - translation, triangle.b() - translation, triangle.c() - translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+    const auto first = triangle.a() - translation;
+    const auto second = triangle.b() - translation;
+    const auto third = triangle.c() - translation;
+    return Triangle<std::decay_t<decltype(first)>, LabelType>(first, second, third);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Triangle<PointType>& triangle, const Scalar& scalar) {
-    return Triangle(triangle.a() * scalar, triangle.b() * scalar, triangle.c() * scalar);
+constexpr auto operator*(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar) {
+    const auto first = triangle.a() * scalar;
+    const auto second = triangle.b() * scalar;
+    const auto third = triangle.c() * scalar;
+    return Triangle<std::decay_t<decltype(first)>, LabelType>(first, second, third);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Triangle<PointType>& triangle) {
+constexpr auto operator*(const Scalar& scalar, const Triangle<PointType, LabelType>& triangle) {
     return triangle * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Triangle<PointType>& triangle, const Scalar& scalar) {
-    return Triangle(triangle.a() / scalar, triangle.b() / scalar, triangle.c() / scalar);
+constexpr auto operator/(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar) {
+    const auto first = triangle.a() / scalar;
+    const auto second = triangle.b() / scalar;
+    const auto third = triangle.c() / scalar;
+    return Triangle<std::decay_t<decltype(first)>, LabelType>(first, second, third);
 }
 
-template <class PointType>
-constexpr Triangle<PointType> Triangle<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Triangle<PointType, LabelType> Triangle<PointType, LabelType>::rotated90(int k) const {
     return Triangle(a().rotated90(k), b().rotated90(k), c().rotated90(k));
 }
 
-template <class PointType>
-constexpr void Triangle<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Triangle<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
     *this = rotated90(k);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Triangle<PointType> Triangle<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Triangle<PointType, LabelType> Triangle<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     return Triangle(a().scaledUpX(scalar), b().scaledUpX(scalar), c().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Triangle<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Triangle<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Triangle<PointType> Triangle<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Triangle<PointType, LabelType> Triangle<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     return Triangle(a().scaledUpY(scalar), b().scaledUpY(scalar), c().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Triangle<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Triangle<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpY(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Triangle<PointType> Triangle<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Triangle<PointType, LabelType> Triangle<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     return Triangle(a().scaledDownX(scalar), b().scaledDownX(scalar), c().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Triangle<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Triangle<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Triangle<PointType> Triangle<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Triangle<PointType, LabelType> Triangle<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     return Triangle(a().scaledDownY(scalar), b().scaledDownY(scalar), c().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Triangle<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Triangle<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownY(scalar);
+    label_ = std::move(saved);
 }
 
 // -----------------------------------------------------------------------------

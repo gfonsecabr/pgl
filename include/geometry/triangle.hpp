@@ -23,16 +23,19 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Triangle;
 
-Triangle() -> Triangle<Point<>>;
+Triangle() -> Triangle<Point<>, NoLabel>;
 
 template <class PointType>
-Triangle(PointType, PointType, PointType) -> Triangle<PointType>;
+Triangle(PointType, PointType, PointType) -> Triangle<PointType, NoLabel>;
+
+template <class PointType, class A>
+Triangle(PointType, PointType, PointType, A) -> Triangle<PointType, std::decay_t<A>>;
 
 template <class Number>
-Triangle(Number, Number, Number, Number, Number, Number) -> Triangle<Point<Number>>;
+Triangle(Number, Number, Number, Number, Number, Number) -> Triangle<Point<Number>, NoLabel>;
 
 /**
  * @brief Closed triangle represented by three canonicalized vertices.
@@ -44,13 +47,14 @@ Triangle(Number, Number, Number, Number, Number, Number) -> Triangle<Point<Numbe
  *
  * @tparam PointType_ Vertex point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Triangle {
     /** Type of the triangle vertices. */
     using PointType = PointType_;
     /** Type of the vertex coordinates. */
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    /** Optional label type carried with the triangle. */
+    using LabelType = TLabel;
 
     /** Standard range/container typedefs over the vertex sequence. */
     using value_type = PointType;
@@ -104,15 +108,37 @@ struct Triangle {
         : Triangle(PointType(x1, y1), PointType(x2, y2), PointType(x3, y3)) {}
 
     /**
+     * @brief Creates a triangle from three vertices and stores a label.
+     *
+     * The stored vertices are canonicalized as in the unlabeled constructor.
+     *
+     * @tparam A Type convertible to @ref LabelType.
+     */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Triangle(PointType first, PointType second, PointType third, A&& label)
+        : points_(canonicalizeVertices(std::move(first), std::move(second), std::move(third))),
+          label_(std::forward<A>(label)) {}
+
+    /** @brief Same as the six-coordinate constructor, and stores a label. */
+    template <class A>
+        requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
+    constexpr Triangle(NumberType x1, NumberType y1, NumberType x2, NumberType y2,
+                       NumberType x3, NumberType y3, A&& label)
+        : Triangle(PointType(x1, y1), PointType(x2, y2), PointType(x3, y3), std::forward<A>(label)) {}
+
+    /**
      * @brief Converts a triangle with compatible vertex type.
      *
      * @tparam OtherPointType Source vertex type.
      * @param other Source triangle.
      */
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Triangle(const Triangle<OtherPointType>& other)
-        : Triangle(PointType(other.a()), PointType(other.b()), PointType(other.c())) {}
+    constexpr Triangle(const Triangle<OtherPointType, OtherLabelType>& other)
+        : Triangle(PointType(other.a()), PointType(other.b()), PointType(other.c())) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
 
     /**
      * @brief Assigns from a triangle with compatible vertex type.
@@ -121,13 +147,14 @@ struct Triangle {
      * @param other Source triangle.
      * @return This triangle.
      */
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Triangle& operator=(const Triangle<OtherPointType>& other) {
+    constexpr Triangle& operator=(const Triangle<OtherPointType, OtherLabelType>& other) {
         points_ = canonicalizeVertices(
             PointType(other.a()),
             PointType(other.b()),
             PointType(other.c()));
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -240,7 +267,33 @@ struct Triangle {
      * @param other Triangle to compare with.
      * @return Comparison result.
      */
-    constexpr auto operator<=>(const Triangle& other) const = default;
+    constexpr bool operator==(const Triangle& other) const {
+        return points_ == other.points_;
+    }
+
+    constexpr auto operator<=>(const Triangle& other) const {
+        return points_ <=> other.points_;
+    }
+
+    /**
+     * @brief Returns the triangle label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the triangle label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Returns twice the area of the triangle.
@@ -1118,37 +1171,38 @@ struct Triangle {
     }
 
     std::array<PointType, 3> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
 /** @brief Returns a translated copy of a triangle. */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /** @brief Returns a translated copy of a triangle with the translation on the left. */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType>& triangle);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType, LabelType>& triangle);
 
 /** @brief Returns a copy of a triangle translated by the opposite point. */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Triangle<PointType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /** @brief Returns a scaled copy of a triangle. */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Triangle<PointType>& triangle, const Scalar& scalar);
+constexpr auto operator*(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar);
 
 /** @brief Returns a scaled copy of a triangle with the scalar on the left. */
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Triangle<PointType>& triangle);
+constexpr auto operator*(const Scalar& scalar, const Triangle<PointType, LabelType>& triangle);
 
 /** @brief Returns a copy of a triangle divided by a scalar. */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Triangle<PointType>& triangle, const Scalar& scalar);
+constexpr auto operator/(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar);
 
 /** @brief Streams a triangle as `<abc>` using canonical vertex order. */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Triangle<PointType>& triangle);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Triangle<PointType, LabelType>& triangle);
 
 }  // namespace pgl

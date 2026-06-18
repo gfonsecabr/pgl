@@ -201,14 +201,14 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherOrientedSegmen
  * triangle-vs-rectangle and triangle-vs-triangle topological cases.
  */
 
-template <class PointType>
-constexpr bool Triangle<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isDegenerate() const {
     return twiceArea() == decltype(twiceArea()){};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool Triangle<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return a().contains(point) || b().contains(point) || c().contains(point);
 }
 

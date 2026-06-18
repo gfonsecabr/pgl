@@ -501,9 +501,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const O
 // -----------------------------------------------------------------------------
 // Triangle
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
-constexpr ResultNumber Triangle<PointType>::edgeMinSquaredDistance(const OtherShape& other) const {
+constexpr ResultNumber Triangle<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
     const auto triangle_edges = edges();
     auto best = static_cast<ResultNumber>(triangle_edges[0].template squaredDistance<ResultNumber>(other));
     for (std::size_t index = 1; index < triangle_edges.size(); ++index) {
@@ -515,9 +515,9 @@ constexpr ResultNumber Triangle<PointType>::edgeMinSquaredDistance(const OtherSh
     return best;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
-constexpr ResultNumber Triangle<PointType>::vertexMinSquaredDistance(const OtherShape& other) const {
+constexpr ResultNumber Triangle<PointType, LabelType>::vertexMinSquaredDistance(const OtherShape& other) const {
     const auto triangle_vertices = vertices();
     auto best = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(triangle_vertices[0]));
     for (std::size_t index = 1; index < triangle_vertices.size(); ++index) {
@@ -529,63 +529,63 @@ constexpr ResultNumber Triangle<PointType>::vertexMinSquaredDistance(const Other
     return best;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     if (intersects(point)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template vertexMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template vertexMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherRay& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto Triangle<PointType>::squaredDistance(const OtherRectangle& other) const {
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }

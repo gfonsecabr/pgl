@@ -278,21 +278,21 @@ constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::pointInside() con
 // -----------------------------------------------------------------------------
 // Triangle
 
-template <class PointType>
-constexpr typename Triangle<PointType>::NumberType Triangle<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr typename Triangle<PointType, LabelType>::NumberType Triangle<PointType, LabelType>::twiceArea() const {
     return static_cast<NumberType>(detail::abs(orientationDeterminant(a(), b(), c())));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr ResultNumber Triangle<PointType>::area() const {
+constexpr ResultNumber Triangle<PointType, LabelType>::area() const {
     const auto area2 = twiceArea();
     return static_cast<ResultNumber>(area2) / static_cast<ResultNumber>(2);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Triangle<PointType>::centroid() const {
+constexpr Point<ResultNumber> Triangle<PointType, LabelType>::centroid() const {
     const ResultNumber three = static_cast<ResultNumber>(3);
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(a().x()) +
@@ -303,13 +303,13 @@ constexpr Point<ResultNumber> Triangle<PointType>::centroid() const {
          static_cast<ResultNumber>(c().y())) / three);
 }
 
-template <class PointType>
-constexpr Disk<PointType, NoLabel> Triangle<PointType>::circumcircle() const {
+template <class PointType, class LabelType>
+constexpr Disk<PointType, NoLabel> Triangle<PointType, LabelType>::circumcircle() const {
     return Disk<PointType, NoLabel>(a(), b(), c());
 }
 
-template <class PointType>
-constexpr Segment<PointType> Triangle<PointType>::diameter() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType> Triangle<PointType, LabelType>::diameter() const {
     const auto ab = a().squaredDistance(b());
     const auto bc = b().squaredDistance(c());
     const auto ca = c().squaredDistance(a());
@@ -327,16 +327,16 @@ constexpr Segment<PointType> Triangle<PointType>::diameter() const {
     return Segment<PointType>(c(), a());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Triangle<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Triangle<PointType, LabelType>::pointInside() const {
     Point<ResultNumber> p = points_[0] + points_[1];
     p = (p/2 + points_[2])/2;
     return p;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::isRectangle() const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isRectangle() const {
     if (isDegenerate()) {
         return false;
     }
@@ -351,8 +351,8 @@ constexpr bool Triangle<PointType>::isRectangle() const {
     return (ab * ac) == 0 || (ba * bc) == 0 || (ca * cb) == 0;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::isObtuse() const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isObtuse() const {
     if (isDegenerate()) {
         return false;
     }
@@ -367,8 +367,8 @@ constexpr bool Triangle<PointType>::isObtuse() const {
     return (ab * ac) < 0 || (ba * bc) < 0 || (ca * cb) < 0;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::isIsosceles() const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isIsosceles() const {
     const auto ab = a().squaredDistance(b());
     const auto bc = b().squaredDistance(c());
     const auto ca = c().squaredDistance(a());

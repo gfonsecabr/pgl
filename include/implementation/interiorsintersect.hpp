@@ -101,16 +101,16 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const Shape<Poi
  * triangle-vs-rectangle and triangle-vs-triangle topological cases.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -131,9 +131,9 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OtherLine& other) c
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherOrientedLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -154,9 +154,9 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OtherOrientedLine& 
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -165,33 +165,33 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OtherSegment& other
            other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherRay& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
     return interiorContains(other.source()) || other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherHalfplane& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
     return other.interiorContains(a()) || other.interiorContains(b()) || other.interiorContains(c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherRectangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -219,9 +219,9 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OtherRectangle& oth
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Triangle<PointType>::interiorsIntersect(const OtherTriangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -245,8 +245,8 @@ constexpr bool Triangle<PointType>::interiorsIntersect(const OtherTriangle& othe
     return other == *this;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::interiorsIntersect(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

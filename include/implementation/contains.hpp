@@ -192,9 +192,9 @@ constexpr bool Segment<PointType, LabelType>::contains(const Shape<OtherPoint>& 
  * triangle-vs-rectangle and triangle-vs-triangle topological cases.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Triangle<PointType>::contains(const OtherPoint& point) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherPoint& point) const {
     if (isDegenerate()) {
         return boundaryContains(point);
     }
@@ -212,45 +212,45 @@ constexpr bool Triangle<PointType>::contains(const OtherPoint& point) const {
     return !(has_negative && has_positive);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Triangle<PointType>::contains(const OtherSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherSegment& other) const {
     return contains(other.min()) && contains(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Triangle<PointType>::contains(const OtherOrientedSegment& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
     return contains(other.source()) && contains(other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Triangle<PointType>::contains(const OtherLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherLine& other) const {
     return other.isDegenerate() && contains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Triangle<PointType>::contains(const OtherOrientedLine& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Triangle<PointType>::contains(const OtherRay& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherRay& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Triangle<PointType>::contains(const OtherHalfplane& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherHalfplane& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Triangle<PointType>::contains(const OtherRectangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherRectangle& other) const {
     const auto vertices = other.vertices();
     for (const auto& vertex : vertices) {
         if (!contains(vertex)) {
@@ -260,15 +260,15 @@ constexpr bool Triangle<PointType>::contains(const OtherRectangle& other) const 
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Triangle<PointType>::contains(const OtherTriangle& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherTriangle& other) const {
     return contains(other.a()) && contains(other.b()) && contains(other.c());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Triangle<PointType>::contains(const OtherConvex& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -283,8 +283,8 @@ constexpr bool Triangle<PointType>::contains(const OtherConvex& other) const {
     return true;
 }
 
-template <class PointType>
-constexpr bool Triangle<PointType>::contains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return contains(value);
@@ -1432,9 +1432,9 @@ constexpr bool Rectangle<PointType, LabelType>::contains(const OtherPolygon& oth
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Triangle<PointType>::contains(const OtherPolygon& other) const {
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherPolygon& other) const {
     for (const auto& vertex : other) {
         if (!contains(vertex)) {
             return false;

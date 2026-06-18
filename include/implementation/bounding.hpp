@@ -217,24 +217,24 @@ constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType, LabelTy
 // -----------------------------------------------------------------------------
 // Triangle
 
-template <class PointType>
-constexpr Rectangle<PointType> Triangle<PointType>::bbox() const {
+template <class PointType, class LabelType>
+constexpr Rectangle<PointType> Triangle<PointType, LabelType>::bbox() const {
     return Rectangle<PointType>(points_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Triangle<PointType>::fbox() const {
+constexpr Rectangle<Point<ResultNumber>> Triangle<PointType, LabelType>::fbox() const {
     return bbox().template fbox<ResultNumber>();
 }
 
-template <class PointType>
-constexpr std::array<PointType, 3> Triangle<PointType>::vertices() const {
+template <class PointType, class LabelType>
+constexpr std::array<PointType, 3> Triangle<PointType, LabelType>::vertices() const {
     return points_;
 }
 
-template <class PointType>
-constexpr std::array<Segment<PointType>, 3> Triangle<PointType>::edges() const {
+template <class PointType, class LabelType>
+constexpr std::array<Segment<PointType>, 3> Triangle<PointType, LabelType>::edges() const {
     return {
         Segment<PointType>(a(), b()),
         Segment<PointType>(b(), c()),
@@ -242,8 +242,8 @@ constexpr std::array<Segment<PointType>, 3> Triangle<PointType>::edges() const {
     };
 }
 
-template <class PointType>
-constexpr std::array<OrientedSegment<PointType>, 3> Triangle<PointType>::orientedEdges() const {
+template <class PointType, class LabelType>
+constexpr std::array<OrientedSegment<PointType>, 3> Triangle<PointType, LabelType>::orientedEdges() const {
     return {
         OrientedSegment<PointType>(a(), b()),
         OrientedSegment<PointType>(b(), c()),
