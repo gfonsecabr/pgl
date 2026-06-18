@@ -108,11 +108,25 @@ struct Triangulation {
         requires TriangleConcept<typename TriangleRange::value_type>
     explicit Triangulation(const TriangleRange& tris) {
         std::unordered_map<PointType, VertexId> vid;
+        const auto idOfPoint = makeVertexInterner(vid);
+        // First pass: intern every vertex so vertices_ is complete, then keep it
+        // in Hilbert order for cache locality (see the point-set constructor) and
+        // rebuild the point->id map against the reordered vertices.
+        for (const auto& tr : tris) {
+            idOfPoint(tr[0]);
+            idOfPoint(tr[1]);
+            idOfPoint(tr[2]);
+        }
+        hilbertSort(vertices_);
+        vid.clear();
+        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+            vid.emplace(vertices_[i], i);
+        }
+        // Second pass: resolve each triangle's vertices against the reordered ids.
         std::vector<std::array<VertexId, 3>> triples;
         std::vector<TriangleLabel> triLabels;
-        const auto idOfPoint = makeVertexInterner(vid);
         for (const auto& tr : tris) {
-            triples.push_back({idOfPoint(tr[0]), idOfPoint(tr[1]), idOfPoint(tr[2])});
+            triples.push_back({vid.at(tr[0]), vid.at(tr[1]), vid.at(tr[2])});
             triLabels.push_back(detail::copyLabel<TriangleLabel>(tr));
         }
         buildFromTriples(triples, triLabels);
@@ -134,13 +148,25 @@ struct Triangulation {
     template <class SegmentRange>
         requires SegmentConcept<typename SegmentRange::value_type>
     explicit Triangulation(const SegmentRange& segs) {
-        // Intern endpoints and collect the edges as vertex-id pairs.
+        // Intern endpoints so vertices_ is complete, then keep it in Hilbert
+        // order for cache locality (see the point-set constructor) and rebuild
+        // the point->id map against the reordered vertices.
         std::unordered_map<PointType, VertexId> vid;
         const auto idOfPoint = makeVertexInterner(vid);
+        for (const auto& s : segs) {
+            idOfPoint(s[0]);
+            idOfPoint(s[1]);
+        }
+        hilbertSort(vertices_);
+        vid.clear();
+        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+            vid.emplace(vertices_[i], i);
+        }
+        // Collect the edges as vertex-id pairs against the reordered ids.
         std::vector<std::pair<VertexId, VertexId>> elist;
         for (const auto& s : segs) {
-            VertexId a = idOfPoint(s[0]);
-            VertexId b = idOfPoint(s[1]);
+            VertexId a = vid.at(s[0]);
+            VertexId b = vid.at(s[1]);
             if (a != b) {
                 elist.emplace_back(a, b);
             }
@@ -237,6 +263,13 @@ struct Triangulation {
         for (const auto& p : pts) {
             idOfPoint(PointType(p));
         }
+        // Store the vertices in Hilbert-curve order: spatially close points then
+        // sit close together both in vertices_ and — because triangles are
+        // created in insertion order — in triangles_. That keeps the incremental
+        // build's point-location walks short (each is seeded from the previous
+        // insertion) and improves cache locality for later query walks too.
+        // Vertex order is purely internal, so this is transparent downstream.
+        hilbertSort(vertices_);
         auto triples = delaunayTriples(vertices_);
         buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
     }
@@ -257,10 +290,21 @@ struct Triangulation {
     explicit Triangulation(const Polygon<PointType>& poly) {
         std::unordered_map<PointType, VertexId> vid;
         const auto idOfPoint = makeVertexInterner(vid);
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            idOfPoint(poly[i]);
+        }
+        // Keep vertices_ in Hilbert order (see the point-set constructor). The
+        // interner's indices are now stale, so rebuild the point->index map and
+        // resolve the boundary loop against the reordered vertices.
+        hilbertSort(vertices_);
+        vid.clear();
+        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+            vid.emplace(vertices_[i], i);
+        }
         std::vector<VertexId> loop;
         loop.reserve(poly.size());
         for (std::size_t i = 0; i < poly.size(); ++i) {
-            loop.push_back(idOfPoint(poly[i]));
+            loop.push_back(vid.at(poly[i]));
         }
         auto triples = delaunayTriples(vertices_);
         buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
