@@ -228,50 +228,50 @@ constexpr Point<ResultNumber> Ray<PointType, LabelType>::pointInside() const {
 // -----------------------------------------------------------------------------
 // Rectangle
 
-template <class PointType>
-constexpr auto Rectangle<PointType>::area() const {
+template <class PointType, class LabelType>
+constexpr auto Rectangle<PointType, LabelType>::area() const {
     return width() * height();
 }
 
-template <class PointType>
-constexpr auto Rectangle<PointType>::twiceArea() const {
+template <class PointType, class LabelType>
+constexpr auto Rectangle<PointType, LabelType>::twiceArea() const {
     const auto rectangle_area = area();
     return rectangle_area + rectangle_area;
 }
 
-template <class PointType>
-constexpr Segment<PointType> Rectangle<PointType>::diameter() const {
+template <class PointType, class LabelType>
+constexpr Segment<PointType> Rectangle<PointType, LabelType>::diameter() const {
     return Segment<PointType>(min(), max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Rectangle<PointType>::midpoint() const {
+constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::midpoint() const {
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
         (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Rectangle<PointType>::centroid() const {
+constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::centroid() const {
     return midpoint<ResultNumber>();
 }
 
-template <class PointType>
-constexpr Disk<PointType, NoLabel> Rectangle<PointType>::circumcircle() const {
+template <class PointType, class LabelType>
+constexpr Disk<PointType, NoLabel> Rectangle<PointType, LabelType>::circumcircle() const {
     return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly 
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Rectangle<PointType>::center() const {
+constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::center() const {
     return midpoint<ResultNumber>();
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber>
-constexpr Point<ResultNumber> Rectangle<PointType>::pointInside() const {
+constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::pointInside() const {
     return midpoint<ResultNumber>();
 }
 

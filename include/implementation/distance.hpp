@@ -367,9 +367,9 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherRay& 
 // -----------------------------------------------------------------------------
 // Rectangle
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Left, class Right>
-constexpr auto Rectangle<PointType>::axisDistance(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max)
+constexpr auto Rectangle<PointType, LabelType>::axisDistance(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max)
     -> std::common_type_t<Left, Right> {
     using Distance = std::common_type_t<Left, Right>;
 
@@ -384,9 +384,9 @@ constexpr auto Rectangle<PointType>::axisDistance(const Left& first_min, const L
     return Distance{};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto Rectangle<PointType>::maxVertexDistanceTo(const OtherRectangle& other) const {
+constexpr auto Rectangle<PointType, LabelType>::maxVertexDistanceTo(const OtherRectangle& other) const {
     const auto rectangle_vertices = vertices();
     auto worst_distance = other.template squaredDistance<ResultNumber>(rectangle_vertices[0]);
 
@@ -400,17 +400,17 @@ constexpr auto Rectangle<PointType>::maxVertexDistanceTo(const OtherRectangle& o
     return worst_distance;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), point.x(), point.x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), point.y(), point.y()));
     return dx * dx + dy * dy;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherLine& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -427,15 +427,15 @@ constexpr auto Rectangle<PointType>::squaredDistance(const OtherLine& other) con
     return best_distance;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
     return this->template squaredDistance<ResultNumber>(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -457,15 +457,15 @@ constexpr auto Rectangle<PointType>::squaredDistance(const OtherSegment& other) 
     return best_distance;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     return this->template squaredDistance<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherRay& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -482,17 +482,17 @@ constexpr auto Rectangle<PointType>::squaredDistance(const OtherRay& other) cons
     return best_distance;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto Rectangle<PointType>::squaredDistance(const OtherRectangle& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), other.min().x(), other.max().x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), other.min().y(), other.max().y()));
     return dx * dx + dy * dy;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto Rectangle<PointType>::squaredHausdorffDistance(const OtherRectangle& other) const {
+constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
     const auto worst_from_this = this->template maxVertexDistanceTo<ResultNumber>(other);
     const auto worst_from_other = other.template maxVertexDistanceTo<ResultNumber>(*this);
     return worst_from_this < worst_from_other ? worst_from_other : worst_from_this;

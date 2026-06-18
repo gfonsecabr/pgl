@@ -145,9 +145,13 @@ std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& 
  * @param rectangle Rectangle to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType>& rectangle) {
-    stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelType>& rectangle) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << rectangle.label() << ":{[" << rectangle.min() << ',' << rectangle.max() << "]}";
+    } else {
+        stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
+    }
     return stream;
 }
 

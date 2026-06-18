@@ -754,27 +754,27 @@ constexpr Halfplane<PointType> Ray<PointType, LabelType>::leftHalfplane() const 
  * used to answer strict interior and separation questions.
  */
 
-template <class PointType>
-constexpr bool Rectangle<PointType>::isDegenerate() const {
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::isDegenerate() const {
     return !(min().x() < max().x()) || !(min().y() < max().y());
 }
 
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Left, class Right>
-constexpr bool Rectangle<PointType>::intervalsOverlap(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max) {
+constexpr bool Rectangle<PointType, LabelType>::intervalsOverlap(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max) {
     return !(first_max < second_min) && !(second_max < first_min);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Left, class Right>
-constexpr bool Rectangle<PointType>::intervalsOverlapStrict(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max) {
+constexpr bool Rectangle<PointType, LabelType>::intervalsOverlapStrict(const Left& first_min, const Left& first_max, const Right& second_min, const Right& second_max) {
     return first_min < second_max && second_min < first_max;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::verticesContain(const OtherPoint& point) const {
+constexpr bool Rectangle<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return point == min() ||
            point == bottomRight() ||
            point == max() ||

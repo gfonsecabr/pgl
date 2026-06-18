@@ -136,14 +136,14 @@ constexpr std::array<OrientedSegment<PointType, LabelType>, 1> OrientedSegment<P
 // -----------------------------------------------------------------------------
 // Rectangle
 
-template <class PointType>
-constexpr Rectangle<PointType> Rectangle<PointType>::bbox() const {
+template <class PointType, class LabelType>
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::bbox() const {
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Rectangle<PointType>::fbox() const {
+constexpr Rectangle<Point<ResultNumber>> Rectangle<PointType, LabelType>::fbox() const {
     return Rectangle<Point<ResultNumber>>(
         detail::lowerFloatingBound<ResultNumber>(min().x()),
         detail::lowerFloatingBound<ResultNumber>(min().y()),
@@ -152,19 +152,19 @@ constexpr Rectangle<Point<ResultNumber>> Rectangle<PointType>::fbox() const {
         true);
 }
 
-template <class PointType>
-constexpr typename Rectangle<PointType>::PointType Rectangle<PointType>::bottomRight() const {
+template <class PointType, class LabelType>
+constexpr typename Rectangle<PointType, LabelType>::PointType Rectangle<PointType, LabelType>::bottomRight() const {
     return makeCorner(max().x(), min().y());
 }
 
-template <class PointType>
-constexpr typename Rectangle<PointType>::PointType Rectangle<PointType>::topLeft() const {
+template <class PointType, class LabelType>
+constexpr typename Rectangle<PointType, LabelType>::PointType Rectangle<PointType, LabelType>::topLeft() const {
     return makeCorner(min().x(), max().y());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <bool Oriented>
-constexpr typename Rectangle<PointType>::template BoundaryType<Oriented> Rectangle<PointType>::boundaryAt(std::size_t index) const {
+constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Oriented> Rectangle<PointType, LabelType>::boundaryAt(std::size_t index) const {
     assert(index < edgeCount);
 
     const auto bottom_left = min();
@@ -184,8 +184,8 @@ constexpr typename Rectangle<PointType>::template BoundaryType<Oriented> Rectang
     }
 }
 
-template <class PointType>
-constexpr std::array<typename Rectangle<PointType>::PointType, 4> Rectangle<PointType>::vertices() const {
+template <class PointType, class LabelType>
+constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rectangle<PointType, LabelType>::vertices() const {
     return {
         min(),
         bottomRight(),
@@ -194,8 +194,8 @@ constexpr std::array<typename Rectangle<PointType>::PointType, 4> Rectangle<Poin
     };
 }
 
-template <class PointType>
-constexpr std::array<Segment<PointType>, 4> Rectangle<PointType>::edges() const {
+template <class PointType, class LabelType>
+constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edges() const {
     return {
         boundaryAt<false>(0),
         boundaryAt<false>(1),
@@ -204,8 +204,8 @@ constexpr std::array<Segment<PointType>, 4> Rectangle<PointType>::edges() const 
     };
 }
 
-template <class PointType>
-constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType>::orientedEdges() const {
+template <class PointType, class LabelType>
+constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType, LabelType>::orientedEdges() const {
     return {
         boundaryAt<true>(0),
         boundaryAt<true>(1),
@@ -254,7 +254,7 @@ constexpr std::array<OrientedSegment<PointType>, 3> Triangle<PointType>::oriente
 // template <class PointType>
 // template <std::ranges::input_range Range>
 //     requires std::constructible_from<PointType, std::ranges::range_reference_t<Range>>
-// constexpr void Rectangle<PointType>::assignBoundingBox(Range&& points) {
+// constexpr void Rectangle<PointType, LabelType>::assignBoundingBox(Range&& points) {
 //     auto iterator = std::ranges::begin(points);
 //     const auto sentinel = std::ranges::end(points);
 //
@@ -303,9 +303,9 @@ constexpr std::array<OrientedSegment<PointType>, 3> Triangle<PointType>::oriente
 //     points_[1] = exact_max_corner.has_value() ? std::move(*exact_max_corner) : std::move(max_corner);
 // }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
-constexpr void Rectangle<PointType>::insert(const OtherPoint& point) {
+constexpr void Rectangle<PointType, LabelType>::insert(const OtherPoint& point) {
     const PointType old_min = min();
     const PointType old_max = max();
 
@@ -338,37 +338,37 @@ constexpr void Rectangle<PointType>::insert(const OtherPoint& point) {
         : makeCorner(max_x, max_y);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
-constexpr void Rectangle<PointType>::insert(const OtherRectangle& other) {
+constexpr void Rectangle<PointType, LabelType>::insert(const OtherRectangle& other) {
     insert(other.min());
     insert(other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<std::ranges::input_range Range>
 requires std::ranges::common_range<Range> &&
          std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
          (!requires(const std::remove_cvref_t<Range>& shape) { shape.bbox(); })
-constexpr void Rectangle<PointType>::insert(Range&& range) {
+constexpr void Rectangle<PointType, LabelType>::insert(Range&& range) {
     for (const auto& point : range) {
         insert(point);
     }
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class TShape>
     requires(!detail::is_point_v<TShape> && !RectangleConcept<TShape> && requires(const TShape& shape) { shape.bbox(); })
-constexpr void Rectangle<PointType>::insert(const TShape& shape) {
+constexpr void Rectangle<PointType, LabelType>::insert(const TShape& shape) {
     const auto box = shape.bbox();
     insert(box.min());
     insert(box.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::ranges::input_range Range>
     requires(!detail::is_point_v<typename std::ranges::range_value_t<Range>> && requires(const typename std::ranges::range_value_t<Range>& shape) { shape.bbox(); })
-constexpr void Rectangle<PointType>::insert(Range&& range) {
+constexpr void Rectangle<PointType, LabelType>::insert(Range&& range) {
     for (const auto& shape : range) {
         insert(shape);
     }

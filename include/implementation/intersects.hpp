@@ -467,40 +467,40 @@ constexpr bool Ray<PointType, LabelType>::intersects(const Shape<PointType>& oth
  * used to answer strict interior and separation questions.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Rectangle<PointType>::intersects(const OtherRectangle& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherRectangle& other) const {
     return intervalsOverlap(min().x(), max().x(), other.min().x(), other.max().x()) &&
            intervalsOverlap(min().y(), max().y(), other.min().y(), other.max().y());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Rectangle<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
     return detail::lineIntersectsRectangle(*this, other.min(), other.max());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Rectangle<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     if (other.isDegenerate()) {
         return contains(other.source());
     }
     return detail::lineIntersectsRectangle(*this, other.source(), other.target());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Rectangle<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherSegment& other) const {
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -513,9 +513,9 @@ constexpr bool Rectangle<PointType>::intersects(const OtherSegment& other) const
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Rectangle<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     if (contains(other.source()) || contains(other.target())) {
         return true;
     }
@@ -528,9 +528,9 @@ constexpr bool Rectangle<PointType>::intersects(const OtherOrientedSegment& othe
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Rectangle<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherRay& other) const {
     if (contains(other.source())) {
         return true;
     }
@@ -543,9 +543,9 @@ constexpr bool Rectangle<PointType>::intersects(const OtherRay& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Rectangle<PointType>::intersects(const OtherHalfplane& other) const {
+constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
     if (other.isDegenerate()) {
         return contains(other.source());
     }
@@ -558,8 +558,8 @@ constexpr bool Rectangle<PointType>::intersects(const OtherHalfplane& other) con
     return false;
 }
 
-template <class PointType>
-constexpr bool Rectangle<PointType>::intersects(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return intersects(value);
