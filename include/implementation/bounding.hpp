@@ -378,8 +378,8 @@ constexpr void Rectangle<PointType, LabelType>::insert(Range&& range) {
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
-constexpr const Rectangle<PointType>& Convex<PointType>::bbox() const {
+template <class PointType, class LabelType>
+constexpr const Rectangle<PointType>& Convex<PointType, LabelType>::bbox() const {
     if (bbox_) {
         return *bbox_;
     }
@@ -423,9 +423,9 @@ constexpr const Rectangle<PointType>& Convex<PointType>::bbox() const {
     return bbox_.emplace(Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Convex<PointType>::fbox() const {
+constexpr Rectangle<Point<ResultNumber>> Convex<PointType, LabelType>::fbox() const {
     return bbox().template fbox<ResultNumber>();
 }
 

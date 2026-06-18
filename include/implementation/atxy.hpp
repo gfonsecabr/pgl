@@ -284,9 +284,9 @@ Ray<PointType, LabelType>::xAtY(const OtherNumber &y) const {
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<class OtherNumberType>
-constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType>::edgesAtX(OtherNumberType x) const {
+constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType, LabelType>::edgesAtX(OtherNumberType x) const {
     const size_t n = points_.size();
     if (n < 3) {
         return {};

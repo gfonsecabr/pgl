@@ -663,9 +663,9 @@ constexpr bool Halfplane<PointType, LabelType>::intersects(const Shape<PointType
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Convex<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherSegment& other) const {
     if (size() == 0 || !bbox().intersects(other.bbox())) {
         return false;
     }
@@ -683,15 +683,15 @@ constexpr bool Convex<PointType>::intersects(const OtherSegment& other) const {
     return s.intersects(translatedOther);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Convex<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return intersects(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Convex<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherLine& other) const {
     auto translatedOther = other - translation_;
     auto it1 = detail::cyclicMaxOrPositive(points_.begin(), points_.end(), [&translatedOther](const PointType& a) {
         return orientationDeterminant(translatedOther[0], translatedOther[1], a);
@@ -703,15 +703,15 @@ constexpr bool Convex<PointType>::intersects(const OtherLine& other) const {
     return s.intersects(translatedOther);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Convex<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     return intersects(Line<typename OtherOrientedLine::PointType>(other[0], other[1]));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Convex<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherRay& other) const {
     if (contains(other.source())) {
         return true;
     }
@@ -727,9 +727,9 @@ constexpr bool Convex<PointType>::intersects(const OtherRay& other) const {
     return s.intersects(translatedOther);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Convex<PointType>::intersects(const OtherRectangle& other) const {    
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherRectangle& other) const {    
     if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
@@ -750,9 +750,9 @@ constexpr bool Convex<PointType>::intersects(const OtherRectangle& other) const 
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Convex<PointType>::intersects(const OtherTriangle& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherTriangle& other) const {
     if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
@@ -772,18 +772,18 @@ constexpr bool Convex<PointType>::intersects(const OtherTriangle& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherPoint& other) const {
     if (size() == 0) {
         return false;
     }
     return bbox().contains(other) && contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Convex<PointType>::intersects(const OtherHalfplane& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
     if (points_.empty()) {
         return false;
     }
@@ -801,9 +801,9 @@ constexpr bool Convex<PointType>::intersects(const OtherHalfplane& other) const 
     return other.contains(*it + translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Convex<PointType>::intersects(const OtherConvex& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherConvex& other) const {
     if (size() > other.size()) {
         return other.intersects(*this);
     }
@@ -830,9 +830,9 @@ constexpr bool Convex<PointType>::intersects(const OtherConvex& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Convex<PointType>::intersects(const OtherDisk& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherDisk& other) const {
     if (contains(other[0])) {
         return true;
     }
@@ -890,9 +890,9 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherDisk& other) co
     return A <= R{} || A * A <= R{4} * r1_sq * r2_sq;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
-constexpr bool Convex<PointType>::intersects(const Shape<OtherPoint>& other) const {
+constexpr bool Convex<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->intersects(value);

@@ -734,16 +734,16 @@ constexpr bool Halfplane<PointType, LabelType>::interiorsIntersect(const Shape<P
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
     if (isDegenerate()) {
         return false;
     }
@@ -766,15 +766,15 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherLine& other) con
     return max_val > 0 && min_val < 0;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherOrientedLine& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
     return interiorsIntersect(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate() || !bbox().intersects(other.bbox())) {
         return false;
     }
@@ -798,15 +798,15 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherSegment& other) 
     return tri.interiorsIntersect(translatedOther);    
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherRay& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -831,9 +831,9 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherRay& other) cons
     return tri.interiorsIntersect(translatedOther);  
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherHalfplane& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -846,21 +846,21 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherHalfplane& other
     return other.interiorContains(*it + translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherRectangle& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
     return interiorsIntersect(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherTriangle& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
     return interiorsIntersect(other.asConvex());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherConvex& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
     if (isDegenerate() || other.isDegenerate() || !bbox().interiorsIntersect(other.bbox())) {
         return false;
     }
@@ -890,9 +890,9 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherConvex& other) c
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Convex<PointType>::interiorsIntersect(const OtherDisk& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
     if (interiorContains(other[0])) {
         return true;
     }
@@ -904,9 +904,9 @@ constexpr bool Convex<PointType>::interiorsIntersect(const OtherDisk& other) con
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
-constexpr bool Convex<PointType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

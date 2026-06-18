@@ -1395,9 +1395,9 @@ constexpr void Halfplane<PointType, LabelType>::scaleDownY(const OtherNumber sca
 // ---------------------------------------------------------------------------
 // Convex
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     translation_ += translation;
     // A pure translation leaves maxIndex_ valid (the extreme vertex index is
     // translation-invariant) and merely shifts the bounding box, so update the
@@ -1410,9 +1410,9 @@ constexpr Convex<PointType>& Convex<PointType>::operator+=(const OtherPoint& tra
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     translation_ -= translation;
     if (bbox_) {
         *bbox_ -= translation;
@@ -1421,10 +1421,10 @@ constexpr Convex<PointType>& Convex<PointType>::operator-=(const OtherPoint& tra
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
 requires(!detail::is_point_v<Scalar>)
-constexpr Convex<PointType>& Convex<PointType>::operator*=(const Scalar& scalar) {
+constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator*=(const Scalar& scalar) {
     for (auto& vertex : points_) {
         vertex += translation_;
         vertex *= scalar;
@@ -1434,10 +1434,10 @@ constexpr Convex<PointType>& Convex<PointType>::operator*=(const Scalar& scalar)
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
 requires(!detail::is_point_v<Scalar>)
-constexpr Convex<PointType>& Convex<PointType>::operator/=(const Scalar& scalar) {
+constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator/=(const Scalar& scalar) {
     for (auto& vertex : points_) {
         vertex += translation_;
         vertex /= scalar;
@@ -1447,8 +1447,8 @@ constexpr Convex<PointType>& Convex<PointType>::operator/=(const Scalar& scalar)
     return *this;
 }
 
-template <class PointType>
-constexpr Convex<PointType> Convex<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Convex<PointType, LabelType> Convex<PointType, LabelType>::rotated90(int k) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1457,14 +1457,16 @@ constexpr Convex<PointType> Convex<PointType>::rotated90(int k) const {
     return Convex(std::move(pts));
 }
 
-template <class PointType>
-constexpr void Convex<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Convex<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
     *this = rotated90(k);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Convex<PointType> Convex<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Convex<PointType, LabelType> Convex<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1473,15 +1475,17 @@ constexpr Convex<PointType> Convex<PointType>::scaledUpX(const OtherNumber scala
     return Convex(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Convex<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Convex<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Convex<PointType> Convex<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Convex<PointType, LabelType> Convex<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1490,15 +1494,17 @@ constexpr Convex<PointType> Convex<PointType>::scaledUpY(const OtherNumber scala
     return Convex(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Convex<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Convex<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpY(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Convex<PointType> Convex<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Convex<PointType, LabelType> Convex<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1507,15 +1513,17 @@ constexpr Convex<PointType> Convex<PointType>::scaledDownX(const OtherNumber sca
     return Convex(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Convex<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Convex<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Convex<PointType> Convex<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Convex<PointType, LabelType> Convex<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1524,10 +1532,12 @@ constexpr Convex<PointType> Convex<PointType>::scaledDownY(const OtherNumber sca
     return Convex(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Convex<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Convex<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownY(scalar);
+    label_ = std::move(saved);
 }
 
 // ---------------------------------------------------------------------------
