@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <set>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -270,6 +271,80 @@ TEST_CASE_TEMPLATE("Constrained Delaunay of a simple polygon tiles its interior"
     CHECK(allCounterClockwise(tri));
     // The visible triangles cover exactly the polygon interior, not its hull.
     CHECK(totalTwiceArea(tri) == poly.twiceArea());
+}
+
+TEST_CASE_TEMPLATE("Constrained Delaunay of a polygon with interior points and segments",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    using Seg = pgl::Segment<Point>;
+    // CCW square; every interior addition stays strictly inside it, so the
+    // covered area must always equal the square regardless of the extra vertices.
+    const pgl::Polygon<Point> poly(std::vector<Point>{
+        P<Point>(0, 0), P<Point>(60, 0), P<Point>(60, 60), P<Point>(0, 60)});
+    const auto squareArea = poly.twiceArea();
+
+    SUBCASE("extra interior points become vertices, domain unchanged") {
+        const std::vector<Point> pts = {P<Point>(20, 20), P<Point>(40, 30), P<Point>(25, 45)};
+        pgl::Triangulation tri(poly, pts);
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 4 + pts.size());
+        CHECK(allCounterClockwise(tri));
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(totalTwiceArea(tri) == squareArea);
+    }
+    SUBCASE("interior segments are constrained edges and add their endpoints") {
+        const std::vector<Seg> segs = {Seg(P<Point>(10, 30), P<Point>(50, 30))};
+        pgl::Triangulation tri(poly, segs);
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 4 + 2);
+        CHECK(tri.isConstrained(Seg(P<Point>(10, 30), P<Point>(50, 30))));
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == squareArea);
+    }
+    SUBCASE("points and segments together, boundary stays constrained") {
+        const std::vector<Point> pts = {P<Point>(30, 50)};
+        const std::vector<Seg> segs = {Seg(P<Point>(15, 15), P<Point>(45, 15)),
+                                       Seg(P<Point>(15, 15), P<Point>(30, 50))};
+        pgl::Triangulation tri(poly, pts, segs);
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 4 + 3);  // (30,50) shared between pts and a segment
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(tri.isConstrained(Seg(P<Point>(15, 15), P<Point>(45, 15))));
+        CHECK(tri.isConstrained(Seg(P<Point>(15, 15), P<Point>(30, 50))));
+        CHECK(tri.isConstrained(Seg(P<Point>(0, 0), P<Point>(60, 0))));
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == squareArea);
+    }
+}
+
+TEST_CASE("Polygon constraint segments carry their labels onto the edges") {
+    using Point = pgl::Point<int>;
+    using LabeledSegment = pgl::Segment<Point, std::string>;
+    const pgl::Polygon<Point> poly(std::vector<Point>{
+        P<Point>(0, 0), P<Point>(60, 0), P<Point>(60, 60), P<Point>(0, 60)});
+
+    std::vector<LabeledSegment> segs;  // parallel, non-crossing interior constraints
+    segs.emplace_back(P<Point>(10, 20), P<Point>(50, 20), "lower");
+    segs.emplace_back(P<Point>(10, 40), P<Point>(50, 40), "upper");
+
+    pgl::Triangulation tri(poly, segs);
+    // CTAD carries the segment label type into the stored edge type.
+    static_assert(std::is_same_v<decltype(tri)::SegmentType, LabeledSegment>);
+    CHECK(tri.checkInvariants());
+    CHECK(tri.isConstrained(LabeledSegment(P<Point>(10, 20), P<Point>(50, 20))));
+    CHECK(tri.isConstrained(LabeledSegment(P<Point>(10, 40), P<Point>(50, 40))));
+
+    std::string lower, upper;
+    for (const auto& e : tri.edges()) {
+        if (e.min() == P<Point>(10, 20) && e.max() == P<Point>(50, 20)) {
+            lower = e.label();
+        }
+        if (e.min() == P<Point>(10, 40) && e.max() == P<Point>(50, 40)) {
+            upper = e.label();
+        }
+    }
+    CHECK(lower == "lower");
+    CHECK(upper == "upper");
 }
 
 TEST_CASE("Locating a point returns the containing triangle") {
