@@ -36,6 +36,7 @@
 #include <set>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -55,6 +56,12 @@ struct optional_label<T, std::void_t<typename T::LabelType>> {
 };
 template <class T>
 using optional_label_t = typename optional_label<T>::type;
+
+// A directed or undirected segment. The triangulation's traversal queries
+// accept either, tracing from endpoint [0] to endpoint [1] (for an oriented
+// segment that is source -> target; for a plain segment, its sorted endpoints).
+template <class T>
+concept SegmentOrOriented = SegmentConcept<T> || OrientedSegmentConcept<T>;
 }  // namespace detail
 
 /**
@@ -447,11 +454,11 @@ struct Triangulation {
      * early, a `void` return visits all. Returns whether it stopped early.
      * @p s may use a different point type than the triangulation.
      */
-    template <OrientedSegmentConcept OS, class Fn>
+    template <detail::SegmentOrOriented OS, class Fn>
     bool visitTrianglesIntersecting(const OS& s, Fn f) const {
         if (firstGhost_ == 0) return false;
-        const auto a = s.source();
-        const auto b = s.target();
+        const auto a = s[0];
+        const auto b = s[1];
 
         // "Already emitted" is tracked by a per-triangle mark bit rather than a
         // hash set: O(1) test, no per-lookup allocation. `marked` records which
@@ -752,9 +759,9 @@ struct Triangulation {
      * along `s`. The order is preserved (not sorted), since it is the point of
      * the traversal.
      *
-     * @param s Oriented segment to trace; may use a different point type.
+     * @param s Segment or oriented segment to trace; may use a different point type.
      */
-    template <OrientedSegmentConcept OS>
+    template <detail::SegmentOrOriented OS>
     [[nodiscard]] std::vector<TriangleType> trianglesIntersecting(const OS& s) const {
         std::vector<TriangleType> out;
         visitTrianglesIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
@@ -773,7 +780,7 @@ struct Triangulation {
      * to visit all); returns whether the walk stopped early. @p s may use a
      * different point type than the triangulation.
      */
-    template <OrientedSegmentConcept OS, class Fn>
+    template <detail::SegmentOrOriented OS, class Fn>
     bool visitTrianglesInteriorIntersecting(const OS& s, Fn f) const {
         return visitTrianglesIntersecting(s, [&](const TriangleType& t) -> bool {
             if (t.interiorsIntersect(s)) {
@@ -790,12 +797,112 @@ struct Triangulation {
      * in-domain triangles `t` with `t.interiorsIntersect(s)`, in the order they
      * are encountered along `s` (preserved, not sorted).
      *
-     * @param s Oriented segment to trace; may use a different point type.
+     * @param s Segment or oriented segment to trace; may use a different point type.
      */
-    template <OrientedSegmentConcept OS>
+    template <detail::SegmentOrOriented OS>
     [[nodiscard]] std::vector<TriangleType> trianglesInteriorIntersecting(const OS& s) const {
         std::vector<TriangleType> out;
         visitTrianglesInteriorIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
+        return out;
+    }
+
+    /**
+     * @brief Visits every edge met by the oriented segment @p s, in order.
+     *
+     * Reports each in-domain edge `e` with `s.intersects(e)` exactly once, with
+     * its stored label, roughly in the order @p s meets it (ties broken
+     * arbitrarily). Built on @ref visitTrianglesIntersecting: as the walk passes
+     * through each triangle, its edges that @p s meets are reported (deduplicated
+     * across the two triangles sharing an edge). Edges of ghost or out-of-domain
+     * triangles are never reported, matching @ref edges.
+     *
+     * @p f follows the visitor convention (return `true` to stop early, `void`
+     * to visit all); returns whether the walk stopped early. @p s may use a
+     * different point type than the triangulation.
+     */
+    template <detail::SegmentOrOriented OS, class Fn>
+    bool visitEdgesIntersecting(const OS& s, Fn f) const {
+        std::unordered_set<SegmentType> seen;
+        bool stop = false;
+        visitTrianglesIntersecting(s, [&](const TriangleType& t) -> bool {
+            for (const auto& edge : t.edges()) {
+                if (!s.intersects(edge)) {
+                    continue;
+                }
+                // Canonical edge (the constructor re-sorts the endpoints), used
+                // for reporting and for deduplicating across the two incident
+                // triangles. Only when edges carry a label do we look it up in
+                // segToEdge_ to recover the stored label; otherwise the segment
+                // built from the endpoints already is the value to report.
+                SegmentType seg(edge[0], edge[1]);
+                if constexpr (detail::has_label_v<SegmentLabel>) {
+                    auto se = segToEdge_.find(seg);
+                    if (se == segToEdge_.end()) {
+                        continue;  // not a stored edge (should not happen)
+                    }
+                    seg = edgeSegment(se->second);
+                }
+                if (seen.insert(seg).second && detail::invokeVisitor(f, seg)) {
+                    stop = true;
+                    return true;
+                }
+            }
+            return false;
+        });
+        return stop;
+    }
+
+    /**
+     * @brief Visits the edges whose interior @p s crosses, in order.
+     *
+     * Like @ref visitEdgesIntersecting but reports only the edges `e` with
+     * `s.interiorsIntersect(e)` — dropping those merely touched at a shared
+     * endpoint (e.g. where @p s passes through a mesh vertex, or an endpoint of
+     * @p s lands on an edge).
+     *
+     * @p f follows the visitor convention (return `true` to stop early, `void`
+     * to visit all); returns whether the walk stopped early. @p s may use a
+     * different point type than the triangulation.
+     */
+    template <detail::SegmentOrOriented OS, class Fn>
+    bool visitEdgesInteriorIntersecting(const OS& s, Fn f) const {
+        return visitEdgesIntersecting(s, [&](const SegmentType& e) -> bool {
+            if (s.interiorsIntersect(e)) {
+                return detail::invokeVisitor(f, e);
+            }
+            return false;  // endpoint-only contact: skip, but keep walking
+        });
+    }
+
+    /**
+     * @brief Returns the edges met by @p s, in order.
+     *
+     * A materialized form of @ref visitEdgesIntersecting: the in-domain edges
+     * `e` with `s.intersects(e)`, each with its stored label, in the order they
+     * are encountered along @p s (preserved, not sorted).
+     *
+     * @param s Segment or oriented segment to trace; may use a different point type.
+     */
+    template <detail::SegmentOrOriented OS>
+    [[nodiscard]] std::vector<SegmentType> edgesIntersecting(const OS& s) const {
+        std::vector<SegmentType> out;
+        visitEdgesIntersecting(s, [&](const SegmentType& e) { out.push_back(e); });
+        return out;
+    }
+
+    /**
+     * @brief Returns the edges whose interior @p s crosses, in order.
+     *
+     * A materialized form of @ref visitEdgesInteriorIntersecting: the in-domain
+     * edges `e` with `s.interiorsIntersect(e)`, each with its stored label, in
+     * the order they are encountered along @p s (preserved, not sorted).
+     *
+     * @param s Segment or oriented segment to trace; may use a different point type.
+     */
+    template <detail::SegmentOrOriented OS>
+    [[nodiscard]] std::vector<SegmentType> edgesInteriorIntersecting(const OS& s) const {
+        std::vector<SegmentType> out;
+        visitEdgesInteriorIntersecting(s, [&](const SegmentType& e) { out.push_back(e); });
         return out;
     }
 
@@ -808,11 +915,12 @@ struct Triangulation {
      * probability one on any valid triangulation, not just Delaunay ones; a
      * generous step cap remains only as a defensive bound.
      *
-     * @param p Query point.
+     * @param p Query point; may use a different point type than the triangulation.
      * @return The containing triangle, or `std::nullopt` if @p p lies outside
      *         the triangulated region (or the triangulation is empty).
      */
-    [[nodiscard]] std::optional<TriangleType> locate(const PointType& p) const {
+    template <PointConcept QueryPoint>
+    [[nodiscard]] std::optional<TriangleType> locate(const QueryPoint& p) const {
         const TriId id = locateId(p);
         if (!inDomain(id)) {
             return std::nullopt;  // outside the region, or in a hull-fill triangle

@@ -64,7 +64,13 @@ Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bou
 
 ### Triangulation
 
-`Triangulation` stores a mutable triangulation of either a fixed polygon or a fixed point set. It may be constructed from a Polygon (constrained Delaunay triangulation), a container of points (Delaunay triangulation), segments, or triangles, always keeping labels. Attention, the segments or triangles must define a valid triangulation (of the convex hull or any polygon), otherwise the behavior is undefined.
+`Triangulation` stores a mutable triangulation of either a fixed polygon or a fixed point set: the vertex coordinates are fixed at construction, only the connectivity changes. It may be constructed from a Polygon (constrained Delaunay triangulation), a container of points (Delaunay triangulation), segments, or triangles, always keeping labels. Attention, the segments or triangles must define a valid triangulation (of the convex hull or any polygon), otherwise the behavior is undefined.
+
+Construction and predicates are exact. For a polygon, the triangles between it and its convex hull are marked out-of-domain, so the public view — sizes, `triangles`, `edges`, `locate`, … — describes exactly the polygon, including non-convex ones. The interface speaks only in value types (`Point`, `Segment`, `Triangle`).
+
+- `locate(p)` returns the triangle containing point `p`, or none if `p` is outside, via a randomized visibility walk. `flip(e)` replaces the diagonal shared by two triangles; `isConstrained`/`setConstrained` mark edges that `flip` must preserve.
+- Navigation: `otherTriangle`, `adjacentTriangles`, `incidentTriangles`, the `visitTriangles`/`visitEdges` visitors, and the sorted `triangles()`/`edges()`.
+- Traversal along a segment: `trianglesIntersecting(s)` and `edgesIntersecting(s)` return, in the order met along `s`, the triangles and edges `s` meets; the `…InteriorIntersecting` variants keep only those whose interior `s` actually crosses. Each has a lazy `visit…(s, f)` form whose visitor may return `true` to stop early.
 
 
 
