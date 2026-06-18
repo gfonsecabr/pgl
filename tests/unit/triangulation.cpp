@@ -224,6 +224,36 @@ TEST_CASE_TEMPLATE("Partially collinear point sets triangulate validly and confo
     }
 }
 
+TEST_CASE("Dense random point sets never yield a degenerate triangle") {
+    // Small coordinate ranges make collinear triples (and points landing exactly
+    // on a hull edge) common, which is what once made the incremental build
+    // re-fan a zero-area triangle for some insertion orders. Sweep many such sets
+    // and require every result to stay a valid, conforming Delaunay triangulation
+    // with no degenerate triangle. Deterministic generator, so failures repro.
+    using Point = pgl::Point<int>;
+    std::uint64_t state = 0x243f6a8885a308d3ULL;
+    const auto nextInt = [&state](int modulus) {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        return static_cast<int>((state >> 33) % static_cast<std::uint64_t>(modulus));
+    };
+
+    for (int instance = 0; instance < 250; ++instance) {
+        const int range = 8 + (instance % 28);  // [8, 35]: dense, collinearity-prone
+        std::vector<Point> pts;
+        pts.reserve(120);
+        for (int i = 0; i < 120; ++i) {
+            pts.push_back(P<Point>(nextInt(range + 1), nextInt(range + 1)));
+        }
+        pgl::Triangulation tri(pts);
+        REQUIRE(tri.checkInvariants());
+        REQUIRE_FALSE(hasDegenerateTriangle(tri));
+        REQUIRE(strictInCircleViolations(tri, pts) == 0);
+        REQUIRE(allCounterClockwise(tri));
+        REQUIRE(everyPointIsAVertex(tri, pts));
+        REQUIRE(isConforming(tri, pts));
+    }
+}
+
 TEST_CASE_TEMPLATE("Constrained Delaunay of a simple polygon tiles its interior",
                    Point, pgl::Point<int>, pgl::Point<double>,
                    pgl::Point<pgl::Rational<int64_t>>) {
