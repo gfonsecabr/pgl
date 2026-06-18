@@ -1,0 +1,349 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "doctest.h"
+
+#include <optional>
+#include <set>
+#include <type_traits>
+#include <vector>
+
+#include "pgl.hpp"
+
+namespace {
+
+// Build a Point of the test's number type from integer coordinates.
+template <class Point>
+Point P(int x, int y) {
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+    return Point(Number(x), Number(y));
+}
+
+// Number of (point, triangle) pairs where the point is STRICTLY inside the
+// triangle's circumcircle. Zero is the defining property of a Delaunay
+// triangulation, and the property we want preserved even under cocircularity.
+template <class Tri, class Point>
+long strictInCircleViolations(const Tri& tri, const std::vector<Point>& pts) {
+    long viol = 0;
+    for (const auto& t : tri.triangles()) {
+        for (const auto& p : pts) {
+            if (pgl::inCircleSign(t.a(), t.b(), t.c(), p) ==
+                std::partial_ordering::greater) {
+                ++viol;
+            }
+        }
+    }
+    return viol;
+}
+
+// True if every triangle is oriented counterclockwise.
+template <class Tri>
+bool allCounterClockwise(const Tri& tri) {
+    for (const auto& t : tri.triangles()) {
+        if (!(pgl::orientationSign(t.a(), t.b(), t.c()) ==
+              std::partial_ordering::greater)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Sum of twice-areas of all triangles (exact in the number type).
+template <class Tri>
+auto totalTwiceArea(const Tri& tri) {
+    using Number = typename Tri::NumberType;
+    Number sum = Number(0);
+    for (const auto& t : tri.triangles()) {
+        sum += t.twiceArea();
+    }
+    return sum;
+}
+
+// True if every input point appears as a vertex of some triangle (so no point
+// — in particular no collinear one — was silently dropped).
+template <class Tri, class Point>
+bool everyPointIsAVertex(const Tri& tri, const std::vector<Point>& pts) {
+    std::set<Point> used;
+    for (const auto& t : tri.triangles()) {
+        used.insert(t.a());
+        used.insert(t.b());
+        used.insert(t.c());
+    }
+    for (const auto& p : pts) {
+        if (!used.count(p)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// True if the mesh is conforming: no input point lies in the relative interior
+// of a triangle edge without being one of that edge's endpoints.
+template <class Tri, class Point>
+bool isConforming(const Tri& tri, const std::vector<Point>& pts) {
+    for (const auto& t : tri.triangles()) {
+        for (const auto& e : t.edges()) {
+            for (const auto& p : pts) {
+                if (p != e[0] && p != e[1] && e.contains(p)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+// True if some triangle is degenerate (zero area).
+template <class Tri>
+bool hasDegenerateTriangle(const Tri& tri) {
+    using Number = typename Tri::NumberType;
+    for (const auto& t : tri.triangles()) {
+        if (t.twiceArea() == Number(0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("Delaunay triangulation of a point set is exact and valid",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>,
+                   pgl::Point<pgl::Rational<pgl::BigInt>>) {
+    // Ten points in general position (no degenerate input).
+    const std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(30, 5),  P<Point>(55, 0),  P<Point>(60, 30),
+        P<Point>(50, 55), P<Point>(25, 60), P<Point>(0, 50),  P<Point>(20, 25),
+        P<Point>(40, 20), P<Point>(35, 40),
+    };
+    pgl::Triangulation tri(pts);
+
+    CHECK(tri.numVertices() == pts.size());
+    CHECK_FALSE(tri.empty());
+    CHECK(tri.checkInvariants());
+
+    // Defining Delaunay property, all faces CCW, and a watertight tiling of the
+    // convex hull (no gaps, no overlaps): triangle areas sum to the hull area.
+    CHECK(strictInCircleViolations(tri, pts) == 0);
+    CHECK(allCounterClockwise(tri));
+    CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+
+    // Accessor consistency.
+    CHECK(tri.triangles().size() == tri.numTriangles());
+    CHECK(tri.edges().size() == tri.numEdges());
+    for (const auto& t : tri.triangles()) {
+        CHECK(tri.contains(t));
+    }
+}
+
+TEST_CASE_TEMPLATE("Degenerate point sets produce an empty triangulation",
+                   Point, pgl::Point<int>, pgl::Point<pgl::Rational<int64_t>>) {
+    SUBCASE("fewer than three points") {
+        const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(4, 1)};
+        pgl::Triangulation tri(pts);
+        CHECK(tri.empty());
+        CHECK(tri.numTriangles() == 0);
+    }
+    SUBCASE("all points collinear") {
+        const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(1, 1),
+                                        P<Point>(2, 2), P<Point>(5, 5)};
+        pgl::Triangulation tri(pts);
+        CHECK(tri.empty());
+    }
+}
+
+TEST_CASE_TEMPLATE("Cocircular points still yield a valid Delaunay triangulation",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>,
+                   pgl::Point<pgl::Rational<pgl::BigInt>>) {
+    // The Delaunay triangulation is not unique when points are cocircular, but
+    // whichever one we produce must keep the strict empty-circumcircle property
+    // and tile the hull exactly.
+    SUBCASE("square plus its center") {
+        const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(6, 0),
+                                        P<Point>(6, 6), P<Point>(0, 6),
+                                        P<Point>(3, 3)};
+        pgl::Triangulation tri(pts);
+        CHECK(tri.checkInvariants());
+        CHECK(strictInCircleViolations(tri, pts) == 0);
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+    }
+    SUBCASE("twelve points on a common circle") {
+        // Integer points on the radius-5 circle: all twelve are cocircular and
+        // in convex position, so any triangulation of the 12-gon is Delaunay.
+        const std::vector<Point> pts = {
+            P<Point>(5, 0),   P<Point>(4, 3),   P<Point>(3, 4),   P<Point>(0, 5),
+            P<Point>(-3, 4),  P<Point>(-4, 3),  P<Point>(-5, 0),  P<Point>(-4, -3),
+            P<Point>(-3, -4), P<Point>(0, -5),  P<Point>(3, -4),  P<Point>(4, -3),
+        };
+        pgl::Triangulation tri(pts);
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numTriangles() == 10);  // convex k-gon -> k-2 triangles
+        CHECK(strictInCircleViolations(tri, pts) == 0);
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+    }
+}
+
+TEST_CASE_TEMPLATE("Partially collinear point sets triangulate validly and conformingly",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>,
+                   pgl::Point<pgl::Rational<pgl::BigInt>>) {
+    // Collinear input is supported as long as the points are not ALL collinear:
+    // the collinear points must still be used (not absorbed into a flat triangle
+    // or a spanning edge), and the result must stay conforming and Delaunay.
+    SUBCASE("five collinear points on a hull edge, apex above") {
+        const std::vector<Point> pts = {
+            P<Point>(0, 0), P<Point>(1, 0), P<Point>(2, 0),
+            P<Point>(3, 0), P<Point>(4, 0), P<Point>(2, 5),
+        };
+        pgl::Triangulation tri(pts);
+        CHECK(tri.checkInvariants());
+        CHECK_FALSE(hasDegenerateTriangle(tri));
+        CHECK(strictInCircleViolations(tri, pts) == 0);
+        CHECK(allCounterClockwise(tri));
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(isConforming(tri, pts));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+    }
+    SUBCASE("crossing collinear triples, shared vertex interior to the hull") {
+        // A rhombus with its center: both (0,0)-(3,0)-(6,0) and (3,-4)-(3,0)-(3,4)
+        // are collinear, and (3,0) is strictly inside the hull.
+        const std::vector<Point> pts = {
+            P<Point>(0, 0),  P<Point>(6, 0),  P<Point>(3, 4),
+            P<Point>(3, -4), P<Point>(3, 0),
+        };
+        pgl::Triangulation tri(pts);
+        CHECK(tri.checkInvariants());
+        CHECK_FALSE(hasDegenerateTriangle(tri));
+        CHECK(strictInCircleViolations(tri, pts) == 0);
+        CHECK(allCounterClockwise(tri));
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(isConforming(tri, pts));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+    }
+}
+
+TEST_CASE_TEMPLATE("Constrained Delaunay of a simple polygon tiles its interior",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    // A non-convex (arrow-head) polygon, given CCW.
+    const std::vector<Point> verts = {
+        P<Point>(0, 0),  P<Point>(40, 0),  P<Point>(40, 40),
+        P<Point>(20, 20), P<Point>(0, 40),
+    };
+    const pgl::Polygon<Point> poly(verts);
+    pgl::Triangulation tri(poly);
+
+    CHECK(tri.checkInvariants());
+    CHECK(tri.numTriangles() == verts.size() - 2);  // simple k-gon -> k-2 triangles
+    CHECK(allCounterClockwise(tri));
+    // The visible triangles cover exactly the polygon interior, not its hull.
+    CHECK(totalTwiceArea(tri) == poly.twiceArea());
+}
+
+TEST_CASE("Locating a point returns the containing triangle") {
+    using Point = pgl::Point<int>;
+    const std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(60, 0),  P<Point>(60, 50),
+        P<Point>(0, 50), P<Point>(25, 30), P<Point>(40, 15),
+    };
+    pgl::Triangulation tri(pts);
+
+    const Point inside = P<Point>(20, 20);
+    const auto located = tri.locate(inside);
+    REQUIRE(located.has_value());
+    CHECK(located->contains(inside));
+    CHECK(tri.contains(*located));
+
+    // A point well outside the convex hull has no containing triangle.
+    CHECK_FALSE(tri.locate(P<Point>(1000, 1000)).has_value());
+}
+
+TEST_CASE("Segment traversal reports exactly the triangles and edges it meets") {
+    using Point = pgl::Point<int>;
+    const std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(30, 5),  P<Point>(55, 0),  P<Point>(60, 30),
+        P<Point>(50, 55), P<Point>(25, 60), P<Point>(0, 50),  P<Point>(20, 25),
+        P<Point>(40, 20), P<Point>(35, 40),
+    };
+    pgl::Triangulation tri(pts);
+
+    const pgl::OrientedSegment<Point> s(5, 10, 55, 45);
+
+    const auto crossed = tri.trianglesIntersecting(s);
+    CHECK_FALSE(crossed.empty());
+    for (const auto& t : crossed) {
+        CHECK(t.intersects(s));   // every reported triangle really meets s
+        CHECK(tri.contains(t));
+    }
+
+    const auto entered = tri.trianglesInteriorIntersecting(s);
+    CHECK(entered.size() <= crossed.size());
+    for (const auto& t : entered) {
+        CHECK(t.interiorsIntersect(s));
+    }
+
+    const auto metEdges = tri.edgesIntersecting(s);
+    CHECK_FALSE(metEdges.empty());
+    for (const auto& e : metEdges) {
+        CHECK(s.intersects(e));
+    }
+}
+
+TEST_CASE("Navigation: adjacency and the segment-to-edge bridge are consistent") {
+    using Point = pgl::Point<int>;
+    const std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(40, 0),  P<Point>(40, 40),
+        P<Point>(0, 40), P<Point>(18, 22),
+    };
+    pgl::Triangulation tri(pts);
+
+    for (const auto& t : tri.triangles()) {
+        // Each neighbor across a shared edge sees t back across the same edge.
+        for (const auto& nb : tri.adjacentTriangles(t)) {
+            bool mutual = false;
+            for (const auto& edge : t.edges()) {
+                const pgl::Segment<Point> e(edge[0], edge[1]);
+                const auto other = tri.otherTriangle(t, e);
+                if (other.has_value() && *other == nb) {
+                    mutual = true;
+                    const auto back = tri.otherTriangle(nb, e);
+                    REQUIRE(back.has_value());
+                    CHECK(*back == t);
+                }
+            }
+            CHECK(mutual);
+        }
+    }
+}
+
+TEST_CASE("Flipping an interior edge yields the other diagonal and keeps the mesh valid") {
+    using Point = pgl::Point<int>;
+    // A convex quadrilateral (not cocircular): exactly one interior diagonal.
+    const std::vector<Point> pts = {
+        P<Point>(0, 0), P<Point>(10, 0), P<Point>(12, 7), P<Point>(2, 9),
+    };
+    pgl::Triangulation tri(pts);
+    REQUIRE(tri.numTriangles() == 2);
+    const auto areaBefore = totalTwiceArea(tri);
+
+    // The single diagonal is the only edge with two incident triangles.
+    std::optional<pgl::Segment<Point>> diagonal;
+    for (const auto& e : tri.edges()) {
+        if (tri.incidentTriangles(e).size() == 2) {
+            diagonal = e;
+        }
+    }
+    REQUIRE(diagonal.has_value());
+    REQUIRE(tri.flippable(*diagonal));
+
+    const auto flipped = tri.flip(*diagonal);
+    REQUIRE(flipped.has_value());
+    CHECK_FALSE(*flipped == *diagonal);   // it is the opposite diagonal
+    CHECK(tri.checkInvariants());
+    CHECK(tri.numTriangles() == 2);
+    CHECK(totalTwiceArea(tri) == areaBefore);  // same region, retriangulated
+    CHECK(tri.contains(*flipped));
+    CHECK_FALSE(tri.contains(*diagonal));
+}
