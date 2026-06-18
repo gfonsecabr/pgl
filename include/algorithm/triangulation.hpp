@@ -1229,58 +1229,79 @@ struct Triangulation {
     }
 
     // Exact Delaunay triangle triples (CCW, vertex indices into `pts`) via
-    // Bowyer–Watson insertion over a containing super-triangle. The predicates
-    // run in BigInt, so the working super-triangle coordinates never overflow
-    // and every in-circle / orientation test is exact. O(n^2) in the points.
+    // Bowyer–Watson insertion. A single symbolic "vertex at infinity" (INF)
+    // closes the convex hull instead of a containing super-triangle: every hull
+    // edge a->b carries a ghost triangle {a,b,INF} that tiles the exterior. No
+    // far-away coordinates are ever constructed, so every in-circle / orientation
+    // test runs on the real point coordinates at the library's normal exactness
+    // — no BigInt, and no magnitude assumption (which is why a super-triangle is
+    // unsound for rational points: its required scale is unbounded). O(n^2).
     static std::vector<std::array<VertexId, 3>>
     delaunayTriples(const std::vector<PointType>& pts) {
-        using Big = Point<BigInt>;
         const VertexId n = static_cast<VertexId>(pts.size());
         std::vector<std::array<VertexId, 3>> out;
         if (n < 3) {
             return out;
         }
-        std::vector<Big> w;
-        w.reserve(static_cast<std::size_t>(n) + 3);
-        BigInt minx{pts[0].x()}, maxx{pts[0].x()}, miny{pts[0].y()}, maxy{pts[0].y()};
-        for (VertexId i = 0; i < n; ++i) {
-            BigInt x{pts[i].x()};
-            BigInt y{pts[i].y()};
-            w.emplace_back(x, y);
-            minx = x < minx ? x : minx;
-            maxx = maxx < x ? x : maxx;
-            miny = y < miny ? y : miny;
-            maxy = maxy < y ? y : maxy;
-        }
-        // Super-triangle (a right triangle) that strictly contains the bounding
-        // box with ALL THREE vertices far outside it. The scale R must exceed
-        // the largest possible circumradius of a real Delaunay triangle, so no
-        // super vertex ever lies inside one (which would "steal" hull edges and
-        // drop real triangles). For integer points in a box of side D that
-        // circumradius is O(D^3) — a near-degenerate triangle of area 1/2 — so a
-        // scale ~D is not enough; R is cubic in the box size. BigInt keeps it
-        // exact at any magnitude. No division needed, and it is CCW.
-        const BigInt s = (maxx - minx) + (maxy - miny) + BigInt{1};
-        const BigInt R = s * s * s * BigInt{64} + BigInt{64};
-        const BigInt R3 = R * BigInt{3};
-        w.emplace_back(minx - R, miny - R);              // super vertex n
-        w.emplace_back(maxx + R3, miny - R);             // super vertex n+1
-        w.emplace_back(minx - R, maxy + R3);             // super vertex n+2
+        const VertexId INF = n;  // the symbolic vertex at infinity
 
-        std::vector<std::array<VertexId, 3>> tris;
-        tris.push_back({n, n + 1, n + 2});  // CCW
+        // Strict inside-circumdisk test for a CCW triangle, finite or ghost. The
+        // circle through two finite points and INF degenerates to the line
+        // through them, so for a ghost triangle "inside the open disk" reduces to
+        // "strictly left of the finite directed edge" — a plain orientation test.
+        // The finite edge of a ghost {.,.,INF} is the one opposite INF, taken in
+        // the triangle's CCW order so its left side is the hull exterior.
+        auto inDisk = [&](const std::array<VertexId, 3>& t, VertexId p) -> bool {
+            int inf = -1;
+            for (int k = 0; k < 3; ++k) {
+                if (t[k] == INF) {
+                    inf = k;
+                }
+            }
+            if (inf < 0) {
+                return inCircleSign(pts[t[0]], pts[t[1]], pts[t[2]], pts[p]) ==
+                       std::partial_ordering::greater;
+            }
+            const VertexId u = t[(inf + 1) % 3];
+            const VertexId v = t[(inf + 2) % 3];
+            return orientationSign(pts[u], pts[v], pts[p]) ==
+                   std::partial_ordering::greater;
+        };
+
+        // Seed with the first non-collinear triple, oriented CCW, plus the three
+        // ghost triangles covering the exterior of its hull edges. Points 2..c-1
+        // (if any) are collinear with 0 and 1 and get inserted in the main loop.
+        VertexId c = 2;
+        while (c < n && orientationSign(pts[0], pts[1], pts[c]) == 0) {
+            ++c;
+        }
+        if (c == n) {
+            return out;  // all points collinear: the Delaunay triangulation is empty
+        }
+        const std::array<VertexId, 3> seed =
+            orientationSign(pts[0], pts[1], pts[c]) == std::partial_ordering::greater
+                ? std::array<VertexId, 3>{0, 1, c}
+                : std::array<VertexId, 3>{1, 0, c};
+        std::vector<std::array<VertexId, 3>> tris = {
+            {seed[0], seed[1], seed[2]},
+            {seed[1], seed[0], INF},  // ghost outside edge seed0->seed1
+            {seed[2], seed[1], INF},  // ghost outside edge seed1->seed2
+            {seed[0], seed[2], INF},  // ghost outside edge seed2->seed0
+        };
 
         std::vector<std::array<VertexId, 3>> next;
         for (VertexId i = 0; i < n; ++i) {
-            // Cavity = triangles whose open circumdisk contains point i. Its
-            // boundary is every directed edge (a,b) of a cavity triangle whose
-            // reverse (b,a) is not also a cavity edge.
+            if (i == seed[0] || i == seed[1] || i == seed[2]) {
+                continue;
+            }
+            // Cavity = triangles whose open circumdisk contains point i (ghost
+            // triangles included, which is how the hull grows). Its boundary is
+            // every directed edge (a,b) of a cavity triangle whose reverse (b,a)
+            // is not also a cavity edge.
             std::set<std::pair<VertexId, VertexId>> dir;
             next.clear();
             for (const auto& t : tris) {
-                const bool bad = inCircleSign(w[t[0]], w[t[1]], w[t[2]], w[i]) ==
-                                 std::partial_ordering::greater;
-                if (bad) {
+                if (inDisk(t, i)) {
                     dir.insert({t[0], t[1]});
                     dir.insert({t[1], t[2]});
                     dir.insert({t[2], t[0]});
@@ -1297,7 +1318,7 @@ struct Triangulation {
         }
 
         for (const auto& t : tris) {
-            if (t[0] < n && t[1] < n && t[2] < n) {
+            if (t[0] != INF && t[1] != INF && t[2] != INF) {
                 out.push_back(t);
             }
         }
