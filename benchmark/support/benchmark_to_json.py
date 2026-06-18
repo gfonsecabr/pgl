@@ -38,7 +38,11 @@ def parse_measurement(line: str, metadata: dict[str, str]) -> Measurement | None
     if not stripped or stripped.startswith("Operation"):
         return None
 
-    parts = stripped.split()
+    # Columns are tab-separated; benchmarks pad with runs of tabs for alignment,
+    # so drop the empty fields those produce. Splitting on tabs (not arbitrary
+    # whitespace) keeps operation and number labels that contain spaces intact,
+    # e.g. "build (Delaunay)" or "Rational BigInt".
+    parts = [field for field in stripped.split("\t") if field]
     if len(parts) < 4:
         return None
 
