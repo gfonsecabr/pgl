@@ -56,6 +56,6 @@
 #include "algorithm/intersections.hpp"
 #include "algorithm/convexhull.hpp"
 #include "algorithm/shapetree.hpp"
-#include "algorithm/sortaround.hpp"
+#include "algorithm/sortpoints.hpp"
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"

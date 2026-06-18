@@ -3,7 +3,7 @@
 #include "pgl.hpp"
 
 /**
- * @file sortaround.hpp
+ * @file sortpoints.hpp
  * @brief Angular sorting of points around a center.
  *
  * Algorithm headers sit above the shape API and express reusable geometry
