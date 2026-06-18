@@ -183,10 +183,10 @@ namespace std {
     /**
      * @brief Hash support for Rectangle.
      */
-    template <class PointType>
-    struct hash<pgl::Rectangle<PointType>> {
-        std::size_t operator()(const pgl::Rectangle<PointType>& rectangle) const {
-            std::size_t seed = pgl::detail::shapeRank<pgl::Rectangle<PointType>>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Rectangle<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Rectangle<PointType, LabelType>& rectangle) const {
+            std::size_t seed = pgl::detail::shapeRank<pgl::Rectangle<PointType, LabelType>>;
             pgl::detail::hashCombine(seed, rectangle.min());
             pgl::detail::hashCombine(seed, rectangle.max());
             return seed;

@@ -944,20 +944,20 @@ constexpr auto triangleRayIntersection(const TriangleType& triangle, const RayTy
 
 }  // namespace detail
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-Rectangle<PointType>::intersection(const OtherPoint& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
         return Point<ResultNumber, typename PointType::LabelType>(other);
     }
     return {};
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr std::optional<Rectangle<Point<ResultNumber, typename PointType::LabelType>>>
-Rectangle<PointType>::intersection(const OtherRectangle& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherRectangle& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultRectangle = Rectangle<ResultPoint>;
 
@@ -975,44 +975,44 @@ Rectangle<PointType>::intersection(const OtherRectangle& other) const {
         ResultPoint(static_cast<ResultNumber>(max_x), static_cast<ResultNumber>(max_y)));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Rectangle<PointType>::intersection(const OtherLine& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherLine& other) const {
     return detail::rectangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Rectangle<PointType>::intersection(const OtherOrientedLine& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Rectangle<PointType>::intersection(const OtherSegment& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherSegment& other) const {
     return detail::rectangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Rectangle<PointType>::intersection(const OtherOrientedSegment& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return intersection<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Rectangle<PointType>::intersection(const OtherRay& other) const {
+Rectangle<PointType, LabelType>::intersection(const OtherRay& other) const {
     return detail::rectangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
-constexpr auto Rectangle<PointType>::intersection(const OtherHalfplane& other) const {
+constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     if (!other.intersects(*this)) {

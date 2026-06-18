@@ -48,20 +48,20 @@ constexpr ResultNumber upperFloatingBound(const Value& value) {
 
 }  // namespace detail
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Rectangle;
 
-Rectangle() -> Rectangle<Point<>>;
+Rectangle() -> Rectangle<Point<>, NoLabel>;
 
 template <class PointType>
-Rectangle(PointType, PointType) -> Rectangle<PointType>;
+Rectangle(PointType, PointType) -> Rectangle<PointType, NoLabel>;
 
 template <class Number>
-Rectangle(Number, Number, Number, Number) -> Rectangle<Point<Number>>;
+Rectangle(Number, Number, Number, Number) -> Rectangle<Point<Number>, NoLabel>;
 
 template <std::ranges::input_range Range>
     requires detail::is_point_v<std::ranges::range_value_t<Range>>
-Rectangle(Range&&) -> Rectangle<std::remove_cvref_t<std::ranges::range_value_t<Range>>>;
+Rectangle(Range&&) -> Rectangle<std::remove_cvref_t<std::ranges::range_value_t<Range>>, NoLabel>;
 
 /**
  * @brief Axis-aligned rectangle stored by its minimum and maximum corners.
@@ -70,11 +70,11 @@ Rectangle(Range&&) -> Rectangle<std::remove_cvref_t<std::ranges::range_value_t<R
  *
  * @tparam PointType Corner point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Rectangle {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
-    // using LabelType = detail::point_label_t<PointType>;
+    using LabelType = TLabel;
 
     static_assert(detail::is_point_v<PointType>, "Rectangle requires pgl::Point corners");
 
@@ -167,16 +167,19 @@ struct Rectangle {
     constexpr Rectangle(NumberType x1, NumberType y1, NumberType x2, NumberType y2, bool minmax = false)
         : Rectangle(PointType(x1, y1), PointType(x2, y2), minmax) {}
 
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Rectangle(const Rectangle<OtherPointType>& other)
-        : Rectangle(PointType(other.min()), PointType(other.max()), true) {}
+    constexpr Rectangle(const Rectangle<OtherPointType, OtherLabelType>& other)
+        : Rectangle(PointType(other.min()), PointType(other.max()), true) {
+        label_ = detail::copyLabel<LabelType>(other);
+    }
 
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Rectangle& operator=(const Rectangle<OtherPointType>& other) {
+    constexpr Rectangle& operator=(const Rectangle<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.min());
         points_[1] = PointType(other.max());
+        label_ = detail::copyLabel<LabelType>(other);
         return *this;
     }
 
@@ -423,7 +426,33 @@ struct Rectangle {
      * @param other Rectangle to compare with.
      * @return -1, 0, or 1.
      */
-    constexpr auto operator<=>(const Rectangle& other) const = default;
+    constexpr bool operator==(const Rectangle& other) const {
+        return points_ == other.points_;
+    }
+
+    constexpr auto operator<=>(const Rectangle& other) const {
+        return points_ <=> other.points_;
+    }
+
+    /**
+     * @brief Returns the rectangle label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the rectangle label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Returns the rectangle area.
@@ -1338,6 +1367,7 @@ struct Rectangle {
     constexpr auto maxVertexDistanceTo(const OtherRectangle& other) const;
 
     std::array<PointType, 2> points_{};
+    [[no_unique_address]] LabelType label_{};
 };
 
 /**
@@ -1351,8 +1381,8 @@ struct Rectangle {
  * @param translation Translation vector.
  * @return Translated rectangle.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Translates a rectangle by a point written on the left.
@@ -1365,8 +1395,8 @@ constexpr auto operator+(const Rectangle<PointType>& rectangle, const Point<Tran
  * @param rectangle Rectangle to translate.
  * @return Translated rectangle.
  */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType>& rectangle);
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType, LabelType>& rectangle);
 
 /**
  * @brief Translates a rectangle by the opposite of a point.
@@ -1379,8 +1409,8 @@ constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& trans
  * @param translation Translation vector to subtract.
  * @return Translated rectangle.
  */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation);
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation);
 
 /**
  * @brief Scales a rectangle by a scalar.
@@ -1392,9 +1422,9 @@ constexpr auto operator-(const Rectangle<PointType>& rectangle, const Point<Tran
  * @param scalar Scale factor.
  * @return Scaled rectangle.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Rectangle<PointType>& rectangle, const Scalar& scalar);
+constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar);
 
 /**
  * @brief Scales a rectangle by a scalar written on the left.
@@ -1406,9 +1436,9 @@ constexpr auto operator*(const Rectangle<PointType>& rectangle, const Scalar& sc
  * @param rectangle Rectangle to scale.
  * @return Scaled rectangle.
  */
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType>& rectangle);
+constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType, LabelType>& rectangle);
 
 /**
  * @brief Divides both rectangle corners by a scalar.
@@ -1420,9 +1450,9 @@ constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType>& recta
  * @param scalar Divisor.
  * @return Scaled rectangle.
  */
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Rectangle<PointType>& rectangle, const Scalar& scalar);
+constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar);
 
 /**
  * @brief Streams a rectangle as `[min,max]`.
@@ -1433,7 +1463,7 @@ constexpr auto operator/(const Rectangle<PointType>& rectangle, const Scalar& sc
  * @param rectangle Rectangle to print.
  * @return The output stream.
  */
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType>& rectangle);
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelType>& rectangle);
 
 }  // namespace pgl

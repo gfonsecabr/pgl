@@ -926,135 +926,149 @@ constexpr void Ray<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
 // -----------------------------------------------------------------------------
 // Rectangle
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Rectangle<PointType>& Rectangle<PointType>::operator+=(const OtherPoint& translation) {
+constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator+=(const OtherPoint& translation) {
     points_[0] += translation;
     points_[1] += translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr Rectangle<PointType>& Rectangle<PointType>::operator-=(const OtherPoint& translation) {
+constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     points_[0] -= translation;
     points_[1] -= translation;
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Rectangle<PointType>& Rectangle<PointType>::operator*=(const Scalar& scalar) {
+constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator*=(const Scalar& scalar) {
+    auto saved = label_;
     *this = *this * scalar;
+    label_ = std::move(saved);
     return *this;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr Rectangle<PointType>& Rectangle<PointType>::operator/=(const Scalar& scalar) {
+constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator/=(const Scalar& scalar) {
+    auto saved = label_;
     *this = *this / scalar;
+    label_ = std::move(saved);
     return *this;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = rectangle.min() + translation;
     const auto second = rectangle.max() + translation;
-    return Rectangle(first, second);
+    return Rectangle<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType>& rectangle) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType, LabelType>& rectangle) {
     return rectangle + translation;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Rectangle<PointType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = rectangle.min() - translation;
     const auto second = rectangle.max() - translation;
-    return Rectangle(first, second);
+    return Rectangle<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Rectangle<PointType>& rectangle, const Scalar& scalar) {
+constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() * scalar;
     const auto second = rectangle.max() * scalar;
-    return Rectangle(first, second);
+    return Rectangle<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType>& rectangle) {
+constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType, LabelType>& rectangle) {
     return rectangle * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Rectangle<PointType>& rectangle, const Scalar& scalar) {
+constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() / scalar;
     const auto second = rectangle.max() / scalar;
-    return Rectangle(first, second);
+    return Rectangle<std::decay_t<decltype(first)>, LabelType>(first, second);
 }
 
-template <class PointType>
-constexpr Rectangle<PointType> Rectangle<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::rotated90(int k) const {
     return Rectangle(min().rotated90(k), max().rotated90(k));
 }
 
-template <class PointType>
-constexpr void Rectangle<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Rectangle<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
     *this = rotated90(k);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Rectangle<PointType> Rectangle<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     return Rectangle(min().scaledUpX(scalar), max().scaledUpX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Rectangle<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Rectangle<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Rectangle<PointType> Rectangle<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     return Rectangle(min().scaledUpY(scalar), max().scaledUpY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Rectangle<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Rectangle<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpY(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Rectangle<PointType> Rectangle<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     return Rectangle(min().scaledDownX(scalar), max().scaledDownX(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Rectangle<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Rectangle<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Rectangle<PointType> Rectangle<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     return Rectangle(min().scaledDownY(scalar), max().scaledDownY(scalar));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Rectangle<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Rectangle<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownY(scalar);
+    label_ = std::move(saved);
 }
 
 // -----------------------------------------------------------------------------

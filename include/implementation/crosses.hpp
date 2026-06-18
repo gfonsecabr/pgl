@@ -360,9 +360,9 @@ constexpr bool Ray<PointType, LabelType>::crosses(const Shape<PointType>& other)
  * used to answer strict interior and separation questions.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Rectangle<PointType>::crosses(const OtherRectangle& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherRectangle& other) const {
     const bool hor_ver =
         min().x() < other.min().x() &&
         other.max().x() < max().x() &&
@@ -379,51 +379,51 @@ constexpr bool Rectangle<PointType>::crosses(const OtherRectangle& other) const 
     return ver_hor;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Rectangle<PointType>::crosses(const OtherPoint&) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Rectangle<PointType>::crosses(const OtherLine& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Rectangle<PointType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Rectangle<PointType>::crosses(const OtherSegment& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Rectangle<PointType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Rectangle<PointType>::crosses(const OtherRay& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Rectangle<PointType>::crosses(const OtherHalfplane& other) const {
+constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
     (void)other;
     return false;
 }
 
-template <class PointType>
-constexpr bool Rectangle<PointType>::crosses(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::crosses(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);
