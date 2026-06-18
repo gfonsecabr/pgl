@@ -275,47 +275,65 @@ struct Triangulation {
     }
 
     /**
-     * @brief Builds the constrained Delaunay triangulation of a simple polygon.
+     * @brief Builds the constrained Delaunay triangulation of a simple polygon,
+     *        optionally with extra interior points and constraint segments.
      *
-     * The convex hull of the polygon's vertices is Delaunay-triangulated, the
-     * polygon's boundary edges are inserted as constraints, and the triangles
-     * lying outside the polygon (between it and its convex hull) are marked
-     * out-of-domain. The public view — @ref triangles, @ref numTriangles,
-     * @ref locate, ... — then sees exactly the polygon's interior; @ref locate
-     * therefore works for non-convex polygons.
+     * The convex hull of all input vertices is Delaunay-triangulated, the
+     * polygon's boundary edges and every constraint segment are inserted as
+     * constraints, and the triangles lying outside the polygon (between it and
+     * its convex hull) are marked out-of-domain. The public view — @ref triangles,
+     * @ref numTriangles, @ref locate, ... — then sees exactly the polygon's
+     * interior; @ref locate therefore works for non-convex polygons.
+     *
+     * The vertex set is the union of the polygon's vertices, the points in
+     * @p points, and the endpoints of the segments in @p segments; each segment
+     * additionally becomes a constrained edge. Either @p points or @p segments
+     * (or both) may be omitted.
      *
      * @param poly Simple polygon (convex or not) to triangulate.
-     * @pre @p poly is simple (non-self-intersecting) and non-degenerate.
+     * @pre @p poly is simple (non-self-intersecting) and non-degenerate, and any
+     *      extra points and segments lie inside it (the latter is not checked).
      */
     explicit Triangulation(const Polygon<PointType>& poly) {
-        std::unordered_map<PointType, VertexId> vid;
-        const auto idOfPoint = makeVertexInterner(vid);
-        for (std::size_t i = 0; i < poly.size(); ++i) {
-            idOfPoint(poly[i]);
-        }
-        // Keep vertices_ in Hilbert order (see the point-set constructor). The
-        // interner's indices are now stale, so rebuild the point->index map and
-        // resolve the boundary loop against the reordered vertices.
-        hilbertSort(vertices_);
-        vid.clear();
-        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
-            vid.emplace(vertices_[i], i);
-        }
-        std::vector<VertexId> loop;
-        loop.reserve(poly.size());
-        for (std::size_t i = 0; i < poly.size(); ++i) {
-            loop.push_back(vid.at(poly[i]));
-        }
-        auto triples = delaunayTriples(vertices_);
-        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+        constructConstrained(poly, std::array<PointType, 0>{}, std::array<SegmentType, 0>{});
+    }
 
-        // Insert each polygon edge as a constraint, then carve away everything
-        // the boundary fences off from the outside.
-        for (std::size_t i = 0; i < loop.size(); ++i) {
-            insertConstraint(loop[i], loop[(i + 1) % loop.size()]);
-        }
-        restoreConstrainedDelaunay();
-        markOutOfDomain();
+    /**
+     * @overload
+     * @brief Adds the interior @p points as extra triangulation vertices.
+     * @param points Extra vertices to insert; assumed to lie inside @p poly.
+     */
+    template <class PointRange>
+        requires PointConcept<typename PointRange::value_type>
+    Triangulation(const Polygon<PointType>& poly, const PointRange& points) {
+        constructConstrained(poly, points, std::array<SegmentType, 0>{});
+    }
+
+    /**
+     * @overload
+     * @brief Adds the interior @p segments as constrained edges and vertices.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie inside @p poly.
+     */
+    template <class SegmentRange>
+        requires SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const Polygon<PointType>& poly, const SegmentRange& segments) {
+        constructConstrained(poly, std::array<PointType, 0>{}, segments);
+    }
+
+    /**
+     * @overload
+     * @brief Adds both interior @p points and constraint @p segments.
+     * @param points Extra vertices to insert; assumed to lie inside @p poly.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie inside @p poly.
+     */
+    template <class PointRange, class SegmentRange>
+        requires PointConcept<typename PointRange::value_type> &&
+                 SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const Polygon<PointType>& poly, const PointRange& points,
+                  const SegmentRange& segments) {
+        constructConstrained(poly, points, segments);
     }
 
     // ---- sizes -----------------------------------------------------------
@@ -1731,6 +1749,73 @@ struct Triangulation {
         domainTriangleCount_ = static_cast<std::size_t>(firstGhost_) - marked;
     }
 
+    // Shared implementation of the polygon constructors. Triangulates the union
+    // of the polygon vertices, the extra interior points, and the constraint
+    // segment endpoints; constrains the polygon boundary and every interior
+    // segment; then marks the exterior (between the polygon and its convex hull)
+    // out of domain. Interior constraints never reach that exterior flood — the
+    // boundary fences it off — so they stay in-domain. @p extraPoints and
+    // @p constraintSegments are assumed to lie inside @p poly (not checked).
+    template <class PointRange, class SegmentRange>
+    void constructConstrained(const Polygon<PointType>& poly, const PointRange& extraPoints,
+                              const SegmentRange& constraintSegments) {
+        std::unordered_map<PointType, VertexId> vid;
+        const auto idOfPoint = makeVertexInterner(vid);
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            idOfPoint(poly[i]);
+        }
+        for (const auto& p : extraPoints) {
+            idOfPoint(PointType(p));
+        }
+        for (const auto& s : constraintSegments) {
+            idOfPoint(PointType(s[0]));
+            idOfPoint(PointType(s[1]));
+        }
+        // Keep vertices_ in Hilbert order (see the point-set constructor); the
+        // interner's ids are now stale, so rebuild the map and resolve the
+        // boundary loop and constraint endpoints against the reordered vertices.
+        hilbertSort(vertices_);
+        vid.clear();
+        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+            vid.emplace(vertices_[i], i);
+        }
+        std::vector<VertexId> loop;
+        loop.reserve(poly.size());
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            loop.push_back(vid.at(poly[i]));
+        }
+        auto triples = delaunayTriples(vertices_);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+
+        // Constrain the polygon boundary and every interior segment, restore the
+        // constrained Delaunay property, then carve away the exterior.
+        for (std::size_t i = 0; i < loop.size(); ++i) {
+            insertConstraint(loop[i], loop[(i + 1) % loop.size()]);
+        }
+        for (const auto& s : constraintSegments) {
+            const VertexId a = vid.at(PointType(s[0]));
+            const VertexId b = vid.at(PointType(s[1]));
+            if (a != b) {
+                insertConstraint(a, b);
+            }
+        }
+        restoreConstrainedDelaunay();
+        markOutOfDomain();
+
+        // Carry each constraint segment's label onto its edge record. Constrained
+        // edges are never flipped, so they are still in segToEdge_ (keyed by
+        // coordinates; the label is ignored for the lookup). Mirrors the
+        // segment-range constructor.
+        if constexpr (detail::has_label_v<SegmentLabel>) {
+            for (const auto& s : constraintSegments) {
+                auto it = segToEdge_.find(SegmentType(PointType(s[0]), PointType(s[1])));
+                if (it != segToEdge_.end()) {
+                    it->second.segLabel = detail::copyLabel<SegmentLabel>(s);
+                }
+            }
+        }
+    }
+
     // Appends the ghost vertex, materializes the triangle records (normalized to
     // CCW) from vertex-index triples and their parallel labels, then links
     // adjacency and the edge map.
@@ -1948,5 +2033,29 @@ Triangulation(const PointRange&)
 
 template <class PointType>
 Triangulation(const Polygon<PointType>&) -> Triangulation<Triangle<PointType>>;
+
+// Polygon with extra interior points and/or constraint segments: the point and
+// triangle types come from the polygon. When constraint segments are present the
+// stored edge type takes their label (over the polygon's own point type), so the
+// segments' labels survive; otherwise the edge type defaults like the
+// polygon-only guide. The `requires` clauses disambiguate the two two-argument
+// forms (a points range vs a segment range), mirroring the disjoint guides above.
+template <class PolyPoint, class PointRange>
+    requires PointConcept<typename PointRange::value_type>
+Triangulation(const Polygon<PolyPoint>&, const PointRange&)
+    -> Triangulation<Triangle<PolyPoint>>;
+
+template <class PolyPoint, class SegmentRange>
+    requires SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const Polygon<PolyPoint>&, const SegmentRange&)
+    -> Triangulation<Triangle<PolyPoint>,
+                     Segment<PolyPoint, typename SegmentRange::value_type::LabelType>>;
+
+template <class PolyPoint, class PointRange, class SegmentRange>
+    requires PointConcept<typename PointRange::value_type> &&
+             SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const Polygon<PolyPoint>&, const PointRange&, const SegmentRange&)
+    -> Triangulation<Triangle<PolyPoint>,
+                     Segment<PolyPoint, typename SegmentRange::value_type::LabelType>>;
 
 }  // namespace pgl
