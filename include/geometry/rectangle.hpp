@@ -1011,6 +1011,10 @@ struct Rectangle {
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
+    /** @copydoc squaredDistance(const OtherLine&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
     /**
      * @brief Returns the squared Euclidean distance to another rectangle.
      *

@@ -1030,8 +1030,16 @@ struct Triangle {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to a higher-ranked shape.

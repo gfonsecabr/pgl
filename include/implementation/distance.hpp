@@ -65,7 +65,7 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& 
     const auto squared_length = ab * ab;
 
     if (squared_length == ResultNumber{}) {
-        return static_cast<ResultNumber>(a.template squaredDistance<ResultNumber>(p));
+        return a.template squaredDistance<ResultNumber>(p);
     }
 
     const ResultNumber projection_numerator = ap * ab;
@@ -155,7 +155,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Line<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     if (isDegenerate()) {
-        return static_cast<ResultNumber>(min().template squaredDistance<ResultNumber>(point));
+        return min().template squaredDistance<ResultNumber>(point);
     }
 
     const Point<ResultNumber> a(min());
@@ -175,7 +175,7 @@ constexpr auto Line<PointType, LabelType>::squaredDistance(const OtherLine& othe
         return ResultNumber{};
     }
 
-    return static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(min()));
+    return other.template squaredDistance<ResultNumber>(min());
 }
 
 template <class PointType, class LabelType>
@@ -217,6 +217,18 @@ constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherOr
     return this->asLine().template squaredDistance<ResultNumber>(other.asLine());
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
+    return this->asLine().template squaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto OrientedLine<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    return this->asLine().template squaredDistance<ResultNumber>(other);
+}
+
 // -----------------------------------------------------------------------------
 // Ray
 
@@ -224,7 +236,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     if (isDegenerate()) {
-        return static_cast<ResultNumber>(source().template squaredDistance<ResultNumber>(point));
+        return source().template squaredDistance<ResultNumber>(point);
     }
 
     const Point<ResultNumber> a(source());
@@ -254,7 +266,7 @@ constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherLine& other
         return ResultNumber{};
     }
 
-    return static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(source()));
+    return other.template squaredDistance<ResultNumber>(source());
 }
 
 template <class PointType, class LabelType>
@@ -264,7 +276,7 @@ constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherOrientedLin
         return ResultNumber{};
     }
 
-    return static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(source()));
+    return other.template squaredDistance<ResultNumber>(source());
 }
 
 template <class PointType, class LabelType>
@@ -316,7 +328,7 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherPoint
     if (intersects(point)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(point));
+    return asLine().template squaredDistance<ResultNumber>(point);
 }
 
 template <class PointType, class LabelType>
@@ -325,7 +337,7 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherSegme
     if (intersects(other)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
+    return asLine().template squaredDistance<ResultNumber>(other);
 }
 
 template <class PointType, class LabelType>
@@ -334,7 +346,7 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherOrien
     if (intersects(other)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
+    return asLine().template squaredDistance<ResultNumber>(other);
 }
 
 template <class PointType, class LabelType>
@@ -343,7 +355,7 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherLine&
     if (intersects(other)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
+    return asLine().template squaredDistance<ResultNumber>(other);
 }
 
 template <class PointType, class LabelType>
@@ -352,7 +364,7 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherOrien
     if (intersects(other)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
+    return asLine().template squaredDistance<ResultNumber>(other);
 }
 
 template <class PointType, class LabelType>
@@ -361,7 +373,16 @@ constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherRay& 
     if (intersects(other)) {
         return ResultNumber{};
     }
-    return static_cast<ResultNumber>(asLine().template squaredDistance<ResultNumber>(other));
+    return asLine().template squaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Halfplane<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return asLine().template squaredDistance<ResultNumber>(other.asLine());
 }
 
 // -----------------------------------------------------------------------------
@@ -416,9 +437,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherLine&
     }
 
     const auto rectangle_vertices = vertices();
-    auto best_distance = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(rectangle_vertices[0]));
+    auto best_distance = other.template squaredDistance<ResultNumber>(rectangle_vertices[0]);
     for (std::size_t index = 1; index < rectangle_vertices.size(); ++index) {
-        const auto current_distance = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(rectangle_vertices[index]));
+        const auto current_distance = other.template squaredDistance<ResultNumber>(rectangle_vertices[index]);
         if (current_distance < best_distance) {
             best_distance = current_distance;
         }
@@ -440,15 +461,15 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherSegme
         return ResultNumber{};
     }
 
-    auto best_distance = static_cast<ResultNumber>(this->template squaredDistance<ResultNumber>(other.min()));
-    const auto other_max_distance = static_cast<ResultNumber>(this->template squaredDistance<ResultNumber>(other.max()));
+    auto best_distance = this->template squaredDistance<ResultNumber>(other.min());
+    const auto other_max_distance = this->template squaredDistance<ResultNumber>(other.max());
     if (other_max_distance < best_distance) {
         best_distance = other_max_distance;
     }
 
     const auto rectangle_edges = edges();
     for (const auto& edge : rectangle_edges) {
-        const auto current_distance = static_cast<ResultNumber>(edge.template squaredDistance<ResultNumber>(other));
+        const auto current_distance = edge.template squaredDistance<ResultNumber>(other);
         if (current_distance < best_distance) {
             best_distance = current_distance;
         }
@@ -470,16 +491,25 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRay& 
         return ResultNumber{};
     }
 
-    auto best_distance = static_cast<ResultNumber>(this->template squaredDistance<ResultNumber>(other.source()));
+    auto best_distance = this->template squaredDistance<ResultNumber>(other.source());
     const auto rectangle_edges = edges();
     for (const auto& edge : rectangle_edges) {
-        const auto current_distance = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(edge));
+        const auto current_distance = other.template squaredDistance<ResultNumber>(edge);
         if (current_distance < best_distance) {
             best_distance = current_distance;
         }
     }
 
     return best_distance;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template squaredDistance<ResultNumber>(other.asLine());
 }
 
 template <class PointType, class LabelType>
@@ -505,9 +535,9 @@ template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Triangle<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
     const auto triangle_edges = edges();
-    auto best = static_cast<ResultNumber>(triangle_edges[0].template squaredDistance<ResultNumber>(other));
+    auto best = triangle_edges[0].template squaredDistance<ResultNumber>(other);
     for (std::size_t index = 1; index < triangle_edges.size(); ++index) {
-        const auto current = static_cast<ResultNumber>(triangle_edges[index].template squaredDistance<ResultNumber>(other));
+        const auto current = triangle_edges[index].template squaredDistance<ResultNumber>(other);
         if (current < best) {
             best = current;
         }
@@ -519,9 +549,9 @@ template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Triangle<PointType, LabelType>::vertexMinSquaredDistance(const OtherShape& other) const {
     const auto triangle_vertices = vertices();
-    auto best = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(triangle_vertices[0]));
+    auto best = other.template squaredDistance<ResultNumber>(triangle_vertices[0]);
     for (std::size_t index = 1; index < triangle_vertices.size(); ++index) {
-        const auto current = static_cast<ResultNumber>(other.template squaredDistance<ResultNumber>(triangle_vertices[index]));
+        const auto current = other.template squaredDistance<ResultNumber>(triangle_vertices[index]);
         if (current < best) {
             best = current;
         }
@@ -584,8 +614,26 @@ constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherRay& o
 }
 
 template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template squaredDistance<ResultNumber>(other.asLine());
+}
+
+template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherTriangle& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }

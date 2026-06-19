@@ -273,3 +273,36 @@ TEST_CASE("Shape stores a Polygon and dispatches its predicates") {
     CHECK(cutting_line.separates(shape));
     CHECK_FALSE(missing_line.separates(shape));
 }
+
+TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape origin = Point(0, 0);
+    const Shape corner = Point(3, 4);
+
+    // Shape against Shape, and against a concrete alternative, agree.
+    CHECK(origin.squaredDistance<int>(corner) == 25);
+    CHECK(origin.squaredDistance<int>(Point(3, 4)) == 25);
+    CHECK(origin.squaredDistance<int>(Segment({3, 4}, {3, 10})) == 25);
+
+    // Symmetric through the forwarding visitor (lower rank forwards to higher).
+    const Shape segment = Segment({3, 4}, {3, 10});
+    CHECK(origin.squaredDistance<int>(segment) == segment.squaredDistance<int>(origin));
+
+    // ResultNumber defaults to the wrapper's NumberType.
+    static_assert(std::is_same_v<decltype(origin.squaredDistance(corner)), int>);
+
+    // Pairs added on the concrete shapes are reachable through the wrapper.
+    const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
+    const Shape t2 = Triangle({10, 0}, {12, 0}, {10, 2});
+    CHECK(t1.squaredDistance<int>(t2) == 64);
+    CHECK(t2.squaredDistance<int>(t1) == 64);
+
+    const Shape below = Triangle({0, 10}, {2, 10}, {1, 13});
+    const Shape down = Halfplane({0, 0}, {1, 0});  // boundary y = 0
+    CHECK(below.squaredDistance<int>(down) == down.squaredDistance<int>(below));
+}

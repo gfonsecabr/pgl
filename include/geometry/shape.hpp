@@ -616,6 +616,46 @@ struct Shape {
         }
     }
 
+    /**
+     * @brief Squared Euclidean distance to another shape or concrete alternative.
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `squaredDistance` requesting @p ResultNumber
+     * coordinates.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to this
+     *   wrapper's `NumberType`).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to measure the distance to.
+     * @return The squared Euclidean distance as @p ResultNumber.
+     * @throws std::logic_error when `squaredDistance` is undefined for the pair
+     *   selected at runtime (anything involving an `EmptyShape`, `Disk`,
+     *   `Convex`, or `Polygon`).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *   generally a fraction, so the internal division truncates and the result
+     *   is inexact. Request a floating-point or pgl::Rational result type for an
+     *   accurate value.
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber squaredDistance(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return squaredDistanceOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return squaredDistanceOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
   private:
     /**
      * @brief Dispatches a binary predicate against a shape or concrete alternative.
@@ -662,6 +702,20 @@ struct Shape {
             return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
         } else {
             throw std::logic_error("Shape::intersection is not defined for this shape pair");
+        }
+    }
+
+    // Measure the squared distance between two unwrapped alternatives. A pair with
+    // no defined squaredDistance (anything against an EmptyShape, Disk, Convex, or
+    // Polygon) takes the throw. The requires probe is SFINAE-safe and
+    // self-maintaining: a pair gains support here as soon as either side
+    // implements squaredDistance for the other (directly or via forwarding).
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber squaredDistanceOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template squaredDistance<ResultNumber>(right); }) {
+            return left.template squaredDistance<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::squaredDistance is not defined for this shape pair");
         }
     }
 
