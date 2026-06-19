@@ -764,9 +764,9 @@ auto bruteForceIntersections(const Container &segments) {
     return ret;
 }
 
-template <class PointType_>
+template <class PointType_, class LabelType>
 template <class Rational>
-bool Polygon<PointType_>::isSimple() const {
+bool Polygon<PointType_, LabelType>::isSimple() const {
     using Number = typename PointType::NumberType;
     const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
     if (n < 3) {

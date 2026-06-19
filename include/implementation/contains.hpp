@@ -1090,9 +1090,9 @@ constexpr bool Convex<PointType, LabelType>::contains(const OtherDisk& other) co
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::contains(const OtherPoint& point) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherPoint& point) const {
     const std::size_t n = size();
     if (n == 0) {
         return false;
@@ -1142,9 +1142,9 @@ constexpr bool Polygon<PointType>::contains(const OtherPoint& point) const {
     return winding != 0;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Polygon<PointType>::contains(const OtherSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherSegment& other) const {
     if (size() == 0) {
         return false;
     }
@@ -1234,41 +1234,41 @@ constexpr bool Polygon<PointType>::contains(const OtherSegment& other) const {
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Polygon<PointType>::contains(const OtherOrientedSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
     return contains(Segment<typename OtherOrientedSegment::PointType>(other.source(), other.target()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Polygon<PointType>::contains(const OtherLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherLine& other) const {
     return other.isDegenerate() && contains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Polygon<PointType>::contains(const OtherOrientedLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Polygon<PointType>::contains(const OtherRay& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherRay& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Polygon<PointType>::contains(const OtherHalfplane& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherHalfplane& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
 // For a simple polygon (no holes) a bounded shape is contained iff every one
 // of its edges is contained, so the region overloads reduce to edge checks.
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType>::contains(const OtherRectangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherRectangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!contains(Segment<typename OtherRectangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
@@ -1277,9 +1277,9 @@ constexpr bool Polygon<PointType>::contains(const OtherRectangle& other) const {
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType>::contains(const OtherTriangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherTriangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!contains(Segment<typename OtherTriangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
@@ -1288,9 +1288,9 @@ constexpr bool Polygon<PointType>::contains(const OtherTriangle& other) const {
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType>::contains(const OtherConvex& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -1305,9 +1305,9 @@ constexpr bool Polygon<PointType>::contains(const OtherConvex& other) const {
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType>::contains(const OtherPolygon& other) const {
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -1325,8 +1325,8 @@ constexpr bool Polygon<PointType>::contains(const OtherPolygon& other) const {
     return true;
 }
 
-template <class PointType>
-constexpr bool Polygon<PointType>::contains(const Shape<PointType>& other) const {
+template <class PointType, class LabelType>
+constexpr bool Polygon<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
             return contains(value);

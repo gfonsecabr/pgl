@@ -254,10 +254,10 @@ namespace std {
     /**
      * @brief Hash support for Polygon.
      */
-    template <class PointType>
-    struct hash<pgl::Polygon<PointType>> {
-        std::size_t operator()(const pgl::Polygon<PointType>& polygon) const {
-            using Shape = pgl::Polygon<PointType>;
+    template <class PointType, class LabelType>
+    struct hash<pgl::Polygon<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Polygon<PointType, LabelType>& polygon) const {
+            using Shape = pgl::Polygon<PointType, LabelType>;
             if (polygon.hash_ != Shape::hashUnset_) {
                 return polygon.hash_;
             }

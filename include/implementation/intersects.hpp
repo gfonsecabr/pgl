@@ -904,15 +904,15 @@ constexpr bool Convex<PointType, LabelType>::intersects(const Shape<OtherPoint>&
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::intersects(const OtherPoint& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Polygon<PointType>::intersects(const OtherSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherSegment& other) const {
     // Either an endpoint lies in the closed polygon, or the segment crosses
     // a boundary edge.
     if (contains(other.min()) || contains(other.max())) {
@@ -926,15 +926,15 @@ constexpr bool Polygon<PointType>::intersects(const OtherSegment& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Polygon<PointType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Polygon<PointType>::intersects(const OtherLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherLine& other) const {
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -956,15 +956,15 @@ constexpr bool Polygon<PointType>::intersects(const OtherLine& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Polygon<PointType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
     return intersects(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Polygon<PointType>::intersects(const OtherRay& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRay& other) const {
     if (contains(other.source())) {
         return true;
     }
@@ -976,9 +976,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherRay& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Polygon<PointType>::intersects(const OtherHalfplane& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
     if (other.isDegenerate()) {
         return contains(other.source());
     }
@@ -994,9 +994,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherHalfplane& other) const
 
 // Two filled simple polygons meet iff a vertex of one lies in the other or a
 // pair of their edges cross. The region overloads below all share this shape.
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType>::intersects(const OtherRectangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRectangle& other) const {
     for (const auto& vertex : other.vertices()) {
         if (contains(vertex)) {
             return true;
@@ -1017,9 +1017,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherRectangle& other) const
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType>::intersects(const OtherTriangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherTriangle& other) const {
     for (const auto& vertex : other.vertices()) {
         if (contains(vertex)) {
             return true;
@@ -1040,9 +1040,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherTriangle& other) const 
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType>::intersects(const OtherConvex& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherConvex& other) const {
     if (size() == 0 || other.size() == 0) {
         return false;
     }
@@ -1072,9 +1072,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherConvex& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType>::intersects(const OtherPolygon& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolygon& other) const {
     if (size() == 0 || other.size() == 0) {
         return false;
     }
@@ -1105,9 +1105,9 @@ constexpr bool Polygon<PointType>::intersects(const OtherPolygon& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::intersects(const Shape<OtherPoint>& other) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->intersects(value);
@@ -1191,9 +1191,9 @@ constexpr bool Disk<PointType, LabelType>::intersects(const Shape<OtherPoint>& o
 }
 
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType>::intersects(const OtherDisk&) const {
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::intersects(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

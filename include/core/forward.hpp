@@ -96,7 +96,7 @@ template <class PointType, class Label = NoLabel>
 struct Convex;
 
 /** @brief Closed simple polygon stored by its vertices. */
-template <class PointType>
+template <class PointType, class Label = NoLabel>
 struct Polygon;
 
 /** @brief Closed Euclidean disk stored by boundary points plus optional disk label. */
@@ -149,8 +149,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Disk<PointType, Label>> = 100;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Convex<PointType, Label>> = 110;
-template <class PointType>
-inline constexpr int shapeRank<Polygon<PointType>> = 120;
+template <class PointType, class Label>
+inline constexpr int shapeRank<Polygon<PointType, Label>> = 120;
 
 // Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
 // specialization of that shape. They back the public XxxConcept concepts below
@@ -202,7 +202,7 @@ template <class PointType, class Label> struct is_convex<Convex<PointType, Label
 template <class T> inline constexpr bool is_convex_v = is_convex<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_polygon : std::false_type {};
-template <class PointType> struct is_polygon<Polygon<PointType>> : std::true_type {};
+template <class PointType, class Label> struct is_polygon<Polygon<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_disk : std::false_type {};

@@ -432,8 +432,8 @@ constexpr Rectangle<Point<ResultNumber>> Convex<PointType, LabelType>::fbox() co
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
-constexpr const Rectangle<PointType>& Polygon<PointType>::bbox() const {
+template <class PointType, class LabelType>
+constexpr const Rectangle<PointType>& Polygon<PointType, LabelType>::bbox() const {
     if (bbox_) {
         return *bbox_;
     }
@@ -443,9 +443,9 @@ constexpr const Rectangle<PointType>& Polygon<PointType>::bbox() const {
     return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <std::floating_point ResultNumber>
-constexpr Rectangle<Point<ResultNumber>> Polygon<PointType>::fbox() const {
+constexpr Rectangle<Point<ResultNumber>> Polygon<PointType, LabelType>::fbox() const {
     return bbox().template fbox<ResultNumber>();
 }
 

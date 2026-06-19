@@ -838,18 +838,18 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const Shape<OtherP
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorContains(const OtherPoint& point) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
     // Strictly interior iff contained but not on the boundary (mirrors
     // Convex::interiorContains). A polygon with fewer than three vertices has
     // every contained point on its boundary, so this yields false there.
     return contains(point) && !boundaryContains(point);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Polygon<PointType>::interiorContains(const OtherSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
     if (size() < 3) {
         return false;
     }
@@ -867,41 +867,41 @@ constexpr bool Polygon<PointType>::interiorContains(const OtherSegment& other) c
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Polygon<PointType>::interiorContains(const OtherOrientedSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(Segment<typename OtherOrientedSegment::PointType>(other.source(), other.target()));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Polygon<PointType>::interiorContains(const OtherLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherLine& other) const {
     return other.isDegenerate() && interiorContains(other.min());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Polygon<PointType>::interiorContains(const OtherOrientedLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Polygon<PointType>::interiorContains(const OtherRay& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherRay& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Polygon<PointType>::interiorContains(const OtherHalfplane& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
     return other.isDegenerate() && interiorContains(other.source());
 }
 
 // For a simple polygon (no holes) the region overloads reduce to an
 // edge-by-edge interior check, mirroring the contains() overloads.
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType>::interiorContains(const OtherRectangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!interiorContains(Segment<typename OtherRectangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
@@ -910,9 +910,9 @@ constexpr bool Polygon<PointType>::interiorContains(const OtherRectangle& other)
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType>::interiorContains(const OtherTriangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!interiorContains(Segment<typename OtherTriangle::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
@@ -921,9 +921,9 @@ constexpr bool Polygon<PointType>::interiorContains(const OtherTriangle& other) 
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType>::interiorContains(const OtherConvex& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -938,9 +938,9 @@ constexpr bool Polygon<PointType>::interiorContains(const OtherConvex& other) co
     return true;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType>::interiorContains(const OtherPolygon& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -1175,9 +1175,9 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolygon&)
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType>::interiorContains(const OtherDisk&) const {
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::interiorContains(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

@@ -1527,15 +1527,15 @@ constexpr bool Convex<PointType, LabelType>::separates(const Shape<OtherPoint>& 
  * Polygon-vs-shape cut predicates.
  */
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::separates(const OtherPoint&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherPoint&) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Polygon<PointType>::separates(const OtherSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1599,9 +1599,9 @@ constexpr bool Polygon<PointType>::separates(const OtherSegment& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Polygon<PointType>::separates(const OtherRay& other) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1632,30 +1632,30 @@ constexpr bool Polygon<PointType>::separates(const OtherRay& other) const {
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Polygon<PointType>::separates(const OtherLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
     return intersects(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Polygon<PointType>::separates(const OtherOrientedSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Polygon<PointType>::separates(const OtherOrientedLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
     return separates(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Polygon<PointType>::separates(const OtherHalfplane&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherHalfplane&) const {
     return false;  // A polygon never separates a halfplane
 }
 
@@ -1948,41 +1948,41 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon&) const 
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType>::separates(const OtherRectangle&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherRectangle&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Rectangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType>::separates(const OtherTriangle&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherTriangle&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Triangle) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType>::separates(const OtherDisk&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType>::separates(const OtherConvex&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherConvex&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Convex) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType>::separates(const OtherPolygon&) const {
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon&) const {
     throw std::runtime_error(
         "pgl: Polygon::separates(Polygon) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement
