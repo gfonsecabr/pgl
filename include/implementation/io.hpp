@@ -188,9 +188,29 @@ std::ostream& operator<<(std::ostream& stream, const Triangle<PointType, LabelTy
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType, LabelType>& halfplane) {
     if constexpr (detail::has_label_v<LabelType>) {
-        stream << halfplane.label() << ":{^-" << halfplane.source() << "--" << halfplane.target() << "-^}";
+        stream << halfplane.label() << ":^-" << halfplane.source() << "--" << halfplane.target() << "-^";
     } else {
         stream << "^-" << halfplane.source() << "--" << halfplane.target() << "-^";
+    }
+    return stream;
+}
+
+// -----------------------------------------------------------------------------
+// Disk
+
+/**
+ * @brief Streams a disk as `((p1)(p2)(p3))`.
+ *
+ * @param stream Output stream.
+ * @param disk Disk to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Disk<PointType, LabelType>& disk) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << disk.label() << ":(" << disk.a() << disk.b() << disk.c() << ")";
+    } else {
+        stream << '(' << disk.a() << disk.b() << disk.c() << ')';
     }
     return stream;
 }
