@@ -918,16 +918,16 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const Shape<Othe
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -947,15 +947,15 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherLine& other) co
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherOrientedLine& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
     return interiorsIntersect(static_cast<Line<typename OtherOrientedLine::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -999,15 +999,15 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherSegment& other)
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherRay& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1046,9 +1046,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherRay& other) con
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherHalfplane& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1066,9 +1066,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherHalfplane& othe
 // Two filled simple polygons have intersecting interiors iff a vertex of one is
 // strictly inside the other, or a pair of their edges properly cross. (Exact
 // coincidence is caught separately for the polygon-polygon overload.)
-template <class PointType>
+template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherRectangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1099,9 +1099,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherRectangle& othe
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherTriangle& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
@@ -1125,9 +1125,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherTriangle& other
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherConvex& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
     if (isDegenerate() || other.isDegenerate() || !bbox().intersects(other.bbox())) {
         return false;
     }
@@ -1154,9 +1154,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherConvex& other) 
     return false;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPolygon& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
     // Cheap bounding-box reject: if the closed boxes are disjoint the interiors
     // cannot meet, so the O(n^2) machinery below is skipped for distant pairs.
     if (size() == 0 || other.size() == 0 || !bbox().intersects(other.bbox())) {
@@ -1202,9 +1202,9 @@ constexpr bool Polygon<PointType>::interiorsIntersect(const OtherPolygon& other)
 }
 
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
-constexpr bool Polygon<PointType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);
@@ -1314,9 +1314,9 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Shape<OtherP
 }
 
 
-template <class PointType>
+template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType>::interiorsIntersect(const OtherDisk&) const {
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk&) const {
     throw std::runtime_error(
         "pgl: Polygon::interiorsIntersect(Disk) is not implemented yet for this shape pair");
     return false;  // unreachable; satisfies constexpr return requirement

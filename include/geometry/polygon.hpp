@@ -19,22 +19,22 @@
 
 namespace pgl {
 
-template <class PointType = Point<>>
+template <class PointType = Point<>, class Label>
 struct Polygon;
 
-Polygon() -> Polygon<Point<>>;
+Polygon() -> Polygon<Point<>, NoLabel>;
 
 template <std::ranges::input_range Range>
 requires detail::is_point_v<std::ranges::range_value_t<Range>>
-Polygon(Range&&) -> Polygon<std::remove_cvref_t<std::ranges::range_value_t<Range>>>;
+Polygon(Range&&) -> Polygon<std::remove_cvref_t<std::ranges::range_value_t<Range>>, NoLabel>;
 
 template <class Number>
 requires (!detail::is_point_v<Number>)
-Polygon(std::initializer_list<Number>) -> Polygon<Point<Number>>;
+Polygon(std::initializer_list<Number>) -> Polygon<Point<Number>, NoLabel>;
 
 template <class Number>
 requires (!detail::is_point_v<Number>)
-Polygon(std::initializer_list<Number>, bool) -> Polygon<Point<Number>>;
+Polygon(std::initializer_list<Number>, bool) -> Polygon<Point<Number>, NoLabel>;
 
 
 /**
@@ -53,10 +53,11 @@ Polygon(std::initializer_list<Number>, bool) -> Polygon<Point<Number>>;
  *
  * @tparam PointType_ The vertex point type.
  */
-template <class PointType_>
+template <class PointType_, class TLabel>
 struct Polygon {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
+    using LabelType = TLabel;
     static_assert(detail::is_point_v<PointType>, "Polygon requires pgl::Point vertices");
 
     template <bool Oriented>
@@ -129,9 +130,30 @@ struct Polygon {
      * @tparam OtherPointType Source vertex type.
      * @param other Source polygon.
      */
-    template<PointConcept OtherPointType>
+    template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Polygon(const Polygon<OtherPointType>& other) : points_(other.begin(), other.end()) {}
+    constexpr Polygon(const Polygon<OtherPointType, OtherLabelType>& other)
+        : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
+
+    /**
+     * @brief Returns the polygon label (read-only).
+     * @return Const reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr const A& label() const {
+        return label_;
+    }
+
+    /**
+     * @brief Returns the polygon label.
+     * @return Reference to the stored label.
+     */
+    template <class A = LabelType>
+        requires(detail::has_label_v<A>)
+    constexpr A& label() {
+        return label_;
+    }
 
     /**
      * @brief Accesses a vertex by index.
@@ -1364,6 +1386,7 @@ struct Polygon {
 
   private:
     std::vector<PointType> points_{};
+    [[no_unique_address]] LabelType label_{};
     PointType translation_{};
     // Lazily computed bounding box, invalidated by resetCache() on every
     // mutation. Empty until first computed.
@@ -1503,50 +1526,59 @@ struct Polygon {
     };
 }; // struct Polygon
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Polygon<PointType>& polygon, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Polygon<PointType, LabelType>& polygon, const Point<TranslationNumber, TranslationLabel>& translation) {
     return translation + polygon;
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Polygon<PointType>& polygon) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Polygon<PointType, LabelType>& polygon) {
     using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    Polygon<ResultPointType> result(polygon);
+    Polygon<ResultPointType, LabelType> result(polygon);
     result += translation;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Polygon<PointType>& polygon, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Polygon<PointType, LabelType>& polygon, const Point<TranslationNumber, TranslationLabel>& translation) {
     return polygon + (-translation);
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Polygon<PointType>& polygon, const Scalar& scalar) {
+constexpr auto operator*(const Polygon<PointType, LabelType>& polygon, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() * scalar), typename PointType::LabelType>;
-    Polygon<ResultPointType> result(polygon);
+    Polygon<ResultPointType, LabelType> result(polygon);
     result *= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class Scalar, class PointType>
+template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Polygon<PointType>& polygon) {
+constexpr auto operator*(const Scalar& scalar, const Polygon<PointType, LabelType>& polygon) {
     return polygon * scalar;
 }
 
-template <class PointType, class Scalar>
+template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Polygon<PointType>& polygon, const Scalar& scalar) {
+constexpr auto operator/(const Polygon<PointType, LabelType>& polygon, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() / scalar), typename PointType::LabelType>;
-    Polygon<ResultPointType> result(polygon);
+    Polygon<ResultPointType, LabelType> result(polygon);
     result /= scalar;
+    if constexpr (detail::has_label_v<LabelType>) {
+        result.label() = LabelType{};
+    }
     return result;
 }
 
-template <class PointType>
-std::ostream& operator<<(std::ostream& stream, const Polygon<PointType>& polygon) {
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelType>& polygon) {
     stream << "Polygon[";
     for (std::size_t i = 0; i < polygon.size(); ++i) {
         if (i > 0) {

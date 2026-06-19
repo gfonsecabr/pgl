@@ -1471,10 +1471,10 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherSegment& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -1615,17 +1615,17 @@ Polygon<PointType>::intersection(const OtherSegment& other) const {
     return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherOrientedSegment& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
     return intersection<ResultNumber>(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherLine& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherLine& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -1760,17 +1760,17 @@ Polygon<PointType>::intersection(const OtherLine& other) const {
     return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherOrientedLine& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
     return intersection<ResultNumber>(other.asLine());
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherRay& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherRay& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -1910,10 +1910,10 @@ Polygon<PointType>::intersection(const OtherRay& other) const {
     return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherPolygon& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using ResultPolyline = Polyline<ResultPoint>;
@@ -2109,10 +2109,10 @@ Polygon<PointType>::intersection(const OtherPolygon& other) const {
     return result;
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
-Polygon<PointType>::intersection(const OtherHalfplane& other) const {
+Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using ResultPolygon = Polygon<ResultPoint>;

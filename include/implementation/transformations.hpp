@@ -1543,8 +1543,8 @@ constexpr void Convex<PointType, LabelType>::scaleDownY(const OtherNumber scalar
 // ---------------------------------------------------------------------------
 // Polygon
 
-template <class PointType>
-constexpr Polygon<PointType> Polygon<PointType>::rotated90(int k) const {
+template <class PointType, class LabelType>
+constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::rotated90(int k) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1553,14 +1553,16 @@ constexpr Polygon<PointType> Polygon<PointType>::rotated90(int k) const {
     return Polygon(std::move(pts));
 }
 
-template <class PointType>
-constexpr void Polygon<PointType>::rotate90(int k) {
+template <class PointType, class LabelType>
+constexpr void Polygon<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
     *this = rotated90(k);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Polygon<PointType> Polygon<PointType>::scaledUpX(const OtherNumber scalar) const {
+constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1569,15 +1571,17 @@ constexpr Polygon<PointType> Polygon<PointType>::scaledUpX(const OtherNumber sca
     return Polygon(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Polygon<PointType>::scaleUpX(const OtherNumber scalar) {
+constexpr void Polygon<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Polygon<PointType> Polygon<PointType>::scaledUpY(const OtherNumber scalar) const {
+constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1586,15 +1590,17 @@ constexpr Polygon<PointType> Polygon<PointType>::scaledUpY(const OtherNumber sca
     return Polygon(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Polygon<PointType>::scaleUpY(const OtherNumber scalar) {
+constexpr void Polygon<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledUpY(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Polygon<PointType> Polygon<PointType>::scaledDownX(const OtherNumber scalar) const {
+constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1603,15 +1609,17 @@ constexpr Polygon<PointType> Polygon<PointType>::scaledDownX(const OtherNumber s
     return Polygon(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Polygon<PointType>::scaleDownX(const OtherNumber scalar) {
+constexpr void Polygon<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownX(scalar);
+    label_ = std::move(saved);
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr Polygon<PointType> Polygon<PointType>::scaledDownY(const OtherNumber scalar) const {
+constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
     std::vector<PointType> pts;
     pts.reserve(size());
     for (const auto& p : *this) {
@@ -1620,10 +1628,12 @@ constexpr Polygon<PointType> Polygon<PointType>::scaledDownY(const OtherNumber s
     return Polygon(std::move(pts));
 }
 
-template <class PointType>
+template <class PointType, class LabelType>
 template <class OtherNumber>
-constexpr void Polygon<PointType>::scaleDownY(const OtherNumber scalar) {
+constexpr void Polygon<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
     *this = scaledDownY(scalar);
+    label_ = std::move(saved);
 }
 
 // ---------------------------------------------------------------------------
