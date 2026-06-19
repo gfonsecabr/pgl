@@ -96,18 +96,6 @@ std::cout << " and has length " << s.length() << std::endl;
 // Output: The diameter of Convex[(0,0),(1,0),(1,2),(0,1)] is defined by (0,0)--(1,2) and has length 2.23607
 ```
 
-## Comparison and Hashing
-
-All geometry types are comparable and hashable, so they can be stored in standard containers:
-
-```c++
-pgl::Segment s = {1, 0, 4, 7};
-std::set<decltype(s)> set;
-set.insert(s);
-std::unordered_set<decltype(s)> uset;
-uset.insert(s);
-```
-
 ## Visualization
 
 A `Canvas` class is provided for [SVG visualization](doc/canvas.md):
@@ -123,6 +111,30 @@ A `Canvas` class is provided for [SVG visualization](doc/canvas.md):
     canvas << pgl::stroke("blue") << 2*tri;
     canvas.writeSVG("example2.svg");
 ```
+
+## Comparison and Hashing
+
+All geometry types are comparable and hashable, so they can be stored in standard containers:
+
+```c++
+pgl::Segment s = {1, 0, 4, 7};
+std::set<decltype(s)> set;
+set.insert(s);
+std::unordered_set<decltype(s)> uset;
+uset.insert(s);
+```
+
+## Algorithms and Data Structures
+
+<img align="right" src="doc/figures/example_triangulation.svg" width="200"/>
+
+PGL includes [fundamental algorithms](doc/algorithms.md) and [data structures](doc/data_structures.md) such as:
+
+- Convex hull: computed with Graham scan.
+- Line segment intersection: Bentley-Ottmann sweep line using rational numbers.
+- Sort points: by angle or Hilbert order.
+- Kd-tree: for points and a generalization for other bounded shapes.
+- Triangulation: including Delaunay and constrained Delaunay triangulations for points and polygons.
 
 ## Comparison to CGAL
 
