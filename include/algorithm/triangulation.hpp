@@ -73,11 +73,12 @@ concept SegmentOrOriented = SegmentConcept<T> || OrientedSegmentConcept<T>;
  *         edge-segment type. When built from a container of labeled segments it
  *         is deduced as that labeled type, so segment labels are kept.
  *
- * Any label carried by the input triangles (`TriangleType::LabelType`, once
- * `pgl::Triangle` has one) and segments (`SegmentType::LabelType`) is stored and
- * surfaced again by the accessors. A `flip` resets the labels of the edges and
- * triangles it touches to default-constructed values. Labels are stored via
- * `[[no_unique_address]]`, so they cost nothing when absent (`NoLabel`).
+ * Any label carried by the input triangles (`TriangleType::LabelType`) and
+ * segments (`SegmentType::LabelType`) is stored and surfaced again by the
+ * accessors, and can be read or edited in place through @ref label. A `flip`
+ * resets the labels of the edges and triangles it touches to default-constructed
+ * values. Labels are stored via `[[no_unique_address]]`, so they cost nothing
+ * when absent (`NoLabel`).
  */
 template <TriangleConcept TriangleType_,
           SegmentConcept SegmentType_ = typename TriangleType_::template BoundaryType<false>>
@@ -1010,6 +1011,66 @@ struct Triangulation {
         if (m.tri != NO_TRI) {
             setBit(triangles_[m.tri].constrainedMask, m.side, value);
         }
+    }
+
+    // ---- labels ----------------------------------------------------------
+
+    /**
+     * @brief Returns a reference to the label stored for triangle @p t.
+     *
+     * The reference is into the triangulation's own storage, so assigning
+     * through it (`tri.label(t) = ...`) changes the label every later accessor
+     * reports for that triangle. Only available when the triangle type carries
+     * a label.
+     *
+     * @param t A triangle of this triangulation.
+     * @return Reference to its stored label.
+     * @pre `contains(t)` — @p t is one of the triangulation's triangles.
+     */
+    template <class L = TriangleLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] L& label(const TriangleType& t) {
+        const TriId id = idOf(t);
+        assert(inDomain(id) && "label(): triangle is not part of the triangulation");
+        return triangles_[id].triLabel;
+    }
+
+    /** @overload @brief Read-only access to triangle @p t's stored label. */
+    template <class L = TriangleLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] const L& label(const TriangleType& t) const {
+        const TriId id = idOf(t);
+        assert(inDomain(id) && "label(): triangle is not part of the triangulation");
+        return triangles_[id].triLabel;
+    }
+
+    /**
+     * @brief Returns a reference to the label stored for edge @p s.
+     *
+     * The reference is into the triangulation's own storage, so assigning
+     * through it (`tri.label(s) = ...`) changes the label every later accessor
+     * reports for that edge. Only available when the segment type carries a
+     * label.
+     *
+     * @param s An edge of this triangulation.
+     * @return Reference to its stored label.
+     * @pre `contains(s)` — @p s is one of the triangulation's edges.
+     */
+    template <class L = SegmentLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] L& label(const SegmentType& s) {
+        auto se = segToEdge_.find(s);
+        assert(se != segToEdge_.end() && "label(): segment is not an edge of the triangulation");
+        return se->second.segLabel;
+    }
+
+    /** @overload @brief Read-only access to edge @p s's stored label. */
+    template <class L = SegmentLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] const L& label(const SegmentType& s) const {
+        auto se = segToEdge_.find(s);
+        assert(se != segToEdge_.end() && "label(): segment is not an edge of the triangulation");
+        return se->second.segLabel;
     }
 
     // ---- mutation --------------------------------------------------------

@@ -169,22 +169,16 @@ struct Disk {
     }
 
     /**
-     * @brief Returns the disk label (read-only).
-     * @return Const reference to the stored label.
-     */
-    template <class A = LabelType>
-        requires(detail::has_label_v<A>)
-    constexpr const A& label() const {
-        return label_;
-    }
-
-    /**
-     * @brief Returns the disk label (mutable).
+     * @brief Returns the disk label.
+     *
+     * The label is mutable even through a const disk: it is metadata that
+     * does not participate in equality, hashing, or geometric predicates.
+     *
      * @return Reference to the stored label.
      */
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
-    constexpr A& label() {
+    constexpr A& label() const {
         return label_;
     }
 
@@ -1050,7 +1044,7 @@ struct Disk {
     }
 
     std::array<PointType, 3> points_{};        ///< Canonicalized boundary points.
-    [[no_unique_address]] LabelType label_{};  ///< Optional disk label.
+    [[no_unique_address]] mutable LabelType label_{};  ///< Optional disk label.
 };
 
 /// @brief Returns a copy of @p disk translated by @p translation.
