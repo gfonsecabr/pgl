@@ -355,6 +355,53 @@ class ShapeTree {
             }
             return false;
         }
+
+        // --- nearest neighbor: branch-and-bound on squared distance ---
+
+        // Refines (bestDist, bestIndex) with the closest element in this subtree.
+        // The subtree box gives a lower bound on the distance from q to anything
+        // it stores, so a subtree whose box is no nearer than the current best is
+        // pruned entirely. Children are descended nearest-box-first so the bound
+        // tightens before the farther child is considered.
+        template <class ResultNumber, class Q>
+        void nearest(const ShapeTree& tree, const Q& q, ResultNumber& bestDist,
+                     std::ptrdiff_t& bestIndex) const {
+            if (bestIndex != -1) {
+                const ResultNumber lowerBound = q.template squaredDistance<ResultNumber>(box);
+                if (!(lowerBound < bestDist)) {
+                    return;  // Nothing here can beat the current best.
+                }
+            }
+
+            for (std::size_t i : elementIndices) {
+                const ResultNumber d = q.template squaredDistance<ResultNumber>(tree.elements_[i]);
+                if (bestIndex == -1 || d < bestDist) {
+                    bestDist = d;
+                    bestIndex = static_cast<std::ptrdiff_t>(i);
+                    if (d == ResultNumber{}) {
+                        return;  // Exact hit: nothing can be nearer than zero.
+                    }
+                }
+            }
+
+            if (left == -1) {
+                if (right != -1) {
+                    tree.nodes_[right].nearest(tree, q, bestDist, bestIndex);
+                }
+                return;
+            }
+            if (right == -1) {
+                tree.nodes_[left].nearest(tree, q, bestDist, bestIndex);
+                return;
+            }
+
+            const ResultNumber leftBound = q.template squaredDistance<ResultNumber>(tree.nodes_[left].box);
+            const ResultNumber rightBound = q.template squaredDistance<ResultNumber>(tree.nodes_[right].box);
+            const std::ptrdiff_t near = leftBound <= rightBound ? left : right;
+            const std::ptrdiff_t far = leftBound <= rightBound ? right : left;
+            tree.nodes_[near].nearest(tree, q, bestDist, bestIndex);
+            tree.nodes_[far].nearest(tree, q, bestDist, bestIndex);
+        }
     };
 
     static constexpr std::size_t defaultLeafSize = 6;
@@ -868,6 +915,47 @@ class ShapeTree {
     template <class Q>
     [[nodiscard]] bool emptyContainedIn(const Q& q) const {
         return root_ == -1 ? true : !nodes_[root_].anyContainedIn(*this, q);
+    }
+
+    /**
+     * @brief Returns the stored shape nearest to a query shape.
+     *
+     * Finds the stored shape minimizing `squaredDistance` to `q`, using a
+     * branch-and-bound traversal: each node's cached bounding box gives a lower
+     * bound on the distance from `q` to anything in that subtree (via
+     * `q.squaredDistance(Rectangle)`), so subtrees that cannot hold a closer
+     * shape than the best found are pruned, and the nearer child box is
+     * descended first to tighten the bound early.
+     *
+     * Like the other distance operations, the squared distance is computed with
+     * the @ref NumberType coordinate type by default; request an exact
+     * `ResultNumber` (a floating-point type or `pgl::Rational`) when a stored
+     * shape's nearest point falls in its interior, since integer division there
+     * truncates. With a truncating `ResultNumber` the box lower bound stays a
+     * lower bound, so the pruning remains conservative.
+     *
+     * @pre The tree is non-empty. A reference to a default-constructed
+     *      @ref ShapeType is returned otherwise.
+     *
+     * The reference points into the tree's own storage and stays valid until the
+     * tree is destroyed or modified (e.g. by @ref insert).
+     *
+     * @tparam ResultNumber Coordinate type of the squared distance (default:
+     *         @ref NumberType).
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return The nearest stored shape.
+     */
+    template <class ResultNumber = NumberType, class Q>
+    [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
+        if (root_ == -1) {
+            static const ShapeType empty{};
+            return empty;
+        }
+        ResultNumber bestDist{};
+        std::ptrdiff_t bestIndex = -1;
+        nodes_[root_].template nearest<ResultNumber>(*this, q, bestDist, bestIndex);
+        return elements_[static_cast<std::size_t>(bestIndex)];
     }
 
     /**

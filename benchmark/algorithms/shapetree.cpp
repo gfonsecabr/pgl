@@ -1,7 +1,8 @@
 // g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithus/shapetree.cpp
-// @desc: ShapeTree over 10k random triangles with vertices in [0,100]^2  translated by [0,10k]^2. Average time for query rectangles in [0,10k]^2 compared against Brute Force.
+// @desc: ShapeTree over 10k random triangles with vertices in [0,100]^2  translated by [0,10k]^2. Average time for query rectangles (intersect/contain) and nearest-neighbor query points in [0,10k]^2 compared against Brute Force.
 #include <cstdint>
 #include <iostream>
+#include <type_traits>
 #include <vector>
 #include "pgl.hpp"
 #include "../support/plf_nanotimer.h"
@@ -62,6 +63,18 @@ std::vector<pgl::Rectangle<pgl::Point<Number>>> queryWindows(int n) {
 
 
 template <class Number>
+std::vector<pgl::Point<Number>> queryPoints(int n) {
+    using Point = pgl::Point<Number>;
+    std::vector<Point> p;
+    Rng rng{5678};
+    for (int i = 0; i < n; ++i) {
+        p.emplace_back(Number(rng.range(0, 10000)), Number(rng.range(0, 10000)));
+    }
+    return p;
+}
+
+
+template <class Number>
 void run(const char* label) {
     using Triangle = pgl::Triangle<pgl::Point<Number>>;
 
@@ -118,6 +131,42 @@ void run(const char* label) {
     }
     std::cout << "countContainsBF\t" << label << "\t\t" << bfHits2 << "\t"
               << timer.get_elapsed_us()  / windows.size() << std::endl;
+
+    // Nearest neighbor is skipped for integer numbers: a triangle's nearest
+    // point can fall on an edge interior, where the squared distance divides and
+    // truncates, so the integer "nearest" is only approximate and the tree and
+    // brute-force results need not agree.
+    if constexpr (!std::is_integral_v<Number>) {
+        const auto points = queryPoints<Number>(1000);
+
+        // Tree branch-and-bound nearest neighbor across all query points. The
+        // checksum sums each found shape's lex-min x to defeat dead-code elimination.
+        timer.start();
+        Number nnSum{};
+        for (const auto& p : points) {
+            nnSum = nnSum + tree.nearestNeighbor(p).bbox().min().x();
+        }
+        std::cout << "nearestNeighbor\t\t" << label << "\t\t" << nnSum << "\t"
+                  << timer.get_elapsed_us() / points.size() << std::endl;
+
+        // Brute-force baseline: scan every triangle for the closest one.
+        timer.start();
+        Number nnSumBF{};
+        for (const auto& p : points) {
+            const Triangle* best = &tris[0];
+            auto bestDist = p.template squaredDistance<Number>(tris[0]);
+            for (const auto& t : tris) {
+                const auto d = p.template squaredDistance<Number>(t);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = &t;
+                }
+            }
+            nnSumBF = nnSumBF + best->bbox().min().x();
+        }
+        std::cout << "nearestNeighborBF\t" << label << "\t\t" << nnSumBF << "\t"
+                  << timer.get_elapsed_us() / points.size() << std::endl;
+    }
 
 }
 
