@@ -1114,8 +1114,6 @@ constexpr auto operator/(const Disk<PointType, LabelType>& disk, const Scalar& s
 
 /// @brief Writes @p disk to @p stream as `Disk(a b c)`.
 template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const Disk<PointType, LabelType>& disk) {
-    return stream << "Disk(" << disk.a() << disk.b() << disk.c() << ')';
-}
+std::ostream& operator<<(std::ostream& stream, const Disk<PointType, LabelType>& disk);
 
 }  // namespace pgl
