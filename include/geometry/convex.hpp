@@ -246,22 +246,16 @@ struct Convex {
         : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
 
     /**
-     * @brief Returns the convex-polygon label (read-only).
-     * @return Const reference to the stored label.
-     */
-    template <class A = LabelType>
-        requires(detail::has_label_v<A>)
-    constexpr const A& label() const {
-        return label_;
-    }
-
-    /**
      * @brief Returns the convex-polygon label.
+     *
+     * The label is mutable even through a const convex polygon: it is metadata
+     * that does not participate in equality, hashing, or geometric predicates.
+     *
      * @return Reference to the stored label.
      */
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
-    constexpr A& label() {
+    constexpr A& label() const {
         return label_;
     }
 
@@ -1755,7 +1749,7 @@ struct Convex {
 
   private:
     std::vector<PointType> points_{};
-    [[no_unique_address]] LabelType label_{};
+    [[no_unique_address]] mutable LabelType label_{};
     PointType translation_{};
     // Lazily computed caches, invalidated by resetCache() on every mutation.
     // bbox_ is empty and maxIndex_ is -1 until first computed.

@@ -345,6 +345,52 @@ TEST_CASE("Polygon constraint segments carry their labels onto the edges") {
     }
     CHECK(lower == "lower");
     CHECK(upper == "upper");
+
+    // The label() accessor returns a reference into the triangulation's own
+    // storage: assigning through it changes what every later accessor reports.
+    const LabeledSegment lowerEdge(P<Point>(10, 20), P<Point>(50, 20));
+    CHECK(tri.label(lowerEdge) == "lower");
+    tri.label(lowerEdge) = "RELABELED";
+    CHECK(tri.label(lowerEdge) == "RELABELED");
+    bool sawRelabeled = false;
+    for (const auto& e : tri.edges()) {
+        if (e.min() == P<Point>(10, 20) && e.max() == P<Point>(50, 20)) {
+            sawRelabeled = (e.label() == "RELABELED");
+        }
+    }
+    CHECK(sawRelabeled);  // the change is visible through edges()
+}
+
+TEST_CASE("Triangle labels can be read and mutated in place") {
+    using Point = pgl::Point<int>;
+    using LabeledTriangle = pgl::Triangle<Point, std::string>;
+
+    std::vector<LabeledTriangle> tris;
+    tris.emplace_back(P<Point>(0, 0), P<Point>(40, 0), P<Point>(0, 40), "A");
+    tris.emplace_back(P<Point>(40, 0), P<Point>(40, 40), P<Point>(0, 40), "B");
+
+    pgl::Triangulation tri(tris);
+    static_assert(std::is_same_v<decltype(tri)::TriangleLabel, std::string>);
+    REQUIRE(tri.numTriangles() == 2);
+
+    // Each stored triangle still carries the label it was built with, surfaced
+    // both by triangles() and by the label() accessor.
+    for (const auto& t : tri.triangles()) {
+        CHECK((t.label() == "A" || t.label() == "B"));
+        CHECK(tri.label(t) == t.label());
+    }
+
+    // Mutating through label() persists and is visible to later accessors.
+    const auto first = tri.triangles().front();
+    tri.label(first) = "MUTATED";
+    CHECK(tri.label(first) == "MUTATED");
+    bool sawMutated = false;
+    for (const auto& t : tri.triangles()) {
+        if (t.a() == first.a() && t.b() == first.b() && t.c() == first.c()) {
+            sawMutated = (t.label() == "MUTATED");
+        }
+    }
+    CHECK(sawMutated);
 }
 
 TEST_CASE("Locating a point returns the containing triangle") {

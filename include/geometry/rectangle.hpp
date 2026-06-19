@@ -435,22 +435,16 @@ struct Rectangle {
     }
 
     /**
-     * @brief Returns the rectangle label (read-only).
-     * @return Const reference to the stored label.
-     */
-    template <class A = LabelType>
-        requires(detail::has_label_v<A>)
-    constexpr const A& label() const {
-        return label_;
-    }
-
-    /**
      * @brief Returns the rectangle label.
+     *
+     * The label is mutable even through a const rectangle: it is metadata that
+     * does not participate in equality, hashing, or geometric predicates.
+     *
      * @return Reference to the stored label.
      */
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
-    constexpr A& label() {
+    constexpr A& label() const {
         return label_;
     }
 
@@ -1371,7 +1365,7 @@ struct Rectangle {
     constexpr auto maxVertexDistanceTo(const OtherRectangle& other) const;
 
     std::array<PointType, 2> points_{};
-    [[no_unique_address]] LabelType label_{};
+    [[no_unique_address]] mutable LabelType label_{};
 };
 
 /**

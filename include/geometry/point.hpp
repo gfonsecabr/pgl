@@ -179,17 +179,15 @@ struct Point {
     /**
      * @brief Returns the stored label.
      *
+     * The label is mutable even through a const point: it is metadata that
+     * does not participate in equality, hashing, or geometric predicates.
+     *
      * @tparam A Label type.
      * @return Reference to the stored label.
      */
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
-    constexpr const A& label() const {
-        return label_;
-    }
-    template <class A = LabelType>
-        requires(detail::has_label_v<A>)
-    constexpr A& label() {
+    constexpr A& label() const {
         return label_;
     }
 
@@ -843,7 +841,7 @@ struct Point {
 
   private:
     std::array<NumberType,2> coords_{};
-    [[no_unique_address]] LabelType label_{};
+    [[no_unique_address]] mutable LabelType label_{};
 }; // struct Point
 
 /**

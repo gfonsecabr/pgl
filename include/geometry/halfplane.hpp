@@ -284,22 +284,16 @@ struct Halfplane {
     [[nodiscard]] constexpr auto operator<=>(const Halfplane& other) const;
 
     /**
-     * @brief Returns the half-plane label (read-only).
-     * @return Const reference to the stored label.
-     */
-    template <class A = LabelType>
-        requires(detail::has_label_v<A>)
-    constexpr const A& label() const {
-        return label_;
-    }
-
-    /**
      * @brief Returns the half-plane label.
+     *
+     * The label is mutable even through a const half-plane: it is metadata that
+     * does not participate in equality, hashing, or geometric predicates.
+     *
      * @return Reference to the stored label.
      */
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
-    constexpr A& label() {
+    constexpr A& label() const {
         return label_;
     }
 
@@ -815,7 +809,7 @@ struct Halfplane {
   private:
 
     std::array<PointType, 2> points_{};
-    [[no_unique_address]] LabelType label_{};
+    [[no_unique_address]] mutable LabelType label_{};
 };
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
