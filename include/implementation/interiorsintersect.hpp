@@ -893,15 +893,18 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherConve
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
-    if (interiorContains(other[0])) {
-        return true;
-    }
+    // Interiors meet when a convex edge passes through the open disk, or the
+    // disk's centre lies strictly inside the convex. The centre — not a disk
+    // boundary point — is the witness: a disk tangent to an edge from inside
+    // still overlaps the interior.
     for (auto &edge : edges()) {
         if (edge.interiorsIntersect(other)) {
             return true;
         }
     }
-    return false;
+    using R = detail::promoted_number_t<std::common_type_t<
+        NumberType, decltype(other.squaredRadius())>>;
+    return interiorContains(other.template center<R>());
 }
 
 template <class PointType, class LabelType>
@@ -1233,18 +1236,22 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint& 
 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherSegment&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Segment) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    // The open disk meets the segment's relative interior exactly when the
+    // segment comes strictly within one radius of the centre: tangency touches
+    // only the boundary and does not count.
+    using R = detail::promoted_number_t<std::common_type_t<
+        decltype(squaredRadius()), typename OtherSegment::NumberType>>;
+    return other.template squaredDistance<R>(center<R>()) < squaredRadius<R>();
 }
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(OrientedSegment) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType, class LabelType>
@@ -1281,26 +1288,59 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfpla
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    // Interiors meet when a rectangle edge passes through the open disk, or the
+    // disk's centre lies strictly inside the rectangle (the disk covering its
+    // interior). The centre — not a disk boundary point — is the witness: a disk
+    // tangent to an edge from inside still overlaps the interior.
+    for (const auto& edge : other.edges()) {
+        if (interiorsIntersect(edge)) {
+            return true;
+        }
+    }
+    using R = detail::promoted_number_t<std::common_type_t<
+        decltype(squaredRadius()), typename OtherRectangle::NumberType>>;
+    return other.interiorContains(center<R>());
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    // Interiors meet when a triangle edge passes through the open disk, or the
+    // disk's centre lies strictly inside the triangle (the disk covering its
+    // interior). The centre — not a disk boundary point — is the witness: a disk
+    // tangent to an edge from inside still overlaps the interior.
+    for (const auto& edge : other.edges()) {
+        if (interiorsIntersect(edge)) {
+            return true;
+        }
+    }
+    using R = detail::promoted_number_t<std::common_type_t<
+        decltype(squaredRadius()), typename OtherTriangle::NumberType>>;
+    return other.interiorContains(center<R>());
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    // Open disks overlap iff the centre distance is strictly less than the sum
+    // of the radii, so externally tangent disks do not count. With
+    // A = d^2 - r1^2 - r2^2 that is A < 0 or A^2 < 4 r1^2 r2^2 (the strict form
+    // of the closed-disk test in intersects).
+    using R = detail::promoted_number_t<std::common_type_t<
+        decltype(squaredRadius()),
+        decltype(other.squaredRadius())>>;
+    const R d2 = center<R>().squaredDistance(other.template center<R>());
+    const R r1_sq = squaredRadius<R>();
+    const R r2_sq = other.template squaredRadius<R>();
+    const R A = d2 - r1_sq - r2_sq;
+    return A < R{} || A * A < R{4} * r1_sq * r2_sq;
 }
 
 template <class PointType, class LabelType>
