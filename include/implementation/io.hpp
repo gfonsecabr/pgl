@@ -208,9 +208,9 @@ std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType, LabelT
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Disk<PointType, LabelType>& disk) {
     if constexpr (detail::has_label_v<LabelType>) {
-        stream << disk.label() << ":(" << disk.a() << disk.b() << disk.c() << ")";
+        stream << disk.label() << ":Disk(" << disk.a() << disk.b() << disk.c() << ")";
     } else {
-        stream << '(' << disk.a() << disk.b() << disk.c() << ')';
+        stream << 'Disk(' << disk.a() << disk.b() << disk.c() << ')';
     }
     return stream;
 }
