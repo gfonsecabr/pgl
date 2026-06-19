@@ -215,4 +215,51 @@ std::ostream& operator<<(std::ostream& stream, const Disk<PointType, LabelType>&
     return stream;
 }
 
+
+// -----------------------------------------------------------------------------
+// Convex
+/**
+ * @brief Streams a Convex as `Convex[(P1),(P2),(P3),(Pn)...]`.
+ *
+ * @param stream Output stream.
+ * @param convex Convex to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Convex<PointType, LabelType>& convex) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << convex.label() << ':';
+    }
+    stream << "Convex[";
+    for (size_t i = 0; i < convex.size(); ++i) {
+        if (i > 0) {
+            stream << ",";
+        }
+        stream << convex[i];
+    }
+    stream << "]";
+    return stream;
+}
+
+// -----------------------------------------------------------------------------
+// Polygon
+/**
+ * @brief Streams a Polygon as `Polygon[(P1),(P2),(P3),(Pn)...]`.
+ *
+ * @param stream Output stream.
+ * @param polygon Polygon to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelType>& polygon) {
+    stream << "Polygon[";
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        if (i > 0) {
+            stream << ",";
+        }
+        stream << polygon[i];
+    }
+    stream << "]";
+    return stream;
+}
 }  // namespace pgl

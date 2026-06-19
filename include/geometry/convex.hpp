@@ -1935,19 +1935,6 @@ constexpr auto operator/(const Convex<PointType, LabelType>& convex, const Scala
 }
 
 template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const Convex<PointType, LabelType>& convex) {
-    if constexpr (detail::has_label_v<LabelType>) {
-        stream << convex.label() << ':';
-    }
-    stream << "Convex[";
-    for (size_t i = 0; i < convex.size(); ++i) {
-        if (i > 0) {
-            stream << ",";
-        }
-        stream << convex[i];
-    }
-    stream << "]";
-    return stream;
-}
+std::ostream& operator<<(std::ostream& stream, const Convex<PointType, LabelType>& convex);
 
 }  // namespace pgl

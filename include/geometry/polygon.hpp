@@ -1578,16 +1578,6 @@ constexpr auto operator/(const Polygon<PointType, LabelType>& polygon, const Sca
 }
 
 template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelType>& polygon) {
-    stream << "Polygon[";
-    for (std::size_t i = 0; i < polygon.size(); ++i) {
-        if (i > 0) {
-            stream << ",";
-        }
-        stream << polygon[i];
-    }
-    stream << "]";
-    return stream;
-}
+std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelType>& polygon);
 
 }  // namespace pgl
