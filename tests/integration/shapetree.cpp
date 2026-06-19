@@ -76,6 +76,19 @@ std::size_t bruteCountContained(const std::vector<S>& v, const Q& q) {
         [&](const S& s) { return q.contains(s); }));
 }
 
+// The smallest squared distance from any shape in v to the query q.
+template <class ResultNumber, class S, class Q>
+ResultNumber bruteNearestDistance(const std::vector<S>& v, const Q& q) {
+    ResultNumber best = q.template squaredDistance<ResultNumber>(v[0]);
+    for (std::size_t i = 1; i < v.size(); ++i) {
+        const ResultNumber d = q.template squaredDistance<ResultNumber>(v[i]);
+        if (d < best) {
+            best = d;
+        }
+    }
+    return best;
+}
+
 // A spread of query rectangles: tiny, medium, large, all-covering, far-away.
 std::vector<Rect> queryWindows() {
     std::vector<Rect> w;
@@ -293,6 +306,45 @@ TEST_CASE("Deduced ShapeTree preserves segment labels") {
     std::vector<std::string> labels{found[0].label(), found[1].label()};
     std::sort(labels.begin(), labels.end());
     CHECK(labels == std::vector<std::string>{"a", "b"});
+}
+
+TEST_CASE("ShapeTree empty tree returns a default-constructed nearest neighbor") {
+    pgl::ShapeTree<Point> tree{std::vector<Point>{}};
+    CHECK(tree.nearestNeighbor(Point(0, 0)) == Point{});
+}
+
+TEST_CASE("ShapeTree nearestNeighbor on points matches brute force") {
+    const std::vector<Point> points = makePoints(300, 17);
+
+    // A spread of query points: inside, around, and far from the data.
+    Rng rng{0xabcd};
+    std::vector<Point> queries;
+    for (int i = 0; i < 80; ++i) {
+        queries.emplace_back(rng.range(-200, 1200), rng.range(-200, 1200));
+    }
+
+    for (const std::size_t leafSize : {std::size_t{1}, std::size_t{4}, std::size_t{16}}) {
+        const pgl::ShapeTree<Point> tree(points, leafSize);
+        for (const Point& q : queries) {
+            const Point found = tree.nearestNeighbor(q);
+            const long expected = bruteNearestDistance<long>(points, q);
+            CHECK(q.squaredDistance<long>(found) == expected);
+        }
+    }
+}
+
+TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
+    using Rational = pgl::Rational<long>;
+    const std::vector<Triangle> tris = makeTriangles(200, 19);
+    const pgl::ShapeTree<Triangle> tree(tris, 4);
+
+    Rng rng{0x1234};
+    for (int i = 0; i < 60; ++i) {
+        const Point q(rng.range(-200, 1200), rng.range(-200, 1200));
+        const Triangle found = tree.nearestNeighbor<Rational>(q);
+        const Rational expected = bruteNearestDistance<Rational>(tris, q);
+        CHECK(q.squaredDistance<Rational>(found) == expected);
+    }
 }
 
 TEST_CASE("ShapeTree draws node boxes to a canvas") {
