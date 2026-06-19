@@ -62,6 +62,27 @@ using optional_label_t = typename optional_label<T>::type;
 // segment that is source -> target; for a plain segment, its sorted endpoints).
 template <class T>
 concept SegmentOrOriented = SegmentConcept<T> || OrientedSegmentConcept<T>;
+
+// A connected convex query shape accepted by the region-traversal overloads of
+// visitTrianglesIntersecting / trianglesIntersecting. Segments and oriented
+// segments are deliberately excluded — they have their own directed walk. The
+// set is convex so its intersection with the (convex) triangulated hull stays
+// connected, which is what lets a single seed flood-fill find every triangle it
+// meets. (Non-convex polygons are future work.)
+template <class T>
+concept TriangulationRegionQuery =
+    PointConcept<T> || TriangleConcept<T> || RectangleConcept<T> || ConvexConcept<T> ||
+    DiskConcept<T> || LineConcept<T> || OrientedLineConcept<T> || RayConcept<T> ||
+    HalfplaneConcept<T>;
+
+// Any shape the triangulation's intersection queries accept: a segment/oriented
+// segment (traced by the directed walk) or a region-query shape (grown by the
+// flood fill). The derived wrappers — trianglesIntersecting, the
+// interior-intersecting variants, the edge variants — are all built on
+// visitTrianglesIntersecting plus a per-shape predicate, so they take this whole
+// set; only the two visitTrianglesIntersecting overloads carry distinct walks.
+template <class T>
+concept TriangulationQuery = SegmentOrOriented<T> || TriangulationRegionQuery<T>;
 }  // namespace detail
 
 /**
@@ -815,16 +836,19 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the triangles met by the oriented segment @p s, in order.
+     * @brief Returns the triangles met by @p s (a segment, in order, or a region
+     *        query shape, in an unspecified order).
      *
      * A materialized form of @ref visitTrianglesIntersecting: the in-domain
      * triangles `t` with `s.intersects(t)`, in the order they are encountered
      * along `s`. The order is preserved (not sorted), since it is the point of
      * the traversal.
      *
-     * @param s Segment or oriented segment to trace; may use a different point type.
+     * @param s Segment/oriented segment (traced in order) or a region query
+     *          shape (reported in an unspecified order); may use a different
+     *          point type.
      */
-    template <detail::SegmentOrOriented OS>
+    template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<TriangleType> trianglesIntersecting(const OS& s) const {
         std::vector<TriangleType> out;
         visitTrianglesIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
@@ -832,18 +856,19 @@ struct Triangulation {
     }
 
     /**
-     * @brief Visits the triangles whose interior @p s actually enters, in order.
+     * @brief Visits the triangles whose interior @p s actually enters.
      *
      * Like @ref visitTrianglesIntersecting but reports only the triangles `t`
      * with `t.interiorsIntersect(s)` — dropping those merely touched along an
      * edge or at a vertex. The traversal still passes through every met triangle
-     * for navigation; the filtered ones simply are not reported.
+     * for navigation; the filtered ones simply are not reported. @p s may be a
+     * segment (reported in order) or a region query shape (unspecified order).
      *
      * @p f follows the visitor convention (return `true` to stop early, `void`
      * to visit all); returns whether the walk stopped early. @p s may use a
      * different point type than the triangulation.
      */
-    template <detail::SegmentOrOriented OS, class Fn>
+    template <detail::TriangulationQuery OS, class Fn>
     bool visitTrianglesInteriorIntersecting(const OS& s, Fn f) const {
         return visitTrianglesIntersecting(s, [&](const TriangleType& t) -> bool {
             if (t.interiorsIntersect(s)) {
@@ -854,15 +879,18 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the triangles whose interior @p s enters, in order.
+     * @brief Returns the triangles whose interior @p s enters.
      *
      * A materialized form of @ref visitTrianglesInteriorIntersecting: the
-     * in-domain triangles `t` with `t.interiorsIntersect(s)`, in the order they
-     * are encountered along `s` (preserved, not sorted).
+     * in-domain triangles `t` with `t.interiorsIntersect(s)` — in the order they
+     * are encountered along a segment `s`, or an unspecified order for a region
+     * query shape.
      *
-     * @param s Segment or oriented segment to trace; may use a different point type.
+     * @param s Segment/oriented segment (traced in order) or a region query
+     *          shape (reported in an unspecified order); may use a different
+     *          point type.
      */
-    template <detail::SegmentOrOriented OS>
+    template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<TriangleType> trianglesInteriorIntersecting(const OS& s) const {
         std::vector<TriangleType> out;
         visitTrianglesInteriorIntersecting(s, [&](const TriangleType& t) { out.push_back(t); });
@@ -870,20 +898,21 @@ struct Triangulation {
     }
 
     /**
-     * @brief Visits every edge met by the oriented segment @p s, in order.
+     * @brief Visits every triangulation edge met by @p s.
      *
      * Reports each in-domain edge `e` with `s.intersects(e)` exactly once, with
-     * its stored label, roughly in the order @p s meets it (ties broken
-     * arbitrarily). Built on @ref visitTrianglesIntersecting: as the walk passes
-     * through each triangle, its edges that @p s meets are reported (deduplicated
-     * across the two triangles sharing an edge). Edges of ghost or out-of-domain
-     * triangles are never reported, matching @ref edges.
+     * its stored label (for a segment `s`, roughly in the order it meets them,
+     * ties broken arbitrarily; for a region query shape, in an unspecified
+     * order). Built on @ref visitTrianglesIntersecting: as each met triangle is
+     * visited, its edges that @p s meets are reported (deduplicated across the
+     * two triangles sharing an edge). Edges of ghost or out-of-domain triangles
+     * are never reported, matching @ref edges.
      *
      * @p f follows the visitor convention (return `true` to stop early, `void`
      * to visit all); returns whether the walk stopped early. @p s may use a
      * different point type than the triangulation.
      */
-    template <detail::SegmentOrOriented OS, class Fn>
+    template <detail::TriangulationQuery OS, class Fn>
     bool visitEdgesIntersecting(const OS& s, Fn f) const {
         std::unordered_set<SegmentType> seen;
         bool stop = false;
@@ -916,18 +945,19 @@ struct Triangulation {
     }
 
     /**
-     * @brief Visits the edges whose interior @p s crosses, in order.
+     * @brief Visits the triangulation edges whose interior @p s crosses.
      *
      * Like @ref visitEdgesIntersecting but reports only the edges `e` with
      * `s.interiorsIntersect(e)` — dropping those merely touched at a shared
-     * endpoint (e.g. where @p s passes through a mesh vertex, or an endpoint of
-     * @p s lands on an edge).
+     * endpoint (e.g. where a segment @p s passes through a mesh vertex, or an
+     * endpoint of @p s lands on an edge). @p s may be a segment or a region
+     * query shape.
      *
      * @p f follows the visitor convention (return `true` to stop early, `void`
      * to visit all); returns whether the walk stopped early. @p s may use a
      * different point type than the triangulation.
      */
-    template <detail::SegmentOrOriented OS, class Fn>
+    template <detail::TriangulationQuery OS, class Fn>
     bool visitEdgesInteriorIntersecting(const OS& s, Fn f) const {
         return visitEdgesIntersecting(s, [&](const SegmentType& e) -> bool {
             if (s.interiorsIntersect(e)) {
@@ -938,15 +968,18 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the edges met by @p s, in order.
+     * @brief Returns the triangulation edges met by @p s.
      *
      * A materialized form of @ref visitEdgesIntersecting: the in-domain edges
-     * `e` with `s.intersects(e)`, each with its stored label, in the order they
-     * are encountered along @p s (preserved, not sorted).
+     * `e` with `s.intersects(e)`, each with its stored label — in the order they
+     * are encountered along a segment `s`, or an unspecified order for a region
+     * query shape.
      *
-     * @param s Segment or oriented segment to trace; may use a different point type.
+     * @param s Segment/oriented segment (traced in order) or a region query
+     *          shape (reported in an unspecified order); may use a different
+     *          point type.
      */
-    template <detail::SegmentOrOriented OS>
+    template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<SegmentType> edgesIntersecting(const OS& s) const {
         std::vector<SegmentType> out;
         visitEdgesIntersecting(s, [&](const SegmentType& e) { out.push_back(e); });
@@ -954,20 +987,62 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the edges whose interior @p s crosses, in order.
+     * @brief Returns the triangulation edges whose interior @p s crosses.
      *
      * A materialized form of @ref visitEdgesInteriorIntersecting: the in-domain
-     * edges `e` with `s.interiorsIntersect(e)`, each with its stored label, in
-     * the order they are encountered along @p s (preserved, not sorted).
+     * edges `e` with `s.interiorsIntersect(e)`, each with its stored label — in
+     * the order they are encountered along a segment `s`, or an unspecified order
+     * for a region query shape.
      *
-     * @param s Segment or oriented segment to trace; may use a different point type.
+     * @param s Segment/oriented segment (traced in order) or a region query
+     *          shape (reported in an unspecified order); may use a different
+     *          point type.
      */
-    template <detail::SegmentOrOriented OS>
+    template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<SegmentType> edgesInteriorIntersecting(const OS& s) const {
         std::vector<SegmentType> out;
         visitEdgesInteriorIntersecting(s, [&](const SegmentType& e) { out.push_back(e); });
         return out;
     }
+
+    // ---- traversal over a region (a connected convex query shape) --------
+
+    /**
+     * @brief Visits every in-domain triangle that intersects @p shape.
+     *
+     * Generalizes @ref visitTrianglesIntersecting(const OS&, Fn) const from a
+     * segment to a connected convex query shape — a point, triangle, rectangle,
+     * convex polygon, or an unbounded line, oriented line, ray, or half-plane.
+     * The set of triangles `t` passed to @p f is exactly
+     * `{ t : t.intersects(shape) }` over the in-domain triangles, in an
+     * unspecified order.
+     *
+     * The work is local. A seed triangle meeting @p shape is found by
+     * navigation — tracing @p shape's boundary edges with the segment walk (for
+     * a bounded shape), or scanning the convex-hull boundary for an edge it
+     * crosses (for an unbounded one) — and the reported set is then grown by a
+     * flood fill through edge/vertex adjacency that never strays past the
+     * triangles meeting @p shape and their immediate neighbours. The cost is
+     * therefore proportional to the number of triangles met, not to the size of
+     * the triangulation; the lone exception is the unbounded-shape seed search,
+     * which scans the hull and is O(hull).
+     *
+     * @p f follows the visitor convention: returning `true` stops the walk
+     * early, a `void` return visits every such triangle. Returns whether it
+     * stopped early. @p shape may use a different point type.
+     */
+    template <detail::TriangulationRegionQuery Q, class Fn>
+    bool visitTrianglesIntersecting(const Q& shape, Fn f) const {
+        if (firstGhost_ == 0) return false;  // no real triangles
+        const std::vector<TriId> seeds = seedTrianglesIntersecting(shape);
+        if (seeds.empty()) return false;
+        return floodTrianglesIntersecting(shape, seeds, f);
+    }
+
+    // The materialized form — trianglesIntersecting(shape) — and the
+    // interior-intersecting and edge variants are the shared wrappers above,
+    // constrained on detail::TriangulationQuery, so they accept a region shape
+    // here just as they accept a segment.
 
     // ---- point location --------------------------------------------------
 
@@ -1320,6 +1395,158 @@ struct Triangulation {
     [[nodiscard]] int localIndex(TriId t, VertexId w) const {
         const auto& v = triangles_[t].v;
         return v[0] == w ? 0 : (v[1] == w ? 1 : 2);
+    }
+
+    // The neighbour of `cur` reached by rotating around vertex `w`, having
+    // arrived from `from` (NO_TRI to start): leave through the w-incident edge we
+    // did not enter. Orientation-independent (ghosts are not CCW-normalized), so
+    // it steps through the ghost triangles of w's fan as well. Mirrors the lambda
+    // in the segment walk; shared by the region flood fill.
+    [[nodiscard]] TriId rotateAroundVertex(TriId cur, VertexId w, TriId from) const {
+        const int lw = localIndex(cur, w);
+        int s1 = -1, s2 = -1;
+        for (int s = 0; s < 3; ++s) {
+            if (s != lw) {
+                if (s1 < 0) s1 = s; else s2 = s;
+            }
+        }
+        return triangles_[cur].nbr[triangles_[cur].nbr[s1] == from ? s2 : s1];
+    }
+
+    // The first in-domain real triangle, or NO_TRI if the domain is empty.
+    [[nodiscard]] TriId firstInDomainTriangle() const {
+        for (TriId t = 0; t < firstGhost_; ++t) {
+            if (!triangles_[t].outOfDomain) return t;
+        }
+        return NO_TRI;
+    }
+
+    // Finds one or more triangles meeting `shape` to seed the region flood fill,
+    // by navigation rather than a full scan. Returns an empty vector when `shape`
+    // does not meet the triangulated region at all. (Helper for the
+    // detail::TriangulationRegionQuery overload of visitTrianglesIntersecting.)
+    template <class Q>
+    [[nodiscard]] std::vector<TriId> seedTrianglesIntersecting(const Q& shape) const {
+        std::vector<TriId> seeds;
+        if constexpr (PointConcept<Q>) {
+            // A point: the triangle locate lands in already meets it (its closure
+            // contains the point). Outside the hull, locate returns a ghost.
+            const TriId t = locateId(shape);
+            if (t != NO_TRI && !isGhost(t)) {
+                seeds.push_back(t);
+            }
+        } else if constexpr (LineConcept<Q> || OrientedLineConcept<Q> ||
+                             RayConcept<Q> || HalfplaneConcept<Q>) {
+            // Unbounded shape: it meets the triangulated region iff it meets some
+            // convex-hull edge. Scan the ghost ring for the first such edge; the
+            // real triangle just inside it is a seed. (O(hull).)
+            for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+                if (edgeSegment(Edge{g, 2}).intersects(shape)) {
+                    seeds.push_back(triangles_[g].nbr[2]);  // the real triangle inside
+                    break;
+                }
+            }
+        } else if constexpr (DiskConcept<Q>) {
+            // A disk is bounded but has no straight edges to trace. One of its
+            // defining boundary points, shape[0], lies in the (closed) disk, so
+            // the triangle locate lands in is a seed when that point is inside
+            // the hull. Otherwise the disk reaches in from outside the hull, so —
+            // as for an unbounded shape — a hull edge it crosses gives the seed.
+            const TriId t = locateId(shape[0]);
+            if (t != NO_TRI && !isGhost(t)) {
+                seeds.push_back(t);
+            } else {
+                for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+                    if (edgeSegment(Edge{g, 2}).intersects(shape)) {
+                        seeds.push_back(triangles_[g].nbr[2]);
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Bounded shape with straight edges (triangle, rectangle, convex
+            // polygon): any triangle its boundary meets is a seed. Trace each edge
+            // with the segment walk and take the first triangle it reports.
+            for (const auto& e : shape.edges()) {
+                TriId found = NO_TRI;
+                visitTrianglesIntersecting(e, [&](const TriangleType& t) {
+                    found = idOf(t);
+                    return true;  // the first triangle suffices
+                });
+                if (found != NO_TRI) {
+                    seeds.push_back(found);
+                    break;
+                }
+            }
+            // No edge met the domain: either the whole (connected) domain lies
+            // inside `shape` or the two are disjoint — one vertex decides.
+            if (seeds.empty() && shape.contains(vertices_.front())) {
+                const TriId t = firstInDomainTriangle();
+                if (t != NO_TRI) {
+                    seeds.push_back(t);
+                }
+            }
+        }
+        return seeds;
+    }
+
+    // Grows the set of triangles meeting `shape` outward from `seeds` by a flood
+    // fill over edge/vertex adjacency, emitting the in-domain ones to `f`. Every
+    // real (non-ghost) triangle meeting `shape` and reachable from a seed through
+    // other meeting triangles is visited; ghosts are walls. A per-triangle mark
+    // bit stands in for a visited set and is cleared on every exit path (normal,
+    // early-stop, or an exception from f), so the const query leaves the mesh
+    // pristine. Like the segment walk, it is not reentrant: f must not start
+    // another walk on the same Triangulation. Returns whether f stopped early.
+    template <class Q, class Fn>
+    bool floodTrianglesIntersecting(const Q& shape, const std::vector<TriId>& seeds, Fn f) const {
+        std::vector<TriId> marked;
+        struct MarkClearer {
+            const std::vector<Tri>& tris;
+            const std::vector<TriId>& marked;
+            ~MarkClearer() { for (TriId t : marked) tris[t].walkMark = 0; }
+        } markClearer{triangles_, marked};
+
+        std::vector<TriId> stack;
+        // Marks t seen; if it is a real triangle meeting `shape`, queues it for
+        // expansion. Rejected triangles are marked too, so each is tested once.
+        const auto consider = [&](TriId t) {
+            if (t == NO_TRI || isGhost(t) || triangles_[t].walkMark) {
+                return;
+            }
+            triangles_[t].walkMark = 1;
+            marked.push_back(t);
+            if (triangleValue(t).intersects(shape)) {
+                stack.push_back(t);
+            }
+        };
+        for (const TriId s : seeds) {
+            consider(s);
+        }
+
+        bool stop = false;
+        while (!stop && !stack.empty()) {
+            const TriId t = stack.back();
+            stack.pop_back();
+            if (inDomain(t) && detail::invokeVisitor(f, triangleValue(t))) {
+                stop = true;
+                break;
+            }
+            // Expand through every triangle sharing a vertex with t (which covers
+            // its edge neighbours too): the meeting set is connected under this
+            // adjacency, so this reaches all of it without scanning the mesh.
+            for (const VertexId w : triangles_[t].v) {
+                TriId cur = t, from = NO_TRI;
+                std::size_t g = 0, lim = triangles_.size() + 1;
+                do {
+                    consider(cur);
+                    const TriId next = rotateAroundVertex(cur, w, from);
+                    from = cur;
+                    cur = next;
+                } while (cur != t && cur != NO_TRI && ++g < lim);
+            }
+        }
+        return stop;
     }
 
     // Inserts t's three edges into the segment-to-edge map, keyed by Segment.

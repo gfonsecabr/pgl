@@ -729,7 +729,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherRay& other) c
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Convex<PointType, LabelType>::intersects(const OtherRectangle& other) const {    
+constexpr bool Convex<PointType, LabelType>::intersects(const OtherRectangle& other) const {
     if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
@@ -756,7 +756,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherTriangle& oth
     if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
-    if (bbox().separates(other) || other.separates(bbox())) {
+    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
         return true;
     }
     if (other.contains(points_[0])) {
@@ -826,7 +826,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherConvex& other
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -1166,18 +1166,34 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherHalfplane&) con
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherRectangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    // A rectangle edge meeting the closed disk covers every case except the disk
+    // lying entirely inside the rectangle: an edge meets the disk whenever it
+    // crosses it or has an endpoint in it, so a rectangle corner inside the disk
+    // is already caught by its incident edges. The remaining case is detected by
+    // a disk boundary point lying inside the rectangle.
+    for (const auto& edge : other.edges()) {
+        if (intersects(edge)) {
+            return true;
+        }
+    }
+    return other.contains((*this)[0]);
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherTriangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    // A triangle edge meeting the closed disk covers every case except the disk
+    // lying entirely inside the triangle: an edge meets the disk whenever it
+    // crosses it or has an endpoint in it, so a triangle vertex inside the disk
+    // is already caught by its incident edges. The remaining case is detected by
+    // a disk boundary point lying inside the triangle.
+    for (const auto& edge : other.edges()) {
+        if (intersects(edge)) {
+            return true;
+        }
+    }
+    return other.contains((*this)[0]);
 }
 
 template <class PointType, class LabelType>

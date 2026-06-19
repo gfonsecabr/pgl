@@ -442,6 +442,194 @@ TEST_CASE("Segment traversal reports exactly the triangles and edges it meets") 
     }
 }
 
+TEST_CASE("Region traversal reports exactly the triangles a shape intersects") {
+    using Point = pgl::Point<int>;
+    // A 9x9 grid of points: a dense mesh so the flood has to navigate, not scan.
+    std::vector<Point> pts;
+    for (int x = 0; x <= 80; x += 10) {
+        for (int y = 0; y <= 80; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const auto all = tri.triangles();
+
+    // Compares trianglesIntersecting(shape) against the brute-force reference
+    // { t : t.intersects(shape) } over every in-domain triangle.
+    const auto check = [&](const auto& shape) {
+        const auto got = tri.trianglesIntersecting(shape);
+        std::set<std::array<Point, 3>> gotSet;
+        for (const auto& t : got) {
+            CHECK(t.intersects(shape));  // no false positives
+            const bool fresh = gotSet.insert({t[0], t[1], t[2]}).second;
+            CHECK(fresh);                // no duplicates
+        }
+        std::set<std::array<Point, 3>> refSet;
+        for (const auto& t : all) {
+            if (t.intersects(shape)) {
+                refSet.insert({t[0], t[1], t[2]});
+            }
+        }
+        CHECK(gotSet == refSet);         // exactly the intersecting set
+    };
+
+    SUBCASE("a point interior to the mesh") { check(P<Point>(25, 35)); }
+    SUBCASE("a point on a mesh vertex") { check(P<Point>(30, 30)); }
+    SUBCASE("a point outside the mesh") {
+        CHECK(tri.trianglesIntersecting(P<Point>(-5, -5)).empty());
+    }
+    SUBCASE("a small triangle inside one cell") {
+        check(pgl::Triangle<Point>(P<Point>(11, 11), P<Point>(18, 12), P<Point>(13, 18)));
+    }
+    SUBCASE("a triangle spanning several cells") {
+        check(pgl::Triangle<Point>(P<Point>(5, 5), P<Point>(72, 18), P<Point>(33, 70)));
+    }
+    SUBCASE("a rectangle inside the mesh") {
+        check(pgl::Rectangle<Point>(P<Point>(22, 17), P<Point>(58, 49)));
+    }
+    SUBCASE("a rectangle covering the whole mesh") {
+        check(pgl::Rectangle<Point>(P<Point>(-20, -20), P<Point>(120, 120)));
+    }
+    SUBCASE("a rectangle straddling the boundary") {
+        check(pgl::Rectangle<Point>(P<Point>(-15, 30), P<Point>(25, 55)));
+    }
+    SUBCASE("a rectangle entirely outside the mesh") {
+        CHECK(tri.trianglesIntersecting(pgl::Rectangle<Point>(P<Point>(100, 100),
+                                                              P<Point>(140, 140)))
+                  .empty());
+    }
+    SUBCASE("a disk inside the mesh") {
+        check(pgl::Disk<Point>(P<Point>(38, 42), 17));
+    }
+    SUBCASE("a disk covering the whole mesh") {
+        check(pgl::Disk<Point>(P<Point>(40, 40), 120));
+    }
+    SUBCASE("a disk straddling the boundary") {
+        check(pgl::Disk<Point>(P<Point>(-5, 35), 28));
+    }
+    SUBCASE("a disk entirely outside the mesh") {
+        CHECK(tri.trianglesIntersecting(pgl::Disk<Point>(P<Point>(160, 160), 20)).empty());
+    }
+    SUBCASE("a sub-cell disk inside one triangle") {
+        check(pgl::Disk<Point>(P<Point>(33, 33), 2));
+    }
+    SUBCASE("a line crossing the mesh") {
+        check(pgl::Line<Point>(P<Point>(-10, 3), P<Point>(90, 77)));
+    }
+    SUBCASE("a line missing the mesh") {
+        CHECK(tri.trianglesIntersecting(pgl::Line<Point>(P<Point>(-10, 100),
+                                                         P<Point>(100, 130)))
+                  .empty());
+    }
+    SUBCASE("a ray starting inside the mesh") {
+        check(pgl::Ray<Point>(P<Point>(40, 40), P<Point>(95, 70)));
+    }
+    SUBCASE("a ray pointing away from the mesh") {
+        check(pgl::Ray<Point>(P<Point>(120, 40), P<Point>(160, 45)));
+    }
+    SUBCASE("a half-plane cutting the mesh") {
+        check(pgl::Halfplane<Point>(P<Point>(0, 35), P<Point>(80, 45)));
+    }
+    SUBCASE("a half-plane covering the whole mesh") {
+        check(pgl::Halfplane<Point>(P<Point>(0, -50), P<Point>(80, -50)));
+    }
+}
+
+TEST_CASE("Region traversal supports early-exit and visiting") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 60; x += 10) {
+        for (int y = 0; y <= 60; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const pgl::Rectangle<Point> box(P<Point>(15, 15), P<Point>(45, 45));
+
+    // A void visitor sees every triangle the materialized form lists.
+    std::size_t visited = 0;
+    const bool stoppedAll =
+        tri.visitTrianglesIntersecting(box, [&](const pgl::Triangle<Point>&) { ++visited; });
+    CHECK_FALSE(stoppedAll);
+    CHECK(visited == tri.trianglesIntersecting(box).size());
+    CHECK(visited > 0);
+
+    // A visitor that returns true stops the walk after the first triangle.
+    std::size_t seen = 0;
+    const bool stopped = tri.visitTrianglesIntersecting(box, [&](const pgl::Triangle<Point>&) {
+        ++seen;
+        return true;
+    });
+    CHECK(stopped);
+    CHECK(seen == 1);
+}
+
+TEST_CASE("Region traversal: interior-intersecting and edge variants match brute force") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 80; x += 10) {
+        for (int y = 0; y <= 80; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const auto all = tri.triangles();
+    std::set<pgl::Segment<Point>> allEdges;
+    for (const auto& t : all) {
+        for (const auto& e : t.edges()) {
+            allEdges.insert(pgl::Segment<Point>(e[0], e[1]));
+        }
+    }
+
+    // Each derived family query, for a region shape, must equal its brute-force
+    // reference over the in-domain triangles / edges.
+    const auto check = [&](const auto& shape) {
+        std::set<std::array<Point, 3>> tg, tr;
+        for (const auto& t : tri.trianglesInteriorIntersecting(shape)) {
+            CHECK(t.interiorsIntersect(shape));
+            tg.insert({t[0], t[1], t[2]});
+        }
+        for (const auto& t : all) {
+            if (t.interiorsIntersect(shape)) tr.insert({t[0], t[1], t[2]});
+        }
+        CHECK(tg == tr);
+
+        std::set<pgl::Segment<Point>> eg, er;
+        for (const auto& e : tri.edgesIntersecting(shape)) {
+            CHECK(shape.intersects(e));
+            eg.insert(e);
+        }
+        for (const auto& e : allEdges) {
+            if (shape.intersects(e)) er.insert(e);
+        }
+        CHECK(eg == er);
+
+        std::set<pgl::Segment<Point>> ig, ir;
+        for (const auto& e : tri.edgesInteriorIntersecting(shape)) {
+            CHECK(shape.interiorsIntersect(e));
+            ig.insert(e);
+        }
+        for (const auto& e : allEdges) {
+            if (shape.interiorsIntersect(e)) ir.insert(e);
+        }
+        CHECK(ig == ir);
+    };
+
+    SUBCASE("triangle") {
+        check(pgl::Triangle<Point>(P<Point>(8, 12), P<Point>(67, 22), P<Point>(30, 71)));
+    }
+    SUBCASE("rectangle") { check(pgl::Rectangle<Point>(P<Point>(17, 23), P<Point>(58, 61))); }
+    SUBCASE("convex") {
+        check(pgl::Convex<Point>(std::vector<Point>{P<Point>(12, 9), P<Point>(70, 18),
+                                                    P<Point>(63, 64), P<Point>(20, 55)}));
+    }
+    SUBCASE("disk") { check(pgl::Disk<Point>(P<Point>(40, 38), 26)); }
+    SUBCASE("disk straddling the boundary") { check(pgl::Disk<Point>(P<Point>(-4, 30), 25)); }
+    SUBCASE("line") { check(pgl::Line<Point>(P<Point>(-8, 5), P<Point>(88, 74))); }
+    SUBCASE("ray") { check(pgl::Ray<Point>(P<Point>(38, 41), P<Point>(92, 70))); }
+    SUBCASE("half-plane") { check(pgl::Halfplane<Point>(P<Point>(0, 33), P<Point>(80, 47))); }
+}
+
 TEST_CASE("Navigation: adjacency and the segment-to-edge bridge are consistent") {
     using Point = pgl::Point<int>;
     const std::vector<Point> pts = {
