@@ -760,6 +760,10 @@ struct Halfplane {
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
     /**
      * @brief Returns the squared Euclidean distance to a higher-ranked shape.
      *

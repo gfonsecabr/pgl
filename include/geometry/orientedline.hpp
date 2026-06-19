@@ -847,6 +847,14 @@ struct OrientedLine {
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
 
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
     /**
      * @brief Returns the squared Euclidean distance to a higher-ranked shape.
      *
