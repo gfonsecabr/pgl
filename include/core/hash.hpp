@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_CORE_HASH_HPP
-#define PGL_CORE_HASH_HPP
+#pragma once
+
+#include "visualization/canvas.hpp"
 
 /**
  * @file hash.hpp
@@ -307,6 +303,3 @@ namespace std {
     };
 
 }//std
-
-#endif // PGL_CORE_HASH_HPP
-#endif // PGL_HPP_INCLUDED

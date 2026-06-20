@@ -1,10 +1,4 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_CORE_FORWARD_HPP
-#define PGL_CORE_FORWARD_HPP
+#pragma once
 
 /**
  * @file forward.hpp
@@ -238,6 +232,3 @@ template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 
 }  // namespace pgl
-
-#endif // PGL_CORE_FORWARD_HPP
-#endif // PGL_HPP_INCLUDED

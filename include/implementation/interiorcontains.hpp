@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_INTERIORCONTAINS_HPP
-#define PGL_IMPLEMENTATION_INTERIORCONTAINS_HPP
+#pragma once
+
+#include "implementation/crosses.hpp"
 
 /**
  * @file interiorcontains.hpp
@@ -1188,6 +1184,3 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk&)
 }
 
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_INTERIORCONTAINS_HPP
-#endif // PGL_HPP_INCLUDED

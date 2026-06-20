@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_ALGORITHM_SORTPOINTS_HPP
-#define PGL_ALGORITHM_SORTPOINTS_HPP
+#pragma once
+
+#include "algorithm/shapetree.hpp"
 
 /**
  * @file sortpoints.hpp
@@ -162,6 +158,3 @@ void hilbertSort(std::vector<Point<Number, Label>>& points) {
 }
 
 }  // namespace pgl
-
-#endif // PGL_ALGORITHM_SORTPOINTS_HPP
-#endif // PGL_HPP_INCLUDED

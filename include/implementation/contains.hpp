@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_CONTAINS_HPP
-#define PGL_IMPLEMENTATION_CONTAINS_HPP
+#pragma once
+
+#include "implementation/boundarycontains.hpp"
 
 /**
  * @file contains.hpp
@@ -1470,6 +1466,3 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherPolygon& other) c
 }
 
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_CONTAINS_HPP
-#endif // PGL_HPP_INCLUDED

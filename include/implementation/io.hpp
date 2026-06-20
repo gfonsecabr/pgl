@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_IO_HPP
-#define PGL_IMPLEMENTATION_IO_HPP
+#pragma once
+
+#include "geometry/shape.hpp"
 
 /**
  * @file io.hpp
@@ -267,6 +263,3 @@ std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelTyp
     return stream;
 }
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_IO_HPP
-#endif // PGL_HPP_INCLUDED

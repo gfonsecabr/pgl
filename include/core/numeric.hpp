@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_CORE_NUMERIC_HPP
-#define PGL_CORE_NUMERIC_HPP
+#pragma once
+
+#include "core/forward.hpp"
 
 /**
  * @file numeric.hpp
@@ -264,6 +260,3 @@ template <class To, class From>
 }
 
 }  // namespace pgl::detail
-
-#endif // PGL_CORE_NUMERIC_HPP
-#endif // PGL_HPP_INCLUDED

@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_VISUALIZATION_CANVAS_HPP
-#define PGL_VISUALIZATION_CANVAS_HPP
+#pragma once
+
+#include "implementation/distance.hpp"
 
 /**
  * @file canvas.hpp
@@ -1035,6 +1031,3 @@ class Canvas {
 };
 
 } // namespace pgl
-
-#endif // PGL_VISUALIZATION_CANVAS_HPP
-#endif // PGL_HPP_INCLUDED

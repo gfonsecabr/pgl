@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_GEOMETRY_ORIENTEDSEGMENT_HPP
-#define PGL_GEOMETRY_ORIENTEDSEGMENT_HPP
+#pragma once
+
+#include "geometry/segment.hpp"
 
 /**
  * @file orientedsegment.hpp
@@ -1270,6 +1266,3 @@ std::ostream& operator<<(std::ostream& stream, const OrientedSegment<PointType, 
 }  // namespace pgl
 
 #include "halfplane.hpp"
-
-#endif // PGL_GEOMETRY_ORIENTEDSEGMENT_HPP
-#endif // PGL_HPP_INCLUDED

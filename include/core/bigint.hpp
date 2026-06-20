@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_CORE_BIGINT_HPP
-#define PGL_CORE_BIGINT_HPP
+#pragma once
+
+#include "core/numeric.hpp"
 
 /**
  * @file bigint.hpp
@@ -758,6 +754,3 @@ inline BigInt abs(const BigInt& v) { return v.abs(); }
 }  // namespace pgl
 
 #undef PGL_BIGINT_COLD
-
-#endif // PGL_CORE_BIGINT_HPP
-#endif // PGL_HPP_INCLUDED
