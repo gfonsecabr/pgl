@@ -1010,6 +1010,31 @@ struct Disk {
     };
 
   private:
+    // Lets Convex::interiorsIntersect(Disk) reuse the disk-interior witness below.
+    template <class P, class L>
+    friend struct Convex;
+
+    /**
+     * @brief Tests whether some point strictly inside this disk lies in the
+     *        strict interior of @p shape.
+     *
+     * The witness used by the @ref interiorsIntersect overloads for the case
+     * where the disk lies inside a convex shape (no boundary of @p shape crosses
+     * the open disk). @ref pointInside is the chord midpoint — a single division
+     * by 2 — so for integral coordinates the truncated midpoint may round onto or
+     * outside the boundary. When that happens (the rounded point is not strictly
+     * inside the disk) scaling the disk and @p shape by 2 makes the midpoint
+     * exact, leaving the containment relation unchanged.
+     */
+    template <class OtherShape>
+    [[nodiscard]] constexpr bool pointInsideInteriorContained(const OtherShape& shape) const {
+        const auto p = pointInside();
+        if (interiorContains(p)) {
+            return shape.interiorContains(p);
+        }
+        return (shape * 2).interiorContains((*this * 2).pointInside());
+    }
+
     /**
      * @brief Returns the three points in canonical order.
      *

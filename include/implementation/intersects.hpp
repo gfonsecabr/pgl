@@ -854,25 +854,40 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherSegment& other)
         return true;
     }
 
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherSegment::NumberType>>;
-    const auto center_point = center<R>();
-    const R squared_radius = squaredRadius<R>();
+    // Both endpoints lie strictly outside the closed disk, so the segment meets
+    // the disk exactly when the perpendicular foot from the centre falls on the
+    // segment *and* reaches inside it. This is decided exactly and without any
+    // division (no centre/radius needed): writing power(p) = |p-center|^2 - r^2
+    // for the in-circle determinant inCircleDeterminant(a,b,c,p) = -A*power(p),
+    // with A = 2*signedArea(a,b,c), the quadratic power along the segment is
+    // pinned by its endpoint values, so the centre never appears.
+    //
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, min), J1 = ... (a,b,c, max)
+    //   L  = |max - min|^2,   M = L * A
+    // Foot on the segment (t* in [0,1]): |(J0 - J1)*A| <= M*A   (M*A >= 0).
+    // Foot reaches the disk (f(t*) <= 0): (J0 + J1 + M)^2 >= 4*J0*J1.
+    // Reordering a,b,c flips A and every J together, leaving both tests intact.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other.min()))>;
 
-    // v = max - min (segment direction), w = centre - min.
-    const R vx = static_cast<R>(other.max().x()) - static_cast<R>(other.min().x());
-    const R vy = static_cast<R>(other.max().y()) - static_cast<R>(other.min().y());
-    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(other.min().x());
-    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(other.min().y());
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.min()));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.max()));
+    const W squared_length = static_cast<W>(other.min().squaredDistance(other.max()));
+    if (squared_length == W{}) {
+        return false;  // Degenerate (point) segment whose sole point is outside.
+    }
+    const W m = squared_length * det;
 
-    const R squared_length = vx * vx + vy * vy;
-    const R foot_projection = wx * vx + wy * vy;
-    const R cross = vx * wy - vy * wx;
+    const W projection = (j0 - j1) * det;          // (J0 - J1) * A
+    const W half_span = m * det;                   // M * A = L * A^2 >= 0
+    const W discriminant_base = j0 + j1 + m;       // J0 + J1 + M
 
-    // Both endpoints lie outside the closed disk, so they meet exactly when the
-    // perpendicular foot from the centre falls inside the segment and the centre
-    // lies within one radius of the supporting line (tangency counts).
-    return foot_projection > R{} && foot_projection < squared_length && cross * cross <= squared_radius * squared_length;
+    const bool foot_on_segment = projection >= -half_span && projection <= half_span;
+    const bool reaches_disk = discriminant_base * discriminant_base >= W{4} * j0 * j1;
+
+    return foot_on_segment && reaches_disk;
 }
 
 template <class PointType, class LabelType>
@@ -1134,10 +1149,31 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedSegment
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Line) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine& other) const {
+    // A line has no endpoints, so there is no containment shortcut: it meets the
+    // closed disk exactly when the centre lies within one radius of the line,
+    // i.e. when the power quadratic along the line has real roots (discriminant
+    // >= 0). Same exact, division-free in-circle formulation as
+    // intersects(Segment), evaluated on the two points that define the line and
+    // without the [0,1] parameter restriction.
+    //
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, other[0]), J1 = ... (a,b,c, other[1])
+    //   L  = |other[1] - other[0]|^2,   M = L * A
+    // Line reaches the closed disk: (J0 + J1 + M)^2 >= 4*J0*J1.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other[0]))>;
+
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[0]));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[1]));
+    const W squared_length = static_cast<W>(other[0].squaredDistance(other[1]));
+    if (squared_length == W{}) {
+        return false;  // Degenerate line.
+    }
+    const W discriminant_base = j0 + j1 + squared_length * det;  // J0 + J1 + M
+
+    return discriminant_base * discriminant_base >= W{4} * j0 * j1;
 }
 
 template <class PointType, class LabelType>
@@ -1150,10 +1186,38 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedLine&) 
 
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherRay&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Ray) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherRay& other) const {
+    // The source in the closed disk settles it. Otherwise the ray meets the
+    // closed disk exactly when its supporting line does (discriminant >= 0) and
+    // the contact lies ahead of the source (the perpendicular foot has positive
+    // parameter). Same division-free in-circle formulation as
+    // intersects(Segment); the source is parameter 0 and the target parameter 1.
+    if (contains(other.source())) {
+        return true;
+    }
+
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, source), J1 = ... (a,b,c, target)
+    //   L  = |target - source|^2,   M = L * A
+    // Supporting line reaches the closed disk: (J0 + J1 + M)^2 >= 4*J0*J1.
+    // Contact ahead of the source (foot parameter t* > 0): (J0 - J1)*A < M*A.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other.source()))>;
+
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.source()));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.target()));
+    const W squared_length = static_cast<W>(other.source().squaredDistance(other.target()));
+    const W m = squared_length * det;
+
+    const W projection = (j0 - j1) * det;          // (J0 - J1) * A
+    const W half_span = m * det;                   // M * A = L * A^2 >= 0
+    const W discriminant_base = j0 + j1 + m;       // J0 + J1 + M
+
+    const bool reaches_disk = discriminant_base * discriminant_base >= W{4} * j0 * j1;
+    const bool contact_ahead = projection < half_span;  // foot parameter t* > 0
+
+    return reaches_disk && contact_ahead;
 }
 
 template <class PointType, class LabelType>
