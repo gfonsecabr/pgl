@@ -236,6 +236,32 @@ TEST_CASE("Open disk built from three arbitrary boundary points") {
     CHECK_FALSE_MESSAGE(d.interiorsIntersect(Segment(6, -3, 6, 3)), d, " ii near-miss");
 }
 
+TEST_CASE("Oriented segments forward to the unoriented predicate") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    // Endpoints chosen to exercise a crossing chord, a tangent, and a clear miss.
+    auto a = GENERATE(Point(-6, 2), Point(5, -3), Point(6, -3), Point(0, 0));
+    auto b = GENERATE(Point(6, 2), Point(5, 3), Point(6, 3), Point(20, 0));
+    if (a == b) {
+        return;
+    }
+    Segment s(a, b);
+    OrientedSegment forward(a, b);
+    OrientedSegment backward(b, a);
+
+    // Orientation is irrelevant to both predicates, so they must agree with the
+    // unoriented segment regardless of direction.
+    CHECK_MESSAGE(d.intersects(forward) == d.intersects(s), d, " intersects ", forward);
+    CHECK_MESSAGE(d.intersects(backward) == d.intersects(s), d, " intersects ", backward);
+    CHECK_MESSAGE(d.interiorsIntersect(forward) == d.interiorsIntersect(s), d, " ii ", forward);
+    CHECK_MESSAGE(d.interiorsIntersect(backward) == d.interiorsIntersect(s), d, " ii ", backward);
+}
+
 TEST_CASE("Generated consistency on a lattice around a disk") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

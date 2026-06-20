@@ -1222,9 +1222,6 @@ constexpr bool Point<Number, Label>::interiorsIntersect(const Shape<Point<Number
         other.variant());
 }
 
-
-// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
-
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
@@ -1362,10 +1359,8 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay& ot
 
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfplane&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Halfplane) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    return interiorsIntersect(other.asLine()) || pointInsideInteriorContained(other);
 }
 
 template <class PointType, class LabelType>
