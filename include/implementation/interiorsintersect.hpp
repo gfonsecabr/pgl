@@ -1406,9 +1406,11 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherDisk& o
     // of the radii, so externally tangent disks do not count. With
     // A = d^2 - r1^2 - r2^2 that is A < 0 or A^2 < 4 r1^2 r2^2 (the strict form
     // of the closed-disk test in intersects).
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()),
-        decltype(other.squaredRadius())>>;
+    using R = std::conditional_t<
+        std::is_floating_point_v<NumberType> ||
+            std::is_floating_point_v<typename OtherDisk::NumberType>,
+        long double,
+        Rational<BigInt>>;
     const R d2 = center<R>().squaredDistance(other.template center<R>());
     const R r1_sq = squaredRadius<R>();
     const R r2_sq = other.template squaredRadius<R>();
