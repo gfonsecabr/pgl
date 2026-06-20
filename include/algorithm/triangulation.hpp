@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_ALGORITHM_TRIANGULATION_HPP
+#define PGL_ALGORITHM_TRIANGULATION_HPP
 
 /**
  * @file triangulation.hpp
@@ -2347,3 +2351,6 @@ Triangulation(const Polygon<PolyPoint>&, const PointRange&, const SegmentRange&)
                      Segment<PolyPoint, typename SegmentRange::value_type::LabelType>>;
 
 }  // namespace pgl
+
+#endif // PGL_ALGORITHM_TRIANGULATION_HPP
+#endif // PGL_HPP_INCLUDED

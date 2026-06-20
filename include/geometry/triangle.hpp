@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_GEOMETRY_TRIANGLE_HPP
+#define PGL_GEOMETRY_TRIANGLE_HPP
 
 /**
  * @file triangle.hpp
@@ -1208,3 +1212,6 @@ template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Triangle<PointType, LabelType>& triangle);
 
 }  // namespace pgl
+
+#endif // PGL_GEOMETRY_TRIANGLE_HPP
+#endif // PGL_HPP_INCLUDED

@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_CORE_RATIONAL_HPP
+#define PGL_CORE_RATIONAL_HPP
 
 /**
  * @file rational.hpp
@@ -661,3 +665,6 @@ struct std::numeric_limits<pgl::Rational<Int>> {
     static constexpr pgl::Rational<Int> signaling_NaN() noexcept { return pgl::Rational<Int>(0, 1); }
     static constexpr pgl::Rational<Int> denorm_min() noexcept { return pgl::Rational<Int>(0, 1); }
 };
+
+#endif // PGL_CORE_RATIONAL_HPP
+#endif // PGL_HPP_INCLUDED

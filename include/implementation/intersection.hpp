@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_IMPLEMENTATION_INTERSECTION_HPP
+#define PGL_IMPLEMENTATION_INTERSECTION_HPP
 
 /**
  * @file intersection.hpp
@@ -2318,3 +2322,6 @@ Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
 }
 
 }  // namespace pgl
+
+#endif // PGL_IMPLEMENTATION_INTERSECTION_HPP
+#endif // PGL_HPP_INCLUDED

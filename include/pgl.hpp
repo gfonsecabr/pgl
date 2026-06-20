@@ -18,9 +18,11 @@
 #undef PGL_CPLUSPLUS
 
 // Marks that the umbrella header is being processed. Every other PGL header
-// checks this and rejects being included directly (before pgl.hpp); see the
-// guard at the top of each. An include after pgl.hpp is harmlessly skipped by
-// the headers' own `#pragma once`.
+// checks this at the top: if it is *not* defined, the header was included
+// directly (before pgl.hpp), so it simply forwards to pgl.hpp, which then
+// re-includes it at the correct layer below. If it *is* defined, the header
+// guards its body with a one-time include guard and parses normally. This lets
+// users include any single header and get the same result as including pgl.hpp.
 #define PGL_HPP_INCLUDED
 
 #include "core/forward.hpp"

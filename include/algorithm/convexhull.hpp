@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_ALGORITHM_CONVEXHULL_HPP
+#define PGL_ALGORITHM_CONVEXHULL_HPP
 
 /**
  * @file convexhull.hpp
@@ -141,3 +145,5 @@ auto convexHullExtended (const Container &points_) {
 
 } // namespace pgl
 
+#endif // PGL_ALGORITHM_CONVEXHULL_HPP
+#endif // PGL_HPP_INCLUDED

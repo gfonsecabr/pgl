@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_IMPLEMENTATION_ATXY_HPP
+#define PGL_IMPLEMENTATION_ATXY_HPP
 
 /**
  * @file atxy.hpp
@@ -338,3 +342,6 @@ constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType, Lab
 }
 
 }  // namespace pgl
+
+#endif // PGL_IMPLEMENTATION_ATXY_HPP
+#endif // PGL_HPP_INCLUDED
