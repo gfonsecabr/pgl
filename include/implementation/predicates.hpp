@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_IMPLEMENTATION_PREDICATES_HPP
+#define PGL_IMPLEMENTATION_PREDICATES_HPP
 
 /**
  * @file predicates.hpp
@@ -954,3 +958,6 @@ constexpr std::ptrdiff_t Convex<PointType, LabelType>::index(const PointType& po
 }
 
 }  // namespace pgl
+
+#endif // PGL_IMPLEMENTATION_PREDICATES_HPP
+#endif // PGL_HPP_INCLUDED

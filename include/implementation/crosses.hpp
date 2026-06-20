@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_IMPLEMENTATION_CROSSES_HPP
+#define PGL_IMPLEMENTATION_CROSSES_HPP
 
 /**
  * @file crosses.hpp
@@ -762,3 +766,6 @@ constexpr bool Disk<PointType, LabelType>::crosses(const Shape<OtherPoint>& othe
 }
 
 }  // namespace pgl
+
+#endif // PGL_IMPLEMENTATION_CROSSES_HPP
+#endif // PGL_HPP_INCLUDED

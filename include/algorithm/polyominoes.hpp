@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_ALGORITHM_POLYOMINOES_HPP
+#define PGL_ALGORITHM_POLYOMINOES_HPP
 
 /**
  * @file polyominoes.hpp
@@ -325,3 +329,6 @@ std::vector<Polygon<Point<T>>> polyominoesUpTo(std::size_t n) {
 }
 
 }  // namespace pgl
+
+#endif // PGL_ALGORITHM_POLYOMINOES_HPP
+#endif // PGL_HPP_INCLUDED

@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_ALGORITHM_INTERSECTIONS_HPP
+#define PGL_ALGORITHM_INTERSECTIONS_HPP
 
 /**
  * @file intersections.hpp
@@ -809,3 +813,5 @@ bool Polygon<PointType_, LabelType>::isSimple() const {
 
 } // namespace pgl
 
+#endif // PGL_ALGORITHM_INTERSECTIONS_HPP
+#endif // PGL_HPP_INCLUDED

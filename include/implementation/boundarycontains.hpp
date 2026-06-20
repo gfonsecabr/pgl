@@ -1,6 +1,10 @@
-#pragma once
-
+#ifndef PGL_HPP_INCLUDED
+// Entered out of order (before pgl.hpp): defer to the umbrella header,
+// which re-includes this file at the correct layer.
 #include "pgl.hpp"
+#else
+#ifndef PGL_IMPLEMENTATION_BOUNDARYCONTAINS_HPP
+#define PGL_IMPLEMENTATION_BOUNDARYCONTAINS_HPP
 
 /**
  * @file boundarycontains.hpp
@@ -1013,3 +1017,6 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const Shape<Poin
 }
 
 }  // namespace pgl
+
+#endif // PGL_IMPLEMENTATION_BOUNDARYCONTAINS_HPP
+#endif // PGL_HPP_INCLUDED
