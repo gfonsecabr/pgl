@@ -81,8 +81,6 @@ static void draw(const std::string &filename,
 }
 
 int main() {
-    pgl::OrientedSegment s(-47,-36,53,64);
-
     Polygon poly = makeSpiral(12.0, 3.5, 15.0, 3, 40);
 
     if (!poly.isSimple()) {
@@ -90,8 +88,9 @@ int main() {
     }
 
     std::vector<Point> points = randomPointsInside(poly, 100, 100);
-    pgl::Triangulation triangulation(poly, points); // Delaunay triangulation
+    pgl::Triangulation triangulation(poly, points); // Constrained Delaunay triangulation
 
+    pgl::Convex<Point> s{{Point{-47,-36},Point{53,64},Point{53,-36},Point{27,-74}}};
     auto interiorIsec = triangulation.trianglesInteriorIntersecting(s);
     auto isec = triangulation.trianglesIntersecting(s);
     draw("example_triangulation2.svg", triangulation, s, interiorIsec, isec);
