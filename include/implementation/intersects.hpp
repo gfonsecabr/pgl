@@ -893,9 +893,11 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherSegment& other)
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherDisk& other) const {
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()),
-        decltype(other.squaredRadius())>>;
+    using R = std::conditional_t<
+        std::is_floating_point_v<NumberType> ||
+            std::is_floating_point_v<typename OtherDisk::NumberType>,
+        long double,
+        Rational<BigInt>>;
 
     const R d2 = center<R>().squaredDistance(other.template center<R>());
     const R r1_sq = squaredRadius<R>();
