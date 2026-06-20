@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_BOUNDING_HPP
-#define PGL_IMPLEMENTATION_BOUNDING_HPP
+#pragma once
+
+#include "implementation/measures.hpp"
 
 /**
  * @file bounding.hpp
@@ -454,6 +450,3 @@ constexpr Rectangle<Point<ResultNumber>> Polygon<PointType, LabelType>::fbox() c
 }
 
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_BOUNDING_HPP
-#endif // PGL_HPP_INCLUDED

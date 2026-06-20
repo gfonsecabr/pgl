@@ -17,14 +17,11 @@
 
 #undef PGL_CPLUSPLUS
 
-// Marks that the umbrella header is being processed. Every other PGL header
-// checks this at the top: if it is *not* defined, the header was included
-// directly (before pgl.hpp), so it simply forwards to pgl.hpp, which then
-// re-includes it at the correct layer below. If it *is* defined, the header
-// guards its body with a one-time include guard and parses normally. This lets
-// users include any single header and get the same result as including pgl.hpp.
-#define PGL_HPP_INCLUDED
-
+// This umbrella simply includes every header in dependency order. Each header is
+// self-contained: it includes its immediate predecessor in that order, which
+// transitively pulls in everything it depends on. As a result a user may include
+// any single header directly and get the same result as including pgl.hpp, while
+// each header still parses cleanly on its own (no recursion through the umbrella).
 #include "core/forward.hpp"
 #include "core/numeric.hpp"
 #include "core/bigint.hpp"

@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_GEOMETRY_CONVEX_HPP
-#define PGL_GEOMETRY_CONVEX_HPP
+#pragma once
+
+#include "geometry/disk.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -1936,6 +1932,3 @@ template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Convex<PointType, LabelType>& convex);
 
 }  // namespace pgl
-
-#endif // PGL_GEOMETRY_CONVEX_HPP
-#endif // PGL_HPP_INCLUDED

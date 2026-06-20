@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_PREDICATES_HELPERS_HPP
-#define PGL_IMPLEMENTATION_PREDICATES_HELPERS_HPP
+#pragma once
+
+#include "implementation/duality.hpp"
 
 /**
  * @file predicates_helpers.hpp
@@ -157,6 +153,3 @@ constexpr bool segmentIntersectsRectangleInteriorExact(const RectangleType& rect
 }  // namespace detail
 
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_PREDICATES_HELPERS_HPP
-#endif // PGL_HPP_INCLUDED

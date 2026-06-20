@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_IMPLEMENTATION_INTERSECTS_HPP
-#define PGL_IMPLEMENTATION_INTERSECTS_HPP
+#pragma once
+
+#include "implementation/interiorsintersect.hpp"
 
 /**
  * @file intersects.hpp
@@ -1277,6 +1273,3 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk&) const
 }
 
 }  // namespace pgl
-
-#endif // PGL_IMPLEMENTATION_INTERSECTS_HPP
-#endif // PGL_HPP_INCLUDED

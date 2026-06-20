@@ -1,10 +1,6 @@
-#ifndef PGL_HPP_INCLUDED
-// Entered out of order (before pgl.hpp): defer to the umbrella header,
-// which re-includes this file at the correct layer.
-#include "pgl.hpp"
-#else
-#ifndef PGL_ALGORITHM_SHAPETREE_HPP
-#define PGL_ALGORITHM_SHAPETREE_HPP
+#pragma once
+
+#include "algorithm/convexhull.hpp"
 
 /**
  * @file shapetree.hpp
@@ -1000,6 +996,3 @@ ShapeTree(const Container&, WeightFn)
     -> ShapeTree<typename Container::value_type, WeightFn>;
 
 }  // namespace pgl
-
-#endif // PGL_ALGORITHM_SHAPETREE_HPP
-#endif // PGL_HPP_INCLUDED
