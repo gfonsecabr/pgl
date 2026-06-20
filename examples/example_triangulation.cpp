@@ -49,12 +49,11 @@ static void draw(const std::string &filename,
 }
 
 int main() {
-    pgl::OrientedSegment s(10,20,80,90);
-
     // 100 random points in a 100x100 box.
     std::vector<Point> points = randomPoints(100, 100);
     pgl::Triangulation triangulation(points); // Delaunay triangulation
 
+    pgl::OrientedSegment s(10,20,80,90);
     auto interiorIsec = triangulation.trianglesInteriorIntersecting(s);
     auto isec = triangulation.trianglesIntersecting(s);
     draw("example_triangulation.svg", triangulation, s, interiorIsec, isec);
