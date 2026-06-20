@@ -92,6 +92,30 @@ TEST_CASE("Line against a disk built from three arbitrary boundary points") {
     CHECK_FALSE_MESSAGE(d.intersects(Line(Point(6, -3), Point(6, 3))), d, " misses");
 }
 
+TEST_CASE("Oriented lines forward to the unoriented predicate") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    // A secant, a tangent, and a miss; each tried in both directions.
+    auto a = GENERATE(Point(0, 0), Point(5, -3), Point(6, -3));
+    auto b = GENERATE(Point(2, 1), Point(5, 3), Point(6, 3));
+    if (a == b) {
+        return;
+    }
+    Line l(a, b);
+    OrientedLine forward(a, b);
+    OrientedLine backward(b, a);
+
+    CHECK_MESSAGE(d.intersects(forward) == d.intersects(l), d, " intersects ", forward);
+    CHECK_MESSAGE(d.intersects(backward) == d.intersects(l), d, " intersects ", backward);
+    CHECK_MESSAGE(d.interiorsIntersect(forward) == d.interiorsIntersect(l), d, " ii ", forward);
+    CHECK_MESSAGE(d.interiorsIntersect(backward) == d.interiorsIntersect(l), d, " ii ", backward);
+}
+
 TEST_CASE("Generated consistency for lines around a disk") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;

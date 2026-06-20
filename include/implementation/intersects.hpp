@@ -1130,9 +1130,6 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const Shape<OtherPoint>
         other.variant());
 }
 
-
-// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
-
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint& point) const {
@@ -1141,10 +1138,8 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherPoint& point) c
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedSegment&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(OrientedSegment) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(other.asSegment());
 }
 
 template <class PointType, class LabelType>
@@ -1178,10 +1173,8 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine& other) co
 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(OrientedLine) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    return intersects(other.asLine());
 }
 
 template <class PointType, class LabelType>
@@ -1222,10 +1215,8 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherRay& other) con
 
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Disk<PointType, LabelType>::intersects(const OtherHalfplane&) const {
-    throw std::runtime_error(
-        "pgl: Disk::intersects(Halfplane) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    return other.contains((*this)[0]) || intersects(other.asLine());
 }
 
 template <class PointType, class LabelType>
