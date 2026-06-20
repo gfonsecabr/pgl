@@ -791,11 +791,11 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherSegme
     auto i3 = it1 - points_.begin() - 1;
     i3 = i3 < 0 ? points_.size()-1 : i3;
     if (points_[i3] == *it2) {
-        i3 = (i3+2) % points_.size();        
+        i3 = (i3+2) % points_.size();
     }
 
     Triangle<PointType> tri(*it1, *it2, points_[i3]);
-    return tri.interiorsIntersect(translatedOther);    
+    return tri.interiorsIntersect(translatedOther);
 }
 
 template <class PointType, class LabelType>
@@ -824,11 +824,11 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherRay& 
     auto i3 = it1 - points_.begin() - 1;
     i3 = i3 < 0 ? points_.size()-1 : i3;
     if (points_[i3] == *it2) {
-        i3 = (i3+2) % points_.size();        
+        i3 = (i3+2) % points_.size();
     }
 
     Triangle<PointType> tri(*it1, *it2, points_[i3]);
-    return tri.interiorsIntersect(translatedOther);  
+    return tri.interiorsIntersect(translatedOther);
 }
 
 template <class PointType, class LabelType>
@@ -894,17 +894,15 @@ template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
     // Interiors meet when a convex edge passes through the open disk, or the
-    // disk's centre lies strictly inside the convex. The centre — not a disk
-    // boundary point — is the witness: a disk tangent to an edge from inside
-    // still overlaps the interior.
+    // disk lies inside the convex (a point strictly inside the disk is in the
+    // convex's interior). The latter uses a disk-interior point as the witness:
+    // a disk tangent to an edge from inside still overlaps the interior.
     for (auto &edge : edges()) {
         if (edge.interiorsIntersect(other)) {
             return true;
         }
     }
-    using R = detail::promoted_number_t<std::common_type_t<
-        NumberType, decltype(other.squaredRadius())>>;
-    return interiorContains(other.template center<R>());
+    return other.pointInsideInteriorContained(*this);
 }
 
 template <class PointType, class LabelType>
@@ -1077,7 +1075,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRect
     }
     if (!bbox().interiorsIntersect(other.bbox())) {
         return false;
-    }    
+    }
     if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
         return true;
     }
@@ -1237,45 +1235,129 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherPoint& 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
-    if (other.isDegenerate()) {
+    // A degenerate disk has empty interior and a degenerate segment has empty
+    // relative interior, so neither can contribute an interior intersection.
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    // The open disk meets the segment's relative interior exactly when the
-    // segment comes strictly within one radius of the centre: tangency touches
-    // only the boundary and does not count.
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherSegment::NumberType>>;
-    return other.template squaredDistance<R>(center<R>()) < squaredRadius<R>();
+
+    // An endpoint strictly inside the open disk drags the adjacent open segment
+    // inside with it, so the relative interiors already meet.
+    if (interiorContains(other.min()) || interiorContains(other.max())) {
+        return true;
+    }
+
+    // Neither endpoint is strictly inside, so the interiors meet exactly when
+    // the segment pierces the open disk. This is the same exact, division-free
+    // in-circle formulation as intersects(), only with strict inequalities so a
+    // mere boundary tangency does not count: writing power(p) = |p-center|^2-r^2
+    // and inCircleDeterminant(a,b,c,p) = -A*power(p) with A = 2*signedArea, the
+    // value h(t) = A*inCircleDeterminant along the segment is a concave quadratic
+    // (leading coefficient -L*A^2 < 0) that is positive exactly where the point
+    // is strictly inside the disk, so the open disk is pierced iff h has an
+    // interior maximum above zero.
+    //
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, min), J1 = ... (a,b,c, max)
+    //   L  = |max - min|^2,   M = L * A
+    // Foot on the segment (t* in [0,1]): |(J0 - J1)*A| <= M*A   (M*A >= 0).
+    // Line cuts the circle in two distinct points: (J0 + J1 + M)^2 > 4*J0*J1.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other.min()))>;
+
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.min()));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.max()));
+    const W squared_length = static_cast<W>(other.min().squaredDistance(other.max()));
+    const W m = squared_length * det;
+
+    const W projection = (j0 - j1) * det;          // (J0 - J1) * A
+    const W half_span = m * det;                   // M * A = L * A^2 >= 0
+    const W discriminant_base = j0 + j1 + m;       // J0 + J1 + M
+
+    const bool foot_on_segment = projection >= -half_span && projection <= half_span;
+    const bool pierces_disk = discriminant_base * discriminant_base > W{4} * j0 * j1;
+
+    return foot_on_segment && pierces_disk;
 }
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
-    return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+    return interiorsIntersect(other.asSegment());
 }
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Line) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // A line meets the open disk exactly when it is a strict secant: it cuts the
+    // boundary circle in two distinct points (discriminant > 0). A tangent line
+    // touches only the boundary and does not count. Same division-free in-circle
+    // formulation as interiorsIntersect(Segment), without a parameter range.
+    //
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, other[0]), J1 = ... (a,b,c, other[1])
+    //   L  = |other[1] - other[0]|^2,   M = L * A
+    // Line is a strict secant: (J0 + J1 + M)^2 > 4*J0*J1.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other[0]))>;
+
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[0]));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[1]));
+    const W squared_length = static_cast<W>(other[0].squaredDistance(other[1]));
+    const W discriminant_base = j0 + j1 + squared_length * det;  // J0 + J1 + M
+
+    return discriminant_base * discriminant_base > W{4} * j0 * j1;
 }
 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(OrientedLine) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+    return interiorsIntersect(other.asLine());
 }
 
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorsIntersect(Ray) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // A source strictly inside the open disk drags the adjacent ray inside.
+    if (interiorContains(other.source())) {
+        return true;
+    }
+    // Otherwise the interiors meet exactly when the supporting line is a strict
+    // secant (discriminant > 0) AND the pierced span lies ahead of the source
+    // (the perpendicular foot has positive parameter). Same division-free
+    // in-circle formulation as interiorsIntersect(Segment); the source is
+    // parameter 0 and the target parameter 1.
+    //
+    //   A  = orientation determinant of the three boundary points
+    //   J0 = inCircleDeterminant(a,b,c, source), J1 = ... (a,b,c, target)
+    //   L  = |target - source|^2,   M = L * A
+    // Strict secant: (J0 + J1 + M)^2 > 4*J0*J1.
+    // Pierced span ahead of the source (foot t* > 0): (J0 - J1)*A < M*A.
+    using W = detail::promoted_number_t<
+        decltype(inCircleDeterminant(a(), b(), c(), other.source()))>;
+
+    const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
+    const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.source()));
+    const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.target()));
+    const W squared_length = static_cast<W>(other.source().squaredDistance(other.target()));
+    const W m = squared_length * det;
+
+    const W projection = (j0 - j1) * det;          // (J0 - J1) * A
+    const W half_span = m * det;                   // M * A = L * A^2 >= 0
+    const W discriminant_base = j0 + j1 + m;       // J0 + J1 + M
+
+    const bool strict_secant = discriminant_base * discriminant_base > W{4} * j0 * j1;
+    const bool contact_ahead = projection < half_span;  // foot parameter t* > 0
+
+    return strict_secant && contact_ahead;
 }
 
 template <class PointType, class LabelType>
@@ -1293,17 +1375,15 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectang
         return false;
     }
     // Interiors meet when a rectangle edge passes through the open disk, or the
-    // disk's centre lies strictly inside the rectangle (the disk covering its
-    // interior). The centre — not a disk boundary point — is the witness: a disk
-    // tangent to an edge from inside still overlaps the interior.
+    // disk lies inside the rectangle (a point strictly inside the disk is in the
+    // rectangle's interior). The latter uses a disk-interior point as the
+    // witness: a disk tangent to an edge from inside still overlaps the interior.
     for (const auto& edge : other.edges()) {
         if (interiorsIntersect(edge)) {
             return true;
         }
     }
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherRectangle::NumberType>>;
-    return other.interiorContains(center<R>());
+    return pointInsideInteriorContained(other);
 }
 
 template <class PointType, class LabelType>
@@ -1313,17 +1393,15 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangl
         return false;
     }
     // Interiors meet when a triangle edge passes through the open disk, or the
-    // disk's centre lies strictly inside the triangle (the disk covering its
-    // interior). The centre — not a disk boundary point — is the witness: a disk
-    // tangent to an edge from inside still overlaps the interior.
+    // disk lies inside the triangle (a point strictly inside the disk is in the
+    // triangle's interior). The latter uses a disk-interior point as the
+    // witness: a disk tangent to an edge from inside still overlaps the interior.
     for (const auto& edge : other.edges()) {
         if (interiorsIntersect(edge)) {
             return true;
         }
     }
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherTriangle::NumberType>>;
-    return other.interiorContains(center<R>());
+    return pointInsideInteriorContained(other);
 }
 
 template <class PointType, class LabelType>

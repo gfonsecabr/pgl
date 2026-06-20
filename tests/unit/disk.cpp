@@ -232,3 +232,45 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     CHECK_FALSE(disk.contains(pgl::Shape<Point>(Point(6, 0))));
     CHECK_FALSE(disk.contains(pgl::Shape<Point>(Ray(Point(0, 0), Point(1, 0)))));
 }
+
+// KNOWN BUG (to be fixed): Disk::interiorsIntersect(...) and
+// Convex::interiorsIntersect(Disk) compute the disk centre via center<R>(),
+// where R resolves to a *promoted integer* type (it is derived from
+// decltype(squaredRadius()) == NumberType). For a disk defined by three integer
+// boundary points the true centre is rational, so center<int>() truncates by
+// integer division and the predicate uses the wrong centre — giving both false
+// positives and false negatives. The cases below use the geometrically correct
+// answer (verified with an exact Rational oracle); they fail today because of
+// the truncation, so the whole case is marked should_fail. When the centre is
+// computed in an exact field type, every CHECK here will pass and doctest will
+// flag this case as "should have failed but didn't" — the cue to delete the
+// decorator.
+TEST_CASE("Disk interior predicates truncate the circumcentre of a 3-point disk"
+          * doctest::should_fail()) {
+    using Point = pgl::Point<int>;
+
+    // Disk (8,9)(8,12)(3,9): true centre (11/2, 21/2), r^2 = 17/2; center<int>()
+    // truncates it to (5, 10).
+    const pgl::Disk<Point> d(Point(8, 9), Point(8, 12), Point(3, 9));
+
+    // The triangle's interior does not reach within the radius of the true
+    // centre, so the interiors are disjoint — but the truncated centre lands
+    // inside it, so the predicate wrongly reports an overlap.
+    const pgl::Triangle<Point> t(Point(0, 1), Point(5, 3), Point(2, 10));
+    CHECK(d.interiorsIntersect(t) == false);
+
+    // Same disk vs a segment whose interior stays outside the true open disk.
+    const pgl::Segment<Point> s(Point(6, 5), Point(1, 11));
+    CHECK(d.interiorsIntersect(s) == false);
+
+    // Convex::interiorsIntersect(Disk) shares the centre-witness truncation.
+    const pgl::Disk<Point> d2(Point(6, 4), Point(11, 2), Point(10, 7));
+    const pgl::Convex<Point> convex(std::vector<Point>{
+        Point(1, 4), Point(2, 3), Point(5, 1), Point(7, 11), Point(6, 11)});
+    CHECK(convex.interiorsIntersect(d2) == false);
+
+    // Disk vs disk: here truncation drops a real overlap (false negative).
+    const pgl::Disk<Point> d3(Point(9, 0), Point(12, 2), Point(7, 5));
+    const pgl::Disk<Point> d4(Point(6, 9), Point(2, 4), Point(7, 4));
+    CHECK(d3.interiorsIntersect(d4) == true);
+}

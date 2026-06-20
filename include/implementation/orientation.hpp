@@ -148,6 +148,45 @@ constexpr std::partial_ordering dotSign(
 }
 
 /**
+ * @brief Returns the signed in-circle determinant of a query point.
+ *
+ * Points `a`, `b`, and `c` define the circumcircle; the returned value is the
+ * 3x3 determinant whose rows are `(p - d)` augmented with `|p - d|^2` for
+ * `p` in `{a, b, c}`. It equals `-2 * signedArea(a,b,c) * power(d)`, where
+ * `power(d) = |d - center|^2 - radius^2`, so its sign classifies `d` against
+ * the circle (like @ref inCircleSign) while its magnitude is the exact, scaled
+ * power of `d` — the basis for division-free circle/segment predicates.
+ *
+ * @param a First circle point.
+ * @param b Second circle point.
+ * @param c Third circle point.
+ * @param d Query point.
+ * @return The in-circle determinant in a promoted coordinate type.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel, class DNumber, class DLabel>
+constexpr auto inCircleDeterminant(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c,
+    const Point<DNumber, DLabel>& d) {
+    using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
+
+    const auto adx = static_cast<Coordinate>(a.x()) - static_cast<Coordinate>(d.x());
+    const auto ady = static_cast<Coordinate>(a.y()) - static_cast<Coordinate>(d.y());
+    const auto bdx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(d.x());
+    const auto bdy = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(d.y());
+    const auto cdx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(d.x());
+    const auto cdy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(d.y());
+    const auto abdet = adx * bdy - bdx * ady;
+    const auto bcdet = bdx * cdy - cdx * bdy;
+    const auto cadet = cdx * ady - adx * cdy;
+    const auto alift = adx * adx + ady * ady;
+    const auto blift = bdx * bdx + bdy * bdy;
+    const auto clift = cdx * cdx + cdy * cdy;
+    return alift * bcdet + blift * cadet + clift * abdet;
+}
+
+/**
  * @brief Classifies a point with respect to the circumcircle of three others.
  *
  * Points `a`, `b`, and `c` define the circumcircle. The sign convention assumes
