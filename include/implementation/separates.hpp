@@ -1391,24 +1391,26 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherDisk& other) c
         return false;
     }
 
-    int sep_count = 0;
-    Segment<PointType> separator;
+    // Removing the polygon disconnects the disk iff its boundary crosses the
+    // circle at least four times (>= 2 in/out arcs). Each edge contributes:
+    //   - one endpoint inside, one outside -> 1 crossing,
+    //   - both endpoints outside and the edge carries a full chord -> 2,
+    //   - otherwise 0.
+    // (A segment with both endpoints outside meets the circle 0 or 2 times, so
+    // an interior crossing is exactly a full chord.) Counting per edge avoids
+    // the earlier scheme that ignored crossings split across single-crossing
+    // edges -- which under-reported, e.g. a thin rhombus laid across the disk.
+    int crossings = 0;
     for (const auto& edge : edges()) {
-        if (edge.separates(other)) {
-            ++sep_count;
-            if (sep_count >= 2) {
-                return true;
-            }
-            separator = edge;
+        const bool min_inside = other.interiorContains(edge.min());
+        const bool max_inside = other.interiorContains(edge.max());
+        if (min_inside != max_inside) {
+            ++crossings;
+        } else if (!min_inside && edge.separates(other)) {
+            crossings += 2;
         }
-
-    }
-
-    if (sep_count == 1) {
-        for (const auto& vertex : vertices()) {
-            if (!separator.verticesContain(vertex) && other.contains(vertex)) {
-                return true;
-            }
+        if (crossings >= 4) {
+            return true;
         }
     }
 
