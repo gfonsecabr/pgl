@@ -18,7 +18,7 @@
 
 ## Template Types
 
-[`pgl::Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) is shorthand for `pgl::Point<int>`. All other geometry classes are templates of a point type.
+[`pgl::Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") is shorthand for `pgl::Point<int>`. All other geometry classes are templates of a point type.
 
 ```c++
 pgl::Point<double> p = {3,5}, q = {7,9};
@@ -82,7 +82,7 @@ You may disable promotion by defining `PGL_DISABLE_PROMOTION` before including a
 
 128-bit integers are available on most compilers (g++ and clang++, but not MSVC) on modern machines. For compatibility, Pangolin defines the type `pgl::int128` as the native `__int128_t` if available, and uses boost to emulate 128 bit integers when not available. Boost is a dependency of pgl only when `__int128_t`is not available (for example under MSVC).
 
-The [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html) class is available for arbitrary precision integers. We've chosen to provide our own [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html) class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html) type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^{127}$. It doesn't even include Karatsuba multiplication, as the numbers are not big enough for Karatsuba to be faster. Check the [benchmark](#benchmark) for details.
+The [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.") class is available for arbitrary precision integers. We've chosen to provide our own [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.") class for two main reasons. One is to avoid unneeded dependencies. The other is because we found that `boost::multiprecision::cpp_int` is slow in our use case. In contrast to cryptographic applications, the typical use case of computational geometry includes many small numbers. The [`BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.") type is optimized to be fast when the numbers are not too big, and only allocates heap storage for numbers larger than $2^{127}$. It doesn't even include Karatsuba multiplication, as the numbers are not big enough for Karatsuba to be faster. Check the [benchmark](#benchmark) for details.
 
 
 ### Overflow
@@ -109,7 +109,7 @@ For disks, the inCircle test promotes numbers twice to avoid overflows.
 
 Important geometric properties may need coordinates that are not integers. For example, we may check if two segments intersect using only integers, but the point of intersection may have non-integer rational coordinates. Floating point numbers are fast and will provide exact results for division by a power of 2, but not for other divisions. The safest choice is to use rational numbers.
 
-Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html). The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
+Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer."). The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
 
 Notice that numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
 dot product 
@@ -154,7 +154,7 @@ You may have noticed that the `intersection` method does not return a point. Thi
 
 ### Benchmark
 
-To give an idea of the cost of using different number types, we show a benchmark of the times to test if two segments cross using different types, with and without promotion. The time shown is the average time of the `crosses` predicate on two uniform random segments with integer endpoint coordinates in the -500 to 500 range. Since the class [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html) is optimized to handle integer coordinates faster, we also perform the same test on rational numbers with the segment coordinates divided by 60. All times are in nanoseconds.
+To give an idea of the cost of using different number types, we show a benchmark of the times to test if two segments cross using different types, with and without promotion. The time shown is the average time of the `crosses` predicate on two uniform random segments with integer endpoint coordinates in the -500 to 500 range. Since the class [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html "Exact rational number class template.") is optimized to handle integer coordinates faster, we also perform the same test on rational numbers with the segment coordinates divided by 60. All times are in nanoseconds.
 
 | Type                | promotion <br/> integer | no promotion <br/> integer | no promotion <br/> integer / 60 |
 | ------------------- | ----------------------: | -------------------------: | ------------------------------: |
@@ -162,7 +162,7 @@ To give an idea of the cost of using different number types, we show a benchmark
 | `int32_t`           |                    4.59 |                       4.39 |                                 |
 | `int64_t`           |                    7.14 |                       4.40 |                                 |
 | `int128`            |                   48.74 |                       7.99 |                                 |
-| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html)       |                         |                      34.47 |                                 |
+| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")       |                         |                      34.47 |                                 |
 | `float`             |                    6.29 |                       5.76 |                                 |
 | `double`            |                   10.33 |                       5.81 |                                 |
 | `long double`       |                         |                      12.61 |                                 |
@@ -182,7 +182,7 @@ We perform tests on the time of the `Segment::crosses` predicate using boost typ
 | --------------------------------- | ------: | -----------: |
 | `int128`                          |    8.09 |              |
 | `boost::multiprecision::int128_t` |   20.34 |              |
-| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html)                     |   51.04 |              |
+| [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer.")                     |   51.04 |              |
 | `boost::cpp_int`                  |  188.71 |              |
 | `GMP mpz_int`                     |  338.66 |              |
 | `pgl::Rational<int64_t>`          |   29.56 |        36.04 |

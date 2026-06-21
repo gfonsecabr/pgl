@@ -93,7 +93,7 @@ pgl::Point p = std::get<0>(*isec);
 // p = (3,3)
 ```
 
-When the intersection can be represented as a [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html), you can convert directly:
+When the intersection can be represented as a [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes."), you can convert directly:
 
 ```c++
 pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
@@ -133,7 +133,7 @@ pgl::Point<> p(isec);
   distance, computed in `ResultNumber` (default: the shape's coordinate type),
   mirroring `intersection`. **Warning:** distances to a line, segment or ray
   divide by a squared length, so with an integer `ResultNumber` the result is
-  truncated; request a floating-point or [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html) type, e.g.
+  truncated; request a floating-point or [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html "Exact rational number class template.") type, e.g.
   `a.squaredDistance<double>(b)`, for an accurate value. Distances between
   points and between axis-aligned rectangles use no division and are exact.
 
@@ -164,15 +164,15 @@ is used for shapes of constant size and an
 [`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) is
 used otherwise.
 
-- `vertices()`: Returns an `std::array` or an `std::vector` of [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) that are
+- `vertices()`: Returns an `std::array` or an `std::vector` of [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") that are
   the vertices. 
 
-- `edges()`: Returns an `std::array` or an `std::vector` of [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html) that are
+- `edges()`: Returns an `std::array` or an `std::vector` of [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.") that are
   the edges.
 
 - `orientedEdges()`: Returns an `std::array` or an `std::vector` of
-  [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html) that are the edges in counterclockwise order. Not defined
-  for [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html).
+  [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.") that are the edges in counterclockwise order. Not defined
+  for [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.").
 
 - `begin()`, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`,
   `orientedEdgesEnd()`: Same as `vertices()`, `edges()`, and
@@ -182,7 +182,7 @@ used otherwise.
 ### Indexed access
 
 Every shape exposes a uniform indexed-access interface over its defining
-points (or, for [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html), its two coordinates):
+points (or, for [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), its two coordinates):
 
 - `size()`: Returns the number of indexable elements.
 
@@ -203,10 +203,10 @@ c.index({4,3}); // 2 since c[2] == {4,3}
 ```
 
 
-The runtime [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html) wrapper exposes `size()`, `operator[]`, and `get()` that
-dispatch to the wrapped alternative. Because [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html)'s
-indexed access yields a coordinate rather than a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html), `Shape::operator[]`
-and `Shape::get` throw `std::logic_error` if the wrapped value is a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html).
+The runtime [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") wrapper exposes `size()`, `operator[]`, and `get()` that
+dispatch to the wrapped alternative. Because [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.")'s
+indexed access yields a coordinate rather than a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), `Shape::operator[]`
+and `Shape::get` throw `std::logic_error` if the wrapped value is a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.").
 
 
 

@@ -101,6 +101,11 @@ GENERATE_LATEX         = NO
 # Emit a tag file mapping each member's signature to its html page + anchor, so
 # the doc/*.md reference pages can be auto-linked to the doxygen reference.
 GENERATE_TAGFILE       = build/doc/pgl.tag
+# XML carries the @brief text (the tag file does not); doxylink reads it to add
+# hover tooltips to the generated links.
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+XML_PROGRAMLISTING     = NO
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 FULL_SIDEBAR           = NO
