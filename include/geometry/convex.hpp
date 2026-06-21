@@ -485,7 +485,7 @@ struct Convex {
      * @brief Computes the centroid of the convex polygon.
      * @tparam ResultNumber The number type for the result.
      * @return The centroid point.
-     * @warning Uses division by 3 and twice the area, so may not be exact for integral types.
+     * @warning Uses division by 3 and twice the area, so the result may be inexact even for floating-point types.
      */
     template <class ResultNumber = NumberType>
     constexpr Point<ResultNumber> centroid() const;
@@ -494,6 +494,7 @@ struct Convex {
      * @brief Computes the centroid of the vertex set.
      * @tparam ResultNumber The number type for the result.
      * @return The centroid of the vertex set.
+     * @warning Uses division by the number of vertices, so the result may be inexact even for floating-point types.
      */
     template <class ResultNumber = NumberType>
     constexpr Point<ResultNumber> verticesCentroid() const;
@@ -506,7 +507,7 @@ struct Convex {
      * 
      * @tparam ResultNumber The number type for the result.
      * @return A point guaranteed to be inside the convex polygon.
-     * @warning For polygons with collinear vertices, the point may be on the boundary. Uses division by 4, so may not be exact for integral types.
+     * @warning Divides coordinates by 4. Inexact for integer coordinates not divisible by 4.
      */
     template <class ResultNumber = NumberType>
     constexpr Point<ResultNumber> pointInside() const;

@@ -1143,6 +1143,7 @@ struct Rectangle {
      *
      * @tparam ResultNumber Coordinate type of the centroid.
      * @return The rectangle midpoint.
+     * @warning Divides coordinates by 2. Inexact for odd integer coordinates.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> centroid() const;

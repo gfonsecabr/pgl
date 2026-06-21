@@ -482,6 +482,7 @@ struct Triangle {
      *
      * @tparam ResultNumber Coordinate type of the returned point.
      * @return Point `((ax+bx+cx)/3, (ay+by+cy)/3)`.
+     * @warning Uses division by 3, so the result may be inexact even for floating-point types.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> centroid() const;
@@ -509,7 +510,7 @@ struct Triangle {
      *
      * @tparam ResultNumber Coordinate type of the returned point.
      * @return A point strictly inside every non-degenerate triangle.
-     * @warning For degenerate triangles, the point may be on the boundary. Uses division by 4, so may not be exact for integral types.
+     * @warning Divides coordinates by 4. Inexact for integer coordinates not divisible by 4.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
