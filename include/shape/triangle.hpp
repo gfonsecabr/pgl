@@ -864,6 +864,10 @@ struct Triangle {
     [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
