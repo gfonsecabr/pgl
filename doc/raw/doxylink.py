@@ -51,6 +51,7 @@ from collections import defaultdict
 
 DEFAULT_BASE = "https://gfonsecabr.github.io/pgl/"
 DEFAULT_TAG = "build/doc/pgl.tag"
+DEFAULT_XML = "build/doc/xml"
 DEFAULT_RAW = "doc/raw"
 DEFAULT_OUT = "doc"
 BANNER = ("<!-- AUTO-GENERATED from {src} by doc/raw/doxylink.py — do not edit; "
@@ -124,6 +125,61 @@ def load_tag(path):
     for name in [n for n in freefuncs if norm(n) in class_by_norm]:
         del freefuncs[name]
     return methods, class_by_norm, class_page, freefuncs, ns_names
+
+
+def load_briefs(xml_dir):
+    """Return (anchor_brief, page_brief) from the doxygen XML output.
+
+    anchor_brief: html anchor -> @brief text (members + free functions).
+    page_brief:   html page    -> @brief text (classes/namespaces, for class links).
+    The tag file has no descriptions, so the XML is the source of @brief text.
+    """
+    anchor_brief, page_brief = {}, {}
+    if not xml_dir or not os.path.isdir(xml_dir):
+        return anchor_brief, page_brief
+
+    def text(el):
+        if el is None:
+            return ""
+        return " ".join("".join(el.itertext()).split())
+
+    for path in glob.glob(os.path.join(xml_dir, "*.xml")):
+        if path.endswith("index.xml"):
+            continue
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+        for comp in root.findall("compounddef"):
+            if comp.get("kind") not in ("struct", "class", "namespace"):
+                continue
+            cid = comp.get("id")
+            b = text(comp.find("briefdescription"))
+            if b:
+                page_brief.setdefault(f"{cid}.html", b)
+            for md in comp.iter("memberdef"):
+                if md.get("kind") != "function":
+                    continue
+                mid = md.get("id") or ""
+                # member id is "<compound-id>_1<anchor>"
+                if mid.startswith(cid + "_1"):
+                    anchor = mid[len(cid) + 2:]
+                    mb = text(md.find("briefdescription"))
+                    if mb:
+                        anchor_brief.setdefault(anchor, mb)
+    return anchor_brief, page_brief
+
+
+def link_md(text, rel_url, base, briefs):
+    """Render a markdown link, adding the @brief as a hover title when known."""
+    anchor_brief, page_brief = briefs
+    if "#" in rel_url:
+        b = anchor_brief.get(rel_url.split("#", 1)[1])
+    else:
+        b = page_brief.get(rel_url)
+    if b:
+        return f'[`{text}`]({base}{rel_url} "{b.replace(chr(34), chr(39))}")'
+    return f"[`{text}`]({base}{rel_url})"
 
 
 def _member_url(anchors):
@@ -207,7 +263,7 @@ def resolve(content, override, context, methods, class_by_norm, class_page,
 
 
 def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
-            base, write):
+            briefs, base, write):
     with open(src) as fh:
         text = fh.read()
     lines = text.split("\n")
@@ -258,7 +314,7 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
                 mm = MENTION_RE.match(content)
                 if mm and context and mm.group(3) in methods.get(context, {}):
                     linked_here[section].add(mm.group(3))
-                return f"[`{content}`]({base}{url})"
+                return link_md(content, url, base, briefs)
             return mo.group(0)
 
         out_lines.append(SPAN_RE.sub(repl, line))
@@ -270,7 +326,7 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
         others = [m for m in members if m not in linked_here[sec]]
         stats["other-filled"] += len(others)
         if others:
-            items = ", ".join(f"[`{m}`]({base}{_member_url(methods[cls][m])})"
+            items = ", ".join(link_md(m, _member_url(methods[cls][m]), base, briefs)
                               for m in others)
             out_lines[idx] = f"{prefix} {items}."
         else:
@@ -289,6 +345,8 @@ def main():
     ap.add_argument("files", nargs="*",
                     help="source markdown files (default: doc/raw/*.md)")
     ap.add_argument("--tag", default=DEFAULT_TAG)
+    ap.add_argument("--xml", default=DEFAULT_XML,
+                    help="doxygen XML dir for @brief tooltips (default: build/doc/xml)")
     ap.add_argument("--base", default=DEFAULT_BASE)
     ap.add_argument("--raw", default=DEFAULT_RAW, help="source dir (default: doc/raw)")
     ap.add_argument("--out", default=DEFAULT_OUT, help="output dir (default: doc)")
@@ -303,13 +361,14 @@ def main():
     if not os.path.exists(args.tag):
         sys.exit(f"tag file not found: {args.tag}\nrun: doxygen Doxyfile")
     methods, class_by_norm, class_page, freefuncs, ns_names = load_tag(args.tag)
+    briefs = load_briefs(args.xml)
 
     files = args.files or sorted(glob.glob(os.path.join(args.raw, "*.md")))
     totals = defaultdict(int)
     for path in files:
         dst = os.path.join(args.out, os.path.basename(path))
         stats, details = process(path, dst, methods, class_by_norm, class_page,
-                                 freefuncs, ns_names, base, args.write)
+                                 freefuncs, ns_names, briefs, base, args.write)
         if not stats:
             continue
         summary = "  ".join(f"{k}={v}" for k, v in sorted(stats.items())
