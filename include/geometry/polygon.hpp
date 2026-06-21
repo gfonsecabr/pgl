@@ -457,7 +457,7 @@ struct Polygon {
     }
 
     /**
-     * @brief Checks if the closed polygon contains the given point (boundary or interior).
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary
      * check so the closed boundary counts as contained.
@@ -468,7 +468,7 @@ struct Polygon {
     constexpr bool contains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the closed polygon contains the given segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * The segment is split at its boundary intersections and each piece is
      * classified by its midpoint, so the test is correct for non-convex
@@ -480,7 +480,7 @@ struct Polygon {
     constexpr bool contains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the closed polygon contains the given oriented segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O(n log n) for n vertices.
      */
@@ -488,31 +488,31 @@ struct Polygon {
     constexpr bool contains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief A bounded polygon contains a line only if the line is degenerate.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     template<LineConcept OtherLine>
     constexpr bool contains(const OtherLine& other) const;
 
     /**
-     * @brief A bounded polygon contains an oriented line only if it is degenerate.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     template<OrientedLineConcept OtherOrientedLine>
     constexpr bool contains(const OtherOrientedLine& other) const;
 
     /**
-     * @brief A bounded polygon contains a ray only if the ray is degenerate.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     template<RayConcept OtherRay>
     constexpr bool contains(const OtherRay& other) const;
 
     /**
-     * @brief A bounded polygon contains a half-plane only if it is degenerate.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     template<HalfplaneConcept OtherHalfplane>
     constexpr bool contains(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the polygon contains the given rectangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O(n log n) for n vertices.
      */
@@ -520,7 +520,7 @@ struct Polygon {
     constexpr bool contains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the polygon contains the given triangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O(n log n) for n vertices.
      */
@@ -528,7 +528,7 @@ struct Polygon {
     constexpr bool contains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the polygon contains the given convex polygon.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
@@ -536,7 +536,7 @@ struct Polygon {
     constexpr bool contains(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the polygon contains the given polygon.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * For simple polygons (no holes) this holds iff every edge of @p other is
      * contained, which is what this checks.
@@ -547,28 +547,31 @@ struct Polygon {
     constexpr bool contains(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the polygon contains the wrapped shape.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     constexpr bool contains(const Shape<PointType>& other) const;
 
     // The empty set is a subset of every shape, so its containment relations are
     // true; symmetric crossing reaches the empty set through the generic
     // OtherShape fallback declared below.
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given point.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * True iff the point is contained but lies on no edge. A polygon with fewer
      * than three vertices has empty interior, so the result is always false.
@@ -579,7 +582,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given segment.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Requires both endpoints strictly inside and no contact with the boundary,
      * so a segment cannot dip out through a reflex notch and return.
@@ -590,7 +593,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given oriented segment.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -598,31 +601,31 @@ struct Polygon {
     constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief A bounded polygon's interior contains a line only if it is degenerate.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      */
     template<LineConcept OtherLine>
     constexpr bool interiorContains(const OtherLine& other) const;
 
     /**
-     * @brief A bounded polygon's interior contains an oriented line only if it is degenerate.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      */
     template<OrientedLineConcept OtherOrientedLine>
     constexpr bool interiorContains(const OtherOrientedLine& other) const;
 
     /**
-     * @brief A bounded polygon's interior contains a ray only if it is degenerate.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      */
     template<RayConcept OtherRay>
     constexpr bool interiorContains(const OtherRay& other) const;
 
     /**
-     * @brief A bounded polygon's interior contains a half-plane only if it is degenerate.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      */
     template<HalfplaneConcept OtherHalfplane>
     constexpr bool interiorContains(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given rectangle.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(n log n) for n vertices.
      */
@@ -630,7 +633,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given triangle.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(n log n) for n vertices.
      */
@@ -638,7 +641,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given convex polygon.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O((n + m) log n) for n and m vertices.
      */
@@ -646,7 +649,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the open interior of the polygon contains the given polygon.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Like @ref contains(const Polygon&), this reduces to an edge-by-edge check,
      * which is exact for simple polygons (no holes).
@@ -657,7 +660,7 @@ struct Polygon {
     constexpr bool interiorContains(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the boundary of the polygon contains the given point.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -665,7 +668,7 @@ struct Polygon {
     constexpr bool boundaryContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the boundary of the polygon contains the given segment.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * True iff the segment lies within a single boundary edge (the simple-polygon
      * model also used by @ref Convex::boundaryContains).
@@ -675,28 +678,28 @@ struct Polygon {
     template<SegmentConcept OtherSegment>
     constexpr bool boundaryContains(const OtherSegment& other) const;
 
-    /** @brief Same as the segment overload, ignoring orientation. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
-    /** @brief Degenerate lines are on the boundary iff their unique point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
     constexpr bool boundaryContains(const OtherLine& other) const;
 
-    /** @brief Degenerate oriented lines are on the boundary iff their unique point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
-    /** @brief Degenerate rays are on the boundary iff their source point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RayConcept OtherRay>
     constexpr bool boundaryContains(const OtherRay& other) const;
 
-    /** @brief Degenerate half-planes are on the boundary iff their source point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if every rectangle edge lies on the polygon boundary.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(n) per edge for n vertices.
      */
@@ -704,7 +707,7 @@ struct Polygon {
     constexpr bool boundaryContains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if every triangle edge lies on the polygon boundary.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(n) per edge for n vertices.
      */
@@ -712,57 +715,65 @@ struct Polygon {
     constexpr bool boundaryContains(const OtherTriangle& other) const;
 
     /**
-     * @brief A convex polygon lies on the boundary only if it has at most two vertices.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      */
     template<ConvexConcept OtherConvex>
     constexpr bool boundaryContains(const OtherConvex& other) const;
 
     /**
-     * @brief A polygon lies on the boundary only if it has at most two vertices.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool boundaryContains(const OtherPolygon& other) const;
 
     /**
-     * @brief A disk lies on the boundary only if it is a single point on the boundary.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      */
     template<DiskConcept OtherDisk>
     constexpr bool boundaryContains(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the polygon boundary contains the wrapped shape.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      */
     template<PointConcept OtherPoint>
     constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
 
     /**
-     * @brief Checks if the polygon intersects the given point.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -770,7 +781,7 @@ struct Polygon {
     constexpr bool intersects(const OtherPoint& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given segment.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -778,7 +789,7 @@ struct Polygon {
     constexpr bool intersects(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given oriented segment.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -786,7 +797,7 @@ struct Polygon {
     constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given line.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -794,7 +805,7 @@ struct Polygon {
     constexpr bool intersects(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given oriented line.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -802,7 +813,7 @@ struct Polygon {
     constexpr bool intersects(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given ray.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -810,7 +821,7 @@ struct Polygon {
     constexpr bool intersects(const OtherRay& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given half-plane.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -818,7 +829,7 @@ struct Polygon {
     constexpr bool intersects(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given rectangle.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -826,7 +837,7 @@ struct Polygon {
     constexpr bool intersects(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given triangle.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -834,7 +845,7 @@ struct Polygon {
     constexpr bool intersects(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given convex polygon.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -842,19 +853,19 @@ struct Polygon {
     constexpr bool intersects(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the polygon intersects the given polygon.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool intersects(const OtherPolygon& other) const;
 
-    /** @brief Not yet supported; throws (Polygon cannot yet `intersects` a disk). */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<DiskConcept OtherDisk>
     constexpr bool intersects(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the polygon interior strictly contains the given point.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -862,7 +873,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given line.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -870,7 +881,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given oriented line.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -878,7 +889,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given segment.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n^2) for n vertices.
      */
@@ -886,7 +897,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given oriented segment.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n^2) for n vertices.
      */
@@ -894,7 +905,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given ray.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n^2) for n vertices.
      */
@@ -902,7 +913,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherRay& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given half-plane.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n) for n vertices.
      */
@@ -910,7 +921,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given rectangle interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -918,7 +929,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given triangle interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -926,7 +937,7 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
@@ -934,19 +945,19 @@ struct Polygon {
     constexpr bool interiorsIntersect(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the polygon interior meets the given polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n m) for polygons with n and m vertices.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool interiorsIntersect(const OtherPolygon& other) const;
 
-    /** @brief Not yet supported; throws (Polygon cannot yet `interiorsIntersect` a disk). */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<DiskConcept OtherDisk>
     constexpr bool interiorsIntersect(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if removing the polygon disconnects the given segment.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * True iff some boundary edge cuts transversally through the segment's
      * interior while the segment does not lie on the boundary, so the polygon's
@@ -957,12 +968,12 @@ struct Polygon {
     template<SegmentConcept OtherSegment>
     constexpr bool separates(const OtherSegment& other) const;
 
-    /** @brief Same as the segment overload, ignoring orientation. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     constexpr bool separates(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if removing the polygon disconnects the given ray.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Like the segment overload, but a ray has a single finite end (its
      * source); its far end runs to infinity, always outside the bounded
@@ -974,103 +985,102 @@ struct Polygon {
     constexpr bool separates(const OtherRay& other) const;
 
     /**
-     * @brief Checks if removing the polygon disconnects the given line.
-     * Complexity: O(n) for n vertices.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      */
     template<LineConcept OtherLine>
     constexpr bool separates(const OtherLine& other) const;
 
-    /** @brief Same as the line overload, ignoring orientation. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedLineConcept OtherOrientedLine>
     constexpr bool separates(const OtherOrientedLine& other) const;
 
-    /** @brief A polygon never crosses a point. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint&) const;
 
-    /** @brief Tests whether the polygon and segment mutually separate each other. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
-    /** @brief Same as the segment overload, ignoring orientation. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
 
-    /** @brief Tests whether the polygon and ray mutually separate each other. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
 
-    /** @brief Tests whether the polygon and line mutually separate each other. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
 
-    /** @brief Same as the line overload, ignoring orientation. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
 
-    /** @brief A polygon never crosses a half-plane in this API. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool crosses(const OtherHalfplane&) const;
 
-    /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool crosses(const OtherRectangle&) const;
 
-    /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool crosses(const OtherTriangle&) const;
 
-    /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool crosses(const OtherConvex&) const;
 
-    /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool crosses(const OtherDisk&) const;
 
-    /** @brief Not yet supported; always false (Polygon cannot yet `separates` this shape). */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool crosses(const OtherPolygon&) const;
 
-    /** @brief Dispatches crossing to the wrapped shape alternative. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
-    /** @brief Dispatches intersection to the wrapped shape alternative. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const Shape<OtherPoint>& other) const;
 
-    /** @brief Dispatches interior intersection to the wrapped shape alternative. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
 
-    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with a segment.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Unlike @ref Convex::intersection, a simple polygon need not be convex, so
      * the intersection of its closed region with a segment can be several
@@ -1096,7 +1106,7 @@ struct Polygon {
     intersection(const OtherSegment& other) const;
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with an oriented segment.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Same as the @ref Segment overload, ignoring orientation.
      *
@@ -1107,7 +1117,7 @@ struct Polygon {
     intersection(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with a line.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Since a polygon is bounded, the intersection of its closed region with an
      * infinite line is a bounded set of disjoint pieces: each is either a
@@ -1130,7 +1140,7 @@ struct Polygon {
     intersection(const OtherLine& other) const;
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with an oriented line.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Same as the @ref Line overload, ignoring orientation.
      *
@@ -1141,7 +1151,7 @@ struct Polygon {
     intersection(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with a ray.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * A ray is its supporting line restricted to the half starting at the
      * source, so the result is the disjoint pieces of that half inside the
@@ -1164,7 +1174,7 @@ struct Polygon {
     intersection(const OtherRay& other) const;
 
     /**
-     * @brief Computes the intersection of two (closed) polygons.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * The boundary of the intersection region `A ∩ B` is exactly
      * `(∂A ∩ B) ∪ (∂B ∩ A)`, so the method clips every edge of each polygon
@@ -1187,14 +1197,14 @@ struct Polygon {
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherPolygon& other) const;
 
-    /** @brief Intersecting with the empty set yields the empty set. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
         return {};
     }
 
     /**
-     * @brief Computes the intersection of the (closed) polygon with a half-plane.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * The boundary of the intersection region `P ∩ H` is `(∂P ∩ H) ∪ (∂H ∩ P)`,
      * so the method clips every polygon edge to the closed half-plane and clips

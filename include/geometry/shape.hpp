@@ -433,7 +433,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests geometric containment against a shape or concrete alternative.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -454,7 +454,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests boundary containment against a shape or concrete alternative.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -475,7 +475,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests interior containment against a shape or concrete alternative.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -496,7 +496,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests intersection against a shape or concrete alternative.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -517,7 +517,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests whether interiors intersect against a shape or concrete alternative.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -538,7 +538,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests whether the wrapped shape separates a shape or concrete alternative.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -559,7 +559,7 @@ struct Shape {
     }
 
     /**
-     * @brief Tests whether the wrapped shape crosses a shape or concrete alternative.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Operand to test.
@@ -580,7 +580,7 @@ struct Shape {
     }
 
     /**
-     * @brief Computes the intersection with another shape, returned as a Shape.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Visits the stored alternative (and @p other when it is itself a `Shape`),
      * delegates to the concrete `intersection` requesting @p ResultNumber

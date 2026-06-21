@@ -84,64 +84,64 @@ struct EmptyShape {
     // set itself: containment of any non-empty shape is false, while containment
     // of another empty shape is true.
 
-    /** @brief The empty set contains no non-empty shape. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class T>
     [[nodiscard]] constexpr bool contains(const T&) const {
         return false;
     }
-    /** @brief The empty set contains the empty set. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
 
-    /** @brief The empty set boundary-contains no non-empty shape. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class T>
     [[nodiscard]] constexpr bool boundaryContains(const T&) const {
         return false;
     }
-    /** @brief The empty set boundary-contains the empty set. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
 
-    /** @brief The empty set interior-contains no non-empty shape. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class T>
     [[nodiscard]] constexpr bool interiorContains(const T&) const {
         return false;
     }
-    /** @brief The empty set interior-contains the empty set. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<OtherPoint>&) const {
         return true;
     }
 
-    /** @brief The empty set intersects nothing. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template <class T>
     [[nodiscard]] constexpr bool intersects(const T&) const {
         return false;
     }
 
-    /** @brief The empty set has no interior, so its interior intersects nothing. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template <class T>
     [[nodiscard]] constexpr bool interiorsIntersect(const T&) const {
         return false;
     }
 
-    /** @brief The empty set separates nothing. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class T>
     [[nodiscard]] constexpr bool separates(const T&) const {
         return false;
     }
 
-    /** @brief The empty set crosses nothing. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class T>
     [[nodiscard]] constexpr bool crosses(const T&) const {
         return false;
     }
 
-    /** @brief Intersecting anything with the empty set yields the empty set. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class T>
     [[nodiscard]] constexpr EmptyShape intersection(const T&) const {
         return EmptyShape{};

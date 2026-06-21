@@ -586,7 +586,7 @@ struct Convex {
 
 
     /**
-     * @brief Checks if the boundary of the convex polygon contains the given point.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -598,7 +598,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the boundary of the convex polygon contains the given segment.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -615,7 +615,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the boundary of the convex polygon contains the given oriented segment.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -623,7 +623,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Degenerate lines are on the boundary iff their unique point is.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -631,7 +631,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherLine& other) const;
 
     /**
-     * @brief Degenerate oriented lines are on the boundary iff their unique point is.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -639,7 +639,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Degenerate rays are on the boundary iff their source point is.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -647,7 +647,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherRay& other) const;
 
     /**
-     * @brief Degenerate half-planes are on the boundary iff their source point is.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -655,7 +655,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if every rectangle edge lies on the boundary of the convex polygon.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices (four edge checks).
      */
@@ -663,7 +663,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if every triangle edge lies on the boundary of the convex polygon.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices (three edge checks).
      */
@@ -671,7 +671,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if every edge of the other convex polygon lies on the boundary.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Returns false unless the convex polygon has at most two vertices.
      * Complexity: O(log n) for n vertices on this convex polygon.
@@ -679,12 +679,12 @@ struct Convex {
     template<ConvexConcept OtherConvex>
     constexpr bool boundaryContains(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     constexpr bool boundaryContains(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the disk lies on the boundary of this convex polygon.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * Returns false unless all disk points are the same and that point is on the boundary of this convex polygon.
      * Complexity: O(log n) for n vertices on this convex polygon.
@@ -693,7 +693,7 @@ struct Convex {
     constexpr bool boundaryContains(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the boundary of the convex polygon contains the wrapped shape.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      */
     template<PointConcept OtherPoint>
     constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
@@ -717,7 +717,7 @@ struct Convex {
     constexpr std::optional<std::array<Segment<PointType>, 2>> edgesAtX(OtherNumberType x) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given point (boundary or interior).
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -729,7 +729,7 @@ struct Convex {
     constexpr bool contains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -741,7 +741,7 @@ struct Convex {
     constexpr bool contains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given oriented segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -753,7 +753,7 @@ struct Convex {
     constexpr bool contains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given line.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * @tparam OtherPoint The point type of the line.
      * @param other The line to check.
      * @return Always returns false since a line cannot be fully contained in A convex polygon.
@@ -762,7 +762,7 @@ struct Convex {
     constexpr bool contains(const OtherLine&) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given oriented line.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * @tparam OtherPoint The point type of the oriented line.
      * @param other The oriented line to check.
      * @return Always returns false since an oriented line cannot be fully contained in A convex polygon.
@@ -771,7 +771,7 @@ struct Convex {
     constexpr bool contains(const OtherOrientedLine&) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given ray.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to check.
      * @return Always returns false since a ray cannot be fully contained in A convex polygon.
@@ -780,7 +780,7 @@ struct Convex {
     constexpr bool contains(const OtherRay&) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given halfplane.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * @tparam OtherPoint The point type of the halfplane.
      * @param other The halfplane to check.
      * @return Always returns false since a halfplane cannot be fully contained in A convex polygon.
@@ -789,7 +789,7 @@ struct Convex {
     constexpr bool contains(const OtherHalfplane&) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given rectangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -802,7 +802,7 @@ struct Convex {
 
 
     /**
-     * @brief Checks if the convex polygon contains the given triangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -814,7 +814,7 @@ struct Convex {
     constexpr bool contains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon contains the given convex polygon.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      * 
      * Complexity: O(min(n,m) log (n+m)) for convex polygons with n and m vertices.
      * 
@@ -826,13 +826,13 @@ struct Convex {
     template<ConvexConcept OtherConvex>
     constexpr bool contains(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     constexpr bool contains(const OtherPolygon& other) const;
   
 
     /**
-     * @brief Checks if the disk is contained in this convex polygon.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -840,7 +840,7 @@ struct Convex {
     constexpr bool contains(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the convex polygon contains the wrapped shape.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     template<PointConcept OtherPoint>
     constexpr bool contains(const Shape<OtherPoint>& other) const;
@@ -849,25 +849,29 @@ struct Convex {
     // true. separates has no symmetric fallback, so it gets an explicit overload
     // too; the symmetric intersection/crossing predicates instead reach the
     // empty set through the generic OtherShape fallbacks declared below.
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given point.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -879,7 +883,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given segment.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -891,7 +895,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given oriented segment.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -903,7 +907,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given line.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * @tparam OtherPoint The point type of the line.
      * @param other The line to check.
      * @return Always returns false since a line cannot be fully contained in A convex polygon.
@@ -912,7 +916,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherLine&) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given oriented line.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * @tparam OtherPoint The point type of the oriented line.
      * @param other The oriented line to check.
      * @return Always returns false since an oriented line cannot be fully contained in A convex polygon.
@@ -921,7 +925,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherOrientedLine&) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given ray.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to check.
      * @return Always returns false since a ray cannot be fully contained in A convex polygon.
@@ -930,7 +934,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherRay&) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given halfplane.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * @tparam OtherPoint The point type of the halfplane.
      * @param other The halfplane to check.
      * @return Always returns false since a halfplane cannot be fully contained in A convex polygon.
@@ -939,7 +943,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherHalfplane&) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given rectangle.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -951,7 +955,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given triangle.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -963,7 +967,7 @@ struct Convex {
     constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the given convex polygon.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      * 
      * Complexity: O(min(n,m) log (m+n)) for polygons with n and m vertices
      * 
@@ -975,12 +979,12 @@ struct Convex {
     template<ConvexConcept OtherConvex>
     constexpr bool interiorContains(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     constexpr bool interiorContains(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the disk is contained in the interior of this convex polygon.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -988,13 +992,13 @@ struct Convex {
     constexpr bool interiorContains(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon contains the wrapped shape.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      */
     template<PointConcept OtherPoint>
     constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
     
     /**
-     * @brief Checks if the convex polygon intersects the given segment.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1006,7 +1010,7 @@ struct Convex {
     constexpr bool intersects(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given oriented segment.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1018,7 +1022,7 @@ struct Convex {
     constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given line.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1030,7 +1034,7 @@ struct Convex {
     constexpr bool intersects(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given oriented line.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      *
@@ -1042,7 +1046,7 @@ struct Convex {
     constexpr bool intersects(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given ray.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1054,7 +1058,7 @@ struct Convex {
     constexpr bool intersects(const OtherRay& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given rectangle.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1066,7 +1070,7 @@ struct Convex {
     constexpr bool intersects(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given triangle.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1078,7 +1082,7 @@ struct Convex {
     constexpr bool intersects(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given point.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1090,7 +1094,7 @@ struct Convex {
     constexpr bool intersects(const OtherPoint& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given half-plane.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1102,7 +1106,7 @@ struct Convex {
     constexpr bool intersects(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the given convex polygon.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(min(n,m) log(n+m)) for convex polygons with n and m vertices.
      * Cheap bounding-box check filters out disjoint cases in O(1).
@@ -1115,7 +1119,7 @@ struct Convex {
     constexpr bool intersects(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the disk intersects this convex polygon.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -1123,26 +1127,26 @@ struct Convex {
     constexpr bool intersects(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the convex polygon intersects the wrapped shape.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      */
     template<PointConcept OtherPoint>
     constexpr bool intersects(const Shape<OtherPoint>& other) const;
 
-    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Checks if the interior of the convex polygon intersects a point.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1150,7 +1154,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
     /**
-     * @brief Checks if the convex polygon interior intersects a line.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1158,7 +1162,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the convex polygon interior intersects an oriented line.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1166,7 +1170,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the segment interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1178,7 +1182,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the oriented segment interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1186,7 +1190,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the ray interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1198,7 +1202,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherRay& other) const;
 
     /**
-     * @brief Checks if a half-plane interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1206,7 +1210,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if a rectangle interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1215,7 +1219,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if a triangle interior intersects the convex polygon interior.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1224,7 +1228,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if two convex polygon interiors intersect.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(min(n,m) log(m+n)) for polygons with n and m vertices.
      * A bounding-box test filters disjoint inputs in O(1).
@@ -1233,7 +1237,7 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon intersects a disk.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -1241,26 +1245,26 @@ struct Convex {
     constexpr bool interiorsIntersect(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the interior of the convex polygon intersects the interior of the wrapped shape.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      */
     template<PointConcept OtherPoint>
     constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
 
-    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief A convex polygon never separates a point.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(1).
      */
@@ -1268,7 +1272,7 @@ struct Convex {
     constexpr bool separates(const OtherPoint&) const;
 
     /**
-     * @brief Checks if removing the convex polygon from a segment disconnects it.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1282,7 +1286,7 @@ struct Convex {
     constexpr bool separates(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if removing the convex polygon from an oriented segment disconnects it.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1290,7 +1294,7 @@ struct Convex {
     constexpr bool separates(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if removing the convex polygon from a line disconnects it.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1298,7 +1302,7 @@ struct Convex {
     constexpr bool separates(const OtherLine& other) const;
 
     /**
-     * @brief Checks if removing the convex polygon from an oriented line disconnects it.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1306,7 +1310,7 @@ struct Convex {
     constexpr bool separates(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if removing the convex polygon from a ray disconnects it.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1317,7 +1321,7 @@ struct Convex {
     constexpr bool separates(const OtherRay& other) const;
 
     /**
-     * @brief Polygons never separate half-planes.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(1).
      */
@@ -1325,7 +1329,7 @@ struct Convex {
     constexpr bool separates(const OtherHalfplane&) const;
 
     /**
-     * @brief Checks if the convex polygon separates a rectangle.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices (four edge checks).
      */
@@ -1333,7 +1337,7 @@ struct Convex {
     constexpr bool separates(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon separates a triangle.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(log n) for n vertices (three edge checks).
      */
@@ -1341,7 +1345,7 @@ struct Convex {
     constexpr bool separates(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon separates another convex polygon.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(min(n,m) log(m+n)) for convex polygons with n vertices and m vertices.
      */
@@ -1349,7 +1353,7 @@ struct Convex {
     constexpr bool separates(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if removing the convex polygon disconnects the given simple polygon.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Unlike the Convex overload, a reflex polygon can dip into the convex
      * body through several separate pockets while staying connected, so
@@ -1366,7 +1370,7 @@ struct Convex {
     constexpr bool separates(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the convex polygon separates a disk.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -1374,13 +1378,13 @@ struct Convex {
     constexpr bool separates(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the convex polygon separates the wrapped shape.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      */
     template<PointConcept OtherPoint>
     constexpr bool separates(const Shape<OtherPoint>& other) const;
 
     /**
-     * @brief A convex polygon never crosses a point.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(1).
      */
@@ -1388,7 +1392,7 @@ struct Convex {
     constexpr bool crosses(const OtherPoint&) const;
 
     /**
-     * @brief Checks if the convex polygon and segment cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1396,7 +1400,7 @@ struct Convex {
     constexpr bool crosses(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon and oriented segment cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1404,7 +1408,7 @@ struct Convex {
     constexpr bool crosses(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the convex polygon and line cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1412,7 +1416,7 @@ struct Convex {
     constexpr bool crosses(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the convex polygon and oriented line cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1420,7 +1424,7 @@ struct Convex {
     constexpr bool crosses(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the convex polygon and ray cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(log n) for n vertices.
      */
@@ -1428,7 +1432,7 @@ struct Convex {
     constexpr bool crosses(const OtherRay& other) const;
 
     /**
-     * @brief Convex polygons never cross half-planes.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(1).
      */
@@ -1436,7 +1440,7 @@ struct Convex {
     constexpr bool crosses(const OtherHalfplane&) const;
 
     /**
-     * @brief Checks if the convex polygon crosses a rectangle.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
      */
@@ -1444,7 +1448,7 @@ struct Convex {
     constexpr bool crosses(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon crosses a triangle.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(n) for n vertices, dominated by interiorsIntersect.
      */
@@ -1452,7 +1456,7 @@ struct Convex {
     constexpr bool crosses(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the convex polygon crosses another convex polygon.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(n log m + m log n) for this polygon with n vertices and
      * the other with m vertices.
@@ -1461,7 +1465,7 @@ struct Convex {
     constexpr bool crosses(const OtherConvex& other) const;
 
     /**
-     * @brief Checks if the convex polygon crosses a disk.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Complexity: O(n) for n vertices on this convex polygon.
      */
@@ -1469,26 +1473,26 @@ struct Convex {
     constexpr bool crosses(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the convex polygon crosses the wrapped shape.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      */
     template<PointConcept OtherPoint>
     constexpr bool crosses(const Shape<OtherPoint>& other) const;
 
-    /** @brief Forwards to the higher-ranked shape, the canonical implementor of the symmetric pair. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Computes the intersection of the convex polygon with a segment.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.
      *
@@ -1502,7 +1506,7 @@ struct Convex {
     intersection(const OtherSegment& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with an oriented segment.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1516,7 +1520,7 @@ struct Convex {
     intersection(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with a line.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      *
@@ -1530,7 +1534,7 @@ struct Convex {
     intersection(const OtherLine& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with an oriented line.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1544,7 +1548,7 @@ struct Convex {
     intersection(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with a ray.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1558,7 +1562,7 @@ struct Convex {
     intersection(const OtherRay& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with a rectangle.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1573,7 +1577,7 @@ struct Convex {
 
 
     /**
-     * @brief Computes the intersection of the convex polygon with a triangle.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O(log n) for n vertices.
      * 
@@ -1587,7 +1591,7 @@ struct Convex {
     intersection(const OtherTriangle& other) const;
 
     /**
-     * @brief Computes the intersection of the convex polygon with another convex polygon.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      * 
      * Complexity: O((n+m) log(n+m)) for n and m vertices.
      * 
@@ -1600,7 +1604,7 @@ struct Convex {
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherConvex& other) const;
 
-    /** @brief Intersecting with the empty set yields the empty set. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
         return {};
