@@ -18,13 +18,13 @@
 
 Pangolin (or pgl) is a header-only C++ library for computational geometry algorithms in the plane. It is intended to be easy to use and efficient.
 
-The `Point` and `Segment` classes are two of [several shapes](shapes.md).
+The [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) and [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html) classes are two of [several shapes](shapes.md).
 
 The coordinates are of type `int` by default, but [other types](types.md) including rational and floating point numbers may be used instead.
 
 All shapes support [many predicates](shape_methods.md#predicates) and several other [methods and operators](shape_methods.md). Fundamental [algorithms](algorithms.md) and [data structures](data_structures.md) are also provided.
 
-A `Canvas` class is provided for [easy visualization](canvas.md).
+A [`Canvas`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html) class is provided for [easy visualization](canvas.md).
 
 As a header-only library with no dependency, you can compile your code directly with `g++` or `clang++` (the standard needs to be at least c++20):
 

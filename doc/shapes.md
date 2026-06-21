@@ -39,7 +39,7 @@ The following shapes are supported by Pangolin:
 - [`Polygon`](#polygon) Simple polygon.
 - [`Convex`](#convex) Convex polygon.
 
-All shapes are template classes with a parameter that is a `Point` type, with `pgl::Point<int>` as default:
+All shapes are template classes with a parameter that is a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) type, with `pgl::Point<int>` as default:
 
 ```C++
 pgl::Segment si = {1,2,3,4}; // Same as pgl::Segment<pgl::Point<int>>
@@ -57,7 +57,7 @@ using Triangle = pgl::Triangle<Point>;
 There are many [predicates](shape_methods.md#predicates) and [other methods](shape_methods.md) supported by all shapes, such as `intersects`, `contains`, `squaredDistance`, `distanceL1`, translation, and scaling.
 Shapes may be degenerate, for example when some of their defining points are equal. The behavior of geometric operations on degenerate shapes is undefined. However, degenerate shapes may safely be constructed and are often constructed by the default constructor that sets all points to the origin.
 
-Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
+Shapes are grouped into a polymorphic class [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html) that use `std::variant` for polymorphism.
 
 ```C++
 pgl::Shape p = pgl::Point(3,7);
@@ -78,7 +78,7 @@ All shapes contain their boundaries (that is, they are closed in the topological
 
 ### Point
 
-The `Point` class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). A point has no boundary and has the point itself as the interior.
+The [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) class template defines a point with x and y coordinates. A point may optionally have a [label](types.md#point-label). A point has no boundary and has the point itself as the interior.
 
 ```C++
 pgl::Point p = {7,9};
@@ -104,7 +104,7 @@ A point has methods:
 
 ### Segment
 
-The `Segment` class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order. 
+The [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html) class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order. 
 
 ```C++
 pgl::Segment s(1,2,3,4), t(3,4,1,2);
@@ -151,7 +151,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Oriented Segment
 
-The `OrientedSegment` class template defines an oriented straight line segment. The user chooses the order of the two endpoints, which are named [`source`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html) and [`target`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html), respectively.
+The [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html) class template defines an oriented straight line segment. The user chooses the order of the two endpoints, which are named [`source`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html) and [`target`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html), respectively.
 
 ```C++
 pgl::OrientedSegment s(1,2,3,4), t(3,4,1,2);
@@ -170,7 +170,7 @@ std::cout << s << std::endl;
 // Output: (5,2)->(7,4)
 ```
 
-An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
+An oriented segment `s` has all methods of the [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html) class, with the only difference being for the slope, which may be negative:
 
 - [`s.midpoint()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a9fcc978c0e1b9d9053f2182da496db20): Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handles divisions by powers of 2 exactly.
 - [`s.length()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a003b0ff77fdeaff80dfcd5591f884a8f): Returns `s[0].distance(s[1])`.
@@ -202,7 +202,7 @@ Represents the empty set. Its [`size()`](https://gfonsecabr.github.io/pgl/struct
 
 ### Line
 
-The class template `Line` represents an infinite unoriented straight line. A line is stored as any two points it contains, but two lines defined by two distinct collinear points always compare equal. The two points are stored in increasing order. 
+The class template [`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html) represents an infinite unoriented straight line. A line is stored as any two points it contains, but two lines defined by two distinct collinear points always compare equal. The two points are stored in increasing order. 
 
 ```C++
 pgl::Line l1(1,2,3,4), l2(2,3,1,2);
@@ -230,7 +230,7 @@ A line `l` has some additional methods such as:
 
 ### Oriented Line
 
-The class template `OrientedLine` represents an infinite oriented straight line. An oriented line is stored as any two points it contains but the order matters as the line is oriented from the source to the target point. Two lines defined by two distinct collinear points compare equal if the points are in the same lexicographical order.
+The class template [`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html) represents an infinite oriented straight line. An oriented line is stored as any two points it contains but the order matters as the line is oriented from the source to the target point. Two lines defined by two distinct collinear points compare equal if the points are in the same lexicographical order.
 
 ```C++
 pgl::OrientedLine l1(1,2,3,4), l2(2,3,1,2);
@@ -267,7 +267,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Ray
 
-The class template `Ray` represents a half-line. A ray is stored as its source endpoint and any other point it contains. Two rays `l1`,`l2` are equal if they have the same source and the other defining point of `l1` is contained in `l2`.
+The class template [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html) represents a half-line. A ray is stored as its source endpoint and any other point it contains. Two rays `l1`,`l2` are equal if they have the same source and the other defining point of `l1` is contained in `l2`.
 
 ```C++
 pgl::Ray l1(1,2,3,4), l2(2,3,1,2);
@@ -305,7 +305,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Half-Plane
 
-The class template `Halfplane` is stored as an oriented line, but represents a completely different geometric object that contains all points on its left half-plane. The boundary of the half-plane is the line that defines it. Two half-planes are equal if the corresponding oriented lines are equal:
+The class template [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html) is stored as an oriented line, but represents a completely different geometric object that contains all points on its left half-plane. The boundary of the half-plane is the line that defines it. Two half-planes are equal if the corresponding oriented lines are equal:
 
 ```C++
 pgl::Halfplane h1(1,2,3,4), h2(2,3,1,2);
@@ -336,7 +336,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Triangle
 
-The class template `Triangle` is stored as three points, called vertices, which are kept in the following order. The first vertex is the smallest lexicographically and the other two vertices are ordered such that the triangle is oriented counterclockwise (positive orientation test). Two triangles are equal if they have the same vertices.
+The class template [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html) is stored as three points, called vertices, which are kept in the following order. The first vertex is the smallest lexicographically and the other two vertices are ordered such that the triangle is oriented counterclockwise (positive orientation test). Two triangles are equal if they have the same vertices.
 
 ```C++
 pgl::Triangle t(3,3,4,1,1,1);
@@ -368,7 +368,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Rectangle
 
-The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
+The class template [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html) represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
 
 ```C++
 pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
@@ -402,7 +402,7 @@ It knows how to convert itself with an explicit cast to:
 
 ### Disk
 
-The class template `Disk` represents a circle with its interior. Disks are stored internally as three boundary points, in the same way as a `Triangle`. This choice may be surprising, as the standard representation for disks is a center point and a radius. The main motivation is that the circumcircle of a triangle may be represented exactly for integers. Nevertheless, the constructor accepts both forms:
+The class template [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html) represents a circle with its interior. Disks are stored internally as three boundary points, in the same way as a [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html). This choice may be surprising, as the standard representation for disks is a center point and a radius. The main motivation is that the circumcircle of a triangle may be represented exactly for integers. Nevertheless, the constructor accepts both forms:
 
 ```C++
 pgl::Disk d1({1,1}, {2,5}, {4,3}); // Disk from 3 points
@@ -417,12 +417,12 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - [`d.radius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a69765084e501902a81583032fdb7c816): Returns the radius length.
 - [`d.squaredRadius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a0027c4ab0d85b7ff3e5b0d5b42b1745f): Returns the squared radius.
 - [`d.center()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a01f21dd5b971164474843df4ad71bfc1): Returns the center point.
-- [`d.diameter()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#ad7c86ba7778cf349bcb6c653e0470ba5): As always returns a diameter `Segment`, but for disks the segment is always horizontal.
+- [`d.diameter()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#ad7c86ba7778cf349bcb6c653e0470ba5): As always returns a diameter [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html), but for disks the segment is always horizontal.
 
 
 ### Polygon
 
-The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). ~~Internally, the polygon is stored as multiple x-monotone polylines for improved performance.~~
+The class template [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html) represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). ~~Internally, the polygon is stored as multiple x-monotone polylines for improved performance.~~
 
 A polygon `P` has methods such as:
 
@@ -432,7 +432,7 @@ A polygon `P` has methods such as:
 
 ### Convex
 
-The class template `Convex` represents a convex polygon. It can be constructed for any number of points in a container and will construct the convex hull. The vertices are stored in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). If the container already has the vertices in order, a second constructor parameter can be set to true to avoid computing the convex hull.
+The class template [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html) represents a convex polygon. It can be constructed for any number of points in a container and will construct the convex hull. The vertices are stored in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). If the container already has the vertices in order, a second constructor parameter can be set to true to avoid computing the convex hull.
 
 A convex polygon `c` has methods such as:
 

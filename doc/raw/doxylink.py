@@ -69,16 +69,19 @@ def norm(s):
 
 
 def load_tag(path):
-    """Return (methods, class_by_norm, freefuncs).
+    """Return (methods, class_by_norm, class_page, freefuncs, ns_names).
 
     methods:   full_class_name -> method_name -> list of (anchorfile, anchor).
     class_by_norm: normalized short class name -> full class name.
+    class_page: full class name -> its html page (for linking a bare class name).
     freefuncs: free_function_name -> list of (anchorfile, anchor) for the
                namespace-level functions (pgl::stroke, pgl::convexHull, ...).
+    ns_names:  every pgl:: member name (types, enums, ...) for `pgl::X` checks.
     """
     root = ET.parse(path).getroot()
     methods = defaultdict(lambda: defaultdict(list))
     class_by_norm = {}
+    class_page = {}
     freefuncs = defaultdict(list)
     ns_names = set()          # every pgl:: name (types, enums, ...) for `pgl::X`
     for comp in root.findall("compound"):
@@ -89,6 +92,7 @@ def load_tag(path):
             # Prefer top-level classes over nested ones (Triangle vs Triangle::Iter)
             if "::" not in full or norm(short) not in class_by_norm:
                 class_by_norm[norm(short)] = full
+            class_page[full] = comp.findtext("filename")
             sink = methods[full]
             funcs_only = True
         elif kind == "namespace":
@@ -110,7 +114,7 @@ def load_tag(path):
     # should mean the type, never a free function.
     for name in [n for n in freefuncs if norm(n) in class_by_norm]:
         del freefuncs[name]
-    return methods, class_by_norm, freefuncs, ns_names
+    return methods, class_by_norm, class_page, freefuncs, ns_names
 
 
 def _hit(anchors, target):
@@ -121,16 +125,18 @@ def _hit(anchors, target):
     return ("linked", f"{af}#{an}", target)
 
 
-def resolve(content, override, context, methods, class_by_norm, freefuncs, ns_names):
+def resolve(content, override, context, methods, class_by_norm, class_page,
+            freefuncs, ns_names):
     """Classify a code span. Returns (status, url_or_none, detail).
 
     A span is a "call form" if it carries a receiver dot or parentheses
     (`s.midpoint()`, `flip(e)`); otherwise it is a "bare" name (`edgesIntersecting`,
-    `triangles`). Resolution tries, in order: the heading's class context, then
-    the pgl:: free functions (`convexHull`, `stroke`, ...). Call forms are reported
-    loudly when nothing resolves (drift detection), while bare names that don't
-    resolve are silently left alone -- a bare word is just as likely to be a
-    variable, value, or type as a method.
+    `triangles`). Resolution tries, in order: a standalone class name (`OrientedLine`
+    -> its class page), the heading's class context, then the pgl:: free functions
+    (`convexHull`, `stroke`, ...). Call forms are reported loudly when nothing
+    resolves (drift detection), while bare names that don't resolve are silently
+    left alone -- a bare word is just as likely to be a variable, value, or type
+    as a method.
     """
     m = MENTION_RE.match(content)
     if not m:
@@ -138,10 +144,17 @@ def resolve(content, override, context, methods, class_by_norm, freefuncs, ns_na
     qualified = m.group(1) is not None
     receiver = m.group(2)
     method = m.group(3)
-    is_call = qualified or receiver is not None or m.group(4) is not None
+    parens = m.group(4)
+    is_call = qualified or receiver is not None or parens is not None
 
-    # A token that names a class is a type reference, not a method call.
+    # A token that names a class. Standing alone (optionally pgl::-qualified), link
+    # it to its class page; with a receiver or arguments it is not a plain mention.
     if norm(method) in class_by_norm:
+        if receiver is None and parens is None:
+            full = class_by_norm[norm(method)]
+            page = class_page.get(full)
+            if page:
+                return ("linked", page, f"{method} -> {full} (class)")
         return ("not-a-mention", None, None)
 
     cls = None
@@ -178,7 +191,8 @@ def resolve(content, override, context, methods, class_by_norm, freefuncs, ns_na
     return ("not-in-context", None, f"{method} not a member of {cls}")
 
 
-def process(src, dst, methods, class_by_norm, freefuncs, ns_names, base, write):
+def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
+            base, write):
     with open(src) as fh:
         text = fh.read()
     lines = text.split("\n")
@@ -209,8 +223,8 @@ def process(src, dst, methods, class_by_norm, freefuncs, ns_names, base, write):
             content = mo.group(1)
             override = mo.group(2)
             status, url, detail = resolve(
-                content, override, context, methods, class_by_norm, freefuncs,
-                ns_names
+                content, override, context, methods, class_by_norm, class_page,
+                freefuncs, ns_names
             )
             stats[status] += 1
             if status in ("linked", "overloaded", "not-in-context", "bad-override"):
@@ -247,14 +261,14 @@ def main():
 
     if not os.path.exists(args.tag):
         sys.exit(f"tag file not found: {args.tag}\nrun: doxygen Doxyfile")
-    methods, class_by_norm, freefuncs, ns_names = load_tag(args.tag)
+    methods, class_by_norm, class_page, freefuncs, ns_names = load_tag(args.tag)
 
     files = args.files or sorted(glob.glob(os.path.join(args.raw, "*.md")))
     totals = defaultdict(int)
     for path in files:
         dst = os.path.join(args.out, os.path.basename(path))
-        stats, details = process(path, dst, methods, class_by_norm, freefuncs,
-                                 ns_names, base, args.write)
+        stats, details = process(path, dst, methods, class_by_norm, class_page,
+                                 freefuncs, ns_names, base, args.write)
         if not stats:
             continue
         summary = "  ".join(f"{k}={v}" for k, v in sorted(stats.items())
