@@ -63,26 +63,42 @@ using optional_label_t = typename optional_label<T>::type;
 template <class T>
 concept SegmentOrOriented = SegmentConcept<T> || OrientedSegmentConcept<T>;
 
+// A doubly-infinite straight query: a line or an oriented line. It is traced in
+// order by the same directed walk as a segment — the only differences are that
+// it enters the hull at a ghost found by a directional descent (rather than at a
+// finite source) and never stops at a finite target, so it runs until it leaves
+// the hull. An oriented line keeps its own direction; a plain line's order
+// follows its (arbitrary) defining-point direction.
+template <class T>
+concept LineOrOriented = LineConcept<T> || OrientedLineConcept<T>;
+
+// Queries traced in order by the directed walk of visitTrianglesIntersecting:
+// segments, oriented segments, lines, oriented lines, and rays. A ray keeps a
+// finite source (entered like a segment, or at a directional ghost when the
+// source is outside the hull) but is unbounded forwards, so like a line it runs
+// until it leaves the hull instead of stopping at a target.
+template <class T>
+concept DirectedTraversal = SegmentOrOriented<T> || LineOrOriented<T> || RayConcept<T>;
+
 // A connected convex query shape accepted by the region-traversal overloads of
-// visitTrianglesIntersecting / trianglesIntersecting. Segments and oriented
-// segments are deliberately excluded — they have their own directed walk. The
-// set is convex so its intersection with the (convex) triangulated hull stays
-// connected, which is what lets a single seed flood-fill find every triangle it
-// meets. (Non-convex polygons are future work.)
+// visitTrianglesIntersecting / trianglesIntersecting. Segments, oriented
+// segments, (oriented) lines, and rays are deliberately excluded — they have
+// their own directed walk. The set is convex so its intersection with the
+// (convex) triangulated hull stays connected, which is what lets a single seed
+// flood-fill find every triangle it meets. (Non-convex polygons are future work.)
 template <class T>
 concept TriangulationRegionQuery =
     PointConcept<T> || TriangleConcept<T> || RectangleConcept<T> || ConvexConcept<T> ||
-    DiskConcept<T> || LineConcept<T> || OrientedLineConcept<T> || RayConcept<T> ||
-    HalfplaneConcept<T>;
+    DiskConcept<T> || HalfplaneConcept<T>;
 
-// Any shape the triangulation's intersection queries accept: a segment/oriented
-// segment (traced by the directed walk) or a region-query shape (grown by the
-// flood fill). The derived wrappers — trianglesIntersecting, the
-// interior-intersecting variants, the edge variants — are all built on
+// Any shape the triangulation's intersection queries accept: a directed-traversal
+// shape (traced in order by the directed walk) or a region-query shape (grown by
+// the flood fill, unspecified order). The derived wrappers — trianglesIntersecting,
+// the interior-intersecting variants, the edge variants — are all built on
 // visitTrianglesIntersecting plus a per-shape predicate, so they take this whole
 // set; only the two visitTrianglesIntersecting overloads carry distinct walks.
 template <class T>
-concept TriangulationQuery = SegmentOrOriented<T> || TriangulationRegionQuery<T>;
+concept TriangulationQuery = DirectedTraversal<T> || TriangulationRegionQuery<T>;
 }  // namespace detail
 
 /**
@@ -519,30 +535,47 @@ struct Triangulation {
         return out;
     }
 
-    // ---- traversal along an oriented segment -----------------------------
+    // ---- traversal along a segment or (oriented) line --------------------
 
     /**
-     * @brief Visits every triangle met by the oriented segment @p s, in order.
+     * @brief Visits every triangle met by the directed query @p s, in order.
      *
-     * Locates `s.source()`, visits the triangles touching it (if any), then
-     * traces `s` to `s.target()`, visiting each triangle crossed — including the
-     * fan where `s` passes through a vertex, and the triangles touching the
-     * target. The set of triangles `t` passed to @p f is exactly
-     * `{ t : s.intersects(t) }` over the in-domain triangles, in the order they
-     * are met along `s`. Ghost triangles and (for a polygon) out-of-domain
-     * hull-fill triangles are traversed for navigation but never reported, so a
-     * segment leaving and re-entering the polygon through a reflex pocket simply
-     * shows a gap.
+     * @p s may be a segment, oriented segment, line, oriented line, or ray. For a
+     * segment, it locates `s.source()`, visits the triangles touching it (if
+     * any), then traces `s` to `s.target()`. A line or oriented line has no
+     * finite endpoints: it enters the hull at the ghost where the directed line
+     * `s[0]->s[1]` crosses in (found by a directional descent of the ghost ring)
+     * and traces forward until it leaves the hull again. A ray keeps `s.source()`
+     * (located, or entered at that directional ghost when the source is outside
+     * the hull) but, like a line, runs forward until it leaves the hull rather
+     * than stopping at a target. Either way each triangle crossed is visited —
+     * including the fan where `s` passes through a vertex —
+     * and the set passed to @p f is exactly `{ t : s.intersects(t) }` over the
+     * in-domain triangles, in the order they are met along `s[0]->s[1]` (a plain
+     * line's order follows its arbitrary defining-point direction). Ghost
+     * triangles and (for a polygon) out-of-domain hull-fill triangles are
+     * traversed for navigation but never reported, so a query leaving and
+     * re-entering the polygon through a reflex pocket simply shows a gap.
      *
      * @p f follows the visitor convention: returning `true` stops the walk
      * early, a `void` return visits all. Returns whether it stopped early.
      * @p s may use a different point type than the triangulation.
      */
-    template <detail::SegmentOrOriented OS, class Fn>
+    template <detail::DirectedTraversal OS, class Fn>
     bool visitTrianglesIntersecting(const OS& s, Fn f) const {
         if (firstGhost_ == 0) return false;
         const auto a = s[0];
         const auto b = s[1];
+        // How the directed query extends past its defining points `a`, `b` (which
+        // always give its supporting line and forward direction a->b):
+        //  - unboundedBack: no finite source (a line / oriented line). Entered at
+        //    the ghost where a->b crosses into the hull, found by a directional
+        //    descent, rather than by locating a source.
+        //  - unboundedFront: no finite target (a line / oriented line / ray). The
+        //    walk never stops at `b`; it runs until it leaves the hull, and picks
+        //    each forward exit edge by direction rather than by segment bounds.
+        constexpr bool unboundedBack = detail::LineOrOriented<OS>;
+        constexpr bool unboundedFront = detail::LineOrOriented<OS> || RayConcept<OS>;
 
         // "Already emitted" is tracked by a per-triangle mark bit rather than a
         // hash set: O(1) test, no per-lookup allocation. `marked` records which
@@ -636,7 +669,9 @@ struct Triangulation {
             while (!stop && ++hops < lim) {
                 emitFan(w, anchor);
                 if (stop) return NO_TRI;
-                if (progress(w) >= pmax) return NO_TRI;  // reached the target end
+                if constexpr (!unboundedFront) {
+                    if (progress(w) >= pmax) return NO_TRI;  // reached the target end
+                }
                 const TriId interior = forwardAround(w, anchor);
                 if (interior != NO_TRI) return interior;
                 // Look for a forward neighbor x with edge {w,x} collinear with a->b,
@@ -649,7 +684,8 @@ struct Triangulation {
                     if (!isGhost(cur)) {
                         for (VertexId y : triangles_[cur].v) {
                             if (y != w && orientationSign(a, b, vertices_[y]) == 0 &&
-                                progress(y) > progress(w) && progress(y) <= pmax) {
+                                progress(y) > progress(w) &&
+                                (unboundedFront || progress(y) <= pmax)) {
                                 nextV = y;
                                 nextAnchor = cur;
                                 break;
@@ -679,7 +715,7 @@ struct Triangulation {
         // to the supporting line a->b (smaller |orientation determinant|). Once
         // an edge straddles that line, test whether s actually reaches it. This
         // walks O(arc) ghosts toward the crossing rather than all of them.
-        const auto enterFromGhost = [&](TriId g0) -> TriId {
+        [[maybe_unused]] const auto enterFromGhost = [&](TriId g0) -> TriId {
             TriId g = g0;
             std::size_t guard = 0, lim = triangles_.size() + 1;
             while (g != NO_TRI && isGhost(g) && ++guard < lim) {
@@ -702,9 +738,70 @@ struct Triangulation {
             return NO_TRI;
         };
 
+        // Whether the directed line a->b crosses ghost g's hull edge from outside
+        // into the hull (rather than exiting it). The interior lies on the side of
+        // the hull edge holding the inside triangle's apex; the line enters iff its
+        // forward direction a->b points toward that same side. (Line mode only.)
+        [[maybe_unused]] const auto lineEnters = [&](TriId g) -> bool {
+            const VertexId va = triangles_[g].v[0];
+            const VertexId vb = triangles_[g].v[1];
+            const auto& iv = triangles_[triangles_[g].nbr[2]].v;  // inside (real) triangle
+            VertexId apex = iv[0];
+            for (int i = 1; i < 3; ++i) {
+                if (iv[i] != va && iv[i] != vb) apex = iv[i];
+            }
+            const auto insideSide =
+                orientationDeterminant(vertices_[va], vertices_[vb], vertices_[apex]);
+            // (vb - va) x (b - a): the side of the hull edge that a->b points toward.
+            const auto dirCross = orientationDeterminant(vertices_[va], vertices_[vb], b) -
+                                  orientationDeterminant(vertices_[va], vertices_[vb], a);
+            return dirCross != 0 && (dirCross > 0) == (insideSide > 0);
+        };
+
+        // For a line / oriented line: the ghost whose hull edge the directed line
+        // a->b crosses to ENTER the hull, or NO_TRI if the line misses it. The
+        // O(arc) descent toward the supporting line (the same stepping as
+        // enterFromGhost) lands on one of the two hull crossings; if that one is
+        // where the line exits, the entry is the only other crossing, reached by
+        // walking the ghost ring in one direction to the next straddle. Unlike
+        // enterFromGhost it never uses s.intersects: an infinite line meets both
+        // straddling edges, so only the direction a->b distinguishes entry from exit.
+        [[maybe_unused]] const auto lineEntry = [&]() -> TriId {
+            TriId g = firstGhost_, crossing = NO_TRI;
+            std::size_t guard = 0, lim = triangles_.size() + 1;
+            while (g != NO_TRI && isGhost(g) && ++guard < lim) {
+                const VertexId va = triangles_[g].v[0];
+                const VertexId vb = triangles_[g].v[1];
+                const auto da = orientationDeterminant(a, b, vertices_[va]);
+                const auto db = orientationDeterminant(a, b, vertices_[vb]);
+                if (da == 0 || db == 0 || (da > 0) != (db > 0)) { crossing = g; break; }
+                const auto absA = da < 0 ? -da : da;
+                const auto absB = db < 0 ? -db : db;
+                g = triangles_[g].nbr[absA < absB ? 1 : 0];
+            }
+            if (crossing == NO_TRI) return NO_TRI;      // the line misses the hull
+            if (lineEnters(crossing)) return crossing;   // the descent found the entry
+            // The descent found the exit; the entry is the only other crossing —
+            // walk the ghost ring in one direction until the next straddle.
+            TriId h = triangles_[crossing].nbr[0], from = crossing;
+            guard = 0;
+            while (h != NO_TRI && isGhost(h) && ++guard < lim) {
+                const VertexId va = triangles_[h].v[0];
+                const VertexId vb = triangles_[h].v[1];
+                const auto da = orientationDeterminant(a, b, vertices_[va]);
+                const auto db = orientationDeterminant(a, b, vertices_[vb]);
+                if (da == 0 || db == 0 || (da > 0) != (db > 0)) return h;  // entry crossing
+                const TriId next = triangles_[h].nbr[0] == from ? triangles_[h].nbr[1]
+                                                                : triangles_[h].nbr[0];
+                from = h;
+                h = next;
+            }
+            return NO_TRI;  // unreachable: a line crossing the hull crosses it twice
+        };
+
         // Pick the triangle to begin tracing the component reached at `start`,
         // which contains point `p`; visit p's contact triangles along the way.
-        const auto enterAt = [&](const auto& p, TriId start) -> TriId {
+        [[maybe_unused]] const auto enterAt = [&](const auto& p, TriId start) -> TriId {
             const auto& v = triangles_[start].v;
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
@@ -742,7 +839,7 @@ struct Triangulation {
         // on, or the whole fan if b is a mesh vertex — then the walk ends. (Unlike
         // enterAt, this never continues, so it cannot over-emit a vertex fan when
         // b merely lies on an edge.)
-        const auto emitTargetContacts = [&](TriId t) {
+        [[maybe_unused]] const auto emitTargetContacts = [&](TriId t) {
             const auto& v = triangles_[t].v;
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
@@ -761,16 +858,14 @@ struct Triangulation {
             }
         };
 
-        TriId t = locateId(a);
+        TriId t;
         TriId prev = NO_TRI;
-        if (t == NO_TRI) {
-            return false;  // empty triangulation
-        }
-        if (isGhost(t)) {
-            // Source outside the hull: walk the ghost ring to the entry edge.
-            const TriId g = enterFromGhost(t);
+        if constexpr (unboundedBack) {
+            // A line has no finite source: enter the hull at the ghost where the
+            // directed line a->b crosses in, then trace forward like a segment.
+            const TriId g = lineEntry();
             if (g == NO_TRI) {
-                return false;  // s never meets the triangulated region
+                return false;  // the line misses the triangulated region
             }
             prev = g;  // entry boundary edge; don't step back out through it
             t = triangles_[g].nbr[2];
@@ -778,7 +873,35 @@ struct Triangulation {
                 return false;
             }
         } else {
-            t = enterAt(a, t);
+            t = locateId(a);
+            if (t == NO_TRI) {
+                return false;  // empty triangulation
+            }
+            if (isGhost(t)) {
+                // Source outside the hull: walk the ghost ring to the entry edge.
+                // A ray, like a line, crosses the hull boundary twice, so it needs
+                // the directional entry (and must actually reach it); a segment's
+                // source seeds enterFromGhost near its own crossing.
+                TriId g;
+                if constexpr (unboundedFront) {  // a ray
+                    g = lineEntry();
+                    if (g != NO_TRI && !s.intersects(edgeSegment(Edge{g, 2}))) {
+                        g = NO_TRI;  // the entry is behind the source; the ray misses
+                    }
+                } else {  // a segment
+                    g = enterFromGhost(t);
+                }
+                if (g == NO_TRI) {
+                    return false;  // s never meets the triangulated region
+                }
+                prev = g;  // entry boundary edge; don't step back out through it
+                t = triangles_[g].nbr[2];
+                if (!(t != NO_TRI && !isGhost(t))) {
+                    return false;
+                }
+            } else {
+                t = enterAt(a, t);  // source inside the hull: start there
+            }
         }
 
         const std::size_t cap = triangles_.size() * 4 + 16;
@@ -787,12 +910,18 @@ struct Triangulation {
             if (++guard > cap) break;  // safety net
             emit(t);
             if (stop) break;
-            if (pointInClosure(b, t)) {  // target reached: visit its contact triangles
-                emitTargetContacts(t);
-                break;
+            if constexpr (!unboundedFront) {
+                if (pointInClosure(b, t)) {  // target reached: visit its contact triangles
+                    emitTargetContacts(t);
+                    break;
+                }
             }
             const auto& v = triangles_[t].v;
-            // Forward exit edge: segment ab properly crosses it and it isn't where we came from.
+            // Forward exit edge: the supporting line ab crosses it, it isn't where
+            // we came from, and we leave forward through it — for a segment that is
+            // "the segment ab straddles the edge"; for an unbounded-forward query
+            // (ray / line) it is "a->b points out of the triangle across the edge"
+            // (no finite endpoint to bound the crossing).
             int exitK = -1;
             for (int k = 0; k < 3; ++k) {
                 if (triangles_[t].nbr[k] == prev) continue;
@@ -800,11 +929,22 @@ struct Triangulation {
                 const auto& w = vertices_[v[(k + 2) % 3]];
                 const auto du = orientationSign(a, b, u);
                 const auto dw = orientationSign(a, b, w);
-                const auto ea = orientationSign(u, w, a);
-                const auto eb = orientationSign(u, w, b);
                 const bool straddleLine = (du > 0 && dw < 0) || (du < 0 && dw > 0);
-                const bool straddleSeg = (ea > 0 && eb < 0) || (ea < 0 && eb > 0);
-                if (straddleLine && straddleSeg) { exitK = k; break; }
+                if (!straddleLine) continue;
+                bool forward;
+                if constexpr (unboundedFront) {
+                    // a->b leaves t outward across (u,w): its direction points to the
+                    // side of (u,w) away from the apex v[k] (the triangle interior).
+                    const auto apexSide = orientationSign(u, w, vertices_[v[k]]);
+                    const auto dirCross = orientationDeterminant(u, w, b) -
+                                          orientationDeterminant(u, w, a);
+                    forward = dirCross != 0 && (dirCross > 0) != (apexSide > 0);
+                } else {
+                    const auto ea = orientationSign(u, w, a);
+                    const auto eb = orientationSign(u, w, b);
+                    forward = (ea > 0 && eb < 0) || (ea < 0 && eb > 0);
+                }
+                if (forward) { exitK = k; break; }
             }
             if (exitK != -1) {
                 prev = t;
@@ -836,16 +976,17 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the triangles met by @p s (a segment, in order, or a region
-     *        query shape, in an unspecified order).
+     * @brief Returns the triangles met by @p s (a segment or (oriented) line, in
+     *        order, or a region query shape, in an unspecified order).
      *
      * A materialized form of @ref visitTrianglesIntersecting: the in-domain
      * triangles `t` with `s.intersects(t)`, in the order they are encountered
      * along `s`. The order is preserved (not sorted), since it is the point of
      * the traversal.
      *
-     * @param s Segment/oriented segment (traced in order) or a region query
-     *          shape (reported in an unspecified order); may use a different
+     * @param s A directed query — segment, oriented segment, line, or oriented
+     *          line — (traced in order) or a region query shape (reported in an
+     *          unspecified order); may use a different
      *          point type.
      */
     template <detail::TriangulationQuery OS>
@@ -886,8 +1027,9 @@ struct Triangulation {
      * are encountered along a segment `s`, or an unspecified order for a region
      * query shape.
      *
-     * @param s Segment/oriented segment (traced in order) or a region query
-     *          shape (reported in an unspecified order); may use a different
+     * @param s A directed query — segment, oriented segment, line, or oriented
+     *          line — (traced in order) or a region query shape (reported in an
+     *          unspecified order); may use a different
      *          point type.
      */
     template <detail::TriangulationQuery OS>
@@ -975,8 +1117,9 @@ struct Triangulation {
      * are encountered along a segment `s`, or an unspecified order for a region
      * query shape.
      *
-     * @param s Segment/oriented segment (traced in order) or a region query
-     *          shape (reported in an unspecified order); may use a different
+     * @param s A directed query — segment, oriented segment, line, or oriented
+     *          line — (traced in order) or a region query shape (reported in an
+     *          unspecified order); may use a different
      *          point type.
      */
     template <detail::TriangulationQuery OS>
@@ -994,8 +1137,9 @@ struct Triangulation {
      * the order they are encountered along a segment `s`, or an unspecified order
      * for a region query shape.
      *
-     * @param s Segment/oriented segment (traced in order) or a region query
-     *          shape (reported in an unspecified order); may use a different
+     * @param s A directed query — segment, oriented segment, line, or oriented
+     *          line — (traced in order) or a region query shape (reported in an
+     *          unspecified order); may use a different
      *          point type.
      */
     template <detail::TriangulationQuery OS>
@@ -1435,11 +1579,12 @@ struct Triangulation {
             if (t != NO_TRI && !isGhost(t)) {
                 seeds.push_back(t);
             }
-        } else if constexpr (LineConcept<Q> || OrientedLineConcept<Q> ||
-                             RayConcept<Q> || HalfplaneConcept<Q>) {
+        } else if constexpr (HalfplaneConcept<Q>) {
             // Unbounded shape: it meets the triangulated region iff it meets some
             // convex-hull edge. Scan the ghost ring for the first such edge; the
-            // real triangle just inside it is a seed. (O(hull).)
+            // real triangle just inside it is a seed. (O(hull).) Segments, lines,
+            // oriented lines, and rays are not region queries — they have their
+            // own ordered walk.
             for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
                 if (edgeSegment(Edge{g, 2}).intersects(shape)) {
                     seeds.push_back(triangles_[g].nbr[2]);  // the real triangle inside
