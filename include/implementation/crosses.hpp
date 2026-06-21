@@ -681,10 +681,8 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherPoint&) const {
 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherSegment&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Segment) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherSegment& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
@@ -729,26 +727,20 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherHalfplane&) const 
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherRectangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherRectangle& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherTriangle&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherTriangle& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherDisk& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
