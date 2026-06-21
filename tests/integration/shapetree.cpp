@@ -347,6 +347,199 @@ TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
     }
 }
 
+TEST_CASE("ShapeTree contains reports exact membership") {
+    const std::vector<Triangle> tris = makeTriangles(200, 23);
+    const pgl::ShapeTree<Triangle> tree(tris, 4);
+
+    // Every stored shape is found.
+    for (const Triangle& t : tris) {
+        CHECK(tree.contains(t));
+    }
+
+    // A shape placed far outside the data range is absent. This is membership,
+    // not geometric containment: an equal shape must be stored.
+    const Triangle absent({5000, 5000}, {5040, 5000}, {5000, 5040});
+    CHECK_FALSE(tree.contains(absent));
+
+    // An empty tree contains nothing.
+    pgl::ShapeTree<Triangle> emptyTree{std::vector<Triangle>{}};
+    CHECK_FALSE(emptyTree.contains(tris.front()));
+}
+
+TEST_CASE("ShapeTree erase removes shapes and keeps queries correct") {
+    const std::vector<Triangle> tris = makeTriangles(300, 29);
+    const std::vector<Rect> windows = queryWindows();
+
+    for (const std::size_t leafSize : {std::size_t{1}, std::size_t{4}, std::size_t{12}}) {
+        pgl::ShapeTree<Triangle> tree(tris, leafSize);
+        std::vector<Triangle> ref = tris;
+
+        // Erasing a shape that is not stored leaves the tree unchanged.
+        const Triangle absent({5000, 5000}, {5040, 5000}, {5000, 5040});
+        CHECK_FALSE(tree.erase(absent));
+        CHECK(tree.size() == ref.size());
+
+        // Erase shapes one at a time in a deterministic pseudo-random order,
+        // checking the tree against brute force throughout.
+        Rng rng{0xdada + leafSize};
+        while (!ref.empty()) {
+            const std::size_t k = static_cast<std::size_t>(
+                rng.range(0, static_cast<int>(ref.size()) - 1));
+            const Triangle victim = ref[k];
+
+            CHECK(tree.erase(victim));
+            ref.erase(ref.begin() + static_cast<std::ptrdiff_t>(k));
+
+            CHECK(tree.size() == ref.size());
+
+            // Re-validate the spatial queries every so often (every shape would
+            // be slow); always check on the last few removals.
+            if (ref.size() % 50 == 0 || ref.size() < 4) {
+                for (const Rect& q : windows) {
+                    CHECK(tree.countIntersecting(q) == bruteCountIntersecting(ref, q));
+                    CHECK(tree.countContainedIn(q) == bruteCountContained(ref, q));
+                }
+                for (const Triangle& t : ref) {
+                    CHECK(tree.contains(t));
+                }
+            }
+        }
+
+        CHECK(tree.empty());
+        CHECK(tree.boundingBoxes().empty());
+        CHECK(tree.countIntersecting(windows.front()) == 0);
+    }
+}
+
+TEST_CASE("ShapeTree erase maintains weighted sums") {
+    const std::vector<Triangle> tris = makeTriangles(200, 31);
+    const std::vector<Rect> windows = queryWindows();
+    const TwiceArea weight;
+    pgl::ShapeTree<Triangle, TwiceArea> tree(tris, 4, weight);
+    std::vector<Triangle> ref = tris;
+
+    Rng rng{0xbeef};
+    for (int step = 0; step < 150; ++step) {
+        const std::size_t k = static_cast<std::size_t>(
+            rng.range(0, static_cast<int>(ref.size()) - 1));
+        CHECK(tree.erase(ref[k]));
+        ref.erase(ref.begin() + static_cast<std::ptrdiff_t>(k));
+
+        if (step % 25 == 0) {
+            for (const Rect& q : windows) {
+                long expectedIntersect = 0;
+                long expectedContained = 0;
+                for (const Triangle& t : ref) {
+                    if (t.intersects(q)) {
+                        expectedIntersect += weight(t);
+                    }
+                    if (q.contains(t)) {
+                        expectedContained += weight(t);
+                    }
+                }
+                CHECK(tree.sumIntersecting(q) == expectedIntersect);
+                CHECK(tree.sumContainedIn(q) == expectedContained);
+            }
+        }
+    }
+}
+
+TEST_CASE("ShapeTree erase keeps the node array compact under interleaved insert/erase") {
+    std::vector<Triangle> ref = makeTriangles(120, 37);
+    pgl::ShapeTree<Triangle> tree(ref, 4);
+    const std::vector<Rect> windows = queryWindows();
+
+    // A generator of fresh triangles, distinct from the rebuild seed above.
+    Rng gen{0x5151};
+    auto freshTriangle = [&]() {
+        for (;;) {
+            const int x = gen.range(0, 1000);
+            const int y = gen.range(0, 1000);
+            const Point a(x + gen.range(-40, 40), y + gen.range(-40, 40));
+            const Point b(x + gen.range(-40, 40), y + gen.range(-40, 40));
+            const Point c(x + gen.range(-40, 40), y + gen.range(-40, 40));
+            if (pgl::orientationSign(a, b, c) != 0) {
+                return Triangle(a, b, c);
+            }
+        }
+    };
+
+    // The number of nodes equals the number of bounding boxes reported.
+    std::size_t maxNodes = tree.boundingBoxes().size();
+
+    Rng rng{0x2727};
+    for (int iter = 0; iter < 4000; ++iter) {
+        const std::size_t k = static_cast<std::size_t>(
+            rng.range(0, static_cast<int>(ref.size()) - 1));
+        CHECK(tree.erase(ref[k]));
+        ref.erase(ref.begin() + static_cast<std::ptrdiff_t>(k));
+
+        const Triangle s = freshTriangle();
+        tree.insert(s);
+        ref.push_back(s);
+
+        maxNodes = std::max(maxNodes, tree.boundingBoxes().size());
+    }
+
+    CHECK(tree.size() == ref.size());
+
+    // The size held roughly constant, so the node count must stay bounded rather
+    // than grow with the number of operations: detached slots are reclaimed.
+    CHECK(maxNodes < 1000);
+
+    // The tree is still correct after all the churn.
+    for (const Rect& q : windows) {
+        CHECK(tree.countIntersecting(q) == bruteCountIntersecting(ref, q));
+    }
+    for (const Triangle& t : ref) {
+        CHECK(tree.contains(t));
+    }
+}
+
+TEST_CASE("ShapeTree rebuild after erases restores a queryable tree") {
+    std::vector<Triangle> ref = makeTriangles(200, 41);
+    pgl::ShapeTree<Triangle> tree(ref, 4);
+    const std::vector<Rect> windows = queryWindows();
+
+    // Remove a third of the shapes, degrading the structure.
+    Rng rng{0x9090};
+    for (int i = 0; i < 66; ++i) {
+        const std::size_t k = static_cast<std::size_t>(
+            rng.range(0, static_cast<int>(ref.size()) - 1));
+        CHECK(tree.erase(ref[k]));
+        ref.erase(ref.begin() + static_cast<std::ptrdiff_t>(k));
+    }
+
+    tree.rebuild();
+    CHECK(tree.size() == ref.size());
+
+    // The rebuilt root box encloses every remaining shape.
+    const auto boxes = tree.boundingBoxes();
+    REQUIRE_FALSE(boxes.empty());
+    for (const Triangle& t : ref) {
+        CHECK(boxes.front().contains(t.bbox()));
+    }
+
+    for (const Rect& q : windows) {
+        CHECK(tree.countIntersecting(q) == bruteCountIntersecting(ref, q));
+        CHECK(tree.countContainedIn(q) == bruteCountContained(ref, q));
+    }
+}
+
+TEST_CASE("ShapeTree boundingBoxes is empty exactly when the tree is empty") {
+    pgl::ShapeTree<Triangle> emptyTree{std::vector<Triangle>{}};
+    CHECK(emptyTree.boundingBoxes().empty());
+
+    const std::vector<Triangle> tris = makeTriangles(30, 43);
+    const pgl::ShapeTree<Triangle> tree(tris, 3);
+    const auto boxes = tree.boundingBoxes();
+    CHECK_FALSE(boxes.empty());
+    // The first box is the root's: it encloses every shape.
+    for (const Triangle& t : tris) {
+        CHECK(boxes.front().contains(t.bbox()));
+    }
+}
+
 TEST_CASE("ShapeTree draws node boxes to a canvas") {
     const std::vector<Triangle> tris = makeTriangles(40, 2);
     const pgl::ShapeTree<Triangle> tree(tris, 3);
