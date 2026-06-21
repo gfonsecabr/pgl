@@ -317,6 +317,41 @@ struct OrientedLine {
     }
 
     /**
+     * @brief Returns the oriented segment that intersects r the same way as this oriented line.
+     *
+     * Coordinates grow by at most a constant times the maximum coordinate of the defining points.
+     *
+     * @return Oriented segment that intersects the rectangle the same way as this oriented line.
+     * @param rect Rectangle to intersect with.
+     * @tparam OtherPoint Type of the rectangle's defining points.
+     */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr OrientedSegment<PointType> asOrientedSegmentFor(const Rectangle<OtherPoint> &rect) const {
+        if (!rect.intersects(*this)) {
+            return OrientedSegment<PointType>(source(), target());
+        }
+
+        if (isHorizontal()) {
+            if (source().x() < target().x()) {
+                return OrientedSegment<PointType>(PointType(rect.minX(), source().y()), PointType(rect.maxX(), target().y()));
+            }
+            return OrientedSegment<PointType>(PointType(rect.maxX(), source().y()), PointType(rect.minX(), target().y()));
+        }
+        if (isVertical()) {
+            if (source().y() < target().y()) {
+                return OrientedSegment<PointType>(PointType(source().x(), rect.minY()), PointType(target().x(), rect.maxY()));
+            }
+            return OrientedSegment<PointType>(PointType(source().x(), rect.maxY()), PointType(target().x(), rect.minY()));
+        }
+
+        OrientedSegment<PointType> seg(source(), target());
+
+        // FIXME
+
+        return seg;
+    }
+
+    /**
      * @brief Returns the oriented line rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).

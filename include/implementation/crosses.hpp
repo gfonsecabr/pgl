@@ -687,10 +687,8 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherSegment& other) co
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedSegment&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(OrientedSegment) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+    return crosses(other.asSegment());
 }
 
 template <class PointType, class LabelType>
@@ -707,18 +705,14 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedLine& othe
 
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherRay&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Ray) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherRay& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherHalfplane&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Halfplane) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
