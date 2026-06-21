@@ -113,26 +113,57 @@ html.dark-mode .pgl-wordmark-dark  { display: inline; }
 .sm-dox a:focus {
     color: var(--page-foreground-color) !important;
     font-weight: 500;
-    padding: 6px 12px;
     border-radius: var(--border-radius-medium) !important;
     transition: background .12s ease, color .12s ease;
 }
+/* Hover = the same dark-blue pill as the selected item, for one consistent
+   interaction color. The `.sm-dox ul a:*` selectors are needed because Doxygen
+   Awesome's own `.sm-dox ul a:hover` (specificity 0,3,1) is more specific than a
+   bare `.sm-dox a:hover` and would otherwise repaint dropdown entries (e.g.
+   "Class List") with its light `menu-focus-background`. */
 .sm-dox a:hover,
-.sm-dox a:active {
-    background: var(--primary-lightest-color) !important;
-    color: var(--primary-color) !important;
-    /* Pin weight/size so hovering a tab doesn't reflow the bar: Doxygen
-       Awesome's own :hover rule resets font-weight to normal, which (being
-       more specific than our idle rule) made the hovered item thinner and
-       shifted every tab to its right. */
+.sm-dox a:active,
+.sm-dox ul a:hover,
+.sm-dox ul a:active,
+.sm-dox ul a:focus {
+    background: var(--primary-color) !important;
+    color: #ffffff !important;
     font-weight: 500;
     font-size: var(--navigation-font-size);
 }
-/* Currently-open submenu / selected top item. */
+/* Selected menu item. SmartMenus tags the exact current-page anchor `.current`
+   (a leaf tab, no submenu) and its submenu ancestors `.highlighted`. Style both
+   the same dark-blue pill so the selected tab looks identical whether or not it
+   owns a dropdown — without `.current` here it fell through to a light-blue
+   background. The !important color overrides tabs.css `.current{color:#d23600}`. */
 #main-menu > li > a.highlighted,
-.sm-dox a.highlighted {
+#main-menu > li > a.current,
+.sm-dox a.highlighted,
+.sm-dox a.current {
     background: var(--primary-color) !important;
     color: #ffffff !important;
+}
+
+/* --- Box geometry: identical in EVERY state so hovering a tab or opening its
+   dropdown never reflows the bar. tabs.css scatters smaller paddings across
+   :hover, :active and .highlighted at higher specificity than a bare
+   `.sm-dox a`, so each state must repeat the geometry explicitly. The
+   .has-submenu block comes second and is equal-or-higher specificity AND later
+   in source, so its 24px caret reserve always wins over the shorthand above. */
+.sm-dox a,
+.sm-dox a:focus,
+.sm-dox a:hover,
+.sm-dox a:active,
+.sm-dox a.highlighted,
+.sm-dox a.current {
+    padding: 6px 12px;
+}
+.sm-dox a.has-submenu,
+.sm-dox a.has-submenu:focus,
+.sm-dox a.has-submenu:hover,
+.sm-dox a.has-submenu:active,
+.sm-dox a.has-submenu.highlighted {
+    padding-right: 24px;   /* room for the dropdown caret, kept in every state */
 }
 
 /* ------------------------------------------------------------------ */
@@ -241,7 +272,14 @@ a.code, a.codeRef {
 /* ------------------------------------------------------------------ */
 /*  Sidebar tree                                                       */
 /* ------------------------------------------------------------------ */
-#side-nav { border-right: 1px solid var(--separator-color); }
+/* NOTE: deliberately no border/padding on #side-nav. navtree.js sizes the
+   sidebar with `$(sidenav).outerWidth() - barWidth` and writes the result back
+   on every load and every window-resize tick. ANY horizontal box on #side-nav
+   (border or padding) is counted by outerWidth() and re-subtracted each cycle,
+   so the panel drifted ~1px smaller per F5 and shrank rapidly while dragging.
+   Stock Doxygen Awesome keeps `#side-nav { padding:0 }` and draws the divider on
+   the resize handle instead: `.ui-resizable-e { box-shadow: inset -1px 0 0 } `.
+   We rely on that handle for the separator and add nothing here. */
 
 #nav-tree .item.selected a.label,
 #nav-tree a:hover { color: var(--primary-color); }
