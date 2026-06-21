@@ -18,7 +18,7 @@
 
 ## Canvas
 
-`Canvas` is a lightweight SVG renderer for Pangolin shapes. It is designed for
+[`Canvas`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html) is a lightweight SVG renderer for Pangolin shapes. It is designed for
 inspection, debugging, examples, and test output: you push shapes into a
 canvas, optionally change the drawing style in between, and then export the
 result as an SVG file or string.
@@ -132,7 +132,7 @@ defaults:
 | [`height(double heightPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a8256fca52537707a7288cd82a42f016c) | Sets the SVG height in pixels. The value must be strictly positive. |
 | [`size(double widthPixels, double heightPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ab56282ffe4990051d30b69a0468e2394) | Convenience wrapper for setting width and height together. |
 | [`margin(double marginPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ac5d887cdc706ea1473bebdda02c2390d) | Reserves blank space around the fitted drawing. Increasing the margin gives the geometry more breathing room inside the image. The value must be non-negative. |
-| [`pointRadius(double radiusPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ac8db0a0bacf5718320d2c97d2d01cf1c) | Sets the rendered radius of point primitives in pixels. This affects how large `Point` objects appear in the exported SVG. |
+| [`pointRadius(double radiusPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ac8db0a0bacf5718320d2c97d2d01cf1c) | Sets the rendered radius of point primitives in pixels. This affects how large [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html) objects appear in the exported SVG. |
 | [`strokeWidth(double widthPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ace003bc5e4a86d18d961d7d909733007) | Sets the current stroke width using a numeric pixel value. This updates the current style for subsequently inserted shapes. |
 | [`borders(bool enabled = true)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a6621826426cfa82bd0b5fd8221b7376b) | Enables or disables a thin rectangular frame around the whole SVG. This is especially helpful when debugging clipping and margins. |
 | [`writeSVG(const std::string& path)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ade8bd4b3d2c895f3659aa101552e3031) | Writes the full SVG document to disk. Throws if the output file cannot be opened. |
@@ -159,26 +159,26 @@ Canvas fitting is automatic:
 
 Infinite primitives are clipped to the visible viewport:
 
-- `Line` becomes the visible chord of the line inside the SVG box;
-- `OrientedLine` behaves the same but keeps its orientation arrow;
-- `Ray` starts at its source and stops at the first viewport boundary it meets;
-- `Halfplane` is clipped to the viewport as a polygonal region.
+- [`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html) becomes the visible chord of the line inside the SVG box;
+- [`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html) behaves the same but keeps its orientation arrow;
+- [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html) starts at its source and stops at the first viewport boundary it meets;
+- [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html) is clipped to the viewport as a polygonal region.
 
 The generated SVG uses `vector-effect="non-scaling-stroke"`, so stroke widths
 stay visually constant even when the geometry is scaled to fit the output box.
 
 ### Notes
 
-- `Canvas` is intentionally lightweight. It is a geometry inspection tool, not a
+- [`Canvas`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html) is intentionally lightweight. It is a geometry inspection tool, not a
   general plotting framework.
 - Shapes are stored in insertion order, and SVG output preserves that order, so
   later shapes are drawn on top of earlier ones.
 - Because style is captured on insertion, it is easy to layer highlights on top
   of a base drawing by switching style right before inserting the highlighted
   object.
-- `Halfplane` fill and `Rectangle` fill are often easier to read when combined
+- [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html) fill and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html) fill are often easier to read when combined
   with translucent [`fillOpacity(...)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a8cf94a6c54fd68e2972ff7440eca978b).
-- `Triangle` supports both stroke and fill just like `Rectangle`.
+- [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html) supports both stroke and fill just like [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html).
 
 If you do not want to write a file immediately, you can generate an SVG string
 and hand it to your own output layer:

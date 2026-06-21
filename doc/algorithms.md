@@ -52,7 +52,7 @@ These functions use the same predicate conventions documented in
 
 ### Polyominoes
 
-- `polyominoes<T>(size)` returns one `Polygon<Point<T>>` per free polyomino of `size` cells (counted up to translation, rotation, and reflection). Each polygon traces the polyomino boundary with small non-negative integer coordinates and is normalized like any other `Polygon`. Polyominoes that enclose a hole (possible from seven cells onward) are omitted, since their boundary is not a simple polygon. `T` defaults to `int`.
+- `polyominoes<T>(size)` returns one `Polygon<Point<T>>` per free polyomino of `size` cells (counted up to translation, rotation, and reflection). Each polygon traces the polyomino boundary with small non-negative integer coordinates and is normalized like any other [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html). Polyominoes that enclose a hole (possible from seven cells onward) are omitted, since their boundary is not a simple polygon. `T` defaults to `int`.
 
 - `polyominoes<T>(n1, n2)` returns the free polyominoes of every size in `[n1, n2]`, smallest first.
 
