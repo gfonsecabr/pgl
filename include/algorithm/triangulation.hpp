@@ -1331,6 +1331,62 @@ struct Triangulation {
         return edgeSegment(Edge{t, 1});  // new diagonal (side opposite a in t)
     }
 
+    /**
+     * @brief True if every edge in @p edges can be flipped simultaneously.
+     *
+     * A parallel flip is valid only when each edge is individually @ref flippable
+     * (unconstrained, interior, convex quad) and the quadrilaterals are pairwise
+     * disjoint — i.e. no triangle is shared by two of the edges' quads. A shared
+     * triangle would be rewritten by the first flip, invalidating the other, so
+     * such a set is rejected (a repeated edge fails for the same reason). An empty
+     * range is trivially flippable.
+     *
+     * @param edges A range of edge segments (`edges.value_type` is a segment).
+     */
+    template <class EdgeRange>
+        requires SegmentConcept<typename EdgeRange::value_type>
+    [[nodiscard]] bool flippable(const EdgeRange& edges) const {
+        std::unordered_set<TriId> claimed;  // triangles already covered by some quad
+        for (const auto& s : edges) {
+            const auto se = segToEdge_.find(SegmentType(s[0], s[1]));
+            if (se == segToEdge_.end() || !flippableEdge(se->second)) {
+                return false;
+            }
+            const Edge e = se->second;
+            if (!claimed.insert(e.tri).second || !claimed.insert(mirror(e).tri).second) {
+                return false;  // a quad shares a triangle with an earlier one
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Flips every edge in @p edges at once, if the whole set allows it.
+     *
+     * All-or-nothing: if @ref flippable(edges) holds, each edge is replaced by the
+     * opposite diagonal and the new diagonals are returned in the order of
+     * @p edges; otherwise the triangulation is left unchanged and `std::nullopt`
+     * is returned. Because the quadrilaterals are disjoint, the individual flips
+     * are independent — one never disturbs another's quad — so order does not
+     * matter.
+     *
+     * @param edges A range of edge segments (`edges.value_type` is a segment).
+     * @return The new diagonal segments, or `std::nullopt` if @p edges is not
+     *         @ref flippable as a set.
+     */
+    template <class EdgeRange>
+        requires SegmentConcept<typename EdgeRange::value_type>
+    std::optional<std::vector<SegmentType>> flip(const EdgeRange& edges) {
+        if (!flippable(edges)) {
+            return std::nullopt;
+        }
+        std::vector<SegmentType> diagonals;
+        for (const auto& s : edges) {
+            diagonals.push_back(*flip(SegmentType(s[0], s[1])));  // disjoint: each succeeds
+        }
+        return diagonals;
+    }
+
     // ---- validation ------------------------------------------------------
 
     /**
