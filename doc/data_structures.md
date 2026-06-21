@@ -50,9 +50,13 @@ Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bou
 
 Construction and predicates are exact. For a polygon, the triangles between it and its convex hull are marked out-of-domain, so the public view — sizes, `triangles`, `edges`, `locate`, … — describes exactly the polygon, including non-convex ones. The interface speaks only in value types (`Point`, `Segment`, `Triangle`).
 
-- `locate(p)` returns the triangle containing point `p`, or none if `p` is outside, via a randomized visibility walk. `flip(e)` replaces the diagonal shared by two triangles; `isConstrained`/`setConstrained` mark edges that `flip` must preserve.
+- `locate(p)` returns a triangle containing point `p`, or none if `p` is outside, via a randomized visibility walk.
+
 - Navigation: `otherTriangle`, `adjacentTriangles`, `incidentTriangles`, the `visitTriangles`/`visitEdges` visitors, and the sorted `triangles()`/`edges()`.
-- Traversal along a segment: `trianglesIntersecting(s)` and `edgesIntersecting(s)` return, in the order met along `s`, the triangles and edges `s` meets; the `…InteriorIntersecting` variants keep only those whose interior `s` actually intersects. Each has a lazy `visit…(s, f)` form whose visitor may return `true` to stop early.
+
+- Range searching: `trianglesIntersecting(s)` return the triangles that satify `triangle.intersects(s)`. The function has several variantion `visitTrianglesIntersecting(s,f)` calls the function `f` on these triangles and stops early if `f` returns `true`. Is `s` is an oriented segment, oriented line, or ray, the triangles are visited in order. The edge versions `edgesIntersecting` and `visitEdgesIntersecting` list the edges instead of the triangles. The `…InteriorIntersecting` variants versions filter with `interiorIntersects(s)`.
+
+- `flip(e)` replaces the diagonal shared by two triangles. It returns the new edge obtained or none if the flip cannot be performed (non-convex quadrilateral or the edge is constrained). `flippable(e)` simply returns if the flip can be performed without changing the triangulation. If we pass a container with edges in interior-disjoint quadrilaterals, the the functions use parallel flips. `flip` is the only function that modifies the triangulation.
 
 <p align="center">
   <img src="figures/example_triangulation2.svg" alt="Triangulation with a segment traversal highlighted" width="50%"/>

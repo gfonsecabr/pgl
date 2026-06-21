@@ -769,3 +769,91 @@ TEST_CASE("Flipping an interior edge yields the other diagonal and keeps the mes
     CHECK(tri.contains(*flipped));
     CHECK_FALSE(tri.contains(*diagonal));
 }
+
+TEST_CASE("Flipping a set of edges in parallel requires disjoint quadrilaterals") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 50; x += 10) {
+        for (int y = 0; y <= 50; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+
+    SUBCASE("an empty set is trivially flippable and flips to nothing") {
+        const std::vector<Seg> none;
+        CHECK(tri.flippable(none));
+        const auto res = tri.flip(none);
+        REQUIRE(res.has_value());
+        CHECK(res->empty());
+    }
+
+    SUBCASE("a maximal set of triangle-disjoint flippable edges flips at once") {
+        // Greedily pick flippable edges whose quads share no triangle.
+        std::vector<Seg> chosen;
+        std::set<std::array<Point, 3>> usedTris;
+        for (const auto& e : tri.edges()) {
+            if (!tri.flippable(e)) continue;
+            const auto inc = tri.incidentTriangles(e);
+            if (inc.size() != 2) continue;
+            const std::array<Point, 3> a{inc[0][0], inc[0][1], inc[0][2]};
+            const std::array<Point, 3> b{inc[1][0], inc[1][1], inc[1][2]};
+            if (usedTris.count(a) || usedTris.count(b)) continue;
+            usedTris.insert(a);
+            usedTris.insert(b);
+            chosen.push_back(e);
+        }
+        REQUIRE(chosen.size() >= 2);
+        CHECK(tri.flippable(chosen));
+
+        const auto areaBefore = totalTwiceArea(tri);
+        const auto res = tri.flip(chosen);
+        REQUIRE(res.has_value());
+        CHECK(res->size() == chosen.size());
+        CHECK(tri.checkInvariants());
+        CHECK(totalTwiceArea(tri) == areaBefore);  // same region, retriangulated
+        for (std::size_t i = 0; i < chosen.size(); ++i) {
+            CHECK_FALSE(tri.contains(chosen[i]));  // original diagonal gone
+            CHECK(tri.contains((*res)[i]));        // replaced by the new diagonal
+        }
+    }
+
+    SUBCASE("two edges sharing a triangle cannot flip in parallel") {
+        // Two edges of one triangle: their quads share that triangle.
+        std::vector<Seg> conflicting;
+        for (const auto& t : tri.triangles()) {
+            std::vector<Seg> f;
+            for (const auto& e : t.edges()) {
+                const Seg seg(e[0], e[1]);
+                if (tri.flippable(seg)) f.push_back(seg);
+            }
+            if (f.size() >= 2) {
+                conflicting = {f[0], f[1]};
+                break;
+            }
+        }
+        REQUIRE(conflicting.size() == 2);
+
+        const auto areaBefore = totalTwiceArea(tri);
+        CHECK_FALSE(tri.flippable(conflicting));
+        CHECK_FALSE(tri.flip(conflicting).has_value());  // all-or-nothing: no change
+        CHECK(totalTwiceArea(tri) == areaBefore);
+        for (const auto& e : conflicting) {
+            CHECK(tri.contains(e));  // both edges still present
+        }
+    }
+
+    SUBCASE("a repeated edge is rejected") {
+        Seg some;
+        for (const auto& e : tri.edges()) {
+            if (tri.flippable(e)) {
+                some = e;
+                break;
+            }
+        }
+        const std::vector<Seg> twice{some, some};
+        CHECK_FALSE(tri.flippable(twice));
+        CHECK_FALSE(tri.flip(twice).has_value());
+    }
+}
