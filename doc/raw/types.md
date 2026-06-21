@@ -24,6 +24,7 @@ pgl::Segment<pgl::Point<double>> s = {p,q};
 ```
 
 You may use integer, floating-point, rational, or custom numeric coordinate types as long as they support the required arithmetic.
+If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc.
 
 ### Labels
 
