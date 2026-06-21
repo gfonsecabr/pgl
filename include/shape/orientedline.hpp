@@ -319,7 +319,7 @@ struct OrientedLine {
     /**
      * @brief Returns the oriented segment that intersects r the same way as this oriented line.
      *
-     * Coordinates grow by at most a constant times the maximum coordinate of the defining points and no segment endpoint lies on the rectangle boundary.
+     * Coordinates grow by at most 3 times the maximum coordinate of the defining points and no segment endpoint lies on the rectangle boundary.
      * Complexity: O(1)
      *
      * @return Oriented segment that intersects the rectangle the same way as this oriented line.

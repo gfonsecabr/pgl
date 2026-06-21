@@ -75,6 +75,22 @@ jobs:
         if: steps.doccache.outputs.cache-hit != 'true'
         run: doxygen Doxyfile
 
+      # Work around a Doxygen-core bug in the bundled navtree.js resize script:
+      # `barWidth` is subtracted from both the sidebar width and the persisted
+      # width cookie, so the left sidebar loses `barWidth` px on every page load
+      # and shrinks rapidly while the window is resized, until it collapses.
+      # Neutralizing barWidth removes the drift (the resize handle, .ui-resizable-e,
+      # is absolutely positioned and does not consume layout width).
+      # Upstream: https://github.com/jothepro/doxygen-awesome-css/issues/170
+      # NOTE: doxygen-pgl.css intentionally adds NO border/padding to #side-nav;
+      # any horizontal box there would reintroduce the drift in the other direction.
+      # Runs unconditionally (not just on cache miss): a cache *hit* restores a
+      # previously-built, possibly-unpatched navtree.js, and the patch is idempotent.
+      - name: Patch navtree.js sidebar-resize drift (Doxygen barWidth bug)
+        run: |
+          sed -i -E 's/(barWidth)[[:space:]]*=[[:space:]]*[0-9]+/\1=0/' build/doc/html/navtree.js
+          grep -q 'barWidth=0' build/doc/html/navtree.js  # fail the build if the patch didn't apply
+
       - name: Assemble site (docs at root, benchmarks under /benchmarks)
         run: |
           rm -rf site
