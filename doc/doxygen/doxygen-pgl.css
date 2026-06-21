@@ -121,6 +121,12 @@ html.dark-mode .pgl-wordmark-dark  { display: inline; }
 .sm-dox a:active {
     background: var(--primary-lightest-color) !important;
     color: var(--primary-color) !important;
+    /* Pin weight/size so hovering a tab doesn't reflow the bar: Doxygen
+       Awesome's own :hover rule resets font-weight to normal, which (being
+       more specific than our idle rule) made the hovered item thinner and
+       shifted every tab to its right. */
+    font-weight: 500;
+    font-size: var(--navigation-font-size);
 }
 /* Currently-open submenu / selected top item. */
 #main-menu > li > a.highlighted,
