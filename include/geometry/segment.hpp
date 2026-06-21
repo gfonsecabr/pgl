@@ -436,7 +436,7 @@ struct Segment {
     [[nodiscard]] constexpr bool containsEndpoint(const OtherPoint& point) const;
 
     /**
-     * @brief Returns whether the segment boundary contains the given point.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * For segments, the boundary is exactly the two endpoints.
      *
@@ -449,7 +449,7 @@ struct Segment {
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the segment contains the given Shape on its boundary.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * For segments, the boundary is exactly the two endpoints, so this is
      * `true` iff all vertices of `other` are endpoints of this segment.
@@ -460,26 +460,37 @@ struct Segment {
      */
     // The boundary of a segment is exactly its two endpoints, a finite point
     // set, so it contains no positive-length or two-dimensional shape.
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool boundaryContains(const OtherLine&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRay&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
 
@@ -497,7 +508,7 @@ struct Segment {
     [[nodiscard]] constexpr bool containsCollinear(const OtherPoint& point) const;
 
     /**
-     * @brief Returns whether the segment contains the given point.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Endpoints are included.
      *
@@ -510,7 +521,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherPoint& point) const;
 
     /**
-     * @brief Returns whether the segment contains another segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the other segment endpoints.
      * @param other Other segment.
@@ -520,7 +531,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
     /**
-     * @brief Returns whether the segment contains an oriented segment.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the other segment endpoints.
      * @param other Other oriented segment.
@@ -530,7 +541,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the segment contains the given line.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the line defining points.
      * @param other Line to check.
@@ -540,7 +551,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
 
     /**
-     * @brief Checks if the segment contains the given oriented line.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the oriented line defining points.
      * @param other Oriented line to check.
@@ -550,7 +561,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Checks if the segment contains the given ray.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the ray defining points.
      * @param other Ray to check.
@@ -560,7 +571,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
 
     /**
-     * @brief Checks if the segment contains the given halfplane.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the halfplane defining points.
      * @param other Halfplane to check.
@@ -570,7 +581,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
 
     /**
-     * @brief Checks if the segment contains the given rectangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the rectangle defining points.
      * @param other Rectangle to check.
@@ -580,7 +591,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
 
     /**
-     * @brief Checks if the segment contains the given triangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the triangle defining points.
      * @param other Triangle to check.
@@ -590,7 +601,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
 
     /**
-     * @brief Checks if the segment contains the given convex polygon.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Complexity: O(log n) for a convex polygon with n vertices.
      *    
@@ -601,12 +612,12 @@ struct Segment {
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
 
     /**
-     * @brief Checks if the segment contains the given disk.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the disk boundary points.
      * @tparam OtherLabel Label type of the disk.
@@ -617,7 +628,7 @@ struct Segment {
     [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
 
     /**
-     * @brief Checks if the segment contains the given Shape.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * @tparam OtherPoint Type of the Shape defining points.
      * @param other Shape to check.
@@ -626,6 +637,7 @@ struct Segment {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const Shape<OtherPoint>& other) const;
 
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
 
@@ -633,25 +645,29 @@ struct Segment {
     // disjoint from all of them, so containment is true while separation is
     // false. These overloads let an EmptyShape flow through Shape's variant
     // dispatch without special-casing.
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Checks if the segment contains the given point in its interior.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam OtherPoint Type of the point.
      * @param point Point to check.
@@ -661,7 +677,7 @@ struct Segment {
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
 
     /**
-     * @brief Checks if the segment contains the given segment in its interior.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam OtherPoint Type of the other segment endpoints.
      * @param other Other segment.
@@ -671,7 +687,7 @@ struct Segment {
     [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
-     * @brief Checks if the segment contains the given oriented segment in its interior.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam OtherPoint Type of the other oriented segment endpoints.
      * @param other Other oriented segment.
@@ -681,7 +697,7 @@ struct Segment {
     [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Checks if the segment contains the given triangle in its interior.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam OtherPoint Type of the triangle defining points.
      * @param other Triangle to check.
@@ -692,24 +708,32 @@ struct Segment {
 
     // A segment is one-dimensional: its interior is the open segment, which
     // cannot contain any unbounded or two-dimensional shape.
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool interiorContains(const OtherLine&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool interiorContains(const OtherRay&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherRectangle&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool interiorContains(const OtherConvex&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool interiorContains(const OtherPolygon&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool interiorContains(const OtherDisk&) const { return false; }
 
-    /** @brief Dispatches interior containment over the wrapped shape. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
 
@@ -827,11 +851,12 @@ struct Segment {
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
 
     /**
-     * @brief Returns whether two segments intersect.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * Performs at most 4 orientation tests.
      *
@@ -843,22 +868,24 @@ struct Segment {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
 
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Returns the intersection of two segments.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * The intersection of two segments may be null, a point, or a segment.
      * Hence, we return an std::optional of std::variant of point and segment.
@@ -875,10 +902,12 @@ struct Segment {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber=NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
@@ -889,7 +918,7 @@ struct Segment {
         return other.template intersection<ResultNumber>(*this);
     }
 
-    /** @brief Intersecting with the empty set yields the empty set. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
         return {};
@@ -928,13 +957,13 @@ struct Segment {
     xAtY(const OtherNumber &y) const;
 
     /**
-     * @brief Returns false.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
     /**
-     * @brief Returns whether this segment separates the other one.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Tests whether the this segment intersects the other segment in
      * a single point that is not an endpoint of the other segment.
@@ -948,32 +977,40 @@ struct Segment {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
     /**
-     * @brief Returns whether removing this segment disconnects the polygon.
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
      * Walks the polygon boundary once and counts its contacts with the segment:
      * each is either a maximal run of boundary vertices lying on the segment, or
@@ -986,13 +1023,15 @@ struct Segment {
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
     /**
-     * @brief Returns whether two segments intersect through their interiors.
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
      *
      * Performs at most 4 orientation tests.
      *
@@ -1004,25 +1043,28 @@ struct Segment {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
 
     /**
-     * @brief Returns whether two segments cross.
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
      *
      * Two segments cross if they intersect at a single point that is not
      * an endpoint of either segment. Equivalently, two segments `s,t` cross
@@ -1037,21 +1079,24 @@ struct Segment {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
     /**

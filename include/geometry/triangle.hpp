@@ -547,7 +547,7 @@ struct Triangle {
     [[nodiscard]] constexpr bool verticesContain(const OtherPoint& point) const;
 
     /**
-     * @brief Tests whether a point lies on a boundary edge.
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * @tparam OtherPoint Point type.
      * @param point Point to test.
@@ -556,40 +556,40 @@ struct Triangle {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    /** @brief Tests whether a segment lies entirely on the boundary. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const;
 
-    /** @brief Tests whether an oriented segment lies entirely on the boundary. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
 
-    /** @brief Degenerate lines are on the boundary iff their unique point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool boundaryContains(const OtherLine& other) const;
 
-    /** @brief Degenerate oriented lines are on the boundary iff their unique point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine& other) const;
 
-    /** @brief Degenerate rays are on the boundary iff their source point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRay& other) const;
 
-    /** @brief Degenerate half-planes are on the boundary iff their source point is. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether every rectangle vertex lies on the boundary. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const;
 
-    /** @brief Tests whether every triangle vertex lies on the boundary. */
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const;
 
     /**
-     * @brief Tests whether a point lies in the closed triangle.
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Degenerate triangles use boundary containment.
      *
@@ -600,72 +600,79 @@ struct Triangle {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool contains(const OtherPoint& point) const;
 
-    /** @brief Tests whether both endpoints of a segment lie in the closed triangle. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
-    /** @brief Tests whether both endpoints of an oriented segment lie in the closed triangle. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
 
-    /** @brief Degenerate lines are contained iff their unique point is. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
 
-    /** @brief Degenerate oriented lines are contained iff their unique point is. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
 
-    /** @brief Degenerate rays are contained iff their source point is. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
 
-    /** @brief Degenerate half-planes are contained iff their source point is. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether every rectangle vertex lies in the closed triangle. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
 
-    /** @brief Tests whether every vertex of another triangle lies in the closed triangle. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     [[nodiscard]] constexpr bool boundaryContains(const Shape<PointType>& other) const;
 
     // The empty set is a subset of every shape (contained in all of them) and
     // disjoint from all of them, so containment is true while separation is
     // false. These overloads let an EmptyShape flow through Shape's variant
     // dispatch without special-casing.
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
     /**
-     * @brief Tests whether a point lies in the strict interior.
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * @tparam OtherPoint Point type.
      * @param point Point to test.
@@ -674,40 +681,40 @@ struct Triangle {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorContains(const OtherPoint& point) const;
 
-    /** @brief Tests whether both endpoints of a segment lie in the strict interior. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
-    /** @brief Tests whether both endpoints of an oriented segment lie in the strict interior. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
 
-    /** @brief Degenerate lines are in the interior iff their unique point is. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool interiorContains(const OtherLine& other) const;
 
-    /** @brief Degenerate oriented lines are in the interior iff their unique point is. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine& other) const;
 
-    /** @brief Degenerate rays are in the interior iff their source point is. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
 
-    /** @brief Degenerate half-planes are in the interior iff their source point is. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether every rectangle vertex lies in the strict interior. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
 
-    /** @brief Tests whether every vertex of another triangle lies in the strict interior. */
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
     /**
-     * @brief Tests whether the triangle intersects a point.
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
      * @tparam OtherPoint Point type.
      * @param other Point to test.
@@ -716,217 +723,233 @@ struct Triangle {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
 
-    /** @brief Tests whether the triangle intersects a line. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool intersects(const OtherLine& other) const;
 
-    /** @brief Tests whether the triangle intersects an oriented line. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool intersects(const OtherOrientedLine& other) const;
 
-    /** @brief Tests whether the triangle intersects a segment. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
 
-    /** @brief Tests whether the triangle intersects an oriented segment. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
 
-    /** @brief Tests whether the triangle intersects a ray. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
 
-    /** @brief Tests whether the triangle intersects a half-plane. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether the triangle intersects a rectangle. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool intersects(const OtherRectangle& other) const;
 
-    /** @brief Tests whether the triangle intersects another triangle. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool intersects(const OtherTriangle& other) const;
 
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
-    /** @brief Tests whether a point lies in the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherPoint& other) const;
 
-    /** @brief Tests whether a line meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
 
-    /** @brief Tests whether an oriented line meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
 
-    /** @brief Tests whether a segment interior meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
-    /** @brief Tests whether an oriented segment interior meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
-    /** @brief Tests whether a ray interior meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
 
-    /** @brief Tests whether a half-plane interior meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether a rectangle interior meets the strict triangle interior. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherRectangle& other) const;
 
-    /** @brief Tests whether two triangle interiors overlap. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherTriangle& other) const;
 
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
+    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
 
-    /** @brief Tests whether the triangle separates a segment. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
 
-    /** @brief Tests whether the triangle separates an oriented segment. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
 
-    /** @brief Tests whether the triangle separates a line. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
 
-    /** @brief Tests whether the triangle separates an oriented line. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
 
-    /** @brief Tests whether the triangle separates a ray. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
 
-    /** @brief Triangles never separate half-planes in this API. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether the triangle separates a rectangle. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
-    /** @brief Tests whether the triangle separates another triangle. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
-    /** @brief Polygon overload; see the Convex overload. */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const;
 
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const;
 
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const;
 
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
 
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
 
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
 
 
-    /** @brief Tests whether the triangle crosses a segment. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
-    /** @brief Tests whether the triangle crosses an oriented segment. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
 
-    /** @brief Tests whether the triangle crosses a line. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
 
-    /** @brief Tests whether the triangle crosses an oriented line. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
 
-    /** @brief Tests whether the triangle crosses a ray. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
 
-    /** @brief Triangles never cross half-planes in this API. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool crosses(const OtherHalfplane& other) const;
 
-    /** @brief Tests whether the triangle crosses a rectangle. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool crosses(const OtherRectangle& other) const;
 
-    /** @brief Tests whether the triangle crosses another triangle. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool crosses(const OtherTriangle& other) const;
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
 
-    /** @brief The empty set never meets another shape. */
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
     /**
-     * @brief Returns the point intersection when a point lies in the triangle.
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * @tparam ResultNumber Coordinate type of the returned point.
      * @tparam OtherPoint Point type.
@@ -937,40 +960,44 @@ struct Triangle {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    /** @brief Returns the intersection with a line as a point or segment. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherLine& other) const;
 
-    /** @brief Returns the intersection with an oriented line as a point or segment. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedLine& other) const;
 
-    /** @brief Returns the intersection with a segment as a point or segment. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
-    /** @brief Returns the intersection with an oriented segment as a point or segment. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedSegment& other) const;
 
-    /** @brief Returns the intersection with a ray as a point or segment. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRay& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr auto intersection(const OtherHalfplane& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto intersection(const OtherRectangle& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto intersection(const OtherTriangle& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
@@ -981,7 +1008,7 @@ struct Triangle {
         return other.template intersection<ResultNumber>(*this);
     }
 
-    /** @brief Intersecting with the empty set yields the empty set. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
         return {};
