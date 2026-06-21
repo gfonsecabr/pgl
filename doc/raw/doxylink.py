@@ -24,6 +24,11 @@ Resolution is *context-aware* and *fail-closed*:
   * An overloaded name (several members, several anchors) links to the class page
     with no anchor, landing the reader on the right class.
 
+A line consisting only of `- Other methods:` in a shape section is a placeholder:
+it is filled with links to every method of that shape that did not otherwise get
+a link in the section (so a method merely mentioned inside another method's
+description, which never links, still shows up here).
+
 Default mode is report-only. Pass --write to (re)generate doc/*.md from doc/raw.
 
 Override syntax: append {ClassName} immediately after the code span to force the
@@ -62,6 +67,10 @@ MENTION_RE = re.compile(
 SPAN_RE = re.compile(r"(?<!\[)`([^`]+)`(?:\{([A-Za-z_]\w*)\})?")
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+
+# An "Other methods:" placeholder the author leaves in the raw markdown; the
+# script fills it with the section's shape methods that got no link above.
+PLACEHOLDER_RE = re.compile(r"^(\s*[-*]\s*Other methods:?)\s*$")
 
 
 def norm(s):
@@ -115,6 +124,14 @@ def load_tag(path):
     for name in [n for n in freefuncs if norm(n) in class_by_norm]:
         del freefuncs[name]
     return methods, class_by_norm, class_page, freefuncs, ns_names
+
+
+def _member_url(anchors):
+    """URL for a member: the class page for overloads, else the member anchor."""
+    if len(anchors) > 1:
+        return anchors[0][0]
+    af, an = anchors[0]
+    return f"{af}#{an}"
 
 
 def _hit(anchors, target):
@@ -197,10 +214,13 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
         text = fh.read()
     lines = text.split("\n")
     context = None
+    section = -1                       # bumps on every heading
     in_fence = False
     stats = defaultdict(int)
     details = []
     out_lines = []
+    linked_here = defaultdict(set)     # section -> shape-member names that got a link
+    placeholders = []                  # (out_index, section, cls, prefix)
 
     for lineno, line in enumerate(lines, 1):
         if line.lstrip().startswith("```"):
@@ -213,10 +233,17 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
 
         h = HEADING_RE.match(line)
         if h:
+            section += 1
             cls = class_by_norm.get(norm(h.group(2)))
             if cls is not None:
                 context = cls
             out_lines.append(line)
+            continue
+
+        ph = PLACEHOLDER_RE.match(line)
+        if ph and context is not None:
+            placeholders.append((len(out_lines), section, context, ph.group(1)))
+            out_lines.append(line)     # filled in after the whole section is seen
             continue
 
         def repl(mo):
@@ -230,10 +257,26 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
             if status in ("linked", "overloaded", "not-in-context", "bad-override"):
                 details.append((lineno, status, content, detail))
             if status in ("linked", "overloaded"):
+                mm = MENTION_RE.match(content)
+                if mm and context and mm.group(3) in methods.get(context, {}):
+                    linked_here[section].add(mm.group(3))
                 return f"[`{content}`]({base}{url})"
             return mo.group(0)
 
         out_lines.append(SPAN_RE.sub(repl, line))
+
+    for idx, sec, cls, prefix in placeholders:
+        short = cls.split("::")[-1]
+        members = sorted(m for m in methods.get(cls, {})
+                         if not m.startswith("operator") and m != short)
+        others = [m for m in members if m not in linked_here[sec]]
+        stats["other-filled"] += len(others)
+        if others:
+            items = ", ".join(f"[`{m}`]({base}{_member_url(methods[cls][m])})"
+                              for m in others)
+            out_lines[idx] = f"{prefix} {items}."
+        else:
+            out_lines[idx] = prefix
 
     if write:
         new_text = BANNER.format(src=src) + "\n\n" + "\n".join(out_lines)
