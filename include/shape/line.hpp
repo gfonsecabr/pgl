@@ -261,7 +261,8 @@ struct Line {
     /**
      * @brief Returns the segment that intersects r the same way as this line.
      *
-     * Coordinates grow by at most a constant times the maximum coordinate of the defining points.
+     * Coordinates grow by at most a constant times the maximum coordinate of the defining points and no segment endpoint lies on the rectangle boundary.
+     * Complexity: O(1)
      *
      * @return Segment that intersects the rectangle the same way as this line.
      * @param rect Rectangle to intersect with.
@@ -269,7 +270,7 @@ struct Line {
      */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr Segment<PointType> asSegmentFor(const Rectangle<OtherPoint> &rect) const {
-        return OrientedLine<PointType>(min(), max()).asSegmentFor(rect).asSegment();
+        return OrientedLine<PointType>(min(), max()).asOrientedSegmentFor(rect).asSegment();
     }
 
 
