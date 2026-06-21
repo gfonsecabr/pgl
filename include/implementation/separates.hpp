@@ -287,39 +287,9 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherPolygon& othe
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherDisk& other) const {
-    // Removing the segment disconnects the disk iff the segment carries a
-    // complete chord through the interior: the line must genuinely cross the
-    // circle (two distinct intersections) and both of those intersection points
-    // must lie within the segment span.
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(other.squaredRadius()), typename PointType::NumberType>>;
-    const auto center_point = other.template center<R>();
-    const R squared_radius = other.template squaredRadius<R>();
-
-    // v = max - min (segment direction), w = centre - min.
-    const R vx = static_cast<R>(max().x()) - static_cast<R>(min().x());
-    const R vy = static_cast<R>(max().y()) - static_cast<R>(min().y());
-    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(min().x());
-    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(min().y());
-
-    const R squared_length = vx * vx + vy * vy;
-    const R foot_projection = wx * vx + wy * vy;
-    const R cross = vx * wy - vy * wx;
-
-    // discriminant = r^2 |v|^2 - cross^2 is proportional to the squared
-    // half-chord length; it must be strictly positive for a real chord (zero
-    // means tangent, negative means the line misses the disk).
-    const R discriminant = squared_radius * squared_length - cross * cross;
-    if (!(discriminant > R{})) {
-        return false;
-    }
-
-    // The chord spans foot_projection +/- sqrt(discriminant) in the (scaled)
-    // projection parameter; it lies within [0, |v|^2] exactly when the near end
-    // is >= 0 and the far end <= |v|^2. Both bounds are squared to stay exact.
-    const R tail = squared_length - foot_projection;
-    return foot_projection >= R{} && foot_projection * foot_projection >= discriminant
-        && tail >= R{} && tail * tail >= discriminant;
+    return    !other.interiorContains(min())
+           && !other.interiorContains(max())
+           && other.interiorsIntersect(*this);
 }
 
 template <class PointType, class LabelType>
@@ -680,26 +650,10 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherConvex& other) c
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Line<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (isDegenerate()) {
         return false;
     }
-
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(other.squaredRadius()), typename PointType::NumberType>>;
-    const auto center_point = other.template center<R>();
-    const R squared_radius = other.template squaredRadius<R>();
-
-    // v = direction along the line, w = centre - point on the line.
-    const R vx = static_cast<R>(max().x()) - static_cast<R>(min().x());
-    const R vy = static_cast<R>(max().y()) - static_cast<R>(min().y());
-    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(min().x());
-    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(min().y());
-    const R cross = vx * wy - vy * wx;
-
-    // Removing the line splits the disk in two exactly when it enters the open
-    // disk. A tangent line removes a single boundary point and leaves the disk
-    // connected, so unlike Disk::separates(Line) the comparison is strict.
-    return cross * cross < squared_radius * (vx * vx + vy * vy);
+    return other.interiorsIntersect(*this);
 }
 
 template <class PointType, class LabelType>
@@ -1380,7 +1334,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other)
                     return true;
                 }
             }
-            
+
             prev_in = cur_in;
         }
     }
@@ -1407,7 +1361,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other)
                     return true;
                 }
             }
-            
+
             prev_in = cur_in;
         }
     }
@@ -1462,31 +1416,10 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPoint&) const {
 template <class PointType, class LabelType>
 template <SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherSegment& other) const {
-    if (other.isDegenerate() || contains(other.min()) || contains(other.max())) {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherSegment::NumberType>>;
-    const auto center_point = center<R>();
-    const R squared_radius = squaredRadius<R>();
-
-    // v = max - min (segment direction), w = centre - min.
-    const R vx = static_cast<R>(other.max().x()) - static_cast<R>(other.min().x());
-    const R vy = static_cast<R>(other.max().y()) - static_cast<R>(other.min().y());
-    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(other.min().x());
-    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(other.min().y());
-
-    const R squared_length = vx * vx + vy * vy;
-    const R foot_projection = wx * vx + wy * vy;
-    const R cross = vx * wy - vy * wx;
-
-    // Both endpoints lie outside the closed disk, so the segment is cut in two
-    // exactly when the perpendicular foot from the centre falls strictly inside
-    // the segment and the centre lies within (or at) one radius of the
-    // supporting line -- a tangent touch removes one boundary point and still
-    // splits the segment in two.
-    return foot_projection > R{} && foot_projection < squared_length && cross * cross <= squared_radius * squared_length;
+    return !contains(other.min()) && !contains(other.max()) && intersects(other);
 }
 
 template <class PointType, class LabelType>
@@ -1498,25 +1431,10 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherOrientedSegment&
 template <class PointType, class LabelType>
 template <LineConcept OtherLine>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherLine& other) const {
-    if (other.isDegenerate()) {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()), typename OtherLine::NumberType>>;
-    const auto center_point = center<R>();
-    const R squared_radius = squaredRadius<R>();
-
-    // v = direction along the line, w = centre - point on the line.
-    const R vx = static_cast<R>(other.max().x()) - static_cast<R>(other.min().x());
-    const R vy = static_cast<R>(other.max().y()) - static_cast<R>(other.min().y());
-    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(other.min().x());
-    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(other.min().y());
-    const R cross = vx * wy - vy * wx;
-
-    // An infinite line is cut into two rays as soon as it reaches the closed
-    // disk: a tangent line removes one boundary point and still splits in two.
-    return cross * cross <= squared_radius * (vx * vx + vy * vy);
+    return intersects(other);
 }
 
 template <class PointType, class LabelType>
@@ -1554,7 +1472,7 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherConvex& other) c
                 return true;
             }
         }
-        
+
         prev_in = cur_in;
     }
     return false;

@@ -259,6 +259,21 @@ struct Line {
     }
 
     /**
+     * @brief Returns the segment that intersects r the same way as this line.
+     *
+     * Coordinates grow by at most a constant times the maximum coordinate of the defining points.
+     *
+     * @return Segment that intersects the rectangle the same way as this line.
+     * @param rect Rectangle to intersect with.
+     * @tparam OtherPoint Type of the rectangle's defining points.
+     */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr Segment<PointType> asSegmentFor(const Rectangle<OtherPoint> &rect) const {
+        return OrientedLine<PointType>(min(), max()).asSegmentFor(rect).asSegment();
+    }
+
+
+    /**
      * @brief Returns the dual point.
      *
      * @tparam ResultNumber Coordinate type of the returned point.
