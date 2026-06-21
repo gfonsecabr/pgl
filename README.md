@@ -81,7 +81,7 @@ std::cout << "The midpoint of " << 2*s << " is " << midpoint2 << std::endl;
 // Output: The midpoint of (2,0)--(8,14) is (5,7)
 ```
 
-See [types.md](doc/types.md) for more information.
+If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc. See [types.md](doc/types.md) for more information.
 
 ## Other Methods
 
@@ -189,4 +189,4 @@ target_include_directories(your_target PRIVATE ${pgl_SOURCE_DIR}/include)
 - For a brief description, check the documents at the [doc folder](doc/).
 - For some simple examples, check the files at the [examples folder](examples/).
 - For the **doxygen reference** and **benchmarks**, check the [library website on github.io](https://gfonsecabr.github.io/pgl/index.html).
- 
+

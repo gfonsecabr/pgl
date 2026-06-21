@@ -58,3 +58,31 @@
 #include "algorithm/sortpoints.hpp"
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"
+
+// -----------------------------------------------------------------------------
+// Exact convenience aliases
+//
+// "E"-prefixed shorthands for the exact, overflow-free configuration: rationals
+// backed by arbitrary-precision integers (Rational<BigInt>) over labelless
+// shapes. Reach for these when coordinates may grow without bound (repeated
+// intersections, constructions, duality) and correctness matters more than the
+// speed of fixed-width arithmetic.
+namespace pgl {
+
+using ERational        = Rational<BigInt>;
+using EPoint           = Point<ERational>;
+using EEmptyShape      = EmptyShape<EPoint>;
+using ESegment         = Segment<EPoint>;
+using EOrientedSegment = OrientedSegment<EPoint>;
+using ELine            = Line<EPoint>;
+using EOrientedLine    = OrientedLine<EPoint>;
+using ERay             = Ray<EPoint>;
+using EHalfplane       = Halfplane<EPoint>;
+using ERectangle       = Rectangle<EPoint>;
+using ETriangle        = Triangle<EPoint>;
+using EDisk            = Disk<EPoint>;
+using EConvex          = Convex<EPoint>;
+using EPolygon         = Polygon<EPoint>;
+using EShape           = Shape<EPoint>;
+
+}  // namespace pgl
