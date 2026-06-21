@@ -7,8 +7,11 @@ those, rewrites inline-code API mentions such as `s.midpoint()` or
 writes the result to doc/*.md (the copies GitHub renders). Always edit the raw
 versions; doc/*.md is generated and carries a "do not edit" banner.
 
-The doxygen run emits a tag file (build/doc/pgl.tag, see GENERATE_TAGFILE in the
-Doxyfile) mapping every member's signature to its html page + anchor.
+The script first runs doxygen (see the Doxyfile) to (re)generate the tag file
+(build/doc/pgl.tag, see GENERATE_TAGFILE) and the XML output it reads, so the
+links always reflect the current headers. Pass --no-doxygen to reuse whatever is
+already in build/doc. The tag file maps every member's signature to its html page
++ anchor.
 
 Resolution is *context-aware* and *fail-closed*:
 
@@ -35,8 +38,9 @@ Override syntax: append {ClassName} immediately after the code span to force the
 context class for that one mention, e.g.  `t.collinear()`{Point}
 
 Usage:
-  python3 doc/raw/doxylink.py                    # report on doc/raw/*.md
-  python3 doc/raw/doxylink.py --write            # generate doc/*.md from doc/raw
+  python3 doc/raw/doxylink.py                    # regenerate tags, report on doc/raw/*.md
+  python3 doc/raw/doxylink.py --write            # regenerate tags, write doc/*.md
+  python3 doc/raw/doxylink.py --no-doxygen       # reuse the existing build/doc tag/xml
   python3 doc/raw/doxylink.py --base URL ...     # override the site base url
   python3 doc/raw/doxylink.py doc/raw/foo.md     # specific source files
 """
@@ -45,6 +49,7 @@ import argparse
 import glob
 import os
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -339,6 +344,22 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
     return stats, details
 
 
+def regenerate_tags(doxyfile):
+    """Run doxygen so the tag file and XML reflect the current headers. Doxygen's
+    output is shown only on failure to keep a normal run quiet."""
+    if not os.path.exists(doxyfile):
+        sys.exit(f"Doxyfile not found: {doxyfile}")
+    try:
+        proc = subprocess.run(["doxygen", doxyfile],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True)
+    except FileNotFoundError:
+        sys.exit("doxygen not found on PATH; install it or pass --no-doxygen")
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stdout)
+        sys.exit(f"doxygen failed (exit {proc.returncode})")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -347,6 +368,10 @@ def main():
     ap.add_argument("--tag", default=DEFAULT_TAG)
     ap.add_argument("--xml", default=DEFAULT_XML,
                     help="doxygen XML dir for @brief tooltips (default: build/doc/xml)")
+    ap.add_argument("--doxyfile", default="Doxyfile",
+                    help="Doxyfile used to regenerate the tag/xml (default: Doxyfile)")
+    ap.add_argument("--no-doxygen", action="store_true",
+                    help="skip running doxygen; reuse the existing tag/xml in build/doc")
     ap.add_argument("--base", default=DEFAULT_BASE)
     ap.add_argument("--raw", default=DEFAULT_RAW, help="source dir (default: doc/raw)")
     ap.add_argument("--out", default=DEFAULT_OUT, help="output dir (default: doc)")
@@ -358,8 +383,13 @@ def main():
 
     base = args.base if args.base.endswith("/") else args.base + "/"
 
+    if not args.no_doxygen:
+        regenerate_tags(args.doxyfile)
+
     if not os.path.exists(args.tag):
-        sys.exit(f"tag file not found: {args.tag}\nrun: doxygen Doxyfile")
+        hint = "doxygen failed to emit it" if not args.no_doxygen else \
+               f"run: doxygen {args.doxyfile} (or drop --no-doxygen)"
+        sys.exit(f"tag file not found: {args.tag}\n{hint}")
     methods, class_by_norm, class_page, freefuncs, ns_names = load_tag(args.tag)
     briefs = load_briefs(args.xml)
 
