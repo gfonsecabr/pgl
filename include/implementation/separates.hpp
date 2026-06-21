@@ -472,6 +472,41 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherConvex& othe
     return separating_edge_count >= 2;
 }
 
+// Disk: specialized rather than delegated to Convex. For a triangle, removing it
+// disconnects the disk iff the boundary crosses the circle >= 4 times. With k =
+// vertices strictly inside the disk and c = edges carrying a full chord, the
+// crossing count is fully determined by (k, c): a triangle can never weave in and
+// out four times via single crossings, so the answer is a closed-form table:
+//   k == 0 -> separates iff c >= 2
+//   k == 1 -> separates iff c >= 1
+//   k >= 2 -> never (the disk bulges out on a single arc)
+// This avoids building a Convex and short-circuits on k before any chord test.
+// Degenerate inputs are undefined here; we report false.
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Triangle<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+
+    int interior_vertex_count = 0;
+    for (const auto& vertex : vertices()) {
+        interior_vertex_count += other.interiorContains(vertex) ? 1 : 0;
+    }
+    if (interior_vertex_count >= 2) {
+        return false;
+    }
+
+    const int needed = interior_vertex_count == 0 ? 2 : 1;
+    int separating_edge_count = 0;
+    for (const auto& edge : edges()) {
+        if (edge.separates(other) && ++separating_edge_count >= needed) {
+            return true;
+        }
+    }
+    return false;
+}
+
 template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
@@ -1012,6 +1047,39 @@ template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherConvex& other) const {
     return asConvex().separates(other);
+}
+
+// Disk: specialized rather than delegated to Convex (see Triangle's overload for
+// the reasoning). A rectangle's four corners are concyclic, so a disk can never
+// contain exactly the two corners of a diagonal; hence the answer is again a
+// closed-form table in k = corners strictly inside and c = full-chord edges:
+//   k == 0      -> separates iff c >= 2
+//   k in {1, 2} -> separates iff c >= 1   (k == 2 is always two *adjacent* corners)
+//   k >= 3      -> never
+// Degenerate inputs are undefined here; we report false.
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Rectangle<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+
+    int interior_vertex_count = 0;
+    for (const auto& vertex : vertices()) {
+        interior_vertex_count += other.interiorContains(vertex) ? 1 : 0;
+    }
+    if (interior_vertex_count >= 3) {
+        return false;
+    }
+
+    const int needed = interior_vertex_count == 0 ? 2 : 1;
+    int separating_edge_count = 0;
+    for (const auto& edge : edges()) {
+        if (edge.separates(other) && ++separating_edge_count >= needed) {
+            return true;
+        }
+    }
+    return false;
 }
 
 template <class PointType, class LabelType>
