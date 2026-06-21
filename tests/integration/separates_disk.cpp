@@ -28,6 +28,7 @@ using P = pgl::Point<int>;
 using Triangle = pgl::Triangle<P>;
 using Rect = pgl::Rectangle<P>;
 using Convex = pgl::Convex<P>;
+using Seg = pgl::Segment<P>;
 using Disk = pgl::Disk<P>;
 
 static const Disk unitDisk({0, 0}, 10);  // centre (0,0), radius 10
@@ -121,6 +122,64 @@ TEST_CASE("Convex separates disk: general case counts boundary/circle crossings"
     SUBCASE("corner bite from a single interior vertex: not separated") {
         CHECK_FALSE(Convex({{0, 0}, {50, 50}, {50, -50}}).separates(d));
     }
+}
+
+// Disk::crosses(X) == disk.separates(X) && X.separates(disk): each shape cuts
+// the other. These were just implemented as the conjunction (Tier A).
+TEST_CASE("Disk crosses Segment: true iff the segment is a chord through the disk") {
+    const Disk d = unitDisk;
+    SUBCASE("chord with both endpoints outside: crosses") {
+        CHECK(d.crosses(Seg({-50, 0}, {50, 0})));
+    }
+    SUBCASE("one endpoint inside the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Seg({0, 0}, {50, 0})));
+    }
+    SUBCASE("segment entirely inside the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Seg({-3, 0}, {3, 0})));
+    }
+    SUBCASE("disjoint segment: does not cross") {
+        CHECK_FALSE(d.crosses(Seg({100, 100}, {200, 200})));
+    }
+}
+
+TEST_CASE("Disk crosses Triangle: true iff each pierces the other") {
+    const Disk d = unitDisk;
+    SUBCASE("long thin sliver run through the disk: crosses") {
+        CHECK(d.crosses(Triangle(-100, 0, 100, 2, 100, -2)));
+    }
+    SUBCASE("disk strictly inside the triangle: does not cross") {
+        CHECK_FALSE(d.crosses(Triangle(-100, -100, 100, -100, 0, 100)));
+    }
+    SUBCASE("triangle strictly inside the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Triangle(-3, -3, 3, -3, 0, 3)));
+    }
+    SUBCASE("disjoint triangle: does not cross") {
+        CHECK_FALSE(d.crosses(Triangle(50, 50, 60, 50, 50, 60)));
+    }
+}
+
+TEST_CASE("Disk crosses Rectangle: true iff each pierces the other") {
+    const Disk d = unitDisk;
+    SUBCASE("long thin band run through the disk: crosses") {
+        CHECK(d.crosses(Rect(-100, -1, 100, 1)));
+    }
+    SUBCASE("rectangle engulfs the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Rect(-100, -100, 100, 100)));
+    }
+    SUBCASE("rectangle strictly inside the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Rect(-3, -3, 3, 3)));
+    }
+    SUBCASE("disjoint rectangle: does not cross") {
+        CHECK_FALSE(d.crosses(Rect(50, 50, 60, 60)));
+    }
+}
+
+TEST_CASE("Disk crosses Disk: never (a convex bite leaves a connected crescent)") {
+    const Disk d = unitDisk;
+    CHECK_FALSE(d.crosses(Disk({5, 0}, 10)));    // overlapping
+    CHECK_FALSE(d.crosses(Disk({0, 0}, 5)));     // concentric, contained
+    CHECK_FALSE(d.crosses(Disk({100, 0}, 3)));   // disjoint
+    CHECK_FALSE(d.crosses(unitDisk));            // identical
 }
 
 TEST_CASE("separates(disk) sanity: orientation/argument order does not matter") {
