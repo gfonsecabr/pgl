@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
+#include <array>
 #include <optional>
 #include <set>
 #include <string>
@@ -439,6 +441,87 @@ TEST_CASE("Segment traversal reports exactly the triangles and edges it meets") 
     CHECK_FALSE(metEdges.empty());
     for (const auto& e : metEdges) {
         CHECK(s.intersects(e));
+    }
+}
+
+TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
+    using Point = pgl::Point<int>;
+    using OSeg = pgl::OrientedSegment<Point>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 80; x += 10) {
+        for (int y = 0; y <= 80; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const auto all = tri.triangles();
+
+    // A directed query is traced in order along q[0]->q[1]. The reference is the
+    // directed segment walk over the same supporting line, clipped to a segment
+    // that spans the whole hull (`spanning`): the two must report exactly the
+    // same triangles in exactly the same order, and the set must equal the
+    // brute-force intersecting set.
+    const auto compare = [&](const auto& query, const OSeg& spanning) {
+        const auto got = tri.trianglesIntersecting(query);
+        CHECK(got == tri.trianglesIntersecting(spanning));  // same triangles, same order
+        std::set<std::array<Point, 3>> gotSet, refSet;
+        for (const auto& t : got) {
+            CHECK(t.intersects(query));
+            gotSet.insert({t[0], t[1], t[2]});
+        }
+        for (const auto& t : all) {
+            if (t.intersects(query)) refSet.insert({t[0], t[1], t[2]});
+        }
+        CHECK(gotSet == refSet);
+        return got;
+    };
+    const int K = 80;  // enough to push a point well past the 80x80 mesh
+    // A line/oriented line spans the hull when extended past both defining points.
+    const auto checkLine = [&](const auto& line) {
+        const Point p0 = line[0], p1 = line[1];
+        const Point d(p1.x() - p0.x(), p1.y() - p0.y());
+        return compare(line, OSeg(Point(p0.x() - K * d.x(), p0.y() - K * d.y()),
+                                  Point(p1.x() + K * d.x(), p1.y() + K * d.y())));
+    };
+    // A ray keeps its source and extends only forwards.
+    const auto checkRay = [&](const pgl::Ray<Point>& ray) {
+        const Point s0 = ray[0], s1 = ray[1];
+        const Point d(s1.x() - s0.x(), s1.y() - s0.y());
+        return compare(ray, OSeg(s0, Point(s0.x() + K * d.x(), s0.y() + K * d.y())));
+    };
+
+    SUBCASE("a line with both defining points outside the hull") {
+        const auto got = checkLine(pgl::Line<Point>(P<Point>(-8, 5), P<Point>(88, 74)));
+        CHECK_FALSE(got.empty());
+    }
+    SUBCASE("an oriented line whose defining points are inside the hull") {
+        // The key case: the line also extends backwards out of the hull past q[0],
+        // so the ordered trace must begin at the back-side ghost, not at q[0].
+        const auto got = checkLine(pgl::OrientedLine<Point>(P<Point>(30, 28), P<Point>(52, 55)));
+        CHECK_FALSE(got.empty());
+    }
+    SUBCASE("reversing an oriented line reverses the order") {
+        auto fwd = checkLine(pgl::OrientedLine<Point>(P<Point>(12, 9), P<Point>(70, 66)));
+        auto rev = checkLine(pgl::OrientedLine<Point>(P<Point>(70, 66), P<Point>(12, 9)));
+        CHECK_FALSE(fwd.empty());
+        std::reverse(rev.begin(), rev.end());
+        CHECK(fwd == rev);
+    }
+    SUBCASE("a ray whose source is inside the hull") {
+        const auto got = checkRay(pgl::Ray<Point>(P<Point>(38, 41), P<Point>(73, 64)));
+        CHECK_FALSE(got.empty());
+    }
+    SUBCASE("a ray whose source is outside the hull, pointing in") {
+        const auto got = checkRay(pgl::Ray<Point>(P<Point>(-9, 6), P<Point>(11, 19)));
+        CHECK_FALSE(got.empty());
+    }
+    SUBCASE("a ray pointing away from the mesh reports nothing") {
+        CHECK(checkRay(pgl::Ray<Point>(P<Point>(120, 41), P<Point>(160, 46))).empty());
+    }
+    SUBCASE("a line missing the mesh reports nothing") {
+        CHECK(tri.trianglesIntersecting(
+                     pgl::Line<Point>(P<Point>(-10, 100), P<Point>(100, 130)))
+                  .empty());
     }
 }
 
