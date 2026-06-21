@@ -98,6 +98,9 @@ CALLER_GRAPH           = NO
 #---------------------------------------------------------------------------
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
+# Emit a tag file mapping each member's signature to its html page + anchor, so
+# the doc/*.md reference pages can be auto-linked to the doxygen reference.
+GENERATE_TAGFILE       = build/doc/pgl.tag
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 FULL_SIDEBAR           = NO

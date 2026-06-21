@@ -1,5 +1,3 @@
-<!-- AUTO-GENERATED from doc/raw/README.md by doc/raw/doxylink.py — do not edit; edit the raw version and regenerate. -->
-
 <img align="left" src="figures/logo.png" width="23%"/>
 
 <picture>
