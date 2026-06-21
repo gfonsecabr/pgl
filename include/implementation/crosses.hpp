@@ -695,18 +695,14 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedSegment&) 
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(Line) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherLine& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedLine&) const {
-    throw std::runtime_error(
-        "pgl: Disk::crosses(OrientedLine) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Disk<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+    return separates(other) && other.separates(*this);
 }
 
 template <class PointType, class LabelType>

@@ -29,6 +29,8 @@ using Triangle = pgl::Triangle<P>;
 using Rect = pgl::Rectangle<P>;
 using Convex = pgl::Convex<P>;
 using Seg = pgl::Segment<P>;
+using Line = pgl::Line<P>;
+using OrientedLine = pgl::OrientedLine<P>;
 using Disk = pgl::Disk<P>;
 
 static const Disk unitDisk({0, 0}, 10);  // centre (0,0), radius 10
@@ -121,6 +123,43 @@ TEST_CASE("Convex separates disk: general case counts boundary/circle crossings"
     }
     SUBCASE("corner bite from a single interior vertex: not separated") {
         CHECK_FALSE(Convex({{0, 0}, {50, 50}, {50, -50}}).separates(d));
+    }
+}
+
+// Line/OrientedLine separating a disk: removing an infinite line disconnects the
+// disk iff the line enters the open disk. A tangent line removes one boundary
+// point only and leaves the disk connected -> strict comparison (Tier B).
+TEST_CASE("Line/OrientedLine separates Disk: strict crossing of the open disk") {
+    const Disk d = unitDisk;  // centre (0,0), radius 10
+
+    SUBCASE("line through the centre: separates") {
+        CHECK(Line({-50, 0}, {50, 0}).separates(d));
+    }
+    SUBCASE("line tangent to the circle (distance == r): does not separate") {
+        CHECK_FALSE(Line({-50, 10}, {50, 10}).separates(d));
+    }
+    SUBCASE("line missing the disk: does not separate") {
+        CHECK_FALSE(Line({-50, 20}, {50, 20}).separates(d));
+    }
+    SUBCASE("oriented line delegates to its unoriented view") {
+        CHECK(OrientedLine({-50, 0}, {50, 0}).separates(d));
+        CHECK_FALSE(OrientedLine({-50, 10}, {50, 10}).separates(d));
+    }
+}
+
+TEST_CASE("Disk crosses Line/OrientedLine: true iff the line crosses the open disk") {
+    const Disk d = unitDisk;
+
+    SUBCASE("secant line: crosses") {
+        CHECK(d.crosses(Line({-50, 3}, {50, 3})));            // chord at y=3
+        CHECK(d.crosses(OrientedLine({-50, 3}, {50, 3})));
+    }
+    SUBCASE("tangent line: does not cross (touch, not cut)") {
+        CHECK_FALSE(d.crosses(Line({-50, 10}, {50, 10})));
+        CHECK_FALSE(d.crosses(OrientedLine({-50, 10}, {50, 10})));
+    }
+    SUBCASE("line missing the disk: does not cross") {
+        CHECK_FALSE(d.crosses(Line({-50, 20}, {50, 20})));
     }
 }
 
