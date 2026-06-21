@@ -127,9 +127,8 @@ def load_tag(path):
 
 
 def _member_url(anchors):
-    """URL for a member: the class page for overloads, else the member anchor."""
-    if len(anchors) > 1:
-        return anchors[0][0]
+    """URL for a member. Overloads share no common anchor, so point at the first
+    one; doxygen lists the rest consecutively right below it."""
     af, an = anchors[0]
     return f"{af}#{an}"
 
@@ -137,9 +136,8 @@ def _member_url(anchors):
 def _hit(anchors, target):
     """Turn a resolved anchor list into a (status, url, detail) result."""
     if len(anchors) > 1:
-        return ("overloaded", anchors[0][0], f"{target} ({len(anchors)} overloads)")
-    af, an = anchors[0]
-    return ("linked", f"{af}#{an}", target)
+        return ("overloaded", _member_url(anchors), f"{target} ({len(anchors)} overloads)")
+    return ("linked", _member_url(anchors), target)
 
 
 def resolve(content, override, context, methods, class_by_norm, class_page,
