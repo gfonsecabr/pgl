@@ -943,3 +943,118 @@ TEST_CASE("Convex squaredDistance to a point") {
         }
     }
 }
+
+TEST_CASE("Convex squaredDistance to a segment") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Segment = pgl::Segment<Point>;
+    using pgl::ERational;
+
+    SUBCASE("intersecting segments are at distance zero") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        CHECK(square.squaredDistance<ERational>(Segment(Point(2, 2), Point(8, 2))) == 0);  // crosses
+        CHECK(square.squaredDistance<ERational>(Segment(Point(1, 1), Point(3, 3))) == 0);  // inside
+        CHECK(square.squaredDistance<ERational>(Segment(Point(4, 0), Point(4, 4))) == 0);  // along an edge
+    }
+
+    SUBCASE("disjoint: nearest is endpoint, perpendicular, or vertex") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        // Segment to the right, parallel: perpendicular to the right edge.
+        CHECK(square.squaredDistance<ERational>(Segment(Point(7, 1), Point(7, 3))) == 9);
+        // Segment endpoint nearest a corner.
+        CHECK(square.squaredDistance<ERational>(Segment(Point(7, 8), Point(9, 10))) == 25);
+        // Polygon vertex nearest the segment interior.
+        CHECK(square.squaredDistance<ERational>(Segment(Point(-3, 7), Point(7, 7))) == 9);
+    }
+
+    SUBCASE("matches an O(n) brute-force scan over random convex polygons") {
+        std::mt19937 rng(7);
+        std::uniform_int_distribution<int> coord(-30, 30);
+        for (int trial = 0; trial < 4000; ++trial) {
+            std::vector<Point> pts;
+            const int count = 3 + static_cast<int>(rng() % 9);
+            for (int i = 0; i < count; ++i) {
+                pts.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+            const Segment segment(Point(coord(rng), coord(rng)), Point(coord(rng), coord(rng)));
+
+            ERational expected = ERational{0};
+            if (!convex.intersects(segment)) {
+                expected = convex.edges().front().squaredDistance<ERational>(segment);
+                for (const auto& e : convex.edges()) {
+                    expected = std::min(expected, e.squaredDistance<ERational>(segment));
+                }
+            }
+
+            CHECK(convex.squaredDistance<ERational>(segment) == expected);
+        }
+    }
+
+    SUBCASE("large polygons exercise the O(log n) path against a brute-force scan") {
+        // Generate convex polygons with well over 32 vertices so the logarithmic
+        // branch runs, and compare against the O(n) edge scan.
+        std::mt19937 rng(11);
+        std::uniform_int_distribution<int> jitter(0, 3);
+        std::uniform_int_distribution<int> coord(-200, 200);
+        for (int trial = 0; trial < 200; ++trial) {
+            std::vector<Point> pts;
+            const int count = 60 + static_cast<int>(rng() % 40);
+            for (int i = 0; i < count; ++i) {
+                // Points on a large circle stay in convex position.
+                const double t = 2.0 * 3.14159265358979 * i / count;
+                const int x = static_cast<int>(150.0 * std::cos(t)) + jitter(rng);
+                const int y = static_cast<int>(150.0 * std::sin(t)) + jitter(rng);
+                pts.emplace_back(x, y);
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate() || convex.size() <= 32) {
+                continue;
+            }
+            const Segment segment(Point(coord(rng), coord(rng)), Point(coord(rng), coord(rng)));
+
+            ERational expected = ERational{0};
+            if (!convex.intersects(segment)) {
+                expected = convex.edges().front().squaredDistance<ERational>(segment);
+                for (const auto& e : convex.edges()) {
+                    expected = std::min(expected, e.squaredDistance<ERational>(segment));
+                }
+            }
+
+            CHECK(convex.squaredDistance<ERational>(segment) == expected);
+        }
+    }
+}
+
+TEST_CASE("Convex squaredDistance to an oriented segment matches the unoriented one") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using pgl::ERational;
+
+    std::mt19937 rng(13);
+    std::uniform_int_distribution<int> coord(-30, 30);
+    for (int trial = 0; trial < 4000; ++trial) {
+        std::vector<Point> pts;
+        const int count = 3 + static_cast<int>(rng() % 9);
+        for (int i = 0; i < count; ++i) {
+            pts.emplace_back(coord(rng), coord(rng));
+        }
+        const Convex convex(pts);
+        if (convex.isDegenerate()) {
+            continue;
+        }
+        const Point u(coord(rng), coord(rng));
+        const Point v(coord(rng), coord(rng));
+
+        // Distance ignores orientation, so both endpoint orderings must agree
+        // with the unoriented segment.
+        const ERational expected = convex.squaredDistance<ERational>(Segment(u, v));
+        CHECK(convex.squaredDistance<ERational>(OrientedSegment(u, v)) == expected);
+        CHECK(convex.squaredDistance<ERational>(OrientedSegment(v, u)) == expected);
+    }
+}
