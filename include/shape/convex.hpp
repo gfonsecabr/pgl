@@ -1520,6 +1520,57 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to a segment.
+     *
+     * Zero when the convex polygon and the segment intersect; otherwise the
+     * smallest squared distance between the two shapes.
+     *
+     * For disjoint inputs the closest pair is realized either between a segment
+     * endpoint and the polygon, or between a polygon vertex and the interior of
+     * the segment. The first two witnesses are the two @ref squaredDistance
+     * point-to-polygon queries on the endpoints. The third witness, when it
+     * exists, lies on the polygon vertex nearest the segment's supporting line:
+     * a vertex extremal along the segment normal. That normal functional is
+     * linear, hence cyclic-unimodal over the CCW vertices, so its two extrema —
+     * the candidate witnesses — are found with the same O(log n) cyclic search
+     * used elsewhere. The endpoint queries absorb every case in which the
+     * extremal vertex projects outside the segment (including a polygon edge
+     * parallel to the segment), so the four candidates together give the exact
+     * minimum.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherSegment The segment type.
+     * @param other The segment to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to an oriented segment.
+     *
+     * Orientation does not affect distance, so this forwards to the unoriented
+     * @ref squaredDistance(const OtherSegment&) overload.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherOrientedSegment The oriented segment type.
+     * @param other The oriented segment to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.

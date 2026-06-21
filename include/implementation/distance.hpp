@@ -648,16 +648,14 @@ template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& point) const {
     using Num = NumberType;
-    const PointType q(point);
-    if (contains(q)) {
+    if (contains(point)) {
         return ResultNumber{};
     }
     if (size() <= 32) {
-        const std::ptrdiff_t n = size();
         auto edgeVector = edges();
-        ResultNumber best = edgeVector[0].template squaredDistance<ResultNumber>(q);
+        ResultNumber best = edgeVector[0].template squaredDistance<ResultNumber>(point);
         for (auto & e : edgeVector) {
-            const ResultNumber current = e.template squaredDistance<ResultNumber>(q);
+            const ResultNumber current = e.template squaredDistance<ResultNumber>(point);
             if (current < best) {
                 best = current;
             }
@@ -668,15 +666,15 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
     const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
     const auto V = [this](std::ptrdiff_t i) { return get(i); };
     const auto facing = [&](std::ptrdiff_t i) {
-        return orientationDeterminant(V(i), V(i + 1), q) < 0;
+        return orientationDeterminant(V(i), V(i + 1), point) < 0;
     };
 
     // Reference point c = (v0 + v1 + v2) / 3, strictly interior. To stay exact we
     // work with vectors scaled by 3 (a positive factor, so signs are preserved).
     const Num sx = V(0).x() + V(1).x() + V(2).x();
     const Num sy = V(0).y() + V(1).y() + V(2).y();
-    const Num bx = Num{3} * q.x() - sx;   // 3 * (q - c)
-    const Num by = Num{3} * q.y() - sy;
+    const Num bx = Num{3} * point.x() - sx;   // 3 * (q - c)
+    const Num by = Num{3} * point.y() - sy;
 
     // Sign of (V(k) - c) x (q - c). Around the boundary this changes sign exactly
     // twice: at the edge the ray c->q exits through (which faces q) and at the
@@ -728,7 +726,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 
     // Over the facing chain the per-edge distance is unimodal: pick the closest.
     const auto edgeDist = [&](std::ptrdiff_t i) {
-        return Segment<PointType>(V(i), V(i + 1)).template squaredDistance<ResultNumber>(q);
+        return Segment<PointType>(V(i), V(i + 1)).template squaredDistance<ResultNumber>(point);
     };
     std::ptrdiff_t lo = 0, hi = hiEdge - loEdge;
     while (lo < hi) {
@@ -740,6 +738,74 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
         }
     }
     return edgeDist(loEdge + lo);
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherSegment& other) const {
+    using Num = NumberType;
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+
+    if (size() <= 32) {
+        auto edgeVector = edges();
+        ResultNumber best = edgeVector[0].template squaredDistance<ResultNumber>(other);
+        for (auto& e : edgeVector) {
+            const ResultNumber current = e.template squaredDistance<ResultNumber>(other);
+            if (current < best) {
+                best = current;
+            }
+        }
+        return best;
+    }
+
+    // Disjoint, large polygon. Two witnesses come from the segment endpoints; the
+    // third (polygon vertex closest to the segment interior) lies on a vertex
+    // extremal along the segment normal, found in O(log n).
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+
+    ResultNumber best = this->template squaredDistance<ResultNumber>(other.min());
+    const ResultNumber from_max = this->template squaredDistance<ResultNumber>(other.max());
+    if (from_max < best) {
+        best = from_max;
+    }
+
+    // Support functional along the segment normal (-dy, dx). It is linear, so it
+    // is cyclic-unimodal over the CCW vertices and cyclicMax locates its extrema;
+    // those two vertices are the polygon's nearest to the segment's supporting
+    // line from either side, the only interior-witness candidates.
+    const PointType a(other.min());
+    const PointType b(other.max());
+    const Num dx = b.x() - a.x();
+    const Num dy = b.y() - a.y();
+    const auto support = [&](std::ptrdiff_t i) {
+        const auto v = get(i);
+        return dx * v.y() - dy * v.x();
+    };
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+    const std::ptrdiff_t hi = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return support(k); });
+    const std::ptrdiff_t lo = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return -support(k); });
+
+    const ResultNumber from_hi = other.template squaredDistance<ResultNumber>(get(hi));
+    if (from_hi < best) {
+        best = from_hi;
+    }
+    const ResultNumber from_lo = other.template squaredDistance<ResultNumber>(get(lo));
+    if (from_lo < best) {
+        best = from_lo;
+    }
+
+    return best;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    return this->template squaredDistance<ResultNumber>(
+        static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 }  // namespace pgl
