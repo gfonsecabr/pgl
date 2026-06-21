@@ -313,6 +313,82 @@ TEST_CASE("OrientedLine covers the non-Convex contract through Line delegation")
     CHECK(vertical.crosses(Rectangle({1, -1}, {3, 1})));
 }
 
+TEST_CASE("OrientedLine asOrientedSegmentFor returns a segment that meets the rectangle the same way") {
+    using Point = pgl::Point<int>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle rect({0, 0}, {10, 10});
+
+    // The returned segment must relate to the rectangle exactly like the line, and
+    // (when they meet) keep both endpoints strictly outside the closed rectangle.
+    const auto closedContains = [&](const Point& p) {
+        return p.x() >= 0 && p.x() <= 10 && p.y() >= 0 && p.y() <= 10;
+    };
+    const auto sameWay = [&](const OrientedLine& line) {
+        const OrientedSegment seg = line.asOrientedSegmentFor(rect);
+        CHECK(seg.intersects(rect) == line.intersects(rect));
+        CHECK(seg.crosses(rect) == line.crosses(rect));
+        CHECK(seg.separates(rect) == line.separates(rect));
+        if (line.intersects(rect)) {
+            CHECK_FALSE(closedContains(seg.source()));
+            CHECK_FALSE(closedContains(seg.target()));
+        }
+        return seg;
+    };
+
+    // Horizontal: extended one past each vertical edge, orientation preserved.
+    CHECK(sameWay(OrientedLine({-2, 1}, {6, 1})) == OrientedSegment({-1, 1}, {11, 1}));
+    CHECK(sameWay(OrientedLine({6, 1}, {-2, 1})) == OrientedSegment({11, 1}, {-1, 1}));
+
+    // Vertical: extended one past each horizontal edge.
+    CHECK(sameWay(OrientedLine({1, -2}, {1, 6})) == OrientedSegment({1, -1}, {1, 11}));
+    CHECK(sameWay(OrientedLine({1, 6}, {1, -2})) == OrientedSegment({1, 11}, {1, -1}));
+
+    // Diagonal chord through the interior (both orientations).
+    CHECK(sameWay(OrientedLine({0, 0}, {10, 10})) == OrientedSegment({-10, -10}, {20, 20}));
+    CHECK(sameWay(OrientedLine({0, 10}, {10, 0})) == OrientedSegment({-10, 20}, {20, -10}));
+    sameWay(OrientedLine({1, 2}, {3, 4}));   // shallow-ish, off-origin
+    sameWay(OrientedLine({3, 4}, {1, 2}));   // reversed
+    sameWay(OrientedLine({4, -5}, {6, 30}));  // steep
+
+    // A line that enters at a corner and continues into the interior still crosses.
+    const OrientedLine cornerIn({0, 0}, {3, 1});
+    CHECK(cornerIn.crosses(rect));
+    CHECK(sameWay(cornerIn).crosses(rect));
+
+    // Single-vertex graze: touches only the corner (0,0), so it neither crosses nor
+    // separates; the segment must do the same while still containing the corner.
+    const OrientedLine graze({-2, 2}, {2, -2});
+    CHECK(graze.intersects(rect));
+    CHECK_FALSE(graze.crosses(rect));
+    CHECK_FALSE(graze.separates(rect));
+    const OrientedSegment grazeSeg = sameWay(graze);
+    CHECK(grazeSeg.contains(Point(0, 0)));
+
+    // Disjoint line: the original defining points are returned unchanged.
+    const OrientedLine disjoint({20, 0}, {24, 4});
+    REQUIRE_FALSE(rect.intersects(disjoint));
+    CHECK(disjoint.asOrientedSegmentFor(rect) == OrientedSegment({20, 0}, {24, 4}));
+}
+
+TEST_CASE("OrientedLine asOrientedSegmentFor supports exact rational coordinates") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle rect({Rational(0), Rational(0)}, {Rational(10), Rational(10)});
+    const OrientedLine line({Rational(1), Rational(2)}, {Rational(3), Rational(5)});
+    const auto seg = line.asOrientedSegmentFor(rect);
+
+    CHECK(seg.crosses(rect) == line.crosses(rect));
+    CHECK(seg.separates(rect) == line.separates(rect));
+    CHECK(line.crosses(rect));
+    CHECK(seg.crosses(rect));
+}
+
 TEST_CASE("OrientedLine interiorContains another oriented line") {
     using Point = pgl::Point<int>;
     using OrientedLine = pgl::OrientedLine<Point>;

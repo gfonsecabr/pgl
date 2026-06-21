@@ -319,7 +319,8 @@ struct OrientedLine {
     /**
      * @brief Returns the oriented segment that intersects r the same way as this oriented line.
      *
-     * Coordinates grow by at most a constant times the maximum coordinate of the defining points.
+     * Coordinates grow by at most a constant times the maximum coordinate of the defining points and no segment endpoint lies on the rectangle boundary.
+     * Complexity: O(1)
      *
      * @return Oriented segment that intersects the rectangle the same way as this oriented line.
      * @param rect Rectangle to intersect with.
@@ -331,24 +332,80 @@ struct OrientedLine {
             return OrientedSegment<PointType>(source(), target());
         }
 
+        const NumberType minX = rect.min().x();
+        const NumberType minY = rect.min().y();
+        const NumberType maxX = rect.max().x();
+        const NumberType maxY = rect.max().y();
+
         if (isHorizontal()) {
             if (source().x() < target().x()) {
-                return OrientedSegment<PointType>(PointType(rect.minX(), source().y()), PointType(rect.maxX(), target().y()));
+                return OrientedSegment<PointType>(PointType(minX - 1, source().y()), PointType(maxX + 1, target().y()));
             }
-            return OrientedSegment<PointType>(PointType(rect.maxX(), source().y()), PointType(rect.minX(), target().y()));
+            return OrientedSegment<PointType>(PointType(maxX + 1, source().y()), PointType(minX - 1, target().y()));
         }
         if (isVertical()) {
             if (source().y() < target().y()) {
-                return OrientedSegment<PointType>(PointType(source().x(), rect.minY()), PointType(target().x(), rect.maxY()));
+                return OrientedSegment<PointType>(PointType(source().x(), minY - 1), PointType(target().x(), maxY + 1));
             }
-            return OrientedSegment<PointType>(PointType(source().x(), rect.maxY()), PointType(target().x(), rect.minY()));
+            return OrientedSegment<PointType>(PointType(source().x(), maxY + 1), PointType(target().x(), minY - 1));
         }
 
-        OrientedSegment<PointType> seg(source(), target());
+        // The supporting line is neither vertical nor horizontal, so v = target - source
+        // has nonzero components and meets the rectangle either at a single corner or in
+        // a chord crossing two edges. P(t) = source + t * v parametrizes the line.
+        const NumberType sx = source().x();
+        const NumberType sy = source().y();
+        const NumberType dx = target().x() - sx;  // v.x() != 0
+        const NumberType dy = target().y() - sy;  // v.y() != 0
 
-        // FIXME
+        // Clip the line to the rectangle's two slabs in parameter space and round each
+        // end outward, so the endpoints land just outside the crossed edges while the
+        // segment still covers the whole chord. Outward rounding (floor for the entry
+        // parameter, ceil for the exit) is what makes this robust to integer division:
+        // truncation could otherwise leave an endpoint inside the rectangle. A line that
+        // only grazes a corner is the degenerate chord where the two slabs meet at a
+        // single parameter; the same clip yields a segment touching just that corner.
+        const auto floorDiv = [](NumberType n, NumberType d) -> NumberType {
+            if (d < NumberType(0)) { n = -n; d = -d; }
+            NumberType q = n / d;
+            if (n - q * d != NumberType(0) && n < NumberType(0)) { --q; }
+            return q;
+        };
+        const auto ceilDiv = [](NumberType n, NumberType d) -> NumberType {
+            if (d < NumberType(0)) { n = -n; d = -d; }
+            NumberType q = n / d;
+            if (n - q * d != NumberType(0) && n > NumberType(0)) { ++q; }
+            return q;
+        };
 
-        return seg;
+        // Entry/exit parameters of each axis slab (entry <= exit within the slab).
+        const NumberType xEntry = (dx > NumberType(0)) ? (minX - sx) : (maxX - sx);
+        const NumberType xExit = (dx > NumberType(0)) ? (maxX - sx) : (minX - sx);
+        const NumberType yEntry = (dy > NumberType(0)) ? (minY - sy) : (maxY - sy);
+        const NumberType yExit = (dy > NumberType(0)) ? (maxY - sy) : (minY - sy);
+
+        // floor(t_enter) = max over slabs of floor(entry); ceil(t_exit) = min of ceil(exit).
+        const NumberType aX = floorDiv(xEntry, dx);
+        const NumberType aY = floorDiv(yEntry, dy);
+        const NumberType bX = ceilDiv(xExit, dx);
+        const NumberType bY = ceilDiv(yExit, dy);
+
+        NumberType a = aX > aY ? aX : aY;
+        NumberType b = bX < bY ? bX : bY;
+
+        // floor/ceil may land an endpoint exactly on a rectangle edge when the
+        // crossing parameter is integral. Stepping it one further out makes the
+        // parameter strictly past the entry/exit, hence strictly outside, so a single
+        // step always suffices and both endpoints end up strictly outside.
+        const auto onOrInside = [&](const NumberType& px, const NumberType& py) {
+            return px >= minX && px <= maxX && py >= minY && py <= maxY;
+        };
+        if (onOrInside(sx + a * dx, sy + a * dy)) { --a; }
+        if (onOrInside(sx + b * dx, sy + b * dy)) { ++b; }
+
+        return OrientedSegment<PointType>(
+            PointType(sx + a * dx, sy + a * dy),
+            PointType(sx + b * dx, sy + b * dy));
     }
 
     /**
