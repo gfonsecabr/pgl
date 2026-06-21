@@ -1,13 +1,13 @@
 #pragma once
 
-#include "geometry/orientedline.hpp"
+#include "shape/line.hpp"
 
 /**
- * @file ray.hpp
- * @brief Public declaration of pgl::Ray.
+ * @file orientedline.hpp
+ * @brief Public declaration of pgl::OrientedLine.
  *
- * Ray represents a half-infinite 1D primitive with a source point and a
- * direction inherited from its defining points.
+ * Oriented lines add left/right side semantics, which feed halfplanes,
+ * orientation tests, and directed geometric constructions.
  */
 
 #include <array>
@@ -23,68 +23,70 @@
 #include <variant>
 
 
+
 namespace pgl {
 
 template <class PointType = Point<>, class Label>
-struct Ray;
+struct OrientedLine;
 
-Ray() -> Ray<Point<>, NoLabel>;
+OrientedLine() -> OrientedLine<Point<>, NoLabel>;
 
 template <class PointType>
-Ray(PointType, PointType) -> Ray<PointType, NoLabel>;
+OrientedLine(PointType, PointType) -> OrientedLine<PointType, NoLabel>;
 
 template <class PointType, class A>
-Ray(PointType, PointType, A) -> Ray<PointType, std::decay_t<A>>;
+OrientedLine(PointType, PointType, A) -> OrientedLine<PointType, std::decay_t<A>>;
 
 template <class Number>
-Ray(Number, Number, Number, Number) -> Ray<Point<Number>, NoLabel>;
+OrientedLine(Number, Number, Number, Number) -> OrientedLine<Point<Number>, NoLabel>;
 
 /**
- * @brief Half-line starting at a source point and extending through a target.
+ * @brief Infinite oriented straight line.
  *
- * The stored point order is preserved exactly as provided. Two non-degenerate
- * rays compare equal whenever they share the same source and direction.
+ * Two non-degenerate oriented lines compare equal whenever they contain the
+ * same points and point in the same direction. The stored defining points are
+ * preserved exactly as provided.
  *
  * @tparam PointType Defining point type.
  */
 template <class PointType_, class TLabel>
-struct Ray {
+struct OrientedLine {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
     using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
-    static_assert(detail::is_point_v<PointType>, "Ray requires pgl::Point defining points");
+    static_assert(detail::is_point_v<PointType>, "OrientedLine requires pgl::Point defining points");
 
     /**
-     * @brief Creates the degenerate ray `(0,0)--(0,0)->`.
+     * @brief Creates the degenerate oriented line `(0,0)--(0,0)`.
      */
-    constexpr Ray() = default;
+    constexpr OrientedLine() = default;
 
     /**
-     * @brief Creates a ray from a source and a second point on the ray.
+     * @brief Creates an oriented line from two defining points.
      *
      * The point order is preserved exactly as provided.
      *
-     * @param source Source point of the ray.
-     * @param target Any other point on the ray direction.
+     * @param source Source defining point.
+     * @param target Target defining point.
      */
-    constexpr Ray(PointType source, PointType target)
+    constexpr OrientedLine(PointType source, PointType target)
         : points_{std::move(source), std::move(target)} {}
 
     /**
-     * @brief Creates a ray from four coordinates.
+     * @brief Creates an oriented line from four coordinates.
      *
      * @param x1 X coordinate of the source.
      * @param y1 Y coordinate of the source.
      * @param x2 X coordinate of the target.
      * @param y2 Y coordinate of the target.
      */
-    constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
-        : Ray(PointType(x1, y1), PointType(x2, y2)) {}
+    constexpr OrientedLine(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
+        : OrientedLine(PointType(x1, y1), PointType(x2, y2)) {}
 
     /**
-     * @brief Creates a ray from a source and a second point and stores a label.
+     * @brief Creates an oriented line from two defining points and stores a label.
      *
      * The point order is preserved exactly as provided.
      *
@@ -92,31 +94,31 @@ struct Ray {
      */
     template <class A>
         requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
-    constexpr Ray(PointType source, PointType target, A&& label)
+    constexpr OrientedLine(PointType source, PointType target, A&& label)
         : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
     /** @brief Same as the four-coordinate constructor, and stores a label. */
     template <class A>
         requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
-    constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
-        : Ray(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+    constexpr OrientedLine(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : OrientedLine(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
 
     /**
-     * @brief Converts a ray with a different point and/or label type.
+     * @brief Converts an oriented line with a different point and/or label type.
      *
      * The defining points are converted to @ref PointType, preserving their
      * order, and the label is copied when both sides carry one.
      */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Ray(const Ray<OtherPointType, OtherLabelType>& other)
-        : Ray(PointType(other.source()), PointType(other.target())) {
+    constexpr OrientedLine(const OrientedLine<OtherPointType, OtherLabelType>& other)
+        : OrientedLine(PointType(other.source()), PointType(other.target())) {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Ray& operator=(const Ray<OtherPointType, OtherLabelType>& other) {
+    constexpr OrientedLine& operator=(const OrientedLine<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
         label_ = detail::copyLabel<LabelType>(other);
@@ -172,7 +174,7 @@ struct Ray {
     }
 
     /**
-     * @brief Returns the source point of the ray.
+     * @brief Returns the source defining point.
      *
      * @return Reference to the source.
      */
@@ -184,9 +186,9 @@ struct Ray {
     }
 
     /**
-     * @brief Returns the second stored point defining the direction.
+     * @brief Returns the target defining point.
      *
-     * @return Reference to the target point.
+     * @return Reference to the target.
      */
     constexpr const PointType& target() const {
         return points_[1];
@@ -196,7 +198,7 @@ struct Ray {
     }
 
     /**
-     * @brief Returns the lexicographically smallest stored defining point.
+     * @brief Returns the lexicographically smallest defining point.
      *
      * @return Reference to the smaller stored point.
      */
@@ -205,7 +207,7 @@ struct Ray {
     }
 
     /**
-     * @brief Returns the lexicographically largest stored defining point.
+     * @brief Returns the lexicographically largest defining point.
      *
      * @return Reference to the larger stored point.
      */
@@ -214,18 +216,18 @@ struct Ray {
     }
 
     /**
-     * @brief Returns the ray obtained by swapping the two stored defining points.
+     * @brief Returns the opposite orientation of the same geometric line.
      *
-     * @return Ray with exchanged source and target.
+     * @return Reversed oriented line.
      */
-    constexpr Ray opposite() const {
-        return Ray(target(), source());
+    constexpr OrientedLine opposite() const {
+        return OrientedLine(target(), source());
     }
 
     /**
-     * @brief Returns an iterator to the source point.
+     * @brief Returns an iterator to the source defining point.
      *
-     * @return Pointer to the source point.
+     * @return Pointer to the source.
      */
     constexpr auto begin() const {
         return points_.cbegin();
@@ -235,18 +237,18 @@ struct Ray {
     }
 
     /**
-     * @brief Returns an iterator to the source point.
+     * @brief Returns an iterator to the source defining point.
      *
-     * @return Pointer to the source point.
+     * @return Pointer to the source.
      */
     constexpr auto cbegin() const {
         return points_.cbegin();
     }
 
     /**
-     * @brief Returns an iterator past the target point.
+     * @brief Returns an iterator past the target defining point.
      *
-     * @return Pointer past the target point.
+     * @return Pointer past the target.
      */
     constexpr auto end() const {
         return points_.cend();
@@ -256,38 +258,38 @@ struct Ray {
     }
 
     /**
-     * @brief Returns an iterator past the target point.
+     * @brief Returns an iterator past the target defining point.
      *
-     * @return Pointer past the target point.
+     * @return Pointer past the target.
      */
     constexpr auto cend() const {
         return points_.cend();
     }
 
     /**
-     * @brief Tests equality of the represented ray.
+     * @brief Tests equality of the represented oriented line.
      *
-     * Degenerate rays compare by their unique point. Non-degenerate rays
-     * compare by their source and normalized direction.
+     * Non-degenerate lines compare by their oriented normalized implicit
+     * equation. Degenerate lines compare by their unique defining point.
      *
-     * @param other Ray to compare with.
-     * @return `true` if both rays represent the same geometric set.
+     * @param other Oriented line to compare with.
+     * @return `true` if both lines represent the same oriented geometric set.
      */
-    [[nodiscard]] constexpr bool operator==(const Ray& other) const;
+    [[nodiscard]] constexpr bool operator==(const OrientedLine& other) const;
 
     /**
-     * @brief Provides an ordering compatible with ray equality.
+     * @brief Provides an ordering compatible with oriented-line equality.
      *
-     * @param other Ray to compare with.
+     * @param other Oriented line to compare with.
      * @return Comparison result.
      * @warning Coordinates are cubed but a single promotion is used.
      */
-    [[nodiscard]] constexpr auto operator<=>(const Ray& other) const;
+    [[nodiscard]] constexpr auto operator<=>(const OrientedLine& other) const;
 
     /**
-     * @brief Returns the ray label.
+     * @brief Returns the line label.
      *
-     * The label is mutable even through a const ray: it is metadata that
+     * The label is mutable even through a const line: it is metadata that
      * does not participate in equality, hashing, or geometric predicates.
      *
      * @return Reference to the stored label.
@@ -299,97 +301,81 @@ struct Ray {
     }
 
     /**
-     * @brief Converts to the unoriented supporting line.
+     * @brief Converts to the unoriented line with the same supporting set.
      *
-     * @return Line containing the ray.
+     * @return Unoriented supporting line.
      */
     [[nodiscard]] constexpr explicit operator Line<PointType>() const;
 
     /**
-     * @brief Returns the supporting line without orientation.
+     * @brief Returns the line without orientation.
      *
-     * @return Line containing the ray.
+     * @return Unoriented supporting line.
      */
     [[nodiscard]] constexpr Line<PointType> asLine() const {
         return static_cast<Line<PointType>>(*this);
     }
 
     /**
-     * @brief Converts to the oriented supporting line.
-     *
-     * @return Oriented line containing the ray.
-     */
-    [[nodiscard]] constexpr explicit operator OrientedLine<PointType>() const;
-
-    /**
-     * @brief Returns the oriented supporting line.
-     *
-     * @return Oriented line containing the ray.
-     */
-    [[nodiscard]] constexpr OrientedLine<PointType> asOrientedLine() const {
-        return static_cast<OrientedLine<PointType>>(*this);
-    }
-
-    /**
-     * @brief Returns the ray rotated by 90k degrees around the origin.
+     * @brief Returns the oriented line rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
-     * @return Rotated ray.
+     * @return Rotated oriented line.
      */
-    [[nodiscard]] constexpr Ray rotated90(int k = 1) const;
+    [[nodiscard]] constexpr OrientedLine rotated90(int k = 1) const;
 
     /**
-     * @brief Rotates the ray by 90k degrees around the origin in place.
+     * @brief Rotates the oriented line by 90k degrees around the origin in place.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
      */
     constexpr void rotate90(int k = 1);
 
-    /** @brief Returns the ray with its x-coordinates multiplied by a factor. */
+    /** @brief Returns the line with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Ray scaledUpX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OrientedLine scaledUpX(const OtherNumber scalar) const;
 
-    /** @brief Multiplies the ray's x-coordinates by a factor in place. */
+    /** @brief Multiplies the line's x-coordinates by a factor in place. */
     template <class OtherNumber>
     constexpr void scaleUpX(const OtherNumber scalar);
 
-    /** @brief Returns the ray with its y-coordinates multiplied by a factor. */
+    /** @brief Returns the line with its y-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Ray scaledUpY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OrientedLine scaledUpY(const OtherNumber scalar) const;
 
-    /** @brief Multiplies the ray's y-coordinates by a factor in place. */
+    /** @brief Multiplies the line's y-coordinates by a factor in place. */
     template <class OtherNumber>
     constexpr void scaleUpY(const OtherNumber scalar);
 
-    /** @brief Returns the ray with its x-coordinates divided by a divisor. */
+    /** @brief Returns the line with its x-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Ray scaledDownX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OrientedLine scaledDownX(const OtherNumber scalar) const;
 
-    /** @brief Divides the ray's x-coordinates by a divisor in place. */
+    /** @brief Divides the line's x-coordinates by a divisor in place. */
     template <class OtherNumber>
     constexpr void scaleDownX(const OtherNumber scalar);
 
-    /** @brief Returns the ray with its y-coordinates divided by a divisor. */
+    /** @brief Returns the line with its y-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Ray scaledDownY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OrientedLine scaledDownY(const OtherNumber scalar) const;
 
-    /** @brief Divides the ray's y-coordinates by a divisor in place. */
+    /** @brief Divides the line's y-coordinates by a divisor in place. */
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar);
 
     /**
-     * @brief Returns the area of the ray.
+     * @brief Returns the area of the line.
      *
-     * A ray is one-dimensional, so its area is always zero.
+     * A line is one-dimensional, so its area is always zero.
      *
      * @return Zero.
      */
     [[nodiscard]] constexpr NumberType area() const;
 
     /**
-     * @brief Returns twice the area of the ray.
+     * @brief Returns twice the area of the line.
      *
-     * A ray is one-dimensional, so this is always zero.
+     * A line is one-dimensional, so this is always zero.
      *
      * @return Zero.
      */
@@ -398,21 +384,21 @@ struct Ray {
     /**
      * @brief Returns whether the defining points coincide.
      *
-     * @return `true` if the source and target are equal.
+     * @return `true` if both defining points are equal.
      */
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
-     * @brief Returns whether the ray is vertical.
+     * @brief Returns whether the line is vertical.
      *
-     * @return `true` if the defining points have the same x-coordinate.
+     * @return `true` if both defining points have the same x-coordinate.
      */
     [[nodiscard]] constexpr bool isVertical() const;
 
     /**
-     * @brief Returns whether the ray is horizontal.
+     * @brief Returns whether the line is horizontal.
      *
-     * @return `true` if the defining points have the same y-coordinate.
+     * @return `true` if both defining points have the same y-coordinate.
      */
     [[nodiscard]] constexpr bool isHorizontal() const;
 
@@ -423,8 +409,7 @@ struct Ray {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    // A ray's boundary is its source point alone, so it boundary-contains no
-    // positive-length or two-dimensional shape.
+    // An oriented line has empty boundary, so it boundary-contains no non-point shape.
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
@@ -458,9 +443,6 @@ struct Ray {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
-
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool containsCollinear(const OtherPoint& point) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PointConcept OtherPoint>
@@ -592,7 +574,7 @@ struct Ray {
     [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
 
     /**
-     * @brief Returns the orientation sign of a point with respect to the ray.
+     * @brief Returns the orientation sign of a point with respect to the line.
      *
      * Negative means the point lies on the right, positive on the left, and
      * equivalent to zero when the point is collinear.
@@ -606,9 +588,9 @@ struct Ray {
     [[nodiscard]] constexpr std::partial_ordering orientation(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the signed slope of the supporting line.
+     * @brief Returns the signed slope of the line.
      *
-     * Undefined behavior for vertical rays.
+     * Undefined behavior for vertical lines.
      *
      * @tparam ResultNumber Coordinate type of the returned slope.
      * @return Signed slope.
@@ -617,9 +599,39 @@ struct Ray {
     [[nodiscard]] constexpr ResultNumber slope() const;
 
     /**
+     * @brief Returns the y-coordinate of the supporting line at a given x-coordinate, if defined.
+     *
+     * This ignores the stored orientation and delegates to the underlying
+     * geometric line.
+     *
+     * @tparam ResultNumber Coordinate type of the returned value.
+     * @tparam OtherNumber Coordinate type of the query x-coordinate.
+     * @param x Query x-coordinate.
+     * @return Corresponding y-coordinate, or empty when undefined.
+     * @warning Uses division after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, class OtherNumber>
+    [[nodiscard]] constexpr std::optional<ResultNumber> yAtX(const OtherNumber& x) const;
+
+    /**
+     * @brief Returns the x-coordinate of the supporting line at a given y-coordinate, if defined.
+     *
+     * This ignores the stored orientation and delegates to the underlying
+     * geometric line.
+     *
+     * @tparam ResultNumber Coordinate type of the returned value.
+     * @tparam OtherNumber Coordinate type of the query y-coordinate.
+     * @param y Query y-coordinate.
+     * @return Corresponding x-coordinate, or empty when undefined.
+     * @warning Uses division after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, class OtherNumber>
+    [[nodiscard]] constexpr std::optional<ResultNumber> xAtY(const OtherNumber& y) const;
+
+    /**
      * @brief Returns the half-plane geometrically above the supporting line.
      *
-     * This ignores the stored ray direction and depends only on the supporting
+     * This ignores the stored orientation and depends only on the underlying
      * geometric line.
      *
      * @return Closed half-plane above the supporting line.
@@ -629,7 +641,7 @@ struct Ray {
     /**
      * @brief Returns the half-plane geometrically below the supporting line.
      *
-     * This ignores the stored ray direction and depends only on the supporting
+     * This ignores the stored orientation and depends only on the underlying
      * geometric line.
      *
      * @return Closed half-plane below the supporting line.
@@ -637,14 +649,14 @@ struct Ray {
     [[nodiscard]] constexpr Halfplane<PointType> halfplaneBelow() const;
 
     /**
-     * @brief Returns the half-plane on the right of the ray direction.
+     * @brief Returns the half-plane on the right of the oriented line.
      *
      * @return Closed right half-plane.
      */
     [[nodiscard]] constexpr Halfplane<PointType> rightHalfplane() const;
 
     /**
-     * @brief Returns the half-plane on the left of the ray direction.
+     * @brief Returns the half-plane on the left of the oriented line.
      *
      * @return Closed left half-plane.
      */
@@ -661,9 +673,6 @@ struct Ray {
 
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
-
-    template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<PointConcept OtherPoint>
@@ -686,15 +695,11 @@ struct Ray {
     [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
-    template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
-
-    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
@@ -726,12 +731,8 @@ struct Ray {
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
-    template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
-
-    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
@@ -754,6 +755,10 @@ struct Ray {
     [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
 
@@ -762,16 +767,8 @@ struct Ray {
     [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
-    template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
-
-    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
-
-    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
@@ -784,6 +781,20 @@ struct Ray {
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
+
+    /**
+     * @brief Orders two lines by where they cross this oriented line.
+     *
+     * Following this oriented line's orientation, returns `less` if @p first
+     * crosses before @p second, `greater` if after, `equivalent` if both cross
+     * at the same point, and `unordered` if either line is parallel to this one.
+     *
+     * Uses only the orientation of the defining points; no crossing point is
+     * ever constructed.
+     */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr std::partial_ordering
+    crossingOrder(const OtherLine& first, const OtherLine& second) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PointConcept OtherPoint>
@@ -810,10 +821,6 @@ struct Ray {
     [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
 
@@ -822,18 +829,14 @@ struct Ray {
     [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
 
-    /**
-     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
-     *
-     * Like the segment overload, but a ray contributes only its source as a
-     * finite end; its far end runs to infinity, always outside the bounded
-     * polygon, so only the source can lie strictly inside.
-     *
-     * Complexity: O(n) for n polygon vertices.
-     */
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
@@ -861,34 +864,27 @@ struct Ray {
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherLine& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedLine& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OtherSegment& other) const;
+    [[nodiscard]] constexpr auto intersection(const OtherSegment& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OtherOrientedSegment& other) const;
-
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
-    intersection(const OtherRay& other) const;
+    [[nodiscard]] constexpr auto intersection(const OtherOrientedSegment& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
-                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
-                  && requires(const OtherShape& o, const Ray& self) {
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
+                  && requires(const OtherShape& o, const OrientedLine& self) {
                          o.template intersection<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
@@ -900,38 +896,6 @@ struct Ray {
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
         return {};
     }
-
-    /**
-     * @brief Returns the value of the y coordinate for a given x, if it exists.
-     *
-     * Delegates to the supporting line, then keeps the result only if the
-     * resulting point lies on the ray.
-     *
-     * @tparam ResultNumber Number type of the return value.
-     * @tparam OtherNumber Coordinate type of the x coordinate.
-     * @param x Given x coordinate.
-     * @return An std::optional of ResultNumber corresponding to the y coordinate.
-     * @warning Divides coordinates after casting to ResultNumber.
-     */
-    template <class ResultNumber = NumberType, class OtherNumber>
-    [[nodiscard]] constexpr std::optional<ResultNumber>
-    yAtX(const OtherNumber &x) const;
-
-    /**
-     * @brief Returns the value of the x coordinate for a given y, if it exists.
-     *
-     * Delegates to the supporting line, then keeps the result only if the
-     * resulting point lies on the ray.
-     *
-     * @tparam ResultNumber Number type of the return value.
-     * @tparam OtherNumber Coordinate type of the y coordinate.
-     * @param y Given y coordinate.
-     * @return An std::optional of ResultNumber corresponding to the x coordinate.
-     * @warning Divides coordinates after casting to ResultNumber.
-     */
-    template <class ResultNumber = NumberType, class OtherNumber>
-    [[nodiscard]] constexpr std::optional<ResultNumber>
-    xAtY(const OtherNumber &y) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
@@ -963,10 +927,6 @@ struct Ray {
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
-    /** @copydoc squaredDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
-    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
-
     /**
      * @brief Returns the squared Euclidean distance to a higher-ranked shape.
      *
@@ -974,8 +934,8 @@ struct Ray {
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
      */
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
-                  && requires(const OtherShape& o, const Ray& self) {
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
+                  && requires(const OtherShape& o, const OrientedLine& self) {
                          o.template squaredDistance<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
@@ -983,30 +943,30 @@ struct Ray {
     }
 
     template<PointConcept OtherPoint>
-    constexpr Ray& operator+=(const OtherPoint& translation);
+    constexpr OrientedLine& operator+=(const OtherPoint& translation);
 
     template<PointConcept OtherPoint>
-    constexpr Ray& operator-=(const OtherPoint& translation);
+    constexpr OrientedLine& operator-=(const OtherPoint& translation);
 
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
-    constexpr Ray& operator*=(const Scalar& scalar);
+    constexpr OrientedLine& operator*=(const Scalar& scalar);
 
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
-    constexpr Ray& operator/=(const Scalar& scalar);
+    constexpr OrientedLine& operator/=(const Scalar& scalar);
 
     /**
-     * @brief Returns a point inside the ray.
+     * @brief Returns a point inside the oriented line.
      *
-     * For a ray, this is the target point.
+     * For a line, this is the source point.
      *
-     * @return The target point.
+     * @return The source point.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
-private:
+    private:
     template <class OtherNumber>
     using promoted_number_t = std::common_type_t<CoordinateType, detail::promoted_number_t<OtherNumber>>;
 
@@ -1015,27 +975,27 @@ private:
 };
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
+constexpr auto operator+(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType, LabelType>& ray);
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType, LabelType>& line);
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
+constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
+constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
 template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Ray<PointType, LabelType>& ray);
+constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType, LabelType>& line);
 
 template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
+constexpr auto operator/(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
 template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& ray);
+std::ostream& operator<<(std::ostream& stream, const OrientedLine<PointType, LabelType>& line);
 
 }  // namespace pgl

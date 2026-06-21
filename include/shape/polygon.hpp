@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/convex.hpp"
+#include "shape/convex.hpp"
 
 #include <algorithm>
 #include <vector>

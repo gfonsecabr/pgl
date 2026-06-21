@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/disk.hpp"
+#include "shape/disk.hpp"
 
 #include <algorithm>
 #include <vector>

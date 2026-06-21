@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/ray.hpp"
+#include "shape/ray.hpp"
 
 /**
  * @file rectangle.hpp

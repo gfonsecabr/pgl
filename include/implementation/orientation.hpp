@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/emptyshape.hpp"
+#include "shape/emptyshape.hpp"
 
 /**
  * @file orientation.hpp

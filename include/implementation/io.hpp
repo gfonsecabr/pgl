@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/shape.hpp"
+#include "shape/shape.hpp"
 
 /**
  * @file io.hpp

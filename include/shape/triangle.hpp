@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/rectangle.hpp"
+#include "shape/rectangle.hpp"
 
 /**
  * @file triangle.hpp

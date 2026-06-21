@@ -15,8 +15,8 @@
 #include <limits>
 #include <utility>
 #include <vector>
-#include "geometry/orientedline.hpp"
-#include "geometry/orientedsegment.hpp"
+#include "shape/orientedline.hpp"
+#include "shape/orientedsegment.hpp"
 #include "implementation/orientation.hpp"
 #include "predicates_helpers.hpp"
 
