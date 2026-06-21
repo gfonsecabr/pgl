@@ -896,18 +896,17 @@ struct Segment {
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
      * @return An std::optional of std::variant of Point and Segment representing the intersection.
-     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber=NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber=NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)

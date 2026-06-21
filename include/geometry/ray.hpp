@@ -859,32 +859,32 @@ struct Ray {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherLine& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedLine& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedSegment& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRay& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)

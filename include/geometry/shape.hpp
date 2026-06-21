@@ -596,6 +596,7 @@ struct Shape {
      * @throws std::logic_error when the result cannot be represented by a single
      *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
      *   whose intersection is unsupported (anything against a `Disk`).
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)

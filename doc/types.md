@@ -96,12 +96,12 @@ $$\mathrm{SAFE}(T) = \left\lfloor \frac{\sqrt{\mathrm{MAX}(T)}}{2} \right\rfloor
 
 Hence, it is safe to use coordinates of the following values.
 
-| base type     | promotion enabled   | promotion disabled  |
-| ------------- | ------------------: | ------------------: |
-| `int16_t`     |             $23170$ |                $90$ |
-| `int32_t`     |    $1.5 \cdot 10^9$ |             $23170$ |
-| `int64_t`     | $6.5 \cdot 10^{18}$ |    $1.5 \cdot 10^9$ |
-| `int128`      | never               | $6.5 \cdot 10^{18}$ |
+| base type     |          promotion enabled   |          promotion disabled  |
+| ------------- | ---------------------------: | ---------------------------: |
+| `int16_t`     |             $23170 > 2^{14}$ |                 $90 > 2^{6}$ |
+| `int32_t`     |    $1.5 \cdot 10^9 > 2^{30}$ |             $23170$ > 2^{14} |
+| `int64_t`     | $6.5 \cdot 10^{18} > 2^{60}$ |    $1.5 \cdot 10^9$ > 2^{30} |
+| `int128`      | never                        | $6.5 \cdot 10^{18} > 2^{62}$ |
 
 For disks, the inCircle test promotes numbers twice to avoid overflows.
 

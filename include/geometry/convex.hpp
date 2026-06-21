@@ -1500,6 +1500,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1514,6 +1515,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the oriented segment.
      * @param other The oriented segment to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1528,6 +1530,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the line.
      * @param other The line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1542,6 +1545,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the oriented line.
      * @param other The oriented line to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1556,6 +1560,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to intersect with.
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1570,6 +1575,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the rectangle.
      * @param other The rectangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1585,6 +1591,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the triangle.
      * @param other The triangle to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1599,6 +1606,7 @@ struct Convex {
      * @tparam OtherPoint The point type of the other convex polygon.
      * @param other The other convex polygon to intersect with.
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
