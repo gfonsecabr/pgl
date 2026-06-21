@@ -883,3 +883,63 @@ TEST_CASE("Convex hashing is consistent and cached across mutations") {
         CHECK(seen.size() == 2);
     }
 }
+
+TEST_CASE("Convex squaredDistance to a point") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using pgl::ERational;
+
+    SUBCASE("interior and boundary points are at distance zero") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        CHECK(square.squaredDistance<ERational>(Point(2, 2)) == 0);  // interior
+        CHECK(square.squaredDistance<ERational>(Point(4, 2)) == 0);  // on an edge
+        CHECK(square.squaredDistance<ERational>(Point(4, 4)) == 0);  // on a vertex
+    }
+
+    SUBCASE("exterior points: nearest is an edge or a vertex") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        CHECK(square.squaredDistance<ERational>(Point(7, 2)) == 9);    // perpendicular to an edge
+        CHECK(square.squaredDistance<ERational>(Point(7, 8)) == 25);   // nearest is corner (4,4)
+        CHECK(square.squaredDistance<ERational>(Point(2, -3)) == 9);   // below an edge
+        CHECK(square.squaredDistance<int>(Point(7, 2)) == 9);          // default integer result
+    }
+
+    SUBCASE("nearest point may lie far from the nearest vertex") {
+        // Long thin triangle: the closest vertex is one tip while the closest
+        // point sits on the opposite long edge.
+        const Convex triangle(std::vector<Point>{{-23, 23}, {16, 0}, {26, 4}});
+        ERational brute = triangle.edges().front().squaredDistance<ERational>(Point(8, 12));
+        for (const auto& e : triangle.edges()) {
+            brute = std::min(brute, e.squaredDistance<ERational>(Point(8, 12)));
+        }
+        CHECK(triangle.squaredDistance<ERational>(Point(8, 12)) == brute);
+    }
+
+    SUBCASE("matches an O(n) brute-force scan over random convex polygons") {
+        std::mt19937 rng(2026);
+        std::uniform_int_distribution<int> coord(-25, 25);
+        for (int trial = 0; trial < 4000; ++trial) {
+            std::vector<Point> pts;
+            const int count = 3 + static_cast<int>(rng() % 9);
+            for (int i = 0; i < count; ++i) {
+                pts.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+            const Point q(coord(rng), coord(rng));
+
+            ERational expected = convex.contains(q) ? ERational{0}
+                : convex.edges().front().squaredDistance<ERational>(q);
+            for (const auto& e : convex.edges()) {
+                expected = std::min(expected, e.squaredDistance<ERational>(q));
+            }
+            if (convex.contains(q)) {
+                expected = ERational{0};
+            }
+
+            CHECK(convex.squaredDistance<ERational>(q) == expected);
+        }
+    }
+}

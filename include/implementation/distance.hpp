@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <ranges>
 
 
 namespace pgl {
@@ -638,6 +640,106 @@ constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherTriang
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// Convex
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& point) const {
+    using Num = NumberType;
+    const PointType q(point);
+    if (contains(q)) {
+        return ResultNumber{};
+    }
+    if (size() <= 32) {
+        const std::ptrdiff_t n = size();
+        auto edgeVector = edges();
+        ResultNumber best = edgeVector[0].template squaredDistance<ResultNumber>(q);
+        for (auto & e : edgeVector) {
+            const ResultNumber current = e.template squaredDistance<ResultNumber>(q);
+            if (current < best) {
+                best = current;
+            }
+        }
+        return best;
+    }
+
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    const auto V = [this](std::ptrdiff_t i) { return get(i); };
+    const auto facing = [&](std::ptrdiff_t i) {
+        return orientationDeterminant(V(i), V(i + 1), q) < 0;
+    };
+
+    // Reference point c = (v0 + v1 + v2) / 3, strictly interior. To stay exact we
+    // work with vectors scaled by 3 (a positive factor, so signs are preserved).
+    const Num sx = V(0).x() + V(1).x() + V(2).x();
+    const Num sy = V(0).y() + V(1).y() + V(2).y();
+    const Num bx = Num{3} * q.x() - sx;   // 3 * (q - c)
+    const Num by = Num{3} * q.y() - sy;
+
+    // Sign of (V(k) - c) x (q - c). Around the boundary this changes sign exactly
+    // twice: at the edge the ray c->q exits through (which faces q) and at the
+    // opposite edge (which does not).
+    const auto dSign = [&](std::ptrdiff_t k) -> int {
+        const Num ax = Num{3} * V(k).x() - sx;   // 3 * (V(k) - c)
+        const Num ay = Num{3} * V(k).y() - sy;
+        const Num cross = ax * by - ay * bx;
+        return (cross > Num{0}) - (cross < Num{0});
+    };
+    // D(k) above is linear in V(k) with gradient (by, -bx); its argmax/argmin are
+    // the genuinely unimodal support function, so they bracket the two sign
+    // changes and are found in O(log n) with the existing cyclic search.
+    const auto gDot = [&](std::ptrdiff_t k) { return V(k).x() * by - V(k).y() * bx; };
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+    const std::ptrdiff_t mPos = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return gDot(k); });
+    const std::ptrdiff_t mNeg = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return -gDot(k); });
+
+    const auto wrap = [n](std::ptrdiff_t a) { return ((a % n) + n) % n; };
+    // Largest offset in [0, len] for which pred(from + step * offset) holds; the
+    // predicate is true...false over the bracket, so a binary search locates the
+    // transition.
+    const auto lastWhile =
+        [&](std::ptrdiff_t from, std::ptrdiff_t step, std::ptrdiff_t len, auto pred) {
+            std::ptrdiff_t lo = 0, hi = len;
+            while (lo < hi) {
+                const std::ptrdiff_t mid = (lo + hi + 1) / 2;
+                if (pred(from + step * mid)) {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            return lo;
+        };
+
+    // Exit edge (faces q): the + -> - sign change between the two D extrema.
+    const std::ptrdiff_t anchor = mPos + lastWhile(mPos, 1, wrap(mNeg - mPos),
+        [&](std::ptrdiff_t k) { return dSign(k) > 0; });
+    // Back edge (does not face q): the - -> + sign change on the other side.
+    const std::ptrdiff_t back = mNeg + lastWhile(mNeg, 1, wrap(mPos - mNeg),
+        [&](std::ptrdiff_t k) { return dSign(k) < 0; });
+
+    // Grow the contiguous chain of q-facing edges around the anchor.
+    const std::ptrdiff_t hiEdge = anchor + lastWhile(anchor, 1, wrap(back - anchor), facing);
+    const std::ptrdiff_t loEdge = anchor - lastWhile(anchor, -1, wrap(anchor - back), facing);
+
+    // Over the facing chain the per-edge distance is unimodal: pick the closest.
+    const auto edgeDist = [&](std::ptrdiff_t i) {
+        return Segment<PointType>(V(i), V(i + 1)).template squaredDistance<ResultNumber>(q);
+    };
+    std::ptrdiff_t lo = 0, hi = hiEdge - loEdge;
+    while (lo < hi) {
+        const std::ptrdiff_t mid = (lo + hi) / 2;
+        if (edgeDist(loEdge + mid) < edgeDist(loEdge + mid + 1)) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return edgeDist(loEdge + lo);
 }
 
 }  // namespace pgl
