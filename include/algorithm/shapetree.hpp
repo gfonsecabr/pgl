@@ -356,6 +356,30 @@ class ShapeTree {
             return false;
         }
 
+        // --- membership: a stored element equal to a given shape ---
+
+        // Searches for a stored element equal to `shape`, pruning any subtree
+        // whose box does not contain the shape's box `sb` (an equal element has
+        // exactly that box, so it cannot lie in such a subtree).
+        [[nodiscard]] bool containsShape(const ShapeTree& tree, const ShapeType& shape,
+                                         const Rect& sb) const {
+            if (!box.contains(sb)) {
+                return false;
+            }
+            for (std::size_t i : elementIndices) {
+                if (tree.elements_[i] == shape) {
+                    return true;
+                }
+            }
+            if (left != -1 && tree.nodes_[left].containsShape(tree, shape, sb)) {
+                return true;
+            }
+            if (right != -1 && tree.nodes_[right].containsShape(tree, shape, sb)) {
+                return true;
+            }
+            return false;
+        }
+
         // --- nearest neighbor: branch-and-bound on squared distance ---
 
         // Refines (bestDist, bestIndex) with the closest element in this subtree.
@@ -411,6 +435,14 @@ class ShapeTree {
     std::ptrdiff_t root_ = -1;
     std::size_t leafSize_ = defaultLeafSize;
     [[no_unique_address]] WeightFn weight_{};
+
+    // Appends a fresh node and returns its index, centralizing the "the index is
+    // the current size, then push" pattern shared by build and insert.
+    std::ptrdiff_t allocNode() {
+        const std::ptrdiff_t id = static_cast<std::ptrdiff_t>(nodes_.size());
+        nodes_.push_back(Node{});
+        return id;
+    }
 
     // The best split found on a single axis.
     struct Split {
@@ -523,8 +555,7 @@ class ShapeTree {
 
         // Reserve this node's slot now; recursion may reallocate nodes_, so the
         // node is always addressed by index, never by a dangling reference.
-        const std::ptrdiff_t id = static_cast<std::ptrdiff_t>(nodes_.size());
-        nodes_.push_back(Node{});
+        const std::ptrdiff_t id = allocNode();
         nodes_[id].box = box;
         nodes_[id].count = indices.size();
         nodes_[id].weightSum = weightSum;
@@ -635,14 +666,210 @@ class ShapeTree {
         insertInto(target, i, eb, level + 1);
     }
 
-    // Sends the subtree bounding boxes to the canvas in pre-order.
-    void drawSubtree(Canvas& canvas, std::ptrdiff_t id) const {
+    // True when the weight function actually produces weights (i.e. the user
+    // supplied one), so weight bookkeeping can be skipped entirely otherwise.
+    static constexpr bool hasWeight = !std::is_same_v<WeightType, detail::EmptyWeight>;
+
+    // A node holds nothing once it has neither elements nor children; such a
+    // node is detached from its parent by erase.
+    static bool nodeIsEmpty(const Node& node) {
+        return node.elementIndices.empty() && node.left == -1 && node.right == -1;
+    }
+
+    // Recomputes node id's box as the union of its children boxes and its own
+    // elements' boxes, and returns whether the box actually changed. The node
+    // must be non-empty (so the union is well defined).
+    bool recomputeBox(std::ptrdiff_t id) {
+        Node& node = nodes_[id];
+        Rect newBox{};
+        bool init = false;
+        for (std::size_t i : node.elementIndices) {
+            const Rect eb = Rect(elements_[i].bbox());
+            if (!init) {
+                newBox = eb;
+                init = true;
+            } else {
+                newBox.insert(eb);
+            }
+        }
+        if (node.left != -1) {
+            if (!init) {
+                newBox = nodes_[node.left].box;
+                init = true;
+            } else {
+                newBox.insert(nodes_[node.left].box);
+            }
+        }
+        if (node.right != -1) {
+            if (!init) {
+                newBox = nodes_[node.right].box;
+                init = true;
+            } else {
+                newBox.insert(nodes_[node.right].box);
+            }
+        }
+        const bool changed = !(newBox == node.box);
+        node.box = newBox;
+        return changed;
+    }
+
+    // Removes one stored element equal to `shape` from the subtree rooted at
+    // `id`. On success the element is removed from its owning node, every node on
+    // the path has its count decremented and its weight sum reduced by the
+    // removed weight, boxes are recomputed from the removal point upward and stop
+    // propagating once a box is unchanged, and any node left empty is detached
+    // from its parent. `removedIdx`/`removedWeight` receive the removed element's
+    // index and weight; `boxChanged` reports whether this node's box changed, so
+    // the parent only recomputes when it has to.
+    bool eraseFrom(std::ptrdiff_t id, const ShapeType& shape, const Rect& sb,
+                   std::size_t& removedIdx, WeightType& removedWeight, bool& boxChanged,
+                   std::vector<std::ptrdiff_t>& dead) {
+        boxChanged = false;
+        if (!nodes_[id].box.contains(sb)) {
+            return false;  // An equal element has box sb, so it cannot be here.
+        }
+
+        bool removed = false;
+        bool needBoxRecompute = false;
+
+        // Look among this node's own elements first.
+        auto& elems = nodes_[id].elementIndices;
+        for (std::size_t k = 0; k < elems.size(); ++k) {
+            if (elements_[elems[k]] == shape) {
+                removedIdx = elems[k];
+                if constexpr (hasWeight) {
+                    removedWeight = weight_(elements_[removedIdx]);
+                }
+                elems.erase(elems.begin() + static_cast<std::ptrdiff_t>(k));
+                removed = true;
+                needBoxRecompute = true;
+                break;
+            }
+        }
+
+        // Otherwise descend into the children, detaching one that empties out.
+        for (std::ptrdiff_t side = 0; !removed && side < 2; ++side) {
+            std::ptrdiff_t& child = side == 0 ? nodes_[id].left : nodes_[id].right;
+            if (child == -1) {
+                continue;
+            }
+            bool childBoxChanged = false;
+            if (eraseFrom(child, shape, sb, removedIdx, removedWeight, childBoxChanged, dead)) {
+                removed = true;
+                if (nodeIsEmpty(nodes_[child])) {
+                    dead.push_back(child);  // Reclaimed after the recursion unwinds.
+                    child = -1;
+                    needBoxRecompute = true;
+                } else if (childBoxChanged) {
+                    needBoxRecompute = true;
+                }
+            }
+        }
+
+        if (!removed) {
+            return false;
+        }
+
+        nodes_[id].count -= 1;
+        if constexpr (hasWeight) {
+            nodes_[id].weightSum = nodes_[id].weightSum - removedWeight;
+        }
+        if (nodeIsEmpty(nodes_[id])) {
+            boxChanged = true;  // The whole subtree is gone; the parent detaches it.
+            return true;
+        }
+        if (needBoxRecompute) {
+            boxChanged = recomputeBox(id);
+        }
+        return true;
+    }
+
+    // After an element is swap-removed in elements_, the element formerly at
+    // `oldIdx` now lives at `newIdx`; this fixes the single node reference to it.
+    // The element is stored in exactly one node, whose box (and every ancestor's)
+    // contains the element box `eb`; since sibling boxes are disjoint, at most one
+    // child can contain `eb`, so the owning node is reached on a single path down.
+    void remapElementIndex(std::size_t oldIdx, std::size_t newIdx, const Rect& eb) {
+        for (std::ptrdiff_t id = root_; id != -1;) {
+            for (std::size_t& ref : nodes_[id].elementIndices) {
+                if (ref == oldIdx) {
+                    ref = newIdx;
+                    return;
+                }
+            }
+            const std::ptrdiff_t left = nodes_[id].left;
+            // Descend into the unique child whose box contains eb (the right one
+            // when the left does not), since the element lies in one subtree.
+            id = (left != -1 && nodes_[left].box.contains(eb)) ? left : nodes_[id].right;
+        }
+    }
+
+    // Repoints the single reference to node `oldId` (a parent's child link, or
+    // the root) to `newId`, used when that node is relocated within nodes_. `b`
+    // is the relocated node's box; its parent is reached on a single path down,
+    // descending into the unique child whose box contains `b` (sibling boxes are
+    // disjoint, so only one can).
+    void repointNodeRef(std::ptrdiff_t oldId, std::ptrdiff_t newId, const Rect& b) {
+        if (root_ == oldId) {
+            root_ = newId;
+            return;
+        }
+        for (std::ptrdiff_t id = root_; id != -1;) {
+            if (nodes_[id].left == oldId) {
+                nodes_[id].left = newId;
+                return;
+            }
+            if (nodes_[id].right == oldId) {
+                nodes_[id].right = newId;
+                return;
+            }
+            const std::ptrdiff_t left = nodes_[id].left;
+            id = (left != -1 && nodes_[left].box.contains(b)) ? left : nodes_[id].right;
+        }
+    }
+
+    // Removes the detached node slots in `dead` from nodes_ by swap-removing each
+    // with the last node, keeping the array compact so interleaved insert/erase
+    // does not grow it without bound. Processing the dead indices in descending
+    // order guarantees the last slot is always a live node (every index past the
+    // largest remaining dead index is live), so the node moved into the hole is
+    // real and its one inbound reference can be repointed.
+    void compactNodes(std::vector<std::ptrdiff_t>& dead) {
+        std::sort(dead.begin(), dead.end());
+        for (auto it = dead.rbegin(); it != dead.rend(); ++it) {
+            const std::ptrdiff_t hole = *it;
+            const std::ptrdiff_t last = static_cast<std::ptrdiff_t>(nodes_.size()) - 1;
+            if (hole != last) {
+                nodes_[hole] = std::move(nodes_[last]);
+                repointNodeRef(last, hole, nodes_[hole].box);
+            }
+            nodes_.pop_back();
+        }
+    }
+
+    // Discards the current node structure and rebuilds it from elements_.
+    void buildFromElements() {
+        nodes_.clear();
+        root_ = -1;
+        if (elements_.empty()) {
+            return;
+        }
+        std::vector<std::size_t> indices(elements_.size());
+        for (std::size_t i = 0; i < indices.size(); ++i) {
+            indices[i] = i;
+        }
+        nodes_.reserve(2 * elements_.size() / leafSize_ + 1);
+        root_ = build(indices, 0);
+    }
+
+    // Appends the subtree bounding boxes to `out` in pre-order.
+    void collectBoundingBoxes(std::ptrdiff_t id, std::vector<Rect>& out) const {
         if (id == -1) {
             return;
         }
-        canvas << nodes_[id].box;
-        drawSubtree(canvas, nodes_[id].left);
-        drawSubtree(canvas, nodes_[id].right);
+        out.push_back(nodes_[id].box);
+        collectBoundingBoxes(nodes_[id].left, out);
+        collectBoundingBoxes(nodes_[id].right, out);
     }
 
   public:
@@ -663,15 +890,7 @@ class ShapeTree {
         for (const auto& s : shapes) {
             elements_.push_back(s);
         }
-        if (elements_.empty()) {
-            return;
-        }
-        std::vector<std::size_t> indices(elements_.size());
-        for (std::size_t i = 0; i < indices.size(); ++i) {
-            indices[i] = i;
-        }
-        nodes_.reserve(2 * elements_.size() / leafSize_ + 1);
-        root_ = build(indices, 0);
+        buildFromElements();
     }
 
     /**
@@ -744,8 +963,7 @@ class ShapeTree {
         const Rect eb = Rect(elements_[i].bbox());
 
         if (root_ == -1) {
-            root_ = static_cast<std::ptrdiff_t>(nodes_.size());
-            nodes_.push_back(Node{});
+            root_ = allocNode();
             nodes_[root_].box = eb;
             nodes_[root_].count = 1;
             nodes_[root_].weightSum = weight_(elements_[i]);
@@ -753,6 +971,73 @@ class ShapeTree {
             return;
         }
         insertInto(root_, i, eb, 0);
+    }
+
+    /**
+     * @brief Rebuilds the tree from the stored shapes, restoring its quality.
+     *
+     * @ref insert never reshapes existing nodes, so the structure degrades over
+     * many insertions; this discards the node structure and rebuilds it from
+     * scratch (the same way the constructor does) over the current shapes,
+     * leaving the stored shapes and their order unchanged.
+     *
+     * @param leafSize Maximum elements kept at a leaf before it is split. Pass 0
+     *        to keep the current leaf size.
+     */
+    void rebuild(std::size_t leafSize = 0) {
+        if (leafSize > 0) {
+            leafSize_ = leafSize;
+        }
+        buildFromElements();
+    }
+
+    /**
+     * @brief Removes one stored shape equal to `shape`.
+     *
+     * Descends to the node owning an element equal to `shape` (pruning by the
+     * cached boxes), removes it, and on the way back up decrements each node's
+     * count, subtracts the removed weight, and recomputes bounding boxes from the
+     * removal point upward until a box is unchanged. A node left empty is
+     * detached from its parent and reclaimed. The element is then swap-removed
+     * from storage and the moved element's reference is updated, so @ref shapes()
+     * stays compact; detached node slots are likewise swap-removed from the node
+     * array, so it does not grow under interleaved insert/erase.
+     *
+     * Like @ref insert, this does not rebalance, so the structure degrades over
+     * many removals; @ref rebuild restores it. Only the element order in
+     * @ref shapes() may change.
+     *
+     * @param shape Shape to remove.
+     * @return `true` if a matching shape was found and removed, `false` otherwise.
+     */
+    bool erase(const ShapeType& shape) {
+        if (root_ == -1) {
+            return false;
+        }
+        const Rect sb = Rect(shape.bbox());
+        std::size_t removedIdx = 0;
+        WeightType removedWeight{};
+        bool boxChanged = false;
+        std::vector<std::ptrdiff_t> dead;
+        if (!eraseFrom(root_, shape, sb, removedIdx, removedWeight, boxChanged, dead)) {
+            return false;
+        }
+        if (nodeIsEmpty(nodes_[root_])) {
+            dead.push_back(root_);
+            root_ = -1;
+        }
+
+        // Swap-remove the element from storage, repointing the moved element.
+        const std::size_t last = elements_.size() - 1;
+        if (removedIdx != last) {
+            elements_[removedIdx] = std::move(elements_[last]);
+            remapElementIndex(last, removedIdx, Rect(elements_[removedIdx].bbox()));
+        }
+        elements_.pop_back();
+
+        // Reclaim the detached node slots, keeping the node array compact.
+        compactNodes(dead);
+        return true;
     }
 
     /**
@@ -918,6 +1203,21 @@ class ShapeTree {
     }
 
     /**
+     * @brief Returns whether a shape equal to `shape` is stored in the tree.
+     *
+     * Tests exact membership with `operator==`, pruning any subtree whose cached
+     * box does not contain the shape's bounding box. This is distinct from the
+     * geometric `*ContainedIn` queries: it matches a stored shape identical to
+     * `shape`, not one geometrically inside a query region.
+     *
+     * @param shape Shape to look for.
+     * @return `true` if an equal shape is stored, `false` otherwise.
+     */
+    [[nodiscard]] bool contains(const ShapeType& shape) const {
+        return root_ != -1 && nodes_[root_].containsShape(*this, shape, Rect(shape.bbox()));
+    }
+
+    /**
      * @brief Returns the stored shape nearest to a query shape.
      *
      * Finds the stored shape minimizing `squaredDistance` to `q`, using a
@@ -959,17 +1259,34 @@ class ShapeTree {
     }
 
     /**
+     * @brief Returns every node's subtree bounding box in pre-order.
+     *
+     * Visits the root, then the left subtree, then the right subtree, collecting
+     * each node's cached bounding box. The result is empty for an empty tree.
+     *
+     * @return Vector of the node bounding boxes in pre-order.
+     */
+    [[nodiscard]] std::vector<Rect> boundingBoxes() const {
+        std::vector<Rect> out;
+        out.reserve(nodes_.size());
+        collectBoundingBoxes(root_, out);
+        return out;
+    }
+
+    /**
      * @brief Draws every node's subtree bounding box to a canvas in pre-order.
      *
-     * Visits the root, then the left subtree, then the right subtree, sending
-     * each node's cached bounding box to the canvas with its current style.
+     * Sends each box returned by @ref boundingBoxes to the canvas with its
+     * current style.
      *
      * @param canvas Destination canvas.
      * @param tree Tree whose node boxes are drawn.
      * @return The canvas.
      */
     friend Canvas& operator<<(Canvas& canvas, const ShapeTree& tree) {
-        tree.drawSubtree(canvas, tree.root_);
+        for (const Rect& box : tree.boundingBoxes()) {
+            canvas << box;
+        }
         return canvas;
     }
 };
