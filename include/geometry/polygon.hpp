@@ -1100,6 +1100,7 @@ struct Polygon {
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to intersect with.
      * @return The disjoint intersection pieces in order along the segment.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1111,6 +1112,7 @@ struct Polygon {
      * Same as the @ref Segment overload, ignoring orientation.
      *
      * Complexity: O(n log n) for n vertices.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1134,6 +1136,7 @@ struct Polygon {
      * @tparam OtherPoint The point type of the line.
      * @param other The line to intersect with.
      * @return The disjoint intersection pieces in order along the line.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1145,6 +1148,7 @@ struct Polygon {
      * Same as the @ref Line overload, ignoring orientation.
      *
      * Complexity: O(n log n) for n vertices.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1168,6 +1172,7 @@ struct Polygon {
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to intersect with.
      * @return The disjoint intersection pieces in order from the source outward.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, RayConcept OtherRay>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1192,6 +1197,7 @@ struct Polygon {
      * @tparam OtherPoint The point type of the other polygon.
      * @param other The other polygon to intersect with.
      * @return The intersection components: points, polylines, and polygons.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
@@ -1223,6 +1229,7 @@ struct Polygon {
      * @tparam OtherPoint The point type of the half-plane.
      * @param other The half-plane to intersect with.
      * @return The intersection components: points, segments, and polygons.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>

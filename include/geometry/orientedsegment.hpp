@@ -811,7 +811,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto intersection(const OtherSegment& other) const;
 
@@ -823,11 +823,12 @@ struct OrientedSegment {
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other oriented segment.
      * @return Empty if disjoint, otherwise a point or an unordered segment.
+     * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto intersection(const OtherOrientedSegment& other) const;
 
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<OrientedSegment>)
