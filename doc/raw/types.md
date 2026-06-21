@@ -110,9 +110,9 @@ Important geometric properties may need coordinates that are not integers. For e
 Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including `pgl::BigInt`. The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
 
 Notice that numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
-dot product 
+dot product
 $$\frac{a}{a'}\cdot\frac{b}{b'} + \frac{c}{c'}\cdot\frac{d}{d'} = \frac{ab}{a'b'} + \frac{cd}{c'd'} = \frac{abc'd' + cda'b'}{a'b'c'd'}$$\
-and orientation test 
+and orientation test
 $$\left(\frac{a}{a'}+\frac{b}{b'}\right) \cdot \left(\frac{c}{c'}+\frac{d}{d'}\right) = \frac{(ab'+a'b)(cd'+c'd)}{a'b'c'd'} = \frac{ab'cd' + ab'c'd + a'bcd' + a'bc'd}{a'b'c'd'}$$.\
 In case of overflow problems or critical applications, `pgl::Rational<pgl::BigInt>` should be used.
 
@@ -148,6 +148,43 @@ if (s.intersects(t)) {
 ```
 
 You may have noticed that the `intersection` method does not return a point. This is because the intersection of two segments may be null, a point, or a segment. Hence, the result is an [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional.html) of [`std::variant`](https://en.cppreference.com/w/cpp/utility/variant.html) of both point and segment.
+
+
+### Exact Type Aliases
+
+For the common exact, overflow-free configuration, `pgl.hpp` defines `E`-prefixed aliases over `pgl::Rational<pgl::BigInt>` coordinates (labelless shapes). They spare you from spelling out the nested template every time:
+
+| Alias | Definition |
+| ----- | ---------- |
+| `pgl::ERational` | `pgl::Rational<pgl::BigInt>` |
+| `pgl::EPoint` | `pgl::Point<pgl::ERational>` |
+| `pgl::EEmptyShape` | `pgl::EmptyShape<pgl::EPoint>` |
+| `pgl::ESegment` | `pgl::Segment<pgl::EPoint>` |
+| `pgl::EOrientedSegment` | `pgl::OrientedSegment<pgl::EPoint>` |
+| `pgl::ELine` | `pgl::Line<pgl::EPoint>` |
+| `pgl::EOrientedLine` | `pgl::OrientedLine<pgl::EPoint>` |
+| `pgl::ERay` | `pgl::Ray<pgl::EPoint>` |
+| `pgl::EHalfplane` | `pgl::Halfplane<pgl::EPoint>` |
+| `pgl::ERectangle` | `pgl::Rectangle<pgl::EPoint>` |
+| `pgl::ETriangle` | `pgl::Triangle<pgl::EPoint>` |
+| `pgl::EDisk` | `pgl::Disk<pgl::EPoint>` |
+| `pgl::EConvex` | `pgl::Convex<pgl::EPoint>` |
+| `pgl::EPolygon` | `pgl::Polygon<pgl::EPoint>` |
+| `pgl::EShape` | `pgl::Shape<pgl::EPoint>` |
+
+The rational example above becomes:
+
+```c++
+pgl::ESegment s = {1,0,4,7}, t = {0,8,2,1};
+if (s.intersects(t)) {
+    pgl::EShape isec(s.intersection(t));
+    pgl::EPoint cross(isec);
+    std::cout << cross << std::endl;
+}
+// Output: (62/35,9/5)
+```
+
+Since `pgl::Rational<pgl::BigInt>` is roughly 50 times slower than `int` (see the benchmark below), prefer these aliases only when performance is not critical.
 
 
 ### Benchmark
