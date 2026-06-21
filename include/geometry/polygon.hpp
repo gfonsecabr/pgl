@@ -409,7 +409,7 @@ struct Polygon {
     /**
      * @brief Computes the area-weighted centroid of the polygon.
      * @tparam ResultNumber The number type for the result.
-     * @warning Uses division.
+     * @warning Uses division by 3 and the area, so the result may be inexact even for floating-point types.
      */
     template <class ResultNumber = NumberType>
     constexpr Point<ResultNumber> centroid() const {
@@ -438,7 +438,7 @@ struct Polygon {
     /**
      * @brief Computes the centroid of the vertex set (the average of the vertices).
      * @tparam ResultNumber The number type for the result.
-     * @warning Uses division by the number of vertices.
+     * @warning Uses division by the number of vertices, so the result may be inexact even for floating-point types.
      */
     template <class ResultNumber = NumberType>
     constexpr Point<ResultNumber> verticesCentroid() const {
