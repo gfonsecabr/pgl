@@ -678,6 +678,31 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherConvex& other) c
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Line<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+
+    using R = detail::promoted_number_t<std::common_type_t<
+        decltype(other.squaredRadius()), typename PointType::NumberType>>;
+    const auto center_point = other.template center<R>();
+    const R squared_radius = other.template squaredRadius<R>();
+
+    // v = direction along the line, w = centre - point on the line.
+    const R vx = static_cast<R>(max().x()) - static_cast<R>(min().x());
+    const R vy = static_cast<R>(max().y()) - static_cast<R>(min().y());
+    const R wx = static_cast<R>(center_point.x()) - static_cast<R>(min().x());
+    const R wy = static_cast<R>(center_point.y()) - static_cast<R>(min().y());
+    const R cross = vx * wy - vy * wx;
+
+    // Removing the line splits the disk in two exactly when it enters the open
+    // disk. A tangent line removes a single boundary point and leaves the disk
+    // connected, so unlike Disk::separates(Line) the comparison is strict.
+    return cross * cross < squared_radius * (vx * vx + vy * vy);
+}
+
+template <class PointType, class LabelType>
 constexpr bool Line<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -749,6 +774,12 @@ constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherHalfplan
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherConvex& other) const {
+    return this->asLine().separates(other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherDisk& other) const {
     return this->asLine().separates(other);
 }
 
