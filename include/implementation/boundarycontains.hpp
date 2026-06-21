@@ -9,7 +9,7 @@
 
 #include <cstddef>
 #include <limits>
-#include "geometry/segment.hpp"
+#include "shape/segment.hpp"
 #include "predicates_helpers.hpp"
 
 

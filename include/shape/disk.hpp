@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/triangle.hpp"
+#include "shape/triangle.hpp"
 
 /**
  * @file disk.hpp

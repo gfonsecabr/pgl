@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/halfplane.hpp"
+#include "shape/halfplane.hpp"
 
 /**
  * @file line.hpp

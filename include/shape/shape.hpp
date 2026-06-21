@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/polygon.hpp"
+#include "shape/polygon.hpp"
 
 /**
  * @file shape.hpp

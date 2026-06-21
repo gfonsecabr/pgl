@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/point.hpp"
+#include "shape/point.hpp"
 
 /**
  * @file emptyshape.hpp

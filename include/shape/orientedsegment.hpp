@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry/segment.hpp"
+#include "shape/segment.hpp"
 
 /**
  * @file orientedsegment.hpp

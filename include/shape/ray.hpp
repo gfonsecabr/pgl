@@ -1,18 +1,18 @@
 #pragma once
 
-#include "geometry/orientedsegment.hpp"
+#include "shape/orientedline.hpp"
 
 /**
- * @file halfplane.hpp
- * @brief Public declaration of pgl::Halfplane.
+ * @file ray.hpp
+ * @brief Public declaration of pgl::Ray.
  *
- * Halfplane models one side of an oriented line and is the main 2D infinite
- * region used for clipping and side-based predicates.
+ * Ray represents a half-infinite 1D primitive with a source point and a
+ * direction inherited from its defining points.
  */
 
 #include <array>
 #include <cassert>
-#include <compare>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <functional>
@@ -26,65 +26,65 @@
 namespace pgl {
 
 template <class PointType = Point<>, class Label>
-struct Halfplane;
+struct Ray;
 
-Halfplane() -> Halfplane<Point<>, NoLabel>;
+Ray() -> Ray<Point<>, NoLabel>;
 
 template <class PointType>
-Halfplane(PointType, PointType) -> Halfplane<PointType, NoLabel>;
+Ray(PointType, PointType) -> Ray<PointType, NoLabel>;
 
 template <class PointType, class A>
-Halfplane(PointType, PointType, A) -> Halfplane<PointType, std::decay_t<A>>;
+Ray(PointType, PointType, A) -> Ray<PointType, std::decay_t<A>>;
 
 template <class Number>
-Halfplane(Number, Number, Number, Number) -> Halfplane<Point<Number>, NoLabel>;
+Ray(Number, Number, Number, Number) -> Ray<Point<Number>, NoLabel>;
 
 /**
- * @brief Closed half-plane stored by an oriented boundary line.
+ * @brief Half-line starting at a source point and extending through a target.
  *
- * The half-plane contains all points on the left side of the oriented line
- * from @ref source to @ref target, including the boundary itself.
+ * The stored point order is preserved exactly as provided. Two non-degenerate
+ * rays compare equal whenever they share the same source and direction.
  *
  * @tparam PointType Defining point type.
  */
 template <class PointType_, class TLabel>
-struct Halfplane {
+struct Ray {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
     using LabelType = TLabel;
     using CoordinateType = detail::promoted_number_t<NumberType>;
 
-    static_assert(detail::is_point_v<PointType>, "Halfplane requires pgl::Point defining points");
+    static_assert(detail::is_point_v<PointType>, "Ray requires pgl::Point defining points");
 
     /**
-     * @brief Creates the degenerate half-plane `(0,0)->(0,0)`.
+     * @brief Creates the degenerate ray `(0,0)--(0,0)->`.
      */
-    constexpr Halfplane() = default;
+    constexpr Ray() = default;
 
     /**
-     * @brief Creates a half-plane from an oriented boundary line.
+     * @brief Creates a ray from a source and a second point on the ray.
      *
      * The point order is preserved exactly as provided.
      *
-     * @param source Source boundary point.
-     * @param target Target boundary point.
+     * @param source Source point of the ray.
+     * @param target Any other point on the ray direction.
      */
-    constexpr Halfplane(PointType source, PointType target)
+    constexpr Ray(PointType source, PointType target)
         : points_{std::move(source), std::move(target)} {}
 
     /**
-     * @brief Creates a half-plane from four coordinates.
+     * @brief Creates a ray from four coordinates.
      *
-     * @param x1 X coordinate of the source boundary point.
-     * @param y1 Y coordinate of the source boundary point.
-     * @param x2 X coordinate of the target boundary point.
-     * @param y2 Y coordinate of the target boundary point.
+     * @param x1 X coordinate of the source.
+     * @param y1 Y coordinate of the source.
+     * @param x2 X coordinate of the target.
+     * @param y2 Y coordinate of the target.
      */
-    constexpr Halfplane(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
-        : Halfplane(PointType(x1, y1), PointType(x2, y2)) {}
+    constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2)
+        : Ray(PointType(x1, y1), PointType(x2, y2)) {}
 
     /**
-     * @brief Creates a half-plane from an oriented boundary and stores a label.
+     * @brief Creates a ray from a source and a second point and stores a label.
      *
      * The point order is preserved exactly as provided.
      *
@@ -92,31 +92,31 @@ struct Halfplane {
      */
     template <class A>
         requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
-    constexpr Halfplane(PointType source, PointType target, A&& label)
+    constexpr Ray(PointType source, PointType target, A&& label)
         : points_{std::move(source), std::move(target)}, label_(std::forward<A>(label)) {}
 
     /** @brief Same as the four-coordinate constructor, and stores a label. */
     template <class A>
         requires(detail::has_label_v<LabelType> && std::constructible_from<LabelType, A&&>)
-    constexpr Halfplane(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
-        : Halfplane(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
+    constexpr Ray(NumberType x1, NumberType y1, NumberType x2, NumberType y2, A&& label)
+        : Ray(PointType(x1, y1), PointType(x2, y2), std::forward<A>(label)) {}
 
     /**
-     * @brief Converts a half-plane with a different point and/or label type.
+     * @brief Converts a ray with a different point and/or label type.
      *
-     * The boundary points are converted to @ref PointType, preserving their
+     * The defining points are converted to @ref PointType, preserving their
      * order, and the label is copied when both sides carry one.
      */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Halfplane(const Halfplane<OtherPointType, OtherLabelType>& other)
-        : Halfplane(PointType(other.source()), PointType(other.target())) {
+    constexpr Ray(const Ray<OtherPointType, OtherLabelType>& other)
+        : Ray(PointType(other.source()), PointType(other.target())) {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr Halfplane& operator=(const Halfplane<OtherPointType, OtherLabelType>& other) {
+    constexpr Ray& operator=(const Ray<OtherPointType, OtherLabelType>& other) {
         points_[0] = PointType(other.source());
         points_[1] = PointType(other.target());
         label_ = detail::copyLabel<LabelType>(other);
@@ -172,9 +172,9 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the source boundary point.
+     * @brief Returns the source point of the ray.
      *
-     * @return Reference to the source point.
+     * @return Reference to the source.
      */
     constexpr const PointType& source() const {
         return points_[0];
@@ -184,7 +184,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the target boundary point.
+     * @brief Returns the second stored point defining the direction.
      *
      * @return Reference to the target point.
      */
@@ -196,7 +196,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the lexicographically smallest defining point.
+     * @brief Returns the lexicographically smallest stored defining point.
      *
      * @return Reference to the smaller stored point.
      */
@@ -205,7 +205,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the lexicographically largest defining point.
+     * @brief Returns the lexicographically largest stored defining point.
      *
      * @return Reference to the larger stored point.
      */
@@ -214,16 +214,16 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the complementary half-plane with reversed boundary orientation.
+     * @brief Returns the ray obtained by swapping the two stored defining points.
      *
-     * @return Half-plane on the opposite side of the same boundary line.
+     * @return Ray with exchanged source and target.
      */
-    constexpr Halfplane opposite() const {
-        return Halfplane(target(), source());
+    constexpr Ray opposite() const {
+        return Ray(target(), source());
     }
 
     /**
-     * @brief Returns an iterator to the source defining point.
+     * @brief Returns an iterator to the source point.
      *
      * @return Pointer to the source point.
      */
@@ -235,7 +235,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns an iterator to the source defining point.
+     * @brief Returns an iterator to the source point.
      *
      * @return Pointer to the source point.
      */
@@ -244,7 +244,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns an iterator past the target defining point.
+     * @brief Returns an iterator past the target point.
      *
      * @return Pointer past the target point.
      */
@@ -256,7 +256,7 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns an iterator past the target defining point.
+     * @brief Returns an iterator past the target point.
      *
      * @return Pointer past the target point.
      */
@@ -265,28 +265,29 @@ struct Halfplane {
     }
 
     /**
-     * @brief Tests equality of the represented half-plane.
+     * @brief Tests equality of the represented ray.
      *
-     * Two half-planes are equal when their oriented boundary lines are equal.
+     * Degenerate rays compare by their unique point. Non-degenerate rays
+     * compare by their source and normalized direction.
      *
-     * @param other Half-plane to compare with.
-     * @return `true` if both half-planes represent the same geometric set.
+     * @param other Ray to compare with.
+     * @return `true` if both rays represent the same geometric set.
      */
-    [[nodiscard]] constexpr bool operator==(const Halfplane& other) const;
+    [[nodiscard]] constexpr bool operator==(const Ray& other) const;
 
     /**
-     * @brief Provides an ordering compatible with half-plane equality.
+     * @brief Provides an ordering compatible with ray equality.
      *
-     * @param other Half-plane to compare with.
-     * @return Comparison result on the oriented boundary line.
+     * @param other Ray to compare with.
+     * @return Comparison result.
      * @warning Coordinates are cubed but a single promotion is used.
      */
-    [[nodiscard]] constexpr auto operator<=>(const Halfplane& other) const;
+    [[nodiscard]] constexpr auto operator<=>(const Ray& other) const;
 
     /**
-     * @brief Returns the half-plane label.
+     * @brief Returns the ray label.
      *
-     * The label is mutable even through a const half-plane: it is metadata that
+     * The label is mutable even through a const ray: it is metadata that
      * does not participate in equality, hashing, or geometric predicates.
      *
      * @return Reference to the stored label.
@@ -298,102 +299,120 @@ struct Halfplane {
     }
 
     /**
-     * @brief Converts to the unoriented boundary line.
+     * @brief Converts to the unoriented supporting line.
      *
-     * @return Boundary line of the half-plane.
+     * @return Line containing the ray.
      */
     [[nodiscard]] constexpr explicit operator Line<PointType>() const;
 
     /**
-     * @brief Returns the boundary line without orientation.
+     * @brief Returns the supporting line without orientation.
      *
-     * @return Boundary line of the half-plane.
+     * @return Line containing the ray.
      */
     [[nodiscard]] constexpr Line<PointType> asLine() const {
         return static_cast<Line<PointType>>(*this);
     }
 
     /**
-     * @brief Converts to the oriented boundary line.
+     * @brief Converts to the oriented supporting line.
      *
-     * @return Oriented boundary line of the half-plane.
+     * @return Oriented line containing the ray.
      */
     [[nodiscard]] constexpr explicit operator OrientedLine<PointType>() const;
 
     /**
-     * @brief Returns the oriented boundary line.
+     * @brief Returns the oriented supporting line.
      *
-     * @return Oriented boundary line of the half-plane.
+     * @return Oriented line containing the ray.
      */
     [[nodiscard]] constexpr OrientedLine<PointType> asOrientedLine() const {
         return static_cast<OrientedLine<PointType>>(*this);
     }
 
     /**
-     * @brief Returns the half-plane rotated by 90k degrees around the origin.
+     * @brief Returns the ray rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
-     * @return Rotated half-plane.
+     * @return Rotated ray.
      */
-    [[nodiscard]] constexpr Halfplane rotated90(int k = 1) const;
+    [[nodiscard]] constexpr Ray rotated90(int k = 1) const;
 
     /**
-     * @brief Rotates the half-plane by 90k degrees around the origin in place.
+     * @brief Rotates the ray by 90k degrees around the origin in place.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
      */
     constexpr void rotate90(int k = 1);
 
-    /** @brief Returns the half-plane with its x-coordinates multiplied by a factor. */
+    /** @brief Returns the ray with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Halfplane scaledUpX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr Ray scaledUpX(const OtherNumber scalar) const;
 
-    /** @brief Multiplies the half-plane's x-coordinates by a factor in place. */
+    /** @brief Multiplies the ray's x-coordinates by a factor in place. */
     template <class OtherNumber>
     constexpr void scaleUpX(const OtherNumber scalar);
 
-    /** @brief Returns the half-plane with its y-coordinates multiplied by a factor. */
+    /** @brief Returns the ray with its y-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Halfplane scaledUpY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr Ray scaledUpY(const OtherNumber scalar) const;
 
-    /** @brief Multiplies the half-plane's y-coordinates by a factor in place. */
+    /** @brief Multiplies the ray's y-coordinates by a factor in place. */
     template <class OtherNumber>
     constexpr void scaleUpY(const OtherNumber scalar);
 
-    /** @brief Returns the half-plane with its x-coordinates divided by a divisor. */
+    /** @brief Returns the ray with its x-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Halfplane scaledDownX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr Ray scaledDownX(const OtherNumber scalar) const;
 
-    /** @brief Divides the half-plane's x-coordinates by a divisor in place. */
+    /** @brief Divides the ray's x-coordinates by a divisor in place. */
     template <class OtherNumber>
     constexpr void scaleDownX(const OtherNumber scalar);
 
-    /** @brief Returns the half-plane with its y-coordinates divided by a divisor. */
+    /** @brief Returns the ray with its y-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr Halfplane scaledDownY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr Ray scaledDownY(const OtherNumber scalar) const;
 
-    /** @brief Divides the half-plane's y-coordinates by a divisor in place. */
+    /** @brief Divides the ray's y-coordinates by a divisor in place. */
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar);
 
     /**
+     * @brief Returns the area of the ray.
+     *
+     * A ray is one-dimensional, so its area is always zero.
+     *
+     * @return Zero.
+     */
+    [[nodiscard]] constexpr NumberType area() const;
+
+    /**
+     * @brief Returns twice the area of the ray.
+     *
+     * A ray is one-dimensional, so this is always zero.
+     *
+     * @return Zero.
+     */
+    [[nodiscard]] constexpr NumberType twiceArea() const;
+
+    /**
      * @brief Returns whether the defining points coincide.
      *
-     * @return `true` if the boundary degenerates to a point.
+     * @return `true` if the source and target are equal.
      */
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
-     * @brief Returns whether the boundary line is vertical.
+     * @brief Returns whether the ray is vertical.
      *
-     * @return `true` if both defining points share the same x-coordinate.
+     * @return `true` if the defining points have the same x-coordinate.
      */
     [[nodiscard]] constexpr bool isVertical() const;
 
     /**
-     * @brief Returns whether the boundary line is horizontal.
+     * @brief Returns whether the ray is horizontal.
      *
-     * @return `true` if both defining points share the same y-coordinate.
+     * @return `true` if the defining points have the same y-coordinate.
      */
     [[nodiscard]] constexpr bool isHorizontal() const;
 
@@ -404,33 +423,32 @@ struct Halfplane {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
-    // The boundary of a half-plane is its edge line. A 1D shape lies on the
-    // boundary iff its defining points do; an area must additionally be
-    // degenerate (collapsed onto that line). See the implementations.
+    // A ray's boundary is its source point alone, so it boundary-contains no
+    // positive-length or two-dimensional shape.
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const;
-    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
-    template<LineConcept OtherLine>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherLine& other) const;
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherLine&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine& other) const;
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherRay& other) const;
-    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
-    template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const;
-    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
-    template<TriangleConcept OtherTriangle>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const;
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRay&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane& other) const;
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex&) const { return false; }
@@ -440,6 +458,9 @@ struct Halfplane {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
+
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool containsCollinear(const OtherPoint& point) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PointConcept OtherPoint>
@@ -466,12 +487,12 @@ struct Halfplane {
     [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
-    template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
-
-    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<TriangleConcept OtherTriangle>
@@ -484,10 +505,6 @@ struct Halfplane {
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
-
-    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
-    template<DiskConcept OtherDisk>
-    [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
@@ -545,24 +562,108 @@ struct Halfplane {
     [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
-    template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
-
-    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
-    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
-    template<ConvexConcept OtherConvex>
-    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool collinear(const OtherPoint& point) const;
 
-    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
-    template<DiskConcept OtherDisk>
-    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool collinear(const OtherLine& other) const;
+
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool collinear(const OtherOrientedLine& other) const;
+
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool collinear(const OtherSegment& other) const;
+
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool collinear(const OtherOrientedSegment& other) const;
+
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
+
+    /**
+     * @brief Returns the orientation sign of a point with respect to the ray.
+     *
+     * Negative means the point lies on the right, positive on the left, and
+     * equivalent to zero when the point is collinear.
+     *
+     * @tparam OtherPoint Type of the point.
+     *
+     * @param point Point to classify.
+     * @return Orientation sign of `(source, target, point)`.
+     */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::partial_ordering orientation(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the signed slope of the supporting line.
+     *
+     * Undefined behavior for vertical rays.
+     *
+     * @tparam ResultNumber Coordinate type of the returned slope.
+     * @return Signed slope.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber slope() const;
+
+    /**
+     * @brief Returns the half-plane geometrically above the supporting line.
+     *
+     * This ignores the stored ray direction and depends only on the supporting
+     * geometric line.
+     *
+     * @return Closed half-plane above the supporting line.
+     */
+    [[nodiscard]] constexpr Halfplane<PointType> halfplaneAbove() const;
+
+    /**
+     * @brief Returns the half-plane geometrically below the supporting line.
+     *
+     * This ignores the stored ray direction and depends only on the supporting
+     * geometric line.
+     *
+     * @return Closed half-plane below the supporting line.
+     */
+    [[nodiscard]] constexpr Halfplane<PointType> halfplaneBelow() const;
+
+    /**
+     * @brief Returns the half-plane on the right of the ray direction.
+     *
+     * @return Closed right half-plane.
+     */
+    [[nodiscard]] constexpr Halfplane<PointType> rightHalfplane() const;
+
+    /**
+     * @brief Returns the half-plane on the left of the ray direction.
+     *
+     * @return Closed left half-plane.
+     */
+    [[nodiscard]] constexpr Halfplane<PointType> leftHalfplane() const;
+
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool parallel(const OtherLine& other) const;
+
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool parallel(const OtherOrientedLine& other) const;
+
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
+
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
+
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<PointConcept OtherPoint>
@@ -589,15 +690,11 @@ struct Halfplane {
     [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
-    template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
-
-    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     [[nodiscard]] constexpr bool intersects(const Shape<PointType>& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
         return other.intersects(*this);
     }
@@ -633,12 +730,8 @@ struct Halfplane {
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
 
     /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
-    template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
-
-    /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
         return other.interiorsIntersect(*this);
     }
@@ -652,66 +745,9 @@ struct Halfplane {
     /** @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅). */
     [[nodiscard]] constexpr bool interiorsIntersect(const Shape<PointType>& other) const;
 
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<LineConcept OtherLine>
-    [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<SegmentConcept OtherSegment>
-    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<RayConcept OtherRay>
-    [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<TriangleConcept OtherTriangle>
-    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<ConvexConcept OtherConvex>
-    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    template<PolygonConcept OtherPolygon>
-    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
-
-    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
-    [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
-
-    // --- not-yet-implemented predicate pairs (throw); see implementation ---
-    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
-    template<PolygonConcept OtherPolygon>
-    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
-
-
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
-
-    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
-    template<PointConcept OtherPoint>
-    [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<OrientedLineConcept OtherOrientedLine>
@@ -730,12 +766,12 @@ struct Halfplane {
     [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
-    template<HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr bool crosses(const OtherHalfplane& other) const;
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
-        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
@@ -749,6 +785,75 @@ struct Halfplane {
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const OtherPoint& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * Like the segment overload, but a ray contributes only its source as a
+     * finite end; its far end runs to infinity, always outside the bounded
+     * polygon, so only the source can lie strictly inside.
+     *
+     * Complexity: O(n) for n polygon vertices.
+     */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
+
+    // --- not-yet-implemented predicate pairs (throw); see implementation ---
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
+
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
@@ -756,12 +861,12 @@ struct Halfplane {
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherLine& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Line<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+    [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedLine& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
@@ -779,18 +884,11 @@ struct Halfplane {
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRay& other) const;
 
-    // Intersecting two half-planes is intentionally unsupported. Deleting the
-    // overload makes such a call a compile error rather than letting it fall
-    // through to the reversing fallback below, which would recurse forever.
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
-    constexpr auto intersection(const OtherHalfplane& other) const = delete;
-
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape>
-                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
-                  && requires(const OtherShape& o, const Halfplane& self) {
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
+                  && requires(const OtherShape& o, const Ray& self) {
                          o.template intersection<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
@@ -804,11 +902,39 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to the given shape.
+     * @brief Returns the value of the y coordinate for a given x, if it exists.
      *
-     * Zero when the half-plane intersects the shape; otherwise the shape lies
-     * entirely outside, so its distance to the half-plane equals its distance to
-     * the boundary line @ref asLine().
+     * Delegates to the supporting line, then keeps the result only if the
+     * resulting point lies on the ray.
+     *
+     * @tparam ResultNumber Number type of the return value.
+     * @tparam OtherNumber Coordinate type of the x coordinate.
+     * @param x Given x coordinate.
+     * @return An std::optional of ResultNumber corresponding to the y coordinate.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, class OtherNumber>
+    [[nodiscard]] constexpr std::optional<ResultNumber>
+    yAtX(const OtherNumber &x) const;
+
+    /**
+     * @brief Returns the value of the x coordinate for a given y, if it exists.
+     *
+     * Delegates to the supporting line, then keeps the result only if the
+     * resulting point lies on the ray.
+     *
+     * @tparam ResultNumber Number type of the return value.
+     * @tparam OtherNumber Coordinate type of the y coordinate.
+     * @param y Given y coordinate.
+     * @return An std::optional of ResultNumber corresponding to the x coordinate.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, class OtherNumber>
+    [[nodiscard]] constexpr std::optional<ResultNumber>
+    xAtY(const OtherNumber &y) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      *
@@ -822,14 +948,6 @@ struct Halfplane {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
-    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
-
-    /** @copydoc squaredDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
-
-    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, LineConcept OtherLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
@@ -838,12 +956,16 @@ struct Halfplane {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
-    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to a higher-ranked shape.
@@ -852,75 +974,68 @@ struct Halfplane {
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
      */
     template <class ResultNumber = NumberType, typename OtherShape>
-        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
-                  && requires(const OtherShape& o, const Halfplane& self) {
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Ray>)
+                  && requires(const OtherShape& o, const Ray& self) {
                          o.template squaredDistance<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
         return other.template squaredDistance<ResultNumber>(*this);
     }
 
-    /**
-     * @brief Returns the signed slope of the boundary line.
-     *
-     * Undefined behavior for vertical boundaries.
-     *
-     * @tparam ResultNumber Coordinate type of the returned slope.
-     * @return Signed slope.
-     */
-    template <class ResultNumber = NumberType>
-    [[nodiscard]] constexpr ResultNumber slope() const;
+    template<PointConcept OtherPoint>
+    constexpr Ray& operator+=(const OtherPoint& translation);
 
     template<PointConcept OtherPoint>
-    constexpr Halfplane& operator+=(const OtherPoint& translation);
-
-    template<PointConcept OtherPoint>
-    constexpr Halfplane& operator-=(const OtherPoint& translation);
+    constexpr Ray& operator-=(const OtherPoint& translation);
 
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
-    constexpr Halfplane& operator*=(const Scalar& scalar);
+    constexpr Ray& operator*=(const Scalar& scalar);
 
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
-    constexpr Halfplane& operator/=(const Scalar& scalar);
+    constexpr Ray& operator/=(const Scalar& scalar);
 
     /**
-     * @brief Returns a point inside the halfplane.
+     * @brief Returns a point inside the ray.
      *
-     * @return Returns the point strictly inside the halfplane.
+     * For a ray, this is the target point.
+     *
+     * @return The target point.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
-  private:
+private:
+    template <class OtherNumber>
+    using promoted_number_t = std::common_type_t<CoordinateType, detail::promoted_number_t<OtherNumber>>;
 
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
+constexpr auto operator+(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType, LabelType>& halfplane);
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType, LabelType>& ray);
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
+constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
+constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
 
 template <class Scalar, class PointType, class LabelType>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType, LabelType>& halfplane);
+constexpr auto operator*(const Scalar& scalar, const Ray<PointType, LabelType>& ray);
 
 template <class PointType, class LabelType, class Scalar>
     requires(!detail::is_point_v<Scalar>)
-constexpr auto operator/(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
+constexpr auto operator/(const Ray<PointType, LabelType>& ray, const Scalar& scalar);
 
 template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const Halfplane<PointType, LabelType>& halfplane);
+std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& ray);
 
 }  // namespace pgl

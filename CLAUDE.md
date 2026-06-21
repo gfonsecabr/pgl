@@ -44,7 +44,7 @@ Test runner notes:
 The library is layered. `include/pgl.hpp` includes the layers in a deliberate order that mirrors the dependency stack; if you add a new header, place its `#include` in `pgl.hpp` at the right layer or downstream code will fail to compile.
 
 1. **`include/core/`** — numeric infrastructure: `forward.hpp` (forward decls of all shape templates), `numeric.hpp` (type promotion rules), `rational.hpp` (exact rational arithmetic), `hash.hpp` (std::hash specializations, included late so all shapes are visible).
-2. **`include/geometry/`** — one header per shape (`point.hpp`, `segment.hpp`, `line.hpp`, `triangle.hpp`, `rectangle.hpp`, `convex.hpp`, `halfplane.hpp`, …, plus `shape.hpp` which is a runtime-polymorphic `std::variant` wrapper over all shapes). Each header declares the class, type aliases (`PointType`, `NumberType`, `EdgeType`), accessors, and the **member-function signatures** of the public contract — but most cross-shape logic is *defined* in the implementation layer.
+2. **`include/shape/`** — one header per shape (`point.hpp`, `segment.hpp`, `line.hpp`, `triangle.hpp`, `rectangle.hpp`, `convex.hpp`, `halfplane.hpp`, …, plus `shape.hpp` which is a runtime-polymorphic `std::variant` wrapper over all shapes). Each header declares the class, type aliases (`PointType`, `NumberType`, `EdgeType`), accessors, and the **member-function signatures** of the public contract — but most cross-shape logic is *defined* in the implementation layer.
 3. **`include/implementation/`** — this is where the bulk of the code lives. Files are organized **by mathematical operation family, not by shape**:
     - Predicates split into one file per relation: `contains.hpp`, `boundarycontains.hpp`, `interiorcontains.hpp`, `intersects.hpp`, `interiorsintersect.hpp`, `separates.hpp`, `crosses.hpp`, plus `predicates_helpers.hpp` and the aggregator `predicates.hpp`.
     - Constructions: `intersection.hpp` (typed results via `std::optional`/`std::variant`), `distance.hpp`, `bounding.hpp`, `measures.hpp` (length/area/centroid), `duality.hpp`.
@@ -54,7 +54,7 @@ The library is layered. `include/pgl.hpp` includes the layers in a deliberate or
 4. **`include/algorithm/`** — higher-level algorithms built on the primitives: `convexhull.hpp` (Graham scan), `intersections.hpp` (Bentley–Ottmann).
 5. **`include/visualization/canvas.hpp`** — SVG emission; included via `pgl.hpp` but optional in spirit.
 
-**Key consequence for editing:** to change how, say, "contains" behaves for `Segment` vs `Triangle`, you edit `implementation/contains.hpp`, not `geometry/segment.hpp` or `geometry/triangle.hpp`. The geometry headers only declare; the implementation headers define cross-shape operations as templates that overload on shape pairs.
+**Key consequence for editing:** to change how, say, "contains" behaves for `Segment` vs `Triangle`, you edit `implementation/contains.hpp`, not `shape/segment.hpp` or `shape/triangle.hpp`. The geometry headers only declare; the implementation headers define cross-shape operations as templates that overload on shape pairs.
 
 ### Key Design Principles
 

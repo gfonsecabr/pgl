@@ -7,7 +7,7 @@
  * @brief Bounding-box and rectangle-boundary operations.
  */
 
-#include "geometry/rectangle.hpp"
+#include "shape/rectangle.hpp"
 
 namespace pgl {
 
