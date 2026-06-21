@@ -1492,6 +1492,34 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the squared Euclidean distance to a point.
+     *
+     * Zero when the convex polygon contains the point (boundary included);
+     * otherwise the smallest squared distance from the point to an edge.
+     *
+     * For an exterior point the closest boundary point lies on the contiguous
+     * chain of edges that face the point. That chain is located in logarithmic
+     * time: an interior reference point and two support-function searches bracket
+     * the edge the ray to the query exits through (which faces the query) and the
+     * opposite edge; a binary search then grows the facing chain, over which the
+     * per-edge distance is unimodal, and a final binary search picks the closest
+     * edge. The per-vertex distances themselves are *not* unimodal, so a direct
+     * search over vertices does not work.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.
