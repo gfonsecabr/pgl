@@ -100,6 +100,8 @@ A point has methods:
 - `p.dual()`: Returns the dual line $y = ax - b$ for a point $(a,b)$.
 - `p.polar()`: Returns the polar line $ax + by = 1$ for a point $(a,b)$. Undefined for the origin.
 
+- Other methods: `bbox`, `begin`, `boundaryContains`, `cbegin`, `cend`, `contains`, `crosses`, `distance`, `distanceL1`, `distanceLInf`, `edges`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `orientedEdges`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredDistance`, `vertices`.
+
 ### Segment
 
 The `Segment` class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order. 
@@ -145,6 +147,8 @@ A segment `s` has methods such as:
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) s` or `s.asLine()`: Returns the line that contains `s`.
+
+- Other methods: `area`, `bbox`, `begin`, `boundaryContains`, `cbegin`, `cend`, `contains`, `containsCollinear`, `crosses`, `diameter`, `edges`, `end`, `fbox`, `get`, `index`, `interiorContains`, `intersection`, `label`, `lengthL1`, `lengthLInf`, `max`, `min`, `orientedEdges`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredHausdorffDistance`, `twiceArea`, `vertices`, `verticesContain`.
 
 
 ### Oriented Segment
@@ -194,9 +198,13 @@ It knows how to convert itself with an explicit cast to:
 - `(pgl::OrientedLine) s` or `s.asOrientedLine()`: Returns the line that contains `s` and has the same orientation.
 - `(pgl::Ray) s`  or `s.asRay()`: Returns the half-line that contains `s` and has the same source.
 
+- Other methods: `area`, `asLine`, `asSegment`, `bbox`, `begin`, `boundaryContains`, `cbegin`, `cend`, `contains`, `containsCollinear`, `crosses`, `diameter`, `edges`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `lengthL1`, `lengthLInf`, `max`, `min`, `orientedEdges`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredHausdorffDistance`, `twiceArea`, `vertices`, `verticesContain`.
+
 ### EmptyShape
 
 Represents the empty set. Its `size()` is 0, it intersects nothing, and it is contained in everything.
+
+- Other methods: `boundaryContains`, `contains`, `crosses`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `isDegenerate`, `separates`.
 
 ### Line
 
@@ -224,6 +232,8 @@ A line `l` has some additional methods such as:
 - `l.polar()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
+
+- Other methods: `area`, `begin`, `boundaryContains`, `cbegin`, `cend`, `collinear`, `crosses`, `dualCoordinates`, `end`, `get`, `index`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `max`, `min`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredDistance`, `twiceArea`, `verticesContain`.
 
 
 ### Oriented Line
@@ -261,6 +271,8 @@ An oriented line `l` has methods such as:
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line without the orientation.
+
+- Other methods: `area`, `begin`, `boundaryContains`, `cbegin`, `cend`, `collinear`, `crosses`, `crossingOrder`, `end`, `get`, `index`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `max`, `min`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `source`, `squaredDistance`, `target`, `twiceArea`, `verticesContain`.
 
 
 ### Ray
@@ -300,6 +312,8 @@ It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line containing the ray.
 - `(pgl::OrientedLine) l` or `l.asOrientedLine()`: Returns the oriented line containing the ray and the same orientation.
 
+- Other methods: `area`, `begin`, `boundaryContains`, `cbegin`, `cend`, `collinear`, `contains`, `containsCollinear`, `crosses`, `end`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `max`, `min`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `source`, `squaredDistance`, `target`, `twiceArea`, `verticesContain`.
+
 
 ### Half-Plane
 
@@ -330,6 +344,8 @@ A half-plane `h` has methods such as:
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
 - `(pgl::OrientedLine) l` or `l.asOrientedLine()`: Returns the oriented line bounding the half-plane.
+
+- Other methods: `begin`, `boundaryContains`, `cbegin`, `cend`, `contains`, `crosses`, `end`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersects`, `label`, `max`, `min`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `source`, `squaredDistance`, `target`, `verticesContain`.
 
 
 ### Triangle
@@ -362,6 +378,8 @@ A triangle `t` has methods such as:
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Polygon) t` or `t.asPolygon()`: Returns the polygon representation of the triangle.
 - `(pgl::Convex) t` or `t.asConvex()`: Returns the convex polygon representation of the triangle.
+
+- Other methods: `a`, `area`, `b`, `bbox`, `begin`, `boundaryContains`, `c`, `cbegin`, `cend`, `contains`, `crosses`, `diameter`, `edgesBegin`, `edgesEnd`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `orientedEdgesBegin`, `orientedEdgesEnd`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredDistance`, `twiceArea`, `vertices`, `verticesContain`.
 
 
 ### Rectangle
@@ -397,6 +415,8 @@ It knows how to convert itself with an explicit cast to:
 - `(pgl::Polygon) r` or `r.asPolygon()`: Returns the polygon representation of the rectangle.
 - `(pgl::Convex) r` or `r.asConvex()`: Returns the convex polygon representation of the rectangle.
 
+- Other methods: `area`, `begin`, `boundaryAt`, `boundaryContains`, `cbegin`, `cend`, `center`, `contains`, `crosses`, `diameter`, `edgesBegin`, `edgesEnd`, `end`, `fbox`, `get`, `height`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `midpoint`, `orientedEdgesBegin`, `orientedEdgesEnd`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `squaredDistance`, `squaredHausdorffDistance`, `twiceArea`, `verticesContain`, `width`.
+
 
 ### Disk
 
@@ -417,6 +437,8 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.center()`: Returns the center point.
 - `d.diameter()`: As always returns a diameter `Segment`, but for disks the segment is always horizontal.
 
+- Other methods: `a`, `area`, `b`, `bbox`, `begin`, `boundaryContains`, `c`, `cbegin`, `cend`, `contains`, `crosses`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersects`, `label`, `pointInside`, `rotate90`, `rotated90`, `separates`, `size`.
+
 
 ### Polygon
 
@@ -426,6 +448,8 @@ A polygon `P` has methods such as:
 
 - `P.isDegenerate()`: Returns true if the polygon has null area.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
+
+- Other methods: `area`, `bbox`, `begin`, `boundaryContains`, `cbegin`, `cend`, `centroid`, `contains`, `crosses`, `diameter`, `edges`, `edgesBegin`, `edgesEnd`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `intersection`, `intersects`, `label`, `orientedEdges`, `orientedEdgesBegin`, `orientedEdgesEnd`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `twiceArea`, `vertices`, `verticesCentroid`.
 
 
 ### Convex
@@ -452,4 +476,6 @@ If the convex polygon `c` has $n$ vertices, then:
 - `c.intersects(c2)` takes $O(\min(n+m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 - Other predicates take the same time as `intersects`.
 - `c.intersection(c2)` takes $O((n+m) log (n+m))$ time if `c2` is a convex polygon with $m$ vertices.
+
+- Other methods: `antipodalPairs`, `area`, `bbox`, `begin`, `boundaryContains`, `cbegin`, `cend`, `contains`, `crosses`, `edges`, `edgesAtX`, `edgesBegin`, `edgesEnd`, `end`, `fbox`, `get`, `index`, `interiorContains`, `interiorsIntersect`, `label`, `maxIndex`, `orientedEdges`, `orientedEdgesBegin`, `orientedEdgesEnd`, `pointInside`, `rotate90`, `rotated90`, `scaleDownX`, `scaleDownY`, `scaleUpX`, `scaleUpY`, `scaledDownX`, `scaledDownY`, `scaledUpX`, `scaledUpY`, `separates`, `size`, `twiceArea`, `verticesCentroid`, `verticesContain`.
 
