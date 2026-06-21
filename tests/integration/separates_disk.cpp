@@ -27,6 +27,7 @@
 using P = pgl::Point<int>;
 using Triangle = pgl::Triangle<P>;
 using Rect = pgl::Rectangle<P>;
+using Convex = pgl::Convex<P>;
 using Disk = pgl::Disk<P>;
 
 static const Disk unitDisk({0, 0}, 10);  // centre (0,0), radius 10
@@ -86,6 +87,39 @@ TEST_CASE("Rectangle separates disk: only a band across the disk separates it") 
     }
     SUBCASE("k=4 -- rectangle strictly inside the disk: not separated") {
         CHECK_FALSE(Rect(-3, -3, 3, 3).separates(d));
+    }
+}
+
+TEST_CASE("Convex separates disk: general case counts boundary/circle crossings") {
+    const Disk d = unitDisk;
+
+    // Regression: a thin rhombus laid across the disk has its two *opposite*
+    // vertices (0,+/-3) inside and its tips outside, so it crosses the circle
+    // four times via single-crossing edges with no full chord. The disk is split
+    // into a top and a bottom cap. The old chord-only logic answered false.
+    SUBCASE("thin rhombus across the disk (no full chord): separated") {
+        CHECK(Convex({{20, 0}, {0, 3}, {-20, 0}, {0, -3}}).separates(d));
+    }
+    // Same failure mode with four interior vertices (hexagon along x).
+    SUBCASE("long hexagon across the disk: separated") {
+        CHECK(Convex({{20, 0}, {8, 3}, {-8, 3}, {-20, 0}, {-8, -3}, {8, -3}})
+                  .separates(d));
+    }
+    SUBCASE("band across the disk (two full chords): separated") {
+        CHECK(Convex({{-50, -3}, {50, -3}, {50, 3}, {-50, 3}}).separates(d));
+    }
+    SUBCASE("covers a single cap (one full chord): not separated") {
+        CHECK_FALSE(Convex({{-50, 1}, {50, 1}, {50, 50}, {-50, 50}}).separates(d));
+    }
+    SUBCASE("polygon engulfs the disk: not separated") {
+        CHECK_FALSE(
+            Convex({{-100, -100}, {100, -100}, {100, 100}, {-100, 100}}).separates(d));
+    }
+    SUBCASE("polygon strictly inside the disk: not separated") {
+        CHECK_FALSE(Convex({{-3, -3}, {3, -3}, {3, 3}, {-3, 3}}).separates(d));
+    }
+    SUBCASE("corner bite from a single interior vertex: not separated") {
+        CHECK_FALSE(Convex({{0, 0}, {50, 50}, {50, -50}}).separates(d));
     }
 }
 
