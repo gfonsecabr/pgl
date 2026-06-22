@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <ostream>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
 
 
 namespace pgl {
@@ -147,7 +149,187 @@ struct EmptyShape {
     [[nodiscard]] constexpr EmptyShape intersection(const T&) const {
         return EmptyShape{};
     }
+
+    /**
+     * @brief Translates the empty shape in place; a no-op.
+     *
+     * The empty set has no points to move, so translation leaves it unchanged.
+     *
+     * @return This shape, unmodified.
+     */
+    template <PointConcept OtherPoint>
+    constexpr EmptyShape& operator+=(const OtherPoint&) {
+        return *this;
+    }
+
+    /**
+     * @brief Translates the empty shape in place by a negated point; a no-op.
+     *
+     * The empty set has no points to move, so translation leaves it unchanged.
+     *
+     * @return This shape, unmodified.
+     */
+    template <PointConcept OtherPoint>
+    constexpr EmptyShape& operator-=(const OtherPoint&) {
+        return *this;
+    }
+
+    /**
+     * @brief Scales the empty shape in place around the origin; a no-op.
+     *
+     * The empty set has no points to scale, so it is left unchanged.
+     *
+     * @return This shape, unmodified.
+     */
+    template <class Scalar>
+        requires(!detail::is_point_v<Scalar>)
+    constexpr EmptyShape& operator*=(const Scalar&) {
+        return *this;
+    }
+
+    /**
+     * @brief Divides the empty shape in place around the origin; a no-op.
+     *
+     * The empty set has no points to scale, so it is left unchanged.
+     *
+     * @return This shape, unmodified.
+     */
+    template <class Scalar>
+        requires(!detail::is_point_v<Scalar>)
+    constexpr EmptyShape& operator/=(const Scalar&) {
+        return *this;
+    }
+
+    /** @brief Returns the empty shape rotated by 90k degrees; a no-op. */
+    [[nodiscard]] constexpr EmptyShape rotated90(int = 1) const {
+        return *this;
+    }
+
+    /** @brief Rotates the empty shape by 90k degrees in place; a no-op. */
+    constexpr void rotate90(int = 1) {}
+
+    /** @brief Returns the empty shape with its x-coordinates scaled up; a no-op. */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr EmptyShape scaledUpX(const OtherNumber) const {
+        return *this;
+    }
+
+    /** @brief Scales the empty shape's x-coordinates up in place; a no-op. */
+    template <class OtherNumber>
+    constexpr void scaleUpX(const OtherNumber) {}
+
+    /** @brief Returns the empty shape with its y-coordinates scaled up; a no-op. */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr EmptyShape scaledUpY(const OtherNumber) const {
+        return *this;
+    }
+
+    /** @brief Scales the empty shape's y-coordinates up in place; a no-op. */
+    template <class OtherNumber>
+    constexpr void scaleUpY(const OtherNumber) {}
+
+    /** @brief Returns the empty shape with its x-coordinates scaled down; a no-op. */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr EmptyShape scaledDownX(const OtherNumber) const {
+        return *this;
+    }
+
+    /** @brief Scales the empty shape's x-coordinates down in place; a no-op. */
+    template <class OtherNumber>
+    constexpr void scaleDownX(const OtherNumber) {}
+
+    /** @brief Returns the empty shape with its y-coordinates scaled down; a no-op. */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr EmptyShape scaledDownY(const OtherNumber) const {
+        return *this;
+    }
+
+    /** @brief Scales the empty shape's y-coordinates down in place; a no-op. */
+    template <class OtherNumber>
+    constexpr void scaleDownY(const OtherNumber) {}
 };
+
+/**
+ * @brief Translates the empty shape by a point; a no-op.
+ *
+ * The empty set has no points to move, so it is returned unchanged, over the
+ * promoted point type to mirror the coordinate promotion of the other shapes'
+ * translation.
+ *
+ * @return The empty shape over the promoted point type.
+ */
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const EmptyShape<PointType>&,
+                         const Point<TranslationNumber, TranslationLabel>&) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() +
+                                              std::declval<const Point<TranslationNumber, TranslationLabel>&>())>;
+    return EmptyShape<ResultPoint>{};
+}
+
+/** @copydoc operator+(const EmptyShape<PointType>&, const Point<TranslationNumber, TranslationLabel>&) */
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation,
+                         const EmptyShape<PointType>& empty) {
+    return empty + translation;
+}
+
+/**
+ * @brief Translates the empty shape by a negated point; a no-op.
+ *
+ * The empty set has no points to move, so it is returned unchanged, over the
+ * promoted point type to mirror the coordinate promotion of the other shapes'
+ * translation.
+ *
+ * @return The empty shape over the promoted point type.
+ */
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const EmptyShape<PointType>&,
+                         const Point<TranslationNumber, TranslationLabel>&) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() -
+                                              std::declval<const Point<TranslationNumber, TranslationLabel>&>())>;
+    return EmptyShape<ResultPoint>{};
+}
+
+/**
+ * @brief Scales the empty shape around the origin; a no-op.
+ *
+ * The empty set has no points to scale, so it is returned unchanged, over the
+ * promoted point type to mirror the coordinate promotion of the other shapes'
+ * scaling.
+ *
+ * @return The empty shape over the promoted point type.
+ */
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const EmptyShape<PointType>&, const Scalar&) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() *
+                                              std::declval<const Scalar&>())>;
+    return EmptyShape<ResultPoint>{};
+}
+
+/** @copydoc operator*(const EmptyShape<PointType>&, const Scalar&) */
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const EmptyShape<PointType>& empty) {
+    return empty * scalar;
+}
+
+/**
+ * @brief Divides the empty shape around the origin; a no-op.
+ *
+ * The empty set has no points to scale, so it is returned unchanged, over the
+ * promoted point type to mirror the coordinate promotion of the other shapes'
+ * scaling.
+ *
+ * @return The empty shape over the promoted point type.
+ */
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const EmptyShape<PointType>&, const Scalar&) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() /
+                                              std::declval<const Scalar&>())>;
+    return EmptyShape<ResultPoint>{};
+}
 
 /**
  * @brief Streams the empty shape.
