@@ -1135,6 +1135,16 @@ constexpr auto Triangle<PointType, LabelType>::intersection(const OtherTriangle&
 // Convex
 
 template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Convex<PointType, LabelType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherSegment& other) const {
     auto isec = this->template intersection<ResultNumber>(Line<typename OtherSegment::PointType>(other));
@@ -1470,6 +1480,16 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 
 // ---------------------------------------------------------------------------
 // Polygon
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Polygon<PointType, LabelType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
 
 template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
@@ -2315,6 +2335,19 @@ Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Disk
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+Disk<PointType, LabelType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
 }
 
 }  // namespace pgl
