@@ -1082,6 +1082,18 @@ struct Polygon {
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
+     * @tparam ResultNumber Coordinate type of the returned point.
+     * @tparam OtherPoint Point type.
+     * @param other Point to intersect with.
+     * @return The point when contained, otherwise empty.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
      * Unlike @ref Convex::intersection, a simple polygon need not be convex, so
      * the intersection of its closed region with a segment can be several
      * disjoint pieces. The pieces are returned in order along the segment (from

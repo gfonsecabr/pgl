@@ -1718,6 +1718,20 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
+     * @tparam ResultNumber Coordinate type of the returned point.
+     * @tparam OtherPoint Point type.
+     * @param other Point to intersect with.
+     * @return The point when contained, otherwise empty.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to intersect with.
