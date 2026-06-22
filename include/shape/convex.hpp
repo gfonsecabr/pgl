@@ -1571,6 +1571,149 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to another convex polygon.
+     *
+     * Zero when the two convex polygons intersect; otherwise the smallest squared
+     * distance between them.
+     *
+     * For two disjoint convex polygons the closest point of one lies on its
+     * boundary, hence on one of its edges. The minimum over all edges of one
+     * polygon of the edge-to-polygon distance therefore equals the polygon-to-
+     * polygon distance. The edges of the polygon with *fewer* vertices are
+     * queried — each query is the O(log m) @ref squaredDistance(const OtherSegment&)
+     * search against the other polygon.
+     *
+     * An overlap test guards the case where the fewer-vertex polygon strictly
+     * contains the other: there no edge of the queried polygon meets the other,
+     * yet the true distance is zero.
+     *
+     * Complexity: O(min(n,m) log(n+m)) for polygons with n and m vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherConvex The other convex polygon type.
+     * @param other The convex polygon to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a triangle.
+     *
+     * Forwards to the @ref squaredDistance(const OtherConvex&) overload via the
+     * triangle's @ref Triangle::asConvex representation.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherTriangle The triangle type.
+     * @param other The triangle to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a rectangle.
+     *
+     * Forwards to the @ref squaredDistance(const OtherConvex&) overload via the
+     * rectangle's @ref Rectangle::asConvex representation.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherRectangle The rectangle type.
+     * @param other The rectangle to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a line.
+     *
+     * Zero when the line intersects the convex polygon; otherwise the smallest
+     * squared distance between the two shapes.
+     *
+     * A line disjoint from the polygon leaves the whole polygon on one side, so
+     * the closest point of the polygon is the vertex extremal along the line
+     * normal toward the line. The signed-distance functional is linear, hence
+     * cyclic-unimodal over the CCW vertices; its two extrema — the only
+     * candidates — are located with the same O(log n) cyclic search used by the
+     * segment overload, and the nearer of the two gives the exact minimum.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherLine The line type.
+     * @param other The line to measure to.
+     *
+     * @warning With an integer @p ResultNumber the perpendicular distance divides
+     *          a squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to an oriented line.
+     *
+     * Orientation does not affect distance, so this forwards to the unoriented
+     * @ref squaredDistance(const OtherLine&) overload via @ref OrientedLine::asLine.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherOrientedLine The oriented line type.
+     * @param other The oriented line to measure to.
+     *
+     * @warning With an integer @p ResultNumber the perpendicular distance divides
+     *          a squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a ray.
+     *
+     * Zero when the ray intersects the convex polygon; otherwise the smallest
+     * squared distance between the two shapes.
+     *
+     * For disjoint inputs the closest pair is realized either between the ray's
+     * source and the polygon, or between a polygon vertex and the interior of the
+     * ray. The first witness is the O(log n) @ref squaredDistance(const OtherPoint&)
+     * query on the source. The remaining witnesses lie on the polygon vertices
+     * extremal along the ray normal: that functional is linear, hence
+     * cyclic-unimodal over the CCW vertices, so its two extrema are found with the
+     * same O(log n) cyclic search used by the segment overload. Measuring those
+     * vertices with @ref Ray::squaredDistance clamps to the ray, absorbing the
+     * cases where the extremal vertex projects behind the source (the source
+     * query then supplies the true minimum).
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherRay The ray type.
+     * @param other The ray to measure to.
+     *
+     * @warning With an integer @p ResultNumber a perpendicular witness divides a
+     *          squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.

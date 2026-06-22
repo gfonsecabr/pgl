@@ -103,13 +103,13 @@ A `Canvas` class is provided for [SVG visualization](doc/canvas.md):
 <img align="right" src="doc/figures/example2.svg" width="200"/>
 
 ```c++
-    pgl::Canvas canvas;
-    canvas << pgl::Point(0,0);
+pgl::Canvas canvas;
+canvas << pgl::Point(0,0);
 
-    pgl::Triangle tri = {-1, -1, 0, 2, 1, -2};
-    canvas << pgl::stroke("green") << tri;
-    canvas << pgl::stroke("blue") << 2*tri;
-    canvas.writeSVG("example2.svg");
+pgl::Triangle tri = {-1, -1, 0, 2, 1, -2};
+canvas << pgl::stroke("green") << tri;
+canvas << pgl::stroke("blue") << 2*tri;
+canvas.writeSVG("example2.svg");
 ```
 
 ## Comparison and Hashing

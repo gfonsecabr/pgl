@@ -1058,3 +1058,299 @@ TEST_CASE("Convex squaredDistance to an oriented segment matches the unoriented 
         CHECK(convex.squaredDistance<ERational>(OrientedSegment(v, u)) == expected);
     }
 }
+
+TEST_CASE("Convex squaredDistance to a convex") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using pgl::ERational;
+
+    SUBCASE("overlapping pairs are at distance zero") {
+        const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(square.squaredDistance<ERational>(Convex({2, 2, 6, 2, 6, 6, 2, 6})) == 0);  // boundaries cross
+        CHECK(square.squaredDistance<ERational>(Convex({1, 1, 3, 1, 3, 3, 1, 3})) == 0);  // strictly inside
+        // The polygon with fewer vertices contains the other one.
+        const Convex triangle({-5, -5, 15, -5, 5, 15});
+        CHECK(triangle.squaredDistance<ERational>(square) == 0);
+        CHECK(square.squaredDistance<ERational>(triangle) == 0);
+    }
+
+    SUBCASE("disjoint pairs") {
+        const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(square.squaredDistance<ERational>(Convex({7, 0, 9, 0, 9, 4, 7, 4})) == 9);   // edge-edge gap
+        CHECK(square.squaredDistance<ERational>(Convex({7, 7, 9, 7, 9, 9, 7, 9})) == 18);  // corner (4,4) to corner (7,7)
+        CHECK(square.squaredDistance<int>(Convex({7, 0, 9, 0, 9, 4, 7, 4})) == 9);         // default integer result
+    }
+
+    SUBCASE("matches brute force over edge pairs") {
+        std::mt19937 rng(71);
+        std::uniform_int_distribution<int> coord(-30, 30);
+        for (int trial = 0; trial < 4000; ++trial) {
+            const auto randomConvex = [&] {
+                std::vector<Point> pts;
+                const int count = 3 + static_cast<int>(rng() % 9);
+                for (int i = 0; i < count; ++i) {
+                    pts.emplace_back(coord(rng), coord(rng));
+                }
+                return Convex(pts);
+            };
+            const Convex a = randomConvex();
+            const Convex b = randomConvex();
+            if (a.isDegenerate() || b.isDegenerate()) {
+                continue;
+            }
+
+            ERational expected = a.intersects(b) ? ERational{} : ERational{-1};
+            if (expected != ERational{}) {
+                expected = a.edges().front().squaredDistance<ERational>(b.edges().front());
+                for (const auto& ea : a.edges()) {
+                    for (const auto& eb : b.edges()) {
+                        expected = std::min(expected, ea.squaredDistance<ERational>(eb));
+                    }
+                }
+            }
+            CHECK(a.squaredDistance<ERational>(b) == expected);
+            CHECK(b.squaredDistance<ERational>(a) == expected);  // symmetric
+        }
+    }
+}
+
+TEST_CASE("Convex squaredDistance to a triangle matches its convex hull") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using pgl::ERational;
+
+    std::mt19937 rng(91);
+    std::uniform_int_distribution<int> coord(-30, 30);
+    for (int trial = 0; trial < 4000; ++trial) {
+        std::vector<Point> pts;
+        const int count = 3 + static_cast<int>(rng() % 9);
+        for (int i = 0; i < count; ++i) {
+            pts.emplace_back(coord(rng), coord(rng));
+        }
+        const Convex convex(pts);
+        const Triangle triangle(Point(coord(rng), coord(rng)),
+                                Point(coord(rng), coord(rng)),
+                                Point(coord(rng), coord(rng)));
+        if (convex.isDegenerate() || triangle.isDegenerate()) {
+            continue;
+        }
+        // Forwarding via asConvex must agree with the convex-convex result.
+        const ERational expected = convex.squaredDistance<ERational>(triangle.asConvex());
+        CHECK(convex.squaredDistance<ERational>(triangle) == expected);
+    }
+}
+
+TEST_CASE("Convex squaredDistance to a rectangle matches its convex hull") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using pgl::ERational;
+
+    std::mt19937 rng(97);
+    std::uniform_int_distribution<int> coord(-30, 30);
+    for (int trial = 0; trial < 4000; ++trial) {
+        std::vector<Point> pts;
+        const int count = 3 + static_cast<int>(rng() % 9);
+        for (int i = 0; i < count; ++i) {
+            pts.emplace_back(coord(rng), coord(rng));
+        }
+        const Convex convex(pts);
+        const Rectangle rectangle(Point(coord(rng), coord(rng)), Point(coord(rng), coord(rng)));
+        if (convex.isDegenerate() || rectangle.isDegenerate()) {
+            continue;
+        }
+        const ERational expected = convex.squaredDistance<ERational>(rectangle.asConvex());
+        CHECK(convex.squaredDistance<ERational>(rectangle) == expected);
+    }
+}
+
+TEST_CASE("Convex squaredDistance to a line") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Line = pgl::Line<Point>;
+    using pgl::ERational;
+
+    SUBCASE("crossing and disjoint lines") {
+        const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(square.squaredDistance<ERational>(Line(Point(-1, 2), Point(5, 2))) == 0);  // through interior
+        CHECK(square.squaredDistance<ERational>(Line(Point(0, 0), Point(0, 4))) == 0);   // along an edge
+        CHECK(square.squaredDistance<ERational>(Line(Point(7, 0), Point(7, 9))) == 9);   // vertical, right of square
+        CHECK(square.squaredDistance<ERational>(Line(Point(0, 7), Point(9, 7))) == 9);   // horizontal, above
+        // Diagonal line x+y=10: nearest vertex is the corner (4,4), distance² = 18/... → 2.
+        CHECK(square.squaredDistance<ERational>(Line(Point(10, 0), Point(0, 10))) == 2);
+        CHECK(square.squaredDistance<int>(Line(Point(7, 0), Point(7, 9))) == 9);          // default integer result
+    }
+
+    // Brute force: a disjoint line's distance to a convex polygon is the minimum
+    // over its vertices; zero when the line meets the polygon.
+    const auto bruteForce = [](const Convex& convex, const Line& line) {
+        if (convex.intersects(line)) {
+            return ERational{0};
+        }
+        ERational expected = line.squaredDistance<ERational>(convex[0]);
+        for (std::size_t i = 1; i < convex.size(); ++i) {
+            expected = std::min(expected, line.squaredDistance<ERational>(convex[i]));
+        }
+        return expected;
+    };
+
+    SUBCASE("small polygons match a brute-force vertex scan") {
+        std::mt19937 rng(31);
+        std::uniform_int_distribution<int> coord(-30, 30);
+        for (int trial = 0; trial < 4000; ++trial) {
+            std::vector<Point> pts;
+            const int count = 3 + static_cast<int>(rng() % 9);
+            for (int i = 0; i < count; ++i) {
+                pts.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+            const Line line(Point(coord(rng), coord(rng)), Point(coord(rng), coord(rng)));
+            if (line.isDegenerate()) {
+                continue;
+            }
+            CHECK(convex.squaredDistance<ERational>(line) == bruteForce(convex, line));
+        }
+    }
+
+    SUBCASE("large polygons exercise the O(log n) path against a brute-force scan") {
+        std::mt19937 rng(37);
+        std::uniform_int_distribution<int> jitter(0, 3);
+        std::uniform_int_distribution<int> coord(-300, 300);
+        for (int trial = 0; trial < 200; ++trial) {
+            std::vector<Point> pts;
+            const int count = 60 + static_cast<int>(rng() % 40);
+            for (int i = 0; i < count; ++i) {
+                const double t = 2.0 * 3.14159265358979 * i / count;
+                const int x = static_cast<int>(150.0 * std::cos(t)) + jitter(rng);
+                const int y = static_cast<int>(150.0 * std::sin(t)) + jitter(rng);
+                pts.emplace_back(x, y);
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate() || convex.size() <= 32) {
+                continue;
+            }
+            const Line line(Point(coord(rng), coord(rng)), Point(coord(rng), coord(rng)));
+            if (line.isDegenerate()) {
+                continue;
+            }
+            CHECK(convex.squaredDistance<ERational>(line) == bruteForce(convex, line));
+        }
+    }
+}
+
+TEST_CASE("Convex squaredDistance to an oriented line matches the unoriented one") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Line = pgl::Line<Point>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using pgl::ERational;
+
+    std::mt19937 rng(43);
+    std::uniform_int_distribution<int> coord(-30, 30);
+    for (int trial = 0; trial < 4000; ++trial) {
+        std::vector<Point> pts;
+        const int count = 3 + static_cast<int>(rng() % 9);
+        for (int i = 0; i < count; ++i) {
+            pts.emplace_back(coord(rng), coord(rng));
+        }
+        const Convex convex(pts);
+        if (convex.isDegenerate()) {
+            continue;
+        }
+        const Point u(coord(rng), coord(rng));
+        const Point v(coord(rng), coord(rng));
+        if (u == v) {
+            continue;
+        }
+
+        // Distance ignores orientation, so both directions must agree with the
+        // unoriented line.
+        const ERational expected = convex.squaredDistance<ERational>(Line(u, v));
+        CHECK(convex.squaredDistance<ERational>(OrientedLine(u, v)) == expected);
+        CHECK(convex.squaredDistance<ERational>(OrientedLine(v, u)) == expected);
+    }
+}
+
+TEST_CASE("Convex squaredDistance to a ray") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Ray = pgl::Ray<Point>;
+    using pgl::ERational;
+
+    SUBCASE("hitting and disjoint rays") {
+        const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(square.squaredDistance<ERational>(Ray(Point(-3, 2), Point(0, 2))) == 0);  // shot into the interior
+        CHECK(square.squaredDistance<ERational>(Ray(Point(2, 2), Point(2, 9))) == 0);   // source inside
+        CHECK(square.squaredDistance<ERational>(Ray(Point(7, 1), Point(7, 9))) == 9);   // vertical, right of square
+        // Source is the closest feature: the ray points away (up-right) from the square.
+        CHECK(square.squaredDistance<ERational>(Ray(Point(7, 7), Point(9, 9))) == 18);  // source (7,7) to corner (4,4)
+        CHECK(square.squaredDistance<int>(Ray(Point(7, 1), Point(7, 9))) == 9);          // default integer result
+    }
+
+    // Brute force: a disjoint ray's distance to a convex polygon is the minimum
+    // ray-to-edge distance; zero when the ray meets the polygon.
+    const auto bruteForce = [](const Convex& convex, const Ray& ray) {
+        if (convex.intersects(ray)) {
+            return ERational{0};
+        }
+        ERational expected = ray.squaredDistance<ERational>(convex.edges().front());
+        for (const auto& e : convex.edges()) {
+            expected = std::min(expected, ray.squaredDistance<ERational>(e));
+        }
+        return expected;
+    };
+
+    SUBCASE("small polygons match a brute-force edge scan") {
+        std::mt19937 rng(53);
+        std::uniform_int_distribution<int> coord(-30, 30);
+        for (int trial = 0; trial < 4000; ++trial) {
+            std::vector<Point> pts;
+            const int count = 3 + static_cast<int>(rng() % 9);
+            for (int i = 0; i < count; ++i) {
+                pts.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+            const Point s(coord(rng), coord(rng));
+            const Point t(coord(rng), coord(rng));
+            if (s == t) {
+                continue;
+            }
+            const Ray ray(s, t);
+            CHECK(convex.squaredDistance<ERational>(ray) == bruteForce(convex, ray));
+        }
+    }
+
+    SUBCASE("large polygons exercise the O(log n) path against a brute-force scan") {
+        std::mt19937 rng(59);
+        std::uniform_int_distribution<int> jitter(0, 3);
+        std::uniform_int_distribution<int> coord(-300, 300);
+        for (int trial = 0; trial < 200; ++trial) {
+            std::vector<Point> pts;
+            const int count = 60 + static_cast<int>(rng() % 40);
+            for (int i = 0; i < count; ++i) {
+                const double angle = 2.0 * 3.14159265358979 * i / count;
+                const int x = static_cast<int>(150.0 * std::cos(angle)) + jitter(rng);
+                const int y = static_cast<int>(150.0 * std::sin(angle)) + jitter(rng);
+                pts.emplace_back(x, y);
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate() || convex.size() <= 32) {
+                continue;
+            }
+            const Point s(coord(rng), coord(rng));
+            const Point t(coord(rng), coord(rng));
+            if (s == t) {
+                continue;
+            }
+            const Ray ray(s, t);
+            CHECK(convex.squaredDistance<ERational>(ray) == bruteForce(convex, ray));
+        }
+    }
+}
