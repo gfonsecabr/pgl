@@ -603,7 +603,6 @@ TEST_CASE("Segment arithmetic on different number types") {
 
     pgl::Point<int> pi(1, 2);
     pgl::Segment<pgl::Point<int>> si(3,4,5,6);
-    pgl::Point<double> pd(6.5, 7.5);
     pgl::Segment<pgl::Point<double>> sd(8.5, 9.5, 10.5, 11.5);
 
     pgl::Segment<pgl::Point<double>> sid = pi + sd;
