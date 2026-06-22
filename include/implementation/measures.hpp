@@ -536,7 +536,7 @@ Convex<PointType, LabelType>::antipodalPairs() const {
     std::size_t i = i0;
     std::size_t j = j0;
 
-    const auto isStart = [i0, j0](std::size_t a, std::size_t b) {
+    const auto isStart = [i0](std::size_t a, std::size_t b) {
         return (a == i0 && b == j0) || (a == j0 && b == i0);
     };
     const auto emit = [&pairs, &isStart](std::size_t a, std::size_t b) {

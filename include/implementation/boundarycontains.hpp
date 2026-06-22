@@ -525,7 +525,7 @@ template <class PointType, class LabelType>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -934,7 +934,7 @@ template <class Number, class Label>
 constexpr bool Point<Number, Label>::boundaryContains(const Shape<Point<Number, Label>>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -944,7 +944,7 @@ template<PointConcept OtherPoint>
 constexpr bool Segment<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -953,7 +953,7 @@ template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -962,7 +962,7 @@ template <class PointType, class LabelType>
 constexpr bool Line<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -971,7 +971,7 @@ template <class PointType, class LabelType>
 constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -980,7 +980,7 @@ template <class PointType, class LabelType>
 constexpr bool Ray<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -989,7 +989,7 @@ template <class PointType, class LabelType>
 constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -998,7 +998,7 @@ template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }
@@ -1007,7 +1007,7 @@ template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::boundaryContains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return boundaryContains(value);
+            return this->boundaryContains(value);
         },
         other.variant());
 }

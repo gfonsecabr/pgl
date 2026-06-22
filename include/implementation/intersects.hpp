@@ -31,7 +31,7 @@ template <class Number, class Label>
 constexpr bool Point<Number, Label>::intersects(const Shape<Point<Number, Label>>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -91,7 +91,7 @@ template <class PointType, class LabelType>
 constexpr bool Segment<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -232,7 +232,7 @@ template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -266,7 +266,7 @@ template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -318,7 +318,7 @@ template <class PointType, class LabelType>
 constexpr bool Line<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -363,7 +363,7 @@ template <class PointType, class LabelType>
 constexpr bool OrientedLine<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -456,7 +456,7 @@ template <class PointType, class LabelType>
 constexpr bool Ray<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -562,7 +562,7 @@ template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
@@ -654,7 +654,7 @@ template <class PointType, class LabelType>
 constexpr bool Halfplane<PointType, LabelType>::intersects(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
-            return intersects(value);
+            return this->intersects(value);
         },
         other.variant());
 }
