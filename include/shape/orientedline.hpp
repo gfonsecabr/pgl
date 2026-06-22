@@ -779,6 +779,10 @@ struct OrientedLine {
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
 
+    /** @brief Returns whether the given ray is parallel to the oriented line. */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
+
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool intersects(const OtherPoint& other) const;
