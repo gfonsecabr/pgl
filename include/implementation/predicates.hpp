@@ -578,6 +578,12 @@ constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherOrientedS
 }
 
 template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherRay& other) const {
+    return other.parallel(*this);
+}
+
+template <class PointType, class LabelType>
 constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::halfplaneAbove() const {
     return Halfplane<PointType>(max(), min());
 }
