@@ -45,7 +45,9 @@ RANGE_RE = re.compile(r"<(?P<file>[^,>]*?):(?P<bl>\d+):(?P<bc>\d+)[^>]*>\s*(?P<r
 NAMELOC_RE = re.compile(
     r"^(?:(?P<file>[^ :]+):)?(?:line:(?P<line>\d+):(?P<col>\d+)|col:(?P<colonly>\d+))"
 )
-NAME_RE = re.compile(r"(?P<name>operator\S+|~?\w+)\s+'")
+# Constructors/destructors print with template args (e.g. "Disk<PointType, Label>"),
+# so allow an optional "<...>" between the identifier and the ' type literal.
+NAME_RE = re.compile(r"(?P<name>operator\S+|~?\w+)(?:<[^']*>)?\s+'")
 
 
 def run_query(matcher, source):
@@ -131,6 +133,9 @@ def main(argv):
         declared = collect(
             f'functionDecl(isExpansionInFileMatching("{INCLUDE_RE}"), isDefinition(), '
             "unless(isTemplateInstantiation()), "
+            # Drop generic-lambda operator() bodies and other helpers defined
+            # inside a closure: they are internal implementation detail, not API.
+            "unless(hasAncestor(cxxRecordDecl(isLambda()))), "
             "anyOf(hasParent(functionTemplateDecl()), "
             "hasAncestor(classTemplateDecl())))",
             decls_tu,
