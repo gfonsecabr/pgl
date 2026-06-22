@@ -1,6 +1,7 @@
 #pragma once
 
 #include "implementation/intersection.hpp"
+#include "shape/convex.hpp"
 
 /**
  * @file distance.hpp
@@ -743,7 +744,6 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 template <class PointType_, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherSegment& other) const {
-    using Num = NumberType;
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -771,17 +771,16 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherSegment
         best = from_max;
     }
 
-    // Support functional along the segment normal (-dy, dx). It is linear, so it
-    // is cyclic-unimodal over the CCW vertices and cyclicMax locates its extrema;
-    // those two vertices are the polygon's nearest to the segment's supporting
-    // line from either side, the only interior-witness candidates.
+    // Support functional along the segment normal. The orientation determinant of
+    // (segment.min, segment.max, vertex) is the signed-distance functional — it is
+    // linear, so it is cyclic-unimodal over the CCW vertices and cyclicMax locates
+    // its extrema; those two vertices are the polygon's nearest to the segment's
+    // supporting line from either side, the only interior-witness candidates. The
+    // orientation primitive keeps the coordinate promotion overflow-safe.
     const PointType a(other.min());
     const PointType b(other.max());
-    const Num dx = b.x() - a.x();
-    const Num dy = b.y() - a.y();
     const auto support = [&](std::ptrdiff_t i) {
-        const auto v = get(i);
-        return dx * v.y() - dy * v.x();
+        return orientationDeterminant(a, b, get(i));
     };
     const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
     const std::ptrdiff_t hi = *detail::cyclicMax(
@@ -806,6 +805,146 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
     return this->template squaredDistance<ResultNumber>(
         static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+
+    // Disjoint convex polygons: the closest point of one lies on its boundary, so
+    // the minimum over the edges of either polygon of the edge-to-polygon distance
+    // is the polygon-to-polygon distance. Query the edges of the polygon with
+    // fewer vertices to minimize the number of O(log n) segment searches.
+    const auto minOverEdges = [](const auto& source, const auto& target) {
+        const auto edgeVector = source.edges();
+        ResultNumber best = target.template squaredDistance<ResultNumber>(edgeVector[0]);
+        for (const auto& edge : edgeVector) {
+            const ResultNumber current = target.template squaredDistance<ResultNumber>(edge);
+            if (current < best) {
+                best = current;
+            }
+        }
+        return best;
+    };
+
+    if (size() <= other.size()) {
+        return minOverEdges(*this, other);
+    }
+    return minOverEdges(other, *this);
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherTriangle& other) const {
+    return this->template squaredDistance<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    return this->template squaredDistance<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+
+    if (size() <= 8) {
+        ResultNumber best = other.template squaredDistance<ResultNumber>(get(0));
+        for (std::ptrdiff_t i = 1; i < static_cast<std::ptrdiff_t>(size()); ++i) {
+            const ResultNumber current = other.template squaredDistance<ResultNumber>(get(i));
+            if (current < best) {
+                best = current;
+            }
+        }
+        return best;
+    }
+
+    // Disjoint line: the whole polygon lies on one side, so its closest point to
+    // the line is the vertex extremal along the line normal toward the line. The
+    // orientation determinant of (line.min, line.max, vertex) is the signed
+    // distance functional — linear, hence cyclic-unimodal over the CCW vertices.
+    // cyclicMax locates its two extrema (the polygon's nearest and farthest
+    // vertices from the line), the only closest-vertex candidates. Using the
+    // orientation primitive keeps the coordinate promotion overflow-safe.
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    const PointType a(other.min());
+    const PointType b(other.max());
+    const auto support = [&](std::ptrdiff_t i) {
+        return orientationDeterminant(a, b, get(i));
+    };
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+    const std::ptrdiff_t hi = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return support(k); });
+    const std::ptrdiff_t lo = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return -support(k); });
+
+    const ResultNumber from_hi = other.template squaredDistance<ResultNumber>(get(hi));
+    const ResultNumber from_lo = other.template squaredDistance<ResultNumber>(get(lo));
+    return from_hi < from_lo ? from_hi : from_lo;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+    return this->template squaredDistance<ResultNumber>(other.asLine());
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+
+    if (size() <= 16) {
+        auto edgeVector = edges();
+        ResultNumber best = other.template squaredDistance<ResultNumber>(edgeVector[0]);
+        for (const auto& e : edgeVector) {
+            const ResultNumber current = other.template squaredDistance<ResultNumber>(e);
+            if (current < best) {
+                best = current;
+            }
+        }
+        return best;
+    }
+
+    // Disjoint, large polygon. One witness comes from the ray's source; the other
+    // (polygon vertex closest to the ray interior) lies on a vertex extremal along
+    // the ray normal, found in O(log n). The orientation determinant of
+    // (ray.source, ray.target, vertex) is the signed-distance functional — linear,
+    // hence cyclic-unimodal over the CCW vertices — and stays overflow-safe.
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+
+    ResultNumber best = this->template squaredDistance<ResultNumber>(other.source());
+
+    const PointType a(other.source());
+    const PointType b(other.target());
+    const auto support = [&](std::ptrdiff_t i) {
+        return orientationDeterminant(a, b, get(i));
+    };
+    const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
+    const std::ptrdiff_t hi = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return support(k); });
+    const std::ptrdiff_t lo = *detail::cyclicMax(
+        indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return -support(k); });
+
+    const ResultNumber from_hi = other.template squaredDistance<ResultNumber>(get(hi));
+    if (from_hi < best) {
+        best = from_hi;
+    }
+    const ResultNumber from_lo = other.template squaredDistance<ResultNumber>(get(lo));
+    if (from_lo < best) {
+        best = from_lo;
+    }
+
+    return best;
 }
 
 }  // namespace pgl
