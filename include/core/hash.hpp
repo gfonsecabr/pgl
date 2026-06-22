@@ -125,12 +125,28 @@ namespace std {
                 pgl::detail::hashCombine(seed, line.min().x());
             }
             else {
-                using IntRational = pgl::to_integer_with_digits_t<typename pgl::Line<PointType>::NumberType>;
-                using RationalKey = pgl::Rational<IntRational>;
-                const auto [anum,bnum,den] = line.template dualCoordinates<IntRational>();
+                using N = typename pgl::Line<PointType>::NumberType;
+                if constexpr (pgl::is_Rational_v<N>) {
+                    // Coordinates are already exact rationals, so the dual
+                    // slope/intercept are rationals too: divide and hash the
+                    // reduced values directly (a nested Rational<Rational> is
+                    // neither needed nor well-formed).
+                    const auto [anum,bnum,den] = line.template dualCoordinates<N>();
+                    pgl::detail::hashCombine(seed, anum / den);
+                    pgl::detail::hashCombine(seed, bnum / den);
+                }
+                else {
+                    // Match the precision used by Line::operator<=> (see
+                    // predicates.hpp): dualCoordinates computes bnum = anum*px - py*den,
+                    // a product of two coordinate-magnitude values, which overflows at
+                    // the input width. Promote so equal lines hash equal.
+                    using IntRational = pgl::detail::promoted_number_t<N>;
+                    using RationalKey = pgl::Rational<IntRational>;
+                    const auto [anum,bnum,den] = line.template dualCoordinates<IntRational>();
 
-                pgl::detail::hashCombine(seed, RationalKey(anum,den));
-                pgl::detail::hashCombine(seed, RationalKey(bnum,den));
+                    pgl::detail::hashCombine(seed, RationalKey(anum,den));
+                    pgl::detail::hashCombine(seed, RationalKey(bnum,den));
+                }
             }
             return seed;
         }

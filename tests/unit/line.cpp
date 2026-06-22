@@ -152,6 +152,43 @@ TEST_CASE("Line equality, ordering, and hashing depend on the represented geomet
     CHECK(unordered_set.size() == 2);
 }
 
+TEST_CASE("Line hashing stays consistent with equality at large coordinates") {
+    using Line = pgl::Line<pgl::Point<int>>;
+
+    // Same geometric line y = 2x + 100000, defined by two different point
+    // pairs. The dual intercept (bnum = -5'000'000'000) does not fit in the
+    // input width: hashing must promote so equal lines hash equal.
+    const Line first({0, 100000}, {50000, 200000});
+    const Line second({40000, 180000}, {60000, 220000});
+
+    REQUIRE(first == second);
+    CHECK(std::hash<Line>{}(first) == std::hash<Line>{}(second));
+
+    std::unordered_set<Line> unordered_set;
+    unordered_set.insert(first);
+    unordered_set.insert(second);
+    CHECK(unordered_set.size() == 1);
+}
+
+TEST_CASE("Line hashing is well-defined and consistent for rational coordinates") {
+    using Line = pgl::Line<pgl::Point<pgl::Rational<int64_t>>>;
+    using R = pgl::Rational<int64_t>;
+
+    // Same geometric line y = 2x + 1, two different defining point pairs.
+    const Line first({R(0), R(1)}, {R(1), R(3)});
+    const Line second({R(2), R(5)}, {R(3), R(7)});
+    const Line different({R(0), R(0)}, {R(1), R(1)});
+
+    REQUIRE(first == second);
+    CHECK(std::hash<Line>{}(first) == std::hash<Line>{}(second));
+
+    std::unordered_set<Line> unordered_set;
+    unordered_set.insert(first);
+    unordered_set.insert(second);
+    unordered_set.insert(different);
+    CHECK(unordered_set.size() == 2);
+}
+
 TEST_CASE("Line distinguishes containment, collinearity, parallelism, and intersections") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
