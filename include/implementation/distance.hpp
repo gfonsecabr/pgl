@@ -947,4 +947,16 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherRay& ot
     return best;
 }
 
+template <class PointType_, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+
+    // Disjoint: the polygon lies entirely on the far side of the boundary line,
+    // so the closest point of the half-plane is on its boundary.
+    return this->template squaredDistance<ResultNumber>(other.asLine());
+}
+
 }  // namespace pgl

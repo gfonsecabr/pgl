@@ -1714,6 +1714,27 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Zero when the polygon intersects the half-plane; otherwise the polygon lies
+     * entirely on the far side of the boundary line, so its closest point of the
+     * half-plane is on that boundary and the distance equals the distance to
+     * @ref Halfplane::asLine.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherHalfplane The half-plane type.
+     * @param other The half-plane to measure to.
+     *
+     * @warning With an integer @p ResultNumber the perpendicular distance divides
+     *          a squared length, so the result truncates and is inexact. Request a
+     *          floating-point or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.
