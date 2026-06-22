@@ -42,6 +42,7 @@ struct EmptyShape {
      * @brief All empty shapes are equal and unordered among themselves.
      */
     [[nodiscard]] constexpr bool operator==(const EmptyShape&) const = default;
+    /** @brief Three-way comparison: all empty shapes are equivalent. */
     [[nodiscard]] constexpr auto operator<=>(const EmptyShape&) const = default;
 
     /**

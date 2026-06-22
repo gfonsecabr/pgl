@@ -618,7 +618,7 @@ struct Shape {
     }
 
     /**
-     * @brief Squared Euclidean distance to another shape or concrete alternative.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Visits the stored alternative (and @p other when it is itself a `Shape`)
      * and delegates to the concrete `squaredDistance` requesting @p ResultNumber

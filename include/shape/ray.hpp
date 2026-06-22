@@ -114,6 +114,7 @@ struct Ray {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
+    /** @brief Assigns from a ray with compatible point and label types. */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Ray& operator=(const Ray<OtherPointType, OtherLabelType>& other) {
@@ -133,6 +134,7 @@ struct Ray {
         assert(index < size());
         return points_[index];
     }
+    /** @copydoc operator[](std::size_t) const */
     constexpr PointType& operator[](std::size_t index) {
         assert(index < size());
         return points_[index];
@@ -416,6 +418,7 @@ struct Ray {
      */
     [[nodiscard]] constexpr bool isHorizontal() const;
 
+    /** @brief Returns whether the given point is one of the stored defining points. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool verticesContain(const OtherPoint& point) const;
 
@@ -459,6 +462,17 @@ struct Ray {
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
 
+    /**
+     * @brief Returns whether the ray contains the given point that is collinear with the ray.
+     *
+     * The source endpoint is included. Undefined behavior if the point is not
+     * collinear with the ray's supporting line.
+     *
+     * @tparam OtherPoint Type of the point.
+     *
+     * @param point Point to test.
+     * @return `true` if the point lies on the ray.
+     */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool containsCollinear(const OtherPoint& point) const;
 
@@ -573,21 +587,27 @@ struct Ray {
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
+    /** @brief Returns whether the given point is collinear with the ray. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool collinear(const OtherPoint& point) const;
 
+    /** @brief Returns whether the given line is collinear with the ray. */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool collinear(const OtherLine& other) const;
 
+    /** @brief Returns whether the given oriented line is collinear with the ray. */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool collinear(const OtherOrientedLine& other) const;
 
+    /** @brief Returns whether the given segment is collinear with the ray. */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool collinear(const OtherSegment& other) const;
 
+    /** @brief Returns whether the given oriented segment is collinear with the ray. */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool collinear(const OtherOrientedSegment& other) const;
 
+    /** @brief Returns whether another ray is collinear with this ray. */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
 
@@ -650,18 +670,23 @@ struct Ray {
      */
     [[nodiscard]] constexpr Halfplane<PointType> leftHalfplane() const;
 
+    /** @brief Returns whether the given line is parallel to the ray. */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool parallel(const OtherLine& other) const;
 
+    /** @brief Returns whether the given oriented line is parallel to the ray. */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedLine& other) const;
 
+    /** @brief Returns whether the given segment is parallel to the ray. */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
 
+    /** @brief Returns whether the given oriented segment is parallel to the ray. */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
 
+    /** @brief Returns whether another ray is parallel to this ray. */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
@@ -968,7 +993,7 @@ struct Ray {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -982,16 +1007,20 @@ struct Ray {
         return other.template squaredDistance<ResultNumber>(*this);
     }
 
+    /** @brief Translates the ray by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Ray& operator+=(const OtherPoint& translation);
 
+    /** @brief Translates the ray by the negation of the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Ray& operator-=(const OtherPoint& translation);
 
+    /** @brief Scales the ray around the origin by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Ray& operator*=(const Scalar& scalar);
 
+    /** @brief Divides the ray coordinates by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Ray& operator/=(const Scalar& scalar);

@@ -1099,7 +1099,7 @@ struct Segment {
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a point
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * The computation uses a projection on the supporting line and divides by
      * the squared segment length when the closest point lies in the interior.
@@ -1120,7 +1120,7 @@ struct Segment {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
@@ -1138,7 +1138,7 @@ struct Segment {
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -1241,16 +1241,20 @@ struct Segment {
      */
     [[nodiscard]] constexpr std::array<OrientedSegment<PointType>, 1> orientedEdges() const;
 
+    /** @brief Translates the segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Segment& operator+=(const OtherPoint& translation);
 
+    /** @brief Translates the segment by the negation of the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Segment& operator-=(const OtherPoint& translation);
 
+    /** @brief Scales the segment around the origin by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Segment& operator*=(const Scalar& scalar);
 
+    /** @brief Divides the segment coordinates by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Segment& operator/=(const Scalar& scalar);

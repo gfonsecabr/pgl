@@ -1492,7 +1492,7 @@ struct Convex {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to a point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the convex polygon contains the point (boundary included);
      * otherwise the smallest squared distance from the point to an edge.
@@ -1520,7 +1520,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the convex polygon and the segment intersect; otherwise the
      * smallest squared distance between the two shapes.
@@ -1552,7 +1552,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to an oriented segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Orientation does not affect distance, so this forwards to the unoriented
      * @ref squaredDistance(const OtherSegment&) overload.
@@ -1571,7 +1571,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another convex polygon.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the two convex polygons intersect; otherwise the smallest squared
      * distance between them.
@@ -1601,7 +1601,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a triangle.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the @ref squaredDistance(const OtherConvex&) overload via the
      * triangle's @ref Triangle::asConvex representation.
@@ -1620,7 +1620,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a rectangle.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the @ref squaredDistance(const OtherConvex&) overload via the
      * rectangle's @ref Rectangle::asConvex representation.
@@ -1639,7 +1639,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a line.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the line intersects the convex polygon; otherwise the smallest
      * squared distance between the two shapes.
@@ -1665,7 +1665,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to an oriented line.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Orientation does not affect distance, so this forwards to the unoriented
      * @ref squaredDistance(const OtherLine&) overload via @ref OrientedLine::asLine.
@@ -1684,7 +1684,7 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a ray.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the ray intersects the convex polygon; otherwise the smallest
      * squared distance between the two shapes.
@@ -1896,6 +1896,7 @@ struct Convex {
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar);
 
+    /** @brief Translates the convex polygon by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Convex& operator+=(const OtherPoint& translation);
 

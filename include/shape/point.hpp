@@ -201,6 +201,7 @@ struct Point {
         assert(index < size());
         return coords_[index];
     }
+    /** @copydoc operator[](std::size_t) const */
     NumberType& operator[](std::size_t index) {
         assert(index < size());
         return coords_[index];
@@ -670,7 +671,7 @@ struct Point {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to another point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Point-to-point distance involves no division and is therefore exact for
      * every @p ResultNumber.
@@ -685,7 +686,7 @@ struct Point {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.

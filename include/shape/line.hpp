@@ -122,6 +122,7 @@ struct Line {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
+    /** @brief Assigns from a line with compatible point and label types. */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Line& operator=(const Line<OtherPointType, OtherLabelType>& other) {
@@ -989,7 +990,7 @@ struct Line {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to a point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * The squared perpendicular distance divides the squared doubled triangle
      * area by the squared line length.
@@ -1010,7 +1011,7 @@ struct Line {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another line.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other line defining points.
@@ -1028,7 +1029,7 @@ struct Line {
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the segment crosses the line; otherwise the segment lies on one
      * side and, because distance to a line is affine along the segment, the
@@ -1053,7 +1054,7 @@ struct Line {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -1122,6 +1123,12 @@ struct Line {
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
 
+    /**
+     * @brief Returns normalized dual-line coordinates for the supporting line.
+     *
+     * @tparam ResultNumber Coordinate type of the returned coordinates.
+     * @return Normalized `(a, b, denominator)` of the line's dual.
+     */
     template<class ResultNumber>
     [[nodiscard]] constexpr auto dualCoordinates() const;
 

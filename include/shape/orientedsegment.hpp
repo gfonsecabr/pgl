@@ -131,6 +131,7 @@ struct OrientedSegment {
         assert(index < size());
         return points_[index];
     }
+    /** @copydoc operator[](std::size_t) const */
     constexpr PointType& operator[](std::size_t index) {
         assert(index < size());
         return points_[index];
@@ -695,24 +696,41 @@ struct OrientedSegment {
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
 
+    /** @brief Returns whether the given point is collinear with the oriented segment. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool collinear(const OtherPoint& point) const;
 
+    /** @brief Returns whether the given segment is collinear with the oriented segment. */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool collinear(const OtherSegment& other) const;
 
+    /** @brief Returns whether another oriented segment is collinear with this oriented segment. */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool collinear(const OtherOrientedSegment& other) const;
 
+    /** @brief Returns whether the given line is collinear with the oriented segment. */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool collinear(const OtherLine& other) const;
 
+    /** @brief Returns whether the given oriented line is collinear with the oriented segment. */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool collinear(const OtherOrientedLine& other) const;
 
+    /** @brief Returns whether the given ray is collinear with the oriented segment. */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
 
+    /**
+     * @brief Returns the orientation sign of a point with respect to the segment.
+     *
+     * Negative means the point lies on the right of the segment direction,
+     * positive on the left, and equivalent to zero when the point is collinear.
+     *
+     * @tparam OtherPoint Type of the point.
+     *
+     * @param point Point to classify.
+     * @return Orientation sign of `(source, target, point)`.
+     */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr std::partial_ordering orientation(const OtherPoint& point) const;
 
@@ -741,18 +759,23 @@ struct OrientedSegment {
      */
     [[nodiscard]] constexpr Halfplane<PointType> leftHalfplane() const;
 
+    /** @brief Returns whether the given segment is parallel to the oriented segment. */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
 
+    /** @brief Returns whether another oriented segment is parallel to this oriented segment. */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
 
+    /** @brief Returns whether the given line is parallel to the oriented segment. */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool parallel(const OtherLine& other) const;
 
+    /** @brief Returns whether the given oriented line is parallel to the oriented segment. */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedLine& other) const;
 
+    /** @brief Returns whether the given ray is parallel to the oriented segment. */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;
 
@@ -1035,7 +1058,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr bool crosses(const Shape<PointType>& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
@@ -1053,7 +1076,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another unordered segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
@@ -1071,7 +1094,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another oriented segment.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
@@ -1089,7 +1112,7 @@ struct OrientedSegment {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -1205,16 +1228,20 @@ struct OrientedSegment {
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
+    /** @brief Translates the oriented segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedSegment& operator+=(const OtherPoint& translation);
 
+    /** @brief Translates the oriented segment by the negation of the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedSegment& operator-=(const OtherPoint& translation);
 
+    /** @brief Scales the oriented segment around the origin by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr OrientedSegment& operator*=(const Scalar& scalar);
 
+    /** @brief Divides the oriented segment coordinates by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr OrientedSegment& operator/=(const Scalar& scalar);
