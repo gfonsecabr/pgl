@@ -114,6 +114,7 @@ struct Halfplane {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
+    /** @brief Assigns from a half-plane with compatible point and label types. */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Halfplane& operator=(const Halfplane<OtherPointType, OtherLabelType>& other) {
@@ -133,6 +134,7 @@ struct Halfplane {
         assert(index < size());
         return points_[index];
     }
+    /** @copydoc operator[](std::size_t) const */
     constexpr PointType& operator[](std::size_t index) {
         assert(index < size());
         return points_[index];
@@ -397,6 +399,7 @@ struct Halfplane {
      */
     [[nodiscard]] constexpr bool isHorizontal() const;
 
+    /** @brief Returns whether the given point is one of the stored defining points. */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool verticesContain(const OtherPoint& point) const;
 
@@ -846,7 +849,7 @@ struct Halfplane {
     [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -871,16 +874,20 @@ struct Halfplane {
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber slope() const;
 
+    /** @brief Translates the half-plane by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Halfplane& operator+=(const OtherPoint& translation);
 
+    /** @brief Translates the half-plane by the negation of the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Halfplane& operator-=(const OtherPoint& translation);
 
+    /** @brief Scales the half-plane around the origin by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Halfplane& operator*=(const Scalar& scalar);
 
+    /** @brief Divides the half-plane coordinates by a scalar in place. */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar>)
     constexpr Halfplane& operator/=(const Scalar& scalar);

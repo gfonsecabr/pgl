@@ -174,6 +174,7 @@ struct Rectangle {
         label_ = detail::copyLabel<LabelType>(other);
     }
 
+    /** @brief Assigns from a rectangle with compatible point and label types. */
     template<PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr Rectangle& operator=(const Rectangle<OtherPointType, OtherLabelType>& other) {
@@ -430,6 +431,7 @@ struct Rectangle {
         return points_ == other.points_;
     }
 
+    /** @brief Orders rectangles lexicographically by their `(min, max)` corners, ignoring the label. */
     constexpr auto operator<=>(const Rectangle& other) const {
         return points_ <=> other.points_;
     }
@@ -1048,7 +1050,7 @@ struct Rectangle {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to a point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * The closest point of an axis-aligned rectangle has integer coordinate
      * gaps, so this overload involves no division and is exact.
@@ -1097,7 +1099,7 @@ struct Rectangle {
     [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to another rectangle.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Rectangle-to-rectangle distance uses axis gaps only and is exact.
      *
@@ -1111,7 +1113,7 @@ struct Rectangle {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
@@ -1266,14 +1268,6 @@ struct Rectangle {
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
     /**
-     * @brief Translates both stored corners in place.
-     *
-     * @tparam OtherNumber Coordinate type of the translation point.
-     * @tparam OtherPoint::LabelType Label type of the translation point.
-     * @param translation Translation vector.
-     * @return Reference to this rectangle.
-     */
-    /**
      * @brief Returns the rectangle rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
@@ -1320,6 +1314,14 @@ struct Rectangle {
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar);
 
+    /**
+     * @brief Translates both stored corners in place.
+     *
+     * @tparam OtherNumber Coordinate type of the translation point.
+     * @tparam OtherPoint::LabelType Label type of the translation point.
+     * @param translation Translation vector.
+     * @return Reference to this rectangle.
+     */
     template<PointConcept OtherPoint>
     constexpr Rectangle& operator+=(const OtherPoint& translation);
 

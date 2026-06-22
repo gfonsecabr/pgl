@@ -271,6 +271,7 @@ struct Triangle {
         return points_ == other.points_;
     }
 
+    /** @brief Orders triangles lexicographically by their vertices, ignoring the label. */
     constexpr auto operator<=>(const Triangle& other) const {
         return points_ <=> other.points_;
     }
@@ -1019,7 +1020,7 @@ struct Triangle {
     }
 
     /**
-     * @brief Returns the squared Euclidean distance to a point.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Zero when the triangle contains the point; otherwise the smallest squared
      * distance from the point to a triangle edge.
@@ -1068,7 +1069,7 @@ struct Triangle {
     [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
 
     /**
-     * @brief Returns the squared Euclidean distance to a higher-ranked shape.
+     * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
