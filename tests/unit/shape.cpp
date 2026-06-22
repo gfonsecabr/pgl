@@ -306,3 +306,125 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     const Shape down = Halfplane({0, 0}, {1, 0});  // boundary y = 0
     CHECK(below.squaredDistance<int>(down) == down.squaredDistance<int>(below));
 }
+
+TEST_CASE("Shape translates and scales through the wrapped value") {
+    using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // Free translation preserves the stored alternative type and shifts it.
+    const Shape segment = Segment({1, 2}, {3, 4});
+    const Shape shifted = segment + Point(2, 3);
+    REQUIRE(shifted.holdsAlternative<Segment>());
+    CHECK(*shifted.getIf<Segment>() == Segment({3, 5}, {5, 7}));
+    CHECK((Point(2, 3) + segment) == shifted);
+    CHECK((shifted - Point(2, 3)) == segment);
+
+    // Scaling and division around the origin.
+    const Shape scaled = segment * 2;
+    REQUIRE(scaled.holdsAlternative<Segment>());
+    CHECK(*scaled.getIf<Segment>() == Segment({2, 4}, {6, 8}));
+    CHECK((2 * segment) == scaled);
+    CHECK((scaled / 2) == segment);
+
+    // In-place operators mutate the active alternative.
+    Shape triangle = Triangle({0, 0}, {4, 0}, {0, 3});
+    triangle += Point(1, 1);
+    CHECK(*triangle.getIf<Triangle>() == Triangle({1, 1}, {5, 1}, {1, 4}));
+    triangle -= Point(1, 1);
+    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
+    triangle *= 3;
+    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {12, 0}, {0, 9}));
+    triangle /= 3;
+    CHECK(*triangle.getIf<Triangle>() == Triangle({0, 0}, {4, 0}, {0, 3}));
+
+    // The empty alternative is carried through every transformation unchanged.
+    Shape empty;
+    REQUIRE(empty.holdsAlternative<EmptyShape>());
+    CHECK((empty + Point(5, 6)).holdsAlternative<EmptyShape>());
+    CHECK((empty - Point(5, 6)).holdsAlternative<EmptyShape>());
+    CHECK((empty * 4).holdsAlternative<EmptyShape>());
+    CHECK((empty / 4).holdsAlternative<EmptyShape>());
+    empty += Point(5, 6);
+    empty *= 4;
+    CHECK(empty.empty());
+}
+
+TEST_CASE("Shape rotates and axis-scales through the wrapped value") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Triangle triangle({0, 0}, {4, 0}, {0, 3});
+    const Segment segment({1, 2}, {3, 4});
+
+    // Rotation and axis-scaling agree with the wrapped shape's own methods.
+    CHECK(Shape(triangle).rotated90() == Shape(triangle.rotated90()));
+    CHECK(Shape(triangle).rotated90(3) == Shape(triangle.rotated90(3)));
+    CHECK(Shape(segment).scaledUpX(3) == Shape(segment.scaledUpX(3)));
+    CHECK(Shape(segment).scaledUpY(3) == Shape(segment.scaledUpY(3)));
+    CHECK(Shape(segment.scaledUpX(6)).scaledDownX(2) == Shape(segment.scaledUpX(3)));
+
+    // In-place variants match the const ones.
+    Shape mutable_triangle = triangle;
+    mutable_triangle.rotate90();
+    CHECK(mutable_triangle == Shape(triangle.rotated90()));
+
+    Shape mutable_segment = segment;
+    mutable_segment.scaleUpX(3);
+    CHECK(mutable_segment == Shape(segment.scaledUpX(3)));
+
+    // Rotation works for every alternative, including Disk.
+    const Disk disk(Point(2, 3), 5);
+    CHECK(Shape(disk).rotated90() == Shape(disk.rotated90()));
+
+    // Axis-scaling a disk is structurally impossible (it would be an ellipse).
+    CHECK_THROWS_AS((void)Shape(disk).scaledUpX(2), std::logic_error);
+    CHECK_THROWS_AS((void)Shape(disk).scaledDownY(2), std::logic_error);
+    Shape mutable_disk = disk;
+    CHECK_THROWS_AS(mutable_disk.scaleUpX(2), std::logic_error);
+
+    // The empty alternative is invariant under all named transforms.
+    Shape empty;
+    CHECK(empty.rotated90().empty());
+    CHECK(empty.scaledUpX(4).empty());
+    CHECK(empty.scaledDownY(4).empty());
+    empty.rotate90();
+    empty.scaleUpX(4);
+    CHECK(empty.empty());
+}
+
+TEST_CASE("EmptyShape is invariant under every transformation") {
+    using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
+
+    EmptyShape empty;
+    CHECK((empty + Point(3, 4)) == EmptyShape{});
+    CHECK((Point(3, 4) + empty) == EmptyShape{});
+    CHECK((empty - Point(3, 4)) == EmptyShape{});
+    CHECK((empty * 5) == EmptyShape{});
+    CHECK((5 * empty) == EmptyShape{});
+    CHECK((empty / 5) == EmptyShape{});
+
+    CHECK((empty += Point(3, 4)) == EmptyShape{});
+    CHECK((empty -= Point(3, 4)) == EmptyShape{});
+    CHECK((empty *= 5) == EmptyShape{});
+    CHECK((empty /= 5) == EmptyShape{});
+
+    CHECK(empty.rotated90(3) == EmptyShape{});
+    CHECK(empty.scaledUpX(5) == EmptyShape{});
+    CHECK(empty.scaledUpY(5) == EmptyShape{});
+    CHECK(empty.scaledDownX(5) == EmptyShape{});
+    CHECK(empty.scaledDownY(5) == EmptyShape{});
+
+    empty.rotate90();
+    empty.scaleUpX(5);
+    empty.scaleUpY(5);
+    empty.scaleDownX(5);
+    empty.scaleDownY(5);
+    CHECK(empty == EmptyShape{});
+}

@@ -657,6 +657,245 @@ struct Shape {
         }
     }
 
+    /**
+     * @brief Translates the stored shape in place.
+     *
+     * Visits the active alternative and translates it by @p translation; the
+     * empty shape is left unchanged. The stored alternative type is preserved.
+     *
+     * @tparam OtherPoint Translation point type.
+     * @param translation Translation vector.
+     * @return This wrapper.
+     */
+    template <PointConcept OtherPoint>
+    constexpr Shape& operator+=(const OtherPoint& translation) {
+        std::visit([&translation](auto& alternative) { alternative += translation; }, value_);
+        return *this;
+    }
+
+    /**
+     * @brief Translates the stored shape in place by a negated point.
+     *
+     * Visits the active alternative and translates it by @p translation; the
+     * empty shape is left unchanged. The stored alternative type is preserved.
+     *
+     * @tparam OtherPoint Translation point type.
+     * @param translation Translation vector.
+     * @return This wrapper.
+     */
+    template <PointConcept OtherPoint>
+    constexpr Shape& operator-=(const OtherPoint& translation) {
+        std::visit([&translation](auto& alternative) { alternative -= translation; }, value_);
+        return *this;
+    }
+
+    /**
+     * @brief Scales the stored shape in place around the origin.
+     *
+     * Visits the active alternative and scales it by @p scalar; the empty shape
+     * is left unchanged. The stored alternative type is preserved.
+     *
+     * @tparam Scalar Scaling factor type.
+     * @param scalar Scaling factor.
+     * @return This wrapper.
+     */
+    template <class Scalar>
+        requires(!detail::is_point_v<Scalar>)
+    constexpr Shape& operator*=(const Scalar& scalar) {
+        std::visit([&scalar](auto& alternative) { alternative *= scalar; }, value_);
+        return *this;
+    }
+
+    /**
+     * @brief Divides the stored shape in place around the origin.
+     *
+     * Visits the active alternative and divides it by @p scalar; the empty shape
+     * is left unchanged. The stored alternative type is preserved.
+     *
+     * @tparam Scalar Scaling factor type.
+     * @param scalar Scaling factor.
+     * @return This wrapper.
+     */
+    template <class Scalar>
+        requires(!detail::is_point_v<Scalar>)
+    constexpr Shape& operator/=(const Scalar& scalar) {
+        std::visit([&scalar](auto& alternative) { alternative /= scalar; }, value_);
+        return *this;
+    }
+
+    /**
+     * @brief Returns the wrapped shape rotated by 90k degrees around the origin.
+     *
+     * @param k Number of 90-degree CCW rotations (may be negative).
+     * @return Rotated shape, preserving the stored alternative type.
+     */
+    [[nodiscard]] constexpr Shape rotated90(int k = 1) const {
+        return std::visit(
+            [k](const auto& value) -> Shape { return Shape(value.rotated90(k)); },
+            value_);
+    }
+
+    /**
+     * @brief Rotates the wrapped shape by 90k degrees around the origin in place.
+     *
+     * @param k Number of 90-degree CCW rotations (may be negative).
+     */
+    constexpr void rotate90(int k = 1) {
+        std::visit([k](auto& value) { value.rotate90(k); }, value_);
+    }
+
+    /**
+     * @brief Returns the wrapped shape with its x-coordinates scaled up.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr Shape scaledUpX(const OtherNumber scalar) const {
+        return std::visit(
+            [scalar](const auto& value) -> Shape {
+                if constexpr (requires { value.scaledUpX(scalar); }) {
+                    return Shape(value.scaledUpX(scalar));
+                } else {
+                    throw std::logic_error("Shape::scaledUpX is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Scales the wrapped shape's x-coordinates up in place.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative).
+     */
+    template <class OtherNumber>
+    constexpr void scaleUpX(const OtherNumber scalar) {
+        std::visit(
+            [scalar](auto& value) {
+                if constexpr (requires { value.scaleUpX(scalar); }) {
+                    value.scaleUpX(scalar);
+                } else {
+                    throw std::logic_error("Shape::scaleUpX is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Returns the wrapped shape with its y-coordinates scaled up.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr Shape scaledUpY(const OtherNumber scalar) const {
+        return std::visit(
+            [scalar](const auto& value) -> Shape {
+                if constexpr (requires { value.scaledUpY(scalar); }) {
+                    return Shape(value.scaledUpY(scalar));
+                } else {
+                    throw std::logic_error("Shape::scaledUpY is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Scales the wrapped shape's y-coordinates up in place.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative).
+     */
+    template <class OtherNumber>
+    constexpr void scaleUpY(const OtherNumber scalar) {
+        std::visit(
+            [scalar](auto& value) {
+                if constexpr (requires { value.scaleUpY(scalar); }) {
+                    value.scaleUpY(scalar);
+                } else {
+                    throw std::logic_error("Shape::scaleUpY is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Returns the wrapped shape with its x-coordinates scaled down.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr Shape scaledDownX(const OtherNumber scalar) const {
+        return std::visit(
+            [scalar](const auto& value) -> Shape {
+                if constexpr (requires { value.scaledDownX(scalar); }) {
+                    return Shape(value.scaledDownX(scalar));
+                } else {
+                    throw std::logic_error("Shape::scaledDownX is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Scales the wrapped shape's x-coordinates down in place.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative).
+     */
+    template <class OtherNumber>
+    constexpr void scaleDownX(const OtherNumber scalar) {
+        std::visit(
+            [scalar](auto& value) {
+                if constexpr (requires { value.scaleDownX(scalar); }) {
+                    value.scaleDownX(scalar);
+                } else {
+                    throw std::logic_error("Shape::scaleDownX is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Returns the wrapped shape with its y-coordinates scaled down.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative, whose result would be an ellipse).
+     */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr Shape scaledDownY(const OtherNumber scalar) const {
+        return std::visit(
+            [scalar](const auto& value) -> Shape {
+                if constexpr (requires { value.scaledDownY(scalar); }) {
+                    return Shape(value.scaledDownY(scalar));
+                } else {
+                    throw std::logic_error("Shape::scaledDownY is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
+     * @brief Scales the wrapped shape's y-coordinates down in place.
+     *
+     * @throws std::logic_error if the wrapped alternative cannot be scaled along
+     * a single axis (the `Disk` alternative).
+     */
+    template <class OtherNumber>
+    constexpr void scaleDownY(const OtherNumber scalar) {
+        std::visit(
+            [scalar](auto& value) {
+                if constexpr (requires { value.scaleDownY(scalar); }) {
+                    value.scaleDownY(scalar);
+                } else {
+                    throw std::logic_error("Shape::scaleDownY is not defined for the Disk alternative");
+                }
+            },
+            value_);
+    }
+
   private:
     /**
      * @brief Dispatches a binary predicate against a shape or concrete alternative.
@@ -753,6 +992,108 @@ Shape(const std::variant<T, Ts...>&) -> Shape<detail::shape_point_type_t<T>>;
 
 template <class T, class... Ts>
 Shape(const std::optional<std::variant<T, Ts...>>&) -> Shape<detail::shape_point_type_t<T>>;
+
+/**
+ * @brief Translates a shape by a point.
+ *
+ * Visits the stored alternative and translates it, re-wrapping the result. The
+ * coordinate type is promoted to match the translation, mirroring the per-shape
+ * translation operators.
+ *
+ * @param shape Shape to translate.
+ * @param translation Translation vector.
+ * @return Translated shape over the promoted point type.
+ */
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const Shape<PointType>& shape,
+                         const Point<TranslationNumber, TranslationLabel>& translation) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() + translation)>;
+    return std::visit(
+        [&translation](const auto& alternative) {
+            return Shape<ResultPoint>(alternative + translation);
+        },
+        shape.variant());
+}
+
+/** @copydoc operator+(const Shape<PointType>&, const Point<TranslationNumber, TranslationLabel>&) */
+template <class TranslationNumber, class TranslationLabel, class PointType>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation,
+                         const Shape<PointType>& shape) {
+    return shape + translation;
+}
+
+/**
+ * @brief Translates a shape by a negated point.
+ *
+ * Visits the stored alternative and translates it, re-wrapping the result. The
+ * coordinate type is promoted to match the translation, mirroring the per-shape
+ * translation operators.
+ *
+ * @param shape Shape to translate.
+ * @param translation Translation vector.
+ * @return Translated shape over the promoted point type.
+ */
+template <class PointType, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const Shape<PointType>& shape,
+                         const Point<TranslationNumber, TranslationLabel>& translation) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() - translation)>;
+    return std::visit(
+        [&translation](const auto& alternative) {
+            return Shape<ResultPoint>(alternative - translation);
+        },
+        shape.variant());
+}
+
+/**
+ * @brief Scales a shape around the origin.
+ *
+ * Visits the stored alternative and scales it, re-wrapping the result. The
+ * coordinate type is promoted to match the scalar, mirroring the per-shape
+ * scaling operators.
+ *
+ * @param shape Shape to scale.
+ * @param scalar Scaling factor.
+ * @return Scaled shape over the promoted point type.
+ */
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Shape<PointType>& shape, const Scalar& scalar) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() * scalar)>;
+    return std::visit(
+        [&scalar](const auto& alternative) {
+            return Shape<ResultPoint>(alternative * scalar);
+        },
+        shape.variant());
+}
+
+/** @copydoc operator*(const Shape<PointType>&, const Scalar&) */
+template <class Scalar, class PointType>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator*(const Scalar& scalar, const Shape<PointType>& shape) {
+    return shape * scalar;
+}
+
+/**
+ * @brief Divides a shape around the origin.
+ *
+ * Visits the stored alternative and divides it, re-wrapping the result. The
+ * coordinate type is promoted to match the scalar, mirroring the per-shape
+ * scaling operators.
+ *
+ * @param shape Shape to scale.
+ * @param scalar Scaling factor.
+ * @return Scaled shape over the promoted point type.
+ */
+template <class PointType, class Scalar>
+    requires(!detail::is_point_v<Scalar>)
+constexpr auto operator/(const Shape<PointType>& shape, const Scalar& scalar) {
+    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() / scalar)>;
+    return std::visit(
+        [&scalar](const auto& alternative) {
+            return Shape<ResultPoint>(alternative / scalar);
+        },
+        shape.variant());
+}
 
 /**
  * @brief Streams the currently stored alternative.
