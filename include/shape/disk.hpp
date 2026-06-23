@@ -401,12 +401,113 @@ struct Disk {
     }
 
     /**
-     * @brief Returns the exact axis-aligned bounding box in the coordinate type.
-     * @warning Not implemented yet: currently throws, so it cannot be used in a
-     *          constant expression. Use @ref fbox for a floating-point box.
+     * @brief Returns an axis-aligned bounding box in the coordinate type.
+     *
+     * The box is guaranteed to contain the disk. When the disk was built from a
+     * center and radius the box is tight; otherwise the box may be larger than
+     * the disk.
+     *
+     * @warning The box may be larger than the disk if it is not contructed by center and radius.
      */
     [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
-        throw "Disk::bbox() is not implemented yet";
+        // Exact when built from a center and radius: center +/- (radius, radius).
+        if (auto cr = centerAndRadius()) {
+            const auto radius = cr->second;
+            return Rectangle<PointType>(cr->first - PointType(radius, radius),
+                                        cr->first + PointType(radius, radius));
+        }
+
+        // Degenerate disk (collinear boundary points): no finite circle, so the
+        // bounding box of the three boundary points contains it.
+        if (isDegenerate()) {
+            const auto lo = [](NumberType u, NumberType v, NumberType w) { return u < v ? (u < w ? u : w) : (v < w ? v : w); };
+            const auto hi = [](NumberType u, NumberType v, NumberType w) { return u > v ? (u > w ? u : w) : (v > w ? v : w); };
+            return Rectangle<PointType>(
+                PointType(lo(a().x(), b().x(), c().x()), lo(a().y(), b().y(), c().y())),
+                PointType(hi(a().x(), b().x(), c().x()), hi(a().y(), b().y(), c().y())));
+        }
+
+        // General case: the circumcenter is the rational point (nx/d, ny/d) and
+        // the radius is sqrt(s)/d, where d = 2*det(A,B,C) > 0 and
+        // s = |AB|^2 |BC|^2 |CA|^2 = (radius*d)^2. The box spans
+        // [cx +/- r] x [cy +/- r]; how it is rounded depends on the coordinate
+        // type, but the result always contains the disk (and may be larger).
+        if constexpr (std::floating_point<NumberType>) {
+            // Real square root is available: center +/- radius, tight up to
+            // floating-point rounding.
+            const NumberType r = radius<NumberType>();
+            const auto ctr = center<NumberType>();
+            return Rectangle<PointType>(ctr - PointType(r, r), ctr + PointType(r, r));
+        } else {
+            using Wide = detail::promoted_number_t<NumberType>;
+            const Wide ax = a().x(), ay = a().y();
+            const Wide bx = b().x(), by = b().y();
+            const Wide cx = c().x(), cy = c().y();
+            const Wide aa = ax * ax + ay * ay;
+            const Wide bb = bx * bx + by * by;
+            const Wide cc = cx * cx + cy * cy;
+
+            Wide d  = Wide{2} * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+            Wide nx = aa * (by - cy) + bb * (cy - ay) + cc * (ay - by);
+            Wide ny = aa * (cx - bx) + bb * (ax - cx) + cc * (bx - ax);
+            if (d < Wide{0}) {           // normalize to d > 0
+                d = -d; nx = -nx; ny = -ny;
+            }
+
+            const Wide ab2 = (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
+            const Wide bc2 = (bx - cx) * (bx - cx) + (by - cy) * (by - cy);
+            const Wide ca2 = (cx - ax) * (cx - ax) + (cy - ay) * (cy - ay);
+            const Wide s = ab2 * bc2 * ca2;   // (radius * d)^2
+
+            // ceil(sqrt(n)) for a non-negative *integer* n: floor-sqrt (std::sqrt
+            // when usable, else integer Newton) followed by an upward correction.
+            // The argument is always an integer, so this terminates.
+            const auto ceilIntSqrt = [](auto n) {
+                using Int = decltype(n);
+                Int r{};
+                if constexpr (requires { std::sqrt(n); }) {
+                    r = static_cast<Int>(std::sqrt(n));
+                } else if (n >= Int{2}) {
+                    Int x = n, y = (n + Int{1}) / Int{2};
+                    while (y < x) { x = y; y = (x + n / x) / Int{2}; }
+                    r = x;
+                } else {
+                    r = n;
+                }
+                while (r * r < n) { ++r; }
+                return r;
+            };
+
+            if constexpr (requires { s.numerator(); s.denominator(); }) {
+                // sqrt(s) = sqrt(sn*sd)/sd <= ceil(sqrt(sn*sd))/sd =: u, an exact
+                // rational upper bound whose only square root is over the integer
+                // sn*sd -- so it never iterates on the (irrational) sqrt itself.
+                using Int = std::remove_cvref_t<decltype(s.numerator())>;
+                const Int sn = s.numerator();
+                const Int sd = s.denominator();
+                const Wide u(ceilIntSqrt(sn * sd), sd);   // u >= sqrt(s)
+                return Rectangle<PointType>(
+                    PointType(static_cast<NumberType>((nx - u) / d),
+                              static_cast<NumberType>((ny - u) / d)),
+                    PointType(static_cast<NumberType>((nx + u) / d),
+                              static_cast<NumberType>((ny + u) / d)));
+            } else {
+                // Integer coordinates: round (nx +/- q)/d outward to integers,
+                // with q = ceil(sqrt(s)) >= radius*d.
+                const Wide q = ceilIntSqrt(s);
+                const auto floorDiv = [](Wide p, Wide den) {   // den > 0
+                    return p >= Wide{0} ? p / den : -((-p + den - Wide{1}) / den);
+                };
+                const auto ceilDiv = [](Wide p, Wide den) {    // den > 0
+                    return p >= Wide{0} ? (p + den - Wide{1}) / den : -((-p) / den);
+                };
+                return Rectangle<PointType>(
+                    PointType(static_cast<NumberType>(floorDiv(nx - q, d)),
+                              static_cast<NumberType>(floorDiv(ny - q, d))),
+                    PointType(static_cast<NumberType>(ceilDiv(nx + q, d)),
+                              static_cast<NumberType>(ceilDiv(ny + q, d))));
+            }
+        }
     }
 
     /**
@@ -1125,7 +1226,7 @@ struct Disk {
         if (a().y() == b().y()) {
             NumberType r = c().y() - a().y();
             NumberType center_x = a().x() + r;
-            if (b().x() == center_x + r && c().x() == center_x) {
+            if (r >= 0 && b().x() == center_x + r && c().x() == center_x) {
                 return std::make_pair(PointType(center_x, a().y()), r);
             }
         }
