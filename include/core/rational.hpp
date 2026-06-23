@@ -179,7 +179,7 @@ public:
             if (exponent > 0)
                 digits -= exponent;
             assert(digits > 0); // Rational number overflow
-            den = 1 << digits;
+            den = Int(1) << digits;
             num = negative ? -den * f : den * f;
 
             normalized_ = false;
