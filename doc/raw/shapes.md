@@ -140,8 +140,8 @@ A segment `s` has methods such as:
 - `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
-- `s.slope()`: Returns `abs((s[1].y()-s[0].y()) / (s[1].x()-s[0].x()))`.
-- `s.parallel(t)`: Returns whether `s` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
+- `s.slope()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
+- `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
 - `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
 
@@ -183,7 +183,7 @@ An oriented segment `s` has all methods of the `Segment` class, with the only di
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
 - `s.slope()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
-- `s.parallel(t)`: Returns whether `s` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
+- `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
 - `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
 
@@ -224,8 +224,8 @@ A line `l` has some additional methods such as:
 - `l.isDegenerate()`: Returns `l[0] == l[1]`.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
-- `l.slope()`: Returns `abs((l[1].y()-l[0].y()) / (l[1].x()-l[0].x()))`.
-- `l.parallel(t)`: Returns whether `l` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
+- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
+- `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.dual()`: Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
@@ -260,7 +260,7 @@ An oriented line `l` has methods such as:
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the oriented line with source and target interchanged.
 - `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
-- `l.parallel(t)`: Returns whether `l` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
+- `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.
@@ -299,7 +299,7 @@ A ray `l` has methods such as:
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the ray with source and target interchanged.
 - `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
-- `l.parallel(t)`: Returns whether `l` and `t` have the same slope absolute value, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
+- `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.orientation(p)`: Given a point `p`, returns the orientation sign of `l[0],l[1],p`: null when they are collinear, negative when `l` sees `p` to its right, and positive when `l` sees `p` to its left.

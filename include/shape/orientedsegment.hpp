@@ -735,12 +735,12 @@ struct OrientedSegment {
     [[nodiscard]] constexpr std::partial_ordering orientation(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the signed slope of the segment.
+     * @brief Returns the slope of the segment.
      *
      * Undefined behavior for vertical segments.
      *
      * @tparam ResultNumber Coordinate type of the returned slope.
-     * @return Signed slope.
+     * @return Slope.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber slope() const;

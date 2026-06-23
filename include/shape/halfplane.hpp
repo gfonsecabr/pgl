@@ -864,12 +864,12 @@ struct Halfplane {
     }
 
     /**
-     * @brief Returns the signed slope of the boundary line.
+     * @brief Returns the slope of the boundary line.
      *
      * Undefined behavior for vertical boundaries.
      *
      * @tparam ResultNumber Coordinate type of the returned slope.
-     * @return Signed slope.
+     * @return Slope.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber slope() const;

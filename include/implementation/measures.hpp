@@ -60,7 +60,7 @@ template <class ResultNumber>
 constexpr ResultNumber Segment<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
     const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
-    return detail::abs(dy / dx);
+    return dy / dx;
 }
 
 template <class PointType, class LabelType>
@@ -162,7 +162,7 @@ template <class ResultNumber>
 constexpr ResultNumber Line<PointType, LabelType>::slope() const {
     const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
     const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
-    return detail::abs(dy / dx);
+    return dy / dx;
 }
 
 template <class PointType, class LabelType>
