@@ -1061,119 +1061,129 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherPolygon
 }
 
 
-// --- asymmetric not-yet-implemented stubs ---
+// --- asymmetric Disk/Polygon containment ---
+//
+// Oriented 1D shapes forward to their unoriented view. The remaining 1D shapes
+// can only interior-contain a disk that has degenerated to a single point, or a
+// polygon whose vertices all lie on the (relative) interior. The 2D convex
+// shapes (Triangle, Rectangle, Disk, Halfplane) reuse the convex containment
+// logic: a convex set interior-contains a polygon iff it interior-contains
+// every vertex, and Triangle/Rectangle defer the disk case to their Convex view.
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: OrientedSegment::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    return asSegment().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: OrientedSegment::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<DiskConcept OtherDisk>
-constexpr bool Line<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Line::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<PolygonConcept OtherPolygon>
-constexpr bool Line<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Line::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    return asSegment().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: OrientedLine::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    // A line is 1D, so it interior-contains a disk only when the disk
+    // degenerates to a single point lying on the line.
+    return other.a() == other.b() && other.b() == other.c() && contains(other.a());
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: OrientedLine::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    // A line has no boundary, so its interior is the whole line.
+    return contains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Ray::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    return asLine().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Ray::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<PolygonConcept OtherPolygon>
-constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Halfplane::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    return asLine().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Rectangle::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    // A ray is 1D, so it interior-contains a disk only when the disk
+    // degenerates to a single point in the ray's interior.
+    return other.a() == other.b() && other.b() == other.c() && interiorContains(other.a());
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Rectangle::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    // A ray is 1D: a polygon fits in its interior only when degenerate (all
+    // vertices collinear on the ray), which the per-vertex test captures.
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    // The half-plane is convex, so it interior-contains the polygon iff it
+    // interior-contains every vertex.
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Triangle::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    return asConvex().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Triangle::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    return asConvex().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    return asConvex().interiorContains(other);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Disk::interiorContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    return asConvex().interiorContains(other);
 }
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    // The disk is convex, so it interior-contains the polygon iff it
+    // interior-contains every vertex.
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// --- remaining not-yet-implemented stub ---
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>

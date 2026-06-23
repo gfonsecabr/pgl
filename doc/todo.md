@@ -54,9 +54,8 @@ If the polyfunction `P` has $n$ vertices, then:
 
 ## Data Structures Not Yet Implemented
 
-### Triangulation
-
 ### Grid
 
-### Fair-Split Tree
+### Arrangment
 
+### Graph

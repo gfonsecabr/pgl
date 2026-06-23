@@ -890,39 +890,35 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolygon& 
 }
 
 
-// --- asymmetric not-yet-implemented stubs ---
-
+// --- asymmetric Disk/Polygon boundary containment ---
+//
+// A triangle and a rectangle share the boundary of their convex-polygon view,
+// so they defer to it. The Convex implementation captures the only ways a 2D
+// shape can lie on a 1D boundary: a disk degenerated to a single boundary point,
+// or a polygon of zero/one/two vertices reducing to a point or boundary segment.
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Triangle::boundaryContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    return other[0] == other[1] && other[1]==other[2] && boundaryContains(other[0]);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Triangle::boundaryContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    return asConvex().boundaryContains(other);
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Rectangle::boundaryContains(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    return asConvex().boundaryContains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Rectangle::boundaryContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    return other[0] == other[1] && other[1]==other[2] && boundaryContains(other[0]);
 }
 
 // ---------------------------------------------------------------------------
