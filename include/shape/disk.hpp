@@ -571,6 +571,20 @@ struct Disk {
     }
 
     /**
+     * @brief Returns the squared Euclidean distance from this disk to a point.
+     *
+     * Zero when the disk contains the point (boundary inclusive); otherwise the
+     * square of `|point - center| - radius`, the gap between the point and the
+     * nearest point of the circle.
+     *
+     * Always returns `double`: the distance to an exterior point is generally
+     * irrational, so unlike the other shapes there is no exact result to request
+     * and no `ResultNumber` template parameter.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] double squaredDistance(const OtherPoint& point) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Containment is boundary-inclusive: a point exactly on the circle counts as
