@@ -250,7 +250,7 @@ TEST_CASE("Segment exposes axis tests, endpoint aliases, supporting-line colline
 
     CHECK(diagonal.slope<double>() == doctest::Approx(1.0));
     CHECK(horizontal.slope<double>() == doctest::Approx(0.0));
-    CHECK(descending.slope<double>() == doctest::Approx(1.0));
+    CHECK(descending.slope<double>() == doctest::Approx(-1.0));
 
     CHECK(diagonal.parallel(parallel_segment));
     CHECK(diagonal.parallel(parallel_oriented_segment));

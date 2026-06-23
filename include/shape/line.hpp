@@ -648,12 +648,12 @@ struct Line {
     [[nodiscard]] constexpr bool collinear(const OtherRay& other) const;
 
     /**
-     * @brief Returns the absolute slope of the line.
+     * @brief Returns the slope of the line.
      *
      * Undefined behavior for vertical lines.
      *
      * @tparam ResultNumber Coordinate type of the returned slope.
-     * @return Absolute slope.
+     * @return Slope.
      * @warning Uses division of coordinates.
      */
     template <class ResultNumber = NumberType>
@@ -713,7 +713,7 @@ struct Line {
      * @tparam OtherNumber Coordinate type of the other line defining points.
      * @tparam OtherPoint::LabelType Label type of the other line defining points.
      * @param other Other line.
-     * @return `true` if both directions are proportional.
+     * @return `true` if both slopes are the same.
      */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool parallel(const OtherLine& other) const;
@@ -724,7 +724,7 @@ struct Line {
      * @tparam OtherNumber Coordinate type of the segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the segment endpoints.
      * @param other Other segment.
-     * @return `true` if both directions are proportional.
+     * @return `true` if both slopes are the same.
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool parallel(const OtherSegment& other) const;
@@ -735,7 +735,7 @@ struct Line {
      * @tparam OtherNumber Coordinate type of the segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the segment endpoints.
      * @param other Other oriented segment.
-     * @return `true` if both directions are proportional.
+     * @return `true` if both slopes are the same.
      */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedSegment& other) const;
@@ -745,7 +745,7 @@ struct Line {
      *
      * @tparam OtherPoint Defining-point type of the other oriented line.
      * @param other Other oriented line.
-     * @return `true` if both directions are proportional.
+     * @return `true` if both slopes are the same.
      */
     template<OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr bool parallel(const OtherOrientedLine& other) const;
@@ -755,7 +755,7 @@ struct Line {
      *
      * @tparam OtherPoint Defining-point type of the ray.
      * @param other Ray to test.
-     * @return `true` if both directions are proportional.
+     * @return `true` if both slopes are the same.
      */
     template<RayConcept OtherRay>
     [[nodiscard]] constexpr bool parallel(const OtherRay& other) const;

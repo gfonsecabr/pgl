@@ -689,12 +689,12 @@ struct OrientedLine {
     [[nodiscard]] constexpr std::partial_ordering orientation(const OtherPoint& point) const;
 
     /**
-     * @brief Returns the signed slope of the line.
+     * @brief Returns the slope of the line.
      *
      * Undefined behavior for vertical lines.
      *
      * @tparam ResultNumber Coordinate type of the returned slope.
-     * @return Signed slope.
+     * @return Slope.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber slope() const;
