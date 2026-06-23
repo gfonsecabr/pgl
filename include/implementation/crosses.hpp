@@ -671,7 +671,7 @@ constexpr bool Point<Number, Label>::crosses(const Shape<Point<Number, Label>>& 
 }
 
 
-// --- Disk symmetric-trio stubs (not yet implemented) + Shape dispatch ---
+// --- Disk crosses overloads (via separates) + Shape dispatch ---
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
