@@ -280,12 +280,8 @@ struct Disk {
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber, PointLabelType> center() const {
-        if (a().y() == b().y()) {
-            NumberType r = c().y() - a().y();
-            NumberType center_x = a().x() + r;
-            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
-                return Point<ResultNumber, PointLabelType>(center_x, a().y(), PointLabelType{});
-            }
+        if (auto cr = centerAndRadius()) {
+            return Point<ResultNumber, PointLabelType>(cr->first);
         }
 
         if (isDegenerate()) {
@@ -333,14 +329,10 @@ struct Disk {
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber radius() const {
-        if (a().y() == b().y()) {
-            NumberType r = c().y() - a().y();
-            NumberType center_x = a().x() + r;
-            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
-                return static_cast<ResultNumber>(r);;
-            }
+        if (auto cr = centerAndRadius()) {
+            return static_cast<ResultNumber>(cr->second);
         }
-        
+
         if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
             throw std::runtime_error("std::sqrt is not available for the requested ResultNumber type");
         } else {
@@ -363,12 +355,8 @@ struct Disk {
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber squaredRadius() const {
-        if (a().y() == b().y()) {
-            NumberType r = c().y() - a().y();
-            NumberType center_x = a().x() + r;
-            if (b().x() == center_x + r && c().x() == center_x && c().y() == a().y() + r && c().x() == center_x) {
-                return static_cast<ResultNumber>(r*r);
-            }
+        if (auto cr = centerAndRadius()) {
+            return static_cast<ResultNumber>(cr->second) * static_cast<ResultNumber>(cr->second);
         }
 
         if (isDegenerate()) {
@@ -1127,6 +1115,21 @@ struct Disk {
         }
 
         return points;
+    }
+
+    /**
+     * @brief Exact center and radius when the disk was built from a center
+     * and radius (axis-aligned boundary points), otherwise `nullopt`.
+     */
+    [[nodiscard]] constexpr std::optional<std::pair<PointType, NumberType>> centerAndRadius() const {
+        if (a().y() == b().y()) {
+            NumberType r = c().y() - a().y();
+            NumberType center_x = a().x() + r;
+            if (b().x() == center_x + r && c().x() == center_x) {
+                return std::make_pair(PointType(center_x, a().y()), r);
+            }
+        }
+        return std::nullopt;
     }
 
     std::array<PointType, 3> points_{};        ///< Canonicalized boundary points.
