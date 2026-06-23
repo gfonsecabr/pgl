@@ -878,18 +878,7 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherConvex& othe
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Halfplane<PointType, LabelType>::contains(const OtherDisk& other) const {
-    // The closed disk lies in the closed half-plane iff its center is on the
-    // interior side and its distance to the boundary line is at least the
-    // radius. With cross = det(AB, A->center) = |AB| * signedDistance(center),
-    // the condition signedDistance >= radius becomes cross > 0 and
-    // cross^2 >= radius^2 * |AB|^2 (boundary tangency is allowed).
-    const auto cross = orientationDeterminant(source(), target(), other.center());
-    const auto zero = decltype(cross){};
-    if (!(zero < cross)) {
-        return false;
-    }
-    const auto squaredLength = source().squaredDistance(target());
-    return cross * cross >= other.squaredRadius() * squaredLength;
+    return !asLine().interiorsIntersect(other) && other.pointInsideInteriorContained(*this);
 }
 
 template <class PointType, class LabelType>
@@ -984,9 +973,11 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherDisk& other) cons
         return false;
     }
 
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()),
-        decltype(other.squaredRadius())>>;
+    using R = std::conditional_t<
+        std::is_floating_point_v<NumberType> ||
+            std::is_floating_point_v<typename OtherDisk::NumberType>,
+        long double,
+        Rational<BigInt>>;
 
     const R r1_sq = squaredRadius<R>();
     const R r2_sq = other.template squaredRadius<R>();
