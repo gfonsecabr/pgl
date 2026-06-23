@@ -959,4 +959,23 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherHalfpla
     return this->template squaredDistance<ResultNumber>(other.asLine());
 }
 
+// -----------------------------------------------------------------------------
+// Disk
+
+template <class PointType_, class TLabel>
+template <PointConcept OtherPoint>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const {
+    if (contains(point)) {
+        return 0.0;
+    }
+
+    // Exterior point: the nearest point of the disk is on the circle, so the
+    // distance is |point - center| - radius. The squared distance is generally
+    // irrational, hence the fixed double result. Evaluate the gap directly as
+    // sqrt(dc2) - sqrt(r2); this well-conditioned form avoids the catastrophic
+    // cancellation of the algebraically equal dc2 + r2 - 2*sqrt(dc2 * r2).
+    const double gap = center<double>().template distance<double>(point) - radius<double>();
+    return gap * gap;
+}
+
 }  // namespace pgl
