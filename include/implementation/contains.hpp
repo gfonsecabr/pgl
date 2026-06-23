@@ -84,6 +84,15 @@ constexpr bool Point<Number, Label>::contains(const OtherConvex& other) const {
 }
 
 template <class Number, class Label>
+template<DiskConcept OtherDisk>
+constexpr bool Point<Number, Label>::contains(const OtherDisk& other) const {
+    // A non-degenerate disk has positive area, so a single point can only
+    // contain a degenerate disk, which is the segment from a() to c().
+    return other.isDegenerate() &&
+           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+}
+
+template <class Number, class Label>
 constexpr bool Point<Number, Label>::contains(const Shape<Point<Number, Label>>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -370,6 +379,15 @@ constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherConvex
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // A non-degenerate disk has positive area; only a degenerate disk, which is
+    // the segment from a() to c(), can lie in a one-dimensional segment.
+    return other.isDegenerate() &&
+           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -456,6 +474,15 @@ constexpr bool Line<PointType, LabelType>::contains(const OtherConvex& other) co
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Line<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // A non-degenerate disk has positive area; only a degenerate disk, which is
+    // the segment from a() to c(), can lie in a one-dimensional line.
+    return other.isDegenerate() &&
+           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
 constexpr bool Line<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -536,6 +563,12 @@ constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherConvex& o
         }
     }
     return true;
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherDisk& other) const {
+    return this->asLine().contains(other);
 }
 
 template <class PointType, class LabelType>
@@ -625,6 +658,15 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherConvex& other) con
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Ray<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // A non-degenerate disk has positive area; only a degenerate disk, which is
+    // the segment from a() to c(), can lie in a one-dimensional ray.
+    return other.isDegenerate() &&
+           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
 constexpr bool Ray<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -700,6 +742,22 @@ template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Rectangle<PointType, LabelType>::contains(const OtherConvex& other) const {
     return other.size()==0 || contains(other.bbox());
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Rectangle<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // The closed rectangle contains the closed disk iff no edge passes through
+    // the open disk (the disk does not poke across the boundary) and the disk
+    // lies on the inside (a point strictly inside the disk is interior to the
+    // rectangle). Both tests are exact in integer arithmetic, avoiding the
+    // disk's center and radius, which are generally rational.
+    for (const auto& edge : edges()) {
+        if (edge.interiorsIntersect(other)) {
+            return false;
+        }
+    }
+    return other.pointInsideInteriorContained(*this);
 }
 
 template <class PointType, class LabelType>
