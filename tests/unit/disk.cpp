@@ -267,3 +267,67 @@ TEST_CASE("Disk interior predicates use the exact circumcentre of a 3-point disk
     const pgl::Disk<Point> d4(Point(6, 9), Point(2, 4), Point(7, 4));
     CHECK(d3.interiorsIntersect(d4) == true);
 }
+
+TEST_CASE("Disk::squaredDistance to other shapes returns the squared exterior gap") {
+    using Point = pgl::Point<int>;
+    // Closed disk centred at the origin with radius 2 (exact center+radius form).
+    const pgl::Disk<Point> disk(Point(0, 0), 2);
+
+    // For every disjoint shape the closest feature is at x = 5, so the gap is
+    // 5 - 2 = 3 and the squared distance is 9. Intersecting shapes give 0.
+    const double gap = (5.0 - 2.0) * (5.0 - 2.0);
+
+    // Segment, both orientations, and the symmetric forwarder on the shape side.
+    const pgl::Segment<Point> seg(Point(5, -1), Point(5, 1));
+    CHECK(disk.squaredDistance(seg) == doctest::Approx(gap));
+    CHECK(seg.squaredDistance(disk) == doctest::Approx(gap));
+    const pgl::Segment<Point> segHit(Point(-5, 0), Point(5, 0));
+    CHECK(disk.squaredDistance(segHit) == doctest::Approx(0.0));
+    CHECK(segHit.squaredDistance(disk) == doctest::Approx(0.0));
+
+    const pgl::OrientedSegment<Point> oseg(Point(5, -1), Point(5, 1));
+    CHECK(disk.squaredDistance(oseg) == doctest::Approx(gap));
+    CHECK(oseg.squaredDistance(disk) == doctest::Approx(gap));
+
+    // Line / OrientedLine at x = 5.
+    const pgl::Line<Point> line(Point(5, 0), Point(5, 7));
+    CHECK(disk.squaredDistance(line) == doctest::Approx(gap));
+    CHECK(line.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance(pgl::Line<Point>(Point(-3, 0), Point(3, 0)))
+          == doctest::Approx(0.0));
+
+    const pgl::OrientedLine<Point> oline(Point(5, 0), Point(5, 7));
+    CHECK(disk.squaredDistance(oline) == doctest::Approx(gap));
+    CHECK(oline.squaredDistance(disk) == doctest::Approx(gap));
+
+    // Ray whose source (5,0) is the nearest point.
+    const pgl::Ray<Point> ray(Point(5, 0), Point(5, 7));
+    CHECK(disk.squaredDistance(ray) == doctest::Approx(gap));
+    CHECK(ray.squaredDistance(disk) == doctest::Approx(gap));
+
+    // Halfplane with boundary line x = 5 and interior x >= 5 (origin is outside);
+    // the directed boundary (5,7) -> (5,0) puts the interior to its left.
+    const pgl::Halfplane<Point> hp(Point(5, 7), Point(5, 0));
+    CHECK(disk.squaredDistance(hp) == doctest::Approx(gap));
+    CHECK(hp.squaredDistance(disk) == doctest::Approx(gap));
+
+    // Rectangle, disjoint and containing.
+    const pgl::Rectangle<Point> rect(Point(5, -1), Point(8, 1));
+    CHECK(disk.squaredDistance(rect) == doctest::Approx(gap));
+    CHECK(rect.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance(pgl::Rectangle<Point>(Point(-3, -3), Point(3, 3)))
+          == doctest::Approx(0.0));
+
+    // Triangle whose nearest edge lies on x = 5.
+    const pgl::Triangle<Point> tri(Point(5, -2), Point(8, 0), Point(5, 2));
+    CHECK(disk.squaredDistance(tri) == doctest::Approx(gap));
+    CHECK(tri.squaredDistance(disk) == doctest::Approx(gap));
+
+    // Disk vs disk: centres 10 apart, radii 2 and 2 -> gap 6, squared 36.
+    const pgl::Disk<Point> disk2(Point(10, 0), 2);
+    CHECK(disk.squaredDistance(disk2) == doctest::Approx(36.0));
+    CHECK(disk2.squaredDistance(disk) == doctest::Approx(36.0));
+    // Overlapping disks give 0.
+    const pgl::Disk<Point> disk3(Point(2, 0), 2);
+    CHECK(disk.squaredDistance(disk3) == doctest::Approx(0.0));
+}

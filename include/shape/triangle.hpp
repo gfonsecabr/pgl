@@ -1083,6 +1083,19 @@ struct Triangle {
         return other.template squaredDistance<ResultNumber>(*this);
     }
 
+    /**
+     * @brief Returns the squared Euclidean distance to a disk.
+     *
+     * Forwards to @ref Disk::squaredDistance, which is not templated on a result
+     * type: a disk's exterior distance is irrational, so it always returns
+     * `double`. The generic forwarder above does not apply because it requires
+     * the templated `squaredDistance<ResultNumber>` form.
+     */
+    template <class DiskPointType, class DiskLabel>
+    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.squaredDistance(*this);
+    }
+
     /** @brief Translates all vertices by a point in place. */
     template<PointConcept OtherPoint>
     constexpr Triangle& operator+=(const OtherPoint& translation);

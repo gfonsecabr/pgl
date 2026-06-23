@@ -962,6 +962,29 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherHalfpla
 // -----------------------------------------------------------------------------
 // Disk
 
+namespace detail {
+
+/**
+ * @brief Squared distance from a disk to a disjoint shape.
+ *
+ * The caller has already established that the disk and @p other do not
+ * intersect, so the nearest point of the disk lies on its circle and the
+ * distance is `distance(center, other) - radius`. The squared distance is
+ * generally irrational, hence the fixed `double` result. Evaluate the gap
+ * directly as `sqrt(dc2) - radius`; this well-conditioned form avoids the
+ * catastrophic cancellation of the algebraically equal
+ * `dc2 + r2 - 2*sqrt(dc2 * r2)`.
+ */
+template <class DiskType, class OtherShape>
+double diskExteriorSquaredDistance(const DiskType& disk, const OtherShape& other) {
+    const double gap =
+        std::sqrt(other.template squaredDistance<double>(disk.template center<double>()))
+        - disk.template radius<double>();
+    return gap * gap;
+}
+
+}  // namespace detail
+
 template <class PointType_, class TLabel>
 template <PointConcept OtherPoint>
 double Disk<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const {
@@ -975,6 +998,94 @@ double Disk<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const 
     // sqrt(dc2) - sqrt(r2); this well-conditioned form avoids the catastrophic
     // cancellation of the algebraically equal dc2 + r2 - 2*sqrt(dc2 * r2).
     const double gap = center<double>().template distance<double>(point) - radius<double>();
+    return gap * gap;
+}
+
+template <class PointType_, class TLabel>
+template <SegmentConcept OtherSegment>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <OrientedSegmentConcept OtherOrientedSegment>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <LineConcept OtherLine>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <OrientedLineConcept OtherOrientedLine>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <RayConcept OtherRay>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <HalfplaneConcept OtherHalfplane>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <RectangleConcept OtherRectangle>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <TriangleConcept OtherTriangle>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <DiskConcept OtherDisk>
+double Disk<PointType_, TLabel>::squaredDistance(const OtherDisk& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+
+    // Disjoint disks: the nearest points lie on the two circles along the line
+    // through the centers, so the distance is the center separation minus both
+    // radii. Subtracting the radii from the directly computed center distance is
+    // well-conditioned (no catastrophic cancellation in the squared form).
+    const double gap = center<double>().template distance<double>(other.template center<double>())
+                       - radius<double>() - other.template radius<double>();
     return gap * gap;
 }
 

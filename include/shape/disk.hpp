@@ -585,6 +585,59 @@ struct Disk {
     [[nodiscard]] double squaredDistance(const OtherPoint& point) const;
 
     /**
+     * @brief Returns the squared Euclidean distance from this disk to a shape.
+     *
+     * Zero when the disk and the shape intersect; otherwise the square of
+     * `distance(center, shape) - radius`, the gap between the shape and the
+     * nearest point of the circle. Because the disk is the set of points within
+     * `radius` of the center, this gap is the disk-to-shape distance.
+     *
+     * Always returns `double`, like @ref squaredDistance(const OtherPoint&) const:
+     * the distance to a disjoint shape is generally irrational, so there is no
+     * exact result to request and no `ResultNumber` template parameter. The lower-
+     * ranked shapes forward their `squaredDistance(Disk)` to this overload.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] double squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] double squaredDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <LineConcept OtherLine>
+    [[nodiscard]] double squaredDistance(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] double squaredDistance(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] double squaredDistance(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] double squaredDistance(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] double squaredDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherSegment&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] double squaredDistance(const OtherTriangle& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance between two disks.
+     *
+     * Zero when the disks intersect (touching counts); otherwise the square of
+     * `distance(centers) - radius - other.radius`. Always returns `double`.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Containment is boundary-inclusive: a point exactly on the circle counts as
