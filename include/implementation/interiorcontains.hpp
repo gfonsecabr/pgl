@@ -674,18 +674,14 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherConv
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
-    // The closed disk lies in the open half-plane iff its center is strictly on
-    // the interior side and its distance to the boundary line exceeds the
-    // radius. Squaring keeps the test exact: with the boundary direction AB and
-    // cross = det(AB, A->center) = |AB| * signedDistance(center), the condition
-    // signedDistance > radius becomes cross > 0 and cross^2 > radius^2 * |AB|^2.
-    const auto cross = orientationDeterminant(source(), target(), other.center());
-    const auto zero = decltype(cross){};
-    if (!(zero < cross)) {
-        return false;
-    }
-    const auto squaredLength = source().squaredDistance(target());
-    return cross * cross > other.squaredRadius() * squaredLength;
+    // The closed disk lies in the open half-plane iff the boundary line does not
+    // touch the closed disk at all (so the disk is strictly off the boundary) and
+    // the disk is on the interior side (a point strictly inside the disk is in
+    // the open half-plane). Both tests are exact and division-free, avoiding the
+    // disk's rational center and radius; this is the strict version of
+    // contains(Disk), which only excludes the boundary line piercing the open
+    // disk.
+    return !asLine().intersects(other) && other.pointInsideInteriorContained(*this);
 }
 
 template <class PointType, class LabelType>
@@ -1031,9 +1027,14 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherConvex& o
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
-    using R = detail::promoted_number_t<std::common_type_t<
-        decltype(squaredRadius()),
-        decltype(other.squaredRadius())>>;
+    // The circumcenter and squared circumradius are generally rational, so they
+    // must be evaluated exactly (truncating to an integer type gives wrong
+    // answers for three-point disks); mirror intersects(Disk) and contains(Disk).
+    using R = std::conditional_t<
+        std::is_floating_point_v<NumberType> ||
+            std::is_floating_point_v<typename OtherDisk::NumberType>,
+        long double,
+        Rational<BigInt>>;
 
     const R r1_sq = squaredRadius<R>();
     const R r2_sq = other.template squaredRadius<R>();

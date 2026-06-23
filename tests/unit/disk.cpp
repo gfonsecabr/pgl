@@ -331,3 +331,75 @@ TEST_CASE("Disk::squaredDistance to other shapes returns the squared exterior ga
     const pgl::Disk<Point> disk3(Point(2, 0), 2);
     CHECK(disk.squaredDistance(disk3) == doctest::Approx(0.0));
 }
+
+// KNOWN BUG: several disk predicates evaluate the disk's circumcenter and
+// squared circumradius at an integer result type (`promoted_number_t<int>` is
+// `int64_t`, or the default `NumberType`). Both are computed by division, so for
+// a disk built from three integer boundary points -- whose center and squared
+// radius are generally rational -- the result is TRUNCATED and the predicate can
+// return the wrong answer in either direction.
+//
+// Each expected value below is the true geometric answer, verified independently
+// with exact `Rational<BigInt>` arithmetic and a floating-point cross-check, so
+// these CHECKs FAIL against the current implementation. They are written against
+// correct behavior on purpose so they pass once the predicates compute
+// center/radius exactly -- the way Disk::intersects(Disk) /
+// interiorsIntersect(Disk) already do via `Rational<BigInt>`.
+TEST_CASE("Disk::contains(Disk) is exact for three-point integer disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // A = circle through (3,-4),(5,1),(4,4); B = circle through
+    // (-5,-5),(2,-5),(3,0). Exactly, B is NOT contained in A (the distance
+    // between centers plus B's radius exceeds A's radius).
+    const Disk a(Point(3, -4), Point(5, 1), Point(4, 4));
+    const Disk b(Point(-5, -5), Point(2, -5), Point(3, 0));
+    CHECK(a.contains(b) == false);
+}
+
+TEST_CASE("Disk::interiorContains(Disk) is exact for three-point integer disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // A's open interior does NOT contain B.
+    const Disk a(Point(-2, 4), Point(5, -2), Point(3, 3));
+    const Disk b(Point(-5, 1), Point(3, -1), Point(2, 4));
+    CHECK(a.interiorContains(b) == false);
+}
+
+TEST_CASE("Halfplane::contains(Disk) is exact for three-point integer disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    // The disk lies inside the closed halfplane left of (5,0)->(0,1): the signed
+    // distance of its center (~4.31) exceeds its radius (~3.73).
+    const Halfplane h(Point(5, 0), Point(0, 1));
+    const Disk d(Point(-4, 1), Point(0, -4), Point(-3, 1));
+    CHECK(h.contains(d) == true);
+}
+
+TEST_CASE("Halfplane::interiorContains(Disk) is exact for three-point integer disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    // The disk does NOT fit in the open halfplane left of (3,-3)->(2,2): the
+    // signed distance of its center (~2.086) is below its radius (~2.137).
+    const Halfplane h(Point(3, -3), Point(2, 2));
+    const Disk d(Point(-1, -4), Point(3, -3), Point(0, -1));
+    CHECK(h.interiorContains(d) == false);
+}
+
+TEST_CASE("Convex::contains(Disk) is exact for three-point integer disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    // Convex::contains(Disk) tests each edge's left halfplane, so it inherits the
+    // Halfplane::contains(Disk) truncation. The triangle (-6,-6),(6,-6),(0,6)
+    // does NOT contain the disk through (-4,-3),(2,-4),(0,-1).
+    const Convex convex(std::vector<Point>{{-6, -6}, {6, -6}, {0, 6}});
+    const Disk d(Point(-4, -3), Point(2, -4), Point(0, -1));
+    CHECK(convex.contains(d) == false);
+}
