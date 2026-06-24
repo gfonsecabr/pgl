@@ -29,6 +29,9 @@ using Triangle = pgl::Triangle<P>;
 using Rect = pgl::Rectangle<P>;
 using Convex = pgl::Convex<P>;
 using Seg = pgl::Segment<P>;
+using OSeg = pgl::OrientedSegment<P>;
+using Ray = pgl::Ray<P>;
+using Halfplane = pgl::Halfplane<P>;
 using Line = pgl::Line<P>;
 using OrientedLine = pgl::OrientedLine<P>;
 using Disk = pgl::Disk<P>;
@@ -145,6 +148,66 @@ TEST_CASE("Line/OrientedLine separates Disk: strict crossing of the open disk") 
         CHECK(OrientedLine({-50, 0}, {50, 0}).separates(d));
         CHECK_FALSE(OrientedLine({-50, 10}, {50, 10}).separates(d));
     }
+}
+
+// Ray separating a disk: removing the ray disconnects the disk iff the ray runs
+// clear through it as a full chord. That needs the source outside the open disk
+// (an interior source leaves only a slit, which stays connected) and the ray's
+// interior to reach the disk's interior, after which the half-infinite far end
+// guarantees the second boundary crossing.
+TEST_CASE("Ray separates Disk: full chord only (source outside, interior hit)") {
+    const Disk d = unitDisk;  // centre (0,0), radius 10
+
+    SUBCASE("source outside, ray runs through the centre: separates") {
+        CHECK(Ray({-50, 0}, {50, 0}).separates(d));
+    }
+    SUBCASE("source on the circle, ray points inward: separates") {
+        CHECK(Ray({-10, 0}, {50, 0}).separates(d));
+    }
+    SUBCASE("source strictly inside: only a slit, stays connected") {
+        CHECK_FALSE(Ray({0, 0}, {50, 0}).separates(d));
+    }
+    SUBCASE("source outside but ray points away: does not reach the disk") {
+        CHECK_FALSE(Ray({-50, 0}, {-60, 0}).separates(d));
+    }
+    SUBCASE("ray tangent to the circle: touches, does not separate") {
+        CHECK_FALSE(Ray({-50, 10}, {50, 10}).separates(d));
+    }
+    SUBCASE("ray missing the disk entirely: does not separate") {
+        CHECK_FALSE(Ray({-50, 20}, {50, 20}).separates(d));
+    }
+}
+
+// OrientedSegment delegates to its unoriented Segment view, which separates the
+// disk iff the segment is a full chord (both endpoints outside the open disk and
+// its interior crosses the disk).
+TEST_CASE("OrientedSegment separates Disk: chord through, both ends outside") {
+    const Disk d = unitDisk;
+
+    SUBCASE("chord with both endpoints outside: separates") {
+        CHECK(OSeg({-50, 0}, {50, 0}).separates(d));
+        CHECK(OSeg({50, 0}, {-50, 0}).separates(d));  // reversed direction
+    }
+    SUBCASE("one endpoint inside: does not separate") {
+        CHECK_FALSE(OSeg({0, 0}, {50, 0}).separates(d));
+    }
+    SUBCASE("segment entirely inside the disk: does not separate") {
+        CHECK_FALSE(OSeg({-3, 0}, {3, 0}).separates(d));
+    }
+    SUBCASE("disjoint segment: does not separate") {
+        CHECK_FALSE(OSeg({100, 100}, {200, 200}).separates(d));
+    }
+}
+
+// A half-plane is convex, so removing it from a disk leaves the circular segment
+// on the far side of its boundary line -- always a single connected piece. Hence
+// a half-plane never separates a disk.
+TEST_CASE("Halfplane separates Disk: never (the remainder stays connected)") {
+    const Disk d = unitDisk;
+
+    CHECK_FALSE(Halfplane({-50, 0}, {50, 0}).separates(d));   // boundary through centre
+    CHECK_FALSE(Halfplane({-50, 5}, {50, 5}).separates(d));   // boundary cuts a cap
+    CHECK_FALSE(Halfplane({-50, 50}, {50, 50}).separates(d)); // disk entirely on one side
 }
 
 TEST_CASE("Disk crosses Line/OrientedLine: true iff the line crosses the open disk") {

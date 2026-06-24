@@ -700,6 +700,10 @@ struct Halfplane {
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 
     // --- not-yet-implemented predicate pairs (throw); see implementation ---
