@@ -553,6 +553,12 @@ constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherConve
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherDisk& other) const {
+    return this->asSegment().separates(other);
+}
+
+template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::separates(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -889,6 +895,23 @@ constexpr bool Ray<PointType, LabelType>::separates(const OtherConvex& other) co
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Ray<PointType, LabelType>::separates(const OtherDisk& other) const {
+    // The disk is convex, so removing the ray disconnects it exactly when the ray
+    // runs clear through as a full chord: the source must not be strictly inside
+    // (an interior source leaves only a slit, which stays connected) and the ray's
+    // interior must reach the disk's interior, after which the half-infinite far
+    // end guarantees a second boundary crossing.
+    if (other.isDegenerate()) {
+        return false;
+    }
+    if (other.interiorContains(source())) {
+        return false;
+    }
+    return other.interiorsIntersect(*this);
+}
+
+template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Ray<PointType, LabelType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
@@ -1176,6 +1199,16 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherConvex& oth
             return true;
         }
     }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherDisk& other) const {
+    // Removing a closed half-plane from a disk leaves the circular segment on the
+    // far side of the boundary line, which is always a single connected piece, so
+    // a half-plane never disconnects a (convex) disk.
+    (void)other;
     return false;
 }
 
