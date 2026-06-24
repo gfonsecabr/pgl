@@ -600,8 +600,8 @@ class Canvas {
         const double contentWidth = bounds.maxX - bounds.minX;
         const double contentHeight = bounds.maxY - bounds.minY;
 
-        const double scaleX = contentWidth == 0.0 ? std::numeric_limits<double>::infinity() : drawableWidth / contentWidth;
-        const double scaleY = contentHeight == 0.0 ? std::numeric_limits<double>::infinity() : drawableHeight / contentHeight;
+        const double scaleX = contentWidth == 0.0 ? pgl::detail::numeric_limits<double>::infinity() : drawableWidth / contentWidth;
+        const double scaleY = contentHeight == 0.0 ? pgl::detail::numeric_limits<double>::infinity() : drawableHeight / contentHeight;
 
         double fittedScale = std::min(scaleX, scaleY);
         if (!std::isfinite(fittedScale)) {

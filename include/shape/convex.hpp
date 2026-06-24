@@ -2032,7 +2032,7 @@ struct Convex {
     // output, and the one true hash that would collide with it is remapped to
     // hashUnset_ - 1 so the sentinel is never stored as a real value. Unlike the
     // bbox, the hash is not translation-invariant, so operator+=/-= reset it.
-    static constexpr std::size_t hashUnset_ = std::numeric_limits<std::size_t>::max();
+    static constexpr std::size_t hashUnset_ = pgl::detail::numeric_limits<std::size_t>::max();
     mutable std::size_t hash_ = hashUnset_;
     friend struct std::hash<Convex>;
 
