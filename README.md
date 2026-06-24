@@ -14,7 +14,7 @@
 
 > ⚠️ **Work in Progress**: This library is still under construction and contains **bugs and missing features**. Use in production environments is not recommended.
 
-Pangolin (or `pgl`) is a header-only C++ library for computational geometry in the plane. It is designed to be pleasant to use, exact when needed, and easy to combine with standard C++ containers and algorithms.
+Pangolin (or `pgl`) is a header-only C++ library for computational geometry in the plane. It is designed to be pleasant to use, exact when needed, and easy to combine with standard C++ containers and algorithms. A [python binding](https://github.com/gfonsecabr/pypgl/tree/main) called `pypgl` is also available.
 
 ```c++
 #include <iostream>
