@@ -100,7 +100,7 @@ private:
             // the value had already grown onto the heap.
             return !n.fitsInt64() || !d.fitsInt64();
         } else {
-            constexpr int half = std::numeric_limits<Int>::digits / 2 - 1;
+            constexpr int half = pgl::detail::numeric_limits<Int>::digits / 2 - 1;
             const Int limit = Int(1) << half;
             return pgl::detail::abs(n) >= limit || d >= limit;
         }
@@ -158,10 +158,10 @@ public:
      */
     template<std::floating_point Float>
     constexpr Rational(Float f,
-                       int digits = std::numeric_limits<Int>::digits > 0
-                           ? std::min(std::numeric_limits<Float>::digits,
-                                      std::numeric_limits<Int>::digits / 2 - 4)
-                           : std::numeric_limits<Float>::digits) {
+                       int digits = pgl::detail::numeric_limits<Int>::digits > 0
+                           ? std::min(pgl::detail::numeric_limits<Float>::digits,
+                                      pgl::detail::numeric_limits<Int>::digits / 2 - 4)
+                           : pgl::detail::numeric_limits<Float>::digits) {
         if constexpr (requires(Int x, Float g) { x * g; }) {
             if (f == 0) {
                 num = 0;
@@ -271,7 +271,7 @@ public:
         int i = 0;
 #endif
         while (static_cast<Double>(flt_result) > result) {
-            flt_result = std::nextafter(flt_result, -std::numeric_limits<Float>::infinity());
+            flt_result = std::nextafter(flt_result, -pgl::detail::numeric_limits<Float>::infinity());
             assert(i++ < 10); // Normally one iteration should be enough
         }
 
@@ -309,7 +309,7 @@ public:
         int i = 0;
 #endif
         while (static_cast<Double>(flt_result) < result) {
-            flt_result = std::nextafter(flt_result, std::numeric_limits<Float>::infinity());
+            flt_result = std::nextafter(flt_result, pgl::detail::numeric_limits<Float>::infinity());
             assert(i++ < 10); // Normally one iteration should be enough
         }
 
@@ -592,7 +592,7 @@ concept NumericType =
 template <NumericType T>
 struct to_integer_with_digits {
 private:
-    static constexpr int bits = std::numeric_limits<T>::digits;
+    static constexpr int bits = pgl::detail::numeric_limits<T>::digits;
     static constexpr int rounded = round_up_bits(bits);
 
 public:
@@ -617,21 +617,21 @@ struct std::numeric_limits<pgl::Rational<Int>> {
     static constexpr bool is_specialized = true;
 
     static constexpr pgl::Rational<Int> min() noexcept {
-        return pgl::Rational<Int>(std::numeric_limits<Int>::min(), 1);
+        return pgl::Rational<Int>(pgl::detail::numeric_limits<Int>::min(), 1);
     }
 
     static constexpr pgl::Rational<Int> max() noexcept {
-        return pgl::Rational<Int>(std::numeric_limits<Int>::max(), 1);
+        return pgl::Rational<Int>(pgl::detail::numeric_limits<Int>::max(), 1);
     }
 
     static constexpr pgl::Rational<Int> lowest() noexcept {
         return min();
     }
 
-    static constexpr int digits = std::numeric_limits<Int>::digits;
-    static constexpr int digits10 = std::numeric_limits<Int>::digits10;
+    static constexpr int digits = pgl::detail::numeric_limits<Int>::digits;
+    static constexpr int digits10 = pgl::detail::numeric_limits<Int>::digits10;
 
-    static constexpr bool is_signed = std::numeric_limits<Int>::is_signed;
+    static constexpr bool is_signed = pgl::detail::numeric_limits<Int>::is_signed;
     static constexpr bool is_integer = false;
     static constexpr bool is_exact = true;
 
@@ -644,7 +644,7 @@ struct std::numeric_limits<pgl::Rational<Int>> {
     static constexpr int min_exponent10 = 0;
     static constexpr int max_exponent = 0;
     static constexpr int max_exponent10 = 0;
-    static constexpr bool is_bounded = std::numeric_limits<Int>::is_bounded;
+    static constexpr bool is_bounded = pgl::detail::numeric_limits<Int>::is_bounded;
     static constexpr bool is_modulo = false;
     static constexpr bool is_iec559 = false;
     static constexpr bool has_infinity = false;

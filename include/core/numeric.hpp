@@ -14,6 +14,7 @@
 #include <compare>
 #include <concepts>
 #include <cstdint>
+#include <limits>
 #include <numeric>
 #include <ostream>
 #include <type_traits>
@@ -79,6 +80,41 @@ inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
 }  // namespace pgl
 
 namespace pgl::detail {
+
+/**
+ * @brief Portable replacement for std::numeric_limits used throughout pgl.
+ *
+ * For every type the primary template simply forwards to std::numeric_limits.
+ * The one type it must override is the native __int128 extension: libstdc++ and
+ * libc++ specialize std::numeric_limits<__int128>, but MSVC's STL (used by
+ * clang-cl) does not, so there ::max()/::min()/::digits silently return 0 and
+ * corrupt every magnitude/overflow check that relies on them. Routing all pgl
+ * code through pgl::detail::numeric_limits keeps the int128 fast path correct on
+ * every toolchain. (The Boost int128 fallback specializes std::numeric_limits,
+ * so the forwarding primary template already covers it.)
+ */
+template <class T>
+struct numeric_limits : std::numeric_limits<T> {};
+
+#if defined(__SIZEOF_INT128__)
+template <>
+struct numeric_limits<__int128_t> {
+    static constexpr bool is_specialized = true;
+    static constexpr bool is_signed = true;
+    static constexpr bool is_integer = true;
+    static constexpr bool is_exact = true;
+    static constexpr bool is_bounded = true;
+    static constexpr int digits = 127;     // value bits of a signed 128-bit int
+    static constexpr int digits10 = 38;
+    static constexpr __int128_t min() noexcept {
+        return static_cast<__int128_t>(static_cast<unsigned __int128>(1) << 127);
+    }
+    static constexpr __int128_t lowest() noexcept { return min(); }
+    static constexpr __int128_t max() noexcept {
+        return static_cast<__int128_t>(~(static_cast<unsigned __int128>(1) << 127));
+    }
+};
+#endif
 
 template <typename T>
 concept extended_integral =

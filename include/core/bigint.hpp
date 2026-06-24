@@ -170,7 +170,7 @@ private:
     static pgl::int128 limbMask() { return base() - 1; }
 
     /// @brief Largest value a ::pgl::int128 can hold.
-    static pgl::int128 int128Max() { return std::numeric_limits<pgl::int128>::max(); }
+    static pgl::int128 int128Max() { return pgl::detail::numeric_limits<pgl::int128>::max(); }
 
     // --- magnitude helpers (operate on normalized little-endian limb vectors) ---
 
@@ -432,7 +432,7 @@ private:
     /// 64 bits (overwhelmingly the common case) this issues a single hardware
     /// 64-bit divide instead of the ~3x slower 128-bit __divti3.
     static pgl::int128 quotSmall(pgl::int128 a, pgl::int128 b) {
-        const std::uint64_t u64max = std::numeric_limits<std::uint64_t>::max();
+        const std::uint64_t u64max = pgl::detail::numeric_limits<std::uint64_t>::max();
         if (a <= u64max && b <= u64max) {
             return pgl::int128(static_cast<std::uint64_t>(a) / static_cast<std::uint64_t>(b));
         }
@@ -441,7 +441,7 @@ private:
 
     /// @brief Remainder of two non-negative int128 magnitudes; see @ref quotSmall.
     static pgl::int128 remSmall(pgl::int128 a, pgl::int128 b) {
-        const std::uint64_t u64max = std::numeric_limits<std::uint64_t>::max();
+        const std::uint64_t u64max = pgl::detail::numeric_limits<std::uint64_t>::max();
         if (a <= u64max && b <= u64max) {
             return pgl::int128(static_cast<std::uint64_t>(a) % static_cast<std::uint64_t>(b));
         }
@@ -479,7 +479,7 @@ public:
         if (x == 0) {
             return;
         }
-        if (x == std::numeric_limits<pgl::int128>::min()) {
+        if (x == pgl::detail::numeric_limits<pgl::int128>::min()) {
             // |min| == 2^127 does not fit in a signed int128, so spell it out.
             negative_ = true;
             limbs_.assign(3, pgl::int128(0));
