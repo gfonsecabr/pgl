@@ -152,7 +152,15 @@ public:
  */
 class BigInt {
 private:
-    pgl::int128 small_ = 0;            ///< Magnitude when @ref limbs_ is empty (>= 0).
+    // alignas(16): on the x86_64-windows-msvc target clang gives __int128 a
+    // *preferred* alignment of 16 (used by alignof and by aligned-move codegen,
+    // e.g. movaps) but an *ABI* alignment of only 8 (used to lay out aggregates
+    // and stack slots). The mismatch means a Point/Rational holding a BigInt can
+    // land on an 8-byte-aligned address while the generated code stores small_
+    // with movaps, faulting. Pinning the storage to 16 forces the ABI alignment
+    // to match the codegen on every toolchain (a no-op where __int128 is already
+    // 16-aligned, e.g. the System V ABI, and on the Boost fallback).
+    alignas(16) pgl::int128 small_ = 0; ///< Magnitude when @ref limbs_ is empty (>= 0).
     detail::LimbStore limbs_;          ///< Magnitude limbs, base 2^62, little-endian.
     bool negative_ = false;            ///< Sign; false when the value is zero.
 
