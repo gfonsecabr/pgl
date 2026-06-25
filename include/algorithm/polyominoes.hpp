@@ -1,6 +1,7 @@
 #pragma once
 
 #include "algorithm/sortpoints.hpp"
+#include <cstdint>
 
 /**
  * @file polyominoes.hpp
@@ -237,9 +238,9 @@ std::vector<Point<T>> polyominoOutline(const CellSet& cells) {
         const PolyCell prev = loop[(i + m - 1) % m];
         const PolyCell here = loop[i];
         const PolyCell next = loop[(i + 1) % m];
-        const long cross =
-            static_cast<long>(here.first - prev.first) * (next.second - here.second) -
-            static_cast<long>(here.second - prev.second) * (next.first - here.first);
+        const int64_t cross =
+            static_cast<int64_t>(here.first - prev.first) * (next.second - here.second) -
+            static_cast<int64_t>(here.second - prev.second) * (next.first - here.first);
         if (cross != 0) {
             corners.emplace_back(static_cast<T>(here.first), static_cast<T>(here.second));
         }
