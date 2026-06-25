@@ -287,7 +287,7 @@ private:
         return ((v[limb] >> static_cast<int>(off)) & 1) != 0;
     }
 
-    /// @brief Magnitude division with remainder via binary long division.
+    /// @brief Magnitude division with remainder via binary int64_t division.
     ///
     /// The divisor must be non-zero. Returns { quotient, remainder }. This is
     /// O(bits^2) but only runs once magnitudes exceed 128 bits, which is rare.
@@ -397,11 +397,11 @@ private:
         if (v.empty()) {
             return "0";
         }
-        const Limbs divisor = {pgl::int128(1000000000000000000LL)};   // 10^18
-        std::vector<long long> chunks;
+        const Limbs divisor = {pgl::int128(int64_t(1000000000000000000))};   // 10^18
+        std::vector<int64_t> chunks;
         while (!v.empty()) {
             auto [quotient, remainder] = divmodMag(v, divisor);
-            chunks.push_back(remainder.empty() ? 0LL : static_cast<long long>(remainder[0]));
+            chunks.push_back(remainder.empty() ? int64_t(0) : static_cast<int64_t>(remainder[0]));
             v = std::move(quotient);
         }
         std::string s = std::to_string(chunks.back());
@@ -549,8 +549,7 @@ public:
     }
 
     explicit operator int() const { return static_cast<int>(static_cast<pgl::int128>(*this)); }
-    explicit operator long int() const { return static_cast<long int>(static_cast<pgl::int128>(*this)); }
-    explicit operator long long() const { return static_cast<long long>(static_cast<pgl::int128>(*this)); }
+    explicit operator int64_t() const { return static_cast<int64_t>(static_cast<pgl::int128>(*this)); }
     explicit operator bool() const { return !isZero(); }
 
     /// @brief Convert to floating point.

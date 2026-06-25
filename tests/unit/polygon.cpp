@@ -56,8 +56,8 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
     }
 
     SUBCASE("disjoint polygons have empty intersection") {
-        const Polygon far({100, 100, 101, 100, 101, 101, 100, 101});
-        CHECK(square.intersection(far).empty());
+        const Polygon farShape({100, 100, 101, 100, 101, 101, 100, 101});
+        CHECK(square.intersection(farShape).empty());
     }
 
     SUBCASE("polygons sharing a single corner meet at a point") {
@@ -95,7 +95,7 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
 }
 
 TEST_CASE("Polygon intersects Polygon with fractional crossings (rational result)") {
-    using Q = pgl::Rational<long long>;
+    using Q = pgl::Rational<int64_t>;
     using P = pgl::Point<int>;
     using QPoint = pgl::Point<Q>;
     using QPolygon = pgl::Polygon<QPoint>;

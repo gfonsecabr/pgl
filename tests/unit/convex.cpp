@@ -688,10 +688,10 @@ TEST_CASE("Convex::interiorContains(Convex) requires strict interior containment
 // integer vectors this is decided by signed cross products only.
 namespace {
 
-using BPoint = pgl::Point<long long>;
+using BPoint = pgl::Point<int64_t>;
 
-struct Vec { long long x, y; };
-static long long cross(Vec a, Vec b) { return a.x * b.y - a.y * b.x; }
+struct Vec { int64_t x, y; };
+static int64_t cross(Vec a, Vec b) { return a.x * b.y - a.y * b.x; }
 
 // Is direction d inside the closed CCW arc [lo, hi] of angular width < pi?
 static bool inArc(Vec lo, Vec hi, Vec d) {
@@ -707,7 +707,7 @@ static std::set<std::pair<std::size_t, std::size_t>> bruteAntipodal(const Convex
 
     auto vert = [&](std::size_t i) {
         const auto p = c[i];
-        return Vec{static_cast<long long>(p.x()), static_cast<long long>(p.y())};
+        return Vec{static_cast<int64_t>(p.x()), static_cast<int64_t>(p.y())};
     };
     // Outward normal of edge k = (e.y, -e.x) for a CCW polygon.
     auto normal = [&](std::size_t k) {
@@ -789,15 +789,15 @@ TEST_CASE("Convex::antipodalPairs matches brute force on random hulls") {
 TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
     using Convex = pgl::Convex<BPoint>;
 
-    auto bruteMaxSquared = [](const Convex& c) -> long long {
+    auto bruteMaxSquared = [](const Convex& c) -> int64_t {
         const std::size_t n = c.size();
-        long long best = 0;
+        int64_t best = 0;
         for (std::size_t i = 0; i < n; ++i) {
             for (std::size_t j = i + 1; j < n; ++j) {
                 const auto a = c[i];
                 const auto b = c[j];
-                const long long dx = static_cast<long long>(a.x()) - static_cast<long long>(b.x());
-                const long long dy = static_cast<long long>(a.y()) - static_cast<long long>(b.y());
+                const int64_t dx = static_cast<int64_t>(a.x()) - static_cast<int64_t>(b.x());
+                const int64_t dy = static_cast<int64_t>(a.y()) - static_cast<int64_t>(b.y());
                 best = std::max(best, dx * dx + dy * dy);
             }
         }
@@ -814,7 +814,7 @@ TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
         Convex c(pts);
         if (c.size() < 2) continue;
         const auto d = c.diameter();
-        const long long got = d.min().squaredDistance(d.max());
+        const int64_t got = d.min().squaredDistance(d.max());
         CHECK_MESSAGE(got == bruteMaxSquared(c), "n=", c.size(), " trial=", trial);
     }
 
@@ -906,7 +906,7 @@ TEST_CASE("Convex squaredDistance to a point") {
 
     SUBCASE("nearest point may lie far from the nearest vertex") {
         // Long thin triangle: the closest vertex is one tip while the closest
-        // point sits on the opposite long edge.
+        // point sits on the opposite int64_t edge.
         const Convex triangle(std::vector<Point>{{-23, 23}, {16, 0}, {26, 4}});
         ERational brute = triangle.edges().front().squaredDistance<ERational>(Point(8, 12));
         for (const auto& e : triangle.edges()) {

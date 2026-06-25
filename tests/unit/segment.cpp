@@ -611,18 +611,18 @@ TEST_CASE("Segment arithmetic on different number types") {
     CHECK(sid.max().x() == 11.5);
     CHECK(sid.max().y() == 13.5);
 
-    pgl::Point<pgl::Rational<>> pr(pgl::Rational(5.25), pgl::Rational(19l,3l));
+    pgl::Point<pgl::Rational<>> pr(pgl::Rational(5.25), pgl::Rational(int64_t(19),int64_t(3)));
     pgl::Segment<pgl::Point<pgl::Rational<>>> sri = pr + si;
-    CHECK(sri.min().x() == pgl::Rational(33l,4l));
-    CHECK(sri.min().y() == pgl::Rational(31l,3l));
-    CHECK(sri.max().x() == pgl::Rational(41l,4l));
-    CHECK(sri.max().y() == pgl::Rational(37l,3l));
+    CHECK(sri.min().x() == pgl::Rational(int64_t(33),int64_t(4)));
+    CHECK(sri.min().y() == pgl::Rational(int64_t(31),int64_t(3)));
+    CHECK(sri.max().x() == pgl::Rational(int64_t(41),int64_t(4)));
+    CHECK(sri.max().y() == pgl::Rational(int64_t(37),int64_t(3)));
 
     pgl::Segment<pgl::Point<pgl::Rational<>>> srd = pr + sd;
-    CHECK(srd.min().x() == pgl::Rational(55l,4l));
-    CHECK(srd.min().y() == pgl::Rational(95l,6l));
-    CHECK(srd.max().x() == pgl::Rational(63l,4l));
-    CHECK(srd.max().y() == pgl::Rational(107l,6l));
+    CHECK(srd.min().x() == pgl::Rational(int64_t(55),int64_t(4)));
+    CHECK(srd.min().y() == pgl::Rational(int64_t(95),int64_t(6)));
+    CHECK(srd.max().x() == pgl::Rational(int64_t(63),int64_t(4)));
+    CHECK(srd.max().y() == pgl::Rational(int64_t(107),int64_t(6)));
 }
 
 

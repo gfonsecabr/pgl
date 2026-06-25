@@ -60,9 +60,9 @@ TEST_CASE("Default construction and inspectors") {
 
 TEST_CASE("Construction from various integer types and conversions") {
     CHECK(str(BigInt(static_cast<int8_t>(-7))) == "-7");
-    CHECK(str(BigInt(static_cast<int64_t>(9000000000000000000LL))) == "9000000000000000000");
+    CHECK(str(BigInt(static_cast<int64_t>(int64_t(9000000000000000000)))) == "9000000000000000000");
     CHECK(static_cast<int>(BigInt(123456)) == 123456);
-    CHECK(static_cast<long long>(BigInt(-987654321LL)) == -987654321LL);
+    CHECK(static_cast<int64_t>(BigInt(-int64_t(987654321))) == -int64_t(987654321));
     CHECK(static_cast<double>(BigInt(1000)) == doctest::Approx(1000.0));
     CHECK(static_cast<bool>(BigInt(0)) == false);
     CHECK(static_cast<bool>(BigInt(5)) == true);
@@ -70,11 +70,11 @@ TEST_CASE("Construction from various integer types and conversions") {
 
 TEST_CASE("Small arithmetic matches a 64-bit reference") {
     std::mt19937_64 rng(12345);
-    std::uniform_int_distribution<long long> dist(-1000000000LL, 1000000000LL);
+    std::uniform_int_distribution<int64_t> dist(-int64_t(1000000000), int64_t(1000000000));
 
     for (int iter = 0; iter < 5000; ++iter) {
-        const long long a = dist(rng);
-        const long long b = dist(rng);
+        const int64_t a = dist(rng);
+        const int64_t b = dist(rng);
 
         CHECK(str(BigInt(a) + BigInt(b)) == std::to_string(a + b));
         CHECK(str(BigInt(a) - BigInt(b)) == std::to_string(a - b));
