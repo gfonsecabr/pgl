@@ -24,6 +24,10 @@ template <class Rational, SegmentConcept Segment>
 class BentleyOttmann {
     using Point = Segment::PointType;
     using Number = Point::NumberType;
+    static_assert(!std::is_floating_point_v<Number>,
+                  "Bentley-Ottmann requires exact (non-floating-point) input "
+                  "coordinates; the sweep line's predicates are not robust under "
+                  "rounding. Use integer or rational coordinates.");
     using Rectangle = pgl::Rectangle<Point>;
     using RPoint = pgl::Point<Rational>;
     using RSegment = pgl::Segment<RPoint>;

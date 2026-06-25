@@ -45,7 +45,7 @@ std::vector<pgl::Segment<Point>> randomSegments(size_t n1, size_t n2, size_t see
 }
 
 // FIXME: Breaks for points with labels and rational coordinates?
-TEST_CASE_TEMPLATE("Find crossings among segments", Point, pgl::Point<int>, pgl::Point<float>) {
+TEST_CASE_TEMPLATE("Find crossings among segments", Point, pgl::Point<int>) {
     auto segs = randomSegments<Point>(15,10);
     auto bf = pgl::bruteForceCrossings(segs);
     auto bo = pgl::findCrossings(segs);
@@ -56,7 +56,7 @@ TEST_CASE_TEMPLATE("Find crossings among segments", Point, pgl::Point<int>, pgl:
     CHECK(bf == bo);
 }
 
-TEST_CASE_TEMPLATE("Find intersections among segments", Point, pgl::Point<int>, pgl::Point<float>) {
+TEST_CASE_TEMPLATE("Find intersections among segments", Point, pgl::Point<int>) {
     auto segs = randomSegments<Point>(15,10);
     auto bf = pgl::bruteForceIntersections(segs);
     auto bo = pgl::findIntersections(segs);
@@ -118,7 +118,7 @@ TEST_CASE("Find{Crossings,Intersections} preserve segment labels in the result")
     }
 }
 
-TEST_CASE_TEMPLATE("Detect crossings and intersections among segments", Point, pgl::Point<int>, pgl::Point<float>) {
+TEST_CASE_TEMPLATE("Detect crossings and intersections among segments", Point, pgl::Point<int>) {
     std::vector<pgl::Segment<Point>> segs;
     for(int i = 1; i < 5; i++) {
         segs.emplace_back(i,i*i,i+1,(i+1)*(i+1));

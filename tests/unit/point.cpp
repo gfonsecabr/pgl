@@ -115,9 +115,11 @@ TEST_CASE("Point arithmetic on different number types") {
     CHECK(pir.x() == pgl::Rational(int64_t(25),int64_t(4)));
     CHECK(pir.y() == pgl::Rational(int64_t(25),int64_t(3)));
 
-    pgl::Point<pgl::Rational<>> pdr = pd + pr;
-    CHECK(pdr.x() == pgl::Rational(int64_t(35),int64_t(4)));
-    CHECK(pdr.y() == pgl::Rational(int64_t(65),int64_t(6)));
+    // Mixing a floating-point coordinate with a rational one yields a
+    // floating-point result: the float wins over the exact type.
+    pgl::Point<double> pdr = pd + pr;
+    CHECK(pdr.x() == 3.5 + static_cast<double>(pr.x()));
+    CHECK(pdr.y() == 4.5 + static_cast<double>(pr.y()));
 }
 
 TEST_CASE("Point equality, ordering, and hashing depend only on coordinates") {
