@@ -1209,7 +1209,13 @@ struct Rectangle {
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
              (!requires(const std::remove_cvref_t<Range>& shape) { shape.bbox(); })
-    constexpr void insert(Range&& range);
+    constexpr void insert(Range&& range) {
+        // Defined inline so MSVC can match the constrained overload; the
+        // overloaded out-of-line form trips MSVC's C2244.
+        for (const auto& point : range) {
+            insert(point);
+        }
+    }
 
     /**
      * @brief Enlarges the rectangle to contain every point in a range of shapes.
@@ -1223,7 +1229,13 @@ struct Rectangle {
      */
     template <std::ranges::input_range Range>
         requires(!detail::is_point_v<typename std::ranges::range_value_t<Range>> && requires(const typename std::ranges::range_value_t<Range>& shape) { shape.bbox(); })
-    constexpr void insert(Range&& range);
+    constexpr void insert(Range&& range) {
+        // Defined inline so MSVC can match the constrained overload; the
+        // overloaded out-of-line form trips MSVC's C2244.
+        for (const auto& shape : range) {
+            insert(shape);
+        }
+    }
 
     /**
      * @brief Returns a segment defining a diameter.
