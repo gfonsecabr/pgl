@@ -38,6 +38,22 @@ inline constexpr bool is_Rational_v = is_Rational<T>::value;
 template <class T>
 concept RationalConcept = is_Rational_v<T>;
 
+namespace detail {
+/// @brief Exact 2^k as a pgl::BigInt for k >= 0 (exponentiation by squaring).
+///
+/// Used by the exact Rational-vs-floating-point comparison to apply a float's
+/// binary exponent without ever overflowing a fixed-width integer.
+inline pgl::BigInt pow2(int k) {
+    pgl::BigInt result(1), base(2);
+    while (k > 0) {
+        if (k & 1) result *= base;
+        base *= base;
+        k >>= 1;
+    }
+    return result;
+}
+} // namespace detail
+
 
 /**
  * @brief A class representing rational numbers (fractions).
@@ -516,6 +532,57 @@ public:
         requires (!std::same_as<U, Int>)
     constexpr bool operator==(const Rational<U>& r) const {
         return numerator() == r.numerator() && denominator() == r.denominator();
+    }
+
+    // --- comparison against floating point ---
+    //
+    // Exact for every finite value and exponent. The float f is decomposed by
+    // frexp into an integer significand times a power of two (f == sig * 2^E,
+    // with |sig| < 2^digits so it fits an int128), and num/den <=> sig*2^E is
+    // settled by cross-multiplying through the positive denominator in pgl::BigInt
+    // so the binary shift can never overflow. No precision is lost regardless of
+    // the magnitudes involved. Being members, these also cover the reversed forms
+    // (`f == r`, `f < r`, ...) via C++20 rewriting. The float -> Rational
+    // constructor is explicit and lossy, so an implicit conversion never silently
+    // approximates f here; this overload is the only float comparison path.
+    //
+    // Not constexpr: pgl::BigInt arithmetic is not constexpr-capable.
+
+    /// @brief Exact three-way comparison against a floating-point value
+    /// (partial: NaN compares unordered).
+    template <std::floating_point Float>
+    std::partial_ordering operator<=>(Float f) const {
+        if (std::isnan(f))
+            return std::partial_ordering::unordered;
+        if (std::isinf(f))
+            return f > 0 ? std::partial_ordering::less
+                         : std::partial_ordering::greater;
+
+        // f == sig * 2^E exactly.
+        int exponent;
+        const Float frac = std::frexp(f, &exponent);
+        const int digits = pgl::detail::numeric_limits<Float>::digits;
+        const pgl::int128 sig = static_cast<pgl::int128>(std::ldexp(frac, digits));
+        const int E = exponent - digits;
+
+        // Compare num/den against sig*2^E by multiplying through by den > 0:
+        //   sign(num/den - f) == sign(num - den*sig*2^E).
+        // The factor of 2^|E| is moved to whichever side keeps the exponent
+        // non-negative, and all of it is done in BigInt so nothing overflows.
+        pgl::BigInt lhs(num);
+        pgl::BigInt rhs = pgl::BigInt(den) * pgl::BigInt(sig);
+        if (E >= 0)
+            rhs *= detail::pow2(E);
+        else
+            lhs *= detail::pow2(-E);
+        return lhs <=> rhs;
+    }
+
+    /// @brief Exact equality against a floating-point value.
+    template <std::floating_point Float>
+    bool operator==(Float f) const {
+        return std::isfinite(f) &&
+               (*this <=> f) == std::partial_ordering::equivalent;
     }
 
     constexpr Rational& operator++() { return *this += 1; }

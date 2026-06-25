@@ -80,6 +80,49 @@ TEST_CASE_TEMPLATE("Constructors from double", Int, int32_t, int64_t, pgl::int12
     }
 }
 
+TEST_CASE_TEMPLATE("Exact comparison against floating point", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    using R = pgl::Rational<Int>;
+
+    // Dyadic values are represented exactly by both sides.
+    CHECK(R(1, 2) == 0.5);
+    CHECK(R(-3, 4) == -0.75);
+    CHECK(R(5, 1) == 5.0);
+    CHECK_FALSE(R(1, 2) == 0.4);
+
+    // Ordering is exact and the reversed (float-on-the-left) forms work too.
+    CHECK(R(1, 2) > 0.4);
+    CHECK(R(1, 2) < 0.6);
+    CHECK(0.4 < R(1, 2));
+    CHECK(0.6 > R(1, 2));
+    CHECK(R(-3, 4) < -0.7);
+    CHECK(R(-3, 4) > -0.8);
+
+    // 1/3 is not any double: never equal, but consistently ordered against the
+    // nearest double, with no rounding of the rational side.
+    const double third = 1.0 / 3.0;
+    CHECK_FALSE(R(1, 3) == third);
+    CHECK((R(1, 3) < third) != (R(1, 3) > third));
+
+    // Exact well beyond a double's integer precision (no overflow, no rounding).
+    CHECK(R(1, 3) < 1e300);
+    CHECK(R(1, 3) > -1e300);
+
+    // NaN is unordered; infinities order as expected.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+    CHECK_FALSE(R(1, 2) == nan);
+    CHECK_FALSE(R(1, 2) < nan);
+    CHECK_FALSE(R(1, 2) > nan);
+    CHECK_FALSE(R(1, 2) >= nan);
+    CHECK(R(1, 2) < inf);
+    CHECK(R(1, 2) > -inf);
+
+    // The float->Rational conversion is explicit, so a bare float never slips
+    // in as a Rational; this exercises that comparison is the float overload.
+    CHECK(R(7, 2) == 3.5);
+}
+
 TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     using SmallRational = pgl::Rational<int16_t>;
     using PromotedSmallRational = pgl::detail::promoted_number_t<SmallRational>;
