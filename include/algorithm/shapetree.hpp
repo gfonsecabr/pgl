@@ -421,10 +421,10 @@ class ShapeTree {
 
             const ResultNumber leftBound = q.template squaredDistance<ResultNumber>(tree.nodes_[left].box);
             const ResultNumber rightBound = q.template squaredDistance<ResultNumber>(tree.nodes_[right].box);
-            const std::ptrdiff_t near = leftBound <= rightBound ? left : right;
-            const std::ptrdiff_t far = leftBound <= rightBound ? right : left;
-            tree.nodes_[near].nearest(tree, q, bestDist, bestIndex);
-            tree.nodes_[far].nearest(tree, q, bestDist, bestIndex);
+            const std::ptrdiff_t nearChild = leftBound <= rightBound ? left : right;
+            const std::ptrdiff_t farChild = leftBound <= rightBound ? right : left;
+            tree.nodes_[nearChild].nearest(tree, q, bestDist, bestIndex);
+            tree.nodes_[farChild].nearest(tree, q, bestDist, bestIndex);
         }
     };
 
