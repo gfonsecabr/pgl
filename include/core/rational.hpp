@@ -180,7 +180,11 @@ public:
                 digits -= exponent;
             assert(digits > 0); // Rational number overflow
             den = Int(1) << digits;
-            num = negative ? -den * f : den * f;
+            // Wrap in Int(): for the Boost int128 fallback `den * f` yields a
+            // double (see the double-interop shim in numeric.hpp), so convert it
+            // back explicitly. For native __int128 / built-in ints this is the
+            // same truncating conversion that the implicit assignment did.
+            num = Int(negative ? -den * f : den * f);
 
             normalized_ = false;
             normalize();

@@ -56,8 +56,8 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
     }
 
     SUBCASE("disjoint polygons have empty intersection") {
-        const Polygon far({100, 100, 101, 100, 101, 101, 100, 101});
-        CHECK(square.intersection(far).empty());
+        const Polygon farShape({100, 100, 101, 100, 101, 101, 100, 101});
+        CHECK(square.intersection(farShape).empty());
     }
 
     SUBCASE("polygons sharing a single corner meet at a point") {
