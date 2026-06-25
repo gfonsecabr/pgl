@@ -134,9 +134,9 @@ TEST_CASE("ShapeTree single element") {
     CHECK(tree.countContainedIn(crossing) == 0);
     CHECK(tree.emptyContainedIn(crossing));
 
-    const Rect far(100, 100, 110, 110);
-    CHECK(tree.countIntersecting(far) == 0);
-    CHECK(tree.emptyIntersecting(far));
+    const Rect farShape(100, 100, 110, 110);
+    CHECK(tree.countIntersecting(farShape) == 0);
+    CHECK(tree.emptyIntersecting(farShape));
 }
 
 TEST_CASE("ShapeTree intersects family matches brute force") {

@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <compare>
+#include <compare>
 #include <concepts>
 #include <cstdint>
 #include <numeric>
@@ -51,7 +52,15 @@ class BigInt;
 #if defined(__SIZEOF_INT128__)
 using int128 = __int128_t;
 #else
-using int128 = boost::multiprecision::int128_t;
+// Boost's own `int128_t` is sign-magnitude with a *128-bit magnitude*, so its
+// max() is 2^128 - 1 — wider than native __int128 (two's complement, max
+// 2^127 - 1). Using it would silently give pgl::int128 a different range on the
+// fallback than on the native path, breaking the shared overflow guards and
+// invariants. A 127-bit magnitude reproduces native's max() exactly; the only
+// difference is min() is -(2^127 - 1) rather than -2^127, an extreme value the
+// exact-arithmetic intermediates never depend on.
+using int128 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<
+    127, 127, boost::multiprecision::signed_magnitude, boost::multiprecision::unchecked, void>>;
 #endif
 
 #if defined(__SIZEOF_INT128__)
@@ -77,6 +86,34 @@ inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
 #endif
 
 }  // namespace pgl
+
+#if !defined(__SIZEOF_INT128__)
+// The Boost.Multiprecision fallback for pgl::int128 (used when the native
+// __int128 extension is unavailable, e.g. MSVC) deliberately omits mixed
+// operations with floating-point types, whereas native __int128 supports them
+// through the usual arithmetic conversions. These free operators restore that
+// double interop so pgl::int128 stays a drop-in replacement: each one converts
+// the 128-bit value to double and operates in double, exactly as the built-in
+// path would. They live at global scope (not in namespace pgl) so ordinary
+// lookup finds them from any translation unit that mixes pgl::int128 with
+// double. A single operator<=> covers all four relational operators in both
+// argument orders, and a single operator== covers ==/!=, avoiding the C++20
+// reversed-candidate ambiguity that defining both directions would create.
+inline std::partial_ordering operator<=>(const pgl::int128& a, double b) {
+    return static_cast<double>(a) <=> b;
+}
+inline bool operator==(const pgl::int128& a, double b) {
+    return static_cast<double>(a) == b;
+}
+inline double operator+(const pgl::int128& a, double b) { return static_cast<double>(a) + b; }
+inline double operator+(double a, const pgl::int128& b) { return a + static_cast<double>(b); }
+inline double operator-(const pgl::int128& a, double b) { return static_cast<double>(a) - b; }
+inline double operator-(double a, const pgl::int128& b) { return a - static_cast<double>(b); }
+inline double operator*(const pgl::int128& a, double b) { return static_cast<double>(a) * b; }
+inline double operator*(double a, const pgl::int128& b) { return a * static_cast<double>(b); }
+inline double operator/(const pgl::int128& a, double b) { return static_cast<double>(a) / b; }
+inline double operator/(double a, const pgl::int128& b) { return a / static_cast<double>(b); }
+#endif
 
 namespace pgl::detail {
 
