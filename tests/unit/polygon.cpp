@@ -95,7 +95,7 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
 }
 
 TEST_CASE("Polygon intersects Polygon with fractional crossings (rational result)") {
-    using Q = pgl::Rational<long long>;
+    using Q = pgl::Rational<int64_t>;
     using P = pgl::Point<int>;
     using QPoint = pgl::Point<Q>;
     using QPolygon = pgl::Polygon<QPoint>;

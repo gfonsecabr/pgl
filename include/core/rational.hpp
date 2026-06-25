@@ -233,9 +233,9 @@ public:
         return static_cast<int>(num) / static_cast<int>(den);
     }
 
-    /// @brief Convert to long int
-    explicit constexpr operator long int() const {
-        return static_cast<long int>(num) / static_cast<long int>(den);
+    /// @brief Convert to int64_t
+    explicit constexpr operator int64_t() const {
+        return static_cast<int64_t>(num) / static_cast<int64_t>(den);
     }
 
     /// @brief Convert to another Rational

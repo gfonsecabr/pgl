@@ -1914,8 +1914,8 @@ struct Triangulation {
         std::uint64_t rngState = 0x9e3779b97f4a7c15ULL;
         auto walk = [&](VertexId p, int t) -> int {
             int from = -1;
-            const long cap = 3L * static_cast<long>(tri.size()) + 16;
-            for (long step = 0; step < cap; ++step) {
+            const int64_t cap = int64_t(3) * static_cast<int64_t>(tri.size()) + 16;
+            for (int64_t step = 0; step < cap; ++step) {
                 if (isGhost(t)) {
                     return t;
                 }

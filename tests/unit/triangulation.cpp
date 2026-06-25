@@ -24,8 +24,8 @@ Point P(int x, int y) {
 // triangle's circumcircle. Zero is the defining property of a Delaunay
 // triangulation, and the property we want preserved even under cocircularity.
 template <class Tri, class Point>
-long strictInCircleViolations(const Tri& tri, const std::vector<Point>& pts) {
-    long viol = 0;
+int64_t strictInCircleViolations(const Tri& tri, const std::vector<Point>& pts) {
+    int64_t viol = 0;
     for (const auto& t : tri.triangles()) {
         for (const auto& p : pts) {
             if (pgl::inCircleSign(t.a(), t.b(), t.c(), p) ==
@@ -192,7 +192,7 @@ TEST_CASE_TEMPLATE("Partially collinear point sets triangulate validly and confo
                    Point, pgl::Point<int>, pgl::Point<double>,
                    pgl::Point<pgl::Rational<int64_t>>,
                    pgl::Point<pgl::Rational<pgl::BigInt>>) {
-    // Collinear input is supported as long as the points are not ALL collinear:
+    // Collinear input is supported as int64_t as the points are not ALL collinear:
     // the collinear points must still be used (not absorbed into a flat triangle
     // or a spanning edge), and the result must stay conforming and Delaunay.
     SUBCASE("five collinear points on a hull edge, apex above") {

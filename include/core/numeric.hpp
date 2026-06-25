@@ -94,11 +94,16 @@ inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
 // through the usual arithmetic conversions. These free operators restore that
 // double interop so pgl::int128 stays a drop-in replacement: each one converts
 // the 128-bit value to double and operates in double, exactly as the built-in
-// path would. They live at global scope (not in namespace pgl) so ordinary
-// lookup finds them from any translation unit that mixes pgl::int128 with
-// double. A single operator<=> covers all four relational operators in both
+// path would.
+//
+// They are defined in namespace boost::multiprecision (the namespace of
+// pgl::int128's underlying type) so that argument-dependent lookup finds them
+// everywhere -- crucially inside the `requires(Int x, Float g){ x * g; }` probe
+// in Rational's float constructor, where MSVC only consults ADL, not ordinary
+// lookup. A single operator<=> covers all four relational operators in both
 // argument orders, and a single operator== covers ==/!=, avoiding the C++20
 // reversed-candidate ambiguity that defining both directions would create.
+namespace boost::multiprecision {
 inline std::partial_ordering operator<=>(const pgl::int128& a, double b) {
     return static_cast<double>(a) <=> b;
 }
@@ -113,6 +118,7 @@ inline double operator*(const pgl::int128& a, double b) { return static_cast<dou
 inline double operator*(double a, const pgl::int128& b) { return a * static_cast<double>(b); }
 inline double operator/(const pgl::int128& a, double b) { return static_cast<double>(a) / b; }
 inline double operator/(double a, const pgl::int128& b) { return a / static_cast<double>(b); }
+}  // namespace boost::multiprecision
 #endif
 
 namespace pgl::detail {
