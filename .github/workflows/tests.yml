@@ -193,7 +193,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $boostInclude = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
-          New-Item -ItemType Directory -Force -Path build/tests/bin, build/tests/reports | Out-Null
+          New-Item -ItemType Directory -Force -Path build/tests/bin, build/tests/reports, build/tests/output | Out-Null
 
           $failed = @()
           $sources = Get-ChildItem tests/unit/*.cpp, tests/integration/*.cpp
