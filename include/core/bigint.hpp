@@ -16,6 +16,8 @@
  * compound assignment, increment/decrement, conversions, and stream I/O.
  */
 
+#include <cassert>
+#include <cmath>
 #include <compare>
 #include <cstdint>
 #include <functional>
@@ -498,6 +500,48 @@ public:
         }
     }
 
+    /// @brief Construct from floating point, truncating toward zero.
+    ///
+    /// The fractional part is discarded (round toward zero); the integer part is
+    /// kept exactly no matter how large the exponent is, so e.g. @c 2.0**200 is
+    /// represented bit-for-bit rather than rounded to a @c double. The value must
+    /// be finite. Marked @c explicit so a stray @c double never slips into BigInt
+    /// arithmetic or comparisons implicitly.
+    template <std::floating_point Float>
+    explicit BigInt(Float value) {
+        assert(std::isfinite(value)
+               && "pgl::BigInt: cannot construct from non-finite floating point");
+        const bool neg = value < 0;
+        const Float mag = std::trunc(neg ? -value : value);  // |value|, fraction dropped
+        if (mag == 0) {
+            return;   // zero (also covers -0.0 and tiny |value| < 1)
+        }
+        // Decompose the magnitude exactly as sig * 2^shift, where sig is the
+        // integer significand (at most `digits` bits, hence always within an
+        // int128) and `shift` places it at the right binary exponent.
+        int exponent;
+        const Float frac = std::frexp(mag, &exponent);   // mag == frac * 2^exponent
+        const int digits = pgl::detail::numeric_limits<Float>::digits;
+        const pgl::int128 sig = static_cast<pgl::int128>(std::ldexp(frac, digits));
+        const int shift = exponent - digits;             // mag == sig * 2^shift
+        if (shift <= 0) {
+            // mag < 2^digits <= 2^64, so it fits in a single int128 limb.
+            small_ = sig >> (-shift);   // exact: the dropped low bits are zero
+            negative_ = neg;
+            return;
+        }
+        // shift > 0: lay sig down at bit offset `shift` in the base-2^62 store.
+        // sig < 2^digits and the in-limb offset is < 62, so the shifted chunk
+        // still fits in an int128 before it is split across limbs.
+        Limbs v(static_cast<std::size_t>(shift / kLimbBits), pgl::int128(0));
+        pgl::int128 x = sig << (shift % kLimbBits);
+        while (x > 0) {
+            v.push_back(x & limbMask());
+            x >>= kLimbBits;
+        }
+        setFromLimbs(std::move(v), neg);
+    }
+
     // --- inspectors ---
 
     /// @brief Whether the value is zero.
@@ -710,6 +754,47 @@ public:
 
     bool operator==(const BigInt& o) const {
         return negative_ == o.negative_ && compareMag(o) == 0;
+    }
+
+    // --- comparison against floating point ---
+    //
+    // These are exact for every finite magnitude: rather than casting *this to a
+    // (lossy) double, the float is split at its truncation point with the same
+    // round-toward-zero rule the floating-point constructor uses, and the dropped
+    // fractional part breaks any tie on the integer part. Being members, they
+    // also cover the reversed forms (`f == b`, `f < b`, ...) via C++20 rewriting.
+
+    /// @brief Equality with a floating-point value (true only when @p f is a
+    /// whole number equal to this integer).
+    template <std::floating_point Float>
+    bool operator==(Float f) const {
+        if (!std::isfinite(f) || f != std::trunc(f)) {
+            return false;   // NaN/inf or a fractional value can never equal an integer
+        }
+        return *this == BigInt(f);
+    }
+
+    /// @brief Ordering against a floating-point value (partial: NaN is unordered).
+    template <std::floating_point Float>
+    std::partial_ordering operator<=>(Float f) const {
+        if (std::isnan(f)) {
+            return std::partial_ordering::unordered;
+        }
+        if (std::isinf(f)) {
+            return f > 0 ? std::partial_ordering::less : std::partial_ordering::greater;
+        }
+        // Compare against the truncated integer part first; if they differ, that
+        // settles it. BigInt(f) discards f's fraction exactly as std::trunc does.
+        const Float t = std::trunc(f);
+        if (std::strong_ordering c = *this <=> BigInt(f); c != 0) {
+            return c;
+        }
+        // Integer parts are equal, so the leftover fraction decides: a positive
+        // fraction makes f larger than this integer, a negative one smaller.
+        if (f == t) {
+            return std::partial_ordering::equivalent;
+        }
+        return f > t ? std::partial_ordering::less : std::partial_ordering::greater;
     }
 
     // --- stream I/O ---
