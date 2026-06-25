@@ -112,13 +112,13 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
     }
 
     SUBCASE("ray disjoint from the convex") {
-        const Ray far({-2, 9}, {-1, 9});
+        const Ray farShape({-2, 9}, {-1, 9});
 
-        CHECK_FALSE(far.intersects(triangle));
-        CHECK_FALSE(triangle.intersects(far));
-        CHECK_FALSE(far.interiorsIntersect(triangle));
-        CHECK_FALSE(triangle.interiorsIntersect(far));
-        CHECK_FALSE(far.intersection(triangle));
+        CHECK_FALSE(farShape.intersects(triangle));
+        CHECK_FALSE(triangle.intersects(farShape));
+        CHECK_FALSE(farShape.interiorsIntersect(triangle));
+        CHECK_FALSE(triangle.interiorsIntersect(farShape));
+        CHECK_FALSE(farShape.intersection(triangle));
     }
 }
 

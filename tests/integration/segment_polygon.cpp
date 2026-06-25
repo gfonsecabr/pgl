@@ -474,7 +474,7 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
     }
 
     SUBCASE("fractional crossings need a rational result type") {
-        using Rat = pgl::Rational<long long>;
+        using Rat = pgl::Rational<int64_t>;
         using RatPoint = pgl::Point<Rat>;
         using RatSegment = pgl::Segment<RatPoint>;
         using RatPiece = std::variant<RatPoint, RatSegment>;

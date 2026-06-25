@@ -58,9 +58,9 @@ std::vector<Triangle> makeTriangles(int n, std::uint64_t seed) {
 
 // Weight = twice the triangle area (always positive, exact integer).
 struct TwiceArea {
-    long operator()(const Triangle& t) const {
+    int64_t operator()(const Triangle& t) const {
         const auto a = t.twiceArea();
-        return a < 0 ? -static_cast<long>(a) : static_cast<long>(a);
+        return a < 0 ? -static_cast<int64_t>(a) : static_cast<int64_t>(a);
     }
 };
 
@@ -134,9 +134,9 @@ TEST_CASE("ShapeTree single element") {
     CHECK(tree.countContainedIn(crossing) == 0);
     CHECK(tree.emptyContainedIn(crossing));
 
-    const Rect far(100, 100, 110, 110);
-    CHECK(tree.countIntersecting(far) == 0);
-    CHECK(tree.emptyIntersecting(far));
+    const Rect farShape(100, 100, 110, 110);
+    CHECK(tree.countIntersecting(farShape) == 0);
+    CHECK(tree.emptyIntersecting(farShape));
 }
 
 TEST_CASE("ShapeTree intersects family matches brute force") {
@@ -242,8 +242,8 @@ TEST_CASE("ShapeTree weighted sums match brute force") {
     const pgl::ShapeTree<Triangle, TwiceArea> tree(tris, 3, weight);
 
     for (const Rect& q : windows) {
-        long expectedIntersect = 0;
-        long expectedContained = 0;
+        int64_t expectedIntersect = 0;
+        int64_t expectedContained = 0;
         for (const Triangle& t : tris) {
             if (t.intersects(q)) {
                 expectedIntersect += weight(t);
@@ -327,14 +327,14 @@ TEST_CASE("ShapeTree nearestNeighbor on points matches brute force") {
         const pgl::ShapeTree<Point> tree(points, leafSize);
         for (const Point& q : queries) {
             const Point found = tree.nearestNeighbor(q);
-            const long expected = bruteNearestDistance<long>(points, q);
-            CHECK(q.squaredDistance<long>(found) == expected);
+            const int64_t expected = bruteNearestDistance<int64_t>(points, q);
+            CHECK(q.squaredDistance<int64_t>(found) == expected);
         }
     }
 }
 
 TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
-    using Rational = pgl::Rational<long>;
+    using Rational = pgl::Rational<int64_t>;
     const std::vector<Triangle> tris = makeTriangles(200, 19);
     const pgl::ShapeTree<Triangle> tree(tris, 4);
 
@@ -427,8 +427,8 @@ TEST_CASE("ShapeTree erase maintains weighted sums") {
 
         if (step % 25 == 0) {
             for (const Rect& q : windows) {
-                long expectedIntersect = 0;
-                long expectedContained = 0;
+                int64_t expectedIntersect = 0;
+                int64_t expectedContained = 0;
                 for (const Triangle& t : ref) {
                     if (t.intersects(q)) {
                         expectedIntersect += weight(t);

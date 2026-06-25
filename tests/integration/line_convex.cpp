@@ -71,12 +71,12 @@ TEST_CASE("Line and triangle-as-convex predicates exercise the line's infinite e
     }
 
     SUBCASE("line disjoint from the convex, defining points far away") {
-        const Line far({-100, -50}, {100, -50});
+        const Line farShape({-100, -50}, {100, -50});
 
-        CHECK_FALSE(far.intersects(triangle));
-        CHECK_FALSE(far.interiorsIntersect(triangle));
-        CHECK_FALSE(far.crosses(triangle));
-        CHECK_FALSE(far.intersection(triangle));
+        CHECK_FALSE(farShape.intersects(triangle));
+        CHECK_FALSE(farShape.interiorsIntersect(triangle));
+        CHECK_FALSE(farShape.crosses(triangle));
+        CHECK_FALSE(farShape.intersection(triangle));
     }
 }
 

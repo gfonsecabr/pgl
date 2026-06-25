@@ -110,14 +110,14 @@ TEST_CASE("Point arithmetic on different number types") {
     CHECK(pid.x() == 4.5);
     CHECK(pid.y() == 6.5);
 
-    pgl::Point<pgl::Rational<>> pr(pgl::Rational(5.25), pgl::Rational(19l,3l));
+    pgl::Point<pgl::Rational<>> pr(pgl::Rational(5.25), pgl::Rational(int64_t(19),int64_t(3)));
     pgl::Point<pgl::Rational<>>  pir = pi + pr;
-    CHECK(pir.x() == pgl::Rational(25l,4l));
-    CHECK(pir.y() == pgl::Rational(25l,3l));
+    CHECK(pir.x() == pgl::Rational(int64_t(25),int64_t(4)));
+    CHECK(pir.y() == pgl::Rational(int64_t(25),int64_t(3)));
 
     pgl::Point<pgl::Rational<>> pdr = pd + pr;
-    CHECK(pdr.x() == pgl::Rational(35l,4l));
-    CHECK(pdr.y() == pgl::Rational(65l,6l));
+    CHECK(pdr.x() == pgl::Rational(int64_t(35),int64_t(4)));
+    CHECK(pdr.y() == pgl::Rational(int64_t(65),int64_t(6)));
 }
 
 TEST_CASE("Point equality, ordering, and hashing depend only on coordinates") {

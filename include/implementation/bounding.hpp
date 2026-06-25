@@ -346,32 +346,12 @@ constexpr void Rectangle<PointType, LabelType>::insert(const OtherRectangle& oth
 }
 
 template <class PointType, class LabelType>
-template<std::ranges::input_range Range>
-requires std::ranges::common_range<Range> &&
-         std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
-         (!requires(const std::remove_cvref_t<Range>& shape) { shape.bbox(); })
-constexpr void Rectangle<PointType, LabelType>::insert(Range&& range) {
-    for (const auto& point : range) {
-        insert(point);
-    }
-}
-
-template <class PointType, class LabelType>
 template <class TShape>
     requires(!detail::is_point_v<TShape> && !RectangleConcept<TShape> && requires(const TShape& shape) { shape.bbox(); })
 constexpr void Rectangle<PointType, LabelType>::insert(const TShape& shape) {
     const auto box = shape.bbox();
     insert(box.min());
     insert(box.max());
-}
-
-template <class PointType, class LabelType>
-template <std::ranges::input_range Range>
-    requires(!detail::is_point_v<typename std::ranges::range_value_t<Range>> && requires(const typename std::ranges::range_value_t<Range>& shape) { shape.bbox(); })
-constexpr void Rectangle<PointType, LabelType>::insert(Range&& range) {
-    for (const auto& shape : range) {
-        insert(shape);
-    }
 }
 
 

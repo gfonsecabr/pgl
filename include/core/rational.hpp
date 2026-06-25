@@ -180,7 +180,11 @@ public:
                 digits -= exponent;
             assert(digits > 0); // Rational number overflow
             den = Int(1) << digits;
-            num = negative ? -den * f : den * f;
+            // Wrap in Int(): for the Boost int128 fallback `den * f` yields a
+            // double (see the double-interop shim in numeric.hpp), so convert it
+            // back explicitly. For native __int128 / built-in ints this is the
+            // same truncating conversion that the implicit assignment did.
+            num = Int(negative ? -den * f : den * f);
 
             normalized_ = false;
             normalize();
@@ -229,9 +233,9 @@ public:
         return static_cast<int>(num) / static_cast<int>(den);
     }
 
-    /// @brief Convert to long int
-    explicit constexpr operator long int() const {
-        return static_cast<long int>(num) / static_cast<long int>(den);
+    /// @brief Convert to int64_t
+    explicit constexpr operator int64_t() const {
+        return static_cast<int64_t>(num) / static_cast<int64_t>(den);
     }
 
     /// @brief Convert to another Rational

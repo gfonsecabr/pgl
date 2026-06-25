@@ -161,3 +161,83 @@ jobs:
                   summary.write(f"- [x] {entry['name']}{suffix}\n")
               summary.write("\n</details>\n")
           PY
+
+  test-windows:
+    if: |
+      !contains(github.event.head_commit.message || '', '[skip]') &&
+      !contains(github.event.pull_request.title || '', '[skip]') &&
+      !contains(github.event.pull_request.body || '', '[skip]')
+    name: Tests (MSVC)
+    runs-on: windows-latest
+    permissions:
+      checks: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Boost headers (int128 fallback)
+        shell: pwsh
+        run: vcpkg install boost-multiprecision:x64-windows
+
+      - name: Show compiler version
+        shell: pwsh
+        run: cl
+
+      - name: Build and run tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $boostInclude = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include"
+          New-Item -ItemType Directory -Force -Path build/tests/bin, build/tests/reports, build/tests/output | Out-Null
+
+          $failed = @()
+          $sources = Get-ChildItem tests/unit/*.cpp, tests/integration/*.cpp
+
+          foreach ($src in $sources) {
+              $name = $src.BaseName
+              $bin = "build/tests/bin/$name.exe"
+              $obj = "build/tests/bin/$name.obj"
+              $report = "build/tests/reports/$name.junit.xml"
+
+              Write-Host "::group::Build $name"
+              cl /nologo /std:c++20 /EHsc /W3 /permissive- `
+                 /I include /I tests/doctest /I "$boostInclude" `
+                 $src.FullName /Fe:"$bin" /Fo:"$obj"
+              $built = ($LASTEXITCODE -eq 0)
+              Write-Host "::endgroup::"
+
+              if (-not $built) { $failed += $name; continue }
+
+              Write-Host "::group::Run $name"
+              & $bin --order-by=name --duration=true --no-breaks=true
+              if ($LASTEXITCODE -ne 0) { $failed += $name }
+              & $bin --reporters=junit --out=$report *> $null
+              Write-Host "::endgroup::"
+          }
+
+          if ($failed.Count -gt 0) {
+              Write-Host "Failed test files: $($failed -join ', ')"
+              exit 1
+          }
+
+      - name: Upload JUnit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-msvc
+          path: build/tests/reports/*.xml
+          if-no-files-found: error
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v6
+        with:
+          report_paths: build/tests/reports/*.xml
+          check_name: Test Report (MSVC)
+          require_tests: true
+          include_passed: false

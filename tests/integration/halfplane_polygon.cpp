@@ -88,8 +88,8 @@ TEST_CASE("Half-plane separates a U-shaped polygon at the connecting neck") {
     }
 
     SUBCASE("a half-plane the polygon does not reach leaves it whole") {
-        const Halfplane far({0, 100}, {1, 100});  // interior y >= 100
-        CHECK_FALSE(far.separates(u));
+        const Halfplane farShape({0, 100}, {1, 100});  // interior y >= 100
+        CHECK_FALSE(farShape.separates(u));
     }
 }
 

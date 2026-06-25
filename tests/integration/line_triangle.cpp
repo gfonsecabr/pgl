@@ -86,13 +86,13 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
     }
 
     SUBCASE("line disjoint from the triangle, far past one side") {
-        const Line far({-10, -3}, {10, -3});
+        const Line farShape({-10, -3}, {10, -3});
 
-        CHECK_FALSE(far.intersects(triangle));
-        CHECK_FALSE(triangle.intersects(far));
-        CHECK_FALSE(far.interiorsIntersect(triangle));
-        CHECK_FALSE(far.crosses(triangle));
-        CHECK_FALSE(far.intersection(triangle));
+        CHECK_FALSE(farShape.intersects(triangle));
+        CHECK_FALSE(triangle.intersects(farShape));
+        CHECK_FALSE(farShape.interiorsIntersect(triangle));
+        CHECK_FALSE(farShape.crosses(triangle));
+        CHECK_FALSE(farShape.intersection(triangle));
     }
 
     SUBCASE("line cuts from one edge interior to the opposite vertex region") {
