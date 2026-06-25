@@ -157,7 +157,7 @@ public:
      * @brief Construct from floating point
      */
     template<std::floating_point Float>
-    constexpr Rational(Float f,
+    explicit constexpr Rational(Float f,
                        int digits = pgl::detail::numeric_limits<Int>::digits > 0
                            ? std::min(pgl::detail::numeric_limits<Float>::digits,
                                       pgl::detail::numeric_limits<Int>::digits / 2 - 4)
@@ -611,6 +611,19 @@ using to_integer_with_digits_t = typename to_integer_with_digits<T>::type;
 template<class U, class V>
 struct std::common_type<pgl::Rational<U>, pgl::Rational<V>>{
     using type = pgl::Rational<std::common_type_t<U,V>>;
+};
+
+// Mixing a Rational with a floating-point type yields the floating-point type:
+// the exact value is intentionally abandoned (the float→Rational conversion is
+// explicit and lossy), so promotion collapses toward the inexact representation
+// rather than silently approximating the float as a Rational.
+template<class U, std::floating_point F>
+struct std::common_type<pgl::Rational<U>, F>{
+    using type = F;
+};
+template<std::floating_point F, class V>
+struct std::common_type<F, pgl::Rational<V>>{
+    using type = F;
 };
 
 /**

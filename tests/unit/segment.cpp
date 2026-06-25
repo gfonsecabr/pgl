@@ -618,11 +618,13 @@ TEST_CASE("Segment arithmetic on different number types") {
     CHECK(sri.max().x() == pgl::Rational(int64_t(41),int64_t(4)));
     CHECK(sri.max().y() == pgl::Rational(int64_t(37),int64_t(3)));
 
-    pgl::Segment<pgl::Point<pgl::Rational<>>> srd = pr + sd;
-    CHECK(srd.min().x() == pgl::Rational(int64_t(55),int64_t(4)));
-    CHECK(srd.min().y() == pgl::Rational(int64_t(95),int64_t(6)));
-    CHECK(srd.max().x() == pgl::Rational(int64_t(63),int64_t(4)));
-    CHECK(srd.max().y() == pgl::Rational(int64_t(107),int64_t(6)));
+    // Mixing rational and floating-point coordinates yields a floating-point
+    // segment: the float wins over the exact type.
+    pgl::Segment<pgl::Point<double>> srd = pr + sd;
+    CHECK(srd.min().x() == 8.5 + static_cast<double>(pr.x()));
+    CHECK(srd.min().y() == 9.5 + static_cast<double>(pr.y()));
+    CHECK(srd.max().x() == 10.5 + static_cast<double>(pr.x()));
+    CHECK(srd.max().y() == 11.5 + static_cast<double>(pr.y()));
 }
 
 
