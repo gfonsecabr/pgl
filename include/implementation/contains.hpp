@@ -156,7 +156,10 @@ constexpr bool Segment<PointType, LabelType>::contains(const OtherHalfplane& oth
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Segment<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    return contains(other.min()) && contains(other.max());
+    // Checking only min/max would wrongly report a diagonal as containing the
+    // box; defer to the convex view, which is false for any non-degenerate
+    // (>2-vertex) rectangle and exact for the degenerate ones.
+    return contains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
@@ -293,6 +296,13 @@ constexpr bool Triangle<PointType, LabelType>::contains(const OtherConvex& other
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // A non-degenerate triangle behaves exactly like its convex view.
+    return asConvex().contains(other);
+}
+
+template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
@@ -355,7 +365,8 @@ constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherHalfpl
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    return contains(other.min()) && contains(other.max());
+    // See Segment::contains(Rectangle): min/max alone is not enough.
+    return contains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
