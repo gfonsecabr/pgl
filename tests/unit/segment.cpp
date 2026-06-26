@@ -299,6 +299,7 @@ TEST_CASE("Segment midpoint and pointInside can be checked with exact rational c
 }
 
 TEST_CASE("Segment distinguishes containment in the interior, boundary, and endpoints") {
+    using Rectangle = pgl::Rectangle<pgl::Point<int>>;
     using Segment = pgl::Segment<pgl::Point<int>>;
 
     const Segment segment(4, 3, 2, 1);
@@ -306,10 +307,12 @@ TEST_CASE("Segment distinguishes containment in the interior, boundary, and endp
     const Segment shifted(3, 2, 5, 4);
     const Segment wide_segment(0, 0, 6, 6);
     const Segment strict_inner(2, 2, 4, 4);
+    const Rectangle box(2, 1, 4, 3);
 
     CHECK(segment.contains(pgl::Point<int>(3, 2)));
     CHECK(segment.contains(pgl::Point<int>(4, 3)));
     CHECK(segment.contains(inner));
+    CHECK_FALSE(segment.contains(box));
     CHECK(segment.interiorContains(pgl::Point<int>(3, 2)));
     CHECK(wide_segment.interiorContains(strict_inner));
     CHECK_FALSE(segment.contains(shifted));
@@ -685,7 +688,6 @@ TEST_CASE("Segment per-axis scaling") {
     t.scaleDownY(2);
     CHECK(t == s);
 }
-
 
 
 

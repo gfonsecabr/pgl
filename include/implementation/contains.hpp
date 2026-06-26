@@ -156,10 +156,13 @@ constexpr bool Segment<PointType, LabelType>::contains(const OtherHalfplane& oth
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Segment<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    // Checking only min/max would wrongly report a diagonal as containing the
-    // box; defer to the convex view, which is false for any non-degenerate
-    // (>2-vertex) rectangle and exact for the degenerate ones.
-    return contains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return contains(other.min());
+    }
+    return contains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
 template <class PointType, class LabelType>
@@ -320,91 +323,72 @@ constexpr bool Triangle<PointType, LabelType>::contains(const Shape<PointType>& 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherPoint& point) const {
-    if (point < min() || max() < point) {
-        return false;
-    }
-    return pgl::collinear(source(), target(), point);
+    return asSegment().contains(point);
 }
 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherSegment& other) const {
-    return contains(other.min()) && contains(other.max());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
-    return contains(other.source()) && contains(other.target());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherLine& other) const {
-    return other.isDegenerate() && contains(other.min());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
-    return other.isDegenerate() && contains(other.source());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRay& other) const {
-    return other.isDegenerate() && contains(other.source());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherHalfplane& other) const {
-    return other.isDegenerate() && contains(other.source());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    // See Segment::contains(Rectangle): min/max alone is not enough.
-    return contains(other.asConvex());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherTriangle& other) const {
-    return contains(other.a()) && contains(other.b()) && contains(other.c());
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherConvex& other) const {
-    if (other.size() > 2) {
-        return false;
-    }
-    for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!contains(other[i])) {
-            return false;
-        }
-    }
-    return true;
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherDisk& other) const {
-    // A non-degenerate disk has positive area; only a degenerate disk, which is
-    // the segment from a() to c(), can lie in a one-dimensional segment.
-    return other.isDegenerate() &&
-           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const Shape<PointType>& other) const {
-    return std::visit(
-        [this](const auto& value) {
-            return this->contains(value);
-        },
-        other.variant());
+    return asSegment().contains(other);
 }
 
 /**
@@ -461,9 +445,10 @@ constexpr bool Line<PointType, LabelType>::contains(const OtherHalfplane& other)
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Line<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    // min/max alone would miss the other two corners; defer to the convex view
-    // (false for any non-degenerate rectangle, exact for degenerate ones).
-    return contains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return contains(other.min()) && contains(other.max());
 }
 
 template <class PointType, class LabelType>
@@ -647,8 +632,10 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherHalfplane& other) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Ray<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    // See Line::contains(Rectangle): min/max alone is not enough.
-    return contains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return contains(other.min()) && contains(other.max());
 }
 
 template <class PointType, class LabelType>
@@ -1432,12 +1419,7 @@ constexpr bool Segment<PointType, LabelType>::contains(const OtherPolygon& other
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherPolygon& other) const {
-    for (const auto& vertex : other) {
-        if (!contains(vertex)) {
-            return false;
-        }
-    }
-    return true;
+    return asSegment().contains(other);
 }
 
 template <class PointType, class LabelType>

@@ -192,6 +192,7 @@ TEST_CASE("Line hashing is well-defined and consistent for rational coordinates"
 TEST_CASE("Line distinguishes containment, collinearity, parallelism, and intersections") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
 
@@ -199,6 +200,7 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     const Line same_line({1, 1}, {3, 3});
     const Line crossing({0, 4}, {4, 0});
     const Line parallel({0, 1}, {4, 5});
+    const Rectangle off_line_box({1, 1}, {3, 2});
     const Segment subsegment({1, 1}, {3, 3});
     const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
 
@@ -209,6 +211,7 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     CHECK(diagonal.contains(same_line));
     CHECK(diagonal.contains(subsegment));
     CHECK(diagonal.contains(oriented_subsegment));
+    CHECK_FALSE(diagonal.contains(off_line_box));
     CHECK(diagonal.collinear(subsegment));
     CHECK(diagonal.collinear(oriented_subsegment));
     CHECK(diagonal.collinear(same_line));
