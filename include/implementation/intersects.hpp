@@ -1066,7 +1066,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherConvex& othe
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
-    if (bbox().separates(other.bbox()) || other.bbox().separates(*this)) {
+    if (bbox().separates(other.bbox()) || other.bbox().separates(this->bbox())) {
         return true;
     }
     for (const auto& vertex : other.vertices()) {
