@@ -270,7 +270,8 @@ constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const Oth
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
-    return interiorContains(other.min()) && interiorContains(other.max());
+    // min/max alone would miss the other two corners; defer to the convex view.
+    return interiorContains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
@@ -481,7 +482,8 @@ constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherHalfplane&
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
-    return interiorContains(other.min()) && interiorContains(other.max());
+    // min/max alone would miss the other two corners; defer to the convex view.
+    return interiorContains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
