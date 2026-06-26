@@ -1489,7 +1489,7 @@ template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherRectangle& other) const {
     int count = 0;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         pgl::Segment<typename OtherRectangle::PointType> edge(other.get(i),other.get(i+1));
         if (separates(edge)) {
             count++;
