@@ -150,11 +150,11 @@ struct numeric_limits<__int128_t> {
     static constexpr int digits = 127;     // value bits of a signed 128-bit int
     static constexpr int digits10 = 38;
     static constexpr __int128_t min() noexcept {
-        return static_cast<__int128_t>(static_cast<unsigned __int128>(1) << 127);
+        return static_cast<__int128_t>(static_cast<__uint128_t>(1) << 127);
     }
     static constexpr __int128_t lowest() noexcept { return min(); }
     static constexpr __int128_t max() noexcept {
-        return static_cast<__int128_t>(~(static_cast<unsigned __int128>(1) << 127));
+        return static_cast<__int128_t>(~(static_cast<__uint128_t>(1) << 127));
     }
 };
 #endif
