@@ -508,7 +508,11 @@ TEST_CASE("Triangle covers the non-Convex contract for separates") {
     CHECK(triangle.separates(OrientedSegment({5, 2}, {-1, 2})));
     CHECK(triangle.separates(Ray({-1, 2}, {5, 2})));
     CHECK_FALSE(triangle.separates(Halfplane({0, 0}, {6, 0})));
-    CHECK(triangle.separates(Rectangle({0, 0}, {6, 6})));
+    // The triangle is the lower-left half of the square (x + y <= 6); removing it
+    // leaves the single connected region x + y > 6, so it does NOT separate the
+    // rectangle. (Matches Triangle::separates(Convex); the old bespoke overload
+    // wrongly returned true.)
+    CHECK_FALSE(triangle.separates(Rectangle({0, 0}, {6, 6})));
     CHECK(triangle.separates(Shape(Segment({-1, 2}, {5, 2}))));
 }
 

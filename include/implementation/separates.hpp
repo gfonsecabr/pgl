@@ -357,55 +357,17 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherHalfplane&) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isDegenerate()) {
-        return false;
-    }
-
-    const auto target_edges = other.edges();
-    if ((separates(target_edges[0]) && separates(target_edges[2])) ||
-        (separates(target_edges[1]) && separates(target_edges[3]))) {
-        return true;
-    }
-
-    const auto target_vertices = other.vertices();
-    if ((contains(target_vertices[0]) && contains(target_vertices[2])) ||
-        (contains(target_vertices[1]) && contains(target_vertices[3]))) {
-        return true;
-    }
-
-    return (contains(target_vertices[0]) &&
-            (separates(target_edges[1]) || separates(target_edges[2]))) ||
-           (contains(target_vertices[1]) &&
-            (separates(target_edges[2]) || separates(target_edges[3]))) ||
-           (contains(target_vertices[2]) &&
-            (separates(target_edges[3]) || separates(target_edges[0]))) ||
-           (contains(target_vertices[3]) &&
-            (separates(target_edges[0]) || separates(target_edges[1])));
+    // A non-degenerate rectangle is its convex view; use the general convex-body
+    // algorithm so the result matches separates(Convex) exactly. The previous
+    // bespoke edge/vertex formula diverged from it.
+    return separates(other.asConvex());
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Triangle<PointType, LabelType>::separates(const OtherTriangle& other) const {
-    if (other.isDegenerate()) {
-        return false;
-    }
-
-    const auto target_edges = other.edges();
-    if (contains(other.a()) && separates(target_edges[1])) {
-        return true;
-    }
-    if (contains(other.b()) && separates(target_edges[2])) {
-        return true;
-    }
-    if (contains(other.c()) && separates(target_edges[0])) {
-        return true;
-    }
-
-    int separated_edges = 0;
-    for (const auto& edge : target_edges) {
-        separated_edges += separates(edge) ? 1 : 0;
-    }
-    return separated_edges >= 2;
+    // See separates(Rectangle): defer to the general convex-body algorithm.
+    return separates(other.asConvex());
 }
 
 template <class PointType, class LabelType>
