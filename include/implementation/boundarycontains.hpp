@@ -159,16 +159,25 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherHalfp
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
-    // A non-degenerate area never lies wholly on a 1D boundary; defer to the
-    // convex view (false for >2 vertices, exact for the degenerate cases).
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return boundaryContains(other.min());
+    }
+    return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
-    // See boundaryContains(Rectangle): defer to the convex view.
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return boundaryContains(other.a());
+    }
+    return boundaryContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
 }
 
 template <class PointType, class LabelType>
@@ -294,16 +303,25 @@ constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherHalf
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
-    // A non-degenerate area never lies wholly on a 1D boundary; defer to the
-    // convex view (false for >2 vertices, exact for the degenerate cases).
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return boundaryContains(other.min());
+    }
+    return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
-    // See boundaryContains(Rectangle): defer to the convex view.
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return boundaryContains(other.a());
+    }
+    return boundaryContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
 }
 
 template <class PointType, class LabelType>
@@ -653,16 +671,25 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherHalfpla
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
-    // A non-degenerate area never lies wholly on a 1D boundary; defer to the
-    // convex view (false for >2 vertices, exact for the degenerate cases).
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return boundaryContains(other.min());
+    }
+    return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
-    // See boundaryContains(Rectangle): defer to the convex view.
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return boundaryContains(other.a());
+    }
+    return boundaryContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
 }
 
 template <class PointType, class LabelType>
@@ -772,16 +799,25 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherHalfpl
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
-    // A non-degenerate area never lies wholly on a 1D boundary; defer to the
-    // convex view (false for >2 vertices, exact for the degenerate cases).
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return boundaryContains(other.min());
+    }
+    return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
-    // See boundaryContains(Rectangle): defer to the convex view.
-    return boundaryContains(other.asConvex());
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return boundaryContains(other.a());
+    }
+    return boundaryContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
 }
 
 template <class PointType, class LabelType>
