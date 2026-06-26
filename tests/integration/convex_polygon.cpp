@@ -225,3 +225,104 @@ TEST_CASE("Convex separates Polygon mixing a cut with a disjoint bite") {
     const Convex wide({{-1, 6}, {7, 6}, {7, 8}, {-1, 8}});
     CHECK(wide.separates(u));
 }
+
+// Containment / intersection between a Convex and a Polygon, both directions.
+// boundaryContains on a real (>= 3 vertex) area is always false — a filled
+// region is never confined to a 1D boundary. crosses and Polygon::separates
+// (Convex) throw "not implemented" and are out of scope here.
+
+TEST_CASE("Convex contains a polygon") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    const Polygon inside({2, 2, 8, 2, 5, 7});   // triangle strictly within the square
+
+    CHECK(square.contains(inside));
+    CHECK(square.interiorContains(inside));
+    CHECK_FALSE(square.boundaryContains(inside));
+    CHECK(square.intersects(inside));
+    CHECK(square.interiorsIntersect(inside));
+
+    // The small triangle cannot contain the square back.
+    CHECK_FALSE(inside.contains(square));
+    CHECK_FALSE(inside.interiorContains(square));
+    CHECK_FALSE(inside.boundaryContains(square));
+    CHECK(inside.intersects(square));
+    CHECK(inside.interiorsIntersect(square));
+}
+
+TEST_CASE("Polygon contains a convex") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Polygon big({0, 0, 20, 0, 20, 20, 0, 20});
+    const Convex small({{5, 5}, {15, 5}, {15, 15}, {5, 15}});   // strictly within big
+
+    CHECK(big.contains(small));
+    CHECK(big.interiorContains(small));
+    CHECK_FALSE(big.boundaryContains(small));
+    CHECK(big.intersects(small));
+    CHECK(big.interiorsIntersect(small));
+
+    CHECK_FALSE(small.contains(big));
+    CHECK_FALSE(small.interiorContains(big));
+    CHECK_FALSE(small.boundaryContains(big));
+    CHECK(small.intersects(big));
+    CHECK(small.interiorsIntersect(big));
+}
+
+TEST_CASE("Convex and polygon overlap without either containing the other") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    const Polygon shifted({5, 5, 15, 5, 15, 15, 5, 15});   // overlaps the corner [5,10]^2
+
+    CHECK_FALSE(square.contains(shifted));
+    CHECK_FALSE(shifted.contains(square));
+    CHECK_FALSE(square.interiorContains(shifted));
+    CHECK_FALSE(shifted.interiorContains(square));
+    CHECK(square.intersects(shifted));
+    CHECK(shifted.intersects(square));
+    CHECK(square.interiorsIntersect(shifted));
+    CHECK(shifted.interiorsIntersect(square));
+}
+
+TEST_CASE("Convex and polygon that only touch at a corner") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    const Polygon touch({10, 10, 15, 12, 15, 18});   // meets the square only at (10,10)
+
+    CHECK(square.intersects(touch));
+    CHECK(touch.intersects(square));
+    // Boundaries kiss but interiors stay apart.
+    CHECK_FALSE(square.interiorsIntersect(touch));
+    CHECK_FALSE(touch.interiorsIntersect(square));
+    CHECK_FALSE(square.contains(touch));
+    CHECK_FALSE(touch.contains(square));
+}
+
+TEST_CASE("Convex and polygon that are disjoint") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+    const Polygon far({20, 20, 30, 20, 25, 30});
+
+    CHECK_FALSE(square.intersects(far));
+    CHECK_FALSE(far.intersects(square));
+    CHECK_FALSE(square.interiorsIntersect(far));
+    CHECK_FALSE(far.interiorsIntersect(square));
+    CHECK_FALSE(square.contains(far));
+    CHECK_FALSE(far.contains(square));
+    CHECK_FALSE(square.boundaryContains(far));
+    CHECK_FALSE(far.boundaryContains(square));
+}
