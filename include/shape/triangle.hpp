@@ -642,6 +642,10 @@ struct Triangle {
     [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     [[nodiscard]] constexpr bool contains(const Shape<PointType>& other) const;
 
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
