@@ -575,6 +575,7 @@ TEST_CASE("Triangle mixing number types") {
 
 TEST_CASE("Triangle predicates against another triangle") {
     using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
     using Triangle = pgl::Triangle<Point>;
 
     const Triangle base({0, 0}, {6, 0}, {0, 6});
@@ -590,6 +591,8 @@ TEST_CASE("Triangle predicates against another triangle") {
     SUBCASE("boundaryContains") {
         // A degenerate (collinear) triangle lying along the bottom edge.
         CHECK(base.boundaryContains(Triangle({1, 0}, {2, 0}, {3, 0})));
+        // A non-degenerate rectangle cannot lie on a 1D boundary.
+        CHECK_FALSE(base.boundaryContains(Rectangle({1, 0}, {2, 2})));
         // Leaving the boundary into the interior is not boundary containment.
         CHECK_FALSE(base.boundaryContains(Triangle({1, 0}, {2, 0}, {2, 2})));
         // An interior triangle is not on the boundary at all.

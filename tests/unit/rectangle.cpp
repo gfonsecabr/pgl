@@ -438,12 +438,17 @@ TEST_CASE("Rectangle boundary containment accepts boundary-aligned segments and 
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
+    const Rectangle inner_rectangle({1, 1}, {3, 2});
     const Segment boundary_segment({1, 0}, {3, 0});
     const Segment diagonal({0, 0}, {4, 3});
+    const Triangle inner_triangle({1, 1}, {3, 1}, {2, 2});
 
     CHECK(rectangle.boundaryContains(boundary_segment));
+    CHECK_FALSE(rectangle.boundaryContains(inner_rectangle));
+    CHECK_FALSE(rectangle.boundaryContains(inner_triangle));
     CHECK_FALSE(rectangle.boundaryContains(diagonal));
 }
 
