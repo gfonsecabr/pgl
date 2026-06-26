@@ -175,6 +175,7 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
     using OrientedLine = pgl::OrientedLine<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
@@ -183,6 +184,7 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     const Ray nested({2, 2}, {3, 3});
     const Line support({1, 1}, {3, 3});
     const OrientedLine oriented_support({3, 3}, {1, 1});
+    const Rectangle off_ray_box({1, 1}, {3, 2});
     const Segment subsegment({1, 1}, {3, 3});
     const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
     const Ray parallel({0, 1}, {4, 5});
@@ -198,6 +200,7 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     CHECK(diagonal.contains(subsegment));
     CHECK(diagonal.contains(oriented_subsegment));
     CHECK(diagonal.contains(nested));
+    CHECK_FALSE(diagonal.contains(off_ray_box));
     CHECK_FALSE(diagonal.contains(support));
     CHECK_FALSE(diagonal.contains(oriented_support));
 

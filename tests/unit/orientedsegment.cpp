@@ -380,6 +380,10 @@ TEST_CASE("OrientedSegment covers the non-Convex contract through Segment delega
 
     const OrientedSegment horizontal({4, 0}, {0, 0});
 
+    CHECK(horizontal.contains(Point(2, 0)));
+    CHECK_FALSE(horizontal.contains(Rectangle({1, -1}, {3, 1})));
+    CHECK_FALSE(horizontal.contains(Triangle({1, -1}, {3, -1}, {2, 2})));
+
     CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the segment
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
