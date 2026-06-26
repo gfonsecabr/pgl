@@ -461,7 +461,9 @@ constexpr bool Line<PointType, LabelType>::contains(const OtherHalfplane& other)
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Line<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    return contains(other.min()) && contains(other.max());
+    // min/max alone would miss the other two corners; defer to the convex view
+    // (false for any non-degenerate rectangle, exact for degenerate ones).
+    return contains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
@@ -645,7 +647,8 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherHalfplane& other) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Ray<PointType, LabelType>::contains(const OtherRectangle& other) const {
-    return contains(other.min()) && contains(other.max());
+    // See Line::contains(Rectangle): min/max alone is not enough.
+    return contains(other.asConvex());
 }
 
 template <class PointType, class LabelType>
