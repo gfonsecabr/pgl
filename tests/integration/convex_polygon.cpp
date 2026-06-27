@@ -315,14 +315,14 @@ TEST_CASE("Convex and polygon that are disjoint") {
     using Convex = pgl::Convex<Point>;
 
     const Convex square({{0, 0}, {10, 0}, {10, 10}, {0, 10}});
-    const Polygon far({20, 20, 30, 20, 25, 30});
+    const Polygon far_away({20, 20, 30, 20, 25, 30});
 
-    CHECK_FALSE(square.intersects(far));
-    CHECK_FALSE(far.intersects(square));
-    CHECK_FALSE(square.interiorsIntersect(far));
-    CHECK_FALSE(far.interiorsIntersect(square));
-    CHECK_FALSE(square.contains(far));
-    CHECK_FALSE(far.contains(square));
-    CHECK_FALSE(square.boundaryContains(far));
-    CHECK_FALSE(far.boundaryContains(square));
+    CHECK_FALSE(square.intersects(far_away));
+    CHECK_FALSE(far_away.intersects(square));
+    CHECK_FALSE(square.interiorsIntersect(far_away));
+    CHECK_FALSE(far_away.interiorsIntersect(square));
+    CHECK_FALSE(square.contains(far_away));
+    CHECK_FALSE(far_away.contains(square));
+    CHECK_FALSE(square.boundaryContains(far_away));
+    CHECK_FALSE(far_away.boundaryContains(square));
 }
