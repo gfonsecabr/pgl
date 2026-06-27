@@ -83,6 +83,22 @@ TEST_CASE("Disk streams, translates, scales, and exposes its bounding box") {
     CHECK(disk.fbox<float>().max() == pgl::Point<float>(6.0f, 7.0f));
 }
 
+TEST_CASE("Disk diameter supports exact rational endpoints for three-point disks") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    using RationalSegment = pgl::Segment<RationalPoint>;
+
+    const Disk axis_aligned(Point(2, 3), 4);
+    CHECK(axis_aligned.diameter() == pgl::Segment<Point>(Point(-2, 3), Point(6, 3)));
+
+    const Disk disk(Point(-2, -2), Point(-2, -1), Point(1, 0));
+    CHECK(disk.diameter<Rational>()
+          == RationalSegment(RationalPoint(Rational(-2), Rational(-2)),
+                             RationalPoint(Rational(5, 3), Rational(-1))));
+}
+
 TEST_CASE("Disk converts between labeled and unlabeled centers and supports hashing") {
     using PlainPoint = pgl::Point<int>;
     using LabelPoint = pgl::Point<int, std::string>;

@@ -549,25 +549,30 @@ struct Disk {
     }
 
     /**
-     * @brief Returns the horizontal diameter as a segment through the center.
+     * @brief Returns a segment defining a diameter of the disk.
      *
-     * The endpoints are the leftmost and rightmost points of the circle,
-     * `(cx - r, cy)` and `(cx + r, cy)`.
+     * For a genuine 3-point disk the segment uses `a()` and its reflection across
+     * the exact center, so integral boundary points can still yield exact rational
+     * endpoints without introducing a square root.
      *
-     * @tparam ResultNumber Floating-point coordinate type of the endpoints.
-     * @warning Computes @ref center and @ref radius, which use division.
+     * @tparam ResultNumber Coordinate type of the returned endpoints.
+     * @warning Uses division unless the disk is defined by center and radius.
      */
-    template <std::floating_point ResultNumber = double>
+    template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Segment<Point<ResultNumber, PointLabelType>> diameter() const {
-        const ResultNumber r = radius<ResultNumber>();
-        const auto center_point = center<ResultNumber>();
-        const ResultNumber cx = center_point.x();
-        const ResultNumber cy = center_point.y();
+        using ResultPoint = Point<ResultNumber, PointLabelType>;
 
-        return Segment<Point<ResultNumber, PointLabelType>>(
-            Point<ResultNumber, PointLabelType>(cx - r, cy, PointLabelType{}),
-            Point<ResultNumber, PointLabelType>(cx + r, cy, PointLabelType{})
-        );
+        if (auto cr = centerAndRadius()) {
+            return Segment<ResultPoint>(a(),b());
+        }
+
+        if (isDegenerate()) {
+            return Segment<ResultPoint>();
+        }
+
+        const ResultPoint center_point = center<ResultNumber>();
+        ResultPoint anti_a = center_point + (center_point-a());
+        return Segment<ResultPoint>(static_cast<ResultPoint>(a()), anti_a);
     }
 
     /**
