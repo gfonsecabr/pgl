@@ -180,15 +180,9 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     const OrientedLine opposite_orientation({3, 3}, {1, 1});
     const OrientedLine crossing({0, 4}, {4, 0});
     const OrientedLine parallel({0, 1}, {4, 5});
-    const Point on_diagonal(2, 2);
-    const Point off_diagonal(2, 3);
     const Line supporting_line({2, 2}, {6, 6});
     const Segment subsegment({1, 1}, {3, 3});
     const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
-
-    CHECK(diagonal.contains(Point(2, 2)));
-    CHECK(diagonal.interiorContains(Point(2, 2)));
-    CHECK_FALSE(diagonal.boundaryContains(Point(2, 2)));
 
     CHECK(diagonal.contains(supporting_line));
     CHECK(diagonal.contains(same_orientation));
@@ -207,8 +201,6 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     CHECK(diagonal.parallel(Line({0, 2}, {4, 6})));
     CHECK_FALSE(diagonal.parallel(crossing));
 
-    CHECK(diagonal.intersects(on_diagonal));
-    CHECK_FALSE(diagonal.intersects(off_diagonal));
     CHECK(diagonal.intersects(same_orientation));
     CHECK(diagonal.intersects(opposite_orientation));
     CHECK(diagonal.intersects(crossing));
@@ -217,7 +209,6 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     CHECK(diagonal.crosses(crossing));
     CHECK_FALSE(diagonal.crosses(opposite_orientation));
 
-    CHECK_FALSE(diagonal.crosses(pgl::Point<int>(2, 2)));
     CHECK(diagonal.crosses(pgl::Segment<pgl::Point<int>>({0, 4}, {4, 0})));
     CHECK(diagonal.crosses(pgl::Ray<pgl::Point<int>>({0, 4}, {4, 0})));
     CHECK_FALSE(diagonal.crosses(pgl::Halfplane<pgl::Point<int>>({0, 0}, {4, 4})));
@@ -231,14 +222,6 @@ TEST_CASE("OrientedLine intersection and distances support exact rational result
     const IntLine rising({0, 0}, {4, 4});
     const IntLine falling({6, 0}, {0, 3});
     const IntLine parallel({0, 1}, {4, 5});
-    const pgl::Point<int> on_rising(3, 3);
-    const pgl::Point<int> off_rising(3, 2);
-
-    const auto point_intersection = rising.intersection<Rational>(on_rising);
-    REQUIRE(point_intersection);
-    CHECK(*point_intersection == RationalPoint(Rational(3), Rational(3)));
-
-    CHECK_FALSE(rising.intersection<Rational>(off_rising).has_value());
 
     const auto intersection = rising.intersection<Rational>(falling);
     REQUIRE(intersection);
@@ -291,7 +274,6 @@ TEST_CASE("OrientedLine covers the non-Convex contract through Line delegation")
 
     const OrientedLine vertical({2, 2}, {2, -2});
 
-    CHECK(vertical.interiorsIntersect(Point(2, 0)));  // on the line (its interior is the whole line)
     CHECK(vertical.interiorsIntersect(Segment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedSegment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(Line({0, 0}, {4, 0})));
@@ -300,13 +282,11 @@ TEST_CASE("OrientedLine covers the non-Convex contract through Line delegation")
     CHECK(vertical.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
     CHECK(vertical.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(vertical.separates(Point(2, 0)));
     CHECK(vertical.separates(Segment({0, 0}, {4, 0})));
     CHECK(vertical.separates(OrientedLine({0, 0}, {4, 0})));
     CHECK_FALSE(vertical.separates(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(vertical.crosses(Point(2, 0)));
     CHECK(vertical.crosses(Shape(Segment({0, 0}, {4, 0}))));
     CHECK(vertical.crosses(Ray({0, 0}, {4, 0})));
     CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));

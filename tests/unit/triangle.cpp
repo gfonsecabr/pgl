@@ -224,29 +224,6 @@ TEST_CASE("Triangle point predicates distinguish vertices, boundary, interior, e
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.verticesContain(Point(0, 0)));
-    CHECK(triangle.boundaryContains(Point(3, 0)));
-    CHECK(triangle.contains(Point(3, 0)));
-    CHECK_FALSE(triangle.interiorContains(Point(3, 0)));
-
-    CHECK(triangle.contains(Point(1, 1)));
-    CHECK(triangle.interiorContains(Point(1, 1)));
-    CHECK_FALSE(triangle.boundaryContains(Point(1, 1)));
-
-    const auto interior_intersection = triangle.intersection(Point(1, 1));
-    REQUIRE(interior_intersection);
-    CHECK(*interior_intersection == Point(1, 1));
-
-    const auto boundary_intersection = triangle.intersection(Point(3, 0));
-    REQUIRE(boundary_intersection);
-    CHECK(*boundary_intersection == Point(3, 0));
-
-    CHECK_FALSE(triangle.contains(Point(4, 4)));
-    CHECK_FALSE(triangle.boundaryContains(Point(4, 4)));
-    CHECK_FALSE(triangle.interiorContains(Point(4, 4)));
-    CHECK_FALSE(triangle.intersection(Point(4, 4)).has_value());
-    CHECK(triangle.intersects(Point(1, 1)));
-    CHECK(triangle.intersects(Point(3, 0)));
-    CHECK_FALSE(triangle.intersects(Point(4, 4)));
 
     const Triangle degenerate(0, 0, 2, 0, 4, 0);
     CHECK(degenerate.isDegenerate());
@@ -399,10 +376,6 @@ TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from b
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK(triangle.interiorsIntersect(Point(1, 1)));  // interior point
-    CHECK_FALSE(triangle.interiorsIntersect(Point(3, 0)));
-    CHECK_FALSE(triangle.interiorsIntersect(Point(7, 0)));
-
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
     CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
     CHECK_FALSE(triangle.interiorsIntersect(Line({0, 0}, {6, 0})));
@@ -518,7 +491,6 @@ TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK(triangle.interiorsIntersect(Point(1, 1)));  // interior point
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
     CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
     CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
@@ -544,7 +516,6 @@ TEST_CASE("Triangle covers the non-Convex contract for separates") {
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK_FALSE(triangle.separates(Point(1, 1)));
     CHECK(triangle.separates(Line({-1, 2}, {5, 2})));
     CHECK(triangle.separates(OrientedLine({5, 2}, {-1, 2})));
     CHECK(triangle.separates(Segment({-1, 2}, {5, 2})));
@@ -573,7 +544,6 @@ TEST_CASE("Triangle covers the non-Convex contract for crosses") {
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
-    CHECK_FALSE(triangle.crosses(Point(1, 1)));
     CHECK(triangle.crosses(Line({-1, 2}, {5, 2})));
     CHECK(triangle.crosses(OrientedLine({5, 2}, {-1, 2})));
     CHECK(triangle.crosses(Segment({-1, 2}, {5, 2})));

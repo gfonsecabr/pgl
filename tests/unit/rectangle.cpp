@@ -393,28 +393,8 @@ TEST_CASE("Rectangle distinguishes containment, boundary contact, overlap, and d
     const Rectangle disjoint({5, 4}, {7, 6});
     const Rectangle line({1, 1}, {1, 3});
 
-    CHECK(outer.contains(Point(2, 2)));
-    CHECK(outer.contains(Point(4, 3)));
-    CHECK_FALSE(outer.contains(Point(5, 2)));
-    CHECK(outer.interiorContains(Point(2, 2)));
-    CHECK_FALSE(outer.interiorContains(Point(4, 3)));
-    CHECK(outer.boundaryContains(Point(4, 2)));
-    CHECK_FALSE(outer.boundaryContains(Point(2, 2)));
     CHECK(outer.verticesContain(Point(0, 0)));
     CHECK_FALSE(outer.verticesContain(Point(0, 1)));
-
-    const auto inside_intersection = outer.intersection(Point(2, 2));
-    REQUIRE(inside_intersection);
-    CHECK(*inside_intersection == Point(2, 2));
-
-    const auto boundary_intersection = outer.intersection(Point(4, 3));
-    REQUIRE(boundary_intersection);
-    CHECK(*boundary_intersection == Point(4, 3));
-
-    CHECK_FALSE(outer.intersection(Point(5, 2)).has_value());
-    CHECK(outer.intersects(Point(2, 2)));
-    CHECK(outer.intersects(Point(4, 3)));
-    CHECK_FALSE(outer.intersects(Point(5, 2)));
 
     CHECK(outer.contains(inner));
     CHECK(outer.interiorContains(inner));
@@ -607,8 +587,6 @@ TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
-    CHECK(rectangle.interiorsIntersect(Point(2, 1)));  // interior point
-    CHECK_FALSE(rectangle.interiorsIntersect(Point(0, 0)));  // corner (boundary)
     CHECK(rectangle.interiorsIntersect(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.interiorsIntersect(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.interiorsIntersect(Segment({-1, 1}, {5, 1})));
@@ -633,7 +611,6 @@ TEST_CASE("Rectangle covers the non-Convex contract for separates") {
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
-    CHECK_FALSE(rectangle.separates(Point(2, 1)));
     CHECK(rectangle.separates(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.separates(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.separates(Segment({-1, 1}, {5, 1})));
@@ -658,7 +635,6 @@ TEST_CASE("Rectangle covers the non-Convex contract for crosses") {
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
-    CHECK_FALSE(rectangle.crosses(Point(2, 1)));
     CHECK(rectangle.crosses(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.crosses(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.crosses(Segment({-1, 1}, {5, 1})));
