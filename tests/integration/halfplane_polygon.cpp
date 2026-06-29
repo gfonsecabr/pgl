@@ -167,6 +167,90 @@ TEST_CASE("Half-plane separates Polygon: disjoint bites must not separate") {
     }
 }
 
+// A half-plane is convex and unbounded, so it can contain a (bounded) polygon,
+// but a polygon can never contain a half-plane. Half-plane convention as above:
+//   Halfplane({0,c},{1,c}) -> interior y >= c.
+TEST_CASE("Half-plane and Polygon containment") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a half-plane strictly enclosing the square contains it both ways") {
+        const Halfplane below({0, -5}, {1, -5});  // interior y >= -5
+        CHECK(below.contains(square));
+        CHECK(below.interiorContains(square));
+    }
+
+    SUBCASE("a half-plane bounded by an edge contains but does not interior-contain") {
+        const Halfplane onEdge({0, 0}, {1, 0});  // interior y >= 0, bottom edge on boundary
+        CHECK(onEdge.contains(square));
+        CHECK_FALSE(onEdge.interiorContains(square));  // bottom vertices lie on ∂H
+    }
+
+    SUBCASE("a half-plane cutting through does not contain the square") {
+        const Halfplane through({0, 5}, {1, 5});  // interior y >= 5
+        CHECK_FALSE(through.contains(square));
+        CHECK_FALSE(through.interiorContains(square));
+    }
+
+    SUBCASE("a polygon never contains an (unbounded) half-plane") {
+        const Halfplane h({0, 5}, {1, 5});
+        CHECK_FALSE(square.contains(h));
+        CHECK_FALSE(square.interiorContains(h));
+        CHECK_FALSE(square.boundaryContains(h));
+    }
+}
+
+// intersects / interiorsIntersect, both directions (the Half-plane side forwards
+// to the Polygon implementation by symmetry).
+TEST_CASE("Half-plane and Polygon intersection predicates") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a half-plane covering part of the interior meets it everywhere") {
+        const Halfplane through({0, 5}, {1, 5});  // interior y >= 5
+        CHECK(square.intersects(through));
+        CHECK(square.interiorsIntersect(through));
+        CHECK(through.intersects(square));
+        CHECK(through.interiorsIntersect(square));
+    }
+
+    SUBCASE("a half-plane bounded by the top edge grazes the boundary only") {
+        const Halfplane top({0, 10}, {1, 10});  // interior y >= 10
+        CHECK(square.intersects(top));
+        CHECK_FALSE(square.interiorsIntersect(top));
+        CHECK(top.intersects(square));
+        CHECK_FALSE(top.interiorsIntersect(square));
+    }
+
+    SUBCASE("a half-plane clear of the polygon misses it") {
+        const Halfplane away({0, 20}, {1, 20});  // interior y >= 20
+        CHECK_FALSE(square.intersects(away));
+        CHECK_FALSE(square.interiorsIntersect(away));
+        CHECK_FALSE(away.intersects(square));
+        CHECK_FALSE(away.interiorsIntersect(square));
+    }
+}
+
+// crosses requires mutual separation; a polygon never separates a half-plane
+// (the complement of a closed half-plane is convex), so the two never cross.
+TEST_CASE("Half-plane and Polygon never cross") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+    const Halfplane through({0, 5}, {1, 5});  // slices the square, interior y >= 5
+
+    CHECK_FALSE(square.crosses(through));
+    CHECK_FALSE(through.crosses(square));
+}
+
 // Polygon::intersection(Halfplane) clips the polygon to the closed half-plane,
 // returning the surviving regions (polygons), plus any collinear boundary
 // overlaps (segments) and isolated touches (points).

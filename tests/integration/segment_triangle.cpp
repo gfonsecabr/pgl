@@ -119,6 +119,31 @@ TEST_CASE("Segment and triangle predicates tests") {
         CHECK_FALSE(triangle.crosses(inner));
     }
 
+    SUBCASE("interiorsIntersect needs a shared interior point") {
+        // A transversal chord and a strictly interior segment both reach the open
+        // interior, both directions; a segment along an edge, one outside, and one
+        // merely touching a vertex stay on the boundary, so interiors never meet.
+        const Segment cut({-1, 2}, {5, 2});
+        CHECK(triangle.interiorsIntersect(cut));
+        CHECK(cut.interiorsIntersect(triangle));
+
+        const Segment inner({1, 1}, {2, 2});
+        CHECK(triangle.interiorsIntersect(inner));
+        CHECK(inner.interiorsIntersect(triangle));
+
+        const Segment along_edge({0, 0}, {6, 0});
+        CHECK_FALSE(triangle.interiorsIntersect(along_edge));
+        CHECK_FALSE(along_edge.interiorsIntersect(triangle));
+
+        const Segment outside({-5, 2}, {-1, 2});
+        CHECK_FALSE(triangle.interiorsIntersect(outside));
+        CHECK_FALSE(outside.interiorsIntersect(triangle));
+
+        const Segment vertex_touch({-1, -1}, {0, 0});
+        CHECK_FALSE(triangle.interiorsIntersect(vertex_touch));
+        CHECK_FALSE(vertex_touch.interiorsIntersect(triangle));
+    }
+
     SUBCASE("boundary subsegment is contained by the boundary only") {
         const Segment boundary_subsegment({1, 0}, {3, 0});
         const Point boundary_midpoint(2, 0);

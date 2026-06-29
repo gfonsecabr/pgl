@@ -48,6 +48,82 @@ TEST_CASE("Scaling segments") {
     CHECK_MESSAGE((mul*s).interiorContains(p), mul*s, " interiorContains ", p);
 }
 
+TEST_CASE("Point and Segment intersection predicates") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment s({0, 0}, {4, 0});
+    const Point mid(2, 0);       // strict interior
+    const Point end(0, 0);       // endpoint, on the boundary
+    const Point off(2, 2);       // off the segment
+
+    SUBCASE("a point on the segment intersects it, both directions") {
+        CHECK_MESSAGE(s.intersects(mid), s, " intersects ", mid);
+        CHECK_MESSAGE(mid.intersects(s), mid, " intersects ", s);
+        CHECK_MESSAGE(s.intersects(end), s, " intersects ", end);
+        CHECK_MESSAGE(end.intersects(s), end, " intersects ", s);
+    }
+
+    SUBCASE("a point off the segment does not intersect it") {
+        CHECK_FALSE_MESSAGE(s.intersects(off), s, " intersects ", off);
+        CHECK_FALSE_MESSAGE(off.intersects(s), off, " intersects ", s);
+    }
+
+    SUBCASE("interiors meet only at a strictly interior point") {
+        // A point's interior is the point itself, so this is interior containment.
+        CHECK_MESSAGE(s.interiorsIntersect(mid), s, " interiorsIntersect ", mid);
+        CHECK_MESSAGE(mid.interiorsIntersect(s), mid, " interiorsIntersect ", s);
+        CHECK_FALSE_MESSAGE(s.interiorsIntersect(end), s, " interiorsIntersect ", end);
+        CHECK_FALSE_MESSAGE(s.interiorsIntersect(off), s, " interiorsIntersect ", off);
+    }
+}
+
+TEST_CASE("Point separates a Segment, but never the reverse, and they never cross") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment s({0, 0}, {4, 0});
+    const Point mid(2, 0);   // strict interior splits the segment in two
+    const Point end(0, 0);   // endpoint leaves one piece
+    const Point off(2, 2);
+
+    // A point cuts a segment iff it lies strictly inside it.
+    CHECK_MESSAGE(mid.separates(s), mid, " separates ", s);
+    CHECK_FALSE_MESSAGE(end.separates(s), end, " separates ", s);
+    CHECK_FALSE_MESSAGE(off.separates(s), off, " separates ", s);
+
+    // Removing a (1D) segment from a (0D) point can never leave two pieces.
+    CHECK_FALSE_MESSAGE(s.separates(mid), s, " separates ", mid);
+
+    // crosses needs mutual separation, which never holds here.
+    CHECK_FALSE_MESSAGE(mid.crosses(s), mid, " crosses ", mid);
+    CHECK_FALSE_MESSAGE(s.crosses(mid), s, " crosses ", mid);
+}
+
+TEST_CASE("Point and Segment intersection construction") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment s({0, 0}, {4, 0});
+
+    SUBCASE("a point on the segment yields that point, both directions") {
+        const Point mid(2, 0);
+        const auto fromSeg = s.intersection(mid);
+        const auto fromPt = mid.intersection(s);
+
+        REQUIRE(fromSeg.has_value());
+        CHECK(*fromSeg == mid);
+        REQUIRE(fromPt.has_value());
+        CHECK(*fromPt == mid);
+    }
+
+    SUBCASE("a point off the segment yields nothing") {
+        const Point off(2, 2);
+        CHECK_FALSE(s.intersection(off).has_value());
+        CHECK_FALSE(off.intersection(s).has_value());
+    }
+}
+
 TEST_CASE("Rational points") {
     using Point = pgl::Point<pgl::Rational<int64_t>>;
     using Segment = pgl::Segment<Point>;

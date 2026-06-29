@@ -155,6 +155,31 @@ TEST_CASE("Rational clipping of a convex polygon by a line with far defining poi
     REQUIRE(std::holds_alternative<RationalSegment>(*clipped));
 }
 
+// Containment that can only ever be degenerate: a 1D line cannot interior-contain
+// a 2D convex, and a bounded convex can neither bound nor interior-contain an
+// unbounded line. For real shapes every such relation is false, whether the line
+// cuts through, runs along an edge, or stays clear.
+TEST_CASE("Line and Convex boundary/interior containment is always false") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Line = pgl::Line<Point>;
+
+    const Convex triangle({{0, 0}, {6, 0}, {0, 6}});
+
+    SUBCASE("a line cutting through is interior-contained by neither") {
+        const Line cut({-200, 2}, {-100, 2});
+        CHECK_FALSE(cut.interiorContains(triangle));
+        CHECK_FALSE(triangle.boundaryContains(cut));
+        CHECK_FALSE(triangle.interiorContains(cut));
+    }
+
+    SUBCASE("a line along an edge still bounds/contains nothing") {
+        const Line alongEdge({-100, 0}, {-1, 0});
+        CHECK_FALSE(triangle.boundaryContains(alongEdge));
+        CHECK_FALSE(triangle.interiorContains(alongEdge));
+    }
+}
+
 TEST_CASE("Line and convex predicates are invariant under convex translation") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

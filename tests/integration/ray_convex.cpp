@@ -5,6 +5,30 @@
 
 #include "pgl.hpp"
 
+// Containment that can only ever be degenerate: a 1D ray cannot interior-contain
+// a 2D convex, and a bounded convex can neither bound nor interior-contain an
+// unbounded ray. For real shapes every such relation is false.
+TEST_CASE("Ray and Convex boundary/interior containment is always false") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Ray = pgl::Ray<Point>;
+
+    const Convex triangle({{0, 0}, {6, 0}, {0, 6}});
+
+    SUBCASE("a ray cutting through is interior-contained by neither") {
+        const Ray cut({-2, 2}, {-1, 2});
+        CHECK_FALSE(cut.interiorContains(triangle));
+        CHECK_FALSE(triangle.boundaryContains(cut));
+        CHECK_FALSE(triangle.interiorContains(cut));
+    }
+
+    SUBCASE("a ray along an edge still bounds/contains nothing") {
+        const Ray alongEdge({-2, 0}, {-1, 0});  // overlaps the bottom edge y = 0
+        CHECK_FALSE(triangle.boundaryContains(alongEdge));
+        CHECK_FALSE(triangle.interiorContains(alongEdge));
+    }
+}
+
 TEST_CASE("Ray and triangle as convex predicates tests") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

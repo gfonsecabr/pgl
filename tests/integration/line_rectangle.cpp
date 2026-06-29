@@ -150,6 +150,30 @@ TEST_CASE("Rational clipping of a rectangle by a line with far defining points")
     (void)expected;
 }
 
+// Containment that can only ever be degenerate: a 1D line cannot interior-contain
+// a 2D rectangle, and a bounded rectangle can neither bound nor interior-contain
+// an unbounded line. For real shapes every such relation is false.
+TEST_CASE("Line and Rectangle boundary/interior containment is always false") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Line = pgl::Line<Point>;
+
+    const Rectangle r({0, 0}, {4, 3});
+
+    SUBCASE("a line cutting through is interior-contained by neither") {
+        const Line cut({-200, 1}, {-100, 1});
+        CHECK_FALSE(cut.interiorContains(r));
+        CHECK_FALSE(r.boundaryContains(cut));
+        CHECK_FALSE(r.interiorContains(cut));
+    }
+
+    SUBCASE("a line along an edge still bounds/contains nothing") {
+        const Line alongEdge({-100, 0}, {-1, 0});  // y = 0 runs along the bottom edge
+        CHECK_FALSE(r.boundaryContains(alongEdge));
+        CHECK_FALSE(r.interiorContains(alongEdge));
+    }
+}
+
 TEST_CASE("Degenerate rectangle as a single point lies on the line") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;

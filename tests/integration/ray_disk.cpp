@@ -105,6 +105,62 @@ TEST_CASE("Ray against a disk built from three arbitrary boundary points") {
     CHECK_FALSE_MESSAGE(d.interiorsIntersect(Ray(Point(5, 0), Point(10, 0))), d, " boundary only");
 }
 
+// A disk's circular boundary can only hold a degenerate (point-like) ray, so for
+// a real ray the boundary-containment is false.
+TEST_CASE("Disk boundary never contains a Ray") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+    CHECK_FALSE_MESSAGE(d.boundaryContains(Ray(Point(10, 0), Point(-1, 0))),
+                        d, " boundaryContains ", Ray(Point(10, 0), Point(-1, 0)));
+}
+
+// separates / crosses: a ray that drives all the way through the disk cuts it in
+// two and is itself split into two outside pieces, so it separates and crosses
+// both ways. A ray launched from inside, a boundary-tangent ray, and a miss
+// separate neither and never cross.
+TEST_CASE("Ray and Disk separation and crossing") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    SUBCASE("a ray driving through the whole disk cuts and crosses both ways") {
+        Ray r(Point(10, 0), Point(-1, 0));  // enters at (5,0), exits at (-5,0)
+        CHECK_MESSAGE(r.separates(d), r, " separates ", d);
+        CHECK_MESSAGE(d.separates(r), d, " separates ", r);
+        CHECK_MESSAGE(r.crosses(d), r, " crosses ", d);
+        CHECK_MESSAGE(d.crosses(r), d, " crosses ", r);
+    }
+
+    SUBCASE("a ray launched from inside leaves a slit, not a cut") {
+        Ray r(Point(0, 0), Point(20, 1));
+        CHECK_FALSE_MESSAGE(r.separates(d), r, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(r), d, " separates ", r);
+        CHECK_FALSE_MESSAGE(r.crosses(d), r, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(r), d, " crosses ", r);
+    }
+
+    SUBCASE("a ray grazing the boundary separates neither") {
+        Ray r(Point(5, 0), Point(5, 5));  // tangent, from (5,0) upward
+        CHECK_FALSE_MESSAGE(r.separates(d), r, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(r), d, " separates ", r);
+        CHECK_FALSE_MESSAGE(r.crosses(d), r, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(r), d, " crosses ", r);
+    }
+
+    SUBCASE("a ray missing the disk separates neither") {
+        Ray r(Point(10, 0), Point(11, 0));
+        CHECK_FALSE_MESSAGE(r.separates(d), r, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(r), d, " separates ", r);
+        CHECK_FALSE_MESSAGE(r.crosses(d), r, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(r), d, " crosses ", r);
+    }
+}
+
 TEST_CASE("Generated consistency for rays around a disk") {
     using Point = pgl::Point<int>;
     using Ray = pgl::Ray<Point>;

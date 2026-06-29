@@ -5,6 +5,78 @@
 
 #include <variant>
 
+// Neither shape contains the other: a 1D ray cannot hold a 2D polygon, and a
+// polygon can only "contain" a degenerate (point-like) ray.
+TEST_CASE("Ray and Polygon never contain each other") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+    const Ray through({5, -5}, {5, 0});  // crosses the interior
+
+    CHECK_FALSE(square.contains(through));
+    CHECK_FALSE(through.contains(square));
+}
+
+// intersects / interiorsIntersect, both directions (the Ray side forwards to the
+// Polygon implementation by symmetry).
+TEST_CASE("Ray and Polygon intersection predicates") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a ray driving through the interior meets it everywhere") {
+        const Ray through({5, -5}, {5, 0});
+        CHECK(square.intersects(through));
+        CHECK(through.intersects(square));
+        CHECK(square.interiorsIntersect(through));
+        CHECK(through.interiorsIntersect(square));
+    }
+
+    SUBCASE("a ray running along an edge grazes the boundary only") {
+        const Ray edge({-5, 0}, {-4, 0});  // overlaps the bottom edge y = 0
+        CHECK(square.intersects(edge));
+        CHECK(edge.intersects(square));
+        CHECK_FALSE(square.interiorsIntersect(edge));
+        CHECK_FALSE(edge.interiorsIntersect(square));
+    }
+
+    SUBCASE("a ray pointing away misses the polygon") {
+        const Ray away({-5, 5}, {-6, 5});
+        CHECK_FALSE(square.intersects(away));
+        CHECK_FALSE(away.intersects(square));
+        CHECK_FALSE(square.interiorsIntersect(away));
+        CHECK_FALSE(away.interiorsIntersect(square));
+    }
+}
+
+// crosses requires mutual separation: a ray that is a full chord across cuts the
+// polygon both ways; a ray that only enters (source inside) leaves a slit and
+// does not cross.
+TEST_CASE("Ray and Polygon cross only on a full transversal") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a ray crossing all the way through crosses both ways") {
+        const Ray through({5, -5}, {5, 0});
+        CHECK(square.crosses(through));
+        CHECK(through.crosses(square));
+    }
+
+    SUBCASE("a ray launched from inside does not cross") {
+        const Ray fromInside({5, 5}, {5, 6});
+        CHECK(square.interiorsIntersect(fromInside));  // interiors do meet
+        CHECK_FALSE(square.crosses(fromInside));        // but it is not a full cut
+        CHECK_FALSE(fromInside.crosses(square));
+    }
+}
+
 TEST_CASE("Polygon separates Ray") {
     using Point = pgl::Point<int>;
     using Ray = pgl::Ray<Point>;
