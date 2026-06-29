@@ -236,6 +236,64 @@ TEST_CASE("Open disk built from three arbitrary boundary points") {
     CHECK_FALSE_MESSAGE(d.interiorsIntersect(Segment(6, -3, 6, 3)), d, " ii near-miss");
 }
 
+// A disk's circular boundary can only hold a degenerate (point-like) segment, so
+// for a real segment the boundary-containment is false.
+TEST_CASE("Disk boundary never contains a real Segment") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+    Segment s(-6, 2, 6, 2);
+    CHECK_FALSE_MESSAGE(d.boundaryContains(s), d, " boundaryContains ", s);
+}
+
+// separates / crosses: a chord with both endpoints outside cuts the disk in two
+// and is itself split into two outside pieces, so it separates and crosses both
+// ways. A segment with an endpoint inside, and a clear miss, separate neither.
+// A tangent segment leaves the disk whole but still snips its single touch point
+// out of the segment, so only that one direction separates (and it never
+// crosses).
+TEST_CASE("Segment and Disk separation and crossing") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    SUBCASE("a full chord cuts and crosses both ways") {
+        Segment s(-6, 2, 6, 2);  // both endpoints outside, crossing the interior
+        CHECK_MESSAGE(s.separates(d), s, " separates ", d);
+        CHECK_MESSAGE(d.separates(s), d, " separates ", s);
+        CHECK_MESSAGE(s.crosses(d), s, " crosses ", d);
+        CHECK_MESSAGE(d.crosses(s), d, " crosses ", s);
+    }
+
+    SUBCASE("a segment with an endpoint inside separates neither") {
+        Segment s(0, 0, 20, 0);
+        CHECK_FALSE_MESSAGE(s.separates(d), s, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(s), d, " separates ", s);
+        CHECK_FALSE_MESSAGE(s.crosses(d), s, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(s), d, " crosses ", s);
+    }
+
+    SUBCASE("a tangent segment leaves the disk whole but snips the segment") {
+        Segment s(5, -3, 5, 3);  // tangent at (5,0)
+        CHECK_FALSE_MESSAGE(s.separates(d), s, " separates ", d);
+        CHECK_MESSAGE(d.separates(s), d, " separates ", s);  // removes the touch point
+        CHECK_FALSE_MESSAGE(s.crosses(d), s, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(s), d, " crosses ", s);
+    }
+
+    SUBCASE("a segment missing the disk separates neither") {
+        Segment s(6, 0, 10, 0);
+        CHECK_FALSE_MESSAGE(s.separates(d), s, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(s), d, " separates ", s);
+        CHECK_FALSE_MESSAGE(s.crosses(d), s, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(s), d, " crosses ", s);
+    }
+}
+
 TEST_CASE("Oriented segments forward to the unoriented predicate") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

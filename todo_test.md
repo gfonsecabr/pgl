@@ -124,28 +124,28 @@ Add the missing method families to files that already exist.
       interiorsIntersect, intersects. (`separates` already covered one direction via
       `convex.separates(polygon)`; SKIP `crosses` and `polygon.separates(convex)` —
       they throw.)
-- [ ] `line_polygon.cpp` — add boundaryContains, contains, crosses,
+- [x] `line_polygon.cpp` — add boundaryContains, contains, crosses,
       interiorContains, interiorsIntersect, intersects, separates.
-- [ ] `halfplane_polygon.cpp` — add boundaryContains, contains, crosses,
+- [x] `halfplane_polygon.cpp` — add boundaryContains, contains, crosses,
       interiorContains, interiorsIntersect, intersects.
-- [ ] `halfplane_convex.cpp` — add boundaryContains, contains, crosses,
+- [x] `halfplane_convex.cpp` — add boundaryContains, contains, crosses,
       interiorContains, separates.
-- [ ] `halfplane_disk.cpp` — add boundaryContains, contains, crosses,
+- [x] `halfplane_disk.cpp` — add boundaryContains, contains, crosses,
       interiorContains, separates.
-- [ ] `point_segment.cpp` — add crosses, interiorsIntersect, intersection,
+- [x] `point_segment.cpp` — add crosses, interiorsIntersect, intersection,
       intersects, separates.
-- [ ] `segment_ray.cpp` — add crosses, interiorContains, interiorsIntersect,
+- [x] `segment_ray.cpp` — add crosses, interiorContains, interiorsIntersect,
       intersection, intersects.
-- [ ] `ray_polygon.cpp` — add contains, crosses, interiorsIntersect, intersects.
-- [ ] `line_disk.cpp` — add boundaryContains, contains, crosses, separates.
-- [ ] `ray_disk.cpp` — add boundaryContains, crosses, separates.
-- [ ] `segment_disk.cpp` — add boundaryContains, crosses, separates.
-- [ ] `line_convex.cpp` — add boundaryContains, interiorContains.
-- [ ] `line_rectangle.cpp` — add boundaryContains, interiorContains.
-- [ ] `ray_convex.cpp` — add boundaryContains, interiorContains.
-- [ ] `line_triangle.cpp` — add interiorContains.
-- [ ] `segment_polygon.cpp` — add crosses.
-- [ ] `segment_triangle.cpp` — add interiorsIntersect.
+- [x] `ray_polygon.cpp` — add contains, crosses, interiorsIntersect, intersects.
+- [x] `line_disk.cpp` — add boundaryContains, contains, crosses, separates.
+- [x] `ray_disk.cpp` — add boundaryContains, crosses, separates.
+- [x] `segment_disk.cpp` — add boundaryContains, crosses, separates.
+- [x] `line_convex.cpp` — add boundaryContains, interiorContains.
+- [x] `line_rectangle.cpp` — add boundaryContains, interiorContains.
+- [x] `ray_convex.cpp` — add boundaryContains, interiorContains.
+- [x] `line_triangle.cpp` — add interiorContains.
+- [x] `segment_polygon.cpp` — add crosses.
+- [x] `segment_triangle.cpp` — add interiorsIntersect.
 
 Already complete (no action): `segment_convex`, `segment_line`, `segment_rectangle`,
 `segment_segment`, `line_ray`.

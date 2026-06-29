@@ -116,6 +116,80 @@ TEST_CASE("Oriented lines forward to the unoriented predicate") {
     CHECK_MESSAGE(d.interiorsIntersect(backward) == d.interiorsIntersect(l), d, " ii ", backward);
 }
 
+// Containment: a 1D line cannot hold a 2D disk, and a disk can only "contain" a
+// line (or hold one on its circular boundary) in degenerate cases, so for a real
+// line/disk pair every containment relation is false.
+TEST_CASE("Line and Disk never contain each other") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+    Line secant(Point(0, 0), Point(2, 1));  // through the centre
+
+    CHECK_FALSE_MESSAGE(d.contains(secant), d, " contains ", secant);
+    CHECK_FALSE_MESSAGE(d.boundaryContains(secant), d, " boundaryContains ", secant);
+    CHECK_FALSE_MESSAGE(secant.contains(d), secant, " contains ", d);
+}
+
+// separates: a secant cuts the disk in two (line.separates(disk)) and likewise
+// splits the line into two outside rays (disk.separates(line)). A tangent leaves
+// the disk whole but still snips the single touch point out of the line, so the
+// two directions disagree there. A miss separates neither.
+TEST_CASE("Line and Disk separation") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    SUBCASE("a secant cuts both the disk and the line") {
+        Line l(Point(0, 0), Point(2, 1));
+        CHECK_MESSAGE(l.separates(d), l, " separates ", d);
+        CHECK_MESSAGE(d.separates(l), d, " separates ", l);
+    }
+
+    SUBCASE("a tangent leaves the disk whole but snips the line") {
+        Line l(Point(5, -3), Point(5, 3));  // tangent at (5,0)
+        CHECK_FALSE_MESSAGE(l.separates(d), l, " separates ", d);
+        CHECK_MESSAGE(d.separates(l), d, " separates ", l);  // removes the touch point
+    }
+
+    SUBCASE("a line missing the disk separates neither") {
+        Line l(Point(6, -3), Point(6, 3));
+        CHECK_FALSE_MESSAGE(l.separates(d), l, " separates ", d);
+        CHECK_FALSE_MESSAGE(d.separates(l), d, " separates ", l);
+    }
+}
+
+// crosses needs mutual separation, so only a strict secant crosses; a tangent
+// (one-sided separation) and a miss do not.
+TEST_CASE("Line and Disk cross only on a strict secant") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    SUBCASE("a secant crosses both ways") {
+        Line l(Point(0, 0), Point(2, 1));
+        CHECK_MESSAGE(l.crosses(d), l, " crosses ", d);
+        CHECK_MESSAGE(d.crosses(l), d, " crosses ", l);
+    }
+
+    SUBCASE("a tangent does not cross") {
+        Line l(Point(5, -3), Point(5, 3));
+        CHECK_FALSE_MESSAGE(l.crosses(d), l, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(l), d, " crosses ", l);
+    }
+
+    SUBCASE("a miss does not cross") {
+        Line l(Point(6, -3), Point(6, 3));
+        CHECK_FALSE_MESSAGE(l.crosses(d), l, " crosses ", d);
+        CHECK_FALSE_MESSAGE(d.crosses(l), d, " crosses ", l);
+    }
+}
+
 TEST_CASE("Generated consistency for lines around a disk") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;

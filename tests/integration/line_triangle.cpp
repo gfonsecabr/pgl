@@ -6,6 +6,29 @@
 
 #include "pgl.hpp"
 
+// interiorContains can only ever be degenerate here: a 1D line cannot interior-
+// contain a 2D triangle, and a bounded triangle cannot interior-contain an
+// unbounded line. For real shapes both directions are false.
+TEST_CASE("Line and Triangle interior-containment is always false") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Line = pgl::Line<Point>;
+
+    const Triangle triangle({0, 0}, {6, 0}, {0, 6});
+
+    SUBCASE("a line cutting through the interior") {
+        const Line cut({-200, 2}, {-100, 2});
+        CHECK_FALSE(cut.interiorContains(triangle));
+        CHECK_FALSE(triangle.interiorContains(cut));
+    }
+
+    SUBCASE("a line running along an edge") {
+        const Line alongEdge({-100, 0}, {-1, 0});  // y = 0 along the base
+        CHECK_FALSE(alongEdge.interiorContains(triangle));
+        CHECK_FALSE(triangle.interiorContains(alongEdge));
+    }
+}
+
 TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

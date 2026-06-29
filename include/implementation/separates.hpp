@@ -1132,35 +1132,6 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherTriangle& o
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Halfplane<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (other.isDegenerate()) {
-        return false;
-    }
-    const auto otherEdges = other.edges();
-    const std::size_t m = other.size();
-    int sep = 0;
-    std::size_t cut_idx = 0;
-    for (std::size_t i = 0; i < m; ++i) {
-        if (separates(otherEdges[i])) {
-            ++sep;
-            cut_idx = i;
-            if (sep >= 2) {
-                return true;
-            }
-        }
-    }
-    if (sep == 0) {
-        return false;
-    }
-    const std::size_t skip_a = cut_idx;
-    const std::size_t skip_b = (cut_idx + 1) % m;
-    for (std::size_t i = 0; i < m; ++i) {
-        if (i == skip_a || i == skip_b) {
-            continue;
-        }
-        if (contains(other[i])) {
-            return true;
-        }
-    }
     return false;
 }
 

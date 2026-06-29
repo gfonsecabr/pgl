@@ -111,6 +111,61 @@ TEST_CASE("Half-plane against a disk built from three arbitrary boundary points"
     CHECK_FALSE_MESSAGE(d.intersects(Halfplane(Point(6, 1), Point(6, 0))), d, " disk outside");
 }
 
+// Containment: a half-plane (convex, unbounded) can swallow a disk; a bounded
+// disk can never contain or bound an unbounded half-plane.
+TEST_CASE("Half-plane and Disk containment") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+
+    SUBCASE("a half-plane with the disk strictly inside contains it both ways") {
+        // source->target = (6,0)->(6,1) up; contained side x <= 6 holds the disk
+        // (x in [-5,5]) with the boundary line clear of it.
+        Halfplane h(Point(6, 0), Point(6, 1));
+        CHECK_MESSAGE(h.contains(d), h, " contains ", d);
+        CHECK_MESSAGE(h.interiorContains(d), h, " interiorContains ", d);
+    }
+
+    SUBCASE("a half-plane tangent to the disk contains but does not interior-contain") {
+        // contained side x <= 5, boundary touches the disk at (5,0).
+        Halfplane h(Point(5, 0), Point(5, 1));
+        CHECK_MESSAGE(h.contains(d), h, " contains ", d);
+        CHECK_FALSE_MESSAGE(h.interiorContains(d), h, " interiorContains ", d);
+    }
+
+    SUBCASE("a half-plane cutting the disk contains it neither way") {
+        Halfplane h(Point(0, 0), Point(1, 0));  // boundary is the x-axis
+        CHECK_FALSE_MESSAGE(h.contains(d), h, " contains ", d);
+        CHECK_FALSE_MESSAGE(h.interiorContains(d), h, " interiorContains ", d);
+    }
+
+    SUBCASE("a disk never contains or bounds an (unbounded) half-plane") {
+        Halfplane h(Point(0, 0), Point(1, 0));
+        CHECK_FALSE_MESSAGE(d.contains(h), d, " contains ", h);
+        CHECK_FALSE_MESSAGE(d.interiorContains(h), d, " interiorContains ", h);
+        CHECK_FALSE_MESSAGE(d.boundaryContains(h), d, " boundaryContains ", h);
+    }
+}
+
+// separates / crosses: removing a closed half-plane from a disk leaves the
+// circular segment on the far side, always a single connected piece, so a
+// half-plane never separates a disk and the two never cross — either direction.
+TEST_CASE("Half-plane and Disk never separate or cross") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    Disk d(0, 0, 5);
+    Halfplane h(Point(0, 0), Point(1, 0));  // boundary cuts straight through
+
+    CHECK_FALSE_MESSAGE(h.separates(d), h, " separates ", d);
+    CHECK_FALSE_MESSAGE(d.separates(h), d, " separates ", h);
+    CHECK_FALSE_MESSAGE(h.crosses(d), h, " crosses ", d);
+    CHECK_FALSE_MESSAGE(d.crosses(h), d, " crosses ", h);
+}
+
 TEST_CASE("Generated consistency for half-planes around a disk") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;

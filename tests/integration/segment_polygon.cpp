@@ -3,6 +3,42 @@
 
 #include "pgl.hpp"
 
+// crosses requires mutual separation: a chord clear across the polygon cuts the
+// polygon AND is itself cut by the body, so it crosses both ways. A segment that
+// only enters (one endpoint inside), one fully outside, and one lying along an
+// edge cross neither way.
+TEST_CASE("Segment and Polygon cross only on a full transversal chord") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("a chord poking out both ends crosses both ways") {
+        const Segment chord({-5, 5}, {15, 5});
+        CHECK(square.crosses(chord));
+        CHECK(chord.crosses(square));
+    }
+
+    SUBCASE("a segment with one endpoint inside does not cross") {
+        const Segment slit({5, 5}, {15, 5});
+        CHECK_FALSE(square.crosses(slit));
+        CHECK_FALSE(slit.crosses(square));
+    }
+
+    SUBCASE("a segment fully outside does not cross") {
+        const Segment outside({-5, 5}, {-1, 5});
+        CHECK_FALSE(square.crosses(outside));
+        CHECK_FALSE(outside.crosses(square));
+    }
+
+    SUBCASE("a segment lying along an edge does not cross") {
+        const Segment alongEdge({-5, 0}, {15, 0});
+        CHECK_FALSE(square.crosses(alongEdge));
+        CHECK_FALSE(alongEdge.crosses(square));
+    }
+}
+
 TEST_CASE("Segment separates Polygon") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
