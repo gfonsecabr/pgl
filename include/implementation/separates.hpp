@@ -1131,7 +1131,7 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherTriangle& o
 
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Halfplane<PointType, LabelType>::separates(const OtherConvex& other) const {
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherConvex&) const {
     return false;
 }
 

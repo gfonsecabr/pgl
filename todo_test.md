@@ -200,9 +200,16 @@ all real self-methods are exercised in `unit/<shape>.cpp` and fill any gaps.
 Create the integration file and migrate the cross-shape assertions. Grouped by first
 shape in canonical order.
 
-- [ ] point_*: `point_orientedsegment`, `point_line`, `point_orientedline`,
+- [x] point_*: `point_orientedsegment`, `point_line`, `point_orientedline`,
       `point_ray`, `point_halfplane`, `point_rectangle`, `point_triangle`,
-      `point_convex`, `point_polygon`, `point_disk`
+      `point_convex`, `point_polygon`, `point_disk` — created (both directions);
+      `point_segment` augmented with the point-as-container case. Point-predicate
+      assertions stripped from each shape's `unit/<shape>.cpp` (incl. the five
+      multi-shape `unit/point.cpp` cases; point-self assertions folded into
+      "Point shape predicates use coordinate equality and an empty boundary").
+      Non-predicate point uses (`verticesContain`, `pointInside`, `orientation`,
+      `collinear`, transform probes) and degenerate-disk/triangle blocks left in
+      place. Green under g++ and clang++.
 - [ ] segment_*: `segment_orientedsegment`, `segment_orientedline`, `segment_halfplane`
 - [ ] orientedsegment_*: `orientedsegment_line`, `orientedsegment_orientedline`,
       `orientedsegment_ray`, `orientedsegment_halfplane`, `orientedsegment_rectangle`,

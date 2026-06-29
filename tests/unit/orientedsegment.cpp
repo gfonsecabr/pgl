@@ -316,11 +316,6 @@ TEST_CASE("OrientedSegment keeps orientation-specific equality but geometry-spec
     const OrientedSegment vertical({2, -2}, {2, 2});
     const OrientedSegment touching_endpoint({4, 0}, {6, 2});
 
-    CHECK(horizontal.contains(Point(2, 0)));
-    CHECK(horizontal.contains(Point(4, 0)));
-    CHECK(horizontal.interiorContains(Point(2, 0)));
-    CHECK_FALSE(horizontal.interiorContains(Point(4, 0)));
-    CHECK(horizontal.boundaryContains(Point(4, 0)));
     CHECK(horizontal.verticesContain(Point(0, 0)));
 
     CHECK(horizontal.intersects(vertical));
@@ -350,24 +345,6 @@ TEST_CASE("OrientedSegment distinguishes containment of unoriented and oriented 
     CHECK_FALSE(host.interiorContains(touching_endpoint));
 }
 
-TEST_CASE("OrientedSegment intersects and intersects-with-point delegate to Segment") {
-    using Point = pgl::Point<int>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
-
-    const OrientedSegment segment({4, 4}, {0, 0});
-    const Point on_segment(2, 2);
-    const Point endpoint(0, 0);
-    const Point off_segment(2, 3);
-
-    CHECK(segment.intersects(on_segment));
-    CHECK(segment.intersects(endpoint));
-    CHECK_FALSE(segment.intersects(off_segment));
-
-    CHECK(segment.intersection(on_segment) == Point(2, 2));
-    CHECK(segment.intersection(endpoint) == Point(0, 0));
-    CHECK_FALSE(segment.intersection(off_segment));
-}
-
 TEST_CASE("OrientedSegment covers the non-Convex contract through Segment delegation") {
     using Point = pgl::Point<int>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
@@ -380,11 +357,9 @@ TEST_CASE("OrientedSegment covers the non-Convex contract through Segment delega
 
     const OrientedSegment horizontal({4, 0}, {0, 0});
 
-    CHECK(horizontal.contains(Point(2, 0)));
     CHECK_FALSE(horizontal.contains(Rectangle({1, -1}, {3, 1})));
     CHECK_FALSE(horizontal.contains(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the segment
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
@@ -392,12 +367,10 @@ TEST_CASE("OrientedSegment covers the non-Convex contract through Segment delega
     CHECK(horizontal.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
     CHECK(horizontal.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(horizontal.separates(Point(2, 0)));
     CHECK(horizontal.separates(Line({2, -2}, {2, 2})));
     CHECK_FALSE(horizontal.separates(Halfplane({0, -1}, {4, -1})));
     CHECK(horizontal.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(horizontal.crosses(Point(2, 0)));
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
     CHECK_FALSE(horizontal.crosses(Halfplane({0, 0}, {4, 0})));
     CHECK(horizontal.crosses(Rectangle({1, -1}, {3, 1})));

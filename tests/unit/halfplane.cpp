@@ -158,33 +158,6 @@ TEST_CASE("Halfplane distinguishes defining points, boundary points, and interio
 
     CHECK(diagonal.verticesContain(Point(0, 0)));
     CHECK(diagonal.verticesContain(Point(4, 4)));
-    CHECK(diagonal.boundaryContains(Point(2, 2)));
-    CHECK_FALSE(diagonal.boundaryContains(Point(0, 1)));
-
-    CHECK(diagonal.contains(Point(0, 1)));
-    CHECK(diagonal.contains(Point(2, 2)));
-    CHECK_FALSE(diagonal.contains(Point(1, 0)));
-
-    CHECK(diagonal.interiorContains(Point(0, 1)));
-    CHECK_FALSE(diagonal.interiorContains(Point(2, 2)));
-
-    const Halfplane vertical({2, -1}, {2, 5});
-    CHECK(vertical.contains(Point(1, 0)));
-    CHECK(vertical.boundaryContains(Point(2, 0)));
-    CHECK_FALSE(vertical.contains(Point(3, 0)));
-
-    const auto interior_intersection = diagonal.intersection(Point(0, 1));
-    REQUIRE(interior_intersection);
-    CHECK(*interior_intersection == Point(0, 1));
-
-    const auto boundary_intersection = diagonal.intersection(Point(2, 2));
-    REQUIRE(boundary_intersection);
-    CHECK(*boundary_intersection == Point(2, 2));
-
-    CHECK_FALSE(diagonal.intersection(Point(1, 0)).has_value());
-    CHECK(diagonal.intersects(Point(0, 1)));
-    CHECK(diagonal.intersects(Point(2, 2)));
-    CHECK_FALSE(diagonal.intersects(Point(1, 0)));
 }
 
 TEST_CASE("Halfplane boundary containment extends to linear primitives on the boundary line") {
@@ -395,8 +368,6 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
 
     const Halfplane upper({0, 0}, {4, 0});
 
-    CHECK(upper.interiorsIntersect(Point(1, 1)));  // interior point
-    CHECK_FALSE(upper.interiorsIntersect(Point(1, 0)));  // on the boundary line
     CHECK(upper.interiorsIntersect(Line({0, -1}, {4, 3})));
     CHECK(upper.interiorsIntersect(OrientedLine({4, 3}, {0, -1})));
     CHECK(upper.interiorsIntersect(Segment({1, -1}, {3, 2})));
@@ -407,7 +378,6 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
     CHECK(upper.interiorsIntersect(Triangle({0, 0}, {2, 0}, {1, 1})));
     CHECK(upper.interiorsIntersect(Shape(Rectangle({1, -1}, {3, 2}))));
 
-    CHECK_FALSE(upper.separates(Point(1, 1)));
     CHECK_FALSE(upper.separates(Line({0, -1}, {4, 3})));
     CHECK_FALSE(upper.separates(OrientedLine({4, 3}, {0, -1})));
     CHECK_FALSE(upper.separates(Segment({1, -1}, {3, 2})));
@@ -418,7 +388,6 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
     CHECK_FALSE(upper.separates(Triangle({0, 0}, {2, 0}, {1, 1})));
     CHECK_FALSE(upper.separates(Shape(Rectangle({1, -1}, {3, 2}))));
 
-    CHECK_FALSE(upper.crosses(Point(1, 1)));
     CHECK_FALSE(upper.crosses(Line({0, -1}, {4, 3})));
     CHECK_FALSE(upper.crosses(OrientedLine({4, 3}, {0, -1})));
     CHECK_FALSE(upper.crosses(Segment({1, -1}, {3, 2})));

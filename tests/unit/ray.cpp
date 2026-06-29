@@ -190,12 +190,6 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     const Ray parallel({0, 1}, {4, 5});
 
     CHECK(diagonal.verticesContain(Point(4, 4)));
-    CHECK(diagonal.boundaryContains(Point(0, 0)));
-    CHECK_FALSE(diagonal.boundaryContains(Point(4, 4)));
-    CHECK(diagonal.contains(Point(2, 2)));
-    CHECK_FALSE(diagonal.contains(Point(-1, -1)));
-    CHECK(diagonal.interiorContains(Point(2, 2)));
-    CHECK_FALSE(diagonal.interiorContains(Point(0, 0)));
 
     CHECK(diagonal.contains(subsegment));
     CHECK(diagonal.contains(oriented_subsegment));
@@ -326,7 +320,6 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     CHECK(horizontal.interiorsIntersect(Line({4, -2}, {4, 2})));
     CHECK_FALSE(horizontal.crosses(Line({0, -2}, {0, 2})));
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.crosses(Point(2, 0)));
     CHECK(horizontal.crosses(pgl::Rectangle<Point>({1, -1}, {3, 1})));
     CHECK(horizontal.crosses(pgl::Triangle<Point>({1, -1}, {3, -1}, {2, 2})));
     CHECK_FALSE(horizontal.crosses(pgl::Halfplane<Point>({2, -2}, {2, 2})));
@@ -358,8 +351,6 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
 
     const Ray horizontal({0, 0}, {4, 0});
 
-    CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the ray
-    CHECK_FALSE(horizontal.interiorsIntersect(Point(0, 0)));  // source (boundary)
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Segment({2, -2}, {2, 2})));
@@ -385,7 +376,6 @@ TEST_CASE("Ray covers the non-Convex contract for separates") {
 
     const Ray horizontal({0, 0}, {4, 0});
 
-    CHECK_FALSE(horizontal.separates(Point(2, 0)));
     CHECK(horizontal.separates(Line({2, -2}, {2, 2})));
     CHECK(horizontal.separates(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.separates(Segment({2, -2}, {2, 2})));
@@ -411,7 +401,6 @@ TEST_CASE("Ray covers the non-Convex contract for crosses") {
 
     const Ray horizontal({0, 0}, {4, 0});
 
-    CHECK_FALSE(horizontal.crosses(Point(2, 0)));
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(Segment({2, -2}, {2, 2})));

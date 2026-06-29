@@ -204,10 +204,6 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     const Segment subsegment({1, 1}, {3, 3});
     const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
 
-    CHECK(diagonal.contains(Point(2, 2)));
-    CHECK(diagonal.interiorContains(Point(2, 2)));
-    CHECK_FALSE(diagonal.boundaryContains(Point(2, 2)));
-
     CHECK(diagonal.contains(same_line));
     CHECK(diagonal.contains(subsegment));
     CHECK(diagonal.contains(oriented_subsegment));
@@ -222,8 +218,6 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     CHECK(diagonal.intersects(same_line));
     CHECK(diagonal.intersects(crossing));
     CHECK_FALSE(diagonal.intersects(parallel));
-    CHECK(diagonal.intersects(Point(2, 2)));
-    CHECK_FALSE(diagonal.intersects(Point(2, 3)));
     CHECK(diagonal.interiorsIntersect(crossing));
     CHECK(diagonal.crosses(crossing));
 
@@ -256,9 +250,6 @@ TEST_CASE("Line intersection and distances support exact rational results") {
     const auto same_line_intersection = rising.intersection<Rational>(IntLine({1, 1}, {3, 3}));
     REQUIRE(same_line_intersection);
     REQUIRE(std::holds_alternative<pgl::Line<pgl::Point<Rational>>>(*same_line_intersection));
-
-    CHECK(rising.intersection(pgl::Point<int>(2, 2)) == pgl::Point<int>(2, 2));
-    CHECK_FALSE(rising.intersection(pgl::Point<int>(2, 3)));
 
     // Euclidean squared distance is generally fractional, so request a
     // floating-point ResultNumber; the integer default would truncate.
@@ -334,7 +325,6 @@ TEST_CASE("Line separates and crosses 1D targets using the topological definitio
     const Ray source_touching_ray({2, 0}, {2, 3});
     const Triangle triangle({1, -1}, {3, -1}, {2, 2});
 
-    CHECK_FALSE(vertical.crosses(Point(2, 0)));
     CHECK(vertical.separates(horizontal));
     CHECK(vertical.separates(segment));
     CHECK_FALSE(vertical.separates(endpoint_touching_segment));
@@ -365,7 +355,6 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
 
     const Line vertical({2, -2}, {2, 2});
 
-    CHECK(vertical.interiorsIntersect(Point(2, 0)));  // on the line (its interior is the whole line)
     CHECK(vertical.interiorsIntersect(Segment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedSegment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedLine({0, 0}, {4, 0})));
@@ -374,13 +363,11 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
     CHECK(vertical.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
     CHECK(vertical.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(vertical.separates(Point(2, 0)));
     CHECK(vertical.separates(Segment({0, 0}, {4, 0})));
     CHECK(vertical.separates(OrientedLine({0, 0}, {4, 0})));
     CHECK_FALSE(vertical.separates(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
 
-    CHECK_FALSE(vertical.crosses(Point(2, 0)));
     CHECK(vertical.crosses(Shape(Segment({0, 0}, {4, 0}))));
     CHECK(vertical.crosses(Ray({0, 0}, {4, 0})));
     CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));

@@ -361,13 +361,6 @@ TEST_CASE("Convex::intersects covers points, half-planes, and other convex polyg
 
     const Convex sq(std::vector<Point>{{0,0},{4,0},{4,4},{0,4}});
 
-    SUBCASE("point intersection is just containment") {
-        CHECK(sq.intersects(Point(2,2)));   // interior
-        CHECK(sq.intersects(Point(0,0)));   // vertex
-        CHECK(sq.intersects(Point(2,0)));   // edge midpoint
-        CHECK_FALSE(sq.intersects(Point(5,2))); // outside
-    }
-
     SUBCASE("half-plane intersection") {
         // Halfplane to the left of x=2 (using source→target convention, ccw side is "in")
         const Halfplane hp({2,0},{2,4});
@@ -410,12 +403,6 @@ TEST_CASE("Convex::interiorsIntersect distinguishes interior overlap from bounda
     using Convex    = pgl::Convex<Point>;
 
     const Convex sq(std::vector<Point>{{0,0},{4,0},{4,4},{0,4}});
-
-    SUBCASE("point") {
-        CHECK(sq.interiorsIntersect(Point(2,2)));   // interior point
-        CHECK_FALSE(sq.interiorsIntersect(Point(2,0))); // boundary
-        CHECK_FALSE(sq.interiorsIntersect(Point(5,5)));
-    }
 
     SUBCASE("line") {
         CHECK(sq.interiorsIntersect(Line({0,2},{1,2}))); // cuts through interior
@@ -504,8 +491,7 @@ TEST_CASE("Convex::separates cuts shapes into multiple components") {
         CHECK_FALSE(sq.separates(Ray({2,2},{3,2})));    // source inside
     }
 
-    SUBCASE("never separates a point or half-plane") {
-        CHECK_FALSE(sq.separates(Point(2,2)));
+    SUBCASE("never separates a half-plane") {
         CHECK_FALSE(sq.separates(Halfplane({0,0},{4,0})));
     }
 

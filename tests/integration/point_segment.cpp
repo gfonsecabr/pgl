@@ -48,6 +48,20 @@ TEST_CASE("Scaling segments") {
     CHECK_MESSAGE((mul*s).interiorContains(p), mul*s, " interiorContains ", p);
 }
 
+TEST_CASE("Point contains a Segment only when it degenerates to that point") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Point p(2, 3);
+    const Segment degenerate({2, 3}, {2, 3});
+    const Segment s({2, 3}, {4, 5});
+
+    CHECK_MESSAGE(p.contains(degenerate), p, " contains ", degenerate);
+    CHECK_MESSAGE(p.interiorContains(degenerate), p, " interiorContains ", degenerate);
+    CHECK_FALSE_MESSAGE(p.boundaryContains(degenerate), p, " boundaryContains ", degenerate);
+    CHECK_FALSE_MESSAGE(p.contains(s), p, " contains ", s);
+}
+
 TEST_CASE("Point and Segment intersection predicates") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
