@@ -620,6 +620,39 @@ TEST_CASE("Triangle predicates against another triangle") {
         // Disjoint is not crossing.
         CHECK_FALSE(base.crosses(Triangle({10, 10}, {11, 10}, {10, 11})));
     }
+
+    SUBCASE("intersection") {
+        using Convex = pgl::Convex<Point>;
+        using Segment = pgl::Segment<Point>;
+
+        // Area overlap is a convex polygon: base ∩ (2,2)(8,2)(2,8) is the triangle
+        // (2,2)(4,2)(2,4), twiceArea 4.
+        const auto overlap = base.intersection(Triangle({2, 2}, {8, 2}, {2, 8}));
+        REQUIRE(overlap);
+        REQUIRE(std::holds_alternative<Convex>(*overlap));
+        CHECK(std::get<Convex>(*overlap).twiceArea() == 4);
+
+        // A triangle sharing the whole bottom edge from below meets along it.
+        const auto edge = base.intersection(Triangle({0, 0}, {6, 0}, {0, -6}));
+        REQUIRE(edge);
+        REQUIRE(std::holds_alternative<Segment>(*edge));
+        CHECK(std::get<Segment>(*edge) == Segment(Point(0, 0), Point(6, 0)));
+
+        // A strictly interior triangle is returned as the (convex) overlap.
+        const auto inner = base.intersection(Triangle({1, 1}, {2, 1}, {1, 2}));
+        REQUIRE(inner);
+        REQUIRE(std::holds_alternative<Convex>(*inner));
+        CHECK(std::get<Convex>(*inner).twiceArea() == 1);
+
+        // Touching at a single vertex yields a Point, never a degenerate segment.
+        const auto tip = base.intersection(Triangle({6, 0}, {8, 0}, {7, 2}));
+        REQUIRE(tip);
+        REQUIRE(std::holds_alternative<Point>(*tip));
+        CHECK(std::get<Point>(*tip) == Point(6, 0));
+
+        // Disjoint triangles do not intersect.
+        CHECK_FALSE(base.intersection(Triangle({10, 10}, {11, 10}, {10, 11})));
+    }
 }
 
 TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {

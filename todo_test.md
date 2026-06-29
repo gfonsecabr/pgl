@@ -155,21 +155,44 @@ Already complete (no action): `segment_convex`, `segment_line`, `segment_rectang
 Self-pairs stay in the unit file — do NOT create `shape1_shape1.cpp`. For each, verify
 all real self-methods are exercised in `unit/<shape>.cpp` and fill any gaps.
 
-- [ ] `unit/point.cpp` — point self-methods
-- [ ] `unit/segment.cpp` — segment self-methods (and migrate `segment_segment.cpp`
-      content here, then delete that integration file)
-- [ ] `unit/orientedsegment.cpp`
-- [ ] `unit/line.cpp`
-- [ ] `unit/orientedline.cpp`
-- [ ] `unit/ray.cpp`
-- [ ] `unit/halfplane.cpp`
-- [ ] `unit/rectangle.cpp`
-- [ ] `unit/triangle.cpp`
-- [ ] `unit/convex.cpp`
-- [ ] `unit/polygon.cpp` — currently only intersects/interiorsIntersect/intersection;
-      add boundaryContains, contains, crosses, interiorContains, separates.
-- [ ] `unit/disk.cpp` — currently only boundaryContains/contains/interiorContains/
-      interiorsIntersect; add crosses, intersects, separates.
+- [x] `unit/point.cpp` — point self-methods (filled gaps: interiorsIntersect, separates)
+- [x] `unit/segment.cpp` — segment self-methods (migrated `segment_segment.cpp`
+      content here and deleted that integration file)
+- [x] `unit/orientedsegment.cpp` — verified complete (contains/interiorContains,
+      intersects, interiorsIntersect, separates, crosses, intersection all self-paired).
+- [x] `unit/line.cpp` — filled gaps: separates, interiorContains, boundaryContains
+      against another Line (rest were already covered).
+- [x] `unit/orientedline.cpp` — verified complete (intersection self-pair was already
+      there via `.intersection<Rational>(IntLine{...})`).
+- [x] `unit/ray.cpp` — filled gap: crosses against another Ray.
+- [x] `unit/halfplane.cpp` — verified complete (contains/interiorContains/
+      interiorsIntersect/separates/crosses all self-paired).
+- [x] `unit/rectangle.cpp` — verified complete (all families self-paired,
+      incl. intersection).
+- [x] `unit/triangle.cpp` — verified complete for contains/boundaryContains/
+      interiorContains/intersects/interiorsIntersect/separates/crosses.
+      FIXED `Triangle::intersection(Triangle)`: it was incomplete (result variant only
+      {Point, Segment}; returned just the first edge-crossing piece, not the overlap).
+      Now delegates to `asConvex().intersection(other.asConvex())`, so an area overlap
+      returns a Convex. Added the self-pair intersection test (overlap→Convex,
+      edge→Segment, contained→Convex, disjoint→empty).
+      STILL BUGGY (same pattern, not yet fixed): `Triangle::intersection(Rectangle)` and
+      `Triangle::intersection(Halfplane)` — both return only {Point, Segment} and drop
+      the area overlap. Fix likely mirrors the Triangle one (delegate to a convex /
+      half-plane clip).
+- [x] `unit/convex.cpp` — filled gap: intersection against another Convex (polygon /
+      segment / point / disjoint cases).
+      FIXED degenerate-result bug: `grahamScan`/`grahamScanExtended` did not dedupe
+      coincident input points, so a single-point overlap came back as a degenerate
+      (zero-length) Segment. Added `std::unique` after the sort; now a single contact
+      point returns a Point. Covered by new graham.cpp duplicate-input tests and the
+      convex/triangle corner/vertex-touch cases. (This also corrected
+      `Triangle::intersection(Triangle)` since it delegates to the convex clip.)
+- [x] `unit/polygon.cpp` — currently only intersects/interiorsIntersect/intersection;
+      added boundaryContains, contains, interiorContains. (crosses/separates SKIPPED:
+      `Polygon::separates(Polygon)` throws and crosses delegates to it — out of scope.)
+- [x] `unit/disk.cpp` — currently only boundaryContains/contains/interiorContains/
+      interiorsIntersect; added crosses, intersects, separates.
 
 ## Phase 4 — Distinct pairs tested only in `unit/<shape>.cpp` (relocate/create)
 

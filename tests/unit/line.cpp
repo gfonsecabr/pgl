@@ -226,6 +226,17 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     CHECK_FALSE(diagonal.intersects(Point(2, 3)));
     CHECK(diagonal.interiorsIntersect(crossing));
     CHECK(diagonal.crosses(crossing));
+
+    // A line's interior is the whole line, so it interior-contains a collinear
+    // line but its (empty) boundary contains nothing.
+    CHECK(diagonal.interiorContains(same_line));
+    CHECK_FALSE(diagonal.boundaryContains(same_line));
+
+    // Two crossing lines mutually separate (each removes a point from the other,
+    // splitting it into two rays); parallel or identical lines do not.
+    CHECK(diagonal.separates(crossing));
+    CHECK_FALSE(diagonal.separates(parallel));
+    CHECK_FALSE(diagonal.separates(same_line));
 }
 
 TEST_CASE("Line intersection and distances support exact rational results") {

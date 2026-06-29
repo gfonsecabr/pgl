@@ -330,6 +330,11 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     CHECK(horizontal.crosses(pgl::Rectangle<Point>({1, -1}, {3, 1})));
     CHECK(horizontal.crosses(pgl::Triangle<Point>({1, -1}, {3, -1}, {2, 2})));
     CHECK_FALSE(horizontal.crosses(pgl::Halfplane<Point>({2, -2}, {2, 2})));
+    // Ray vs Ray: a transversal crossing interior to both crosses; a ray leaving
+    // from the crossing point, or a collinear overlap, does not.
+    CHECK(horizontal.crosses(Ray({2, -1}, {2, 1})));
+    CHECK_FALSE(horizontal.crosses(Ray({2, 0}, {2, 1})));
+    CHECK_FALSE(horizontal.crosses(Ray({2, 0}, {6, 0})));
     CHECK(horizontal.interiorsIntersect(Segment({0, 0}, {2, 0})));
     CHECK(horizontal.interiorsIntersect(Segment({-2, 0}, {2, 0})));
     CHECK_FALSE(horizontal.interiorsIntersect(Segment({2, 0}, {2, 1})));

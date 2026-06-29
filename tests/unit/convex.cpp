@@ -249,6 +249,43 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     }
 }
 
+TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
+    using Point   = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Convex  = pgl::Convex<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    SUBCASE("overlapping squares meet in a smaller square") {
+        const Convex other(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}});
+        const auto r = sq.intersection(other);
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Convex>(*r));
+        CHECK(std::get<Convex>(*r).twiceArea() == 8);  // the 2x2 square [2,4]^2
+    }
+
+    SUBCASE("edge-adjacent squares meet along a segment") {
+        const Convex right(std::vector<Point>{{4, 0}, {8, 0}, {8, 4}, {4, 4}});
+        const auto r = sq.intersection(right);
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK(std::get<Segment>(*r) == Segment(Point(4, 0), Point(4, 4)));
+    }
+
+    SUBCASE("corner-touching squares meet at a single point, not a degenerate segment") {
+        const Convex corner(std::vector<Point>{{4, 4}, {8, 4}, {8, 8}, {4, 8}});
+        const auto r = sq.intersection(corner);
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Point>(*r));
+        CHECK(std::get<Point>(*r) == Point(4, 4));
+    }
+
+    SUBCASE("disjoint convex polygons have no intersection") {
+        const Convex away(std::vector<Point>{{10, 10}, {12, 10}, {11, 12}});
+        CHECK_FALSE(sq.intersection(away));
+    }
+}
+
 TEST_CASE("Convex::boundaryContains handles every shape category") {
     using Point          = pgl::Point<int>;
     using Segment        = pgl::Segment<Point>;

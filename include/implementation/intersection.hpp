@@ -1112,22 +1112,14 @@ constexpr auto Triangle<PointType, LabelType>::intersection(const OtherRectangle
     return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(a()));
 }
 
+// Two triangles are convex, so their intersection is the convex-polygon clip of
+// one against the other: an area overlap (Convex), a shared boundary segment, a
+// single touch point, or nothing. Delegating to Convex::intersection keeps this
+// exact and avoids re-deriving the clip here.
 template <class PointType, class LabelType>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 constexpr auto Triangle<PointType, LabelType>::intersection(const OtherTriangle& other) const {
-    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    if (!intersects(other)) {
-        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
-    }
-    const auto other_edges = other.edges();
-    for (const auto& edge : other_edges) {
-        const auto edge_intersection = intersection<ResultNumber>(edge);
-        if (edge_intersection) {
-            return edge_intersection;
-        }
-    }
-    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(other.a()));
+    return asConvex().template intersection<ResultNumber>(other.asConvex());
 }
 
 
