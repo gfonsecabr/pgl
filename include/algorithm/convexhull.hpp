@@ -10,6 +10,7 @@
  * procedures in terms of the public primitives.
  */
 
+#include <algorithm>
 #include <vector>
 
 
@@ -36,6 +37,9 @@ auto grahamScan(const Container &points_) {
         return hull;
 
     std::sort(points.begin(), points.end());
+    // Drop duplicate points: coincident inputs are never hull vertices and would
+    // otherwise survive as degenerate (zero-length) hull edges.
+    points.erase(std::unique(points.begin(), points.end()), points.end());
 
     // Build lower hull
     for (const auto& p : points) {
@@ -83,6 +87,9 @@ auto grahamScanExtended(const Container &points_) {
         return hull;
 
     std::sort(points.begin(), points.end());
+    // Drop duplicate points: coincident inputs are never hull vertices and would
+    // otherwise survive as degenerate (zero-length) hull edges.
+    points.erase(std::unique(points.begin(), points.end()), points.end());
 
     // Build lower hull
     for (const auto& p : points) {

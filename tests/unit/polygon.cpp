@@ -177,6 +177,49 @@ TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
     }
 }
 
+// contains / boundaryContains / interiorContains for one polygon against another.
+// (Polygon::separates(Polygon) and the crosses that delegates to it are not
+// implemented yet -- they throw -- so they are out of scope here.)
+TEST_CASE("Polygon contains another Polygon") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon big({0, 0, 20, 0, 20, 20, 0, 20});
+
+    SUBCASE("a strictly interior polygon is contained, interior too") {
+        const Polygon inner({5, 5, 8, 5, 8, 8, 5, 8});
+        CHECK(big.contains(inner));
+        CHECK(big.interiorContains(inner));
+        CHECK_FALSE(big.boundaryContains(inner));
+    }
+
+    SUBCASE("a polygon is contained but not interior-contained by itself") {
+        CHECK(big.contains(big));
+        CHECK_FALSE(big.interiorContains(big));   // its edges lie on the boundary
+        CHECK_FALSE(big.boundaryContains(big));
+    }
+
+    SUBCASE("an inner polygon touching the boundary is contained, not interior") {
+        // Shares the corner (0,0) and parts of two edges with big.
+        const Polygon touching({0, 0, 8, 0, 8, 8, 0, 8});
+        CHECK(big.contains(touching));
+        CHECK_FALSE(big.interiorContains(touching));
+    }
+
+    SUBCASE("a polygon poking outside is not contained") {
+        const Polygon overlap({10, 10, 30, 10, 30, 30, 10, 30});
+        CHECK_FALSE(big.contains(overlap));
+        CHECK_FALSE(big.interiorContains(overlap));
+        CHECK_FALSE(big.boundaryContains(overlap));
+    }
+
+    SUBCASE("a disjoint polygon is not contained") {
+        const Polygon away({100, 100, 101, 100, 101, 101, 100, 101});
+        CHECK_FALSE(big.contains(away));
+        CHECK_FALSE(big.interiorContains(away));
+    }
+}
+
 // Polygon::isSimple(): small/floating-point polygons take the O(n^2) pairwise
 // path; larger exact ones take the Bentley-Ottmann sweep. Both must agree, and
 // degenerate inputs are not simple.

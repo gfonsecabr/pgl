@@ -284,6 +284,50 @@ TEST_CASE("Disk interior predicates use the exact circumcentre of a 3-point disk
     CHECK(d3.interiorsIntersect(d4) == true);
 }
 
+// Disk vs Disk: intersects is exact via Rational<BigInt>. separates is always
+// false (a disk minus a disk stays connected -- a crescent or an annulus), so
+// the two disks never cross either.
+TEST_CASE("Disk intersects, separates, and crosses another Disk") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    const Disk d(0, 0, 5);
+
+    SUBCASE("two overlapping disks intersect but neither separates nor crosses") {
+        const Disk over(6, 0, 5);  // centres 6 apart < 5 + 5
+        CHECK(d.intersects(over));
+        CHECK(over.intersects(d));
+        CHECK_FALSE(d.separates(over));
+        CHECK_FALSE(over.separates(d));
+        CHECK_FALSE(d.crosses(over));
+        CHECK_FALSE(over.crosses(d));
+    }
+
+    SUBCASE("externally tangent disks touch (closed contact)") {
+        const Disk tangent(10, 0, 5);  // centres exactly 5 + 5 apart
+        CHECK(d.intersects(tangent));
+        CHECK(tangent.intersects(d));
+        CHECK_FALSE(d.separates(tangent));
+        CHECK_FALSE(d.crosses(tangent));
+    }
+
+    SUBCASE("a disk contained in another intersects it") {
+        const Disk inner(1, 0, 2);
+        CHECK(d.intersects(inner));
+        CHECK(inner.intersects(d));
+        CHECK_FALSE(d.separates(inner));   // remainder is an annulus, still connected
+        CHECK_FALSE(d.crosses(inner));
+    }
+
+    SUBCASE("two disjoint disks meet in nothing") {
+        const Disk away(20, 0, 5);
+        CHECK_FALSE(d.intersects(away));
+        CHECK_FALSE(away.intersects(d));
+        CHECK_FALSE(d.separates(away));
+        CHECK_FALSE(d.crosses(away));
+    }
+}
+
 TEST_CASE("Disk::squaredDistance to other shapes returns the squared exterior gap") {
     using Point = pgl::Point<int>;
     // Closed disk centred at the origin with radius 2 (exact center+radius form).

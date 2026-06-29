@@ -65,3 +65,26 @@ TEST_CASE_TEMPLATE("Compute convex hull of one point", Point, pgl::Point<int>, p
     CHECK(hull.size() == 1);
     CHECK(hull[0] == Point(1,2));
 }
+
+// Duplicate input points must not survive as degenerate (zero-length) hull
+// edges; a std::vector lets duplicates through where a std::set would not.
+TEST_CASE_TEMPLATE("Convex hull discards duplicate input points", Point, pgl::Point<int>, pgl::Point<float>, pgl::Point<pgl::Rational<int>>) {
+    SUBCASE("all points coincide -> a single hull vertex") {
+        std::vector<Point> points{{4,4},{4,4},{4,4}};
+        auto hull = pgl::grahamScan(points);
+        CHECK(hull.size() == 1);
+        CHECK(hull[0] == Point(4,4));
+    }
+
+    SUBCASE("two distinct points, each repeated -> a two-vertex hull") {
+        std::vector<Point> points{{1,2},{3,4},{1,2},{3,4}};
+        auto hull = pgl::grahamScan(points);
+        CHECK(hull.size() == 2);
+    }
+
+    SUBCASE("duplicated square corners -> the four corners only") {
+        std::vector<Point> points{{0,0},{4,0},{4,4},{0,4},{0,0},{4,4},{4,0}};
+        auto hull = pgl::grahamScan(points);
+        CHECK(hull.size() == 4);
+    }
+}

@@ -187,6 +187,17 @@ TEST_CASE("Point shape predicates use coordinate equality and an empty boundary"
     CHECK(labeled.interiorContains(same_coordinates));
     CHECK(labeled.interiorContains(same_coordinates_double));
     CHECK_FALSE(labeled.interiorContains(different));
+
+    // A point's interior is the point itself, so two points' interiors meet
+    // exactly when they coincide.
+    CHECK(labeled.interiorsIntersect(same_coordinates));
+    CHECK(labeled.interiorsIntersect(same_coordinates_double));
+    CHECK_FALSE(labeled.interiorsIntersect(different));
+
+    // Removing one point from another never disconnects it (a point has no
+    // interior to split), so a point never separates another point.
+    CHECK_FALSE(labeled.separates(same_coordinates));
+    CHECK_FALSE(labeled.separates(different));
 }
 
 TEST_CASE("Point contains only shapes that degenerate to the same point") {
