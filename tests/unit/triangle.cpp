@@ -343,6 +343,49 @@ TEST_CASE("Triangle intersections with lines, segments, and rays return points o
     CHECK_FALSE(triangle.intersects(Ray({5, 5}, {6, 6})));
 }
 
+// Clipping a triangle by an area shape (half-plane or rectangle) must keep the
+// 2D overlap as a Convex, not collapse it to a boundary piece. Both delegate to
+// the convex clip.
+TEST_CASE("Triangle intersection with a half-plane and a rectangle keeps the area") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Triangle triangle({0, 0}, {6, 0}, {0, 6});
+
+    SUBCASE("half-plane cut keeps the interior-side area") {
+        // interior y >= 2: clips off the bottom strip, leaving a quadrilateral.
+        const auto r = triangle.intersection(Halfplane({0, 2}, {1, 2}));
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Convex>(*r));
+        CHECK(std::get<Convex>(*r).twiceArea() == 16);  // trapezoid area 8
+    }
+
+    SUBCASE("half-plane touching only along the base is that segment") {
+        // interior y <= 0: the triangle sits on the closed-outside, meeting the
+        // boundary only along its base edge.
+        const auto r = triangle.intersection(Halfplane({1, 0}, {0, 0}));
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK(std::get<Segment>(*r) == Segment(Point(0, 0), Point(6, 0)));
+    }
+
+    SUBCASE("half-plane missing the triangle yields nothing") {
+        CHECK_FALSE(triangle.intersection(Halfplane({0, 7}, {1, 7})));  // y >= 7
+    }
+
+    SUBCASE("rectangle overlap is the clipped area") {
+        // [2,8] x [2,8] ∩ triangle = the triangle (2,2)(4,2)(2,4).
+        const auto r = triangle.intersection(Rectangle({2, 2}, {8, 8}));
+        REQUIRE(r);
+        REQUIRE(std::holds_alternative<Convex>(*r));
+        CHECK(std::get<Convex>(*r).twiceArea() == 4);
+    }
+}
+
 TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from boundary-only contact") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;

@@ -176,10 +176,11 @@ all real self-methods are exercised in `unit/<shape>.cpp` and fill any gaps.
       Now delegates to `asConvex().intersection(other.asConvex())`, so an area overlap
       returns a Convex. Added the self-pair intersection test (overlap→Convex,
       edge→Segment, contained→Convex, disjoint→empty).
-      STILL BUGGY (same pattern, not yet fixed): `Triangle::intersection(Rectangle)` and
-      `Triangle::intersection(Halfplane)` — both return only {Point, Segment} and drop
-      the area overlap. Fix likely mirrors the Triangle one (delegate to a convex /
-      half-plane clip).
+      FIXED `Triangle::intersection(Rectangle)` and `Triangle::intersection(Halfplane)`
+      (same incompleteness): both now delegate to the convex clip. This added a new
+      `Convex::intersection(Halfplane)` (O(log n + k): find an inside vertex via
+      cyclicMaxOrPositive, walk the contiguous inside arc, take the two boundary
+      crossings). Covered by halfplane_convex.cpp and triangle.cpp tests.
 - [x] `unit/convex.cpp` — filled gap: intersection against another Convex (polygon /
       segment / point / disjoint cases).
       FIXED degenerate-result bug: `grahamScan`/`grahamScanExtended` did not dedupe
