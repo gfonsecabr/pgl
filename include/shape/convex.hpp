@@ -356,7 +356,7 @@ struct Convex {
      * @return The area of the convex polygon.
      * @warning Uses division by 2.
      */
-    template <class ResultNumber = NumberType>  
+    template <class ResultNumber = NumberType>
     constexpr auto area() const;
 
     /**
@@ -502,9 +502,9 @@ struct Convex {
 
     /**
      * @brief Returns a point inside the convex polygon.
-     * 
+     *
      * Complexity: O(1).
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @return A point guaranteed to be inside the convex polygon.
      * @warning Divides coordinates by 4. Inexact for integer coordinates not divisible by 4.
@@ -522,18 +522,18 @@ struct Convex {
 
     /**
      * @brief Returns the index of the maximum vertex (rightmost and highest in case of ties).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @return The maximum vertex index.
      */
     constexpr size_t maxIndex() const;
 
     /**
      * @brief Checks if the vertices list contains the given point.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type to check.
      * @param point The point to check.
      * @return True if the point is a vertex, false otherwise.
@@ -587,9 +587,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type to check.
      * @param point The point to check.
      * @return True if the point is on the boundary, false otherwise.
@@ -701,15 +701,15 @@ struct Convex {
 
     /**
      * @brief Returns two edges of the convex polygon that intersect with the vertical line at x.
-     * 
+     *
      * If the vertical line at x does not intersect the polygon, then std::nullopt is returned.
      * If the vertical line at x intersects the polygon, then it returns an edge of the strict
      * upper convex boundary and an edge of the strict lower convex boundary. By strict I mean
      * that the edges returned are not vertical. If the intersection happens at a vertex between
      * two non-vertical esges, then either one may be returned.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @param x The x-coordinate of the vertical line.
      * @return An optional array containing the intersecting edges, or std::nullopt if none.
      */
@@ -718,9 +718,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type to check.
      * @param point The point to check.
      * @return True if the point is on the boundary or inside the convex polygon, false otherwise.
@@ -730,9 +730,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to check.
      * @return True if the convex polygon contains the segment, false otherwise.
@@ -742,9 +742,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the oriented segment.
      * @param other The oriented segment to check.
      * @return True if the convex polygon contains the oriented segment, false otherwise.
@@ -790,9 +790,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the rectangle.
      * @param other The rectangle to check.
      * @return True if the convex polygon contains the rectangle, false otherwise.
@@ -803,9 +803,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the triangle.
      * @param other The triangle to check.
      * @return True if the convex polygon contains the triangle, false otherwise.
@@ -815,9 +815,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
-     * 
+     *
      * Complexity: O(min(n,m) log (n+m)) for convex polygons with n and m vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the convex polygon.
      * @param other The convex polygon to check.
      * @return True if the convex polygon contains the convex polygon, false otherwise.
@@ -829,7 +829,7 @@ struct Convex {
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     constexpr bool contains(const OtherPolygon& other) const;
-  
+
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
@@ -884,9 +884,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to check.
      * @return True if the interior of the convex polygon contains the segment, false otherwise.
@@ -896,9 +896,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the oriented segment.
      * @param other The oriented segment to check.
      * @return True if the interior of the convex polygon contains the oriented segment, false otherwise.
@@ -944,9 +944,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the rectangle.
      * @param other The rectangle to check.
      * @return True if the interior of the convex polygon contains the rectangle, false otherwise.
@@ -956,9 +956,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the triangle.
      * @param other The triangle to check.
      * @return True if the interior of the convex polygon contains the triangle, false otherwise.
@@ -968,9 +968,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
-     * 
+     *
      * Complexity: O(min(n,m) log (m+n)) for polygons with n and m vertices
-     * 
+     *
      * @tparam OtherPoint The point type of the convex polygon.
      * @param other The convex polygon to check.
      * @return True if the interior of the convex polygon contains the convex polygon, false otherwise.
@@ -996,12 +996,12 @@ struct Convex {
      */
     template<PointConcept OtherPoint>
     constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
-    
+
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the segment.
      * @param other The segment to check intersection with.
      * @return True if the convex polygon and segment intersect, false otherwise.
@@ -1011,9 +1011,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the oriented segment.
      * @param other The oriented segment to check intersection with.
      * @return True if the convex polygon and oriented segment intersect, false otherwise.
@@ -1023,9 +1023,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the line.
      * @param other The line to check intersection with.
      * @return True if the convex polygon and line intersect, false otherwise.
@@ -1035,7 +1035,7 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
      *
      * @tparam OtherPoint The point type of the oriented line.
@@ -1047,9 +1047,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to check intersection with.
      * @return True if the convex polygon and ray intersect, false otherwise.
@@ -1059,9 +1059,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the rectangle.
      * @param other The rectangle to check intersection with.
      * @return True if the convex polygon and rectangle intersect, false otherwise.
@@ -1071,9 +1071,9 @@ struct Convex {
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam OtherPoint The point type of the triangle.
      * @param other The triangle to check intersection with.
      * @return True if the convex polygon and triangle intersect, false otherwise.
@@ -1765,9 +1765,9 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the oriented segment.
      * @param other The oriented segment to intersect with.
@@ -1780,7 +1780,7 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
      *
      * @tparam ResultNumber The number type for the result.
@@ -1795,9 +1795,9 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the oriented line.
      * @param other The oriented line to intersect with.
@@ -1810,9 +1810,9 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the ray.
      * @param other The ray to intersect with.
@@ -1825,9 +1825,25 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
+     * Clips the convex polygon to the closed half-plane.
+     * Complexity: O(log n + k log k) where n is the input size and k is the output size.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherHalfplane The half-plane type to intersect with.
+     * @param other The half-plane to intersect with.
+     * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the rectangle.
      * @param other The rectangle to intersect with.
@@ -1841,9 +1857,9 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O(log n) for n vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the triangle.
      * @param other The triangle to intersect with.
@@ -1856,9 +1872,9 @@ struct Convex {
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
-     * 
+     *
      * Complexity: O((n+m) log(n+m)) for n and m vertices.
-     * 
+     *
      * @tparam ResultNumber The number type for the result.
      * @tparam OtherPoint The point type of the other convex polygon.
      * @param other The other convex polygon to intersect with.
@@ -1877,9 +1893,9 @@ struct Convex {
 
     /**
      * @brief Translates the convex polygon by the given point.
-     * 
+     *
      * Complexity: O(1).
-     * 
+     *
      * @tparam OtherPoint The point type of the translation vector.
      * @param translation The translation vector.
      * @return A reference to the modified polygon.
@@ -1937,9 +1953,9 @@ struct Convex {
 
     /**
      * @brief Translates the convex polygon by the negation of the given point.
-     * 
+     *
      * Complexity: O(1).
-     * 
+     *
      * @tparam OtherPoint The point type of the translation vector.
      * @param translation The translation vector to negate.
      * @return A reference to the modified polygon.
@@ -1949,9 +1965,9 @@ struct Convex {
 
     /**
      * @brief Scales the convex polygon by the given scalar.
-     * 
+     *
      * Complexity: O(n) for n vertices since we need to apply the scaling to each vertex.
-     * 
+     *
      * @tparam Scalar The scalar type.
      * @param scalar The scaling factor.
      * @return A reference to the modified polygon.
@@ -1962,9 +1978,9 @@ struct Convex {
 
     /**
      * @brief Divides the convex polygon by the given scalar.
-     * 
+     *
      * Complexity: O(n) for n vertices since we need to apply the division to each vertex.
-     * 
+     *
      * @tparam Scalar The scalar type.
      * @param scalar The divisor.
      * @return A reference to the modified polygon.

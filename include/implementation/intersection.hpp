@@ -1076,40 +1076,19 @@ Triangle<PointType, LabelType>::intersection(const OtherRay& other) const {
     return detail::triangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
+// A triangle is convex, so a half-plane (or rectangle) clip is exactly the
+// convex-polygon clip; delegating keeps the area overlap (a Convex) instead of
+// dropping it, and reuses the exact O(log n + k) routine.
 template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Triangle<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
-    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    if (!other.intersects(*this)) {
-        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
-    }
-    const auto triangle_edges = edges();
-    for (const auto& edge : triangle_edges) {
-        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
-        if (edge_intersection) {
-            return edge_intersection;
-        }
-    }
-    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(a()));
+    return asConvex().template intersection<ResultNumber>(other);
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Triangle<PointType, LabelType>::intersection(const OtherRectangle& other) const {
-    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    if (!other.intersects(*this)) {
-        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
-    }
-    const auto triangle_edges = edges();
-    for (const auto& edge : triangle_edges) {
-        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
-        if (edge_intersection) {
-            return edge_intersection;
-        }
-    }
-    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(a()));
+    return asConvex().template intersection<ResultNumber>(other);
 }
 
 // Two triangles are convex, so their intersection is the convex-polygon clip of
@@ -1388,6 +1367,80 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     // index == 1
     auto seg = std::get<1>(*line_isec);
     return seg.template intersection<ResultNumber>(other);
+}
+
+// Clip the convex polygon to a closed half-plane. The vertices inside the
+// half-plane form one contiguous arc (orientation is unimodal along a convex
+// hull), so finding one inside vertex and walking outward to the two boundary
+// crossings yields the clipped region in O(log n + k) for an output of size k.
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>> Convex<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultConvex = Convex<ResultPoint>;
+
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
+    if (n == 0) {
+        return {};
+    }
+
+    // Any vertex inside the closed half-plane anchors the inside arc; the deepest
+    // one is found in O(log n) and is positive when one is strictly inside.
+    const auto it = detail::cyclicMaxOrPositive(points_.begin(), points_.end(),
+        [&other, this](const PointType& a) {
+            return orientationDeterminant(other.source(), other.target(), a + translation_);
+        });
+    const std::ptrdiff_t start = it - points_.begin();
+
+    if (!other.contains(get(start))) {
+        return {};   // every vertex is strictly outside the half-plane
+    }
+
+    // Walk CCW (forward) over the contiguous arc of vertices in the half-plane;
+    // get() indexes the vertices cyclically, so f and b may run past the ends.
+    std::ptrdiff_t f = start, fSteps = 0;
+    while (fSteps + 1 < n && other.contains(get(f + 1))) {
+        ++f;
+        ++fSteps;
+    }
+    if (fSteps + 1 == n) {
+        // The whole convex lies in the closed half-plane; return it unchanged.
+        ResultConvex whole(*this, /*trusted=*/true);
+        if (whole.size() == 1) return whole[0];
+        if (whole.size() == 2) return ResultSegment(whole[0], whole[1]);
+        return whole;
+    }
+
+    // Walk CW (backward) over the same arc.
+    std::ptrdiff_t b = start, bSteps = 0;
+    while (bSteps + fSteps + 1 < n && other.contains(get(b - 1))) {
+        --b;
+        ++bSteps;
+    }
+
+    // The arc spans b .. f (CCW); the edges leaving it at each end cross the
+    // boundary line. A crossing edge has one endpoint inside and one strictly
+    // outside, so it meets the boundary line at exactly one point.
+    auto crossing = [&](std::ptrdiff_t insideIdx, std::ptrdiff_t outsideIdx) {
+        const ResultSegment edge(static_cast<ResultPoint>(get(insideIdx)),
+                                 static_cast<ResultPoint>(get(outsideIdx)));
+        return std::get<ResultPoint>(*edge.template intersection<ResultNumber>(other.asLine()));
+    };
+
+    std::vector<ResultPoint> result;
+    result.reserve(static_cast<std::size_t>(fSteps + bSteps + 3));
+    result.push_back(crossing(b, b - 1));   // entering crossing
+    for (std::ptrdiff_t i = b; ; ++i) {
+        result.push_back(static_cast<ResultPoint>(get(i)));
+        if (i == f) break;
+    }
+    result.push_back(crossing(f, f + 1));   // leaving crossing
+
+    ResultConvex convex(std::move(result));
+    if (convex.size() == 1) return convex[0];
+    if (convex.size() == 2) return ResultSegment(convex[0], convex[1]);
+    return convex;
 }
 
 template <class PointType, class LabelType>
