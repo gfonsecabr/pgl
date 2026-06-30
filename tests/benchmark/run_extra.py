@@ -182,12 +182,14 @@ def main() -> int:
             samples.sort(key=lambda s: s[1])
             result, value = samples[len(samples) // 2]
             results.append({
-                "suite":  suite,
-                "op":     op,
-                "number": number,
-                "result": result,
-                "time":   round(value, 6),
-                "unit":   unit,
+                "suite":    suite,
+                "op":       op,
+                "number":   number,
+                "result":   result,
+                "time":     round(value, 6),
+                "time_min": round(samples[0][1], 6),
+                "time_max": round(samples[-1][1], 6),
+                "unit":     unit,
             })
             print(f"  {suite}: {op} [{number}] {value:.4f}{unit}", flush=True)
 

@@ -175,14 +175,17 @@ def compile_source(src: Path, binary: Path,
     return r.returncode == 0, r.stderr
 
 
-def run_binary(binary: Path, repetitions: int = 1) -> tuple[bool, str]:
-    """Run binary 'repetitions' times; return the run with the *median* time.
+def run_binary(binary: Path,
+               repetitions: int = 1) -> tuple[bool, tuple[int, float, float, float] | str]:
+    """Run binary 'repetitions' times; aggregate the timings.
 
     The aggregate result count is deterministic across runs, so only the timing
-    varies; taking the median ns damps scheduler noise. Returns
-    (success, stdout-or-stderr) where stdout is the chosen 'count<TAB>ns' line.
+    varies. Returns (True, (count, median_ns, min_ns, max_ns)) — the median damps
+    scheduler noise while min/max record the observed spread. On failure returns
+    (False, message).
     """
-    samples: list[tuple[int, float, str]] = []
+    count: int | None = None
+    times: list[float] = []
     for _ in range(max(1, repetitions)):
         try:
             r = subprocess.run([str(binary)], capture_output=True, text=True, timeout=300)
@@ -193,11 +196,13 @@ def run_binary(binary: Path, repetitions: int = 1) -> tuple[bool, str]:
         parsed = parse_output(r.stdout)
         if parsed is None:
             return False, r.stdout
-        samples.append((parsed[0], parsed[1], r.stdout))
-    if not samples:
+        count, ns = parsed
+        times.append(ns)
+    if count is None or not times:
         return False, ""
-    samples.sort(key=lambda s: s[1])
-    return True, samples[len(samples) // 2][2]
+    times.sort()
+    median = times[len(times) // 2]
+    return True, (count, median, times[0], times[-1])
 
 
 def parse_output(raw: str) -> tuple[int, float] | None:
@@ -373,13 +378,14 @@ def main() -> None:
     print(f"Compilation: {n_ok} ok, {n_fail} failed.")
 
     # ── Step 3: run all successful binaries ──────────────────────────────────
-    run_results: dict[tuple, tuple[int, float] | None] = {}
+    # parsed = (count, median_ns, min_ns, max_ns)
+    run_results: dict[tuple, tuple[int, float, float, float] | None] = {}
 
     successful_keys = [k for k in srcs if compile_ok.get(k)]
     for i, key in enumerate(successful_keys, 1):
         shape1, size1, shape2, size2, method, type_key = key
-        ok, raw = run_binary(bins[key], args.repetitions)
-        parsed = parse_output(raw) if ok else None
+        ok, res = run_binary(bins[key], args.repetitions)
+        parsed = res if ok else None
         run_results[key] = parsed
         result_str = f"{parsed[0]}\t{parsed[1]:.2f}ns" if parsed else "ERROR"
         print(
@@ -391,7 +397,7 @@ def main() -> None:
 
     # ── Step 4: assemble results, compare against ground truth ───────────────
     # Group by (shape1, size1, shape2, size2, method)
-    groups: dict[tuple, dict[str, tuple[int, float] | None]] = {}
+    groups: dict[tuple, dict[str, tuple[int, float, float, float] | None]] = {}
     for (shape1, size1, shape2, size2, method, type_key), parsed in run_results.items():
         groups.setdefault((shape1, size1, shape2, size2, method), {})[type_key] = parsed
     for (shape1, size1, shape2, size2, method, type_key) in srcs:
@@ -413,12 +419,14 @@ def main() -> None:
             if parsed is None:
                 type_entries[type_key] = {"status": "run_error"}
                 continue
-            count, ns = parsed
+            count, ns, lo, hi = parsed
             matches = (gt_count is not None and count == gt_count)
             type_entries[type_key] = {
                 "status":          "ok",
                 "result":          count,
                 "time_ns":         ns,
+                "time_min_ns":     lo,
+                "time_max_ns":     hi,
                 "match_erational": matches,
             }
 
