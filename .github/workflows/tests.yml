@@ -9,13 +9,13 @@ on:
       - 'doc/**'
       - 'README.md'
       - '**/*.md'
-      - 'benchmark/**'
+      - 'tests/benchmark/**'
   pull_request:
     paths-ignore:
       - 'doc/**'
       - 'README.md'
       - '**/*.md'
-      - 'benchmark/**'
+      - 'tests/benchmark/**'
 
 jobs:
   test:
