@@ -5,6 +5,38 @@
 
 #include <variant>
 
+TEST_CASE("Halfplane contains and interiorContains Triangle") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Halfplane upper({0, 0}, {4, 0});  // y >= 0
+
+    SUBCASE("triangle fully inside: halfplane contains and interiorContains it") {
+        const Triangle inside({1, 1}, {3, 1}, {2, 3});
+        CHECK_MESSAGE(upper.contains(inside), upper, " contains inside triangle");
+        CHECK_MESSAGE(upper.interiorContains(inside), upper, " interiorContains inside triangle");
+    }
+
+    SUBCASE("triangle touching boundary only: halfplane contains but not interiorContains") {
+        const Triangle touching({0, 0}, {4, 0}, {2, 0});
+        CHECK_MESSAGE(upper.contains(touching), upper, " contains boundary triangle");
+        CHECK_FALSE_MESSAGE(upper.interiorContains(touching), upper, " interiorContains boundary triangle");
+    }
+
+    SUBCASE("triangle straddling boundary: halfplane does not contain it") {
+        const Triangle crossing({1, -1}, {3, -1}, {2, 2});
+        CHECK_FALSE_MESSAGE(upper.contains(crossing), upper, " contains crossing triangle");
+    }
+
+    // A finite triangle cannot contain or interiorContain an infinite halfplane.
+    SUBCASE("triangle cannot contain a halfplane") {
+        const Triangle t({-100, -100}, {100, -100}, {0, 100});
+        CHECK_FALSE_MESSAGE(t.contains(upper), t, " contains halfplane");
+        CHECK_FALSE_MESSAGE(t.interiorContains(upper), t, " interiorContains halfplane");
+    }
+}
+
 TEST_CASE("Halfplane boundaryContains Triangle") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;

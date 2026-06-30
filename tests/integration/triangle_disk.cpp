@@ -97,3 +97,46 @@ TEST_CASE("Disk contains and interiorContains Triangle") {
     const Triangle outside({15, 15}, {20, 15}, {15, 20});
     CHECK_FALSE_MESSAGE(d.contains(outside), "disk does not contain outside triangle");
 }
+
+TEST_CASE("Disk and Triangle intersects and interiorsIntersect, both directions") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // Both center+radius and 3-point (no shared x or y coordinate) forms.
+    // (6,8), (-8,6), (10,0) all lie on the circle centered at (0,0) with radius 10.
+    for (const Disk d : {Disk(Point(0, 0), 10),
+                         Disk(Point(6, 8), Point(-8, 6), Point(10, 0))}) {
+        SUBCASE("triangle inside disk: both intersect, interiors intersect") {
+            const Triangle inner({-3, -3}, {3, -3}, {0, 3});
+            CHECK_MESSAGE(d.intersects(inner), "disk intersects inner triangle");
+            CHECK_MESSAGE(inner.intersects(d), "inner triangle intersects disk");
+            CHECK_MESSAGE(d.interiorsIntersect(inner), "disk interiorsIntersect inner triangle");
+            CHECK_MESSAGE(inner.interiorsIntersect(d), "inner triangle interiorsIntersect disk");
+        }
+
+        SUBCASE("triangle crossing disk boundary: both intersect, interiors intersect") {
+            const Triangle crossing({-3, -3}, {15, 0}, {-3, 3});
+            CHECK_MESSAGE(d.intersects(crossing), "disk intersects crossing triangle");
+            CHECK_MESSAGE(crossing.intersects(d), "crossing triangle intersects disk");
+            CHECK_MESSAGE(d.interiorsIntersect(crossing), "disk interiorsIntersect crossing triangle");
+            CHECK_MESSAGE(crossing.interiorsIntersect(d), "crossing triangle interiorsIntersect disk");
+        }
+
+        SUBCASE("disk inside triangle: both intersect, interiors intersect") {
+            const Triangle engulfing({-100, -100}, {100, -100}, {0, 100});
+            CHECK_MESSAGE(d.intersects(engulfing), "disk intersects engulfing triangle");
+            CHECK_MESSAGE(engulfing.intersects(d), "engulfing triangle intersects disk");
+            CHECK_MESSAGE(d.interiorsIntersect(engulfing), "disk interiorsIntersect engulfing triangle");
+            CHECK_MESSAGE(engulfing.interiorsIntersect(d), "engulfing triangle interiorsIntersect disk");
+        }
+
+        SUBCASE("disjoint: neither intersects") {
+            const Triangle outside({15, 15}, {20, 15}, {15, 20});
+            CHECK_FALSE_MESSAGE(d.intersects(outside), "disk does not intersect outside triangle");
+            CHECK_FALSE_MESSAGE(outside.intersects(d), "outside triangle does not intersect disk");
+            CHECK_FALSE_MESSAGE(d.interiorsIntersect(outside), "disk does not interiorsIntersect outside triangle");
+            CHECK_FALSE_MESSAGE(outside.interiorsIntersect(d), "outside triangle does not interiorsIntersect disk");
+        }
+    }
+}
