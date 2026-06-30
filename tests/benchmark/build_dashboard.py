@@ -122,6 +122,8 @@ def build_pairs(history: str):
                 "commit": r["commit"],
                 "date":   r.get("date", ""),
                 "time":   r["time"],
+                "min":    r.get("time_min", r["time"]),
+                "max":    r.get("time_max", r["time"]),
                 "result": r.get("result"),
                 "match":  r.get("match_truth", True),
             }
@@ -165,7 +167,8 @@ def build_extra(history: str, repo_base: str, bench_root: str):
             series = s["_data"].setdefault(machine, {}).setdefault(op + "|" + typ, {})
             series[r["commit"]] = {
                 "commit": r["commit"], "date": r.get("date", ""),
-                "time": r["time"], "result": r.get("result"),
+                "time": r["time"], "min": r.get("time_min", r["time"]),
+                "max": r.get("time_max", r["time"]), "result": r.get("result"),
             }
 
     out: dict[str, dict] = {}

@@ -454,8 +454,12 @@ function renderExtra() {
 // ── hover bubble + full chart (kept from the original dashboard) ──────────────
 
 function showPop(event, title, points, unit) {
-  const lo = bestOf(points), hi = worstOf(points), cur = latest(points).time;
+  const lp = latest(points);
+  const lo = bestOf(points), hi = worstOf(points), cur = lp.time;
   const delta = lo > 0 ? ((cur - lo) / lo) * 100 : 0;
+  // Per-run spread of the latest measurement (min..max across repetitions).
+  const spread = (lp.min !== undefined && lp.max !== undefined && lp.max > lp.min)
+    ? `<span class="muted">run ${fmt(lp.min)}–${fmt(lp.max)}</span>` : "";
   pop.innerHTML =
     `<div class="pop-title">${title}</div>` +
     sparkline(points, 168, 46) +
@@ -463,6 +467,7 @@ function showPop(event, title, points, unit) {
     `<span style="color:${statusColor(cur, lo, hi)}">now ${fmt(cur)}` +
     (delta > 0.05 ? ` (+${delta.toFixed(1)}%)` : "") + `</span>` +
     `<span class="muted">best ${fmt(lo)} · ${points.length} pts</span>` +
+    spread +
     `</div>`;
   pop.style.display = "block";
   const r = event.currentTarget.getBoundingClientRect();
