@@ -3,6 +3,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <variant>
+
 TEST_CASE("Halfplane containment of Rectangle") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
@@ -102,4 +104,38 @@ TEST_CASE("Halfplane never separates or crosses Rectangle, and Rectangle never s
     // A finite rectangle cannot cut across an infinite half-plane.
     CHECK_FALSE_MESSAGE(crossing.separates(upper), crossing, " separates ", upper);
     CHECK_FALSE_MESSAGE(crossing.crosses(upper), crossing, " crosses ", upper);
+}
+
+TEST_CASE("Rectangle intersection with Halfplane: clips to Segment or Point") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Rectangle rect(Point(0, 0), Point(4, 4));
+
+    SUBCASE("halfplane cuts through the rectangle: clips the first crossing edge") {
+        // Halfplane y>=2; bottom edge (0,0)-(4,0) is fully outside, right edge (4,0)-(4,4)
+        // is clipped to (4,2)-(4,4).
+        const Halfplane upper({0, 2}, {4, 2});
+        const auto r = rect.intersection(upper);
+        REQUIRE_MESSAGE(r, "rect ∩ cutting halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(4, 2), Point(4, 4)),
+                      "clipped right edge");
+    }
+
+    SUBCASE("halfplane contains the whole rectangle: first (bottom) edge returned") {
+        const Halfplane all({0, -1}, {4, -1});  // y >= -1, entire rect inside
+        const auto r = rect.intersection(all);
+        REQUIRE_MESSAGE(r, "rect ∩ containing halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(0, 0), Point(4, 0)),
+                      "bottom edge returned when rect fully inside halfplane");
+    }
+
+    SUBCASE("halfplane misses the rectangle: empty") {
+        const Halfplane above({0, 10}, {4, 10});  // y >= 10, rect max y = 4
+        CHECK_FALSE_MESSAGE(rect.intersection(above), "rect ∩ missing halfplane is empty");
+    }
 }

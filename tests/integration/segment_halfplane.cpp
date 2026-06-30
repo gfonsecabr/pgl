@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <variant>
 
 TEST_CASE("Halfplane containment of Segment") {
     using Point = pgl::Point<int>;
@@ -109,4 +110,44 @@ TEST_CASE("Segment and Halfplane separates and crosses are always false") {
     CHECK_FALSE_MESSAGE(upper.crosses(crossing), upper, " crosses ", crossing);
     CHECK_FALSE_MESSAGE(inside.crosses(upper), inside, " crosses ", upper);
     CHECK_FALSE_MESSAGE(crossing.crosses(upper), crossing, " crosses ", upper);
+}
+
+TEST_CASE("Halfplane intersection clips a Segment") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Halfplane upper({0, 0}, {4, 0});  // y >= 0
+
+    SUBCASE("segment fully inside: returned unchanged") {
+        const Segment inside({1, 1}, {3, 2});
+        const auto r = upper.intersection(inside);
+        REQUIRE_MESSAGE(r, "halfplane ∩ inside segment should be non-empty");
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK_MESSAGE(std::get<Segment>(*r) == inside, "fully-inside segment unchanged");
+    }
+
+    SUBCASE("segment crossing the boundary: clipped to the inside portion") {
+        // (0,-2)→(4,2) crosses y=0 at (2,0); inside portion is (2,0)→(4,2)
+        const Segment crossing({0, -2}, {4, 2});
+        const auto r = upper.intersection(crossing);
+        REQUIRE_MESSAGE(r, "halfplane ∩ crossing segment should be non-empty");
+        REQUIRE(std::holds_alternative<Segment>(*r));
+        CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(2, 0), Point(4, 2)),
+                      "crossing segment clipped at y=0");
+    }
+
+    SUBCASE("segment touching boundary at one endpoint: returns that Point") {
+        // (2,-1)→(2,0): only the endpoint (2,0) is in the halfplane
+        const Segment touching({2, -1}, {2, 0});
+        const auto r = upper.intersection(touching);
+        REQUIRE_MESSAGE(r, "halfplane ∩ touching segment should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Point>(*r), "boundary-endpoint touch yields a Point");
+        CHECK_MESSAGE(std::get<Point>(*r) == Point(2, 0), "touch point is (2,0)");
+    }
+
+    SUBCASE("segment fully outside: empty") {
+        const Segment outside({1, -3}, {3, -1});
+        CHECK_FALSE_MESSAGE(upper.intersection(outside), "halfplane ∩ outside segment is empty");
+    }
 }

@@ -107,3 +107,44 @@ TEST_CASE("Convex crosses Triangle") {
     const Triangle contained({1, 1}, {3, 1}, {2, 3});
     CHECK_FALSE_MESSAGE(sq.crosses(contained), sq, " crosses contained triangle");
 }
+
+TEST_CASE("Convex intersection with Triangle") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    SUBCASE("overlapping area: intersection is a Convex") {
+        const Triangle t({2, 2}, {6, 2}, {4, 6});
+        const auto result = sq.intersection(t);
+        REQUIRE_MESSAGE(result, "sq ∩ overlapping triangle should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
+                      "area overlap clips to a Convex");
+    }
+
+    SUBCASE("triangle fully inside convex: intersection is the triangle (as Convex)") {
+        // Edges along y=1 (horizontal), x=1 (vertical), and y=4-x (slope-1) all
+        // intersect the sq boundary at integer points, so int arithmetic is exact.
+        const Triangle inner({1, 1}, {3, 1}, {1, 3});
+        const auto result = sq.intersection(inner);
+        REQUIRE_MESSAGE(result, "sq ∩ inner triangle should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
+                      "contained triangle returned as Convex");
+    }
+
+    SUBCASE("sharing only an edge: intersection is a Segment") {
+        // Triangle whose base lies along the bottom edge of the square (y=0).
+        const Triangle t({0, 0}, {4, 0}, {2, -2});
+        const auto result = sq.intersection(t);
+        REQUIRE_MESSAGE(result, "sq ∩ edge-touching triangle should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Segment>(*result),
+                      "shared-edge intersection is a Segment");
+    }
+
+    SUBCASE("disjoint: no intersection") {
+        const Triangle t({10, 10}, {12, 10}, {11, 12});
+        CHECK_FALSE_MESSAGE(sq.intersection(t), "sq ∩ disjoint triangle should be empty");
+    }
+}

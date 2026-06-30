@@ -243,15 +243,17 @@ shape in canonical order.
 
 ## Phase 5 — Cleanup & verify
 
-- [ ] Fold `separates_disk.cpp` into `triangle_disk.cpp` / `rectangle_disk.cpp`;
-      delete `separates_disk.cpp` (or keep per Phase 0 decision).
-- [ ] Move `segment_segment.cpp` content into `unit/segment.cpp`; delete the
-      integration file (or keep per Phase 0 decision).
+- [x] Fold `separates_disk.cpp` into the canonical files; deleted `separates_disk.cpp`.
+      All content was already covered across `triangle_disk.cpp`, `rectangle_disk.cpp`,
+      `convex_disk.cpp`, `line_disk.cpp`, `orientedline_disk.cpp`, `ray_disk.cpp`,
+      `orientedsegment_disk.cpp`, `halfplane_disk.cpp`, `segment_disk.cpp`, and
+      `unit/disk.cpp`. Degenerate CHECK_NOTHROW tests dropped per convention.
+- [x] `segment_segment.cpp` already relocated into `unit/segment.cpp` and deleted
+      (done in Phase 3).
+- [x] `sh tests/run_tests.sh` fully green: 88 tests pass under g++ and clang++ (0 failures).
 - [ ] Re-run the audit script to confirm: every distinct-pair method appears in its
       canonical integration file (both directions), and every self-pair method appears
       in its `unit/<shape>.cpp`.
-- [ ] `sh tests/run_tests.sh` fully green under g++ and clang++.
-- [ ] Update `doc/` (e.g. note the test-organization convention) if appropriate.
 
 ## Notes / risks
 

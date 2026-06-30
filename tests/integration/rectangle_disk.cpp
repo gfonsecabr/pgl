@@ -91,3 +91,38 @@ TEST_CASE("Disk boundaryContains Rectangle: only degenerate cases (point)") {
     const Rectangle inner({-3, -3}, {3, 3});
     CHECK_FALSE_MESSAGE(d.boundaryContains(inner), "disk does not boundaryContain inner rect");
 }
+
+TEST_CASE("Disk and Rectangle intersects and interiorsIntersect, both directions") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // Both center+radius and 3-point (no shared x or y coordinate) forms.
+    // (6,8), (-8,6), (10,0) all lie on the circle centered at (0,0) with radius 10.
+    for (const Disk d : {Disk(Point(0, 0), 10),
+                         Disk(Point(6, 8), Point(-8, 6), Point(10, 0))}) {
+        SUBCASE("rectangle inside disk: both intersect and interiors intersect") {
+            const Rectangle r({-3, -3}, {3, 3});
+            CHECK_MESSAGE(d.intersects(r), "disk intersects inner rect");
+            CHECK_MESSAGE(r.intersects(d), "inner rect intersects disk");
+            CHECK_MESSAGE(d.interiorsIntersect(r), "disk interiorsIntersect inner rect");
+            CHECK_MESSAGE(r.interiorsIntersect(d), "inner rect interiorsIntersect disk");
+        }
+
+        SUBCASE("rectangle crossing disk boundary: intersects and interiors intersect") {
+            const Rectangle r({-5, -3}, {15, 3});
+            CHECK_MESSAGE(d.intersects(r), "disk intersects straddling rect");
+            CHECK_MESSAGE(r.intersects(d), "straddling rect intersects disk");
+            CHECK_MESSAGE(d.interiorsIntersect(r), "disk interiorsIntersect straddling rect");
+            CHECK_MESSAGE(r.interiorsIntersect(d), "straddling rect interiorsIntersect disk");
+        }
+
+        SUBCASE("disjoint: neither intersects") {
+            const Rectangle r({15, 15}, {20, 20});
+            CHECK_FALSE_MESSAGE(d.intersects(r), "disk does not intersect disjoint rect");
+            CHECK_FALSE_MESSAGE(r.intersects(d), "disjoint rect does not intersect disk");
+            CHECK_FALSE_MESSAGE(d.interiorsIntersect(r), "disk does not interiorsIntersect disjoint rect");
+            CHECK_FALSE_MESSAGE(r.interiorsIntersect(d), "disjoint rect does not interiorsIntersect disk");
+        }
+    }
+}

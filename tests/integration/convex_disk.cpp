@@ -128,3 +128,38 @@ TEST_CASE("Convex and Disk intersects and interiorsIntersect, both directions") 
         CHECK_FALSE_MESSAGE(away.intersects(sq), "far disk intersects ", sq);
     }
 }
+
+TEST_CASE("Convex and Disk crosses, both directions") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // Both center+radius and 3-point (no shared x or y coordinate) forms.
+    // (6,8), (-8,6), (10,0) all lie on the circle centered at (0,0) with radius 10.
+    for (const Disk d : {Disk(Point(0, 0), 10),
+                         Disk(Point(6, 8), Point(-8, 6), Point(10, 0))}) {
+        SUBCASE("thin band through the disk: convex and disk cross each other") {
+            const Convex band(std::vector<Point>{{-20, -2}, {20, -2}, {20, 2}, {-20, 2}});
+            CHECK_MESSAGE(band.crosses(d), band, " crosses disk");
+            CHECK_MESSAGE(d.crosses(band), "disk crosses ", band);
+        }
+
+        SUBCASE("convex inside disk: neither crosses the other") {
+            const Convex inner(std::vector<Point>{{-3, -3}, {3, -3}, {3, 3}, {-3, 3}});
+            CHECK_FALSE_MESSAGE(inner.crosses(d), inner, " crosses disk (inner)");
+            CHECK_FALSE_MESSAGE(d.crosses(inner), "disk crosses inner convex");
+        }
+
+        SUBCASE("disk inside convex: neither crosses the other") {
+            const Convex outer(std::vector<Point>{{-50, -50}, {50, -50}, {50, 50}, {-50, 50}});
+            CHECK_FALSE_MESSAGE(outer.crosses(d), outer, " crosses disk (outer)");
+            CHECK_FALSE_MESSAGE(d.crosses(outer), "disk crosses outer convex");
+        }
+
+        SUBCASE("disjoint: neither crosses") {
+            const Convex away(std::vector<Point>{{20, 20}, {30, 20}, {30, 30}, {20, 30}});
+            CHECK_FALSE_MESSAGE(away.crosses(d), away, " crosses disk (disjoint)");
+            CHECK_FALSE_MESSAGE(d.crosses(away), "disk crosses disjoint convex");
+        }
+    }
+}

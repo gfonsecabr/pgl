@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <variant>
 #include <vector>
 
 TEST_CASE("Convex boundaryContains Rectangle") {
@@ -108,4 +109,34 @@ TEST_CASE("Rectangle separates and crosses Convex") {
     // Inner convex is not separated.
     const Convex inner(std::vector<Point>{{1, 1}, {3, 1}, {3, 2}, {1, 2}});
     CHECK_FALSE_MESSAGE(rect.separates(inner), rect, " separates inner convex");
+}
+
+TEST_CASE("Convex intersection with Rectangle") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    SUBCASE("overlapping area: intersection is a Convex") {
+        const Rectangle r({2, 2}, {6, 6});
+        const auto result = sq.intersection(r);
+        REQUIRE_MESSAGE(result, "sq ∩ overlapping rect should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
+                      "area overlap clips to a Convex");
+    }
+
+    SUBCASE("edge-adjacent: intersection is a Segment") {
+        const Rectangle r({4, 0}, {6, 4});  // shares right edge x=4 with the square
+        const auto result = sq.intersection(r);
+        REQUIRE_MESSAGE(result, "sq ∩ adjacent rect should be non-empty");
+        CHECK_MESSAGE(std::holds_alternative<Segment>(*result),
+                      "shared-edge intersection is a Segment");
+    }
+
+    SUBCASE("disjoint: no intersection") {
+        const Rectangle r({10, 10}, {12, 12});
+        CHECK_FALSE_MESSAGE(sq.intersection(r), "sq ∩ disjoint rect should be empty");
+    }
 }
