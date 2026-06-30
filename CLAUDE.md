@@ -9,10 +9,10 @@ Pangolin (`pgl`) is a **header-only C++20+ library for plane computational geome
 ## Common commands
 
 ```bash
-# Run all unit + integration tests (CI uses this script verbatim)
+# Run all tests (CI uses this script verbatim)
 sh tests/run_tests.sh
 
-# Run one test (resolves by basename in tests/unit or tests/integration)
+# Run one test (resolves by basename in tests/unit)
 sh tests/run_tests.sh segment
 sh tests/run_tests.sh segment_segment
 sh tests/run_tests.sh tests/unit/rational.cpp   # also accepts paths
@@ -34,7 +34,7 @@ PGL_BENCHMARK_NUMBERS="int,rational" bash benchmark/run_benchmark.sh
 ```
 
 Test runner notes:
-- Uses **doctest** (header bundled in `tests/doctest/doctest.h`); each `tests/{unit,integration}/*.cpp` is its own binary.
+- Uses **doctest** (header bundled in `tests/unit/doctest.h`); each `tests/unit/*.cpp` is its own binary.
 - Default flags are `-std=c++20 -Wall -Wextra -pedantic`. Tests must compile clean under both `g++` and `clang++` (CI runs both).
 - Binaries land in `build/tests/bin/`; JUnit reports in `build/tests/reports/`.
 - Files under `tests/graphical/` and `sandbox/` are **not** picked up by the runner — they are exploratory programs built manually.
@@ -75,8 +75,7 @@ The library is layered. `include/pgl.hpp` includes the layers in a deliberate or
 
 ### Test Structure
 
-- `tests/unit/` — per-shape and per-operation unit tests
-- `tests/integration/` — cross-shape public API tests
+- `tests/unit/` — all tests: per-shape unit tests and cross-shape integration tests
 - `tests/graphical/` — visual debugging programs (SVG output via `include/visualization/canvas.hpp`)
 
 
