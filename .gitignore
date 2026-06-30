@@ -29,3 +29,4 @@ tests/graphical/*.svg
 *.out
 *.exe
 a.out
+CLAUDE.md
