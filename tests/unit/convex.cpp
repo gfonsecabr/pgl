@@ -292,8 +292,6 @@ TEST_CASE("Convex::boundaryContains handles every shape category") {
     using Line           = pgl::Line<Point>;
     using Ray            = pgl::Ray<Point>;
     using Halfplane      = pgl::Halfplane<Point>;
-    using Rectangle      = pgl::Rectangle<Point>;
-    using Triangle       = pgl::Triangle<Point>;
     using Convex         = pgl::Convex<Point>;
 
     // Unit square (0,0)-(4,0)-(4,4)-(0,4)
@@ -320,20 +318,6 @@ TEST_CASE("Convex::boundaryContains handles every shape category") {
         CHECK(sq.boundaryContains(Halfplane({2,0},{2,0})));
     }
 
-    SUBCASE("rectangle and triangle on the boundary") {
-        // Degenerate rectangle as a boundary segment
-        const Rectangle line_rect(Point(0,0), Point(4,0));
-        CHECK(sq.boundaryContains(line_rect));
-        // Non-degenerate rectangle inside the square is not on the boundary
-        const Rectangle inner(Point(1,1), Point(2,2));
-        CHECK_FALSE(sq.boundaryContains(inner));
-        // Triangle with all edges on the boundary cannot exist for a square,
-        // but a triangle whose every edge happens to lie on a single square edge can:
-        const Triangle deg(Point(0,0), Point(2,0), Point(4,0));
-        CHECK(sq.boundaryContains(deg));
-        // Triangle strictly inside is not on the boundary
-        CHECK_FALSE(sq.boundaryContains(Triangle(Point(1,1), Point(3,1), Point(2,3))));
-    }
 
     SUBCASE("convex polygon whose every edge lies on a boundary edge") {
         const Convex empty;
@@ -390,8 +374,6 @@ TEST_CASE("Convex::interiorsIntersect distinguishes interior overlap from bounda
     using Line      = pgl::Line<Point>;
     using Ray       = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle  = pgl::Triangle<Point>;
     using Convex    = pgl::Convex<Point>;
 
     const Convex sq(std::vector<Point>{{0,0},{4,0},{4,4},{0,4}});
@@ -431,17 +413,7 @@ TEST_CASE("Convex::interiorsIntersect distinguishes interior overlap from bounda
         CHECK(either_side);
     }
 
-    SUBCASE("rectangle, triangle, convex") {
-        const Rectangle r(Point(2,2), Point(6,6));
-        CHECK(sq.interiorsIntersect(r));
-        const Rectangle disjoint_r(Point(10,10), Point(12,12));
-        CHECK_FALSE(sq.interiorsIntersect(disjoint_r));
-
-        const Triangle t(Point(2,2), Point(6,2), Point(4,6));
-        CHECK(sq.interiorsIntersect(t));
-        const Triangle outside_t(Point(10,10), Point(12,10), Point(11,12));
-        CHECK_FALSE(sq.interiorsIntersect(outside_t));
-
+    SUBCASE("convex self-pair") {
         const Convex c(std::vector<Point>{{2,2},{6,2},{6,6},{2,6}});
         CHECK(sq.interiorsIntersect(c));
         const Convex disjoint_c(std::vector<Point>{{10,10},{12,10},{11,12}});
@@ -460,8 +432,6 @@ TEST_CASE("Convex::separates cuts shapes into multiple components") {
     using Line      = pgl::Line<Point>;
     using Ray       = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle  = pgl::Triangle<Point>;
     using Convex    = pgl::Convex<Point>;
 
     const Convex sq(std::vector<Point>{{0,0},{4,0},{4,4},{0,4}});
@@ -487,13 +457,7 @@ TEST_CASE("Convex::separates cuts shapes into multiple components") {
         CHECK_FALSE(sq.separates(Halfplane({0,0},{4,0})));
     }
 
-    SUBCASE("separates rectangle/triangle/convex with a chord through them") {
-        // Horizontal rectangle that pokes out both the left and right side of sq
-        const Rectangle r(Point(-1,1), Point(5,3));
-        CHECK(sq.separates(r));
-        // Triangle with two vertices outside the square on opposite sides
-        const Triangle t(Point(-1,1), Point(5,2), Point(-1,3));
-        CHECK(sq.separates(t));
+    SUBCASE("separates convex with a chord through them") {
         // Convex strip crossing horizontally
         const Convex c(std::vector<Point>{{-1,1},{5,1},{5,3},{-1,3}});
         CHECK(sq.separates(c));

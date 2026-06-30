@@ -225,13 +225,21 @@ shape in canonical order.
       Created all 6 files; stripped OrientedLine assertions from unit/orientedline.cpp,
       unit/ray.cpp, unit/halfplane.cpp, unit/rectangle.cpp, unit/triangle.cpp,
       unit/convex.cpp, unit/disk.cpp. Green under g++ and clang++.
-- [ ] ray_*: `ray_halfplane`, `ray_rectangle`, `ray_triangle`
-- [ ] halfplane_*: `halfplane_rectangle`, `halfplane_triangle`
-- [ ] rectangle_*: `rectangle_triangle`, `rectangle_convex`, `rectangle_disk`
-      (note: `rectangle_disk` separates currently lives in `separates_disk.cpp`)
-- [ ] triangle_*: `triangle_convex`, `triangle_disk`
-      (note: `triangle_disk` separates currently lives in `separates_disk.cpp`)
-- [ ] convex_*: `convex_disk`
+- [x] ray_*: `ray_halfplane`, `ray_rectangle`, `ray_triangle`
+      Created all 3; stripped Ray↔Halfplane/Rectangle/Triangle assertions from
+      unit/ray.cpp, unit/halfplane.cpp, unit/rectangle.cpp, unit/triangle.cpp.
+- [x] halfplane_*: `halfplane_rectangle`, `halfplane_triangle`
+      Created both; stripped Halfplane↔Rectangle/Triangle assertions from
+      unit/halfplane.cpp, unit/rectangle.cpp, unit/triangle.cpp.
+- [x] rectangle_*: `rectangle_triangle`, `rectangle_convex`, `rectangle_disk`
+      Created all 3; stripped Rectangle↔Triangle/Convex/Disk assertions from
+      unit/rectangle.cpp, unit/triangle.cpp, unit/convex.cpp.
+- [x] triangle_*: `triangle_convex`, `triangle_disk`
+      Created both; stripped Triangle↔Convex/Disk assertions from
+      unit/triangle.cpp, unit/convex.cpp, unit/disk.cpp.
+- [x] convex_*: `convex_disk`
+      Created; stripped Convex↔Disk assertions from unit/convex.cpp, unit/disk.cpp.
+      Full suite green under g++ and clang++.
 
 ## Phase 5 — Cleanup & verify
 

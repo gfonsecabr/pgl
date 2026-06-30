@@ -8,7 +8,6 @@
 #include <string>
 #include <type_traits>
 #include <unordered_set>
-#include <vector>
 
 #include "pgl.hpp"
 
@@ -225,9 +224,6 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     CHECK(collinear.contains(Disk(Point(1, 0), Point(2, 0), Point(3, 0))));
     CHECK_FALSE(collinear.contains(Disk(Point(2, 0), 1)));
 
-    CHECK(disk.contains(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {3, 0}, {0, 4}})));
-    CHECK_FALSE(disk.contains(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {5, 0}, {6, 0}})));
-
     CHECK(disk.contains(pgl::Shape<Point>(Point(3, 4))));
     CHECK(disk.contains(pgl::Shape<Point>(pgl::Segment<Point>(Point(0, 0), Point(3, 4)))));
     CHECK_FALSE(disk.contains(pgl::Shape<Point>(Point(6, 0))));
@@ -256,12 +252,6 @@ TEST_CASE("Disk interior predicates use the exact circumcentre of a 3-point disk
     // Same disk vs a segment whose interior stays outside the true open disk.
     const pgl::Segment<Point> s(Point(6, 5), Point(1, 11));
     CHECK(d.interiorsIntersect(s) == false);
-
-    // Convex::interiorsIntersect(Disk) shares the same exact centre.
-    const pgl::Disk<Point> d2(Point(6, 4), Point(11, 2), Point(10, 7));
-    const pgl::Convex<Point> convex(std::vector<Point>{
-        Point(1, 4), Point(2, 3), Point(5, 1), Point(7, 11), Point(6, 11)});
-    CHECK(convex.interiorsIntersect(d2) == false);
 
     // Disk vs disk: a real overlap that truncation would have dropped.
     const pgl::Disk<Point> d3(Point(9, 0), Point(12, 2), Point(7, 5));
@@ -436,15 +426,3 @@ TEST_CASE("Halfplane::interiorContains(Disk) is exact for three-point integer di
     CHECK(h.interiorContains(d) == false);
 }
 
-TEST_CASE("Convex::contains(Disk) is exact for three-point integer disks") {
-    using Point = pgl::Point<int>;
-    using Disk = pgl::Disk<Point>;
-    using Convex = pgl::Convex<Point>;
-
-    // Convex::contains(Disk) tests each edge's left halfplane, so it inherits the
-    // Halfplane::contains(Disk) truncation. The triangle (-6,-6),(6,-6),(0,6)
-    // does NOT contain the disk through (-4,-3),(2,-4),(0,-1).
-    const Convex convex(std::vector<Point>{{-6, -6}, {6, -6}, {0, 6}});
-    const Disk d(Point(-4, -3), Point(2, -4), Point(0, -1));
-    CHECK(convex.contains(d) == false);
-}
