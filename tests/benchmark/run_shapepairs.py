@@ -18,7 +18,9 @@ Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
 
 Options:
-    --shapes  S,...    Shapes to include (default: all 8)
+    --shapes  S,...    Shapes to include (default: all 8, plus Point as shape B).
+                       Point only appears as the second operand and is
+                       size-agnostic (one variant, ignoring --sizes).
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
     --methods M,...    Methods to include (default: all 11)
     --types   T,...    Number types (default: all 5)
@@ -54,6 +56,12 @@ ALL_SHAPES = [
     "Disk",
     "Convex",
 ]
+
+# A bare Point has no extent, so it only ever appears as the second operand
+# (shape B) and has a single, size-agnostic variant — "point small" and "point
+# large" would be identical. Its variants use POINT_SIZE instead of small/large.
+SHAPES_B_EXTRA = ["Point"]
+POINT_SIZE = "n/a"
 
 ALL_SIZES = ["small", "large"]
 
@@ -94,9 +102,18 @@ _TRISHAPES = {"Triangle", "Disk"}
 
 # ─── C++ source generation ───────────────────────────────────────────────────
 
+def _cpp_shape_type(shape: str) -> str:
+    """C++ type for a shape kind, parameterised on the number type N."""
+    if shape == "Point":
+        return "pgl::Point<N>"
+    return f"pgl::{shape}<pgl::Point<N>>"
+
+
 def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
     """C++ statement that fills 'var' with N_SHAPES random shapes of kind 'shape'."""
     n = N_SHAPES
+    if shape == "Point":
+        return f"auto {var} = randomPoints<N>({n});"
     prefix = "randomSmall" if size == "small" else "randomLarge"
     if shape in _BISHAPES:
         return f"auto {var} = {prefix}Bishape<{alias}>({n});"
@@ -137,8 +154,8 @@ def generate_source(
         '#include "plf_nanotimer.h"',
         "",
         f"using N  = {cpp_type};",
-        f"using S1 = pgl::{shape1}<pgl::Point<N>>;",
-        f"using S2 = pgl::{shape2}<pgl::Point<N>>;",
+        f"using S1 = {_cpp_shape_type(shape1)};",
+        f"using S2 = {_cpp_shape_type(shape2)};",
         "",
         "int main() {",
         f"    {make1}",
@@ -226,7 +243,7 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--shapes",    default=",".join(ALL_SHAPES))
+    ap.add_argument("--shapes",    default=",".join(ALL_SHAPES + SHAPES_B_EXTRA))
     ap.add_argument("--sizes",     default=",".join(ALL_SIZES))
     ap.add_argument("--methods",   default=",".join(ALL_METHODS))
     ap.add_argument("--types",     default=",".join(k for k, _ in ALL_NUMBER_TYPES))
@@ -265,12 +282,15 @@ def main() -> None:
     cxx      = args.cxx
     cxxflags = args.cxxflags.split()
 
-    valid_shapes    = set(ALL_SHAPES)
+    valid_shapes_a  = set(ALL_SHAPES)                    # operand a
+    valid_shapes_b  = set(ALL_SHAPES) | set(SHAPES_B_EXTRA)  # operand b (adds Point)
     valid_sizes     = set(ALL_SIZES)
     valid_methods   = set(ALL_METHODS)
     valid_type_keys = {k for k, _ in ALL_NUMBER_TYPES}
 
-    shapes  = [s.strip() for s in args.shapes.split(",")  if s.strip() in valid_shapes]
+    requested_shapes = [s.strip() for s in args.shapes.split(",") if s.strip()]
+    shapes1 = [s for s in requested_shapes if s in valid_shapes_a]
+    shapes2 = [s for s in requested_shapes if s in valid_shapes_b]
     sizes   = [s.strip() for s in args.sizes.split(",")   if s.strip() in valid_sizes]
     methods = [m.strip() for m in args.methods.split(",") if m.strip() in valid_methods]
 
@@ -278,15 +298,22 @@ def main() -> None:
     requested_keys.add(GROUND_TRUTH_TYPE)  # always include for comparison
     types = [(k, t) for k, t in ALL_NUMBER_TYPES if k in requested_keys]
 
-    if not shapes:
-        sys.exit("No valid shapes specified.")
+    if not shapes1:
+        sys.exit("No valid shape A specified.")
+    if not shapes2:
+        sys.exit("No valid shape B specified.")
     if not sizes:
         sys.exit("No valid sizes specified (use 'small', 'large', or both).")
     if not methods:
         sys.exit("No valid methods specified.")
 
-    shape_size_variants = list(itertools.product(shapes, sizes))
-    pairs  = list(itertools.product(shape_size_variants, repeat=2))
+    # A bare Point is size-agnostic: a single variant, independent of --sizes.
+    def variants_of(shape: str) -> list[tuple[str, str]]:
+        return [(shape, POINT_SIZE)] if shape == "Point" else [(shape, sz) for sz in sizes]
+
+    variants1 = [v for s in shapes1 for v in variants_of(s)]
+    variants2 = [v for s in shapes2 for v in variants_of(s)]
+    pairs  = list(itertools.product(variants1, variants2))
     combos = [
         (s1, sz1, s2, sz2, m, k, cpp_t)
         for ((s1, sz1), (s2, sz2)), m, (k, cpp_t)
@@ -299,7 +326,8 @@ def main() -> None:
         f"pgl benchmark: {n_pairs} shape×size pairs × {len(methods)} methods"
         f" × {len(types)} types = {total} programs"
     )
-    print(f"  shapes:  {shapes}")
+    print(f"  shape A: {shapes1}")
+    print(f"  shape B: {shapes2}")
     print(f"  sizes:   {sizes}")
     print(f"  methods: {methods}")
     print(f"  types:   {[k for k, _ in types]}")
@@ -335,7 +363,9 @@ def main() -> None:
     srcs: dict[tuple, Path] = {}
     bins: dict[tuple, Path] = {}
     for shape1, size1, shape2, size2, method, type_key, cpp_type in combos:
-        tag    = f"{shape1}_{size1}_x_{shape2}_{size2}__{method}__{type_key}"
+        # Slashes (e.g. the "n/a" Point size) would break the path; sanitise.
+        tag    = (f"{shape1}_{size1}_x_{shape2}_{size2}__{method}__{type_key}"
+                  .replace("/", "-"))
         src    = src_dir / f"{tag}.cpp"
         binary = bin_dir / tag
         key    = (shape1, size1, shape2, size2, method, type_key)
@@ -450,7 +480,8 @@ def main() -> None:
             "repetitions":  args.repetitions,
             "n_shapes":     N_SHAPES,
             "n_pairs":      N_SHAPES * N_SHAPES,
-            "shapes":       shapes,
+            "shapes_a":     shapes1,
+            "shapes_b":     shapes2,
             "sizes":        sizes,
             "methods":      methods,
             "number_types": [k for k, _ in types],
