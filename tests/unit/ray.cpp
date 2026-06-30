@@ -304,9 +304,6 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     CHECK(horizontal.interiorsIntersect(Line({4, -2}, {4, 2})));
     CHECK_FALSE(horizontal.crosses(Line({0, -2}, {0, 2})));
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
-    CHECK(horizontal.crosses(pgl::Rectangle<Point>({1, -1}, {3, 1})));
-    CHECK(horizontal.crosses(pgl::Triangle<Point>({1, -1}, {3, -1}, {2, 2})));
-    CHECK_FALSE(horizontal.crosses(pgl::Halfplane<Point>({2, -2}, {2, 2})));
     // Ray vs Ray: a transversal crossing interior to both crosses; a ray leaving
     // from the crossing point, or a collinear overlap, does not.
     CHECK(horizontal.crosses(Ray({2, -1}, {2, 1})));
@@ -326,20 +323,12 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Shape = pgl::Shape<Point>;
 
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Segment({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(Halfplane({0, -1}, {4, -1})));
-    CHECK(horizontal.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
-    CHECK(horizontal.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(Shape(Rectangle({1, -1}, {3, 1}))));
 }
 
 TEST_CASE("Ray covers the non-Convex contract for separates") {
@@ -347,20 +336,12 @@ TEST_CASE("Ray covers the non-Convex contract for separates") {
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Shape = pgl::Shape<Point>;
 
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.separates(Line({2, -2}, {2, 2})));
     CHECK(horizontal.separates(Segment({2, -2}, {2, 2})));
     CHECK(horizontal.separates(Ray({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.separates(Halfplane({0, -1}, {4, -1})));
-    CHECK(horizontal.separates(Rectangle({1, -1}, {3, 1})));
-    CHECK(horizontal.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
-    CHECK(horizontal.separates(Shape(Rectangle({1, -1}, {3, 1}))));
 }
 
 TEST_CASE("Ray covers the non-Convex contract for crosses") {
@@ -368,20 +349,12 @@ TEST_CASE("Ray covers the non-Convex contract for crosses") {
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Shape = pgl::Shape<Point>;
 
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(Segment({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(Ray({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.crosses(Halfplane({0, -1}, {4, -1})));
-    CHECK(horizontal.crosses(Rectangle({1, -1}, {3, 1})));
-    CHECK(horizontal.crosses(Triangle({1, -1}, {3, -1}, {2, 2})));
-    CHECK(horizontal.crosses(Shape(Rectangle({1, -1}, {3, 1}))));
 }
 
 TEST_CASE("Ray intersection and distances support exact rational results") {

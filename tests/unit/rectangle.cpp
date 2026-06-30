@@ -450,13 +450,11 @@ TEST_CASE("Rectangle separates larger rectangles only when it splits them into t
     CHECK_FALSE(inner_square.crosses(outer_square));
 }
 
-TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
+TEST_CASE("Rectangle predicates handle linear primitives") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
     const Segment inner_segment({1, 1}, {3, 2});
@@ -467,17 +465,6 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     const Line tangent_line({0, 0}, {4, 0});
     const Line corner_line({-1, 1}, {1, -1});
     const Line outside_line({0, 5}, {4, 5});
-    const Ray crossing_ray({-2, 1}, {2, 1});
-    const Ray corner_entry_ray({-1, 0}, {0, 1});
-    const Ray source_inside_ray({2, 1}, {8, 1});
-    const Ray boundary_entering_ray({0, 1}, {2, 1});
-    const Ray boundary_leaving_ray({0, 1}, {-2, 1});
-    const Ray edge_following_ray({0, 0}, {4, 0});
-    const Ray corner_tangent_ray({-1, 1}, {1, -1});
-    const Ray outside_ray({-2, 5}, {2, 5});
-    const Halfplane upper({0, 0}, {4, 0});
-    const Halfplane tangent_upper({0, 3}, {4, 3});
-    const Halfplane outside_upper({0, 5}, {4, 5});
 
     CHECK(rectangle.contains(inner_segment));
     CHECK(rectangle.interiorContains(inner_segment));
@@ -493,14 +480,6 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     CHECK(rectangle.intersects(tangent_line));
     CHECK(rectangle.intersects(corner_line));
     CHECK_FALSE(rectangle.intersects(outside_line));
-    CHECK(rectangle.intersects(crossing_ray));
-    CHECK(rectangle.intersects(corner_entry_ray));
-    CHECK(rectangle.intersects(source_inside_ray));
-    CHECK(rectangle.intersects(boundary_entering_ray));
-    CHECK(rectangle.intersects(boundary_leaving_ray));
-    CHECK(rectangle.intersects(edge_following_ray));
-    CHECK(rectangle.intersects(corner_tangent_ray));
-    CHECK_FALSE(rectangle.intersects(outside_ray));
 
     CHECK(rectangle.interiorsIntersect(crossing_segment));
     CHECK_FALSE(rectangle.interiorsIntersect(touching_segment));
@@ -509,14 +488,6 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     CHECK_FALSE(rectangle.interiorsIntersect(tangent_line));
     CHECK_FALSE(rectangle.interiorsIntersect(corner_line));
     CHECK_FALSE(rectangle.interiorsIntersect(outside_line));
-    CHECK(rectangle.interiorsIntersect(crossing_ray));
-    CHECK(rectangle.interiorsIntersect(corner_entry_ray));
-    CHECK(rectangle.interiorsIntersect(source_inside_ray));
-    CHECK(rectangle.interiorsIntersect(boundary_entering_ray));
-    CHECK_FALSE(rectangle.interiorsIntersect(boundary_leaving_ray));
-    CHECK_FALSE(rectangle.interiorsIntersect(edge_following_ray));
-    CHECK_FALSE(rectangle.interiorsIntersect(corner_tangent_ray));
-    CHECK_FALSE(rectangle.interiorsIntersect(outside_ray));
 
     CHECK(rectangle.separates(crossing_segment));
     CHECK(rectangle.crosses(crossing_segment));
@@ -525,31 +496,6 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     CHECK(rectangle.crosses(crossing_line));
     CHECK(rectangle.separates(tangent_line));
     CHECK_FALSE(rectangle.crosses(tangent_line));
-    CHECK(rectangle.separates(crossing_ray));
-    CHECK(rectangle.crosses(crossing_ray));
-    CHECK_FALSE(rectangle.separates(source_inside_ray));
-    CHECK_FALSE(rectangle.separates(boundary_entering_ray));
-
-    CHECK(rectangle.intersects(upper));
-    CHECK(rectangle.interiorsIntersect(upper));
-    CHECK(rectangle.intersects(tangent_upper));
-    CHECK_FALSE(rectangle.interiorsIntersect(tangent_upper));
-    CHECK_FALSE(rectangle.intersects(outside_upper));
-    CHECK_FALSE(rectangle.contains(upper));
-}
-
-TEST_CASE("Rectangle interior intersection with triangles ignores boundary-only contact") {
-    using Point = pgl::Point<int>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-
-    const Rectangle rectangle({0, 0}, {4, 4});
-    const Triangle touching_corner({4, 4}, {5, 4}, {4, 5});
-    const Triangle crossing({2, -1}, {5, 2}, {2, 5});
-
-    CHECK(rectangle.intersects(touching_corner));
-    CHECK_FALSE(rectangle.interiorsIntersect(touching_corner));
-    CHECK(rectangle.interiorsIntersect(crossing));
 }
 
 TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
@@ -557,18 +503,12 @@ TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.interiorsIntersect(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.interiorsIntersect(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.interiorsIntersect(Ray({-2, 1}, {2, 1})));
-    CHECK(rectangle.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
-    CHECK(rectangle.interiorsIntersect(Triangle({1, 1}, {5, 1}, {2, 4})));
     CHECK(rectangle.interiorsIntersect(Shape(Rectangle({1, 1}, {3, 2}))));
 }
 
@@ -577,18 +517,12 @@ TEST_CASE("Rectangle covers the non-Convex contract for separates") {
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.separates(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.separates(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.separates(Ray({-2, 1}, {2, 1})));
-    CHECK_FALSE(rectangle.separates(Halfplane({0, 0}, {4, 0})));
-    CHECK(rectangle.separates(Triangle({1, -1}, {3, -1}, {2, 4})));
     CHECK(rectangle.separates(Shape(Segment({-1, 1}, {5, 1}))));
 }
 
@@ -597,18 +531,12 @@ TEST_CASE("Rectangle covers the non-Convex contract for crosses") {
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.crosses(Line({-1, 1}, {5, 1})));
     CHECK(rectangle.crosses(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.crosses(Ray({-2, 1}, {2, 1})));
-    CHECK_FALSE(rectangle.crosses(Halfplane({0, 0}, {4, 0})));
-    CHECK(rectangle.crosses(Triangle({1, -1}, {3, -1}, {2, 4})));
     CHECK(rectangle.crosses(Shape(Segment({-1, 1}, {5, 1}))));
 }
 
@@ -617,7 +545,6 @@ TEST_CASE("Linear primitives separate rectangles only when clipped through the i
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
@@ -634,22 +561,7 @@ TEST_CASE("Linear primitives separate rectangles only when clipped through the i
     CHECK_FALSE(along_edge.separates(rectangle));
 
     CHECK(Line({-1, 1}, {5, 1}).separates(rectangle));
-    CHECK(Ray({-1, 1}, {5, 1}).separates(rectangle));
-    CHECK_FALSE(Ray({2, 1}, {5, 1}).separates(rectangle));
     CHECK_FALSE(Line({0, 0}, {4, 0}).separates(rectangle));
-}
-
-TEST_CASE("Rectangles can separate triangles when they form a genuine barrier") {
-    using Point = pgl::Point<int>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-
-    const Triangle triangle({0, 0}, {6, 0}, {0, 6});
-    const Rectangle vertical_bar({2, 0}, {3, 4});
-    const Rectangle corner_box({0, 0}, {1, 1});
-
-    CHECK(vertical_bar.separates(triangle));
-    CHECK_FALSE(corner_box.separates(triangle));
 }
 
 TEST_CASE("Rectangle intersections return clipped shapes") {

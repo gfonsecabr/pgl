@@ -62,9 +62,9 @@ TEST_CASE("OrientedSegment and Line intersection predicates, both directions") {
     }
 
     SUBCASE("disjoint: no intersection at all") {
-        const Line far({10, 0}, {10, 5});
-        CHECK_FALSE_MESSAGE(far.intersects(horiz), far, " intersects ", horiz);
-        CHECK_FALSE_MESSAGE(horiz.intersects(far), horiz, " intersects ", far);
+        const Line distant({10, 0}, {10, 5});
+        CHECK_FALSE_MESSAGE(distant.intersects(horiz), distant, " intersects ", horiz);
+        CHECK_FALSE_MESSAGE(horiz.intersects(distant), horiz, " intersects ", distant);
     }
 }
 
@@ -143,9 +143,9 @@ TEST_CASE("OrientedSegment and Line intersection construction, both directions")
     }
 
     SUBCASE("disjoint: empty result") {
-        const Line far({10, 0}, {10, 5});
+        const Line distant({10, 0}, {10, 5});
         CHECK_FALSE_MESSAGE(vert.intersection(horiz) == std::nullopt, "just checking non-empty");
-        CHECK_FALSE_MESSAGE(far.intersection(horiz), "far ∩ horiz should be empty");
+        CHECK_FALSE_MESSAGE(distant.intersection(horiz), "distant ∩ horiz should be empty");
     }
 
     SUBCASE("touching at source endpoint returns a point") {
