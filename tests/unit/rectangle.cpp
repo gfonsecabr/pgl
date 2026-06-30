@@ -454,9 +454,7 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
 
@@ -465,15 +463,10 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     const Segment crossing_segment({-1, 1}, {5, 1});
     const Segment touching_segment({4, 1}, {6, 1});
     const Segment boundary_endpoint_only_segment({-1, 0}, {0, 1});
-    const OrientedSegment crossing_oriented({-1, 2}, {5, 2});
-    const OrientedSegment boundary_endpoint_only_oriented({0, 1}, {-1, 0});
     const Line crossing_line({-1, 1}, {5, 1});
     const Line tangent_line({0, 0}, {4, 0});
     const Line corner_line({-1, 1}, {1, -1});
     const Line outside_line({0, 5}, {4, 5});
-    const OrientedLine crossing_oriented_line({2, -1}, {2, 4});
-    const OrientedLine tangent_oriented_line({4, 0}, {0, 0});
-    const OrientedLine corner_oriented_line({1, -1}, {-1, 1});
     const Ray crossing_ray({-2, 1}, {2, 1});
     const Ray corner_entry_ray({-1, 0}, {0, 1});
     const Ray source_inside_ray({2, 1}, {8, 1});
@@ -494,16 +487,11 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     CHECK_FALSE(rectangle.interiorContains(Segment({1, 0}, {3, 0})));
 
     CHECK(rectangle.intersects(crossing_segment));
-    CHECK(rectangle.intersects(crossing_oriented));
     CHECK(rectangle.intersects(touching_segment));
     CHECK(rectangle.intersects(boundary_endpoint_only_segment));
-    CHECK(rectangle.intersects(boundary_endpoint_only_oriented));
     CHECK(rectangle.intersects(crossing_line));
-    CHECK(rectangle.intersects(crossing_oriented_line));
     CHECK(rectangle.intersects(tangent_line));
     CHECK(rectangle.intersects(corner_line));
-    CHECK(rectangle.intersects(tangent_oriented_line));
-    CHECK(rectangle.intersects(corner_oriented_line));
     CHECK_FALSE(rectangle.intersects(outside_line));
     CHECK(rectangle.intersects(crossing_ray));
     CHECK(rectangle.intersects(corner_entry_ray));
@@ -515,16 +503,11 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
     CHECK_FALSE(rectangle.intersects(outside_ray));
 
     CHECK(rectangle.interiorsIntersect(crossing_segment));
-    CHECK(rectangle.interiorsIntersect(crossing_oriented));
     CHECK_FALSE(rectangle.interiorsIntersect(touching_segment));
     CHECK_FALSE(rectangle.interiorsIntersect(boundary_endpoint_only_segment));
-    CHECK_FALSE(rectangle.interiorsIntersect(boundary_endpoint_only_oriented));
     CHECK(rectangle.interiorsIntersect(crossing_line));
-    CHECK(rectangle.interiorsIntersect(crossing_oriented_line));
     CHECK_FALSE(rectangle.interiorsIntersect(tangent_line));
     CHECK_FALSE(rectangle.interiorsIntersect(corner_line));
-    CHECK_FALSE(rectangle.interiorsIntersect(tangent_oriented_line));
-    CHECK_FALSE(rectangle.interiorsIntersect(corner_oriented_line));
     CHECK_FALSE(rectangle.interiorsIntersect(outside_line));
     CHECK(rectangle.interiorsIntersect(crossing_ray));
     CHECK(rectangle.interiorsIntersect(corner_entry_ray));
@@ -537,13 +520,9 @@ TEST_CASE("Rectangle predicates handle linear primitives and halfplanes") {
 
     CHECK(rectangle.separates(crossing_segment));
     CHECK(rectangle.crosses(crossing_segment));
-    CHECK(rectangle.separates(crossing_oriented));
-    CHECK(rectangle.crosses(crossing_oriented));
     CHECK_FALSE(rectangle.separates(touching_segment));
     CHECK(rectangle.separates(crossing_line));
     CHECK(rectangle.crosses(crossing_line));
-    CHECK(rectangle.separates(crossing_oriented_line));
-    CHECK(rectangle.crosses(crossing_oriented_line));
     CHECK(rectangle.separates(tangent_line));
     CHECK_FALSE(rectangle.crosses(tangent_line));
     CHECK(rectangle.separates(crossing_ray));
@@ -577,9 +556,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Triangle = pgl::Triangle<Point>;
@@ -588,9 +565,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for interiorsIntersect") {
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.interiorsIntersect(Line({-1, 1}, {5, 1})));
-    CHECK(rectangle.interiorsIntersect(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.interiorsIntersect(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.interiorsIntersect(OrientedSegment({-1, 2}, {5, 2})));
     CHECK(rectangle.interiorsIntersect(Ray({-2, 1}, {2, 1})));
     CHECK(rectangle.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
     CHECK(rectangle.interiorsIntersect(Triangle({1, 1}, {5, 1}, {2, 4})));
@@ -601,9 +576,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for separates") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Triangle = pgl::Triangle<Point>;
@@ -612,9 +585,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for separates") {
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.separates(Line({-1, 1}, {5, 1})));
-    CHECK(rectangle.separates(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.separates(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.separates(OrientedSegment({-1, 2}, {5, 2})));
     CHECK(rectangle.separates(Ray({-2, 1}, {2, 1})));
     CHECK_FALSE(rectangle.separates(Halfplane({0, 0}, {4, 0})));
     CHECK(rectangle.separates(Triangle({1, -1}, {3, -1}, {2, 4})));
@@ -625,9 +596,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for crosses") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Triangle = pgl::Triangle<Point>;
@@ -636,9 +605,7 @@ TEST_CASE("Rectangle covers the non-Convex contract for crosses") {
     const Rectangle rectangle({0, 0}, {4, 3});
 
     CHECK(rectangle.crosses(Line({-1, 1}, {5, 1})));
-    CHECK(rectangle.crosses(OrientedLine({2, -1}, {2, 4})));
     CHECK(rectangle.crosses(Segment({-1, 1}, {5, 1})));
-    CHECK(rectangle.crosses(OrientedSegment({-1, 2}, {5, 2})));
     CHECK(rectangle.crosses(Ray({-2, 1}, {2, 1})));
     CHECK_FALSE(rectangle.crosses(Halfplane({0, 0}, {4, 0})));
     CHECK(rectangle.crosses(Triangle({1, -1}, {3, -1}, {2, 4})));
@@ -649,9 +616,7 @@ TEST_CASE("Linear primitives separate rectangles only when clipped through the i
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
@@ -663,14 +628,12 @@ TEST_CASE("Linear primitives separate rectangles only when clipped through the i
 
     CHECK(side_to_side.separates(rectangle));
     CHECK(side_to_side.crosses(rectangle));
-    CHECK(OrientedSegment({5, 1}, {-1, 1}).separates(rectangle));
     CHECK(corner_to_corner.separates(rectangle));
 
     CHECK_FALSE(starts_inside.separates(rectangle));
     CHECK_FALSE(along_edge.separates(rectangle));
 
     CHECK(Line({-1, 1}, {5, 1}).separates(rectangle));
-    CHECK(OrientedLine({5, 1}, {-1, 1}).separates(rectangle));
     CHECK(Ray({-1, 1}, {5, 1}).separates(rectangle));
     CHECK_FALSE(Ray({2, 1}, {5, 1}).separates(rectangle));
     CHECK_FALSE(Line({0, 0}, {4, 0}).separates(rectangle));
@@ -693,9 +656,7 @@ TEST_CASE("Rectangle intersections return clipped shapes") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
 
     const Rectangle rectangle({0, 0}, {4, 3});
@@ -736,11 +697,6 @@ TEST_CASE("Rectangle intersections return clipped shapes") {
 
     CHECK_FALSE(rectangle.intersection(Segment({5, 4}, {6, 4})));
 
-    const auto oriented_segment = rectangle.intersection(OrientedSegment({-1, 2}, {5, 2}));
-    REQUIRE(oriented_segment);
-    REQUIRE(std::holds_alternative<Segment>(*oriented_segment));
-    CHECK(std::get<Segment>(*oriented_segment) == Segment({0, 2}, {4, 2}));
-
     const auto crossing_line = rectangle.intersection(Line({-1, 1}, {5, 1}));
     REQUIRE(crossing_line);
     REQUIRE(std::holds_alternative<Segment>(*crossing_line));
@@ -755,11 +711,6 @@ TEST_CASE("Rectangle intersections return clipped shapes") {
     REQUIRE(vertex_line);
     REQUIRE(std::holds_alternative<Point>(*vertex_line));
     CHECK(std::get<Point>(*vertex_line) == Point(0, 0));
-
-    const auto oriented_line = rectangle.intersection(OrientedLine({2, -1}, {2, 4}));
-    REQUIRE(oriented_line);
-    REQUIRE(std::holds_alternative<Segment>(*oriented_line));
-    CHECK(std::get<Segment>(*oriented_line) == Segment({2, 0}, {2, 3}));
 
     CHECK_FALSE(rectangle.intersection(Line({0, 5}, {4, 5})));
 

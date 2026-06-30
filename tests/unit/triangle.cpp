@@ -252,9 +252,7 @@ TEST_CASE("Triangle intersections with lines, segments, and rays return points o
     using RationalPoint = pgl::Point<Rational>;
     using Triangle = pgl::Triangle<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using RationalSegment = pgl::Segment<RationalPoint>;
 
@@ -270,14 +268,8 @@ TEST_CASE("Triangle intersections with lines, segments, and rays return points o
     REQUIRE(std::holds_alternative<Point>(*line_vertex));
     CHECK(std::get<Point>(*line_vertex) == Point(0, 0));
 
-    const auto line_edge = triangle.intersection(OrientedLine({0, 0}, {0, 4}));
-    REQUIRE(line_edge);
-    REQUIRE(std::holds_alternative<Segment>(*line_edge));
-    CHECK(std::get<Segment>(*line_edge) == Segment({0, 0}, {0, 4}));
-
     CHECK_FALSE(triangle.intersection(Line({0, 5}, {4, 5})));
     CHECK(triangle.intersects(Line({-1, 1}, {5, 1})));
-    CHECK(triangle.intersects(OrientedLine({0, 0}, {0, 4})));
     CHECK_FALSE(triangle.intersects(Line({0, 5}, {4, 5})));
 
     const auto segment_crossing = triangle.intersection<Rational>(Segment({-1, 1}, {5, 1}));
@@ -290,14 +282,8 @@ TEST_CASE("Triangle intersections with lines, segments, and rays return points o
     REQUIRE(std::holds_alternative<Point>(*segment_touching));
     CHECK(std::get<Point>(*segment_touching) == Point(0, 0));
 
-    const auto segment_edge = triangle.intersection(OrientedSegment({0, 0}, {3, 0}));
-    REQUIRE(segment_edge);
-    REQUIRE(std::holds_alternative<Segment>(*segment_edge));
-    CHECK(std::get<Segment>(*segment_edge) == Segment({0, 0}, {3, 0}));
-
     CHECK_FALSE(triangle.intersection(Segment({5, 5}, {6, 6})));
     CHECK(triangle.intersects(Segment({-1, 1}, {5, 1})));
-    CHECK(triangle.intersects(OrientedSegment({0, 0}, {3, 0})));
     CHECK_FALSE(triangle.intersects(Segment({5, 5}, {6, 6})));
 
     const auto ray_crossing = triangle.intersection<Rational>(Ray({-1, 1}, {5, 1}));
@@ -367,9 +353,7 @@ TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from b
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Halfplane = pgl::Halfplane<Point>;
@@ -377,12 +361,10 @@ TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from b
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
-    CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
     CHECK_FALSE(triangle.interiorsIntersect(Line({0, 0}, {6, 0})));
     CHECK_FALSE(triangle.interiorsIntersect(Line({-1, 1}, {1, -1})));
 
     CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.interiorsIntersect(OrientedSegment({0, 0}, {3, 3})));
     CHECK(triangle.interiorsIntersect(Segment({1, 1}, {2, 2})));
     CHECK_FALSE(triangle.interiorsIntersect(Segment({0, 0}, {6, 0})));
     CHECK_FALSE(triangle.interiorsIntersect(Segment({-1, -1}, {0, 0})));
@@ -429,23 +411,19 @@ TEST_CASE("Linear primitives separate triangles only when their trace cuts the i
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     const Segment edge_to_edge({-1, 2}, {5, 2});
     const Segment vertex_to_opposite_edge({0, 0}, {3, 3});
-    const OrientedSegment oriented_edge_to_edge({5, 2}, {-1, 2});
     const Segment touching_vertex({-1, -1}, {0, 0});
     const Segment starts_inside({1, 1}, {5, 1});
     const Segment along_edge({0, 0}, {6, 0});
 
     CHECK(edge_to_edge.separates(triangle));
     CHECK(edge_to_edge.crosses(triangle));
-    CHECK(oriented_edge_to_edge.separates(triangle));
     CHECK(vertex_to_opposite_edge.separates(triangle));
 
     CHECK_FALSE(touching_vertex.separates(triangle));
@@ -453,7 +431,6 @@ TEST_CASE("Linear primitives separate triangles only when their trace cuts the i
     CHECK_FALSE(along_edge.separates(triangle));
 
     CHECK(Line({-1, 2}, {5, 2}).separates(triangle));
-    CHECK(OrientedLine({5, 2}, {-1, 2}).separates(triangle));
     CHECK(Ray({-1, 2}, {5, 2}).separates(triangle));
     CHECK(Ray({0, 0}, {3, 3}).separates(triangle));
     CHECK_FALSE(Ray({1, 1}, {5, 1}).separates(triangle));
@@ -481,9 +458,7 @@ TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Halfplane = pgl::Halfplane<Point>;
@@ -492,9 +467,7 @@ TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
-    CHECK(triangle.interiorsIntersect(OrientedLine({0, 0}, {3, 3})));
     CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.interiorsIntersect(OrientedSegment({0, 0}, {3, 3})));
     CHECK(triangle.interiorsIntersect(Ray({-1, 2}, {5, 2})));
     CHECK(triangle.interiorsIntersect(Halfplane({0, 0}, {6, 0})));
     CHECK(triangle.interiorsIntersect(Rectangle({2, -1}, {4, 2})));
@@ -506,9 +479,7 @@ TEST_CASE("Triangle covers the non-Convex contract for separates") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -517,9 +488,7 @@ TEST_CASE("Triangle covers the non-Convex contract for separates") {
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.separates(Line({-1, 2}, {5, 2})));
-    CHECK(triangle.separates(OrientedLine({5, 2}, {-1, 2})));
     CHECK(triangle.separates(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.separates(OrientedSegment({5, 2}, {-1, 2})));
     CHECK(triangle.separates(Ray({-1, 2}, {5, 2})));
     CHECK_FALSE(triangle.separates(Halfplane({0, 0}, {6, 0})));
     // The triangle is the lower-left half of the square (x + y <= 6); removing it
@@ -534,9 +503,7 @@ TEST_CASE("Triangle covers the non-Convex contract for crosses") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -545,9 +512,7 @@ TEST_CASE("Triangle covers the non-Convex contract for crosses") {
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.crosses(Line({-1, 2}, {5, 2})));
-    CHECK(triangle.crosses(OrientedLine({5, 2}, {-1, 2})));
     CHECK(triangle.crosses(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.crosses(OrientedSegment({5, 2}, {-1, 2})));
     CHECK(triangle.crosses(Ray({-1, 2}, {5, 2})));
     CHECK_FALSE(triangle.crosses(Halfplane({0, 0}, {6, 0})));
     CHECK_FALSE(triangle.crosses(Rectangle({0, 0}, {6, 6})));

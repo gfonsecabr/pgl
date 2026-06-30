@@ -210,14 +210,21 @@ shape in canonical order.
       Non-predicate point uses (`verticesContain`, `pointInside`, `orientation`,
       `collinear`, transform probes) and degenerate-disk/triangle blocks left in
       place. Green under g++ and clang++.
-- [ ] segment_*: `segment_orientedsegment`, `segment_orientedline`, `segment_halfplane`
-- [ ] orientedsegment_*: `orientedsegment_line`, `orientedsegment_orientedline`,
+- [x] segment_*: `segment_orientedsegment`, `segment_orientedline`, `segment_halfplane`
+- [x] orientedsegment_*: `orientedsegment_line`, `orientedsegment_orientedline`,
       `orientedsegment_ray`, `orientedsegment_halfplane`, `orientedsegment_rectangle`,
       `orientedsegment_triangle`, `orientedsegment_convex`, `orientedsegment_disk`
-- [ ] line_*: `line_halfplane`
-- [ ] orientedline_*: `orientedline_ray`, `orientedline_halfplane`,
+      All 8 files created; OrientedSegment assertions removed from unit/orientedsegment,
+      halfplane, rectangle, triangle, convex, line, orientedline, ray. Full suite green.
+- [x] line_*: `line_halfplane`
+      Created tests/integration/line_halfplane.cpp; stripped Line↔Halfplane assertions
+      from unit/halfplane.cpp and unit/line.cpp. Green under g++ and clang++.
+- [x] orientedline_*: `orientedline_ray`, `orientedline_halfplane`,
       `orientedline_rectangle`, `orientedline_triangle`, `orientedline_convex`,
       `orientedline_disk`
+      Created all 6 files; stripped OrientedLine assertions from unit/orientedline.cpp,
+      unit/ray.cpp, unit/halfplane.cpp, unit/rectangle.cpp, unit/triangle.cpp,
+      unit/convex.cpp, unit/disk.cpp. Green under g++ and clang++.
 - [ ] ray_*: `ray_halfplane`, `ray_rectangle`, `ray_triangle`
 - [ ] halfplane_*: `halfplane_rectangle`, `halfplane_triangle`
 - [ ] rectangle_*: `rectangle_triangle`, `rectangle_convex`, `rectangle_disk`

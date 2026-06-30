@@ -172,7 +172,6 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using OrientedLine = pgl::OrientedLine<Point>;
 
     const OrientedLine diagonal({0, 0}, {4, 4});
@@ -182,16 +181,13 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     const OrientedLine parallel({0, 1}, {4, 5});
     const Line supporting_line({2, 2}, {6, 6});
     const Segment subsegment({1, 1}, {3, 3});
-    const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
 
     CHECK(diagonal.contains(supporting_line));
     CHECK(diagonal.contains(same_orientation));
     CHECK(diagonal.contains(opposite_orientation));
     CHECK(diagonal.contains(subsegment));
-    CHECK(diagonal.contains(oriented_subsegment));
     CHECK(diagonal.collinear(supporting_line));
     CHECK(diagonal.collinear(opposite_orientation));
-    CHECK(diagonal.collinear(oriented_subsegment));
 
     CHECK(diagonal.orientation(Point(0, 1)) == std::partial_ordering::greater);
     CHECK(diagonal.orientation(Point(1, 0)) == std::partial_ordering::less);
@@ -208,10 +204,6 @@ TEST_CASE("OrientedLine distinguishes geometric containment from stored orientat
     CHECK(diagonal.interiorsIntersect(crossing));
     CHECK(diagonal.crosses(crossing));
     CHECK_FALSE(diagonal.crosses(opposite_orientation));
-
-    CHECK(diagonal.crosses(pgl::Segment<pgl::Point<int>>({0, 4}, {4, 0})));
-    CHECK(diagonal.crosses(pgl::Ray<pgl::Point<int>>({0, 4}, {4, 0})));
-    CHECK_FALSE(diagonal.crosses(pgl::Halfplane<pgl::Point<int>>({0, 0}, {4, 4})));
 }
 
 TEST_CASE("OrientedLine intersection and distances support exact rational results") {
@@ -260,37 +252,12 @@ TEST_CASE("OrientedLine evaluates coordinates like its supporting line") {
     CHECK(horizontal.yAtX(3) == 1);
 }
 
-TEST_CASE("OrientedLine covers the non-Convex contract through Line delegation") {
+TEST_CASE("OrientedLine self-pair: separates another OrientedLine") {
     using Point = pgl::Point<int>;
-    using Line = pgl::Line<Point>;
-    using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using OrientedLine = pgl::OrientedLine<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Shape = pgl::Shape<Point>;
 
     const OrientedLine vertical({2, 2}, {2, -2});
-
-    CHECK(vertical.interiorsIntersect(Segment({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(OrientedSegment({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(Line({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(Ray({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
-    CHECK(vertical.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
-
-    CHECK(vertical.separates(Segment({0, 0}, {4, 0})));
     CHECK(vertical.separates(OrientedLine({0, 0}, {4, 0})));
-    CHECK_FALSE(vertical.separates(Halfplane({0, 0}, {4, 0})));
-    CHECK(vertical.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
-
-    CHECK(vertical.crosses(Shape(Segment({0, 0}, {4, 0}))));
-    CHECK(vertical.crosses(Ray({0, 0}, {4, 0})));
-    CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));
-    CHECK(vertical.crosses(Rectangle({1, -1}, {3, 1})));
 }
 
 TEST_CASE("OrientedLine asOrientedSegmentFor returns a segment that meets the rectangle the same way") {

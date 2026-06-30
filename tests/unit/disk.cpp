@@ -187,7 +187,6 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     using Point = pgl::Point<int>;
     using Disk = pgl::Disk<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
 
@@ -206,10 +205,6 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     CHECK(disk.contains(Line(Point(3, 4), Point(3, 4))));
     CHECK_FALSE(disk.contains(Line(Point(6, 0), Point(6, 0))));
     CHECK_FALSE(disk.contains(Line(Point(-5, 0), Point(5, 0))));
-
-    CHECK(disk.contains(OrientedLine(Point(3, 4), Point(3, 4))));
-    CHECK_FALSE(disk.contains(OrientedLine(Point(6, 0), Point(6, 0))));
-    CHECK_FALSE(disk.contains(OrientedLine(Point(-5, 0), Point(5, 0))));
 
     CHECK(disk.contains(Ray(Point(3, 4), Point(3, 4))));
     CHECK_FALSE(disk.contains(Ray(Point(6, 0), Point(6, 0))));

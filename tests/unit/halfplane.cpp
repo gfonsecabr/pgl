@@ -163,7 +163,6 @@ TEST_CASE("Halfplane distinguishes defining points, boundary points, and interio
 TEST_CASE("Halfplane boundary containment extends to linear primitives on the boundary line") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Line = pgl::Line<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Ray = pgl::Ray<Point>;
@@ -171,7 +170,6 @@ TEST_CASE("Halfplane boundary containment extends to linear primitives on the bo
 
     const Halfplane diagonal({0, 0}, {4, 4});
 
-    CHECK(diagonal.boundaryContains(Line({-2, -2}, {6, 6})));
     CHECK(diagonal.boundaryContains(Segment({1, 1}, {3, 3})));
     CHECK(diagonal.boundaryContains(Ray({1, 1}, {2, 2})));
     CHECK(diagonal.boundaryContains(Rectangle({2, 2}, {2, 2})));
@@ -198,56 +196,6 @@ TEST_CASE("Tests halfplane pointInside and interiorContains") {
     CHECK(descending.interiorContains(descending.pointInside()));
 }
 
-TEST_CASE("Halfplane predicates handle segments and oriented segments") {
-    using Point = pgl::Point<int>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-    const Segment inside({1, 1}, {3, 2});
-    const Segment boundary({1, 0}, {3, 0});
-    const Segment crossing({1, -1}, {3, 2});
-    const Segment outside({1, -2}, {3, -1});
-    const OrientedSegment oriented_crossing({3, 2}, {1, -1});
-
-    CHECK(upper.contains(inside));
-    CHECK(upper.interiorContains(inside));
-    CHECK(upper.contains(boundary));
-    CHECK_FALSE(upper.interiorContains(boundary));
-    CHECK(upper.intersects(crossing));
-    CHECK(upper.interiorsIntersect(crossing));
-    CHECK(upper.intersects(oriented_crossing));
-    CHECK(upper.interiorsIntersect(oriented_crossing));
-    CHECK_FALSE(upper.contains(crossing));
-    CHECK_FALSE(upper.intersects(outside));
-    CHECK_FALSE(upper.separates(crossing));
-    CHECK_FALSE(upper.crosses(crossing));
-}
-
-TEST_CASE("Halfplane predicates handle lines and oriented lines") {
-    using Point = pgl::Point<int>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-    const Line inside_parallel({0, 2}, {4, 2});
-    const Line boundary({0, 0}, {4, 0});
-    const Line outside_parallel({0, -2}, {4, -2});
-    const Line crossing({0, -1}, {4, 3});
-    const OrientedLine oriented_crossing({4, 3}, {0, -1});
-
-    CHECK(upper.contains(inside_parallel));
-    CHECK(upper.interiorContains(inside_parallel));
-    CHECK(upper.contains(boundary));
-    CHECK_FALSE(upper.interiorContains(boundary));
-    CHECK(upper.intersects(crossing));
-    CHECK(upper.interiorsIntersect(crossing));
-    CHECK(upper.intersects(oriented_crossing));
-    CHECK(upper.interiorsIntersect(oriented_crossing));
-    CHECK_FALSE(upper.intersects(outside_parallel));
-}
 
 TEST_CASE("Halfplane predicates handle rays") {
     using Point = pgl::Point<int>;
@@ -357,10 +305,7 @@ TEST_CASE("Halfplane interior intersection distinguishes true overlap from bound
 TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle = pgl::Triangle<Point>;
@@ -368,30 +313,21 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
 
     const Halfplane upper({0, 0}, {4, 0});
 
-    CHECK(upper.interiorsIntersect(Line({0, -1}, {4, 3})));
-    CHECK(upper.interiorsIntersect(OrientedLine({4, 3}, {0, -1})));
     CHECK(upper.interiorsIntersect(Segment({1, -1}, {3, 2})));
-    CHECK(upper.interiorsIntersect(OrientedSegment({3, 2}, {1, -1})));
     CHECK(upper.interiorsIntersect(Ray({1, -2}, {3, 1})));
     CHECK(upper.interiorsIntersect(Rectangle({1, -1}, {3, 2})));
     CHECK(upper.interiorsIntersect(Halfplane({1, -1}, {1, 1})));
     CHECK(upper.interiorsIntersect(Triangle({0, 0}, {2, 0}, {1, 1})));
     CHECK(upper.interiorsIntersect(Shape(Rectangle({1, -1}, {3, 2}))));
 
-    CHECK_FALSE(upper.separates(Line({0, -1}, {4, 3})));
-    CHECK_FALSE(upper.separates(OrientedLine({4, 3}, {0, -1})));
     CHECK_FALSE(upper.separates(Segment({1, -1}, {3, 2})));
-    CHECK_FALSE(upper.separates(OrientedSegment({3, 2}, {1, -1})));
     CHECK_FALSE(upper.separates(Ray({1, -2}, {3, 1})));
     CHECK_FALSE(upper.separates(Rectangle({1, -1}, {3, 2})));
     CHECK_FALSE(upper.separates(Halfplane({1, -1}, {1, 1})));
     CHECK_FALSE(upper.separates(Triangle({0, 0}, {2, 0}, {1, 1})));
     CHECK_FALSE(upper.separates(Shape(Rectangle({1, -1}, {3, 2}))));
 
-    CHECK_FALSE(upper.crosses(Line({0, -1}, {4, 3})));
-    CHECK_FALSE(upper.crosses(OrientedLine({4, 3}, {0, -1})));
     CHECK_FALSE(upper.crosses(Segment({1, -1}, {3, 2})));
-    CHECK_FALSE(upper.crosses(OrientedSegment({3, 2}, {1, -1})));
     CHECK_FALSE(upper.crosses(Ray({1, -2}, {3, 1})));
     CHECK_FALSE(upper.crosses(Rectangle({1, -1}, {3, 2})));
     CHECK_FALSE(upper.crosses(Halfplane({1, -1}, {1, 1})));
@@ -399,57 +335,13 @@ TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
     CHECK_FALSE(upper.crosses(Shape(Rectangle({1, -1}, {3, 2}))));
 }
 
-TEST_CASE("Halfplane intersections clip lines and oriented lines into points, rays, or whole lines") {
-    using Point = pgl::Point<int>;
-    using Rational = pgl::Rational<int>;
-    using RationalPoint = pgl::Point<Rational>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Line = pgl::Line<Point>;
-    using RationalRay = pgl::Ray<RationalPoint>;
-    using OrientedLine = pgl::OrientedLine<Point>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-
-    const auto crossing = upper.intersection<Rational>(Line({0, -1}, {3, 1}));
-    REQUIRE(crossing);
-    REQUIRE(std::holds_alternative<RationalRay>(*crossing));
-    const auto& crossing_ray = std::get<RationalRay>(*crossing);
-    CHECK(crossing_ray.source() == RationalPoint(Rational(3, 2), Rational(0)));
-    CHECK(crossing_ray.contains(RationalPoint(3, 1)));
-    CHECK(upper.contains(crossing_ray.target()));
-
-    const auto inside_parallel = upper.intersection(Line({0, 2}, {4, 2}));
-    REQUIRE(inside_parallel);
-    REQUIRE(std::holds_alternative<Line>(*inside_parallel));
-    CHECK(std::get<Line>(*inside_parallel) == Line({0, 2}, {4, 2}));
-
-    const auto boundary = upper.intersection(Line({0, 0}, {4, 0}));
-    REQUIRE(boundary);
-    REQUIRE(std::holds_alternative<Line>(*boundary));
-    CHECK(std::get<Line>(*boundary) == Line({0, 0}, {4, 0}));
-
-    CHECK_FALSE(upper.intersection(Line({0, -2}, {4, -2})));
-
-    const auto oriented_crossing = upper.intersection<Rational>(OrientedLine({3, 1}, {0, -1}));
-    REQUIRE(oriented_crossing);
-    REQUIRE(std::holds_alternative<RationalRay>(*oriented_crossing));
-    CHECK(std::get<RationalRay>(*oriented_crossing).source() == RationalPoint(Rational(3, 2), Rational(0)));
-
-    const Halfplane degenerate({0, 0}, {0, 0});
-    const auto degenerate_hit = degenerate.intersection(Line({-1, -1}, {1, 1}));
-    REQUIRE(degenerate_hit);
-    REQUIRE(std::holds_alternative<Point>(*degenerate_hit));
-    CHECK(std::get<Point>(*degenerate_hit) == Point(0, 0));
-}
-
-TEST_CASE("Halfplane intersections clip segments and oriented segments") {
+TEST_CASE("Halfplane intersections clip segments") {
     using Point = pgl::Point<int>;
     using Rational = pgl::Rational<int>;
     using RationalPoint = pgl::Point<Rational>;
     using Halfplane = pgl::Halfplane<Point>;
     using Segment = pgl::Segment<Point>;
     using RationalSegment = pgl::Segment<RationalPoint>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
 
     const Halfplane upper({0, 0}, {4, 0});
 
@@ -475,12 +367,6 @@ TEST_CASE("Halfplane intersections clip segments and oriented segments") {
     CHECK(std::get<Point>(*touching) == Point(0, 0));
 
     CHECK_FALSE(upper.intersection(Segment({1, -3}, {3, -1})));
-
-    const auto oriented_crossing = upper.intersection<Rational>(OrientedSegment({3, 1}, {0, -1}));
-    REQUIRE(oriented_crossing);
-    REQUIRE(std::holds_alternative<RationalSegment>(*oriented_crossing));
-    CHECK(std::get<RationalSegment>(*oriented_crossing) == RationalSegment(RationalPoint(Rational(3, 2), Rational(0)),
-                                                                           RationalPoint(Rational(3), Rational(1))));
 }
 
 TEST_CASE("Halfplane intersections clip rays into points, segments, or rays") {

@@ -289,9 +289,7 @@ TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
 TEST_CASE("Convex::boundaryContains handles every shape category") {
     using Point          = pgl::Point<int>;
     using Segment        = pgl::Segment<Point>;
-    using OrientedSeg    = pgl::OrientedSegment<Point>;
     using Line           = pgl::Line<Point>;
-    using OrientedLine_  = pgl::OrientedLine<Point>;
     using Ray            = pgl::Ray<Point>;
     using Halfplane      = pgl::Halfplane<Point>;
     using Rectangle      = pgl::Rectangle<Point>;
@@ -309,14 +307,8 @@ TEST_CASE("Convex::boundaryContains handles every shape category") {
         CHECK_FALSE(sq.boundaryContains(Segment({-1,0},{5,0}))); // extends past edge
     }
 
-    SUBCASE("oriented segment delegates to unoriented") {
-        CHECK(sq.boundaryContains(OrientedSeg({3,0},{1,0})));
-        CHECK_FALSE(sq.boundaryContains(OrientedSeg({1,1},{3,3})));
-    }
-
-    SUBCASE("non-degenerate line / oriented line / ray / halfplane are never on the boundary") {
+    SUBCASE("non-degenerate line / ray / halfplane are never on the boundary") {
         CHECK_FALSE(sq.boundaryContains(Line({0,0},{4,0})));
-        CHECK_FALSE(sq.boundaryContains(OrientedLine_({0,0},{4,0})));
         CHECK_FALSE(sq.boundaryContains(Ray({0,0},{4,0})));
         CHECK_FALSE(sq.boundaryContains(Halfplane({0,0},{4,0})));
     }
