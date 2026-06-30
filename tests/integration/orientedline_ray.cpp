@@ -16,11 +16,11 @@ TEST_CASE("OrientedLine containment of Ray, both directions") {
     SUBCASE("collinear ray is contained by the oriented line; orientation of ray is ignored") {
         const Ray forward({1, 1}, {3, 3});   // same direction as diagonal
         const Ray backward({3, 3}, {1, 1});  // opposite direction, still on the line
-        const Ray far({50, 50}, {60, 60});   // far past defining points
+        const Ray distant({50, 50}, {60, 60});   // far past defining points
         CHECK_MESSAGE(diagonal.contains(forward), diagonal, " contains ", forward);
         CHECK_MESSAGE(diagonal.interiorContains(forward), diagonal, " interiorContains ", forward);
         CHECK_MESSAGE(diagonal.contains(backward), diagonal, " contains ", backward);
-        CHECK_MESSAGE(diagonal.contains(far), diagonal, " contains ", far);
+        CHECK_MESSAGE(diagonal.contains(distant), diagonal, " contains ", distant);
     }
 
     SUBCASE("off-line ray is not contained") {

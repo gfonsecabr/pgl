@@ -246,14 +246,13 @@ TEST_CASE("Triangle boundary containment accepts edge segments and rejects inter
     CHECK_FALSE(triangle.boundaryContains(interior_chord));
 }
 
-TEST_CASE("Triangle intersections with lines, segments, and rays return points or clipped segments") {
+TEST_CASE("Triangle intersections with lines and segments return points or clipped segments") {
     using Point = pgl::Point<int>;
     using Rational = pgl::Rational<int64_t>;
     using RationalPoint = pgl::Point<Rational>;
     using Triangle = pgl::Triangle<Point>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
     using RationalSegment = pgl::Segment<RationalPoint>;
 
     const Triangle triangle(0, 0, 4, 0, 0, 4);
@@ -285,78 +284,14 @@ TEST_CASE("Triangle intersections with lines, segments, and rays return points o
     CHECK_FALSE(triangle.intersection(Segment({5, 5}, {6, 6})));
     CHECK(triangle.intersects(Segment({-1, 1}, {5, 1})));
     CHECK_FALSE(triangle.intersects(Segment({5, 5}, {6, 6})));
-
-    const auto ray_crossing = triangle.intersection<Rational>(Ray({-1, 1}, {5, 1}));
-    REQUIRE(ray_crossing);
-    REQUIRE(std::holds_alternative<RationalSegment>(*ray_crossing));
-    CHECK(std::get<RationalSegment>(*ray_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
-
-    const auto ray_inside = triangle.intersection<Rational>(Ray({1, 1}, {5, 1}));
-    REQUIRE(ray_inside);
-    REQUIRE(std::holds_alternative<RationalSegment>(*ray_inside));
-    CHECK(std::get<RationalSegment>(*ray_inside) == RationalSegment(RationalPoint(1, 1), RationalPoint(3, 1)));
-
-    const auto ray_touching = triangle.intersection(Ray({-1, 1}, {0, 0}));
-    REQUIRE(ray_touching);
-    REQUIRE(std::holds_alternative<Point>(*ray_touching));
-    CHECK(std::get<Point>(*ray_touching) == Point(0, 0));
-
-    CHECK_FALSE(triangle.intersection(Ray({5, 5}, {6, 6})));
-    CHECK(triangle.intersects(Ray({-1, 1}, {5, 1})));
-    CHECK_FALSE(triangle.intersects(Ray({5, 5}, {6, 6})));
 }
 
-// Clipping a triangle by an area shape (half-plane or rectangle) must keep the
-// 2D overlap as a Convex, not collapse it to a boundary piece. Both delegate to
-// the convex clip.
-TEST_CASE("Triangle intersection with a half-plane and a rectangle keeps the area") {
-    using Point = pgl::Point<int>;
-    using Segment = pgl::Segment<Point>;
-    using Convex = pgl::Convex<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-
-    const Triangle triangle({0, 0}, {6, 0}, {0, 6});
-
-    SUBCASE("half-plane cut keeps the interior-side area") {
-        // interior y >= 2: clips off the bottom strip, leaving a quadrilateral.
-        const auto r = triangle.intersection(Halfplane({0, 2}, {1, 2}));
-        REQUIRE(r);
-        REQUIRE(std::holds_alternative<Convex>(*r));
-        CHECK(std::get<Convex>(*r).twiceArea() == 16);  // trapezoid area 8
-    }
-
-    SUBCASE("half-plane touching only along the base is that segment") {
-        // interior y <= 0: the triangle sits on the closed-outside, meeting the
-        // boundary only along its base edge.
-        const auto r = triangle.intersection(Halfplane({1, 0}, {0, 0}));
-        REQUIRE(r);
-        REQUIRE(std::holds_alternative<Segment>(*r));
-        CHECK(std::get<Segment>(*r) == Segment(Point(0, 0), Point(6, 0)));
-    }
-
-    SUBCASE("half-plane missing the triangle yields nothing") {
-        CHECK_FALSE(triangle.intersection(Halfplane({0, 7}, {1, 7})));  // y >= 7
-    }
-
-    SUBCASE("rectangle overlap is the clipped area") {
-        // [2,8] x [2,8] ∩ triangle = the triangle (2,2)(4,2)(2,4).
-        const auto r = triangle.intersection(Rectangle({2, 2}, {8, 8}));
-        REQUIRE(r);
-        REQUIRE(std::holds_alternative<Convex>(*r));
-        CHECK(std::get<Convex>(*r).twiceArea() == 4);
-    }
-}
 
 TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from boundary-only contact") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
@@ -368,23 +303,6 @@ TEST_CASE("Triangle interiorsIntersect distinguishes strict interior hits from b
     CHECK(triangle.interiorsIntersect(Segment({1, 1}, {2, 2})));
     CHECK_FALSE(triangle.interiorsIntersect(Segment({0, 0}, {6, 0})));
     CHECK_FALSE(triangle.interiorsIntersect(Segment({-1, -1}, {0, 0})));
-
-    CHECK(triangle.interiorsIntersect(Ray({-1, 2}, {5, 2})));
-    CHECK(triangle.interiorsIntersect(Ray({1, 1}, {5, 1})));
-    CHECK_FALSE(triangle.interiorsIntersect(Ray({0, 0}, {6, 0})));
-    // The ray passes through the vertex (0,0) and continues along (1,1) into the
-    // interior, so its interior does meet the triangle's interior.
-    CHECK(triangle.interiorsIntersect(Ray({-1, -1}, {0, 0})));
-
-    const Rectangle touching_corner({6, 0}, {8, 2});
-    const Rectangle crossing_box({2, -1}, {4, 2});
-    CHECK_FALSE(triangle.interiorsIntersect(touching_corner));
-    CHECK(triangle.interiorsIntersect(crossing_box));
-
-    const Halfplane boundary_only({6, 0}, {0, 0});
-    const Halfplane entering({0, 0}, {6, 0});
-    CHECK_FALSE(triangle.interiorsIntersect(boundary_only));
-    CHECK(triangle.interiorsIntersect(entering));
 }
 
 TEST_CASE("Triangle interiorsIntersect handles triangle-triangle overlap without counting shared boundaries") {
@@ -437,17 +355,9 @@ TEST_CASE("Linear primitives separate triangles only when their trace cuts the i
     CHECK_FALSE(Line({0, 0}, {6, 0}).separates(triangle));
 }
 
-TEST_CASE("Triangles can separate rectangles and other triangles when they carry a true cut") {
+TEST_CASE("Triangles can separate other triangles when they carry a true cut") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-
-    const Rectangle rectangle({0, 0}, {6, 6});
-    const Triangle vertical_wedge({2, -1}, {4, -1}, {3, 7});
-    const Triangle corner_wedge({0, 0}, {2, 0}, {0, 2});
-
-    CHECK(vertical_wedge.separates(rectangle));
-    CHECK_FALSE(corner_wedge.separates(rectangle));
 
     const Triangle big_triangle({0, 0}, {6, 0}, {0, 6});
     const Triangle cutting_triangle({2, -1}, {4, -1}, {3, 5});

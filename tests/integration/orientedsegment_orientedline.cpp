@@ -65,9 +65,9 @@ TEST_CASE("OrientedSegment and OrientedLine intersection predicates, both direct
     }
 
     SUBCASE("disjoint: no intersection") {
-        const OrientedLine far({10, 0}, {10, 5});
-        CHECK_FALSE_MESSAGE(far.intersects(horiz), far, " intersects ", horiz);
-        CHECK_FALSE_MESSAGE(horiz.intersects(far), horiz, " intersects ", far);
+        const OrientedLine distant({10, 0}, {10, 5});
+        CHECK_FALSE_MESSAGE(distant.intersects(horiz), distant, " intersects ", horiz);
+        CHECK_FALSE_MESSAGE(horiz.intersects(distant), horiz, " intersects ", distant);
     }
 }
 
@@ -133,7 +133,7 @@ TEST_CASE("OrientedSegment and OrientedLine intersection construction, both dire
     }
 
     SUBCASE("disjoint: empty result") {
-        const OrientedLine far({10, 0}, {10, 5});
-        CHECK_FALSE_MESSAGE(far.intersection(horiz), "far ∩ horiz should be empty");
+        const OrientedLine distant({10, 0}, {10, 5});
+        CHECK_FALSE_MESSAGE(distant.intersection(horiz), "distant ∩ horiz should be empty");
     }
 }

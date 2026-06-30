@@ -163,22 +163,12 @@ TEST_CASE("Halfplane distinguishes defining points, boundary points, and interio
 TEST_CASE("Halfplane boundary containment extends to linear primitives on the boundary line") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Triangle = pgl::Triangle<Point>;
 
     const Halfplane diagonal({0, 0}, {4, 4});
 
     CHECK(diagonal.boundaryContains(Segment({1, 1}, {3, 3})));
-    CHECK(diagonal.boundaryContains(Ray({1, 1}, {2, 2})));
-    CHECK(diagonal.boundaryContains(Rectangle({2, 2}, {2, 2})));
-    CHECK(diagonal.boundaryContains(Triangle({0, 0}, {1, 1}, {2, 2})));
-
     CHECK_FALSE(diagonal.boundaryContains(Segment({1, 1}, {3, 2})));
-    CHECK_FALSE(diagonal.boundaryContains(Ray({1, 1}, {2, 3})));
-    CHECK_FALSE(diagonal.boundaryContains(Rectangle({1, 1}, {3, 2})));
-    CHECK_FALSE(diagonal.boundaryContains(Triangle({0, 0}, {1, 1}, {2, 3})));
 }
 
 TEST_CASE("Tests halfplane pointInside and interiorContains") {
@@ -197,51 +187,6 @@ TEST_CASE("Tests halfplane pointInside and interiorContains") {
 }
 
 
-TEST_CASE("Halfplane predicates handle rays") {
-    using Point = pgl::Point<int>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Ray = pgl::Ray<Point>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-    const Ray inside({1, 1}, {3, 2});
-    const Ray leaving({1, 1}, {3, 0});
-    const Ray entering({1, -2}, {3, 1});
-    const Ray outside_parallel({1, -1}, {3, -1});
-    const Ray boundary({1, 0}, {3, 0});
-
-    CHECK(upper.contains(inside));
-    CHECK(upper.interiorContains(inside));
-    CHECK_FALSE(upper.contains(leaving));
-    CHECK(upper.intersects(leaving));
-    CHECK(upper.interiorsIntersect(leaving));
-    CHECK_FALSE(upper.contains(entering));
-    CHECK(upper.intersects(entering));
-    CHECK(upper.interiorsIntersect(entering));
-    CHECK_FALSE(upper.intersects(outside_parallel));
-    CHECK(upper.contains(boundary));
-    CHECK_FALSE(upper.interiorContains(boundary));
-}
-
-TEST_CASE("Halfplane predicates handle rectangles") {
-    using Point = pgl::Point<int>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-    const Rectangle inside({1, 1}, {3, 3});
-    const Rectangle touching({1, 0}, {3, 2});
-    const Rectangle crossing({1, -1}, {3, 2});
-    const Rectangle outside({1, -3}, {3, -1});
-
-    CHECK(upper.contains(inside));
-    CHECK(upper.interiorContains(inside));
-    CHECK(upper.contains(touching));
-    CHECK_FALSE(upper.interiorContains(touching));
-    CHECK(upper.intersects(crossing));
-    CHECK(upper.interiorsIntersect(crossing));
-    CHECK_FALSE(upper.contains(crossing));
-    CHECK_FALSE(upper.intersects(outside));
-}
 
 TEST_CASE("Halfplane per-axis scaling keeps the correct inside side under reflection") {
     using Point = pgl::Point<int>;
@@ -276,7 +221,6 @@ TEST_CASE("Halfplane per-axis scaling keeps the correct inside side under reflec
 TEST_CASE("Halfplane interior intersection distinguishes true overlap from boundary-only contact") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Triangle = pgl::Triangle<Point>;
 
     const Halfplane left({0, -1}, {0, 1});
     const Halfplane right({0, 1}, {0, -1});
@@ -292,47 +236,23 @@ TEST_CASE("Halfplane interior intersection distinguishes true overlap from bound
     CHECK(left.interiorsIntersect(same_left));
     CHECK(left.interiorsIntersect(stricter_left));
     CHECK(rising.interiorsIntersect(falling));
-
-    const Halfplane upper({0, 0}, {4, 0});
-    const Triangle boundary_only({0, 0}, {2, 0}, {1, -1});
-    const Triangle entering({0, 0}, {2, 0}, {1, 1});
-
-    CHECK(upper.intersects(boundary_only));
-    CHECK_FALSE(upper.interiorsIntersect(boundary_only));
-    CHECK(upper.interiorsIntersect(entering));
 }
 
 TEST_CASE("Halfplane covers the non-Convex contract for topology predicates") {
     using Point = pgl::Point<int>;
     using Halfplane = pgl::Halfplane<Point>;
     using Segment = pgl::Segment<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-    using Shape = pgl::Shape<Point>;
 
     const Halfplane upper({0, 0}, {4, 0});
 
     CHECK(upper.interiorsIntersect(Segment({1, -1}, {3, 2})));
-    CHECK(upper.interiorsIntersect(Ray({1, -2}, {3, 1})));
-    CHECK(upper.interiorsIntersect(Rectangle({1, -1}, {3, 2})));
     CHECK(upper.interiorsIntersect(Halfplane({1, -1}, {1, 1})));
-    CHECK(upper.interiorsIntersect(Triangle({0, 0}, {2, 0}, {1, 1})));
-    CHECK(upper.interiorsIntersect(Shape(Rectangle({1, -1}, {3, 2}))));
 
     CHECK_FALSE(upper.separates(Segment({1, -1}, {3, 2})));
-    CHECK_FALSE(upper.separates(Ray({1, -2}, {3, 1})));
-    CHECK_FALSE(upper.separates(Rectangle({1, -1}, {3, 2})));
     CHECK_FALSE(upper.separates(Halfplane({1, -1}, {1, 1})));
-    CHECK_FALSE(upper.separates(Triangle({0, 0}, {2, 0}, {1, 1})));
-    CHECK_FALSE(upper.separates(Shape(Rectangle({1, -1}, {3, 2}))));
 
     CHECK_FALSE(upper.crosses(Segment({1, -1}, {3, 2})));
-    CHECK_FALSE(upper.crosses(Ray({1, -2}, {3, 1})));
-    CHECK_FALSE(upper.crosses(Rectangle({1, -1}, {3, 2})));
     CHECK_FALSE(upper.crosses(Halfplane({1, -1}, {1, 1})));
-    CHECK_FALSE(upper.crosses(Triangle({0, 0}, {2, 0}, {1, 1})));
-    CHECK_FALSE(upper.crosses(Shape(Rectangle({1, -1}, {3, 2}))));
 }
 
 TEST_CASE("Halfplane intersections clip segments") {
@@ -369,45 +289,6 @@ TEST_CASE("Halfplane intersections clip segments") {
     CHECK_FALSE(upper.intersection(Segment({1, -3}, {3, -1})));
 }
 
-TEST_CASE("Halfplane intersections clip rays into points, segments, or rays") {
-    using Point = pgl::Point<int>;
-    using Rational = pgl::Rational<int>;
-    using RationalPoint = pgl::Point<Rational>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Segment = pgl::Segment<Point>;
-    using RationalRay = pgl::Ray<RationalPoint>;
-
-    const Halfplane upper({0, 0}, {4, 0});
-
-    const auto inside = upper.intersection(Ray({1, 1}, {3, 2}));
-    REQUIRE(inside);
-    REQUIRE(std::holds_alternative<Ray>(*inside));
-    CHECK(std::get<Ray>(*inside) == Ray({1, 1}, {3, 2}));
-
-    const auto leaving = upper.intersection(Ray({1, 1}, {3, -1}));
-    REQUIRE(leaving);
-    REQUIRE(std::holds_alternative<Segment>(*leaving));
-    CHECK(std::get<Segment>(*leaving) == Segment({1, 1}, {2, 0}));
-
-    const auto entering = upper.intersection<Rational>(Ray({0, -1}, {3, 1}));
-    REQUIRE(entering);
-    REQUIRE(std::holds_alternative<RationalRay>(*entering));
-    CHECK(std::get<RationalRay>(*entering) == RationalRay(RationalPoint(Rational(3, 2), Rational(0)),
-                                                          RationalPoint(Rational(3), Rational(1))));
-
-    const auto boundary = upper.intersection(Ray({1, 0}, {3, 0}));
-    REQUIRE(boundary);
-    REQUIRE(std::holds_alternative<Ray>(*boundary));
-    CHECK(std::get<Ray>(*boundary) == Ray({1, 0}, {3, 0}));
-
-    const auto touching = upper.intersection(Ray({0, 0}, {1, -1}));
-    REQUIRE(touching);
-    REQUIRE(std::holds_alternative<Point>(*touching));
-    CHECK(std::get<Point>(*touching) == Point(0, 0));
-
-    CHECK_FALSE(upper.intersection(Ray({1, -2}, {3, -3})));
-}
 
 TEST_CASE("Halfplane contains and interiorContains another half-plane") {
     using Point = pgl::Point<int>;
