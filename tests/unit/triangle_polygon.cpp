@@ -149,3 +149,40 @@ TEST_CASE("Triangle and Polygon meet predicates") {
         CHECK_FALSE(away.interiorsIntersect(t));
     }
 }
+
+// Polygon::intersection(Triangle) forwards to the Convex overload via
+// Triangle::asConvex. ERational keeps fractional crossings exact.
+TEST_CASE("Polygon::intersection(Triangle) forwards via the convex representation") {
+    using EPoint = pgl::Point<pgl::ERational>;
+    using EPolygon = pgl::Polygon<EPoint>;
+
+    const pgl::Polygon<pgl::Point<int>> square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("overlapping region matches the explicit convex overload") {
+        const pgl::Triangle<pgl::Point<int>> t(pgl::Point<int>(-2, 5), pgl::Point<int>(12, 5),
+                                               pgl::Point<int>(5, 14));
+        const auto pieces = square.intersection<pgl::ERational>(t);
+
+        CHECK(pieces == square.intersection<pgl::ERational>(t.asConvex()));
+        pgl::ERational area2(0);
+        for (const auto& v : pieces)
+            if (std::holds_alternative<EPolygon>(v)) area2 += std::get<EPolygon>(v).twiceArea();
+        CHECK(area2 > pgl::ERational(0));
+    }
+
+    SUBCASE("a fully contained triangle is returned intact") {
+        const pgl::Triangle<pgl::Point<int>> t(pgl::Point<int>(2, 2), pgl::Point<int>(8, 2),
+                                               pgl::Point<int>(5, 8));
+        const auto pieces = square.intersection<pgl::ERational>(t);
+
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<EPolygon>(pieces[0]));
+        CHECK(std::get<EPolygon>(pieces[0]).twiceArea() == pgl::ERational(36));  // 6x6/2 x2
+    }
+
+    SUBCASE("disjoint triangle yields no intersection") {
+        const pgl::Triangle<pgl::Point<int>> away(pgl::Point<int>(20, 20), pgl::Point<int>(30, 20),
+                                                  pgl::Point<int>(25, 30));
+        CHECK(square.intersection<pgl::ERational>(away).empty());
+    }
+}

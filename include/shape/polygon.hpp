@@ -1215,6 +1215,51 @@ struct Polygon {
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherPolygon& other) const;
 
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the @ref intersection(const Polygon&) overload via the convex
+     * polygon's @ref Convex::asPolygon representation.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherConvex The convex polygon type.
+     * @param other The convex polygon to intersect with.
+     * @return The intersection components: points, polylines, and polygons.
+     */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the @ref intersection(const Convex&) overload via the
+     * triangle's @ref Triangle::asConvex representation.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherTriangle The triangle type.
+     * @param other The triangle to intersect with.
+     * @return The intersection components: points, polylines, and polygons.
+     */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherTriangle& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the @ref intersection(const Convex&) overload via the
+     * rectangle's @ref Rectangle::asConvex representation.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherRectangle The rectangle type.
+     * @param other The rectangle to intersect with.
+     * @return The intersection components: points, polylines, and polygons.
+     */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRectangle& other) const;
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {

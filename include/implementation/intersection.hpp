@@ -2175,6 +2175,27 @@ Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
 }
 
 template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType, LabelType>::intersection(const OtherConvex& other) const {
+    return this->template intersection<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType, LabelType>::intersection(const OtherTriangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+Polygon<PointType, LabelType>::intersection(const OtherRectangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
