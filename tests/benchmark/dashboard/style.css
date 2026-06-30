@@ -203,3 +203,54 @@ dialog#chart-dialog::backdrop {
 }
 #chart-close:hover { color: var(--orange-d); }
 .dialog-body { height: calc(92vh - 52px); padding: 16px; }
+
+/* ---- filter bar: one multi-select chip group per cube dimension ---- */
+.filters {
+  max-width: 1340px; margin: 0 auto; padding: 14px 24px 0;
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start;
+}
+.filter-group { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.filter-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--muted); background: none; border: none; cursor: pointer;
+  padding: 2px 0; white-space: nowrap;
+}
+.filter-label:hover { color: var(--blue); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  font-family: var(--font); font-size: 12px; line-height: 1;
+  padding: 5px 9px; border-radius: 999px; cursor: pointer;
+  color: var(--muted); background: #fff; border: 1px solid var(--sep);
+  transition: background .12s, color .12s, border-color .12s;
+}
+.chip:hover { border-color: var(--blue); color: var(--blue); }
+.chip.on {
+  color: #fff; background: var(--blue); border-color: var(--blue);
+}
+.swap-btn {
+  margin-left: auto; align-self: center;
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  color: var(--blue); background: #fff; border: 1px solid var(--sep);
+}
+.swap-btn:hover { border-color: var(--blue); background: var(--tint); }
+
+/* ---- pivot grid: facet tables tile to fill the row ---- */
+main#suites {
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+
+/* ---- cross-type correctness marker ---- */
+td.val .warn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; margin-left: 2px; flex: 0 0 auto;
+  font-size: 10px; font-weight: 700; color: #fff; background: var(--red);
+  border-radius: 50%; cursor: help;
+}
+
+/* ---- separate section for whole-algorithm benchmarks ---- */
+.section-title {
+  max-width: 1340px; margin: 26px auto 0; padding: 0 24px;
+  font-size: 14px; font-weight: 700; letter-spacing: .3px; color: var(--blue-d);
+}
+.extra-section { border-top: 1px solid var(--sep); margin-top: 18px; padding-top: 4px; }

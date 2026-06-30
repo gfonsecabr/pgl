@@ -11,9 +11,9 @@ on:
       - 'doc/**'
       - 'examples/**'
       - 'Doxyfile'
-      - 'benchmark/history/**'
-      - 'benchmark/dashboard/**'
-      - 'benchmark/support/build_dashboard.py'
+      - 'tests/benchmark/history/**'
+      - 'tests/benchmark/dashboard/**'
+      - 'tests/benchmark/build_dashboard.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -96,9 +96,10 @@ jobs:
           rm -rf site
           mkdir -p site
           cp -r build/doc/html/. site/
-          python3 benchmark/support/build_dashboard.py \
-            --history benchmark/history \
-            --dashboard benchmark/dashboard \
+          python3 tests/benchmark/build_dashboard.py \
+            --history tests/benchmark/history \
+            --dashboard tests/benchmark/dashboard \
+            --bench-root tests/benchmark \
             --repo-url "https://github.com/${GITHUB_REPOSITORY}/blob/main/" \
             --out site/benchmarks
 

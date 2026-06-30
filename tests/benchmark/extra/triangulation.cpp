@@ -1,11 +1,9 @@
-// g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithms/triangulation.cpp
 // @desc: Triangulation benchmark over 10k random points in [0,10000]^2 and random query segments in [0,10000]^2.
 #include <cstdint>
 #include <iostream>
 #include <vector>
 #include "pgl.hpp"
-#include "../support/plf_nanotimer.h"
-#include "../support/filter.hpp"
+#include "../plf_nanotimer.h"
 
 
 constexpr int kShapes = 10000;
@@ -122,18 +120,10 @@ void run(const char* label) {
 int main() {
     std::cout << "Operation\t\t\tNumber\t\tResult\tTime(μs)" << std::endl;
 
-    if (pgl_benchmark::numberEnabled("int")) {
-        run<int>("int");
-    }
-    if (pgl_benchmark::numberEnabled("double")) {
-        run<double>("double");
-    }
-    if (pgl_benchmark::numberEnabled("rational")) {
-        run<pgl::Rational<>>("Rational i64");
-    }
-    if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        run<pgl::Rational<pgl::BigInt>>("Rational BigInt");
-    }
+    run<int>("int");
+    run<double>("double");
+    run<pgl::Rational<>>("Rational");
+    run<pgl::ERational>("ERational");
 
     return 0;
 }

@@ -1,0 +1,166 @@
+#pragma once
+#include "pgl.hpp"
+
+#include <set>
+#include <vector>
+
+constexpr int largeRange = 10000;
+constexpr int smallRange = 1000;
+
+struct Rng {
+    std::uint64_t state;
+    std::uint64_t next() {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        return state >> 33;
+    }
+    int range(int hi) {
+        return static_cast<int>(next() % static_cast<std::uint64_t>(hi + 1));
+    }
+};
+
+template <class Number>
+pgl::Point<Number> randomPoint(Rng& rng, int range) {
+    auto center = pgl::Point<Number>(range/2, range/2);
+    pgl::Disk<pgl::Point<Number>> disk(center, Number(range/2));
+    while (true) {
+        const int x = rng.range(range);
+        const int y = rng.range(range);
+        const auto p = pgl::Point<Number>(Number(x), Number(y));
+        if (disk.contains(p)) {
+            return p - center;
+        }
+    }
+    return pgl::Point<Number>(0, 0); // unreachable
+}
+
+
+template <class Number>
+std::vector<pgl::Point<Number>> randomPoints(int n) {
+    using Point = pgl::Point<Number>;
+    Rng rng{0};
+    std::vector<Point> v;
+    std::set<Point> seen;
+    v.reserve(static_cast<std::size_t>(n));
+    while (static_cast<int>(v.size()) < n) {
+        const auto p = randomPoint<Number>(rng, largeRange);
+        if (seen.insert(p).second) {
+            v.emplace_back(p);
+        }
+    }
+    return v;
+}
+
+template <class S>
+std::vector<S> randomSmallBishape(int n) {
+    using Number = typename S::NumberType;
+    std::vector<S> w;
+    std::set<S> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, largeRange);
+        const auto p2 = p1 + randomPoint<Number>(rng, smallRange);
+        S s(p1, p2);
+        if (!s.isDegenerate() && seen.insert(s).second) {
+            w.emplace_back(s);
+        }
+    }
+    return w;
+}
+
+
+template <class S>
+std::vector<S> randomLargeBishape(int n) {
+    using Number = typename S::NumberType;
+    std::vector<S> w;
+    std::set<S> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, largeRange);
+        const auto p2 = randomPoint<Number>(rng, largeRange);
+        S s(p1, p2);
+        if (!s.isDegenerate() && seen.insert(s).second) {
+            w.emplace_back(s);
+        }
+    }
+    return w;
+}
+
+template <class S>
+std::vector<S> randomSmallTrishape(int n) {
+    using Number = typename S::NumberType;
+    std::vector<S> w;
+    std::set<S> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, largeRange);
+        const auto p2 = p1 + randomPoint<Number>(rng, smallRange);
+        const auto p3 = p1 + randomPoint<Number>(rng, smallRange);
+        S s(p1, p2, p3);
+        if (!s.isDegenerate() && seen.insert(s).second) {
+            w.emplace_back(s);
+        }
+    }
+    return w;
+}
+
+template <class S>
+std::vector<S> randomLargeTrishape(int n) {
+    using Number = typename S::NumberType;
+    std::vector<S> w;
+    std::set<S> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, largeRange);
+        const auto p2 = randomPoint<Number>(rng, largeRange);
+        const auto p3 = randomPoint<Number>(rng, largeRange);
+        S s(p1, p2, p3);
+        if (!s.isDegenerate() && seen.insert(s).second) {
+            w.emplace_back(s);
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Convex<pgl::Point<Number>>> randomSmallConvexes(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Convex = pgl::Convex<Point>;
+    std::vector<Convex> w;
+    std::set<Convex> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Convex<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, largeRange);
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, smallRange));
+        }
+        Convex s(points);
+        if (!s.isDegenerate()) {
+            const auto shifted = p1 + s;
+            if (seen.insert(shifted).second) {
+                w.push_back(shifted);
+            }
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Convex<pgl::Point<Number>>> randomLargeConvexes(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Convex = pgl::Convex<Point>;
+    std::vector<Convex> w;
+    std::set<Convex> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Convex<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, largeRange));
+        }
+        Convex s(points);
+        if (!s.isDegenerate() && seen.insert(s).second) {
+            w.push_back(s);
+        }
+    }
+    return w;
+}

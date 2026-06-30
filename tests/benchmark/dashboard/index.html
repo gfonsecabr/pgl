@@ -14,11 +14,6 @@
     <a href="../index.html">Pangolin</a><span>benchmarks</span>
   </div>
   <div class="controls">
-    <label class="filter-box">Filter
-      <input id="filter" type="search" placeholder="regex…" autocomplete="off"
-             autocapitalize="off" spellcheck="false"
-             aria-label="Filter benchmarks by regular expression"/>
-    </label>
     <div class="legend"><span>best</span><i class="grad"></i><span>worst</span></div>
     <label class="machine-picker">Machine
       <select id="machine"></select>
@@ -26,8 +21,19 @@
   </div>
 </header>
 
+<!-- One multi-select chip group per cube dimension. The two highest-priority
+     dimensions that still have >1 value selected become the table columns and
+     rows; any further multi-valued dimensions facet into a grid of tables. -->
+<section id="filters" class="filters"></section>
+
 <div id="summary" class="summary"></div>
 <main id="suites"></main>
+
+<section id="extra-section" class="extra-section">
+  <h1 class="section-title">Whole-algorithm benchmarks</h1>
+  <main id="extra"></main>
+</section>
+
 <p id="generated" class="generated"></p>
 
 <div id="spark-pop" role="tooltip"></div>

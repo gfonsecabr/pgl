@@ -1,4 +1,3 @@
-// g++ -DNDEBUG -Ofast -Iinclude -std=c++23 benchmark/algorithms/bentleyottmann.cpp
 // @desc: 100k short segments: a random endpoint with x,y in [-1000,1000] plus a
 //        per-axis offset of up to +/-5. Sweep-line vs brute force. Polygons made of 100k
 //        random points in [-1000,1000].
@@ -6,8 +5,7 @@
 #include <vector>
 #include <iostream>
 #include "pgl.hpp"
-#include "../support/plf_nanotimer.h"
-#include "../support/filter.hpp"
+#include "../plf_nanotimer.h"
 
 
 template<class Point>
@@ -85,53 +83,30 @@ void simplicity(bool star) {
 
     double t = timer.get_elapsed_ms();
     std::cout << t << std::endl;
-
-
 }
 
 
 int main() {
     std::cout << "Operation\t\tNumber\t\tResult\tTime(ms)" << std::endl;
 
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "intersectionsBF\t\tint\t\t";
-        run<int>(false, true);
-    }
-    if (pgl_benchmark::numberEnabled("int")) {
-        std::cout << "crossingsBF\t\tint\t\t";
-        run<int>(true, true);
-    }
+    std::cout << "intersectionsBF\t\tint\t\t";
+    run<int>(false, true);
+    std::cout << "intersections\t\tERational\t\t";
+    run<pgl::ERational>(false, false);
+    std::cout << "intersections\t\tRational\t\t";
+    run<pgl::Rational<>>(false, false);
 
-    if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "intersections\t\tRational BigInt\t\t";
-        run<pgl::Rational<pgl::BigInt>>(false, false);
-    }
+    std::cout << "crossingsBF\t\tint\t\t";
+    run<int>(true, true);
+    std::cout << "crossings\t\tERational\t\t";
+    run<pgl::ERational>(true, false);
+    std::cout << "crossings\t\tRational\t\t";
+    run<pgl::Rational<>>(true, false);
 
-    if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "crossings\t\tRational BigInt\t\t";
-        run<pgl::Rational<pgl::BigInt>>(true, false);
-    }
-
-    if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "star.isSimple\t\tRational BigInt\t\t";
-        simplicity(true);
-    }
-
-    if (pgl_benchmark::numberEnabled("rational")) {
-        std::cout << "intersections\t\tRational int128\t\t";
-        run<pgl::Rational<pgl::int128>>(false, false);
-    }
-
-    if (pgl_benchmark::numberEnabled("rational")) {
-        std::cout << "crossings\t\tRational int128\t\t";
-        run<pgl::Rational<pgl::int128>>(true, false);
-    }
-
-    if (pgl_benchmark::numberEnabled("rationalbigint")) {
-        std::cout << "random.isSimple\t\tRational BigInt\t\t";
-        simplicity(false);
-    }
-
+    std::cout << "star.isSimple\t\tERational\t\t";
+    simplicity(true);
+    std::cout << "random.isSimple\t\tERational\t\t";
+    simplicity(false);
 
     return 0;
 }
