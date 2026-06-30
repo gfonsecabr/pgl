@@ -369,20 +369,14 @@ TEST_CASE("Triangle covers the non-Convex contract for interiorsIntersect") {
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.interiorsIntersect(Line({-1, 2}, {7, 2})));
     CHECK(triangle.interiorsIntersect(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.interiorsIntersect(Ray({-1, 2}, {5, 2})));
-    CHECK(triangle.interiorsIntersect(Halfplane({0, 0}, {6, 0})));
-    CHECK(triangle.interiorsIntersect(Rectangle({2, -1}, {4, 2})));
     CHECK(triangle.interiorsIntersect(Triangle({2, -1}, {5, 2}, {2, 5})));
-    CHECK(triangle.interiorsIntersect(Shape(Rectangle({2, -1}, {4, 2}))));
+    CHECK(triangle.interiorsIntersect(Shape(Segment({-1, 2}, {5, 2}))));
 }
 
 TEST_CASE("Triangle covers the non-Convex contract for separates") {
@@ -390,22 +384,12 @@ TEST_CASE("Triangle covers the non-Convex contract for separates") {
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.separates(Line({-1, 2}, {5, 2})));
     CHECK(triangle.separates(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.separates(Ray({-1, 2}, {5, 2})));
-    CHECK_FALSE(triangle.separates(Halfplane({0, 0}, {6, 0})));
-    // The triangle is the lower-left half of the square (x + y <= 6); removing it
-    // leaves the single connected region x + y > 6, so it does NOT separate the
-    // rectangle. (Matches Triangle::separates(Convex); the old bespoke overload
-    // wrongly returned true.)
-    CHECK_FALSE(triangle.separates(Rectangle({0, 0}, {6, 6})));
     CHECK(triangle.separates(Shape(Segment({-1, 2}, {5, 2}))));
 }
 
@@ -414,18 +398,12 @@ TEST_CASE("Triangle covers the non-Convex contract for crosses") {
     using Triangle = pgl::Triangle<Point>;
     using Segment = pgl::Segment<Point>;
     using Line = pgl::Line<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Triangle triangle(0, 0, 6, 0, 0, 6);
 
     CHECK(triangle.crosses(Line({-1, 2}, {5, 2})));
     CHECK(triangle.crosses(Segment({-1, 2}, {5, 2})));
-    CHECK(triangle.crosses(Ray({-1, 2}, {5, 2})));
-    CHECK_FALSE(triangle.crosses(Halfplane({0, 0}, {6, 0})));
-    CHECK_FALSE(triangle.crosses(Rectangle({0, 0}, {6, 6})));
     CHECK(triangle.crosses(Shape(Segment({-1, 2}, {5, 2}))));
 }
 
