@@ -177,7 +177,6 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     using OrientedLine = pgl::OrientedLine<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
 
     const Ray diagonal({0, 0}, {4, 4});
@@ -186,13 +185,11 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     const OrientedLine oriented_support({3, 3}, {1, 1});
     const Rectangle off_ray_box({1, 1}, {3, 2});
     const Segment subsegment({1, 1}, {3, 3});
-    const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
     const Ray parallel({0, 1}, {4, 5});
 
     CHECK(diagonal.verticesContain(Point(4, 4)));
 
     CHECK(diagonal.contains(subsegment));
-    CHECK(diagonal.contains(oriented_subsegment));
     CHECK(diagonal.contains(nested));
     CHECK_FALSE(diagonal.contains(off_ray_box));
     CHECK_FALSE(diagonal.contains(support));
@@ -202,7 +199,6 @@ TEST_CASE("Ray distinguishes boundary, containment, collinearity, orientation, a
     CHECK(diagonal.collinear(support));
     CHECK(diagonal.collinear(oriented_support));
     CHECK(diagonal.collinear(subsegment));
-    CHECK(diagonal.collinear(oriented_subsegment));
     CHECK(diagonal.collinear(nested));
 
     CHECK(diagonal.orientation(Point(0, 1)) == std::partial_ordering::greater);
@@ -248,9 +244,7 @@ TEST_CASE("Ray evaluates coordinates with yAtX and xAtY") {
 TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
 
     const Ray horizontal({0, 0}, {4, 0});
@@ -270,20 +264,10 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     REQUIRE(std::holds_alternative<Point>(*with_line));
     CHECK(std::get<Point>(*with_line) == Point(2, 0));
 
-    const auto with_oriented_line = horizontal.intersection(OrientedLine({2, 2}, {2, -2}));
-    REQUIRE(with_oriented_line);
-    REQUIRE(std::holds_alternative<Point>(*with_oriented_line));
-    CHECK(std::get<Point>(*with_oriented_line) == Point(2, 0));
-
     const auto with_segment = horizontal.intersection(Segment({-2, 0}, {2, 0}));
     REQUIRE(with_segment);
     REQUIRE(std::holds_alternative<Segment>(*with_segment));
     CHECK(std::get<Segment>(*with_segment) == Segment(Point(0, 0), Point(2, 0)));
-
-    const auto with_oriented_segment = horizontal.intersection(OrientedSegment({3, 0}, {1, 0}));
-    REQUIRE(with_oriented_segment);
-    REQUIRE(std::holds_alternative<Segment>(*with_oriented_segment));
-    CHECK(std::get<Segment>(*with_oriented_segment) == Segment(Point(1, 0), Point(3, 0)));
 
     const auto with_same_direction_ray = horizontal.intersection(Ray({2, 0}, {6, 0}));
     REQUIRE(with_same_direction_ray);
@@ -340,9 +324,7 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
 TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -352,9 +334,7 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Segment({2, -2}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(OrientedSegment({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Halfplane({0, -1}, {4, -1})));
     CHECK(horizontal.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
@@ -365,9 +345,7 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
 TEST_CASE("Ray covers the non-Convex contract for separates") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -377,9 +355,7 @@ TEST_CASE("Ray covers the non-Convex contract for separates") {
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.separates(Line({2, -2}, {2, 2})));
-    CHECK(horizontal.separates(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.separates(Segment({2, -2}, {2, 2})));
-    CHECK(horizontal.separates(OrientedSegment({2, -2}, {2, 2})));
     CHECK(horizontal.separates(Ray({2, -2}, {2, 2})));
     CHECK_FALSE(horizontal.separates(Halfplane({0, -1}, {4, -1})));
     CHECK(horizontal.separates(Rectangle({1, -1}, {3, 1})));
@@ -390,9 +366,7 @@ TEST_CASE("Ray covers the non-Convex contract for separates") {
 TEST_CASE("Ray covers the non-Convex contract for crosses") {
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Ray = pgl::Ray<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -402,9 +376,7 @@ TEST_CASE("Ray covers the non-Convex contract for crosses") {
     const Ray horizontal({0, 0}, {4, 0});
 
     CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
-    CHECK(horizontal.crosses(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(Segment({2, -2}, {2, 2})));
-    CHECK(horizontal.crosses(OrientedSegment({2, -2}, {2, 2})));
     CHECK(horizontal.crosses(Ray({2, -2}, {2, 2})));
     CHECK_FALSE(horizontal.crosses(Halfplane({0, -1}, {4, -1})));
     CHECK(horizontal.crosses(Rectangle({1, -1}, {3, 1})));

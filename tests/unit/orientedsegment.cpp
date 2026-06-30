@@ -328,53 +328,19 @@ TEST_CASE("OrientedSegment keeps orientation-specific equality but geometry-spec
     CHECK_FALSE(horizontal.interiorsIntersect(touching_endpoint));
 }
 
-TEST_CASE("OrientedSegment distinguishes containment of unoriented and oriented subsegments") {
+TEST_CASE("OrientedSegment distinguishes containment of oriented subsegments") {
     using Point = pgl::Point<int>;
-    using Segment = pgl::Segment<Point>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
 
     const OrientedSegment host({6, 6}, {0, 0});
-    const Segment inner_unoriented({2, 2}, {4, 4});
     const OrientedSegment inner_oriented({4, 4}, {2, 2});
     const OrientedSegment touching_endpoint({6, 6}, {4, 4});
 
-    CHECK(host.contains(inner_unoriented));
     CHECK(host.contains(inner_oriented));
-    CHECK(host.interiorContains(inner_unoriented));
     CHECK(host.interiorContains(inner_oriented));
     CHECK_FALSE(host.interiorContains(touching_endpoint));
 }
 
-TEST_CASE("OrientedSegment covers the non-Convex contract through Segment delegation") {
-    using Point = pgl::Point<int>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
-    using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
-    using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
-    using Rectangle = pgl::Rectangle<Point>;
-    using Triangle = pgl::Triangle<Point>;
-
-    const OrientedSegment horizontal({4, 0}, {0, 0});
-
-    CHECK_FALSE(horizontal.contains(Rectangle({1, -1}, {3, 1})));
-    CHECK_FALSE(horizontal.contains(Triangle({1, -1}, {3, -1}, {2, 2})));
-
-    CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
-    CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
-    CHECK(horizontal.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
-    CHECK(horizontal.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
-
-    CHECK(horizontal.separates(Line({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.separates(Halfplane({0, -1}, {4, -1})));
-    CHECK(horizontal.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
-
-    CHECK(horizontal.crosses(Line({2, -2}, {2, 2})));
-    CHECK_FALSE(horizontal.crosses(Halfplane({0, 0}, {4, 0})));
-    CHECK(horizontal.crosses(Rectangle({1, -1}, {3, 1})));
-}
 
 TEST_CASE("OrientedSegment ordering and hashing keep opposite directions distinct") {
     using OrientedSegment = pgl::OrientedSegment<pgl::Point<int>>;

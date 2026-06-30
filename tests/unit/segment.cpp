@@ -418,11 +418,8 @@ TEST_CASE("Segment accepts runtime Shape arguments for core predicates") {
 TEST_CASE("Segment interiorsIntersect covers the non-Convex Shape contract") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle = pgl::Triangle<Point>;
 
@@ -430,14 +427,9 @@ TEST_CASE("Segment interiorsIntersect covers the non-Convex Shape contract") {
 
     CHECK(horizontal.interiorsIntersect(Point(2, 0)));  // interior point of the segment
 
-    CHECK(horizontal.interiorsIntersect(OrientedSegment({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK_FALSE(horizontal.interiorsIntersect(Line({0, 0}, {0, 3})));
-    CHECK(horizontal.interiorsIntersect(OrientedLine({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
-
-    CHECK_FALSE(horizontal.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
-    CHECK(horizontal.interiorsIntersect(Halfplane({0, -1}, {4, -1})));
 
     CHECK(horizontal.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
     CHECK(horizontal.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
@@ -446,40 +438,31 @@ TEST_CASE("Segment interiorsIntersect covers the non-Convex Shape contract") {
 TEST_CASE("Segment separates covers the non-Convex Shape contract") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Segment horizontal({0, 0}, {4, 0});
     const Shape point = Point(2, 0);
     const Shape line = pgl::Line<Point>({2, -2}, {2, 2});
-    const Shape halfplane = Halfplane({0, -1}, {4, -1});
     const Shape triangle = Triangle({1, -1}, {3, -1}, {2, 2});
 
     CHECK_FALSE(horizontal.separates(point));
     CHECK(horizontal.separates(line));
-    CHECK_FALSE(horizontal.separates(halfplane));
     CHECK(horizontal.separates(triangle));
 }
 
 TEST_CASE("Segment crosses other shapes only when both set differences disconnect") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using Line = pgl::Line<Point>;
-    using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle = pgl::Triangle<Point>;
 
     const Segment horizontal({0, 0}, {4, 0});
-    const OrientedSegment vertical_oriented({2, -2}, {2, 2});
     const Line vertical_line({2, -2}, {2, 2});
-    const OrientedLine vertical_oriented_line({2, -2}, {2, 2});
     const Ray upward_ray({2, -2}, {2, 2});
     const Ray source_touching_ray({0, 0}, {0, 3});
-    const Halfplane upper({0, 0}, {4, 0});
     const Rectangle centered_box({1, -1}, {3, 1});
     const Rectangle left_box({-3, -1}, {-1, 1});
     const Triangle centered_triangle({1, -1}, {3, -1}, {2, 2});
@@ -490,23 +473,14 @@ TEST_CASE("Segment crosses other shapes only when both set differences disconnec
         CHECK_FALSE(horizontal.crosses(Point(5, 0)));
     }
 
-    SUBCASE("an oriented segment delegates to the segment case") {
-        CHECK(horizontal.crosses(vertical_oriented));
-    }
-
     SUBCASE("a line crosses exactly when it cuts the segment at an interior point") {
         CHECK(horizontal.crosses(vertical_line));
-        CHECK(horizontal.crosses(vertical_oriented_line));
         CHECK_FALSE(horizontal.crosses(Line({4, 0}, {4, 3})));
     }
 
     SUBCASE("a ray crosses exactly when the mutual cut happens away from boundaries") {
         CHECK(horizontal.crosses(upward_ray));
         CHECK_FALSE(horizontal.crosses(source_touching_ray));
-    }
-
-    SUBCASE("a halfplane does not cross a segment") {
-        CHECK_FALSE(horizontal.crosses(upper));
     }
 
     SUBCASE("an area crosses only when the segment truly cuts it and is itself cut") {

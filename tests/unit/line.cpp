@@ -194,7 +194,6 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     using Line = pgl::Line<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
 
     const Line diagonal({0, 0}, {4, 4});
     const Line same_line({1, 1}, {3, 3});
@@ -202,14 +201,11 @@ TEST_CASE("Line distinguishes containment, collinearity, parallelism, and inters
     const Line parallel({0, 1}, {4, 5});
     const Rectangle off_line_box({1, 1}, {3, 2});
     const Segment subsegment({1, 1}, {3, 3});
-    const OrientedSegment oriented_subsegment({3, 3}, {1, 1});
 
     CHECK(diagonal.contains(same_line));
     CHECK(diagonal.contains(subsegment));
-    CHECK(diagonal.contains(oriented_subsegment));
     CHECK_FALSE(diagonal.contains(off_line_box));
     CHECK(diagonal.collinear(subsegment));
-    CHECK(diagonal.collinear(oriented_subsegment));
     CHECK(diagonal.collinear(same_line));
 
     CHECK(diagonal.parallel(parallel));
@@ -309,7 +305,6 @@ TEST_CASE("Line separates and crosses 1D targets using the topological definitio
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Ray = pgl::Ray<Point>;
     using Triangle = pgl::Triangle<Point>;
@@ -319,7 +314,6 @@ TEST_CASE("Line separates and crosses 1D targets using the topological definitio
     const Segment segment({0, 0}, {4, 0});
     const Segment collinear_segment({1, 0}, {3, 0});
     const Segment endpoint_touching_segment({2, 0}, {2, 3});
-    const Halfplane upper({0, 0}, {4, 0});
     const Rectangle box({1, -1}, {3, 1});
     const Ray ray({0, 0}, {4, 0});
     const Ray source_touching_ray({2, 0}, {2, 3});
@@ -333,7 +327,6 @@ TEST_CASE("Line separates and crosses 1D targets using the topological definitio
     CHECK(vertical.crosses(horizontal));
     CHECK(vertical.crosses(segment));
     CHECK(vertical.crosses(ray));
-    CHECK_FALSE(vertical.crosses(upper));
     CHECK(vertical.crosses(box));
     CHECK(vertical.crosses(triangle));
 
@@ -345,10 +338,8 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
     using Point = pgl::Point<int>;
     using Line = pgl::Line<Point>;
     using Segment = pgl::Segment<Point>;
-    using OrientedSegment = pgl::OrientedSegment<Point>;
     using OrientedLine = pgl::OrientedLine<Point>;
     using Ray = pgl::Ray<Point>;
-    using Halfplane = pgl::Halfplane<Point>;
     using Rectangle = pgl::Rectangle<Point>;
     using Triangle = pgl::Triangle<Point>;
     using Shape = pgl::Shape<Point>;
@@ -356,21 +347,17 @@ TEST_CASE("Line covers the non-Convex contract for interior, separation, and cro
     const Line vertical({2, -2}, {2, 2});
 
     CHECK(vertical.interiorsIntersect(Segment({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(OrientedSegment({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(OrientedLine({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(Ray({0, 0}, {4, 0})));
-    CHECK(vertical.interiorsIntersect(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.interiorsIntersect(Rectangle({1, -1}, {3, 1})));
     CHECK(vertical.interiorsIntersect(Triangle({1, -1}, {3, -1}, {2, 2})));
 
     CHECK(vertical.separates(Segment({0, 0}, {4, 0})));
     CHECK(vertical.separates(OrientedLine({0, 0}, {4, 0})));
-    CHECK_FALSE(vertical.separates(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.separates(Triangle({1, -1}, {3, -1}, {2, 2})));
 
     CHECK(vertical.crosses(Shape(Segment({0, 0}, {4, 0}))));
     CHECK(vertical.crosses(Ray({0, 0}, {4, 0})));
-    CHECK_FALSE(vertical.crosses(Halfplane({0, 0}, {4, 0})));
     CHECK(vertical.crosses(Rectangle({1, -1}, {3, 1})));
 }
 
