@@ -259,35 +259,32 @@ function render() {
       fn.textContent = r === null ? "" : r;
       tr.appendChild(fn);
 
-      // Gather this row's latest times to colour relative to the row best.
       const rowPts = cols.map((c) => {
         const coord = { ...base };
         if (rowDim) coord[rowDim] = r;
         if (colDim) coord[colDim] = c;
         return data[keyOf(coord)] || null;
       });
-      const lats = rowPts.map((pts) => (pts ? latest(pts) : null)).filter(Boolean);
-      const lo = lats.length ? Math.min(...lats.map((p) => p.time)) : 0;
-      const hi = lats.length ? Math.max(...lats.map((p) => p.time)) : 0;
 
       cols.forEach((c, ci) => {
         const td = document.createElement("td");
         td.className = "val";
         const pts = rowPts[ci];
         const lp = latest(pts);
-        if (lp) {
+        // A measurement whose result disagrees with the ERational baseline is
+        // treated as missing — its timing is meaningless, so show a dash.
+        if (lp && lp.match !== false) {
           anyData = true;
           const coord = { ...base };
           if (rowDim) coord[rowDim] = r;
           if (colDim) coord[colDim] = c;
+          // Colour relative to this cell's own history (best..worst over time).
+          const lo = bestOf(pts), hi = worstOf(pts);
           const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
-          const warn = lp.match === false
-            ? '<span class="warn" title="result disagrees with the ERational baseline">!</span>'
-            : "";
           td.innerHTML =
             `<span class="cell">${spark}` +
             `<span class="num" style="color:${statusColor(lp.time, lo, hi)}">${fmt(lp.time)}</span>` +
-            `${warn}</span>`;
+            `</span>`;
           td.classList.add("clickable");
           td.addEventListener("click", () => showChart(describe(coord) + " — " + machine, pts, "ns"));
           td.addEventListener("mouseenter", (e) => showPop(e, describe(coord), pts, "ns"));
@@ -310,8 +307,8 @@ function render() {
     const note = document.createElement("div");
     note.className = "unit-note";
     note.textContent = colDim
-      ? `columns: ${DIM_LABEL[colDim]} · time in ns · colour vs. row best · hover for trend, click for chart`
-      : "time in ns · hover for trend, click for chart";
+      ? `columns: ${DIM_LABEL[colDim]} · time in ns · colour vs. own history · hover for trend, click for chart`
+      : "time in ns · colour vs. own history · hover for trend, click for chart";
     section.appendChild(note);
 
     root.appendChild(section);
@@ -403,11 +400,7 @@ function renderExtra() {
       fn.textContent = op;
       tr.appendChild(fn);
 
-      // Colour each operation row relative to its fastest type.
       const rowPts = s.types.map((t) => machineData[op + "|" + t] || null);
-      const lats = rowPts.map((pts) => (pts ? latest(pts) : null)).filter(Boolean);
-      const lo = lats.length ? Math.min(...lats.map((p) => p.time)) : 0;
-      const hi = lats.length ? Math.max(...lats.map((p) => p.time)) : 0;
 
       s.types.forEach((t, ti) => {
         const td = document.createElement("td");
@@ -416,6 +409,8 @@ function renderExtra() {
         const lp = latest(pts);
         if (lp) {
           any = true;
+          // Colour relative to this cell's own history (best..worst over time).
+          const lo = bestOf(pts), hi = worstOf(pts);
           const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
           td.innerHTML =
             `<span class="cell">${spark}` +
@@ -443,7 +438,7 @@ function renderExtra() {
     const note = document.createElement("div");
     note.className = "unit-note";
     note.textContent = any
-      ? "time in " + s.unit + " · colour vs. row best · hover for trend, click for chart"
+      ? "time in " + s.unit + " · colour vs. own history · hover for trend, click for chart"
       : "no data for this machine";
     card.appendChild(note);
 

@@ -132,7 +132,7 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th {
   position: sticky; top: 0;
   padding: 4px 8px 8px;
-  font-size: 11px; font-weight: 600; text-transform: lowercase;
+  font-size: 11px; font-weight: 600;
   letter-spacing: .3px; color: var(--muted);
   border-bottom: 1px solid var(--sep);
   text-align: right;
@@ -238,14 +238,6 @@ dialog#chart-dialog::backdrop {
 /* ---- pivot grid: facet tables tile to fill the row ---- */
 main#suites {
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-}
-
-/* ---- cross-type correctness marker ---- */
-td.val .warn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; margin-left: 2px; flex: 0 0 auto;
-  font-size: 10px; font-weight: 700; color: #fff; background: var(--red);
-  border-radius: 50%; cursor: help;
 }
 
 /* ---- separate section for whole-algorithm benchmarks ---- */
