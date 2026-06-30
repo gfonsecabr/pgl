@@ -157,3 +157,39 @@ TEST_CASE("Rectangle and Polygon meet predicates") {
         CHECK_FALSE(r.boundaryContains(over));
     }
 }
+
+// Polygon::intersection(Rectangle) forwards to the Convex overload via
+// Rectangle::asConvex. ERational keeps fractional crossings exact.
+TEST_CASE("Polygon::intersection(Rectangle) forwards via the convex representation") {
+    using EPoint = pgl::Point<pgl::ERational>;
+    using EPolygon = pgl::Polygon<EPoint>;
+
+    const pgl::Polygon<pgl::Point<int>> square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    SUBCASE("overlapping rectangle gives the clipped polygon") {
+        const pgl::Rectangle<pgl::Point<int>> box(pgl::Point<int>(5, 5), pgl::Point<int>(15, 15));
+        const auto pieces = square.intersection<pgl::ERational>(box);
+
+        CHECK(pieces == square.intersection<pgl::ERational>(box.asConvex()));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<EPolygon>(pieces[0]));
+        CHECK(std::get<EPolygon>(pieces[0]).twiceArea() == pgl::ERational(50));  // the 5x5 overlap
+    }
+
+    SUBCASE("a non-convex polygon split by a thin rectangle yields two polygons") {
+        // U-shape with prongs x in [0,3] and [7,10]; a high band misses the base.
+        const pgl::Polygon<pgl::Point<int>> u(
+            {0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
+        const pgl::Rectangle<pgl::Point<int>> band(pgl::Point<int>(-1, 5), pgl::Point<int>(11, 9));
+        const auto pieces = u.intersection<pgl::ERational>(band);
+
+        int polys = 0;
+        for (const auto& v : pieces) polys += std::holds_alternative<EPolygon>(v) ? 1 : 0;
+        CHECK(polys == 2);
+    }
+
+    SUBCASE("disjoint rectangle yields no intersection") {
+        const pgl::Rectangle<pgl::Point<int>> away(pgl::Point<int>(20, 20), pgl::Point<int>(30, 30));
+        CHECK(square.intersection<pgl::ERational>(away).empty());
+    }
+}

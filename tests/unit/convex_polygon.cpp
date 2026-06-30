@@ -326,3 +326,45 @@ TEST_CASE("Convex and polygon that are disjoint") {
     CHECK_FALSE(square.boundaryContains(far_away));
     CHECK_FALSE(far_away.boundaryContains(square));
 }
+
+// Polygon::intersection(Convex) forwards to the Polygon overload via
+// Convex::asPolygon. The result type is requested as pgl::ERational so that
+// fractional crossing coordinates stay exact (no floating-point rounding).
+TEST_CASE("Polygon::intersection(Convex) forwards to the polygon overload") {
+    using EPoint = pgl::Point<pgl::ERational>;
+    using EPolygon = pgl::Polygon<EPoint>;
+
+    const pgl::Polygon<pgl::Point<int>> square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    auto twiceAreaOfPolys = [](const auto& res) {
+        pgl::ERational a(0);
+        for (const auto& v : res)
+            if (std::holds_alternative<EPolygon>(v)) a += std::get<EPolygon>(v).twiceArea();
+        return a;
+    };
+
+    SUBCASE("overlapping region is a polygon and matches the explicit polygon overload") {
+        const pgl::Convex<pgl::Point<int>> conv({5, 5, 15, 5, 15, 15, 5, 15});
+        const auto pieces = square.intersection<pgl::ERational>(conv);
+
+        // Delegation must yield exactly the explicit polygon-overload result.
+        CHECK(pieces == square.intersection<pgl::ERational>(conv.asPolygon()));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<EPolygon>(pieces[0]));
+        CHECK(twiceAreaOfPolys(pieces) == pgl::ERational(50));  // the 5x5 overlap
+    }
+
+    SUBCASE("fractional crossings stay exact with ERational") {
+        // A tilted convex triangle crossing the square at non-integer points.
+        const pgl::Convex<pgl::Point<int>> conv({3, -2, 14, 9, 3, 9});
+        const auto pieces = square.intersection<pgl::ERational>(conv);
+
+        CHECK(pieces == square.intersection<pgl::ERational>(conv.asPolygon()));
+        CHECK(twiceAreaOfPolys(pieces) > pgl::ERational(0));
+    }
+
+    SUBCASE("disjoint shapes give no intersection") {
+        const pgl::Convex<pgl::Point<int>> away({20, 20, 30, 20, 25, 30});
+        CHECK(square.intersection<pgl::ERational>(away).empty());
+    }
+}
