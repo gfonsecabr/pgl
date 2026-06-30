@@ -19,11 +19,11 @@ usage() {
     echo "  $0"
     echo "  $0 rational"
     echo "  $0 segment segment_segment"
-    echo "  $0 tests/unit/rational.cpp"
+    echo "  $0 tests/unit/rational.cpp tests/unit/segment_segment.cpp"
 }
 
 list_tests() {
-    for source in tests/unit/*.cpp tests/integration/*.cpp; do
+    for source in tests/unit/*.cpp; do
         if [ -f "$source" ]; then
             printf '%s\n' "${source#tests/}"
         fi
@@ -38,7 +38,7 @@ run_one_test() {
     report="build/tests/reports/$test_name.junit.xml"
 
     echo "::group::Build $test_name"
-    if ! $CXX $CXXFLAGS -Iinclude -Itests/doctest "$source" -o "$binary"; then
+    if ! $CXX $CXXFLAGS -Iinclude -Itests/unit "$source" -o "$binary"; then
         echo "::endgroup::"
         printf '%s\n' "$source" >> "$failures_file"
         return 1
@@ -70,8 +70,7 @@ resolve_test() {
         "$target.cpp" \
         "tests/$target" \
         "tests/$target.cpp" \
-        "tests/unit/$target.cpp" \
-        "tests/integration/$target.cpp"
+        "tests/unit/$target.cpp"
     do
         if [ -f "$candidate" ]; then
             printf '%s\n' "$candidate"
@@ -79,7 +78,7 @@ resolve_test() {
         fi
     done
 
-    matches="$(find tests/unit tests/integration -maxdepth 1 -type f -name "*$target*.cpp" | sort)"
+    matches="$(find tests/unit -maxdepth 1 -type f -name "*$target*.cpp" | sort)"
     match_count="$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l)"
 
     if [ "$match_count" -eq 1 ]; then
@@ -116,7 +115,7 @@ if [ "${1:-}" = "--run-one" ]; then
 fi
 
 if [ "$#" -eq 0 ]; then
-    set -- tests/unit/*.cpp tests/integration/*.cpp
+    set -- tests/unit/*.cpp
 else
     resolved_sources=""
     for target in "$@"; do
@@ -132,7 +131,7 @@ for source in "$@"; do
 done
 
 if [ -z "$sources" ]; then
-    echo "Aucun fichier .cpp trouve dans tests/unit ou tests/integration/"
+    echo "No .cpp files found in tests/unit/"
     exit 1
 fi
 
