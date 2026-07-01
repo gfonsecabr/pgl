@@ -1737,6 +1737,25 @@ struct Convex {
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
+     * Zero when the disk and the polygon intersect; otherwise the square of
+     * `distance(center, polygon) - radius`, the gap between the polygon and the
+     * nearest point of the circle.
+     *
+     * Always returns `double`, like @ref Disk::squaredDistance(const OtherPoint&) const:
+     * the distance to a disjoint disk is generally irrational, so there is no
+     * exact result to request and no `ResultNumber` template parameter.
+     *
+     * Complexity: O(log n) for n vertices.
+     *
+     * @tparam OtherDisk The disk type.
+     * @param other The disk to measure to.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape (the
      * only shape ranked above @ref Convex is @ref Polygon).
