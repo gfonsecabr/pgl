@@ -114,10 +114,9 @@ main {
   display: flex; align-items: baseline; gap: 8px;
 }
 /* Facet titles list operand variants inline (not the flex layout used for the
-   suite link + description), with a dotted underline on parts that have a tip. */
+   suite link + description); tipped parts show a help cursor on hover. */
 .suite h2.facet-title { display: block; }
-.facet-part { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; cursor: help; }
-.summary .facet-part { text-decoration-color: var(--sep); }
+.facet-part { cursor: help; }
 .suite h2 .suite-link { color: inherit; text-decoration: none; }
 .suite h2 .suite-link:hover { color: var(--blue); text-decoration: underline; }
 .suite h2 .suite-desc {
@@ -239,11 +238,6 @@ dialog#chart-dialog::backdrop {
   color: var(--blue); background: #fff; border: 1px solid var(--sep);
 }
 .swap-btn:hover { border-color: var(--blue); background: var(--tint); }
-
-/* ---- pivot grid: facet tables tile to fill the row ---- */
-main#suites {
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-}
 
 /* ---- separate section for whole-algorithm benchmarks ---- */
 .section-title {
