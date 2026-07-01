@@ -648,7 +648,10 @@ constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherTriang
 template <class PointType_, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& point) const {
-    using Num = NumberType;
+    // Promoted so a query point of a different coordinate type (e.g. a Disk's
+    // inherently-double center) combines safely with this polygon's own vertex
+    // type, matching the promotion orientationDeterminant already applies below.
+    using Num = detail::dot_coordinate_t<NumberType, typename OtherPoint::NumberType>;
     if (contains(point)) {
         return ResultNumber{};
     }
@@ -672,24 +675,26 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 
     // Reference point c = (v0 + v1 + v2) / 3, strictly interior. To stay exact we
     // work with vectors scaled by 3 (a positive factor, so signs are preserved).
-    const Num sx = V(0).x() + V(1).x() + V(2).x();
-    const Num sy = V(0).y() + V(1).y() + V(2).y();
-    const Num bx = Num{3} * point.x() - sx;   // 3 * (q - c)
-    const Num by = Num{3} * point.y() - sy;
+    const Num sx = static_cast<Num>(V(0).x()) + static_cast<Num>(V(1).x()) + static_cast<Num>(V(2).x());
+    const Num sy = static_cast<Num>(V(0).y()) + static_cast<Num>(V(1).y()) + static_cast<Num>(V(2).y());
+    const Num bx = Num{3} * static_cast<Num>(point.x()) - sx;   // 3 * (q - c)
+    const Num by = Num{3} * static_cast<Num>(point.y()) - sy;
 
     // Sign of (V(k) - c) x (q - c). Around the boundary this changes sign exactly
     // twice: at the edge the ray c->q exits through (which faces q) and at the
     // opposite edge (which does not).
     const auto dSign = [&](std::ptrdiff_t k) -> int {
-        const Num ax = Num{3} * V(k).x() - sx;   // 3 * (V(k) - c)
-        const Num ay = Num{3} * V(k).y() - sy;
+        const Num ax = Num{3} * static_cast<Num>(V(k).x()) - sx;   // 3 * (V(k) - c)
+        const Num ay = Num{3} * static_cast<Num>(V(k).y()) - sy;
         const Num cross = ax * by - ay * bx;
         return (cross > Num{0}) - (cross < Num{0});
     };
     // D(k) above is linear in V(k) with gradient (by, -bx); its argmax/argmin are
     // the genuinely unimodal support function, so they bracket the two sign
     // changes and are found in O(log n) with the existing cyclic search.
-    const auto gDot = [&](std::ptrdiff_t k) { return V(k).x() * by - V(k).y() * bx; };
+    const auto gDot = [&](std::ptrdiff_t k) {
+        return static_cast<Num>(V(k).x()) * by - static_cast<Num>(V(k).y()) * bx;
+    };
     const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
     const std::ptrdiff_t mPos = *detail::cyclicMax(
         indices.begin(), indices.end(), [&](std::ptrdiff_t k) { return gDot(k); });
