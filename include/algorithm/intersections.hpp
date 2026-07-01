@@ -42,6 +42,9 @@ class BentleyOttmann {
         EventEnum type;
         Segment s1;
 
+        Event(Rational x_, EventEnum type_, Segment s1_)
+            : x(std::move(x_)), type(type_), s1(std::move(s1_)) {}
+
         auto operator<(const Event &other) const { // Order is backwards by x
             return other.x < x;
         }
