@@ -1089,4 +1089,129 @@ double Disk<PointType_, TLabel>::squaredDistance(const OtherDisk& other) const {
     return gap * gap;
 }
 
+// -----------------------------------------------------------------------------
+// Polygon
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber Polygon<PointType_, TLabel>::edgeMinSquaredDistance(const OtherShape& other) const {
+    const auto boundaryEdges = edges();
+    ResultNumber best = boundaryEdges[0].template squaredDistance<ResultNumber>(other);
+    for (std::size_t index = 1; index < boundaryEdges.size(); ++index) {
+        const ResultNumber current = boundaryEdges[index].template squaredDistance<ResultNumber>(other);
+        if (current < best) {
+            best = current;
+        }
+    }
+    return best;
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(point);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPolygon& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class DiskPointType, class DiskLabel>
+double Polygon<PointType_, TLabel>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+    if (intersects(disk)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(disk, *this);
+}
+
 }  // namespace pgl

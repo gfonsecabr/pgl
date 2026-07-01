@@ -1136,6 +1136,79 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Zero when the polygon's closed region intersects the other shape;
+     * otherwise the smallest squared distance between the two shapes. When they
+     * are disjoint the polygon's closest point lies on its boundary, so the
+     * result is the minimum over the boundary edges of the edge-to-shape squared
+     * distance.
+     *
+     * Complexity: O(n) edge queries for n vertices, each against the other shape.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a disk.
+     *
+     * Zero when the polygon's closed region intersects the disk; otherwise the
+     * squared exterior gap. Not templated on a result type: a disk's exterior
+     * distance is irrational, so it always returns `double`, mirroring
+     * @ref Disk::squaredDistance.
+     */
+    template <class DiskPointType, class DiskLabel>
+    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const;
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * @tparam ResultNumber Coordinate type of the returned point.
@@ -1569,6 +1642,16 @@ struct Polygon {
         const auto i = static_cast<std::ptrdiff_t>(index);
         return BoundaryType<Oriented>(get(i), get(i + 1));
     }
+
+    /**
+     * @brief Smallest squared distance from a boundary edge to a disjoint shape.
+     *
+     * Used when the polygon does not intersect @p other and its closest point
+     * therefore lies on the boundary. Requires the edge segment to support
+     * `squaredDistance(OtherShape)` (directly or via the shape's forwarder).
+     */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinSquaredDistance(const OtherShape& other) const;
 
     /**
      * @brief Twice the signed area (shoelace) of the untranslated vertices.

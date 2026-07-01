@@ -1735,6 +1735,22 @@ struct Convex {
     [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape (the
+     * only shape ranked above @ref Convex is @ref Polygon).
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
+                  && requires(const OtherShape& o, const Convex& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.
