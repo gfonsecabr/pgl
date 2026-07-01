@@ -1186,14 +1186,22 @@ constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolygon& 
     return true;
 }
 
-// --- remaining not-yet-implemented stub ---
-
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::interiorContains(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        return interiorContains(other.a());
+    }
+
+    if (!interiorContains(other.a())) {
+        return false;
+    }
+    for (const auto& edge : edges()) {
+        if (other.intersects(edge)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 }  // namespace pgl

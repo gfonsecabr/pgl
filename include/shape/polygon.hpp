@@ -548,6 +548,18 @@ struct Polygon {
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A non-degenerate closed disk lies in the closed polygon iff its center is
+     * contained and no boundary edge cuts into the open disk (so the disk cannot
+     * poke out through a reflex notch). A degenerate disk reduces to a segment.
+     *
+     * Complexity: O(n) for n vertices.
+     */
+    template<DiskConcept OtherDisk>
+    constexpr bool contains(const OtherDisk& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
      */
     constexpr bool contains(const Shape<PointType>& other) const;
 

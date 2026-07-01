@@ -1266,10 +1266,20 @@ constexpr bool Disk<PointType, LabelType>::intersects(const Shape<OtherPoint>& o
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::intersects(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    // If the disk meets the polygon without crossing its boundary, the disk lies
+    // wholly inside the polygon, so a boundary point of the disk is contained.
+    // Every other configuration -- a boundary crossing, or the polygon sitting
+    // inside the disk -- is witnessed by some edge meeting the closed disk.
+    if (contains(other.a())) {
+        return true;
+    }
+    for (const auto& edge : edges()) {
+        if (edge.intersects(other)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace pgl

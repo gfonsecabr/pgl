@@ -1376,6 +1376,25 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other
 }
 
 template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.a());
+    }
+
+    if (!other.pointInsideInteriorContained(*this)) {
+        return false;
+    }
+
+    for (const auto& edge : edges()) {
+        if (other.interiorsIntersect(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
 constexpr bool Polygon<PointType, LabelType>::contains(const Shape<PointType>& other) const {
     return std::visit(
         [this](const auto& value) {
