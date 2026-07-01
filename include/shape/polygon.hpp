@@ -299,6 +299,40 @@ struct Polygon {
     [[nodiscard]] bool isSimple() const;
 
     /**
+     * @brief Tests whether the polygon is convex.
+     *
+     * True when every turn along the boundary has the same orientation, i.e.
+     * there is no reflex vertex (collinear vertices are permitted). The answer
+     * is only meaningful for a simple polygon (@ref isSimple); as elsewhere in
+     * the library, a self-intersecting boundary is outside the contract. A
+     * polygon with fewer than three vertices is reported as non-convex.
+     *
+     * Complexity: O(n).
+     *
+     * @return `true` if the polygon is convex.
+     */
+    [[nodiscard]] constexpr bool isConvex() const {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+        if (n < 3) {
+            return false;
+        }
+        bool sawPositive = false;
+        bool sawNegative = false;
+        for (std::ptrdiff_t i = 0; i < n; ++i) {
+            const auto turn = orientationSign(get(i), get(i + 1), get(i + 2));
+            if (turn > 0) {
+                sawPositive = true;
+            } else if (turn < 0) {
+                sawNegative = true;
+            }
+            if (sawPositive && sawNegative) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The farthest pair of vertices of a simple polygon lies on its convex
@@ -455,6 +489,16 @@ struct Polygon {
                                    cy / static_cast<ResultNumber>(points_.size()))
                + static_cast<Point<ResultNumber>>(translation_);
     }
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this polygon.
+     *
+     * Equivalent to `Triangulation(*this)`. The polygon must be simple
+     * (non-self-intersecting) and non-degenerate.
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the polygon.
+     */
+    auto triangulation() const;
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).

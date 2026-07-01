@@ -2547,4 +2547,12 @@ Triangulation(const Polygon<PolyPoint>&, const PointRange&, const SegmentRange&)
     -> Triangulation<Triangle<PolyPoint>,
                      Segment<PolyPoint, typename SegmentRange::value_type::LabelType>>;
 
+// Out-of-line: Polygon::triangulation is declared in shape/polygon.hpp (which
+// precedes this header in the layering) but can only be defined once
+// Triangulation and its deduction guides are visible.
+template <class PointType_, class TLabel>
+auto Polygon<PointType_, TLabel>::triangulation() const {
+    return Triangulation(*this);
+}
+
 }  // namespace pgl
