@@ -5,15 +5,15 @@
 
 // Polygon vs Disk.
 //
-// Most of this pair is NOT implemented yet in the library (the methods throw
-// std::runtime_error "not implemented yet"): Disk::separates(Polygon), and every
-// Polygon-side area predicate against a Disk -- Polygon::intersects / crosses /
-// interiorsIntersect / interiorContains / separates(Disk). They are therefore not
-// exercised here.
-//
-// Genuinely implemented and tested below: the disk-as-container containment
-// predicates Disk::contains / interiorContains / boundaryContains(Polygon), and
+// Tested below: the disk-as-container containment predicates
+// Disk::contains / interiorContains / boundaryContains(Polygon); the
+// polygon-as-container predicates Polygon::contains / interiorContains(Disk);
+// the overlap predicates Polygon::intersects / interiorsIntersect(Disk); and
 // Polygon::boundaryContains(Disk).
+//
+// Still NOT implemented in the library (the methods throw
+// std::runtime_error "not implemented yet") and therefore not exercised here:
+// Disk::separates(Polygon) and Polygon::separates / crosses(Disk).
 
 TEST_CASE("Disk contains Polygon") {
     using Point = pgl::Point<int>;
@@ -46,6 +46,130 @@ TEST_CASE("Disk contains Polygon") {
 
         CHECK_FALSE(d.contains(poking));
         CHECK_FALSE(d.interiorContains(poking));
+    }
+}
+
+TEST_CASE("Polygon contains Disk") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // Axis-aligned square [-20, 20]^2. Integer center+radius disks keep r^2 exact.
+    const Polygon square({-20, -20, 20, -20, 20, 20, -20, 20});
+
+    SUBCASE("disk strictly inside is contained, interior too") {
+        const Disk inside(Point(0, 0), 10);
+
+        CHECK(square.contains(inside));
+        CHECK(square.interiorContains(inside));
+    }
+
+    SUBCASE("disk internally tangent to an edge is contained but not interior") {
+        // Centre (0,10), r=10 touches the top edge y=20 at (0,20) from inside.
+        const Disk tangent(Point(0, 10), 10);
+
+        CHECK(square.contains(tangent));
+        CHECK_FALSE(square.interiorContains(tangent));
+    }
+
+    SUBCASE("disk poking through an edge is not contained") {
+        // Centre (15,0), r=10 reaches x=25, past the right edge x=20.
+        const Disk poking(Point(15, 0), 10);
+
+        CHECK_FALSE(square.contains(poking));
+        CHECK_FALSE(square.interiorContains(poking));
+    }
+
+    SUBCASE("square inside the disk does not contain it") {
+        const Disk big(Point(0, 0), 25);
+
+        CHECK_FALSE(square.contains(big));
+        CHECK_FALSE(square.interiorContains(big));
+    }
+
+    SUBCASE("disjoint disk is not contained") {
+        const Disk far(Point(35, 0), 10);
+
+        CHECK_FALSE(square.contains(far));
+        CHECK_FALSE(square.interiorContains(far));
+    }
+
+    SUBCASE("non-convex polygon respects the reflex notch") {
+        // L-shape: the notch is the quadrant x>4, y>4.
+        const Polygon lshape({0, 0, 10, 0, 10, 4, 4, 4, 4, 10, 0, 10});
+
+        // Disk sitting well inside the vertical arm.
+        const Disk inArm(Point(2, 7), 1);
+        CHECK(lshape.contains(inArm));
+        CHECK(lshape.interiorContains(inArm));
+
+        // Disk centred inside the arm but large enough to cover the reflex
+        // vertex (4,4) and bulge into the notch -- both endpoints inside does
+        // not suffice for a non-convex polygon.
+        const Disk overReflex(Point(3, 3), 2);
+        CHECK_FALSE(lshape.contains(overReflex));
+
+        // Disk entirely in the notch (outside the L).
+        const Disk inNotch(Point(8, 8), 1);
+        CHECK_FALSE(lshape.contains(inNotch));
+    }
+}
+
+TEST_CASE("Polygon intersects and interiorsIntersect Disk") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Polygon square({-20, -20, 20, -20, 20, 20, -20, 20});
+
+    SUBCASE("disk inside the polygon overlaps both closed and open") {
+        const Disk inside(Point(0, 0), 10);
+
+        CHECK(square.intersects(inside));
+        CHECK(square.interiorsIntersect(inside));
+    }
+
+    SUBCASE("polygon inside the disk overlaps both closed and open") {
+        const Disk big(Point(0, 0), 25);
+
+        CHECK(square.intersects(big));
+        CHECK(square.interiorsIntersect(big));
+    }
+
+    SUBCASE("boundary-crossing disk overlaps both closed and open") {
+        const Disk crossing(Point(15, 0), 10);
+
+        CHECK(square.intersects(crossing));
+        CHECK(square.interiorsIntersect(crossing));
+    }
+
+    SUBCASE("externally tangent disk touches the boundary only") {
+        // Centre (30,0), r=10 touches the right edge x=20 at (20,0).
+        const Disk tangent(Point(30, 0), 10);
+
+        CHECK(square.intersects(tangent));            // closed: they touch
+        CHECK_FALSE(square.interiorsIntersect(tangent));  // open: no overlap
+    }
+
+    SUBCASE("disjoint disk overlaps neither") {
+        const Disk far(Point(35, 0), 10);
+
+        CHECK_FALSE(square.intersects(far));
+        CHECK_FALSE(square.interiorsIntersect(far));
+    }
+
+    SUBCASE("non-convex polygon respects the reflex notch") {
+        const Polygon lshape({0, 0, 10, 0, 10, 4, 4, 4, 4, 10, 0, 10});
+
+        // Disk in the notch, clear of every edge.
+        const Disk inNotch(Point(8, 8), 1);
+        CHECK_FALSE(lshape.intersects(inNotch));
+        CHECK_FALSE(lshape.interiorsIntersect(inNotch));
+
+        // Disk straddling the reflex corner cuts into the arms.
+        const Disk overReflex(Point(3, 3), 2);
+        CHECK(lshape.intersects(overReflex));
+        CHECK(lshape.interiorsIntersect(overReflex));
     }
 }
 

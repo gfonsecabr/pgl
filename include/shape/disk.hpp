@@ -1232,14 +1232,17 @@ struct Disk {
     };
 
   private:
-    // Lets Convex::interiorsIntersect(Disk), Rectangle::contains(Disk), and
-    // Halfplane::contains(Disk) reuse the disk-interior witness below.
+    // Lets Convex::interiorsIntersect(Disk), Rectangle::contains(Disk),
+    // Halfplane::contains(Disk), and Polygon::contains(Disk) reuse the
+    // disk-interior witness below.
     template <class P, class L>
     friend struct Convex;
     template <class P, class L>
     friend struct Rectangle;
     template <class P, class L>
     friend struct Halfplane;
+    template <class P, class L>
+    friend struct Polygon;
 
     /**
      * @brief Tests whether some point strictly inside this disk lies in the

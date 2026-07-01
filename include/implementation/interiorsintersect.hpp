@@ -1431,10 +1431,19 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Shape<OtherP
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::interiorsIntersect(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    // The open interiors meet when a boundary edge passes through the open disk
+    // (this also covers the polygon lying inside the disk, whose edges are then
+    // inside it), or when the disk lies inside the polygon -- witnessed by a point
+    // strictly inside the disk falling in the polygon's strict interior. The
+    // interior witness matters: a disk tangent to an edge from inside still
+    // overlaps the interior.
+    for (const auto& edge : edges()) {
+        if (edge.interiorsIntersect(other)) {
+            return true;
+        }
+    }
+    return other.pointInsideInteriorContained(*this);
 }
 
 }  // namespace pgl
