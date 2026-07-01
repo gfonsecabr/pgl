@@ -1561,6 +1561,74 @@ constexpr void Polygon<PointType, LabelType>::rotate90(int k) {
 }
 
 template <class PointType, class LabelType>
+constexpr void Polygon<PointType, LabelType>::untangle() {
+    // Work directly on the stored (untranslated) vertices: a uniform translation
+    // preserves every crossing/containment relation used below, so indices stay
+    // meaningful without applying translation_. Orientation is irrelevant to the
+    // moves, so the sequence is only renormalized once at the end.
+    const auto edge = [this](std::ptrdiff_t a) {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
+        return Segment<PointType>(points_[static_cast<std::size_t>(a)],
+                                  points_[static_cast<std::size_t>((a + 1) % n)]);
+    };
+
+    while (points_.size() >= 3) {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
+
+        // 1) Uncross a transversally crossing pair of non-adjacent edges. The
+        //    reversal of the sub-path v[i+1..j] strictly shortens the perimeter,
+        //    so this can happen only finitely often for a fixed vertex count.
+        bool flipped = false;
+        for (std::ptrdiff_t i = 0; i < n && !flipped; ++i) {
+            for (std::ptrdiff_t j = i + 1; j < n; ++j) {
+                const bool adjacent = (j == i + 1) || (i == 0 && j == n - 1);
+                if (adjacent) {
+                    continue;
+                }
+                if (edge(i).crosses(edge(j))) {
+                    std::reverse(points_.begin() + (i + 1), points_.begin() + (j + 1));
+                    flipped = true;
+                    break;
+                }
+            }
+        }
+        if (flipped) {
+            continue;
+        }
+
+        // 2) No transversal crossing remains, so any residual self-contact is a
+        //    collinear touch/overlap, a coincident vertex, or a zero-length edge.
+        //    In each case a vertex lies on a non-incident edge; deleting it clears
+        //    the contact and strictly decreases the vertex count.
+        bool removed = false;
+        for (std::ptrdiff_t k = 0; k < n && !removed; ++k) {
+            if (points_[static_cast<std::size_t>(k)] ==
+                points_[static_cast<std::size_t>((k + 1) % n)]) {
+                points_.erase(points_.begin() + k);  // zero-length edge
+                removed = true;
+                break;
+            }
+            for (std::ptrdiff_t e = 0; e < n; ++e) {
+                if (e == k || e == (k - 1 + n) % n) {
+                    continue;  // edges incident to vertex k always contain it
+                }
+                if (edge(e).contains(points_[static_cast<std::size_t>(k)])) {
+                    points_.erase(points_.begin() + k);
+                    removed = true;
+                    break;
+                }
+            }
+        }
+        if (!removed) {
+            break;  // no crossing and no self-contact: the polygon is simple
+        }
+    }
+
+    normalize();
+    resetCache();
+}
+
+template <class PointType, class LabelType>
 template <class OtherNumber>
 constexpr Polygon<PointType, LabelType> Polygon<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
     std::vector<PointType> pts;
