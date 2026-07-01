@@ -18,7 +18,7 @@ Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
 
 Options:
-    --shapes  S,...    Shapes to include (default: all 8, plus Point as shape B).
+    --shapes  S,...    Shapes to include (default: all 9, plus Point as shape B).
                        Point only appears as the second operand and is
                        size-agnostic (one variant, ignoring --sizes).
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
@@ -55,6 +55,7 @@ ALL_SHAPES = [
     "Triangle",
     "Disk",
     "Convex",
+    "Polygon",
 ]
 
 # A bare Point has no extent, so it only ever appears as the second operand
@@ -119,6 +120,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Bishape<{alias}>({n});"
     if shape in _TRISHAPES:
         return f"auto {var} = {prefix}Trishape<{alias}>({n});"
+    if shape == "Polygon":
+        return f"auto {var} = {prefix}Polygons<N>({n}, 32);"
     return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"
 
 
