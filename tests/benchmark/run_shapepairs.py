@@ -21,6 +21,9 @@ Options:
     --shapes  S,...    Shapes to include (default: all 9, plus Point as shape B).
                        Point only appears as the second operand and is
                        size-agnostic (one variant, ignoring --sizes).
+    --focus   S,...    Run these shapes against everything: keep only pairs where
+                       at least one operand is a focus shape (its row AND column).
+                       Focus shapes are added to --shapes automatically.
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
     --methods M,...    Methods to include (default: all 11)
     --types   T,...    Number types (default: all 5)
@@ -247,6 +250,8 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--shapes",    default=",".join(ALL_SHAPES + SHAPES_B_EXTRA))
+    ap.add_argument("--focus",     default="",
+                    help="Run these shapes against everything (both operand A and B)")
     ap.add_argument("--sizes",     default=",".join(ALL_SIZES))
     ap.add_argument("--methods",   default=",".join(ALL_METHODS))
     ap.add_argument("--types",     default=",".join(k for k, _ in ALL_NUMBER_TYPES))
@@ -292,6 +297,17 @@ def main() -> None:
     valid_type_keys = {k for k, _ in ALL_NUMBER_TYPES}
 
     requested_shapes = [s.strip() for s in args.shapes.split(",") if s.strip()]
+    focus = [s.strip() for s in args.focus.split(",") if s.strip()]
+
+    valid_all = valid_shapes_a | valid_shapes_b
+    bad_focus = [s for s in focus if s not in valid_all]
+    if bad_focus:
+        sys.exit(f"Unknown focus shape(s): {bad_focus}")
+    # Focus shapes must be present in the operand universe to appear at all.
+    for s in focus:
+        if s not in requested_shapes:
+            requested_shapes.append(s)
+
     shapes1 = [s for s in requested_shapes if s in valid_shapes_a]
     shapes2 = [s for s in requested_shapes if s in valid_shapes_b]
     sizes   = [s.strip() for s in args.sizes.split(",")   if s.strip() in valid_sizes]
@@ -316,7 +332,10 @@ def main() -> None:
 
     variants1 = [v for s in shapes1 for v in variants_of(s)]
     variants2 = [v for s in shapes2 for v in variants_of(s)]
-    pairs  = list(itertools.product(variants1, variants2))
+    pairs = list(itertools.product(variants1, variants2))
+    if focus:
+        focus_set = set(focus)
+        pairs = [(a, b) for a, b in pairs if a[0] in focus_set or b[0] in focus_set]
     combos = [
         (s1, sz1, s2, sz2, m, k, cpp_t)
         for ((s1, sz1), (s2, sz2)), m, (k, cpp_t)
@@ -331,6 +350,8 @@ def main() -> None:
     )
     print(f"  shape A: {shapes1}")
     print(f"  shape B: {shapes2}")
+    if focus:
+        print(f"  focus:   {focus} (kept pairs touching a focus shape)")
     print(f"  sizes:   {sizes}")
     print(f"  methods: {methods}")
     print(f"  types:   {[k for k, _ in types]}")
@@ -485,6 +506,7 @@ def main() -> None:
             "n_pairs":      N_SHAPES * N_SHAPES,
             "shapes_a":     shapes1,
             "shapes_b":     shapes2,
+            "focus":        focus or None,
             "sizes":        sizes,
             "methods":      methods,
             "number_types": [k for k, _ in types],

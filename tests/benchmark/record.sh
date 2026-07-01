@@ -7,13 +7,14 @@
 #   bash tests/benchmark/record.sh --pairs-only        # skip the extra benchmarks
 #   bash tests/benchmark/record.sh --extra-only        # only the extra benchmarks
 #   bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
+#   bash tests/benchmark/record.sh --focus Polygon     # Polygon vs everything (row+col)
 #
 # Refuses to run with uncommitted changes to tracked files, so every measurement
 # maps to a real commit — the dashboard's x-axis is the commit date, not the run
 # date. Untracked files (scratch sources, build output) are allowed and ignored.
 #
-# Pass-through filters for the shape-pair cube: --shapes, --sizes, --methods,
-# --types (comma lists; see run_shapepairs.py). Other options:
+# Pass-through filters for the shape-pair cube: --shapes, --focus, --sizes,
+# --methods, --types (comma lists; see run_shapepairs.py). Other options:
 #   --pairs-only / --extra-only   run only one half
 #   --repetitions N               samples per program; median kept (default: 3)
 #   --no-push                     commit locally but do not push
@@ -38,9 +39,9 @@ while [[ $# -gt 0 ]]; do
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
         --repetitions=*) repetitions="${1#*=}"; shift ;;
-        --shapes|--sizes|--methods|--types)
+        --shapes|--focus|--sizes|--methods|--types)
             pair_args+=("$1" "$2"); shift 2 ;;
-        --shapes=*|--sizes=*|--methods=*|--types=*)
+        --shapes=*|--focus=*|--sizes=*|--methods=*|--types=*)
             pair_args+=("$1"); shift ;;
         -h|--help)
             awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"
