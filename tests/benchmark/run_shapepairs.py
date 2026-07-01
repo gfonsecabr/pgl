@@ -119,7 +119,7 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Bishape<{alias}>({n});"
     if shape in _TRISHAPES:
         return f"auto {var} = {prefix}Trishape<{alias}>({n});"
-    return f"auto {var} = {prefix}Convexes<N>({n}, 8);"
+    return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"
 
 
 def _cpp_accumulate(method: str) -> str:

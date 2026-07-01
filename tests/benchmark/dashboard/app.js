@@ -53,7 +53,7 @@ const _TRISHAPES = new Set(["Triangle", "Disk"]);
 function nDefiningPoints(shape) {
   if (_BISHAPES.has(shape)) return 2;
   if (_TRISHAPES.has(shape)) return 3;
-  return 8; // Convex hull sample size
+  return 1000; // Convex hull sample size (m in run_shapepairs.py)
 }
 
 // Plain-language description of how a random shape of this kind/size is drawn,
@@ -61,16 +61,11 @@ function nDefiningPoints(shape) {
 // (small offset radius 500, full radius 5000).
 function distributionTip(shape, size) {
   if (shape === "Point")
-    return "Random points: drawn uniformly from a disk of radius 5000 about the "
-      + "origin (points have no small/large variant).";
+    return "Random integer points in a disk of radius 5000";
   const n = nDefiningPoints(shape);
-  const pts = n === 8 ? "8 hull points" : `${n} defining points`;
   if (size === "large")
-    return `Random ${shape} (large): its ${pts} are each drawn uniformly from a `
-      + "disk of radius 5000 about the origin, so it spans the whole area.";
-  return `Random ${shape} (small): a base point is drawn uniformly from a disk of `
-    + `radius 5000, then its ${pts} sit within a radius-500 disk around it — a `
-    + "compact shape (extent ≲1000) at a random location.";
+    return `Random ${shape} (large): ${n} random integer defining points in a disk of radius 5000`;
+  return `Random ${shape} (small): ${n} random integer defining points in a disk of radius 500 translated by a random integer vector of length ≤ 5000`;
 }
 
 async function load() {
