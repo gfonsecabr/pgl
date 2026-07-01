@@ -633,6 +633,8 @@ function showChart(title, points, unit) {
   const lo = bestOf(points), hi = worstOf(points);
   const labels = points.map((p) => (p.date ? p.date.slice(0, 10) : "") + "\n" + p.commit);
   const values = points.map((p) => p.time);
+  const mins = points.map((p) => (p.min !== undefined ? p.min : p.time));
+  const maxs = points.map((p) => (p.max !== undefined ? p.max : p.time));
 
   const pointColors = values.map((v, i) =>
     i === n - 1 ? "#0a429e" : statusColor(v, lo, hi));
@@ -674,30 +676,34 @@ function showChart(title, points, unit) {
       labels,
       datasets: [
         {
-          label: "time (" + unit + ")",
+          // Median — the main, thicker line, drawn on top with coloured points.
+          label: "median",
           data: values,
           borderColor: "#0a429e",
-          backgroundColor: "rgba(10,66,158,.10)",
           pointBackgroundColor: pointColors,
           pointBorderColor: "#fff",
           pointBorderWidth: 1,
           pointRadius: pointRadii,
           pointHoverRadius: 7,
+          borderWidth: 2,
           tension: 0,
-          fill: true,
-          order: 1,
+          fill: false,
+          order: 0,
         },
         {
-          label: "best " + fmt(lo),
-          data: values.map(() => lo),
-          borderColor: "#1a7f37", borderDash: [6, 4], borderWidth: 1.5,
-          pointRadius: 0, fill: false, order: 2,
+          // Max — thin line; the band down to min (dataset 2) is shaded.
+          label: "max",
+          data: maxs,
+          borderColor: "rgba(10,66,158,.45)", borderWidth: 1,
+          pointRadius: 0, tension: 0, fill: false, order: 2,
         },
         {
-          label: "worst " + fmt(hi),
-          data: values.map(() => hi),
-          borderColor: "#cf222e", borderDash: [6, 4], borderWidth: 1.5,
-          pointRadius: 0, fill: false, order: 3,
+          // Min — thin line, fills the area up to the max line (dataset 1).
+          label: "min",
+          data: mins,
+          borderColor: "rgba(10,66,158,.45)", borderWidth: 1,
+          backgroundColor: "rgba(10,66,158,.12)",
+          pointRadius: 0, tension: 0, fill: { target: 1 }, order: 2,
         },
       ],
     },
