@@ -88,10 +88,10 @@ TEST_CASE("Polygon contains Disk") {
     }
 
     SUBCASE("disjoint disk is not contained") {
-        const Disk far(Point(35, 0), 10);
+        const Disk distant(Point(35, 0), 10);
 
-        CHECK_FALSE(square.contains(far));
-        CHECK_FALSE(square.interiorContains(far));
+        CHECK_FALSE(square.contains(distant));
+        CHECK_FALSE(square.interiorContains(distant));
     }
 
     SUBCASE("non-convex polygon respects the reflex notch") {
@@ -152,10 +152,10 @@ TEST_CASE("Polygon intersects and interiorsIntersect Disk") {
     }
 
     SUBCASE("disjoint disk overlaps neither") {
-        const Disk far(Point(35, 0), 10);
+        const Disk distant(Point(35, 0), 10);
 
-        CHECK_FALSE(square.intersects(far));
-        CHECK_FALSE(square.interiorsIntersect(far));
+        CHECK_FALSE(square.intersects(distant));
+        CHECK_FALSE(square.interiorsIntersect(distant));
     }
 
     SUBCASE("non-convex polygon respects the reflex notch") {
