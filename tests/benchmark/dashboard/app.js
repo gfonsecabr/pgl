@@ -27,8 +27,51 @@ const DIM_SHORT = {
 // the second becomes rows (number types first — the comparison that matters most).
 const AXIS_PRIORITY = ["type", "method", "shape1", "shape2", "size1", "size2"];
 
+// A bare Point has no extent, so it carries this sentinel size in the data. It
+// is never offered as a size filter chip and never labelled.
+const NO_SIZE = "n/a";
+const SIZE_DIMS = new Set(["size1", "size2"]);
+const SHAPE_OF = { size1: "shape1", size2: "shape2" };
+
 const selected = {}; // dim -> Set of selected values
 let swapAxes = false;
+
+// Selectable values of a dimension — the "n/a" point-size is never offered.
+const dimValues = (d) =>
+  (DB.dimensions[d] || []).filter((v) => !(SIZE_DIMS.has(d) && v === NO_SIZE));
+
+// "large Segment", "small Triangle", or just "Point" (points have no size).
+function variantName(shape, size) {
+  if (!shape) return "";
+  if (shape === "Point" || !size || size === NO_SIZE) return shape;
+  return `${size} ${shape}`;
+}
+
+// Number of points defining a random shape, mirroring randomshapes.hpp.
+const _BISHAPES = new Set(["Segment", "OrientedSegment", "Line", "OrientedLine", "Rectangle"]);
+const _TRISHAPES = new Set(["Triangle", "Disk"]);
+function nDefiningPoints(shape) {
+  if (_BISHAPES.has(shape)) return 2;
+  if (_TRISHAPES.has(shape)) return 3;
+  return 8; // Convex hull sample size
+}
+
+// Plain-language description of how a random shape of this kind/size is drawn,
+// used as a tooltip. Mirrors the generators in tests/benchmark/randomshapes.hpp
+// (small offset radius 500, full radius 5000).
+function distributionTip(shape, size) {
+  if (shape === "Point")
+    return "Random points: drawn uniformly from a disk of radius 5000 about the "
+      + "origin (points have no small/large variant).";
+  const n = nDefiningPoints(shape);
+  const pts = n === 8 ? "8 hull points" : `${n} defining points`;
+  if (size === "large")
+    return `Random ${shape} (large): its ${pts} are each drawn uniformly from a `
+      + "disk of radius 5000 about the origin, so it spans the whole area.";
+  return `Random ${shape} (small): a base point is drawn uniformly from a disk of `
+    + `radius 5000, then its ${pts} sit within a radius-500 disk around it — a `
+    + "compact shape (extent ≲1000) at a random location.";
+}
 
 async function load() {
   const res = await fetch("data.json", { cache: "no-store" });
@@ -53,7 +96,7 @@ async function load() {
   document.getElementById("chart-close")
     .addEventListener("click", () => document.getElementById("chart-dialog").close());
 
-  for (const d of DIMS) selected[d] = new Set(DB.dimensions[d] || []);
+  for (const d of DIMS) selected[d] = new Set(dimValues(d));
 
   buildFilterBar();
   render();
@@ -145,7 +188,7 @@ function buildFilterBar() {
   root.innerHTML = "";
 
   for (const d of DIMS) {
-    const values = DB.dimensions[d] || [];
+    const values = dimValues(d);
     if (values.length === 0) continue;
 
     const group = document.createElement("div");
@@ -192,7 +235,7 @@ function buildFilterBar() {
 }
 
 // Selected values of a dimension, in canonical display order.
-const sel = (d) => (DB.dimensions[d] || []).filter((v) => selected[d].has(v));
+const sel = (d) => dimValues(d).filter((v) => selected[d].has(v));
 
 // ── main render (shape-pair cube) ─────────────────────────────────────────────
 
@@ -208,7 +251,7 @@ function render() {
   if (empty.length) {
     root.innerHTML =
       `<p class="empty-state">No values selected for: ${empty.map((d) => DIM_LABEL[d]).join(", ")}.</p>`;
-    updateSummary([], []);
+    updateSummary([], [], []);
     renderExtra();
     return;
   }
@@ -220,10 +263,26 @@ function render() {
   const facetDims = active.filter((d) => d !== colDim && d !== rowDim);
   const fixedDims = DIMS.filter((d) => sel(d).length === 1);
 
-  updateSummary(fixedDims, [colDim, rowDim].filter(Boolean));
+  updateSummary(fixedDims, [colDim, rowDim].filter(Boolean), facetDims);
 
   // One facet table per combination of the facet dimensions' selected values.
-  const facetCombos = product(facetDims.map((d) => sel(d).map((v) => [d, v])));
+  let facetCombos = product(facetDims.map((d) => sel(d).map((v) => [d, v])));
+  // A Point has no size, so collapse the size2 facet when the facet's shape2 is
+  // Point — otherwise "Point + small" and "Point + large" would be duplicates.
+  if (facetDims.includes("size2")) {
+    const shape2Fixed = fixedDims.includes("shape2") ? sel("shape2")[0] : null;
+    const shape2Facet = facetDims.includes("shape2");
+    const seen = new Set();
+    facetCombos = facetCombos.filter((combo) => {
+      const s2 = shape2Facet ? (combo.find(([d]) => d === "shape2") || [])[1] : shape2Fixed;
+      const k = combo
+        .map(([d, v]) => (s2 === "Point" && d === "size2") ? `${d}=*` : `${d}=${v}`)
+        .join(";");
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
 
   let anyData = false;
   for (const combo of facetCombos) {
@@ -251,9 +310,33 @@ function render() {
     const section = document.createElement("section");
     section.className = "suite";
 
-    if (facetDims.length) {
+    // Facet title: merge each operand's shape and size ("large Segment"), with a
+    // tooltip describing how those random shapes are drawn. A Point shows no size.
+    const titleParts = [];
+    const addOperand = (prefix, shapeDim, sizeDim) => {
+      if (!facetDims.includes(shapeDim) && !facetDims.includes(sizeDim)) return;
+      const shape = base[shapeDim], size = base[sizeDim];
+      if (shape)
+        titleParts.push({ text: `${prefix}: ${variantName(shape, size)}`, tip: distributionTip(shape, size) });
+      else if (size !== undefined)
+        titleParts.push({ text: `${prefix} size: ${size}`, tip: "" });
+    };
+    addOperand("A", "shape1", "size1");
+    addOperand("B", "shape2", "size2");
+    for (const d of facetDims)
+      if (!SIZE_DIMS.has(d) && d !== "shape1" && d !== "shape2")
+        titleParts.push({ text: `${DIM_SHORT[d]}: ${base[d]}`, tip: "" });
+
+    if (titleParts.length) {
       const h = document.createElement("h2");
-      h.textContent = combo.map(([d, v]) => `${DIM_SHORT[d]}: ${v}`).join("  ·  ");
+      h.className = "facet-title";
+      titleParts.forEach((p, i) => {
+        if (i) h.appendChild(document.createTextNode("  ·  "));
+        const span = document.createElement("span");
+        span.textContent = p.text;
+        if (p.tip) { span.title = p.tip; span.className = "facet-part"; }
+        h.appendChild(span);
+      });
       section.appendChild(h);
     }
 
@@ -335,14 +418,18 @@ function render() {
   renderExtra();
 }
 
-// Build the cube key in the canonical "s1|sz1|s2|sz2|method|type" order.
+// Build the cube key in the canonical "s1|sz1|s2|sz2|method|type" order. A Point
+// carries the size-agnostic sentinel regardless of any size axis/facet value.
 function keyOf(c) {
-  return [c.shape1, c.size1, c.shape2, c.size2, c.method, c.type].join("|");
+  const size1 = c.shape1 === "Point" ? NO_SIZE : c.size1;
+  const size2 = c.shape2 === "Point" ? NO_SIZE : c.size2;
+  return [c.shape1, size1, c.shape2, size2, c.method, c.type].join("|");
 }
 
-// Human-readable label for a full coordinate.
+// Human-readable label for a full coordinate ("large Segment × Point · …").
 function describe(c) {
-  return `${c.shape1}(${c.size1}) × ${c.shape2}(${c.size2}) · ${c.method} · ${c.type}`;
+  return `${variantName(c.shape1, c.size1)} × ${variantName(c.shape2, c.size2)}`
+    + ` · ${c.method} · ${c.type}`;
 }
 
 // Cartesian product of a list of [dim, value] option-lists. Empty -> [[]].
@@ -353,14 +440,34 @@ function product(lists) {
   );
 }
 
-function updateSummary(fixedDims, axisDims) {
+function updateSummary(fixedDims, axisDims, facetDims) {
   const parts = [];
   if (axisDims.length) {
     parts.push(`<span><b>${axisDims.length}</b> axis dim${axisDims.length > 1 ? "s" : ""}: ${axisDims.map((d) => DIM_LABEL[d]).join(", ")}</span>`);
   }
+
+  const fixedSet = new Set(fixedDims);
+  const facetSet = new Set(facetDims || []);
+  const shown = new Set();
+  // Fixed operands: merge shape and size into "large Segment" (or just "Point").
+  for (const [label, shapeDim, sizeDim] of [["Shape A", "shape1", "size1"],
+                                            ["Shape B", "shape2", "size2"]]) {
+    if (!fixedSet.has(shapeDim)) continue;
+    const shape = sel(shapeDim)[0];
+    const size = fixedSet.has(sizeDim) ? sel(sizeDim)[0] : null;
+    const tip = (size || shape === "Point") ? ` title="${distributionTip(shape, size)}"` : "";
+    const cls = tip ? ' class="facet-part"' : "";
+    parts.push(`<span${cls}${tip}>${label}: <b>${variantName(shape, size)}</b></span>`);
+    shown.add(shapeDim);
+    if (size) shown.add(sizeDim);
+  }
   for (const d of fixedDims) {
+    if (shown.has(d)) continue;
+    // A fixed size whose shape varies is already shown, merged, in the facet titles.
+    if (SIZE_DIMS.has(d) && (facetSet.has(SHAPE_OF[d]) || !fixedSet.has(SHAPE_OF[d]))) continue;
     parts.push(`<span>${DIM_LABEL[d]} <b>${sel(d)[0]}</b></span>`);
   }
+
   const g = DB.generated ? new Date(DB.generated) : null;
   if (g) parts.push(`<span>updated <b>${g.toLocaleDateString()}</b></span>`);
   document.getElementById("summary").innerHTML = parts.join("");
