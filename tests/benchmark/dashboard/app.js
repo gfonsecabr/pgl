@@ -143,11 +143,24 @@ function statusColor(cur, lo, hi, alpha) {
   return `hsl(${hue.toFixed(0)} 68% ${alpha ? "45% / " + alpha : "38%"})`;
 }
 
-function th(text, cls) {
+function th(text, cls, tip) {
   const e = document.createElement("th");
   e.textContent = text;
   if (cls) e.className = cls;
+  if (tip) { e.title = tip; e.classList.add("facet-part"); }
   return e;
+}
+
+// Distribution tooltip for a row/column header that names a shape. Returns "" —
+// no tooltip — when the shape's size varies along the *other* axis, because then
+// the header spans both small and large (two distributions, so it's ambiguous).
+function axisTip(dim, value, base, otherDim) {
+  if (value === null || (dim !== "shape1" && dim !== "shape2")) return "";
+  if (value === "Point") return distributionTip("Point", null);
+  const sizeDim = dim === "shape1" ? "size1" : "size2";
+  if (sizeDim === otherDim) return "";        // size spans the other axis → ambiguous
+  const size = base[sizeDim];                 // fixed or facet-fixed within this table
+  return (size && size !== NO_SIZE) ? distributionTip(value, size) : "";
 }
 
 // Tiny inline SVG sparkline with faint best/worst guides — built on hover.
@@ -353,7 +366,8 @@ function render() {
     const thead = document.createElement("thead");
     const hr = document.createElement("tr");
     hr.appendChild(th(rowDim ? DIM_SHORT[rowDim] : ""));
-    for (const c of cols) hr.appendChild(th(c === null ? colDim || "value" : c, "num"));
+    for (const c of cols)
+      hr.appendChild(th(c === null ? colDim || "value" : c, "num", axisTip(colDim, c, base, rowDim)));
     thead.appendChild(hr);
     table.appendChild(thead);
 
@@ -363,6 +377,8 @@ function render() {
       const fn = document.createElement("td");
       fn.className = "fn";
       fn.textContent = r === null ? "" : r;
+      const rtip = axisTip(rowDim, r, base, colDim);
+      if (rtip) { fn.title = rtip; fn.classList.add("facet-part"); }
       tr.appendChild(fn);
 
       const rowPts = cols.map((c) => {
