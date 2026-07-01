@@ -178,8 +178,8 @@ TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
 }
 
 // contains / boundaryContains / interiorContains for one polygon against another.
-// (Polygon::separates(Polygon) and the crosses that delegates to it are not
-// implemented yet -- they throw -- so they are out of scope here.)
+// (Polygon::separates(Polygon) and the crosses that delegates to it now have
+// their own coverage in polygon_polygon_separates.cpp.)
 TEST_CASE("Polygon contains another Polygon") {
     using Point = pgl::Point<int>;
     using Polygon = pgl::Polygon<Point>;

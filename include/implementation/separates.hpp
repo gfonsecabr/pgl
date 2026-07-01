@@ -1681,244 +1681,100 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherPolygon& oth
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Convex<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    // Removing a convex body from a polygon is the same cut question as for a
+    // general polygon; route through the unified Polygon::separates(Polygon).
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) const {
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    if (!bbox().intersects(other.bbox())) {
+
+    // Same arc count as Disk::separates(Convex): removing the disk disconnects
+    // the polygon when its boundary leaves the disk in >= 2 separate arcs. Each
+    // vertex is inside or outside the disk (an exact squared-distance test), and
+    // an edge with both endpoints outside still contributes an arc if it cuts a
+    // chord through the disk.
+    //
+    // The arc count is exact only for a convex polygon: a reflex polygon that
+    // dips into the disk through several disjoint pockets would need the
+    // (irrational) circle-boundary crossings to be resolved exactly, so this
+    // rejects the non-convex case rather than returning a possibly wrong answer.
+    if (!other.isConvex()) {
+        throw std::runtime_error(
+            "pgl: Disk::separates(Polygon) is only supported for convex polygons");
+    }
+
+    const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(other.size());
+    int arcs = 0;
+    bool prev_in = contains(other[m - 1]);
+    for (std::ptrdiff_t i = 0; i < m; ++i) {
+        const bool cur_in = contains(other[i]);
+        if (!prev_in && !cur_in) {
+            const Segment<typename OtherPolygon::PointType> edge(other.get(i - 1), other[i]);
+            if (intersects(edge)) {
+                ++arcs;
+            }
+        } else if (prev_in && !cur_in) {
+            ++arcs;
+        }
+        if (arcs >= 2) {
+            return true;
+        }
+        prev_in = cur_in;
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherRectangle& other) const {
+    return separates(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherTriangle& other) const {
+    return separates(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
 
-    // Removing the convex body C from the polygon P disconnects P iff some
-    // connected component of C ∩ P touches ∂P in two or more pieces. Counting
-    // boundary arcs (as the Convex overload does) is not enough here: a reflex
-    // polygon can dip into C through several separate pockets while P \ C
-    // stays connected. Instead, walk around ∂C: P is cut exactly when some
-    // maximal arc of ∂C through the open interior of P joins two contacts
-    // belonging to *different* components of ∂P ∩ C. This also catches a
-    // convex body inside P that pinches ∂P at two isolated touch points.
+    // Same crossing count as Convex::separates(Disk): removing the polygon
+    // disconnects the disk when the polygon boundary crosses the circle >= 4
+    // times (>= 2 in/out arcs). Per edge:
+    //   - one endpoint inside, one outside -> 1 crossing,
+    //   - both endpoints outside and the edge carries a full chord -> 2,
+    //   - otherwise 0.
     //
-    // Events are the contacts of ∂P with ∂C, each labelled with the component
-    // of ∂P ∩ C it belongs to and located on its convex edge by a line that
-    // crosses the edge at the contact, so no intersection point is ever
-    // constructed. Each event also records the local feature of ∂P at the
-    // contact (the crossing edge, or the wedge at a polygon vertex), so that
-    // whether the ∂C arc leaving a contact enters the interior of P is decided
-    // by orientation signs at that contact alone. Stretches where the two
-    // boundaries overlap are bounded by events of the same component and can
-    // therefore never fire the test.
-
-    using CommonNumber = std::common_type_t<typename PointType::NumberType,
-                                            typename OtherPolygon::NumberType>;
-    using CommonPoint = Point<CommonNumber>;
-    using PosLine = Line<CommonPoint>;
-
-    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(other.size());
-    const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(size());
-
-    const auto common = [](const auto& p) {
-        return CommonPoint(static_cast<CommonNumber>(p.x()),
-                           static_cast<CommonNumber>(p.y()));
-    };
-
-    // A line through `at` perpendicular to convex edge k; it crosses that
-    // edge exactly at `at`, placing a contact point that is known explicitly.
-    const auto perpendicularAt = [&](const CommonPoint& at, std::ptrdiff_t k) {
-        const CommonPoint a = common(get(k));
-        const CommonPoint b = common(get(k + 1));
-        return PosLine(at, CommonPoint(at.x() - (b.y() - a.y()),
-                                       at.y() + (b.x() - a.x())));
-    };
-
-    struct Event {
-        std::ptrdiff_t cedge;  // convex edge carrying the contact
-        PosLine where;         // crosses that edge at the contact point
-        int component;         // component of ∂P ∩ C the contact belongs to
-        CommonPoint a, b, c;   // ∂P at the contact: edge a->b, or wedge a->b->c
-        bool atVertex;         // contact is the polygon vertex b
-    };
-    std::vector<Event> events;
-
-    // The first (mode first) or last contact of polygon edge pa->pb with ∂C.
-    // Contacts are ordered along pa->pb by where the convex edge's line
-    // crosses it; that line is parallel to pa->pb only for a collinear
-    // overlap, whose near and far ends are explicit endpoints. A contact
-    // landing exactly on the run's vertex inside C is dropped when requested:
-    // the vertex's own wedge events describe that contact better.
-    const auto extremeContact = [&](const typename OtherPolygon::PointType& pa, const typename OtherPolygon::PointType& pb,
-                                    bool first, bool skipAtRunVertex)
-        -> std::optional<std::pair<std::ptrdiff_t, PosLine>> {
-        const CommonPoint a = common(pa);
-        const CommonPoint b = common(pb);
-        const Segment<CommonPoint> s(a, b);
-        const OrientedLine<CommonPoint> axis(a, b);
-        std::optional<std::pair<std::ptrdiff_t, PosLine>> best;
-        std::optional<PosLine> bestAlong;
-        const auto consider = [&](std::ptrdiff_t k, const PosLine& where,
-                                  const PosLine& along) {
-            if (bestAlong) {
-                const auto order = axis.crossingOrder(along, *bestAlong);
-                const bool improves =
-                    first ? order == std::partial_ordering::less
-                          : order == std::partial_ordering::greater;
-                if (!improves) {
-                    return;
-                }
-            }
-            best.emplace(k, where);
-            bestAlong = along;
-        };
-        for (std::ptrdiff_t k = 0; k < m; ++k) {
-            const Segment<CommonPoint> edge(common(get(k)), common(get(k + 1)));
-            if (!edge.intersects(s)) {
-                continue;
-            }
-            if (s.parallel(edge)) {
-                const CommonPoint lo = std::max(s.min(), edge.min());
-                const CommonPoint hi = std::min(s.max(), edge.max());
-                const CommonPoint at = (first == (a < b)) ? lo : hi;
-                const PosLine across = perpendicularAt(at, k);
-                consider(k, across, across);
-            } else {
-                consider(k, PosLine(a, b),
-                         PosLine(common(get(k)), common(get(k + 1))));
-            }
-        }
-        if (best && skipAtRunVertex) {
-            const CommonPoint inVertex = first ? b : a;
-            const PosLine atInVertex(
-                inVertex, CommonPoint(inVertex.x() - (b.y() - a.y()),
-                                      inVertex.y() + (b.x() - a.x())));
-            if (axis.crossingOrder(*bestAlong, atInVertex) ==
-                std::partial_ordering::equivalent) {
-                return std::nullopt;
-            }
-        }
-        return best;
-    };
-
-    std::vector<char> in(static_cast<std::size_t>(n));
-    std::ptrdiff_t start = -1;
-    for (std::ptrdiff_t i = 0; i < n; ++i) {
-        in[static_cast<std::size_t>(i)] = contains(other.get(i));
-        if (!in[static_cast<std::size_t>(i)]) {
-            start = i;
-        }
-    }
-    if (start < 0) {
-        return false;  // the whole polygon lies inside the convex body
+    // The count is exact only for a convex polygon: a non-convex polygon that
+    // takes several separate bites out of the disk over-counts, since it cannot
+    // see that the bites belong to different components of polygon ∩ disk (an
+    // exact test would need the irrational circle crossings). Reject that case
+    // rather than return a possibly wrong answer.
+    if (!isConvex()) {
+        throw std::runtime_error(
+            "pgl: Polygon::separates(Disk) is only supported for convex polygons");
     }
 
-    int component = 0;
-
-    // A polygon vertex inside C that lies on ∂C is a contact in its own
-    // right; the pair of wedge events splits the ∂C arcs it sits between
-    // (the two-touch pinch case) without affecting any other arc.
-    const auto addVertexContact = [&](std::ptrdiff_t i) {
-        const typename OtherPolygon::PointType vertex = other.get(i);
-        if (!boundaryContains(vertex)) {
-            return;
+    int crossings = 0;
+    for (const auto& edge : edges()) {
+        const bool min_inside = other.interiorContains(edge.min());
+        const bool max_inside = other.interiorContains(edge.max());
+        if (min_inside != max_inside) {
+            ++crossings;
+        } else if (!min_inside && edge.separates(other)) {
+            crossings += 2;
         }
-        const CommonPoint v = common(vertex);
-        for (std::ptrdiff_t k = 0; k < m; ++k) {
-            const Segment<CommonPoint> edge(common(get(k)), common(get(k + 1)));
-            if (edge.contains(v)) {
-                const PosLine across = perpendicularAt(v, k);
-                const Event event{k, across, component,
-                                  common(other.get(i - 1)), v,
-                                  common(other.get(i + 1)), true};
-                events.push_back(event);
-                events.push_back(event);
-                return;
-            }
-        }
-    };
-
-    bool previous = false;  // in[start] is false
-    for (std::ptrdiff_t i = start + 1; i <= start + n; ++i) {
-        const bool current = in[static_cast<std::size_t>(i % n)];
-        const auto u = other.get(i - 1);
-        const auto v = other.get(i);
-        if (current && !previous) {
-            ++component;
-            if (const auto contact = extremeContact(u, v, true, true)) {
-                events.push_back({contact->first, contact->second, component,
-                                  common(u), common(v), common(v), false});
-            }
-        } else if (!current && previous) {
-            if (const auto contact = extremeContact(u, v, false, true)) {
-                events.push_back({contact->first, contact->second, component,
-                                  common(u), common(v), common(v), false});
-            }
-        } else if (!current && intersects(Segment<typename OtherPolygon::PointType>(u, v))) {
-            // Both endpoints outside: the edge meets the convex body in a
-            // single sub-segment or touch point, a component of its own.
-            ++component;
-            if (const auto contact = extremeContact(u, v, true, false)) {
-                events.push_back({contact->first, contact->second, component,
-                                  common(u), common(v), common(v), false});
-            }
-            if (const auto contact = extremeContact(u, v, false, false)) {
-                events.push_back({contact->first, contact->second, component,
-                                  common(u), common(v), common(v), false});
-            }
-        }
-        if (current) {
-            addVertexContact(i);
-        }
-        previous = current;
-    }
-
-    if (events.empty()) {
-        return false;  // the boundaries never meet: nested or disjoint
-    }
-
-    std::sort(events.begin(), events.end(),
-              [&](const Event& x, const Event& y) {
-        if (x.cedge != y.cedge) {
-            return x.cedge < y.cedge;
-        }
-        const OrientedLine<CommonPoint> edge(common(get(x.cedge)),
-                                             common(get(x.cedge + 1)));
-        return edge.crossingOrder(x.where, y.where) ==
-               std::partial_ordering::less;
-    });
-
-    // Whether ∂C heads strictly into the interior of P as it leaves the
-    // event's contact point, decided against the recorded ∂P feature there.
-    const auto entersInterior = [&](const Event& event) {
-        const std::ptrdiff_t k = event.cedge;
-        const OrientedLine<CommonPoint> edgeLine(common(get(k)),
-                                                 common(get(k + 1)));
-        const bool atEdgeEnd =
-            edgeLine.crossingOrder(event.where,
-                                   perpendicularAt(common(get(k + 1)), k)) ==
-            std::partial_ordering::equivalent;
-        const CommonPoint from = common(get(k + (atEdgeEnd ? 1 : 0)));
-        const CommonPoint to = common(get(k + (atEdgeEnd ? 2 : 1)));
-        const CommonNumber dx = to.x() - from.x();
-        const CommonNumber dy = to.y() - from.y();
-        if (!event.atVertex) {
-            // Contact interior to polygon edge a->b: P's interior is strictly
-            // to its left, so the arc dives inside iff it heads left.
-            return orientationSign(event.a, event.b,
-                                   CommonPoint(event.a.x() + dx,
-                                               event.a.y() + dy)) > 0;
-        }
-        // Contact at polygon vertex b: the direction must point strictly into
-        // the interior wedge between the edges a->b and b->c.
-        const CommonPoint probe(event.b.x() + dx, event.b.y() + dy);
-        const auto sideIn = orientationSign(event.a, event.b, probe);
-        const auto sideOut = orientationSign(event.b, event.c, probe);
-        return orientationSign(event.a, event.b, event.c) >= 0
-                   ? (sideIn > 0 && sideOut > 0)
-                   : (sideIn > 0 || sideOut > 0);
-    };
-
-    const std::size_t count = events.size();
-    for (std::size_t t = 0; t < count; ++t) {
-        const Event& current = events[t];
-        const Event& next = events[(t + 1) % count];
-        if (current.component != next.component && entersInterior(current)) {
+        if (crossings >= 4) {
             return true;
         }
     }
@@ -1926,51 +1782,175 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherPolygon& other
 }
 
 template <class PointType, class LabelType>
-template<PolygonConcept OtherPolygon>
-constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Disk::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType, LabelType>::separates(const OtherRectangle&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Rectangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<TriangleConcept OtherTriangle>
-constexpr bool Polygon<PointType, LabelType>::separates(const OtherTriangle&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Triangle) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
-template<DiskConcept OtherDisk>
-constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Disk) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
-}
-
-template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
-constexpr bool Polygon<PointType, LabelType>::separates(const OtherConvex&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Convex) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherConvex& other) const {
+    return separates(other.asPolygon());
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
-constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon&) const {
-    throw std::runtime_error(
-        "pgl: Polygon::separates(Polygon) is not implemented yet for this shape pair");
-    return false;  // unreachable; satisfies constexpr return requirement
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    // Let A = *this and B = other. A.separates(B) asks whether B \ A is
+    // disconnected. For a (topological) disk B this happens exactly when some
+    // connected component of A ∩ B meets ∂B in two or more pieces -- a
+    // "crosscut". A single bite (one contact arc) or an interior island (a hole,
+    // zero contact arcs) leaves B connected, and two disjoint bites belong to
+    // different components, so neither cuts. This is the same criterion the
+    // Convex overload uses, generalized to a non-convex A: A may dip into B
+    // through several separate pockets, so the count is per A ∩ B component, not
+    // a raw boundary-arc tally.
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+
+    // Exact rationals: the components of A ∩ B are polygons whose vertices are
+    // the intersections of the two boundaries, which are rational in general.
+    using Number = Rational<BigInt>;  // exact, overflow-free (ERational's backing)
+    using RPoint = Point<Number, typename OtherPolygon::PointType::LabelType>;
+    using RPolygon = Polygon<RPoint>;
+    using RSegment = Segment<RPoint>;
+
+    const auto toR = [](const auto& p) {
+        return RPoint(Number(p.x()), Number(p.y()));
+    };
+
+    // The 2-D components of A ∩ B. Lower-dimensional pieces (shared boundary
+    // segments or touch points) cannot disconnect the 2-D body of B, so only the
+    // polygon pieces matter.
+    std::vector<RPolygon> pieces;
+    for (const auto& piece : other.template intersection<Number>(*this)) {
+        if (std::holds_alternative<RPolygon>(piece)) {
+            pieces.push_back(std::get<RPolygon>(piece));
+        }
+    }
+    if (pieces.empty()) {
+        return false;
+    }
+
+    // The intersection returns pinched faces (two faces meeting at a single
+    // vertex) as separate polygons, but such faces form one connected component
+    // of the closed set A ∩ B. Union those that share a vertex so a bowtie
+    // crosscut is counted as one component touching ∂B twice.
+    const int k = static_cast<int>(pieces.size());
+    std::vector<int> parent(k);
+    for (int i = 0; i < k; ++i) {
+        parent[i] = i;
+    }
+    const auto find = [&parent](int x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    std::vector<std::pair<RPoint, int>> vertexOwner;
+    for (int i = 0; i < k; ++i) {
+        for (const auto& v : pieces[i].vertices()) {
+            vertexOwner.emplace_back(v, i);
+        }
+    }
+    std::sort(vertexOwner.begin(), vertexOwner.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (std::size_t i = 1; i < vertexOwner.size(); ++i) {
+        if (vertexOwner[i].first == vertexOwner[i - 1].first) {
+            parent[find(vertexOwner[i].second)] = find(vertexOwner[i - 1].second);
+        }
+    }
+
+    // Component roots present at a point q of ∂B: every A ∩ B component whose
+    // (closed) region contains q.
+    const auto rootsAt = [&](const RPoint& q) {
+        std::vector<int> roots;
+        for (int i = 0; i < k; ++i) {
+            if (pieces[i].contains(q)) {
+                const int r = find(i);
+                if (std::find(roots.begin(), roots.end(), r) == roots.end()) {
+                    roots.push_back(r);
+                }
+            }
+        }
+        return roots;
+    };
+
+    // All piece vertices: these are exactly the points on ∂B where component
+    // membership can change (crossings of ∂A with ∂B and shared-boundary ends),
+    // so subdividing each edge of B at them makes every sub-edge uniformly
+    // inside or outside a given component.
+    std::vector<RPoint> breakpoints;
+    for (const auto& piece : pieces) {
+        for (const auto& v : piece.vertices()) {
+            breakpoints.push_back(v);
+        }
+    }
+
+    // Walk ∂B once, cyclically, sampling: each vertex, each interior crossing,
+    // and the midpoint of each resulting sub-edge. Membership is constant between
+    // consecutive breakpoints, so these samples label every arc (including
+    // isolated point contacts, caught at the vertex/crossing samples).
+    std::vector<std::vector<int>> elements;
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(other.size());
+    for (std::ptrdiff_t i = 0; i < n; ++i) {
+        const RPoint a = toR(other.get(i));
+        const RPoint b = toR(other.get(i + 1));
+
+        std::vector<RPoint> cuts;
+        const RSegment edge(a, b);
+        for (const auto& bp : breakpoints) {
+            if (edge.interiorContains(bp)) {
+                cuts.push_back(bp);
+            }
+        }
+        std::sort(cuts.begin(), cuts.end(), [&](const RPoint& u, const RPoint& v) {
+            return (u.x() - a.x()) * (b.x() - a.x()) + (u.y() - a.y()) * (b.y() - a.y())
+                 < (v.x() - a.x()) * (b.x() - a.x()) + (v.y() - a.y()) * (b.y() - a.y());
+        });
+        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+
+        std::vector<RPoint> chain;
+        chain.push_back(a);
+        chain.insert(chain.end(), cuts.begin(), cuts.end());
+        chain.push_back(b);
+
+        elements.push_back(rootsAt(a));  // the vertex of B
+        for (std::size_t j = 0; j + 1 < chain.size(); ++j) {
+            const RPoint mid((chain[j].x() + chain[j + 1].x()) / Number(2),
+                             (chain[j].y() + chain[j + 1].y()) / Number(2));
+            elements.push_back(rootsAt(mid));                  // the sub-edge
+            if (j + 1 + 1 < chain.size()) {
+                elements.push_back(rootsAt(chain[j + 1]));     // an interior crossing
+            }
+        }
+    }
+
+    // A component cuts B iff its contacts with ∂B fall into >= 2 maximal cyclic
+    // runs. Count, per root, the runs as rising edges around the cycle.
+    const std::size_t total = elements.size();
+    const auto has = [](const std::vector<int>& s, int r) {
+        return std::find(s.begin(), s.end(), r) != s.end();
+    };
+    std::vector<int> roots;
+    for (const auto& s : elements) {
+        for (int r : s) {
+            if (std::find(roots.begin(), roots.end(), r) == roots.end()) {
+                roots.push_back(r);
+            }
+        }
+    }
+    for (int r : roots) {
+        int runs = 0;
+        for (std::size_t i = 0; i < total; ++i) {
+            const std::size_t prev = (i + total - 1) % total;
+            if (has(elements[i], r) && !has(elements[prev], r)) {
+                if (++runs >= 2) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 }  // namespace pgl
