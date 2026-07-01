@@ -448,7 +448,8 @@ A polygon `P` has methods such as:
 
 - `P.isDegenerate()`: Returns true if the polygon has null area.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
-- `P.untangle()`: Makes the polygon simple in place. Non-adjacent edges that cross transversally are uncrossed with a 2-opt flip (reversing the sub-path between them, which strictly shortens the perimeter); where a flip is blocked by collinearity (a vertex on a non-incident edge, coincident vertices, or a zero-length edge) the offending vertex is removed. Surviving vertices keep their positions, and on return `P.isSimple()` holds. Requires an exact coordinate type.
+- `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
+- `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
 
 - Other methods:
 
