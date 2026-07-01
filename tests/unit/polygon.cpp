@@ -252,6 +252,64 @@ TEST_CASE("Polygon::isSimple recognizes simple and non-simple polygons") {
     }
 }
 
+// Polygon::untangle() uncrosses the boundary by 2-opt flips and, where a flip is
+// blocked by collinearity, by deleting a redundant vertex, until the polygon is
+// simple. Surviving vertices keep their positions.
+TEST_CASE("Polygon::untangle makes a polygon simple") {
+    using Point = pgl::Point<long long>;
+    using Polygon = pgl::Polygon<Point>;
+
+    SUBCASE("crossing quad is uncrossed by a flip, keeping all vertices") {
+        Polygon bowtie({0, 0, 4, 4, 4, 0, 0, 4});  // self-crossing bowtie
+        REQUIRE_FALSE(bowtie.isSimple());
+        bowtie.untangle();
+        CHECK(bowtie.isSimple());
+        CHECK(bowtie.size() == 4);  // no vertex needed to be dropped
+    }
+
+    SUBCASE("self-intersecting pentagram becomes a simple pentagon") {
+        Polygon star({0, 0, 4, 8, 8, 0, 0, 5, 8, 5});
+        REQUIRE_FALSE(star.isSimple());
+        star.untangle();
+        CHECK(star.isSimple());
+        CHECK(star.size() == 5);
+    }
+
+    SUBCASE("large crossing polygon is uncrossed") {
+        Polygon bad10({0, 0, 6, 6, 0, 6, 6, 0, 3, 8, 1, 1, 5, 1, 2, 7, 4, 7, 3, -2});
+        REQUIRE_FALSE(bad10.isSimple());
+        bad10.untangle();
+        CHECK(bad10.isSimple());
+    }
+
+    SUBCASE("collinear touch is resolved by removing a vertex") {
+        // Vertex (2,0) sits on the interior of edge (0,0)-(4,0): a flip is
+        // impossible, so the collinear vertex is dropped.
+        Polygon touch({0, 0, 4, 0, 2, 4, 2, 0});
+        REQUIRE_FALSE(touch.isSimple());
+        touch.untangle();
+        CHECK(touch.isSimple());
+        CHECK(touch.size() == 3);
+    }
+
+    SUBCASE("an already-simple polygon is left unchanged") {
+        const Polygon square({0, 0, 4, 0, 4, 4, 0, 4});
+        Polygon copy = square;
+        copy.untangle();
+        CHECK(copy.isSimple());
+        CHECK(copy == square);
+    }
+
+    SUBCASE("result stays consistent with the label preserved") {
+        using LabeledPolygon = pgl::Polygon<Point, int>;
+        LabeledPolygon p({0, 0, 4, 4, 4, 0, 0, 4});
+        p.label() = 7;
+        p.untangle();
+        CHECK(p.isSimple());
+        CHECK(p.label() == 7);
+    }
+}
+
 TEST_CASE("Polygon hashing is consistent and cached across mutations") {
     using Point = pgl::Point<int>;
     using Polygon = pgl::Polygon<Point>;

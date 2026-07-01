@@ -1307,6 +1307,36 @@ struct Polygon {
      */
     constexpr void rotate90(int k = 1);
 
+    /**
+     * @brief Makes the polygon simple in place by uncrossing its boundary.
+     *
+     * Repeatedly removes self-intersections until the boundary is a simple closed
+     * curve. Two kinds of moves are applied:
+     *
+     * - **Flip (2-opt):** when two non-adjacent edges cross transversally, the
+     *   sub-path between them is reversed, turning the crossing pair
+     *   `(v_i,v_{i+1}),(v_j,v_{j+1})` into the uncrossed `(v_i,v_j),(v_{i+1},v_{j+1})`.
+     *   By the triangle inequality each flip strictly shortens the perimeter, so no
+     *   vertex-set polygonalization can repeat.
+     * - **Vertex removal:** a transversal flip is impossible when the offending
+     *   edges only touch or overlap collinearly (a vertex lying on a non-incident
+     *   edge, coincident vertices, or a zero-length edge). One such vertex is
+     *   redundant for simplicity and is deleted, which also strictly decreases the
+     *   vertex count.
+     *
+     * Because every move either shortens the perimeter at a fixed vertex count or
+     * drops a vertex, the process terminates, and on return the polygon is simple
+     * (@ref isSimple). The surviving vertices are a subset of the originals with
+     * their positions unchanged, then renormalized to canonical form. A polygon
+     * with fewer than three vertices is left untouched.
+     *
+     * @warning Relies on exact orientation predicates; use an exact coordinate
+     * type. Termination is not guaranteed for floating-point coordinates.
+     *
+     * Complexity: O(n^3) worst case per move for n vertices.
+     */
+    constexpr void untangle();
+
     /** @brief Returns the polygon with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
     [[nodiscard]] constexpr Polygon scaledUpX(const OtherNumber scalar) const;
