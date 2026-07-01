@@ -985,6 +985,15 @@ double diskExteriorSquaredDistance(const DiskType& disk, const OtherShape& other
 
 }  // namespace detail
 
+template <class PointType_, class LabelType>
+template <DiskConcept OtherDisk>
+double Convex<PointType_, LabelType>::squaredDistance(const OtherDisk& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(other, *this);
+}
+
 template <class PointType_, class TLabel>
 template <PointConcept OtherPoint>
 double Disk<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const {

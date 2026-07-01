@@ -643,6 +643,20 @@ struct Disk {
     [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape (the
+     * shapes ranked above @ref Disk are @ref Convex and @ref Polygon).
+     */
+    template <typename OtherShape>
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>
+                  && requires(const OtherShape& o, const Disk& self) { o.squaredDistance(self); })
+    [[nodiscard]] double squaredDistance(const OtherShape& other) const {
+        return other.squaredDistance(*this);
+    }
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Containment is boundary-inclusive: a point exactly on the circle counts as
