@@ -231,8 +231,22 @@ function render() {
     for (const d of fixedDims) base[d] = sel(d)[0];
     for (const [d, v] of combo) base[d] = v;
 
-    const cols = colDim ? sel(colDim) : [null];
-    const rows = rowDim ? sel(rowDim) : [null];
+    // Displayable points for a cell: present and matching the baseline.
+    const dispPts = (r, c) => {
+      const coord = { ...base };
+      if (rowDim) coord[rowDim] = r;
+      if (colDim) coord[colDim] = c;
+      const pts = data[keyOf(coord)] || null;
+      const lp = latest(pts);
+      return (lp && lp.match !== false) ? pts : null;
+    };
+    const allCols = colDim ? sel(colDim) : [null];
+    const allRows = rowDim ? sel(rowDim) : [null];
+    // Drop empty columns and rows, and skip the whole table if nothing remains.
+    const cols = allCols.filter((c) => allRows.some((r) => dispPts(r, c)));
+    const rows = allRows.filter((r) => cols.some((c) => dispPts(r, c)));
+    if (!rows.length || !cols.length) continue;
+    anyData = true;
 
     const section = document.createElement("section");
     section.className = "suite";
@@ -362,11 +376,16 @@ function renderExtra() {
 
   const names = Object.keys(DB.extra || {}).sort();
   if (!names.length) { section.style.display = "none"; return; }
-  section.style.display = "";
-
+  let rendered = 0;
   for (const name of names) {
     const s = DB.extra[name];
     const machineData = (s.data && s.data[machine]) || {};
+
+    // Drop empty type columns / operation rows, and skip empty suites.
+    const types = s.types.filter((t) => s.functions.some((op) => machineData[op + "|" + t]));
+    const ops = s.functions.filter((op) => types.some((t) => machineData[op + "|" + t]));
+    if (!types.length || !ops.length) continue;
+    rendered++;
 
     const card = document.createElement("section");
     card.className = "suite";
@@ -387,28 +406,26 @@ function renderExtra() {
     const thead = document.createElement("thead");
     const hr = document.createElement("tr");
     hr.appendChild(th("Operation"));
-    for (const t of s.types) hr.appendChild(th(t, "num"));
+    for (const t of types) hr.appendChild(th(t, "num"));
     thead.appendChild(hr);
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
-    let any = false;
-    for (const op of s.functions) {
+    for (const op of ops) {
       const tr = document.createElement("tr");
       const fn = document.createElement("td");
       fn.className = "fn";
       fn.textContent = op;
       tr.appendChild(fn);
 
-      const rowPts = s.types.map((t) => machineData[op + "|" + t] || null);
+      const rowPts = types.map((t) => machineData[op + "|" + t] || null);
 
-      s.types.forEach((t, ti) => {
+      types.forEach((t, ti) => {
         const td = document.createElement("td");
         td.className = "val";
         const pts = rowPts[ti];
         const lp = latest(pts);
         if (lp) {
-          any = true;
           // Colour relative to this cell's own history (best..worst over time).
           const lo = bestOf(pts), hi = worstOf(pts);
           const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
@@ -437,13 +454,13 @@ function renderExtra() {
 
     const note = document.createElement("div");
     note.className = "unit-note";
-    note.textContent = any
-      ? "time in " + s.unit + " · colour vs. own history · hover for trend, click for chart"
-      : "no data for this machine";
+    note.textContent =
+      "time in " + s.unit + " · colour vs. own history · hover for trend, click for chart";
     card.appendChild(note);
 
     root.appendChild(card);
   }
+  section.style.display = rendered ? "" : "none";
 }
 
 // ── hover bubble + full chart (kept from the original dashboard) ──────────────
