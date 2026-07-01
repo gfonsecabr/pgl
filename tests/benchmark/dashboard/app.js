@@ -24,8 +24,8 @@ const DIM_SHORT = {
   method: "method", type: "number",
 };
 // Axis priority: among multi-valued dimensions, the first becomes columns and
-// the second becomes rows (number types first — the comparison that matters most).
-const AXIS_PRIORITY = ["type", "method", "shape1", "shape2", "size1", "size2"];
+// the second becomes rows; any further ones split into separate tables.
+const AXIS_PRIORITY = ["shape1", "shape2", "method", "type", "size1", "size2"];
 
 // A bare Point has no extent, so it carries this sentinel size in the data. It
 // is never offered as a size filter chip and never labelled.
@@ -35,6 +35,11 @@ const SHAPE_OF = { size1: "shape1", size2: "shape2" };
 
 const selected = {}; // dim -> Set of selected values
 let swapAxes = false;
+
+// Initial selection at page load: every shape and method, but a single size and
+// number type so the first view is small. Dimensions not listed start fully
+// selected; a listed value that isn't in the data falls back to "all".
+const INITIAL_SELECTION = { size1: ["large"], size2: ["small"], type: ["int"] };
 
 // Selectable values of a dimension — the "n/a" point-size is never offered.
 const dimValues = (d) =>
@@ -62,6 +67,11 @@ function nDefiningPoints(shape) {
 function distributionTip(shape, size) {
   if (shape === "Point")
     return "Random integer points in a disk of radius 5000";
+  if (shape === "Polygon") {
+    if (size === "large")
+      return "Random Polygon (large): a simple polygon on 32 random integer points in a disk of radius 5000, untangled";
+    return "Random Polygon (small): a simple polygon on 32 random integer points in a disk of radius 500 translated by a random integer vector of length ≤ 5000, untangled";
+  }
   const n = nDefiningPoints(shape);
   if (size === "large")
     return `Random ${shape} (large): ${n} random integer defining points in a disk of radius 5000`;
@@ -91,7 +101,11 @@ async function load() {
   document.getElementById("chart-close")
     .addEventListener("click", () => document.getElementById("chart-dialog").close());
 
-  for (const d of DIMS) selected[d] = new Set(dimValues(d));
+  for (const d of DIMS) {
+    const vals = dimValues(d);
+    const pref = (INITIAL_SELECTION[d] || []).filter((v) => vals.includes(v));
+    selected[d] = new Set(pref.length ? pref : vals);
+  }
 
   buildFilterBar();
   render();

@@ -164,3 +164,49 @@ std::vector<pgl::Convex<pgl::Point<Number>>> randomLargeConvexes(int n, int m) {
     }
     return w;
 }
+
+// Simple polygons: m random points fed to Polygon in generation (random) order,
+// then Polygon::untangle() removes crossings (2-opt) to make it simple. untangle
+// may drop redundant vertices, so the result has at most m vertices.
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomSmallPolygons(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Polygon = pgl::Polygon<Point>;
+    std::vector<Polygon> w;
+    std::set<Polygon> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polygon<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, largeRange);
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(base + randomPoint<Number>(rng, smallRange));
+        }
+        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
+        poly.untangle();
+        if (!poly.isDegenerate() && seen.insert(poly).second) {
+            w.push_back(poly);
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Polygon = pgl::Polygon<Point>;
+    std::vector<Polygon> w;
+    std::set<Polygon> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polygon<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, largeRange));
+        }
+        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
+        poly.untangle();
+        if (!poly.isDegenerate() && seen.insert(poly).second) {
+            w.push_back(poly);
+        }
+    }
+    return w;
+}

@@ -33,7 +33,7 @@ import subprocess
 
 # Display orders mirroring run_shapepairs.py so the dashboard axes read naturally.
 SHAPE_ORDER = ["Point", "Segment", "OrientedSegment", "Line", "OrientedLine",
-               "Rectangle", "Triangle", "Disk", "Convex"]
+               "Rectangle", "Triangle", "Disk", "Convex", "Polygon"]
 SIZE_ORDER = ["small", "large", "n/a"]
 METHOD_ORDER = ["contains", "interiorContains", "boundaryContains",
                 "intersects", "interiorsIntersect", "separates", "crosses",
