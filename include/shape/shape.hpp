@@ -651,8 +651,12 @@ struct Shape {
      * @param other Shape to measure the distance to.
      * @return The squared Euclidean distance as @p ResultNumber.
      * @throws std::logic_error when `squaredDistance` is undefined for the pair
-     *   selected at runtime (anything involving an `EmptyShape`, `Disk`,
-     *   `Convex`, or `Polygon`).
+     *   selected at runtime — anything involving an `EmptyShape`.
+     *
+     * @warning `Disk::squaredDistance` (and the `Disk` overloads on `Convex` and
+     *   `Polygon`) always compute in `double` rather than being templated on
+     *   @p ResultNumber; for a pair involving a `Disk`, the `double` result is
+     *   `static_cast` to @p ResultNumber rather than computed exactly.
      *
      * @warning With an integer @p ResultNumber the exact squared distance is
      *   generally a fraction, so the internal division truncates and the result
@@ -967,14 +971,18 @@ struct Shape {
     }
 
     // Measure the squared distance between two unwrapped alternatives. A pair with
-    // no defined squaredDistance (anything against an EmptyShape, Disk, Convex, or
-    // Polygon) takes the throw. The requires probe is SFINAE-safe and
-    // self-maintaining: a pair gains support here as soon as either side
-    // implements squaredDistance for the other (directly or via forwarding).
+    // no defined squaredDistance (anything against an EmptyShape) takes the throw.
+    // The requires probes are SFINAE-safe and self-maintaining: a pair gains
+    // support here as soon as either side implements squaredDistance for the
+    // other (directly or via forwarding). The second probe covers Disk, whose
+    // squaredDistance (and the Disk overloads on Convex and Polygon) always
+    // returns double rather than being templated on ResultNumber.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber squaredDistanceOf(const Left& left, const Right& right) {
         if constexpr (requires { left.template squaredDistance<ResultNumber>(right); }) {
             return left.template squaredDistance<ResultNumber>(right);
+        } else if constexpr (requires { left.squaredDistance(right); }) {
+            return static_cast<ResultNumber>(left.squaredDistance(right));
         } else {
             throw std::logic_error("Shape::squaredDistance is not defined for this shape pair");
         }
