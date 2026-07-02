@@ -758,7 +758,7 @@ constexpr bool Rectangle<PointType, LabelType>::contains(const OtherDisk& other)
             return false;
         }
     }
-    return other.pointInsideInteriorContained(*this);
+    return other.pointInsideInteriorContainedIn(*this);
 }
 
 template <class PointType, class LabelType>
@@ -879,7 +879,7 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherConvex& othe
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Halfplane<PointType, LabelType>::contains(const OtherDisk& other) const {
-    return !asLine().interiorsIntersect(other) && other.pointInsideInteriorContained(*this);
+    return !asLine().interiorsIntersect(other) && other.pointInsideInteriorContainedIn(*this);
 }
 
 template <class PointType, class LabelType>
@@ -1382,7 +1382,7 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherDisk& other) c
         return contains(other.a());
     }
 
-    if (!other.pointInsideInteriorContained(*this)) {
+    if (!other.pointInsideInteriorContainedIn(*this)) {
         return false;
     }
 

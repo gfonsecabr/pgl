@@ -683,7 +683,7 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherDisk
     // disk's rational center and radius; this is the strict version of
     // contains(Disk), which only excludes the boundary line piercing the open
     // disk.
-    return !asLine().intersects(other) && other.pointInsideInteriorContained(*this);
+    return !asLine().intersects(other) && other.pointInsideInteriorContainedIn(*this);
 }
 
 template <class PointType, class LabelType>

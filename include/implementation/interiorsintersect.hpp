@@ -902,7 +902,7 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk&
             return true;
         }
     }
-    return other.pointInsideInteriorContained(*this);
+    return other.pointInsideInteriorContainedIn(*this);
 }
 
 template <class PointType, class LabelType>
@@ -1360,7 +1360,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay& ot
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
-    return interiorsIntersect(other.asLine()) || pointInsideInteriorContained(other);
+    return interiorsIntersect(other.asLine()) || pointInsideInteriorContainedIn(other);
 }
 
 template <class PointType, class LabelType>
@@ -1378,7 +1378,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectang
             return true;
         }
     }
-    return pointInsideInteriorContained(other);
+    return pointInsideInteriorContainedIn(other);
 }
 
 template <class PointType, class LabelType>
@@ -1396,7 +1396,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangl
             return true;
         }
     }
-    return pointInsideInteriorContained(other);
+    return pointInsideInteriorContainedIn(other);
 }
 
 template <class PointType, class LabelType>
@@ -1443,7 +1443,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk
             return true;
         }
     }
-    return other.pointInsideInteriorContained(*this);
+    return other.pointInsideInteriorContainedIn(*this);
 }
 
 }  // namespace pgl

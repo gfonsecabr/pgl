@@ -1245,19 +1245,6 @@ struct Disk {
         std::size_t index = 0;       ///< Current boundary point index in `[0, size()]`.
     };
 
-  private:
-    // Lets Convex::interiorsIntersect(Disk), Rectangle::contains(Disk),
-    // Halfplane::contains(Disk), and Polygon::contains(Disk) reuse the
-    // disk-interior witness below.
-    template <class P, class L>
-    friend struct Convex;
-    template <class P, class L>
-    friend struct Rectangle;
-    template <class P, class L>
-    friend struct Halfplane;
-    template <class P, class L>
-    friend struct Polygon;
-
     /**
      * @brief Tests whether some point strictly inside this disk lies in the
      *        strict interior of @p shape.
@@ -1271,7 +1258,7 @@ struct Disk {
      * exact, leaving the containment relation unchanged.
      */
     template <class OtherShape>
-    [[nodiscard]] constexpr bool pointInsideInteriorContained(const OtherShape& shape) const {
+    [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const {
         const auto p = pointInside();
         if (interiorContains(p)) {
             return shape.interiorContains(p);
@@ -1279,6 +1266,7 @@ struct Disk {
         return (shape * 2).interiorContains((*this * 2).pointInside());
     }
 
+  private:
     /**
      * @brief Returns the three points in canonical order.
      *
