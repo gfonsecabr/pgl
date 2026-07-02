@@ -15,6 +15,7 @@
 #include <compare>
 #include <concepts>
 #include <cstdint>
+#include <istream>
 #include <limits>
 #include <numeric>
 #include <ostream>
@@ -83,6 +84,42 @@ inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
         return stream << static_cast<char>(value + '0');
     }
     return stream << value / 10 << static_cast<char>(value % 10 + '0');
+}
+
+/**
+ * @brief Reads a signed 128-bit integer in decimal form.
+ *
+ * Consumes an optional sign followed by digits, stopping at the first
+ * non-digit character (which is left in the stream) rather than reading a
+ * whole whitespace-delimited token.
+ *
+ * @param stream Input stream.
+ * @param value Value to populate.
+ * @return The input stream.
+ */
+inline std::istream& operator>>(std::istream& stream, int128& value) {
+    std::istream::sentry sentry(stream);
+    if (!sentry) {
+        return stream;
+    }
+    bool neg = false;
+    int c = stream.peek();
+    if (c == '+' || c == '-') {
+        neg = c == '-';
+        stream.get();
+        c = stream.peek();
+    }
+    if (c < '0' || c > '9') {
+        stream.setstate(std::ios::failbit);
+        return stream;
+    }
+    int128 result = 0;
+    for (; c >= '0' && c <= '9'; c = stream.peek()) {
+        stream.get();
+        result = result * 10 + (c - '0');
+    }
+    value = neg ? -result : result;
+    return stream;
 }
 #endif
 
