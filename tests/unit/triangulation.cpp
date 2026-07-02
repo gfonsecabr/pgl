@@ -723,7 +723,7 @@ TEST_CASE("Navigation: adjacency and the segment-to-edge bridge are consistent")
 
     for (const auto& t : tri.triangles()) {
         // Each neighbor across a shared edge sees t back across the same edge.
-        for (const auto& nb : tri.adjacentTriangles(t)) {
+        for (const auto& nb : tri.edgeAdjacentTriangles(t)) {
             bool mutual = false;
             for (const auto& edge : t.edges()) {
                 const pgl::Segment<Point> e(edge[0], edge[1]);
@@ -738,6 +738,62 @@ TEST_CASE("Navigation: adjacency and the segment-to-edge bridge are consistent")
             CHECK(mutual);
         }
     }
+
+    // incidentTriangles(vertex) returns exactly the fan of triangles at each
+    // vertex: every returned triangle has the vertex, and none is missed.
+    for (const auto& p : pts) {
+        std::set<pgl::Triangle<Point>> expected;
+        for (const auto& t : tri.triangles()) {
+            for (const auto& v : t.vertices()) {
+                if (v == p) {
+                    expected.insert(t);
+                }
+            }
+        }
+        const auto fan = tri.incidentTriangles(p);
+        std::set<pgl::Triangle<Point>> got(fan.begin(), fan.end());
+        CHECK(got.size() == fan.size());  // no duplicates
+        CHECK(got == expected);
+        for (const auto& t : fan) {
+            bool hasVertex = false;
+            for (const auto& v : t.vertices()) {
+                hasVertex = hasVertex || (v == p);
+            }
+            CHECK(hasVertex);
+        }
+    }
+
+    // A point that is not a vertex of the triangulation has an empty fan.
+    CHECK(tri.incidentTriangles(P<Point>(100, 100)).empty());  // outside the hull
+    CHECK(tri.incidentTriangles(P<Point>(20, 20)).empty());    // interior, not a vertex
+
+    // vertexAdjacentTriangles(t) is exactly the set of other triangles sharing
+    // a vertex with t, listed once each, and a superset of edgeAdjacentTriangles.
+    for (const auto& t : tri.triangles()) {
+        std::set<pgl::Triangle<Point>> expected;
+        for (const auto& u : tri.triangles()) {
+            if (u == t) continue;
+            for (const auto& vu : u.vertices()) {
+                for (const auto& vt : t.vertices()) {
+                    if (vu == vt) {
+                        expected.insert(u);
+                    }
+                }
+            }
+        }
+        const auto around = tri.vertexAdjacentTriangles(t);
+        std::set<pgl::Triangle<Point>> got(around.begin(), around.end());
+        CHECK(got.size() == around.size());  // no duplicates
+        CHECK(got == expected);
+        for (const auto& nb : tri.edgeAdjacentTriangles(t)) {
+            CHECK(got.count(nb) == 1);
+        }
+    }
+
+    // A triangle not part of the mesh yields nothing.
+    CHECK(tri.vertexAdjacentTriangles(
+                 pgl::Triangle<Point>(P<Point>(0, 0), P<Point>(40, 0), P<Point>(40, 40)))
+              .empty());
 }
 
 TEST_CASE("Flipping an interior edge yields the other diagonal and keeps the mesh valid") {
