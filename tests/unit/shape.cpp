@@ -117,6 +117,30 @@ TEST_CASE("Shape dispatches isDegenerate across wrapped shapes") {
     CHECK_FALSE(Shape(Convex({{0, 0}, {4, 0}, {4, 4}, {0, 4}})).isDegenerate());
 }
 
+TEST_CASE("Shape dispatches bbox across wrapped shapes and throws on unbounded ones") {
+    using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
+    using Segment = pgl::Segment<Point>;
+    using Line = pgl::Line<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    CHECK(Shape(Point(1, 2)).bbox() == Rectangle(1, 2, 1, 2));
+    CHECK(Shape(Segment({1, 2}, {3, 5})).bbox() == Rectangle(1, 2, 3, 5));
+    CHECK(Shape(Rectangle({0, 0}, {4, 3})).bbox() == Rectangle(0, 0, 4, 3));
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 3})).bbox() == Rectangle(0, 0, 4, 3));
+    CHECK(Shape(Convex({{0, 0}, {4, 0}, {4, 4}, {0, 4}})).bbox() == Rectangle(0, 0, 4, 4));
+
+    CHECK_THROWS_AS((void)Shape(EmptyShape{}).bbox(), std::logic_error);
+    CHECK_THROWS_AS((void)Shape(Line({0, 0}, {1, 1})).bbox(), std::logic_error);
+    CHECK_THROWS_AS((void)Shape(Ray({0, 0}, {1, 1})).bbox(), std::logic_error);
+    CHECK_THROWS_AS((void)Shape(Halfplane({0, 0}, {1, 1})).bbox(), std::logic_error);
+}
+
 TEST_CASE("Shape dispatches contains and intersects across wrapped shapes") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;

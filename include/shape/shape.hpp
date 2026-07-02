@@ -277,6 +277,27 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the wrapped shape's axis-aligned bounding box.
+     *
+     * Dispatches to the alternative's `bbox()`.
+     *
+     * @throws std::logic_error if the wrapped alternative is unbounded and
+     * therefore has no `bbox()` — the `EmptyShape`, `Line`, `OrientedLine`,
+     * `Ray`, and `Halfplane` alternatives.
+     */
+    [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
+        return std::visit(
+            [](const auto& value) -> Rectangle<PointType> {
+                if constexpr (requires { value.bbox(); }) {
+                    return value.bbox();
+                } else {
+                    throw std::logic_error("Shape::bbox is not defined for this unbounded alternative");
+                }
+            },
+            value_);
+    }
+
+    /**
      * @brief Returns the number of indexable elements of the wrapped shape.
      *
      * Dispatches to the alternative's `size()` so the result matches the
