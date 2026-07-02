@@ -958,9 +958,9 @@ class ShapeTree {
      * @param shape Shape to insert.
      */
     void insert(const ShapeType& shape) {
+        const Rect eb = Rect(shape.bbox());
         const std::size_t i = elements_.size();
         elements_.push_back(shape);
-        const Rect eb = Rect(elements_[i].bbox());
 
         if (root_ == -1) {
             root_ = allocNode();
