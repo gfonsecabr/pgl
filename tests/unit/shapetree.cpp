@@ -550,3 +550,22 @@ TEST_CASE("ShapeTree draws node boxes to a canvas") {
     // At least one node box should have been emitted as an SVG rectangle.
     CHECK(svg.find("<rect") != std::string::npos);
 }
+
+TEST_CASE("ShapeTree insert leaves no trace when bbox() throws") {
+    using Shape = pgl::Shape<Point>;
+    pgl::ShapeTree<Shape> tree{std::vector<Shape>{}};
+
+    const Shape unbounded = pgl::Line<Point>(Point(0, 0), Point(1, 1));
+    CHECK_THROWS_AS(tree.insert(unbounded), std::logic_error);
+
+    // A failed insert must not leave a phantom element in storage.
+    CHECK(tree.size() == 0);
+    CHECK(tree.shapes().empty());
+    CHECK(tree.begin() == tree.end());
+
+    // The tree must remain fully usable afterwards.
+    const Shape p = Point(2, 3);
+    tree.insert(p);
+    CHECK(tree.size() == 1);
+    CHECK(tree.shapes().front() == p);
+}
