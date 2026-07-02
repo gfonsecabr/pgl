@@ -612,8 +612,15 @@ public:
 
         if (!(is >> n)) return is;
 
-        if (is.peek() == '/') {
-            is >> sep >> d;
+        // A bare integer (no "/den" suffix) is a valid, successful parse, but
+        // peek() at end-of-stream sets failbit even though nothing is wrong;
+        // clear it so a plain integer at the end of the stream doesn't fail.
+        if (!is.eof()) {
+            if (is.peek() == '/') {
+                is >> sep >> d;
+            } else if (is.fail()) {
+                is.clear(is.rdstate() & ~std::ios::failbit);
+            }
         }
 
         r = Rational(n, d);

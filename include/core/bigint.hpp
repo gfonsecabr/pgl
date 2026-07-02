@@ -812,28 +812,26 @@ public:
     }
 
     friend std::istream& operator>>(std::istream& is, BigInt& b) {
-        std::string token;
-        if (!(is >> token)) {
+        std::istream::sentry sentry(is);
+        if (!sentry) {
             return is;
         }
-        std::size_t i = 0;
         bool neg = false;
-        if (i < token.size() && (token[i] == '+' || token[i] == '-')) {
-            neg = token[i] == '-';
-            ++i;
+        int c = is.peek();
+        if (c == '+' || c == '-') {
+            neg = c == '-';
+            is.get();
+            c = is.peek();
         }
-        if (i >= token.size()) {
+        if (c < '0' || c > '9') {
             is.setstate(std::ios::failbit);
             return is;
         }
         BigInt result;
         const BigInt ten(10);
-        for (; i < token.size(); ++i) {
-            if (token[i] < '0' || token[i] > '9') {
-                is.setstate(std::ios::failbit);
-                return is;
-            }
-            result = result * ten + BigInt(token[i] - '0');
+        for (; c >= '0' && c <= '9'; c = is.peek()) {
+            is.get();
+            result = result * ten + BigInt(c - '0');
         }
         b = neg ? -result : result;
         return is;

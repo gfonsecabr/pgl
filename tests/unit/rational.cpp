@@ -135,6 +135,43 @@ TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     CHECK(std::numeric_limits<pgl::Rational<int>>::lowest() == std::numeric_limits<pgl::Rational<int>>::min());
 }
 
+TEST_CASE_TEMPLATE("Stream input parses num/den and plain integers", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    using R = pgl::Rational<Int>;
+
+    {
+        std::istringstream is("3/4");
+        R r;
+        is >> r;
+        CHECK_FALSE(is.fail());
+        CHECK(r == R(3, 4));
+    }
+    {
+        std::istringstream is("-5/2");
+        R r;
+        is >> r;
+        CHECK_FALSE(is.fail());
+        CHECK(r == R(-5, 2));
+    }
+    {
+        std::istringstream is("7");
+        R r;
+        is >> r;
+        CHECK_FALSE(is.fail());
+        CHECK(r == R(7));
+    }
+    {
+        // Trailing content after the parsed rational is left in the stream.
+        std::istringstream is("3/4 rest");
+        R r;
+        std::string rest;
+        is >> r >> rest;
+        CHECK_FALSE(is.fail());
+        CHECK(r == R(3, 4));
+        CHECK(rest == "rest");
+    }
+}
+
 TEST_CASE_TEMPLATE("Arithmetic operations", Int, int32_t, int64_t, pgl::int128) {
     {
         pgl::Rational<Int> a(13);
