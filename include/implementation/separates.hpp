@@ -8,11 +8,14 @@
  **/
 
 #include <algorithm>
+#include <array>
 #include <compare>
 #include <cstddef>
+#include <map>
 #include <optional>
-#include <stdexcept>
+#include <set>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "shape/orientedline.hpp"
@@ -1693,38 +1696,136 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
         return false;
     }
 
-    // Same arc count as Disk::separates(Convex): removing the disk disconnects
-    // the polygon when its boundary leaves the disk in >= 2 separate arcs. Each
-    // vertex is inside or outside the disk (an exact squared-distance test), and
-    // an edge with both endpoints outside still contributes an arc if it cuts a
-    // chord through the disk.
-    //
-    // The arc count is exact only for a convex polygon: a reflex polygon that
-    // dips into the disk through several disjoint pockets would need the
-    // (irrational) circle-boundary crossings to be resolved exactly, so this
-    // rejects the non-convex case rather than returning a possibly wrong answer.
-    if (!other.isConvex()) {
-        throw std::runtime_error(
-            "pgl: Disk::separates(Polygon) is only supported for convex polygons");
-    }
-
-    const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(other.size());
-    int arcs = 0;
-    bool prev_in = contains(other[m - 1]);
-    for (std::ptrdiff_t i = 0; i < m; ++i) {
-        const bool cur_in = contains(other[i]);
-        if (!prev_in && !cur_in) {
-            const Segment<typename OtherPolygon::PointType> edge(other.get(i - 1), other[i]);
-            if (intersects(edge)) {
+    // Convex fast path -- same arc count as Disk::separates(Convex): removing
+    // the disk disconnects a convex polygon iff its boundary leaves the disk in
+    // >= 2 separate arcs. Each vertex is inside or outside the disk (an exact
+    // squared-distance test), and an edge with both endpoints outside still
+    // contributes an arc if it touches the disk.
+    if (other.isConvex()) {
+        const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(other.size());
+        int arcs = 0;
+        bool prev_in = contains(other[m - 1]);
+        for (std::ptrdiff_t i = 0; i < m; ++i) {
+            const bool cur_in = contains(other[i]);
+            if (!prev_in && !cur_in) {
+                const Segment<typename OtherPolygon::PointType> edge(other.get(i - 1), other[i]);
+                if (intersects(edge)) {
+                    ++arcs;
+                }
+            } else if (prev_in && !cur_in) {
                 ++arcs;
             }
-        } else if (prev_in && !cur_in) {
-            ++arcs;
+            if (arcs >= 2) {
+                return true;
+            }
+            prev_in = cur_in;
         }
-        if (arcs >= 2) {
+        return false;
+    }
+
+    // General simple polygon. The arc count above over-reports here: a reflex
+    // polygon can wrap around the disk and reconnect two of its boundary arcs,
+    // so connectivity of P \ D is decided directly -- still without ever
+    // constructing the (irrational) circle crossings. Triangulate P and glue
+    // the convex per-triangle answers:
+    //   - Within one triangle T, the components of T \ D correspond one-to-one
+    //     to the maximal runs of pieces of dT outside the disk that are not
+    //     interrupted by a contact of the (closed) disk with dT: the disk's
+    //     bite off the convex T disconnects it exactly at those contacts.
+    //   - A triangulation edge keeps at most two pieces outside the disk (the
+    //     whole edge, or the parts adjacent to each endpoint), and which of
+    //     them exist depends only on the edge, never on the incident triangle.
+    //     Both triangles sharing the edge therefore resolve a surviving piece
+    //     to the same slot, and any crossing between adjacent triangles goes
+    //     through such a piece (the complement of the closed disk is open
+    //     along the edge, so a crossing point sits in a piece of positive
+    //     length).
+    // Union-find over the pieces then yields the components of P \ D: the disk
+    // separates the polygon iff at least two classes remain. No pieces at all
+    // means the polygon is swallowed by the disk, which does not separate it.
+    using Seg = Segment<typename OtherPolygon::PointType>;
+
+    std::vector<std::size_t> parent;
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto unite = [&](std::size_t a, std::size_t b) {
+        parent[findRoot(a)] = findRoot(b);
+    };
+
+    enum : int { WHOLE = 0, NEAR_MIN = 1, NEAR_MAX = 2 };
+    std::map<Seg, std::array<std::ptrdiff_t, 3>> pieceSlots;
+    const auto slotOf = [&](const Seg& s, int piece) {
+        auto [it, inserted] =
+            pieceSlots.try_emplace(s, std::array<std::ptrdiff_t, 3>{-1, -1, -1});
+        std::ptrdiff_t& slot = it->second[static_cast<std::size_t>(piece)];
+        if (slot < 0) {
+            slot = static_cast<std::ptrdiff_t>(parent.size());
+            parent.push_back(parent.size());
+        }
+        return static_cast<std::size_t>(slot);
+    };
+
+    constexpr std::size_t NO_PIECE = std::numeric_limits<std::size_t>::max();
+    // Layering: Triangulation lives in algorithm/triangulation.hpp, which
+    // pgl.hpp includes after this header. Reach it only through the dependent
+    // call other.triangulation(), never by naming the class here.
+    for (const auto& tri : other.triangulation().triangles()) {
+        // Walk dT once, emitting its outside pieces in boundary order and
+        // recording every disk contact between them; gap-free consecutive
+        // pieces (wrap-around included) bound the same component of T \ D.
+        std::size_t firstPiece = NO_PIECE;
+        std::size_t lastPiece = NO_PIECE;
+        bool gapBeforeFirst = false;
+        bool gap = false;  // contact seen since the last emitted piece
+        const auto emit = [&](std::size_t slot) {
+            if (lastPiece == NO_PIECE) {
+                firstPiece = slot;
+                gapBeforeFirst = gap;
+            } else if (!gap) {
+                unite(lastPiece, slot);
+            }
+            lastPiece = slot;
+            gap = false;
+        };
+
+        const bool in[3] = {contains(tri[0]), contains(tri[1]), contains(tri[2])};
+        for (int i = 0; i < 3; ++i) {
+            const auto& a = tri.get(i);
+            const auto& b = tri.get(i + 1);
+            const Seg s(a, b);
+            const int nearA = a == s.min() ? NEAR_MIN : NEAR_MAX;
+            const int nearB = nearA == NEAR_MIN ? NEAR_MAX : NEAR_MIN;
+            if (in[i] && in[(i + 1) % 3]) {  // edge swallowed by the disk
+                gap = true;
+            } else if (in[i]) {              // walk leaves the disk mid-edge
+                gap = true;
+                emit(slotOf(s, nearB));
+            } else if (in[(i + 1) % 3]) {    // walk enters the disk mid-edge
+                emit(slotOf(s, nearA));
+                gap = true;
+            } else if (intersects(s)) {      // contact strictly inside the edge
+                emit(slotOf(s, nearA));
+                gap = true;
+                emit(slotOf(s, nearB));
+            } else {                         // edge clear of the disk
+                emit(slotOf(s, WHOLE));
+            }
+        }
+        if (firstPiece != NO_PIECE && !gap && !gapBeforeFirst) {
+            unite(lastPiece, firstPiece);
+        }
+    }
+
+    std::size_t classes = 0;
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        if (parent[i] == i && ++classes >= 2) {
             return true;
         }
-        prev_in = cur_in;
     }
     return false;
 }
@@ -1748,34 +1849,178 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) 
         return false;
     }
 
-    // Same crossing count as Convex::separates(Disk): removing the polygon
-    // disconnects the disk when the polygon boundary crosses the circle >= 4
-    // times (>= 2 in/out arcs). Per edge:
+    // Convex fast path -- same crossing count as Convex::separates(Disk):
+    // removing a convex polygon disconnects the disk when the polygon boundary
+    // crosses the circle >= 4 times (>= 2 in/out arcs). Per edge:
     //   - one endpoint inside, one outside -> 1 crossing,
     //   - both endpoints outside and the edge carries a full chord -> 2,
     //   - otherwise 0.
-    //
-    // The count is exact only for a convex polygon: a non-convex polygon that
-    // takes several separate bites out of the disk over-counts, since it cannot
-    // see that the bites belong to different components of polygon ∩ disk (an
-    // exact test would need the irrational circle crossings). Reject that case
-    // rather than return a possibly wrong answer.
-    if (!isConvex()) {
-        throw std::runtime_error(
-            "pgl: Polygon::separates(Disk) is only supported for convex polygons");
+    if (isConvex()) {
+        int crossings = 0;
+        for (const auto& edge : edges()) {
+            const bool min_inside = other.interiorContains(edge.min());
+            const bool max_inside = other.interiorContains(edge.max());
+            if (min_inside != max_inside) {
+                ++crossings;
+            } else if (!min_inside && edge.separates(other)) {
+                crossings += 2;
+            }
+            if (crossings >= 4) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    int crossings = 0;
-    for (const auto& edge : edges()) {
-        const bool min_inside = other.interiorContains(edge.min());
-        const bool max_inside = other.interiorContains(edge.max());
-        if (min_inside != max_inside) {
-            ++crossings;
-        } else if (!min_inside && edge.separates(other)) {
-            crossings += 2;
+    // General simple polygon P. The crossing count above over-counts here: a
+    // non-convex P can take several separate bites out of the disk D, and the
+    // bites' crossings do not disconnect D \ P. Connectivity is decided
+    // directly instead -- still without constructing the (irrational) circle
+    // crossings:
+    //   - Enclose both shapes in a box polygon and build its constrained
+    //     Delaunay triangulation with P's edges as constraints. Every triangle
+    //     then lies entirely inside or entirely outside P; the sides are told
+    //     apart by a flood fill from a box corner that flips whenever it steps
+    //     over a constrained edge.
+    //   - For an outside triangle T, the piece D ∩ T \ P is convex minus a
+    //     part of its own boundary, hence connected. Two pieces adjacent
+    //     across a triangulation edge e belong to the same component of D \ P
+    //     iff (D ∩ e) \ P is nonempty. Only e's endpoints can lie in P (a P
+    //     vertex; box corners are outside D by construction and e's relative
+    //     interior never meets P), so that reduces to: the open disk meets e,
+    //     or the closed disk touches e in a single interior point.
+    // Union-find over the outside triangles then yields the components of
+    // D \ P; the polygon separates the disk iff pieces of D \ P fall into at
+    // least two classes. Pieces pinched at a P vertex on the circle stay
+    // apart, because the pinch point itself belongs to P.
+    using Common = std::common_type_t<typename PointType::NumberType,
+                                      typename OtherDisk::NumberType>;
+    using CPoint = Point<Common>;
+    using CSeg = Segment<CPoint>;
+
+    // Bounding box of both shapes, inflated so the box strictly contains them.
+    const auto dbox = other.bbox();
+    Common xlo = static_cast<Common>(dbox.min().x());
+    Common ylo = static_cast<Common>(dbox.min().y());
+    Common xhi = static_cast<Common>(dbox.max().x());
+    Common yhi = static_cast<Common>(dbox.max().y());
+    for (std::size_t i = 0; i < size(); ++i) {
+        const auto v = (*this)[i];
+        const Common vx = static_cast<Common>(v.x());
+        const Common vy = static_cast<Common>(v.y());
+        xlo = vx < xlo ? vx : xlo;
+        ylo = vy < ylo ? vy : ylo;
+        xhi = vx > xhi ? vx : xhi;
+        yhi = vy > yhi ? vy : yhi;
+    }
+    xlo = xlo - Common{1};
+    ylo = ylo - Common{1};
+    xhi = xhi + Common{1};
+    yhi = yhi + Common{1};
+    const Polygon<CPoint> box(std::vector<CPoint>{
+        CPoint(xlo, ylo), CPoint(xhi, ylo), CPoint(xhi, yhi), CPoint(xlo, yhi)});
+
+    // P's edges become the constraints; the set tells the flood fill where the
+    // inside/outside classification flips.
+    std::vector<CSeg> constraints;
+    constraints.reserve(size());
+    std::set<CSeg> pBoundary;
+    for (std::size_t i = 0; i < size(); ++i) {
+        const auto u = (*this)[i];
+        const auto w = get(static_cast<std::ptrdiff_t>(i) + 1);
+        const CSeg s(CPoint(static_cast<Common>(u.x()), static_cast<Common>(u.y())),
+                     CPoint(static_cast<Common>(w.x()), static_cast<Common>(w.y())));
+        constraints.push_back(s);
+        pBoundary.insert(s);
+    }
+
+    // Layering: Triangulation lives in algorithm/triangulation.hpp, which
+    // pgl.hpp includes after this header. Reach it only through the dependent
+    // call box.triangulation(constraints), never by naming the class here.
+    const auto mesh = box.triangulation(constraints);
+    const auto tris = mesh.triangles();
+    const std::size_t n = tris.size();
+    std::map<typename std::decay_t<decltype(tris)>::value_type, std::size_t> indexOf;
+    for (std::size_t i = 0; i < n; ++i) {
+        indexOf.emplace(tris[i], i);
+    }
+
+    // Flood fill from a box corner: -1 unvisited, 0 inside P, 1 outside P.
+    std::vector<signed char> state(n, -1);
+    std::vector<std::size_t> pending;
+    for (const auto& t : mesh.incidentTriangles(CPoint(xlo, ylo))) {
+        const std::size_t i = indexOf.at(t);
+        if (state[i] < 0) {
+            state[i] = 1;
+            pending.push_back(i);
         }
-        if (crossings >= 4) {
-            return true;
+    }
+    while (!pending.empty()) {
+        const std::size_t i = pending.back();
+        pending.pop_back();
+        for (int k = 0; k < 3; ++k) {
+            const CSeg e(tris[i].get(k), tris[i].get(k + 1));
+            const auto nb = mesh.otherTriangle(tris[i], e);
+            if (!nb) {
+                continue;
+            }
+            const std::size_t j = indexOf.at(*nb);
+            if (state[j] < 0) {
+                state[j] = pBoundary.count(e)
+                               ? static_cast<signed char>(1 - state[i])
+                               : state[i];
+                pending.push_back(j);
+            }
+        }
+    }
+
+    std::vector<std::size_t> parent(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        parent[i] = i;
+    }
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+
+    for (std::size_t i = 0; i < n; ++i) {
+        if (state[i] != 1) {
+            continue;
+        }
+        for (int k = 0; k < 3; ++k) {
+            const CSeg e(tris[i].get(k), tris[i].get(k + 1));
+            const auto nb = mesh.otherTriangle(tris[i], e);
+            if (!nb) {
+                continue;
+            }
+            const std::size_t j = indexOf.at(*nb);
+            if (j < i || state[j] != 1) {
+                continue;  // shared edge handled from the smaller index only
+            }
+            if (other.intersects(e) &&
+                (other.interiorsIntersect(e) ||
+                 (!other.contains(e.min()) && !other.contains(e.max())))) {
+                parent[findRoot(i)] = findRoot(j);
+            }
+        }
+    }
+
+    // D \ P has no isolated points and no pinches, so every component holds a
+    // triangle whose open interior meets the open disk; count those classes.
+    std::size_t classes = 0;
+    std::vector<char> counted(n, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        if (state[i] == 1 && other.interiorsIntersect(tris[i])) {
+            const std::size_t root = findRoot(i);
+            if (!counted[root]) {
+                counted[root] = 1;
+                if (++classes >= 2) {
+                    return true;
+                }
+            }
         }
     }
     return false;

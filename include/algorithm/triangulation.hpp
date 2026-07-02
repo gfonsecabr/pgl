@@ -2646,4 +2646,10 @@ auto Polygon<PointType_, TLabel>::triangulation() const {
     return Triangulation(*this);
 }
 
+template <class PointType_, class TLabel>
+template <class SegmentRange>
+auto Polygon<PointType_, TLabel>::triangulation(const SegmentRange& segments) const {
+    return Triangulation(*this, segments);
+}
+
 }  // namespace pgl

@@ -192,6 +192,12 @@ TEST_CASE("Polygon boundaryContains Disk") {
 // / arcs rather than constructing intersection points. That count is exact for a
 // convex polygon; the tests pin the convex behaviour against the trusted
 // Convex/Disk oracle and spell out representative hand cases.
+//
+// Both directions also support non-convex simple polygons. Disk::separates
+// (Polygon) triangulates the polygon and glues the per-triangle answers with a
+// union-find over the boundary pieces outside the disk; Polygon::separates
+// (Disk) triangulates a bounding box constrained by the polygon's edges and
+// glues the disk pieces of the outside triangles the same way.
 
 TEST_CASE("Polygon separates Disk: a band cut across the disk") {
     using Point = pgl::Point<int>;
@@ -240,29 +246,170 @@ TEST_CASE("Polygon separates Disk: disjoint shapes do not") {
     CHECK_FALSE(away.crosses(d));
 }
 
-TEST_CASE("Polygon/Disk cut predicates reject non-convex polygons") {
+TEST_CASE("Polygon separates Disk: non-convex bites that do not disconnect the disk") {
     using Point = pgl::Point<int>;
     using Polygon = pgl::Polygon<Point>;
     using Disk = pgl::Disk<Point>;
 
-    const Disk d(Point(0, 0), 5);
-    // A reflex "staple" whose two legs poke into the disk while joined outside it:
-    // the boundary-crossing count cannot resolve this exactly, so it must throw
-    // rather than risk a wrong answer.
-    const Polygon staple({-3, 0, -3, 8, 3, 8, 3, 0, 1, 0, 1, 6, -1, 6, -1, 0});
+    const Polygon staple(
+        {-6, 0, -6, 16, 6, 16, 6, 0, 2, 0, 2, 12, -2, 12, -2, 0});
     REQUIRE(staple.isSimple());
     REQUIRE_FALSE(staple.isConvex());
 
-    CHECK_THROWS((void)staple.separates(d));
-    CHECK_THROWS((void)d.separates(staple));
-    CHECK_THROWS((void)staple.crosses(d));
+    // Disk hugging the notch mouth: the legs bite into it left and right (four
+    // boundary crossings, which would fool the convex crossing count), but the
+    // surviving pieces stay joined through the notch and below y = 0.
+    const Disk atMouth(Point(0, 2), 3);
+    CHECK_FALSE(staple.separates(atMouth));
+    CHECK_FALSE(staple.crosses(atMouth));
 
-    // A convex polygon of the same broad shape is fine.
-    const Polygon convexBar({-2, -8, 2, -8, 2, 8, -2, 8});
-    REQUIRE(convexBar.isConvex());
-    CHECK_NOTHROW((void)convexBar.separates(d));
-    CHECK_NOTHROW((void)d.separates(convexBar));
-    CHECK_NOTHROW((void)convexBar.crosses(d));
+    // Disk swallowing the bottom of both legs: again four crossings, but
+    // everything the polygon leaves of the disk is joined below the legs.
+    const Disk overBottom(Point(0, 0), 10);
+    CHECK_FALSE(staple.separates(overBottom));
+}
+
+TEST_CASE("Polygon separates Disk: non-convex cuts that disconnect the disk") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Polygon staple(
+        {-6, 0, -6, 16, 6, 16, 6, 0, 2, 0, 2, 12, -2, 12, -2, 0});
+
+    // Disk across the left leg: one lens survives beyond the outer wall, one
+    // inside the notch, and the leg keeps them apart. Both cut directions hold,
+    // so this pair crosses.
+    const Disk acrossLeg(Point(-4, 8), 3);
+    CHECK(staple.separates(acrossLeg));
+    CHECK(staple.crosses(acrossLeg));
+
+    // Disk over the top-left area: its lenses past the outer wall and above
+    // the top edge merge around the corner (-6,16), which lies strictly inside
+    // the disk (distance^2 = 20 < 25) -- but the piece it pushes into the
+    // notch stays walled off. Two components.
+    const Disk atCorner(Point(-4, 12), 5);
+    CHECK(staple.separates(atCorner));
+}
+
+TEST_CASE("Polygon separates Disk: non-convex containment, tangency, disjointness") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Polygon staple(
+        {-6, 0, -6, 16, 6, 16, 6, 0, 2, 0, 2, 12, -2, 12, -2, 0});
+
+    // Disk inside a leg: nothing of it survives the removal.
+    CHECK_FALSE(staple.separates(Disk(Point(-4, 8), 1)));
+
+    // Disk containing the whole polygon: the leftover ring stays connected.
+    CHECK_FALSE(staple.separates(Disk(Point(0, 8), 15)));
+
+    // Disk in the notch, tangent to both inner walls from outside the polygon:
+    // only the two tangency points are removed.
+    CHECK_FALSE(staple.separates(Disk(Point(0, 6), 2)));
+
+    // Externally tangent disk: loses the single point (-6, 8).
+    CHECK_FALSE(staple.separates(Disk(Point(-8, 8), 2)));
+
+    // Disjoint disk.
+    CHECK_FALSE(staple.separates(Disk(Point(30, 30), 3)));
+}
+
+// ---------------------------------------------------------------------------
+// Disk::separates(Polygon) on non-convex simple polygons. The staple used
+// below is an upside-down U: outer rectangle [-6,6]x[0,16] minus the notch
+// (-2,2)x[0,12), leaving two vertical legs of width 4 (x in [-6,-2] and
+// [2,6]) joined by a top band y in [12,16].
+
+namespace {
+const pgl::Polygon<pgl::Point<int>> bigStaple(
+    {-6, 0, -6, 16, 6, 16, 6, 0, 2, 0, 2, 12, -2, 12, -2, 0});
+}
+
+TEST_CASE("Disk separates non-convex Polygon: legs rejoining around the disk do not separate") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    REQUIRE(bigStaple.isSimple());
+    REQUIRE_FALSE(bigStaple.isConvex());
+
+    // r^2 = 100 swallows the bottom of both legs completely (every leg
+    // cross-section with y <= 8 lies inside, since 36 + 64 = 100), so nothing
+    // is cut off and the legs stay joined through the top band. The polygon
+    // boundary leaves the disk in two arcs, so a convex-style arc count would
+    // wrongly report a separation here.
+    const Disk d(Point(0, 0), 10);
+    CHECK_FALSE(d.separates(bigStaple));
+}
+
+TEST_CASE("Disk separates non-convex Polygon: severing one leg") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // Centred inside the left leg, wide enough to poke through both of its
+    // walls (wall distance 2 < 3): the leg's bottom is cut off from the rest.
+    const Disk acrossLeftLeg(Point(-4, 8), 3);
+    CHECK(acrossLeftLeg.separates(bigStaple));
+
+    // Same centre but clear of both walls: the disk floats inside the leg.
+    const Disk insideLeftLeg(Point(-4, 8), 1);
+    CHECK_FALSE(insideLeftLeg.separates(bigStaple));
+}
+
+TEST_CASE("Disk separates non-convex Polygon: severing both legs (three components)") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // r^2 = 64 spans the full width of each leg near y = 6 but leaves both
+    // bottom corners (+-6, 0) outside (distance^2 = 72): each leg keeps an
+    // isolated bottom piece, and the top band survives above the disk
+    // ((0, 15) has distance^2 = 81). Three components in total.
+    const Disk d(Point(0, 6), 8);
+    CHECK(d.separates(bigStaple));
+}
+
+TEST_CASE("Disk separates non-convex Polygon: eating a dead end does not separate") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // r^2 = 16 swallows the whole bottom of the left leg (worst corners
+    // (-6, 0) and (-2, 0) have distance^2 = 4, and every point below the cut
+    // is covered): removing a dead end leaves the rest connected.
+    const Disk d(Point(-4, 0), 4);
+    CHECK_FALSE(d.separates(bigStaple));
+}
+
+TEST_CASE("Disk separates non-convex Polygon: tangencies") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // Sitting in the notch, tangent to both inner walls from outside the
+    // polygon at (+-2, 6): the closed disk only removes two boundary points,
+    // which never disconnects an area.
+    const Disk inNotch(Point(0, 6), 2);
+    CHECK_FALSE(inNotch.separates(bigStaple));
+
+    // Inscribed in the left leg, tangent to its walls from inside at (-6, 6)
+    // and (-2, 6): the closed disk covers the full cross-section y = 6
+    // (endpoints on the circle included), so the leg's bottom is cut off.
+    const Disk inscribed(Point(-4, 6), 2);
+    CHECK(inscribed.separates(bigStaple));
+}
+
+TEST_CASE("Disk separates non-convex Polygon: containment and disjointness") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // Disk swallowing the whole polygon: the extreme corners (+-6, 0) and
+    // (+-6, 16) lie exactly on the circle (36 + 64 = 100).
+    const Disk everything(Point(0, 8), 10);
+    CHECK_FALSE(everything.separates(bigStaple));
+
+    // Disjoint disk.
+    const Disk faraway(Point(30, 30), 3);
+    CHECK_FALSE(faraway.separates(bigStaple));
 }
 
 // For a convex polygon the count is exact, so the Polygon path must match the

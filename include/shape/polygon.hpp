@@ -501,6 +501,20 @@ struct Polygon {
     auto triangulation() const;
 
     /**
+     * @brief Builds the constrained Delaunay triangulation of this polygon with
+     *        the given interior constraint segments.
+     *
+     * Equivalent to `Triangulation(*this, segments)`. The polygon must be
+     * simple (non-self-intersecting) and non-degenerate, and the segments are
+     * assumed to lie inside it (not checked).
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the polygon,
+     *         with every segment present as a constrained edge.
+     */
+    template <class SegmentRange>
+    auto triangulation(const SegmentRange& segments) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary
