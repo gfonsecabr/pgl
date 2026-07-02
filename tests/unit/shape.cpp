@@ -303,6 +303,7 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     using Segment = pgl::Segment<Point>;
     using Halfplane = pgl::Halfplane<Point>;
     using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
     using Shape = pgl::Shape<Point>;
 
     const Shape origin = Point(0, 0);
@@ -329,6 +330,12 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     const Shape below = Triangle({0, 10}, {2, 10}, {1, 13});
     const Shape down = Halfplane({0, 0}, {1, 0});  // boundary y = 0
     CHECK(below.squaredDistance<int>(down) == down.squaredDistance<int>(below));
+
+    // Disk pairs are not templated on ResultNumber, so the wrapper falls back
+    // to the double-returning overload and static_casts the result.
+    const Shape disk = Disk(Point(0, 0), 2);
+    CHECK(disk.squaredDistance<int>(Point(5, 5)) == 25);
+    CHECK(disk.squaredDistance<int>(t2) == t2.squaredDistance<int>(disk));
 }
 
 TEST_CASE("Shape translates and scales through the wrapped value") {
