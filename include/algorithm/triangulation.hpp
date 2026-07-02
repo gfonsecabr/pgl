@@ -441,7 +441,7 @@ struct Triangulation {
     }
 
     /** @brief The (up to three) triangles sharing an edge with @p t. */
-    [[nodiscard]] std::vector<TriangleType> adjacentTriangles(const TriangleType& t) const {
+    [[nodiscard]] std::vector<TriangleType> edgeAdjacentTriangles(const TriangleType& t) const {
         std::vector<TriangleType> out;
         const TriId id = idOf(t);
         if (id == NO_TRI) {
@@ -452,6 +452,46 @@ struct Triangulation {
             if (inDomain(nb)) {
                 out.push_back(triangleValue(nb));
             }
+        }
+        return out;
+    }
+
+    /**
+     * @brief The triangles sharing at least one vertex with @p t (excluding @p t).
+     *
+     * The union of the vertex fans of @p t's three vertices: every triangle
+     * touching @p t at a vertex or across an edge, each listed once. A superset
+     * of @ref edgeAdjacentTriangles.
+     *
+     * @param t A triangle of the triangulation.
+     * @return The triangles sharing a vertex with @p t; empty if @p t is not
+     *         part of the mesh.
+     */
+    [[nodiscard]] std::vector<TriangleType> vertexAdjacentTriangles(const TriangleType& t) const {
+        std::vector<TriangleType> out;
+        const TriId self = idOf(t);
+        if (self == NO_TRI) {
+            return out;
+        }
+        // "Already listed" is tracked by the per-triangle walkMark bit (as in
+        // visitTrianglesIntersecting): marking `self` first skips t itself, and
+        // the guard clears every set bit on the way out so the const query
+        // leaves the triangulation pristine.
+        std::vector<TriId> marked{self};
+        triangles_[self].walkMark = 1;
+        struct MarkClearer {
+            const std::vector<Tri>& tris;
+            const std::vector<TriId>& marked;
+            ~MarkClearer() { for (TriId m : marked) tris[m].walkMark = 0; }
+        } markClearer{triangles_, marked};
+        for (const VertexId w : triangles_[self].v) {
+            visitVertexFan(self, w, [&](TriId cur) {
+                if (inDomain(cur) && !triangles_[cur].walkMark) {
+                    triangles_[cur].walkMark = 1;
+                    marked.push_back(cur);
+                    out.push_back(triangleValue(cur));
+                }
+            });
         }
         return out;
     }
@@ -471,6 +511,40 @@ struct Triangulation {
         if (inDomain(other)) {
             out.push_back(triangleValue(other));
         }
+        return out;
+    }
+
+    /**
+     * @brief The triangles incident to vertex @p p — its full fan.
+     *
+     * @param p A vertex of the triangulation.
+     * @return Every in-domain triangle having @p p as one of its vertices, in
+     *         rotational order around @p p. Empty if @p p is not a vertex of the
+     *         triangulation (or lies outside the triangulated region).
+     */
+    [[nodiscard]] std::vector<TriangleType> incidentTriangles(const PointType& p) const {
+        std::vector<TriangleType> out;
+        const TriId start = locateId(p);
+        if (start == NO_TRI || isGhost(start)) {
+            return out;  // empty triangulation, or p outside the hull
+        }
+        // The vertex of `start` that coincides with p; p is not a vertex if none.
+        const auto& sv = triangles_[start].v;
+        VertexId w = NO_TRI;
+        for (int i = 0; i < 3; ++i) {
+            if (vertices_[sv[i]] == p) {
+                w = sv[i];
+                break;
+            }
+        }
+        if (w == NO_TRI) {
+            return out;
+        }
+        visitVertexFan(start, w, [&](TriId cur) {
+            if (inDomain(cur)) {
+                out.push_back(triangleValue(cur));
+            }
+        });
         return out;
     }
 
@@ -1611,6 +1685,23 @@ struct Triangulation {
             }
         }
         return triangles_[cur].nbr[triangles_[cur].nbr[s1] == from ? s2 : s1];
+    }
+
+    // Calls fn(TriId) on every triangle of vertex w's fan, in rotational order
+    // starting from `start` (which must have w as a vertex). The rotation steps
+    // through ghost and fill triangles too — that is what closes the ring — so
+    // fn also sees those and must filter with inDomain if it wants only visible
+    // triangles.
+    template <class Fn>
+    void visitVertexFan(TriId start, VertexId w, Fn fn) const {
+        TriId cur = start, from = NO_TRI;
+        std::size_t g = 0, lim = triangles_.size() + 1;
+        do {
+            fn(cur);
+            const TriId next = rotateAroundVertex(cur, w, from);
+            from = cur;
+            cur = next;
+        } while (cur != start && cur != NO_TRI && ++g < lim);
     }
 
     // The first in-domain real triangle, or NO_TRI if the domain is empty.
