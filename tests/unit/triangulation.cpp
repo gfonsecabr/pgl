@@ -913,3 +913,244 @@ TEST_CASE("Flipping a set of edges in parallel requires disjoint quadrilaterals"
         CHECK_FALSE(tri.flip(twice).has_value());
     }
 }
+
+TEST_CASE_TEMPLATE("Inserting a point subdivides the containing triangle or edge",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    using Seg = pgl::Segment<Point>;
+    // A square: its Delaunay triangulation is two triangles along one of the
+    // diagonals (the corners are cocircular, so either diagonal may be picked;
+    // the checks below hold for both).
+    const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(8, 0), P<Point>(8, 8),
+                                    P<Point>(0, 8)};
+    pgl::Triangulation tri(pts);
+    const auto hullArea = pgl::Convex<Point>(pts).twiceArea();
+    REQUIRE(tri.numTriangles() == 2);
+
+    SUBCASE("strictly inside a triangle: one triangle becomes three") {
+        // (2,1) is strictly inside the lower triangle of either diagonal.
+        CHECK(tri.insert(P<Point>(2, 1)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.numTriangles() == 4);
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == hullArea);
+        CHECK(tri.incidentTriangles(P<Point>(2, 1)).size() == 3);
+        CHECK(tri.triangles().size() == tri.numTriangles());
+        CHECK(tri.edges().size() == tri.numEdges());
+    }
+
+    SUBCASE("on an interior edge: both incident triangles split") {
+        // (4,4) is the midpoint of both possible diagonals.
+        CHECK(tri.insert(P<Point>(4, 4)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.numTriangles() == 4);
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == hullArea);
+        CHECK(tri.incidentTriangles(P<Point>(4, 4)).size() == 4);
+        // The split diagonal is gone, replaced by its two halves.
+        CHECK_FALSE(tri.contains(Seg(P<Point>(0, 0), P<Point>(8, 8))));
+        CHECK_FALSE(tri.contains(Seg(P<Point>(8, 0), P<Point>(0, 8))));
+        const bool halvesOfEither =
+            (tri.contains(Seg(P<Point>(0, 0), P<Point>(4, 4))) &&
+             tri.contains(Seg(P<Point>(4, 4), P<Point>(8, 8)))) ||
+            (tri.contains(Seg(P<Point>(8, 0), P<Point>(4, 4))) &&
+             tri.contains(Seg(P<Point>(4, 4), P<Point>(0, 8))));
+        CHECK(halvesOfEither);
+    }
+
+    SUBCASE("on a hull edge: the hull gains a vertex, one new triangle") {
+        CHECK(tri.insert(P<Point>(4, 0)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.numTriangles() == 3);
+        CHECK(allCounterClockwise(tri));
+        CHECK(totalTwiceArea(tri) == hullArea);
+        CHECK_FALSE(tri.contains(Seg(P<Point>(0, 0), P<Point>(8, 0))));
+        CHECK(tri.contains(Seg(P<Point>(0, 0), P<Point>(4, 0))));
+        CHECK(tri.contains(Seg(P<Point>(4, 0), P<Point>(8, 0))));
+        CHECK(tri.incidentTriangles(P<Point>(4, 0)).size() == 2);
+    }
+
+    SUBCASE("a duplicate vertex is rejected and changes nothing") {
+        CHECK_FALSE(tri.insert(P<Point>(0, 0)));
+        CHECK(tri.numVertices() == 4);
+        CHECK(tri.numTriangles() == 2);
+        CHECK(tri.checkInvariants());
+        CHECK(totalTwiceArea(tri) == hullArea);
+    }
+
+    SUBCASE("outside the hull: one new triangle per visible hull edge") {
+        // (12,-4) strictly sees two hull edges; the pocket is fanned to it.
+        CHECK(tri.insert(P<Point>(12, -4)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.numTriangles() == 4);
+        CHECK(allCounterClockwise(tri));
+        std::vector<Point> grown = pts;
+        grown.push_back(P<Point>(12, -4));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
+        CHECK(tri.incidentTriangles(P<Point>(12, -4)).size() == 2);
+        CHECK(tri.contains(Seg(P<Point>(8, 0), P<Point>(12, -4))));  // spoke
+        CHECK(tri.contains(Seg(P<Point>(0, 0), P<Point>(12, -4))));  // new hull edge
+        CHECK(tri.contains(Seg(P<Point>(8, 8), P<Point>(12, -4))));  // new hull edge
+    }
+
+    SUBCASE("outside and collinear with a hull edge: no degenerate triangle") {
+        // (12,0) extends the hull edge (0,0)-(8,0) beyond its endpoint: that
+        // edge is not strictly visible, only (8,0)-(8,8) is.
+        CHECK(tri.insert(P<Point>(12, 0)));
+        CHECK(tri.checkInvariants());
+        CHECK_FALSE(hasDegenerateTriangle(tri));
+        CHECK(tri.numTriangles() == 3);
+        CHECK(allCounterClockwise(tri));
+        std::vector<Point> grown = pts;
+        grown.push_back(P<Point>(12, 0));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
+    }
+
+    SUBCASE("flips and traversals still work after insertions") {
+        REQUIRE(tri.insert(P<Point>(2, 1)));
+        REQUIRE(tri.insert(P<Point>(4, 4)));
+        bool flippedOne = false;
+        for (const auto& e : tri.edges()) {
+            if (tri.flippable(e)) {
+                CHECK(tri.flip(e).has_value());
+                flippedOne = true;
+                break;
+            }
+        }
+        CHECK(flippedOne);
+        CHECK(tri.checkInvariants());
+        CHECK(totalTwiceArea(tri) == hullArea);
+        // A segment traversal across the mesh sees consistent triangles.
+        std::size_t seen = 0;
+        tri.visitTrianglesIntersecting(Seg(P<Point>(1, 1), P<Point>(7, 7)),
+                                       [&](const auto& t) { (void)t; ++seen; });
+        CHECK(seen > 0);
+    }
+}
+
+TEST_CASE_TEMPLATE("insertDelaunay keeps the triangulation Delaunay",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    // General-position start; (0,0)-(40,2) stays a hull edge with the lattice
+    // point (20,1) strictly inside it, exercising the hull-edge split.
+    std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(40, 2),  P<Point>(38, 39), P<Point>(2, 35),
+        P<Point>(17, 11), P<Point>(9, 27), P<Point>(28, 30),
+    };
+    pgl::Triangulation tri(pts);
+    REQUIRE(strictInCircleViolations(tri, pts) == 0);
+
+    // Interior points, a point on the hull edge (0,0)-(40,2), then points
+    // outside the hull (growing it).
+    const std::vector<Point> extra = {P<Point>(20, 20), P<Point>(13, 17),
+                                      P<Point>(30, 12), P<Point>(24, 4),
+                                      P<Point>(20, 1),  P<Point>(45, 20),
+                                      P<Point>(-5, -6), P<Point>(20, -60)};
+    for (const auto& q : extra) {
+        CHECK(tri.insertDelaunay(q));
+        pts.push_back(q);
+        CHECK(tri.checkInvariants());
+        CHECK(strictInCircleViolations(tri, pts) == 0);  // defining property
+        CHECK(allCounterClockwise(tri));
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(pts).twiceArea());
+    }
+    CHECK(tri.numVertices() == pts.size());
+    // The duplicate rejection also holds for insertDelaunay.
+    CHECK_FALSE(tri.insertDelaunay(P<Point>(20, 20)));  // already a vertex
+    CHECK_FALSE(tri.insertDelaunay(P<Point>(45, 20)));  // a hull vertex now
+}
+
+TEST_CASE("Insertion respects constrained edges and the polygon domain") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    // CCW polygon with a reflex vertex at (4,4): the region between the notch
+    // and the hull edge (8,8)-(0,8) is triangulated but out of domain.
+    const pgl::Polygon<Point> poly(std::vector<Point>{
+        P<Point>(0, 0), P<Point>(8, 0), P<Point>(8, 8), P<Point>(4, 4), P<Point>(0, 8)});
+    pgl::Triangulation tri(poly);
+    const auto polyArea = poly.twiceArea();
+    REQUIRE(totalTwiceArea(tri) == polyArea);
+
+    SUBCASE("inserting inside the polygon keeps the domain tiling") {
+        CHECK(tri.insert(P<Point>(4, 2)));
+        CHECK(tri.checkInvariants());
+        CHECK(totalTwiceArea(tri) == polyArea);
+        CHECK(allCounterClockwise(tri));
+    }
+
+    SUBCASE("inserting in the carved-away exterior is rejected") {
+        CHECK_FALSE(tri.insert(P<Point>(4, 7)));  // inside the hull, outside the polygon
+        CHECK(tri.numVertices() == 5);
+        CHECK(totalTwiceArea(tri) == polyArea);
+    }
+
+    SUBCASE("outside the hull: growth is hidden fill, the polygon view is stable") {
+        const auto before = tri.numTriangles();
+        CHECK(tri.insert(P<Point>(12, 4)));  // outside the convex hull
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 6);
+        CHECK(tri.numTriangles() == before);      // new triangles are out of domain
+        CHECK(totalTwiceArea(tri) == polyArea);   // the visible tiling is unchanged
+        CHECK_FALSE(tri.insert(P<Point>(12, 4)));  // now a duplicate (fill vertex)
+    }
+
+    SUBCASE("splitting a constrained edge keeps both halves constrained") {
+        const Seg boundary(P<Point>(4, 4), P<Point>(0, 8));  // domain/fill border
+        REQUIRE(tri.isConstrained(boundary));
+        const auto before = tri.numTriangles();
+        CHECK(tri.insert(P<Point>(2, 6)));
+        CHECK(tri.checkInvariants());
+        CHECK_FALSE(tri.contains(boundary));
+        CHECK(tri.isConstrained(Seg(P<Point>(4, 4), P<Point>(2, 6))));
+        CHECK(tri.isConstrained(Seg(P<Point>(2, 6), P<Point>(0, 8))));
+        CHECK(tri.numTriangles() == before + 1);  // the fill side stays hidden
+        CHECK(totalTwiceArea(tri) == polyArea);
+    }
+
+    SUBCASE("insertDelaunay preserves every polygon boundary constraint") {
+        CHECK(tri.insertDelaunay(P<Point>(3, 2)));
+        CHECK(tri.insertDelaunay(P<Point>(6, 3)));
+        CHECK(tri.checkInvariants());
+        CHECK(totalTwiceArea(tri) == polyArea);
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            const Seg e(poly[i], poly[(i + 1) % poly.size()]);
+            CHECK(tri.contains(e));
+            CHECK(tri.isConstrained(e));
+        }
+    }
+}
+
+TEST_CASE("Insertion preserves surviving edge labels and propagates split ones") {
+    using Point = pgl::Point<int>;
+    using LabeledSegment = pgl::Segment<Point, std::string>;
+    const pgl::Polygon<Point> poly(std::vector<Point>{
+        P<Point>(0, 0), P<Point>(60, 0), P<Point>(60, 60), P<Point>(0, 60)});
+    std::vector<LabeledSegment> segs;
+    segs.emplace_back(P<Point>(10, 30), P<Point>(50, 30), "wall");
+    pgl::Triangulation tri(poly, segs);
+    const LabeledSegment wall(P<Point>(10, 30), P<Point>(50, 30));
+    REQUIRE(tri.isConstrained(wall));
+    REQUIRE(tri.label(wall) == "wall");
+
+    // Splitting the labeled constrained edge: both halves keep flag and label.
+    CHECK(tri.insert(P<Point>(30, 30)));
+    CHECK(tri.checkInvariants());
+    const LabeledSegment left(P<Point>(10, 30), P<Point>(30, 30));
+    const LabeledSegment right(P<Point>(30, 30), P<Point>(50, 30));
+    CHECK(tri.isConstrained(left));
+    CHECK(tri.isConstrained(right));
+    CHECK(tri.label(left) == "wall");
+    CHECK(tri.label(right) == "wall");
+
+    // An insertion elsewhere must not wipe the labels of edges it re-points.
+    tri.label(left) = "left-wall";
+    CHECK(tri.insert(P<Point>(20, 25)));  // strictly below the wall
+    CHECK(tri.checkInvariants());
+    CHECK(tri.label(left) == "left-wall");
+    CHECK(tri.label(right) == "wall");
+}
