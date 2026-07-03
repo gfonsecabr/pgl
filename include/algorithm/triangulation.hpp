@@ -4,10 +4,13 @@
 
 /**
  * @file triangulation.hpp
- * @brief Mutable triangulation over a fixed vertex set or simple polygon.
+ * @brief Mutable triangulation of a point set or simple polygon.
  *
- * The vertex coordinates are fixed at construction; only the connectivity (the
- * set of triangles and their adjacencies) changes, via @ref Triangulation::flip.
+ * Vertex coordinates never move once added, but the vertex set can grow —
+ * @ref Triangulation::insert and @ref Triangulation::insertDelaunay add a new
+ * point by subdividing the triangle or edge containing it, or by growing the
+ * hull when it is outside — and the connectivity (the set of triangles and
+ * their adjacencies) changes via @ref Triangulation::flip.
  *
  * The **public interface speaks only in value types** — `pgl::Triangle`,
  * `pgl::Segment`, and `pgl::Point`. Internally the connectivity uses the
@@ -102,7 +105,8 @@ concept TriangulationQuery = DirectedTraversal<T> || TriangulationRegionQuery<T>
 }  // namespace detail
 
 /**
- * @brief Triangulation of a fixed vertex set whose connectivity may change.
+ * @brief Triangulation whose connectivity may change and whose vertex set may
+ *        grow.
  *
  * @tparam TriangleType_ The triangle type stored, e.g. `pgl::Triangle<Point>`.
  *         The point type — and hence any vertex labels — is taken from it.
@@ -133,7 +137,8 @@ struct Triangulation {
     /**
      * @brief Builds a triangulation from a set of triangles.
      *
-     * The vertex set is the union of the triangles' vertices (fixed thereafter).
+     * The vertex set is the union of the triangles' vertices (extendable later
+     * via @ref insert).
      * Adjacencies, the ghost triangles over the boundary, and the
      * segment-to-edge map are all computed automatically.
      *
@@ -176,7 +181,7 @@ struct Triangulation {
      * The triangular faces are recovered from the edge set by sorting each
      * vertex's incident edges counterclockwise and tracing the bounded faces
      * (an exact rotation-system / DCEL face walk). The vertex set is the union
-     * of the segments' endpoints (fixed thereafter).
+     * of the segments' endpoints (extendable later via @ref insert).
      *
      * @tparam SegmentRange Range whose elements are `pgl::Segment`.
      * @param segs Edges of the triangulation.
@@ -285,8 +290,9 @@ struct Triangulation {
     /**
      * @brief Builds the Delaunay triangulation of a set of points.
      *
-     * The vertex set is the points (deduplicated; fixed thereafter) and the
-     * connectivity is their Delaunay triangulation, computed exactly. Points
+     * The vertex set is the points (deduplicated; extendable later via
+     * @ref insert) and the connectivity is their Delaunay triangulation,
+     * computed exactly. Points
      * that are collinear with all others, or duplicated, simply carry no
      * incident triangle.
      *
@@ -378,7 +384,8 @@ struct Triangulation {
 
     /** @brief Number of real vertices (excludes the ghost vertex). */
     [[nodiscard]] std::size_t numVertices() const {
-        return ghost_ == NO_TRI ? vertices_.size() : vertices_.size() - 1;
+        // A nonempty vertices_ always holds the ghost vertex at index GHOST.
+        return vertices_.empty() ? 0 : vertices_.size() - 1;
     }
 
     /** @brief Number of triangles (excludes ghost and out-of-domain fill triangles). */
@@ -1461,6 +1468,72 @@ struct Triangulation {
         return diagonals;
     }
 
+    // ---- point insertion -------------------------------------------------
+
+    /**
+     * @brief Inserts @p p as a new vertex.
+     *
+     * If @p p lies strictly inside a triangle, that triangle is replaced by the
+     * three-triangle fan from its edges to @p p. If @p p lies in the interior
+     * of an edge, the edge splits into two collinear halves — which inherit its
+     * constrained flag and its label — and each incident triangle (two for an
+     * interior edge, one on the convex-hull boundary) splits in two. If @p p
+     * lies strictly outside the convex hull, the hull grows: @p p is joined to
+     * every hull edge it strictly sees, one new triangle per edge (the only
+     * triangulation of the pocket between the hull and the point). In a
+     * polygon triangulation that growth lies outside the domain, so the new
+     * triangles are hidden hull-fill: the public view — sizes, @ref triangles,
+     * area — is unchanged. All other edges keep their labels; the replacement
+     * triangles get default-constructed labels, as with @ref flip.
+     *
+     * The change is purely local — no other connectivity changes — so a
+     * Delaunay triangulation does not generally stay Delaunay; use
+     * @ref insertDelaunay for that.
+     *
+     * @param p The vertex to insert.
+     * @return `true` if the vertex was inserted; `false` — with the
+     *         triangulation unchanged — if @p p is already a vertex, lies
+     *         strictly inside a polygon's carved-away exterior (between the
+     *         polygon and its convex hull), or the triangulation is empty.
+     */
+    bool insert(const PointType& p) { return insertVertexImpl(p).has_value(); }
+
+    /**
+     * @brief Inserts @p p as a new vertex and restores the constrained
+     *        Delaunay property around it.
+     *
+     * Performs @ref insert, then legalizes outward from @p p by Lawson flips,
+     * never flipping a constrained edge: if the triangulation satisfied the
+     * constrained Delaunay property before the call (as built by the point-set
+     * and polygon constructors), it satisfies it after. Edges and triangles
+     * touched by the legalizing flips have their labels reset, as with
+     * @ref flip; the halves of a split edge inherit its constrained flag and
+     * label, as with @ref insert.
+     *
+     * @param p The vertex to insert.
+     * @return `true` if the vertex was inserted; `false` — with the
+     *         triangulation unchanged — under the same conditions as
+     *         @ref insert.
+     */
+    bool insertDelaunay(const PointType& p) {
+        const auto inserted = insertVertexImpl(p);
+        if (!inserted) {
+            return false;
+        }
+        const auto [vp, start] = *inserted;
+        // The suspect edges are the new vertex's link: the side opposite vp in
+        // every real triangle of its fan.
+        std::vector<SegmentType> suspect;
+        visitVertexFan(start, vp, [&](TriId cur) {
+            if (!isGhost(cur)) {
+                suspect.push_back(
+                    edgeSegment(Edge{cur, static_cast<std::int8_t>(localIndex(cur, vp))}));
+            }
+        });
+        legalize(suspect);
+        return true;
+    }
+
     // ---- validation ------------------------------------------------------
 
     /**
@@ -1546,10 +1619,11 @@ struct Triangulation {
     static_assert(sizeof(Tri) == 28 || detail::has_label_v<TriangleLabel>,
                   "Tri should stay 28 bytes when unlabeled");
 
-    std::vector<PointType> vertices_;  // real vertices, then one ghost vertex
+    std::vector<PointType> vertices_;  // ghost vertex at index 0 (when nonempty),
+                                       // then the real vertices; inserts append
     std::vector<Tri> triangles_;       // real triangles [0,firstGhost_), then ghost triangles
     std::unordered_map<SegmentType, Edge> segToEdge_;  // outside edge -> internal handle
-    VertexId ghost_ = NO_TRI;          // index of the ghost vertex
+    static constexpr VertexId GHOST = 0;  // index of the ghost vertex
     TriId firstGhost_ = 0;             // first ghost triangle index
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
     mutable TriId hint_ = NO_TRI;      // last located triangle (walk seed)
@@ -1772,7 +1846,8 @@ struct Triangulation {
             }
             // No edge met the domain: either the whole (connected) domain lies
             // inside `shape` or the two are disjoint — one vertex decides.
-            if (seeds.empty() && shape.contains(vertices_.front())) {
+            // (vertices_[1] is the first real vertex; index 0 is the ghost.)
+            if (seeds.empty() && numVertices() > 0 && shape.contains(vertices_[1])) {
                 const TriId t = firstInDomainTriangle();
                 if (t != NO_TRI) {
                     seeds.push_back(t);
@@ -2351,12 +2426,18 @@ struct Triangulation {
             idOfPoint(PointType(s[0]));
             idOfPoint(PointType(s[1]));
         }
-        // Keep vertices_ in Hilbert order (see the point-set constructor); the
-        // interner's ids are now stale, so rebuild the map and resolve the
-        // boundary loop and constraint endpoints against the reordered vertices.
+        // Keep vertices_ in Hilbert order (see the point-set constructor).
         hilbertSort(vertices_);
+        auto triples = delaunayTriples(vertices_);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+
+        // The interner's ids went stale twice — the Hilbert reorder and the
+        // ghost vertex buildFromTriples prepended — so resolve the boundary
+        // loop and constraint endpoints against the final ids (reals start
+        // at 1; index 0 is the ghost, whose placeholder coordinates must not
+        // shadow a real vertex in the map).
         vid.clear();
-        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+        for (VertexId i = 1; i < static_cast<VertexId>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
         std::vector<VertexId> loop;
@@ -2364,8 +2445,6 @@ struct Triangulation {
         for (std::size_t i = 0; i < poly.size(); ++i) {
             loop.push_back(vid.at(poly[i]));
         }
-        auto triples = delaunayTriples(vertices_);
-        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
 
         // Constrain the polygon boundary and every interior segment, restore the
         // constrained Delaunay property, then carve away the exterior.
@@ -2396,16 +2475,18 @@ struct Triangulation {
         }
     }
 
-    // Appends the ghost vertex, materializes the triangle records (normalized to
-    // CCW) from vertex-index triples and their parallel labels, then links
-    // adjacency and the edge map.
+    // Prepends the ghost vertex at index 0, materializes the triangle records
+    // (normalized to CCW) from vertex-index triples — 0-based into the
+    // pre-ghost vertices_, so shifted by one here — and their parallel labels,
+    // then links adjacency and the edge map. With the ghost first, the real
+    // vertices are the contiguous range [1, vertices_.size()) and insertions
+    // can append real vertices without disturbing it.
     void buildFromTriples(std::vector<std::array<VertexId, 3>>& triples,
                           const std::vector<TriangleLabel>& triLabels) {
-        ghost_ = static_cast<VertexId>(vertices_.size());
-        vertices_.push_back(PointType{});  // ghost vertex; coordinates unused
+        vertices_.insert(vertices_.begin(), PointType{});  // ghost (GHOST); coordinates unused
 
         for (std::size_t k = 0; k < triples.size(); ++k) {
-            VertexId x = triples[k][0], y = triples[k][1], z = triples[k][2];
+            VertexId x = triples[k][0] + 1, y = triples[k][1] + 1, z = triples[k][2] + 1;
             if (orientationSign(vertices_[x], vertices_[y], vertices_[z]) < 0) {
                 std::swap(y, z);
             }
@@ -2491,7 +2572,463 @@ struct Triangulation {
         if (sBC >= 0) {
             triangles_[nBC].nbr[sBC] = t2;
         }
-        assert(checkInvariants());
+        // assert(checkInvariants());  // O(n): uncomment when debugging
+        return true;
+    }
+
+    // ---- point insertion internals ----------------------------------------
+
+    // Re-registers the three sides of real triangle t in segToEdge_, keeping
+    // any label already stored under a persisting edge key. (registerSides
+    // would reset those labels — acceptable for flip, whose contract says so,
+    // but an insertion only re-points surviving edges and must not wipe them.)
+    void reRegisterSides(TriId t) {
+        for (std::int8_t s = 0; s < 3; ++s) {
+            const SegmentType key = edgeSegment(Edge{t, s});
+            auto it = segToEdge_.find(key);
+            if (it == segToEdge_.end()) {
+                segToEdge_.emplace(key, Edge{t, s});
+            } else {
+                it->second.tri = t;
+                it->second.side = s;
+            }
+        }
+    }
+
+    // Ensures room for `extra` more elements without reallocation, growing
+    // geometrically when needed. (A bare reserve(size + k) reallocates to
+    // exactly that capacity, which would make repeated insertions quadratic.)
+    template <class T>
+    static void reserveExtra(std::vector<T>& v, std::size_t extra) {
+        if (v.capacity() < v.size() + extra) {
+            v.reserve(std::max(v.size() + extra, v.capacity() * 2));
+        }
+    }
+
+    // Frees k slots directly above the real block — for the real triangles an
+    // insertion creates — by relocating the k lowest ghost triangles to the
+    // end of triangles_ and bumping firstGhost_. Only neighbor links reference
+    // ghost triangles (segToEdge_ and hint_ never do), so relocation rewires
+    // those and nothing else. Requires k ghosts (any nonempty triangulation
+    // has >= 3) and spare capacity (callers reserve). Returns the first freed
+    // slot; the freed slots hold stale copies the caller must overwrite.
+    TriId makeRoom(int k) {
+        const TriId base = firstGhost_;
+        const TriId oldSize = static_cast<TriId>(triangles_.size());
+        assert(oldSize - base >= k);
+        for (int j = 0; j < k; ++j) {
+            triangles_.push_back(triangles_[base + j]);
+        }
+        for (int j = 0; j < k; ++j) {
+            const TriId moved = oldSize + j;
+            for (int s = 0; s < 3; ++s) {
+                TriId& nb = triangles_[moved].nbr[s];
+                assert(nb != NO_TRI);  // ghosts always have three neighbors
+                if (nb >= base && nb < base + k) {
+                    nb = nb - base + oldSize;  // the neighbor was relocated too
+                }
+                for (int q = 0; q < 3; ++q) {
+                    if (triangles_[nb].nbr[q] == base + j) {
+                        triangles_[nb].nbr[q] = moved;
+                    }
+                }
+            }
+        }
+        firstGhost_ += k;
+        return base;
+    }
+
+    // Structural vertex insertion shared by insert and insertDelaunay: locates
+    // @p p and subdivides the triangle (1->3) or edge (2->4; 2->3 on the hull,
+    // where the ghost across splits too) containing it, or grows the hull when
+    // p is outside. Returns the new vertex and one real triangle incident to
+    // it, or nullopt — with the triangulation unchanged — when p cannot be
+    // inserted: already a vertex, strictly inside a polygon's carved-away
+    // exterior, or the triangulation is empty.
+    std::optional<std::pair<VertexId, TriId>> insertVertexImpl(const PointType& p) {
+        const TriId t0 = locateId(p);
+        if (t0 == NO_TRI) {
+            return std::nullopt;  // empty triangulation
+        }
+        if (isGhost(t0)) {
+            // p is strictly outside the hull (a point on the hull boundary
+            // lands in a real triangle's closure), so it cannot be a duplicate.
+            return growHull(t0, p);
+        }
+        const auto& tv = triangles_[t0].v;
+        for (int k = 0; k < 3; ++k) {
+            if (vertices_[tv[k]] == p) {
+                return std::nullopt;  // p is already a vertex
+            }
+        }
+        // p is in t0's closure (locateId stopped here) and is not a vertex, so
+        // it lies strictly inside either the triangle or exactly one edge.
+        int onSide = -1;
+        for (int k = 0; k < 3; ++k) {
+            if (orientationSign(vertices_[tv[(k + 1) % 3]], vertices_[tv[(k + 2) % 3]], p) == 0) {
+                onSide = k;
+            }
+        }
+        if (onSide < 0) {
+            if (!inDomain(t0)) {
+                return std::nullopt;  // strictly inside a hull-fill triangle
+            }
+            return splitTriangle(t0, p);
+        }
+        return splitEdge(t0, onSide, p);
+    }
+
+    // 1->3 subdivision: replaces the in-domain triangle t, whose interior
+    // strictly contains p, by the fan from its three edges to the new vertex.
+    std::pair<VertexId, TriId> splitTriangle(TriId t, const PointType& p) {
+        reserveExtra(vertices_, 1);
+        reserveExtra(triangles_, 2);
+        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        vertices_.push_back(p);
+        const TriId n1 = makeRoom(2);
+        const TriId n2 = n1 + 1;
+
+        // Copy the record after makeRoom, whose relocation already fixed the
+        // neighbor links of every triangle adjacent to a moved ghost.
+        const Tri old = triangles_[t];
+        const VertexId a = old.v[0];
+        const VertexId b = old.v[1];
+        const VertexId c = old.v[2];
+        // Children (CCW because p is strictly interior); each keeps one parent
+        // edge — with that edge's constrained flag — as its side 2, opposite vp.
+        triangles_[t] = Tri{{a, b, vp},
+                            {n1, n2, old.nbr[2]},
+                            mask(false, false, bit(old.constrainedMask, 2)),
+                            0, 0, TriangleLabel{}};
+        triangles_[n1] = Tri{{b, c, vp},
+                             {n2, t, old.nbr[0]},
+                             mask(false, false, bit(old.constrainedMask, 0)),
+                             0, 0, TriangleLabel{}};
+        triangles_[n2] = Tri{{c, a, vp},
+                             {t, n1, old.nbr[1]},
+                             mask(false, false, bit(old.constrainedMask, 1)),
+                             0, 0, TriangleLabel{}};
+        triangles_[old.nbr[0]].nbr[findSide(old.nbr[0], t)] = n1;
+        triangles_[old.nbr[1]].nbr[findSide(old.nbr[1], t)] = n2;
+        domainTriangleCount_ += 2;
+        for (const TriId x : {t, n1, n2}) {
+            reRegisterSides(x);
+        }
+        hint_ = t;
+        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        return {vp, t};
+    }
+
+    // 2->4 (interior edge) or 2->3 (hull edge, where the ghost across splits
+    // too) subdivision: p lies strictly inside the edge of triangle t opposite
+    // t.v[s]. The edge splits into two collinear halves, which inherit its
+    // constrained flag and label; each incident triangle splits in two.
+    // Rejected (nullopt, no change) when neither side is in-domain.
+    std::optional<std::pair<VertexId, TriId>> splitEdge(TriId t, int s, const PointType& p) {
+        const TriId across = triangles_[t].nbr[s];
+        if (!inDomain(t) && !inDomain(across)) {
+            return std::nullopt;  // edge only borders ghost / hull-fill triangles
+        }
+        const bool ghostSide = isGhost(across);
+        reserveExtra(vertices_, 1);
+        reserveExtra(triangles_, 2);
+
+        const bool cUW = bit(triangles_[t].constrainedMask, s);
+        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        vertices_.push_back(p);
+        const TriId n1 = makeRoom(ghostSide ? 1 : 2);
+
+        // Copy the record after makeRoom, whose relocation already fixed the
+        // neighbor links of every triangle adjacent to a moved ghost.
+        const Tri oldT = triangles_[t];
+        const VertexId apex = oldT.v[s];
+        const VertexId u = oldT.v[(s + 1) % 3];
+        const VertexId w = oldT.v[(s + 2) % 3];
+        const TriId nWApex = oldT.nbr[(s + 1) % 3];  // neighbor across {w, apex}
+        const TriId nApexU = oldT.nbr[(s + 2) % 3];  // neighbor across {apex, u}
+        const bool cWApex = bit(oldT.constrainedMask, (s + 1) % 3);
+        const bool cApexU = bit(oldT.constrainedMask, (s + 2) % 3);
+
+        // Both halves inherit the split edge's label; the old key is dropped
+        // now and the halves are registered (then labeled) below.
+        SegmentLabel halfLabel{};
+        {
+            const auto it = segToEdge_.find(SegmentType(vertices_[u], vertices_[w]));
+            assert(it != segToEdge_.end());
+            halfLabel = it->second.segLabel;
+            segToEdge_.erase(it);
+        }
+
+        if (!ghostSide) {
+            // Interior edge: t = (apex,u,w) and t2 = (apex2,w,u) become the
+            // four triangles fanning around vp.
+            const TriId n2 = n1 + 1;
+            const TriId t2 = across;
+            const int j = findSide(t2, t);
+            const Tri oldT2 = triangles_[t2];
+            const VertexId apex2 = oldT2.v[j];
+            assert(oldT2.v[(j + 1) % 3] == w && oldT2.v[(j + 2) % 3] == u);
+            const TriId nApex2W = oldT2.nbr[(j + 2) % 3];  // across {apex2, w}
+            const TriId nUApex2 = oldT2.nbr[(j + 1) % 3];  // across {u, apex2}
+            const bool cApex2W = bit(oldT2.constrainedMask, (j + 2) % 3);
+            const bool cUApex2 = bit(oldT2.constrainedMask, (j + 1) % 3);
+
+            triangles_[t] = Tri{{apex, u, vp},
+                                {n2, n1, nApexU},
+                                mask(cUW, false, cApexU),
+                                oldT.outOfDomain, 0, TriangleLabel{}};
+            triangles_[n1] = Tri{{apex, vp, w},
+                                 {t2, nWApex, t},
+                                 mask(cUW, cWApex, false),
+                                 oldT.outOfDomain, 0, TriangleLabel{}};
+            triangles_[t2] = Tri{{apex2, w, vp},
+                                 {n1, n2, nApex2W},
+                                 mask(cUW, false, cApex2W),
+                                 oldT2.outOfDomain, 0, TriangleLabel{}};
+            triangles_[n2] = Tri{{apex2, vp, u},
+                                 {t, nUApex2, t2},
+                                 mask(cUW, cUApex2, false),
+                                 oldT2.outOfDomain, 0, TriangleLabel{}};
+            triangles_[nWApex].nbr[findSide(nWApex, t)] = n1;
+            triangles_[nUApex2].nbr[findSide(nUApex2, t2)] = n2;
+            domainTriangleCount_ += (oldT.outOfDomain ? 0 : 1) + (oldT2.outOfDomain ? 0 : 1);
+            for (const TriId x : {t, n1, t2, n2}) {
+                reRegisterSides(x);
+            }
+        } else {
+            // Hull edge: t splits in two and so does the ghost across, keeping
+            // the ghost convention v = {real, real, GHOST} with nbr[2] real.
+            const TriId g = across;
+            const Tri oldG = triangles_[g];
+            assert(oldG.v[0] == u && oldG.v[1] == w && oldG.v[2] == GHOST && oldG.nbr[2] == t);
+            const TriId gw = oldG.nbr[0];  // ghost-ring neighbor across {w, ghost}
+            const TriId gu = oldG.nbr[1];  // ghost-ring neighbor across {u, ghost}
+
+            const TriId g2 = static_cast<TriId>(triangles_.size());
+            triangles_.push_back(Tri{{vp, w, GHOST},
+                                     {gw, g, n1},
+                                     mask(false, false, cUW),
+                                     0, 0, TriangleLabel{}});
+            triangles_[t] = Tri{{apex, u, vp},
+                                {g, n1, nApexU},
+                                mask(cUW, false, cApexU),
+                                0, 0, TriangleLabel{}};
+            triangles_[n1] = Tri{{apex, vp, w},
+                                 {g2, nWApex, t},
+                                 mask(cUW, cWApex, false),
+                                 0, 0, TriangleLabel{}};
+            triangles_[g] = Tri{{u, vp, GHOST},
+                                {g2, gu, t},
+                                mask(false, false, cUW),
+                                0, 0, TriangleLabel{}};
+            triangles_[nWApex].nbr[findSide(nWApex, t)] = n1;
+            triangles_[gw].nbr[findSide(gw, g)] = g2;
+            domainTriangleCount_ += 1;
+            for (const TriId x : {t, n1}) {
+                reRegisterSides(x);
+            }
+        }
+        if constexpr (detail::has_label_v<SegmentLabel>) {
+            segToEdge_.at(SegmentType(vertices_[u], vertices_[vp])).segLabel = halfLabel;
+            segToEdge_.at(SegmentType(vertices_[vp], vertices_[w])).segLabel = halfLabel;
+        }
+        hint_ = t;
+        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        return std::pair{vp, t};
+    }
+
+    // Hull growth: p lies strictly outside the convex hull, and the locate
+    // walk stopped at ghost g0, whose base hull edge p strictly sees. Joins p
+    // to the maximal contiguous chain of hull edges visible from it — the
+    // fan is the only triangulation of the pocket between hull and point, as
+    // any other diagonal would cut into the old hull — replacing the chain's
+    // m ghosts by m real triangles, closed by two new ghosts along the new
+    // hull edges {u_0, p} and {p, u_m}. Visibility is strict, so hull edges
+    // collinear with p are never in the chain and no degenerate triangle can
+    // arise. A new triangle is out-of-domain when its base hull edge fences
+    // the domain (constrained) or already borders fill, so a polygon's
+    // exterior growth stays hidden from the public view.
+    std::pair<VertexId, TriId> growHull(TriId g0, const PointType& p) {
+        const auto visible = [&](TriId g) {
+            const auto& gv = triangles_[g].v;
+            return orientationSign(vertices_[gv[0]], vertices_[gv[1]], p) < 0;
+        };
+        assert(isGhost(g0) && visible(g0));
+
+        // Rewind to the first visible ghost, then record the chain through its
+        // inner anchors (r, s): ghost ids go stale across makeRoom, the inner
+        // real triangles do not. For a ghost {a, b, GHOST}, nbr[1] is the ring
+        // predecessor (sharing a) and nbr[0] the successor (sharing b).
+        std::size_t guard = 0;
+        const std::size_t ringCap = triangles_.size() + 1;
+        TriId gStart = g0;
+        while (visible(triangles_[gStart].nbr[1]) && ++guard < ringCap) {
+            gStart = triangles_[gStart].nbr[1];
+        }
+        std::vector<TriId> inner;            // r_i: the real triangle inside base i
+        std::vector<std::int8_t> innerSide;  // its side facing that base
+        std::vector<VertexId> u;             // hull chain u_0 -> ... -> u_m
+        TriId g = gStart;
+        guard = 0;
+        while (visible(g) && ++guard < ringCap) {
+            const TriId r = triangles_[g].nbr[2];
+            inner.push_back(r);
+            innerSide.push_back(findSide(r, g));
+            u.push_back(triangles_[g].v[0]);
+            g = triangles_[g].nbr[0];
+        }
+        u.push_back(triangles_[g].v[0]);  // == v[1] of the last chain ghost
+        const int m = static_cast<int>(inner.size());
+        assert(m >= 1);
+
+        reserveExtra(vertices_, 1);
+        reserveExtra(triangles_, m == 1 ? 2 : static_cast<std::size_t>(m));
+        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        vertices_.push_back(p);
+        const TriId nr = makeRoom(m);  // slots for the m new real triangles
+
+        // Re-resolve the (possibly relocated) chain ghosts and the ring ends.
+        std::vector<TriId> dead(static_cast<std::size_t>(m));
+        for (int i = 0; i < m; ++i) {
+            dead[i] = triangles_[inner[i]].nbr[innerSide[i]];
+        }
+        const TriId prevG = triangles_[dead.front()].nbr[1];
+        const TriId nextG = triangles_[dead.back()].nbr[0];
+
+        // The two new ghosts reuse dead chain slots (plus a push_back when
+        // only one ghost died); leftover dead slots are compacted away below,
+        // so the vector grows by exactly two triangles in every case.
+        const TriId ga = dead[0];
+        TriId gb;
+        if (m == 1) {
+            gb = static_cast<TriId>(triangles_.size());
+            triangles_.push_back(Tri{});  // written below
+        } else {
+            gb = dead[1];
+        }
+
+        // The m pocket triangles {u_{i+1}, u_i, vp} fanning vp: side 2 is the
+        // base hull edge (keeping its constrained flag), sides 0/1 the spokes.
+        std::size_t inDomainAdded = 0;
+        for (int i = 0; i < m; ++i) {
+            const bool cBase = bit(triangles_[inner[i]].constrainedMask, innerSide[i]);
+            const std::uint8_t fill =
+                (triangles_[inner[i]].outOfDomain || cBase) ? 1 : 0;
+            triangles_[nr + i] = Tri{{u[i + 1], u[i], vp},
+                                     {i > 0 ? nr + i - 1 : ga,
+                                      i < m - 1 ? nr + i + 1 : gb, inner[i]},
+                                     mask(false, false, cBase),
+                                     fill, 0, TriangleLabel{}};
+            triangles_[inner[i]].nbr[innerSide[i]] = nr + i;
+            inDomainAdded += fill ? 0 : 1;
+        }
+        triangles_[ga] = Tri{{u.front(), vp, GHOST}, {gb, prevG, nr}, 0, 0, 0, TriangleLabel{}};
+        triangles_[gb] =
+            Tri{{vp, u.back(), GHOST}, {nextG, ga, nr + m - 1}, 0, 0, 0, TriangleLabel{}};
+        triangles_[prevG].nbr[0] = ga;
+        triangles_[nextG].nbr[1] = gb;
+
+        if (m >= 3) {
+            // m ghosts died but only two slots were reused: fill the remaining
+            // holes with live ghosts taken from the end of triangles_ (the
+            // same link rewiring as makeRoom, in the other direction), then
+            // drop the all-dead tail.
+            std::vector<TriId> holes(dead.begin() + 2, dead.end());
+            std::sort(holes.begin(), holes.end());
+            const auto isHole = [&](TriId t) {
+                return std::binary_search(holes.begin(), holes.end(), t);
+            };
+            TriId last = static_cast<TriId>(triangles_.size()) - 1;
+            for (std::size_t h = 0; h < holes.size() && holes[h] < last;) {
+                if (isHole(last)) {
+                    --last;  // already dead: it will be truncated
+                    continue;
+                }
+                const TriId hole = holes[h];
+                triangles_[hole] = triangles_[last];
+                for (int s = 0; s < 3; ++s) {
+                    const TriId nb = triangles_[hole].nbr[s];
+                    for (int q = 0; q < 3; ++q) {
+                        if (triangles_[nb].nbr[q] == last) {
+                            triangles_[nb].nbr[q] = hole;
+                        }
+                    }
+                }
+                ++h;
+                --last;
+            }
+            triangles_.resize(triangles_.size() - static_cast<std::size_t>(m - 2));
+        }
+
+        for (int i = 0; i < m; ++i) {
+            reRegisterSides(nr + i);
+        }
+        domainTriangleCount_ += inDomainAdded;
+        hint_ = nr;
+        // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
+        return {vp, nr};
+    }
+
+    // Restores the local Delaunay property after an insertion by Lawson flips:
+    // pops suspect edges, flips any that are flippable (so never a constrained
+    // edge) with an apex strictly inside the opposite circumcircle, and
+    // re-queues the rewritten triangles' sides. Terminates by Lawson's
+    // argument; the guard is a safety net only.
+    void legalize(std::vector<SegmentType>& suspect) {
+        std::size_t guard = 0;
+        const std::size_t cap = triangles_.size() * triangles_.size() + 64;
+        while (!suspect.empty() && ++guard < cap) {
+            const SegmentType s = suspect.back();
+            suspect.pop_back();
+            const auto se = segToEdge_.find(s);
+            if (se == segToEdge_.end() || !flippableEdge(se->second)) {
+                continue;  // edge gone, constrained, or quad not convex
+            }
+            const Edge e = se->second;
+            const Edge m = mirror(e);
+            const auto& tv = triangles_[e.tri].v;
+            const VertexId d = triangles_[m.tri].v[m.side];
+            if (inCircleSign(vertices_[tv[0]], vertices_[tv[1]], vertices_[tv[2]],
+                             vertices_[d]) != std::partial_ordering::greater) {
+                continue;  // locally Delaunay (the test is symmetric across e)
+            }
+            const TriId t = e.tri;
+            const TriId t2 = m.tri;
+            flip(s);
+            // The rewritten triangles' sides — the four quad edges plus the new
+            // diagonal, which the test above now accepts — are suspect again.
+            for (const TriId x : {t, t2}) {
+                for (std::int8_t q = 0; q < 3; ++q) {
+                    suspect.push_back(edgeSegment(Edge{x, q}));
+                }
+            }
+        }
+        assert(suspect.empty() && "Triangulation: legalization did not terminate");
+    }
+
+    // Debug validation of segToEdge_: every real triangle side is registered
+    // under its edge key, and every entry references a real triangle that
+    // still owns the keyed edge (no stale handles or leftover keys). Kept
+    // separate from checkInvariants because flipEdge checks invariants at a
+    // point where the map is deliberately stale (its callers re-register).
+    [[nodiscard]] bool checkEdgeMap() const {
+        for (TriId t = 0; t < firstGhost_; ++t) {
+            for (std::int8_t s = 0; s < 3; ++s) {
+                if (!segToEdge_.contains(edgeSegment(Edge{t, s}))) {
+                    return false;
+                }
+            }
+        }
+        for (const auto& [seg, e] : segToEdge_) {
+            if (e.tri < 0 || e.tri >= firstGhost_) {
+                return false;
+            }
+            const auto& tv = triangles_[e.tri].v;
+            if (SegmentType(vertices_[tv[(e.side + 1) % 3]],
+                            vertices_[tv[(e.side + 2) % 3]]) != seg) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -2571,7 +3108,7 @@ struct Triangulation {
             const VertexId a = triangles_[t].v[(i + 1) % 3];
             const VertexId b = triangles_[t].v[(i + 2) % 3];
             const TriId g = static_cast<TriId>(triangles_.size());
-            triangles_.push_back(Tri{{a, b, ghost_}, {NO_TRI, NO_TRI, NO_TRI}, 0});
+            triangles_.push_back(Tri{{a, b, GHOST}, {NO_TRI, NO_TRI, NO_TRI}, 0});
             triangles_[g].nbr[2] = t;  // side 2 (opposite ghost) is the shared edge {a,b}
             triangles_[t].nbr[i] = g;
             for (auto [realVertex, side] :
