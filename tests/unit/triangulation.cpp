@@ -1083,22 +1083,6 @@ TEST_CASE("Insertion respects constrained edges and the polygon domain") {
         CHECK(allCounterClockwise(tri));
     }
 
-    SUBCASE("inserting in the carved-away exterior is rejected") {
-        CHECK_FALSE(tri.insert(P<Point>(4, 7)));  // inside the hull, outside the polygon
-        CHECK(tri.numVertices() == 5);
-        CHECK(totalTwiceArea(tri) == polyArea);
-    }
-
-    SUBCASE("outside the hull: growth is hidden fill, the polygon view is stable") {
-        const auto before = tri.numTriangles();
-        CHECK(tri.insert(P<Point>(12, 4)));  // outside the convex hull
-        CHECK(tri.checkInvariants());
-        CHECK(tri.numVertices() == 6);
-        CHECK(tri.numTriangles() == before);      // new triangles are out of domain
-        CHECK(totalTwiceArea(tri) == polyArea);   // the visible tiling is unchanged
-        CHECK_FALSE(tri.insert(P<Point>(12, 4)));  // now a duplicate (fill vertex)
-    }
-
     SUBCASE("splitting a constrained edge keeps both halves constrained") {
         const Seg boundary(P<Point>(4, 4), P<Point>(0, 8));  // domain/fill border
         REQUIRE(tri.isConstrained(boundary));
@@ -1153,4 +1137,98 @@ TEST_CASE("Insertion preserves surviving edge labels and propagates split ones")
     CHECK(tri.checkInvariants());
     CHECK(tri.label(left) == "left-wall");
     CHECK(tri.label(right) == "wall");
+}
+
+TEST_CASE_TEMPLATE("Conforming constrained Delaunay of points plus segments",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    using Seg = pgl::Segment<Point>;
+    // Points in general position; the constraint's endpoints are extra vertices.
+    const std::vector<Point> pts = {
+        P<Point>(0, 0),  P<Point>(40, 3),  P<Point>(37, 38), P<Point>(3, 34),
+        P<Point>(18, 12), P<Point>(10, 25), P<Point>(27, 28),
+    };
+    const std::vector<Seg> segs = {Seg(P<Point>(8, 18), P<Point>(33, 17))};
+    pgl::Triangulation tri(pts, segs);
+
+    CHECK(tri.checkInvariants());
+    CHECK(tri.numVertices() == pts.size() + 2);
+    CHECK(tri.isConstrained(segs.front()));
+    CHECK(allCounterClockwise(tri));
+    // Nothing is carved away: the domain is the whole hull.
+    std::vector<Point> all = pts;
+    all.push_back(P<Point>(8, 18));
+    all.push_back(P<Point>(33, 17));
+    CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(all).twiceArea());
+
+    // The constraint survives Delaunay insertions next to it, and hull growth
+    // still works (the hull is unconstrained).
+    CHECK(tri.insertDelaunay(P<Point>(20, 19)));
+    CHECK(tri.insertDelaunay(P<Point>(20, -9)));
+    CHECK(tri.checkInvariants());
+    CHECK(tri.isConstrained(segs.front()));
+}
+
+TEST_CASE("Constrained hull edges do not block hull growth of a point-set triangulation") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    const std::vector<Point> corners = {P<Point>(0, 0), P<Point>(8, 0), P<Point>(8, 8),
+                                        P<Point>(0, 8)};
+
+    SUBCASE("all hull edges constrained via the points-plus-segments constructor") {
+        std::vector<Seg> boundary;
+        for (std::size_t i = 0; i < corners.size(); ++i) {
+            boundary.emplace_back(corners[i], corners[(i + 1) % corners.size()]);
+        }
+        pgl::Triangulation tri(corners, boundary);
+        REQUIRE(tri.numTriangles() == 2);
+        for (const auto& e : boundary) {
+            CHECK(tri.isConstrained(e));
+        }
+
+        // (12,4) strictly sees only the constrained hull edge (8,0)-(8,8):
+        // growth proceeds and the edge stays constrained, now interior.
+        CHECK(tri.insert(P<Point>(12, 4)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.numTriangles() == 3);
+        CHECK(tri.isConstrained(Seg(P<Point>(8, 0), P<Point>(8, 8))));
+        CHECK_FALSE(tri.flippable(Seg(P<Point>(8, 0), P<Point>(8, 8))));
+        std::vector<Point> grown = corners;
+        grown.push_back(P<Point>(12, 4));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
+        CHECK(tri.insert(P<Point>(3, 4)));  // interior insertion still fine
+        CHECK(tri.checkInvariants());
+    }
+
+    SUBCASE("one hull edge constrained by hand, pocket spanning it and an open edge") {
+        pgl::Triangulation tri(corners);
+        const Seg bottom(P<Point>(0, 0), P<Point>(8, 0));
+        tri.setConstrained(bottom);
+        REQUIRE(tri.isConstrained(bottom));
+
+        // (12,-4) strictly sees the constrained bottom and the open right edge.
+        CHECK(tri.insertDelaunay(P<Point>(12, -4)));
+        CHECK(tri.checkInvariants());
+        CHECK(tri.numVertices() == 5);
+        CHECK(tri.isConstrained(bottom));  // kept, now an interior edge
+        std::vector<Point> grown = corners;
+        grown.push_back(P<Point>(12, -4));
+        CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
+        CHECK(allCounterClockwise(tri));
+    }
+}
+
+TEST_CASE("Points-plus-segments constructor keeps segment labels") {
+    using Point = pgl::Point<int>;
+    using LabeledSegment = pgl::Segment<Point, std::string>;
+    const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(60, 0), P<Point>(60, 60),
+                                    P<Point>(0, 60)};
+    std::vector<LabeledSegment> segs;
+    segs.emplace_back(P<Point>(10, 20), P<Point>(50, 20), "wall");
+    pgl::Triangulation tri(pts, segs);
+    static_assert(std::is_same_v<decltype(tri)::SegmentType, LabeledSegment>);
+    const LabeledSegment wall(P<Point>(10, 20), P<Point>(50, 20));
+    CHECK(tri.isConstrained(wall));
+    CHECK(tri.label(wall) == "wall");
 }

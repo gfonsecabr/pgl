@@ -319,6 +319,73 @@ struct Triangulation {
     }
 
     /**
+     * @brief Builds the conforming constrained Delaunay triangulation of a
+     *        point set with constraint segments.
+     *
+     * The vertex set is the union of the points and the segments' endpoints
+     * (deduplicated; extendable later via @ref insert) and every input segment
+     * is present as a constrained edge — never flipped, kept by
+     * @ref insertDelaunay, fencing hull growth like a polygon boundary when it
+     * lies on the hull. Unlike the polygon constructors nothing is carved
+     * away: the domain is the whole convex hull. Segment labels are kept on
+     * the constrained edges.
+     *
+     * @tparam PointRange Range whose elements are `pgl::Point`.
+     * @tparam SegmentRange Range whose elements are segments.
+     * @param pts Points to triangulate.
+     * @param segments Constraint segments.
+     * @pre The segments are non-degenerate and pairwise non-crossing (sharing
+     *      endpoints is fine), and no vertex — point or other endpoint — lies
+     *      in a segment's relative interior. Not checked.
+     */
+    template <class PointRange, class SegmentRange>
+        requires PointConcept<typename PointRange::value_type> &&
+                 SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const PointRange& pts, const SegmentRange& segments) {
+        std::unordered_map<PointType, VertexId> vid;
+        const auto idOfPoint = makeVertexInterner(vid);
+        for (const auto& p : pts) {
+            idOfPoint(PointType(p));
+        }
+        for (const auto& s : segments) {
+            idOfPoint(PointType(s[0]));
+            idOfPoint(PointType(s[1]));
+        }
+        // Keep vertices_ in Hilbert order (see the point-set constructor).
+        hilbertSort(vertices_);
+        auto triples = delaunayTriples(vertices_);
+        buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
+
+        // Resolve the constraint endpoints against the final ids — the
+        // interner's are stale after the reorder and the ghost prepend (see
+        // constructConstrained) — then force each segment in as a constrained
+        // edge and restore the constrained Delaunay property.
+        vid.clear();
+        for (VertexId i = 1; i < static_cast<VertexId>(vertices_.size()); ++i) {
+            vid.emplace(vertices_[i], i);
+        }
+        for (const auto& s : segments) {
+            const VertexId a = vid.at(PointType(s[0]));
+            const VertexId b = vid.at(PointType(s[1]));
+            if (a != b) {
+                insertConstraint(a, b);
+            }
+        }
+        restoreConstrainedDelaunay();
+
+        // Carry each constraint segment's label onto its edge record; the
+        // edges exist (constrained edges are never flipped away).
+        if constexpr (detail::has_label_v<SegmentLabel>) {
+            for (const auto& s : segments) {
+                auto it = segToEdge_.find(SegmentType(PointType(s[0]), PointType(s[1])));
+                if (it != segToEdge_.end()) {
+                    it->second.segLabel = detail::copyLabel<SegmentLabel>(s);
+                }
+            }
+        }
+    }
+
+    /**
      * @brief Builds the constrained Delaunay triangulation of a simple polygon,
      *        optionally with extra interior points and constraint segments.
      *
@@ -1480,21 +1547,24 @@ struct Triangulation {
      * interior edge, one on the convex-hull boundary) splits in two. If @p p
      * lies strictly outside the convex hull, the hull grows: @p p is joined to
      * every hull edge it strictly sees, one new triangle per edge (the only
-     * triangulation of the pocket between the hull and the point). In a
-     * polygon triangulation that growth lies outside the domain, so the new
-     * triangles are hidden hull-fill: the public view — sizes, @ref triangles,
-     * area — is unchanged. All other edges keep their labels; the replacement
-     * triangles get default-constructed labels, as with @ref flip.
+     * triangulation of the pocket between the hull and the point); a
+     * constrained hull edge stays constrained and simply becomes interior. All
+     * other edges keep their labels; the replacement triangles get
+     * default-constructed labels, as with @ref flip.
      *
      * The change is purely local — no other connectivity changes — so a
      * Delaunay triangulation does not generally stay Delaunay; use
      * @ref insertDelaunay for that.
      *
      * @param p The vertex to insert.
+     * @pre For a triangulation built from a polygon, @p p lies in the closed
+     *      polygon. Inserting a point outside it — in the carved-away region
+     *      between polygon and hull, or beyond the hull — is undefined
+     *      behavior, like the polygon constructors' extra points (not
+     *      checked).
      * @return `true` if the vertex was inserted; `false` — with the
-     *         triangulation unchanged — if @p p is already a vertex, lies
-     *         strictly inside a polygon's carved-away exterior (between the
-     *         polygon and its convex hull), or the triangulation is empty.
+     *         triangulation unchanged — if @p p is already a vertex or the
+     *         triangulation is empty.
      */
     bool insert(const PointType& p) { return insertVertexImpl(p).has_value(); }
 
@@ -1511,6 +1581,8 @@ struct Triangulation {
      * label, as with @ref insert.
      *
      * @param p The vertex to insert.
+     * @pre As for @ref insert: for a triangulation built from a polygon, @p p
+     *      lies in the closed polygon (not checked).
      * @return `true` if the vertex was inserted; `false` — with the
      *         triangulation unchanged — under the same conditions as
      *         @ref insert.
@@ -2642,9 +2714,11 @@ struct Triangulation {
     // @p p and subdivides the triangle (1->3) or edge (2->4; 2->3 on the hull,
     // where the ghost across splits too) containing it, or grows the hull when
     // p is outside. Returns the new vertex and one real triangle incident to
-    // it, or nullopt — with the triangulation unchanged — when p cannot be
-    // inserted: already a vertex, strictly inside a polygon's carved-away
-    // exterior, or the triangulation is empty.
+    // it, or nullopt — with the triangulation unchanged — when p is already a
+    // vertex or the triangulation is empty. Splits inherit their parents'
+    // out-of-domain flags, so an insertion inside a polygon's domain keeps the
+    // carved-away region carved (a point outside the closed polygon is a
+    // precondition violation; see insert).
     std::optional<std::pair<VertexId, TriId>> insertVertexImpl(const PointType& p) {
         const TriId t0 = locateId(p);
         if (t0 == NO_TRI) {
@@ -2670,9 +2744,6 @@ struct Triangulation {
             }
         }
         if (onSide < 0) {
-            if (!inDomain(t0)) {
-                return std::nullopt;  // strictly inside a hull-fill triangle
-            }
             return splitTriangle(t0, p);
         }
         return splitEdge(t0, onSide, p);
@@ -2695,22 +2766,23 @@ struct Triangulation {
         const VertexId b = old.v[1];
         const VertexId c = old.v[2];
         // Children (CCW because p is strictly interior); each keeps one parent
-        // edge — with that edge's constrained flag — as its side 2, opposite vp.
+        // edge — with that edge's constrained flag — as its side 2, opposite
+        // vp, and inherits the parent's out-of-domain flag.
         triangles_[t] = Tri{{a, b, vp},
                             {n1, n2, old.nbr[2]},
                             mask(false, false, bit(old.constrainedMask, 2)),
-                            0, 0, TriangleLabel{}};
+                            old.outOfDomain, 0, TriangleLabel{}};
         triangles_[n1] = Tri{{b, c, vp},
                              {n2, t, old.nbr[0]},
                              mask(false, false, bit(old.constrainedMask, 0)),
-                             0, 0, TriangleLabel{}};
+                             old.outOfDomain, 0, TriangleLabel{}};
         triangles_[n2] = Tri{{c, a, vp},
                              {t, n1, old.nbr[1]},
                              mask(false, false, bit(old.constrainedMask, 1)),
-                             0, 0, TriangleLabel{}};
+                             old.outOfDomain, 0, TriangleLabel{}};
         triangles_[old.nbr[0]].nbr[findSide(old.nbr[0], t)] = n1;
         triangles_[old.nbr[1]].nbr[findSide(old.nbr[1], t)] = n2;
-        domainTriangleCount_ += 2;
+        domainTriangleCount_ += old.outOfDomain ? 0 : 2;
         for (const TriId x : {t, n1, n2}) {
             reRegisterSides(x);
         }
@@ -2722,13 +2794,10 @@ struct Triangulation {
     // 2->4 (interior edge) or 2->3 (hull edge, where the ghost across splits
     // too) subdivision: p lies strictly inside the edge of triangle t opposite
     // t.v[s]. The edge splits into two collinear halves, which inherit its
-    // constrained flag and label; each incident triangle splits in two.
-    // Rejected (nullopt, no change) when neither side is in-domain.
-    std::optional<std::pair<VertexId, TriId>> splitEdge(TriId t, int s, const PointType& p) {
+    // constrained flag and label; each incident triangle splits in two, its
+    // children inheriting its out-of-domain flag.
+    std::pair<VertexId, TriId> splitEdge(TriId t, int s, const PointType& p) {
         const TriId across = triangles_[t].nbr[s];
-        if (!inDomain(t) && !inDomain(across)) {
-            return std::nullopt;  // edge only borders ghost / hull-fill triangles
-        }
         const bool ghostSide = isGhost(across);
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, 2);
@@ -2812,18 +2881,18 @@ struct Triangulation {
             triangles_[t] = Tri{{apex, u, vp},
                                 {g, n1, nApexU},
                                 mask(cUW, false, cApexU),
-                                0, 0, TriangleLabel{}};
+                                oldT.outOfDomain, 0, TriangleLabel{}};
             triangles_[n1] = Tri{{apex, vp, w},
                                  {g2, nWApex, t},
                                  mask(cUW, cWApex, false),
-                                 0, 0, TriangleLabel{}};
+                                 oldT.outOfDomain, 0, TriangleLabel{}};
             triangles_[g] = Tri{{u, vp, GHOST},
                                 {g2, gu, t},
                                 mask(false, false, cUW),
                                 0, 0, TriangleLabel{}};
             triangles_[nWApex].nbr[findSide(nWApex, t)] = n1;
             triangles_[gw].nbr[findSide(gw, g)] = g2;
-            domainTriangleCount_ += 1;
+            domainTriangleCount_ += oldT.outOfDomain ? 0 : 1;
             for (const TriId x : {t, n1}) {
                 reRegisterSides(x);
             }
@@ -2845,9 +2914,10 @@ struct Triangulation {
     // m ghosts by m real triangles, closed by two new ghosts along the new
     // hull edges {u_0, p} and {p, u_m}. Visibility is strict, so hull edges
     // collinear with p are never in the chain and no degenerate triangle can
-    // arise. A new triangle is out-of-domain when its base hull edge fences
-    // the domain (constrained) or already borders fill, so a polygon's
-    // exterior growth stays hidden from the public view.
+    // arise. The new triangles are in-domain; a base hull edge that is
+    // constrained stays constrained and simply becomes interior. (For a
+    // polygon triangulation an outside point is a precondition violation —
+    // see insert — so no domain fencing happens here.)
     std::pair<VertexId, TriId> growHull(TriId g0, const PointType& p) {
         const auto visible = [&](TriId g) {
             const auto& gv = triangles_[g].v;
@@ -2909,18 +2979,14 @@ struct Triangulation {
 
         // The m pocket triangles {u_{i+1}, u_i, vp} fanning vp: side 2 is the
         // base hull edge (keeping its constrained flag), sides 0/1 the spokes.
-        std::size_t inDomainAdded = 0;
         for (int i = 0; i < m; ++i) {
             const bool cBase = bit(triangles_[inner[i]].constrainedMask, innerSide[i]);
-            const std::uint8_t fill =
-                (triangles_[inner[i]].outOfDomain || cBase) ? 1 : 0;
             triangles_[nr + i] = Tri{{u[i + 1], u[i], vp},
                                      {i > 0 ? nr + i - 1 : ga,
                                       i < m - 1 ? nr + i + 1 : gb, inner[i]},
                                      mask(false, false, cBase),
-                                     fill, 0, TriangleLabel{}};
+                                     0, 0, TriangleLabel{}};
             triangles_[inner[i]].nbr[innerSide[i]] = nr + i;
-            inDomainAdded += fill ? 0 : 1;
         }
         triangles_[ga] = Tri{{u.front(), vp, GHOST}, {gb, prevG, nr}, 0, 0, 0, TriangleLabel{}};
         triangles_[gb] =
@@ -2963,7 +3029,7 @@ struct Triangulation {
         for (int i = 0; i < m; ++i) {
             reRegisterSides(nr + i);
         }
-        domainTriangleCount_ += inDomainAdded;
+        domainTriangleCount_ += static_cast<std::size_t>(m);
         hint_ = nr;
         // assert(checkInvariants() && checkEdgeMap());  // O(n): uncomment when debugging
         return {vp, nr};
@@ -3147,6 +3213,18 @@ template <class PointRange>
     requires PointConcept<typename PointRange::value_type>
 Triangulation(const PointRange&)
     -> Triangulation<Triangle<Point<typename PointRange::value_type::NumberType>>>;
+
+// Point set with constraint segments (conforming constrained Delaunay): the
+// point type comes from the point range, the stored edge type takes the
+// segments' label so it survives. Disjoint from the polygon guides below —
+// Polygon is not a point range.
+template <class PointRange, class SegmentRange>
+    requires PointConcept<typename PointRange::value_type> &&
+             SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const PointRange&, const SegmentRange&)
+    -> Triangulation<Triangle<Point<typename PointRange::value_type::NumberType>>,
+                     Segment<Point<typename PointRange::value_type::NumberType>,
+                             typename SegmentRange::value_type::LabelType>>;
 
 template <class PointType>
 Triangulation(const Polygon<PointType>&) -> Triangulation<Triangle<PointType>>;
