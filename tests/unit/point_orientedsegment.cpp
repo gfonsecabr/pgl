@@ -97,3 +97,15 @@ TEST_CASE("Point and OrientedSegment intersection construction, both directions"
         CHECK_FALSE(off.intersection(s).has_value());
     }
 }
+
+TEST_CASE("Point and OrientedSegment squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+
+    const OrientedSegment s({0, 0}, {4, 0});
+    const Point p(1, 3);
+
+    // Matches the unoriented Segment case: the farthest endpoint dominates.
+    CHECK(s.squaredHausdorffDistance(p) == 18);
+    CHECK(p.squaredHausdorffDistance(s) == 18);
+}

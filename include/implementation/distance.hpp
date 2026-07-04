@@ -23,6 +23,35 @@
 
 namespace pgl {
 
+namespace detail {
+
+/**
+ * @brief Farthest vertex of `self` from `other`: sup_{v in self} squaredDistance(v, other).
+ *
+ * Distance to `other` is a convex function whenever `other` is convex (true of
+ * every bounded shape combined here — Point, Segment, OrientedSegment,
+ * Rectangle, Triangle, Convex are all convex). A convex function has no
+ * strict interior local maximum, so its supremum over any polygonal domain —
+ * convex or not — is attained on the domain's boundary; and on each boundary
+ * edge (itself a segment, hence a convex domain) the supremum is attained at
+ * an endpoint. So the maximum over `self`'s vertices is the true supremum
+ * over all of `self`, not just an upper bound.
+ */
+template <class ResultNumber, class Self, class OtherShape>
+constexpr ResultNumber maxVertexSquaredDistance(const Self& self, const OtherShape& other) {
+    const auto self_vertices = self.vertices();
+    ResultNumber worst = other.template squaredDistance<ResultNumber>(self_vertices[0]);
+    for (std::size_t index = 1; index < self_vertices.size(); ++index) {
+        const ResultNumber current = other.template squaredDistance<ResultNumber>(self_vertices[index]);
+        if (worst < current) {
+            worst = current;
+        }
+    }
+    return worst;
+}
+
+}  // namespace detail
+
 // -----------------------------------------------------------------------------
 // Point
 
@@ -50,6 +79,12 @@ template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::distanceLInf(const OtherPoint& other) const {
     return std::max(pgl::detail::abs(x() - other.x()), pgl::detail::abs(y() - other.y()));
+}
+
+template <class Number, class Label>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Point<Number, Label>::squaredHausdorffDistance(const OtherPoint& other) const {
+    return squaredDistance<ResultNumber>(other);
 }
 
 // -----------------------------------------------------------------------------
@@ -116,6 +151,15 @@ constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const Oth
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Segment<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    // The point-side supremum (point-to-segment distance) is never larger than
+    // the segment-side supremum (a min is never above a max), so the segment's
+    // farthest endpoint from the point is the whole answer.
+    return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
+}
+
 // -----------------------------------------------------------------------------
 // OrientedSegment
 
@@ -149,6 +193,12 @@ template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto OrientedSegment<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
     return static_cast<Segment<PointType>>(*this).template squaredHausdorffDistance<ResultNumber>(
         static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto OrientedSegment<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    return static_cast<Segment<PointType>>(*this).template squaredHausdorffDistance<ResultNumber>(point);
 }
 
 // -----------------------------------------------------------------------------
@@ -409,22 +459,6 @@ constexpr auto Rectangle<PointType, LabelType>::axisDistance(const Left& first_m
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto Rectangle<PointType, LabelType>::maxVertexDistanceTo(const OtherRectangle& other) const {
-    const auto rectangle_vertices = vertices();
-    auto worst_distance = other.template squaredDistance<ResultNumber>(rectangle_vertices[0]);
-
-    for (std::size_t index = 1; index < rectangle_vertices.size(); ++index) {
-        const auto current_distance = other.template squaredDistance<ResultNumber>(rectangle_vertices[index]);
-        if (worst_distance < current_distance) {
-            worst_distance = current_distance;
-        }
-    }
-
-    return worst_distance;
-}
-
-template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), point.x(), point.x()));
@@ -526,9 +560,31 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRecta
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
-    const auto worst_from_this = this->template maxVertexDistanceTo<ResultNumber>(other);
-    const auto worst_from_other = other.template maxVertexDistanceTo<ResultNumber>(*this);
-    return worst_from_this < worst_from_other ? worst_from_other : worst_from_this;
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
 }
 
 // -----------------------------------------------------------------------------
@@ -641,6 +697,44 @@ constexpr auto Triangle<PointType, LabelType>::squaredDistance(const OtherTriang
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Triangle<PointType, LabelType>::squaredHausdorffDistance(const OtherTriangle& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
 }
 
 // Convex
@@ -962,6 +1056,52 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherHalfpla
     // Disjoint: the polygon lies entirely on the far side of the boundary line,
     // so the closest point of the half-plane is on its boundary.
     return this->template squaredDistance<ResultNumber>(other.asLine());
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherTriangle& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto Convex<PointType_, LabelType>::squaredHausdorffDistance(const OtherConvex& other) const {
+    const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
+    const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
+    return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
 }
 
 // -----------------------------------------------------------------------------

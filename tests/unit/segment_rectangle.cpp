@@ -397,3 +397,17 @@ TEST_CASE("Rational clipping of a segment by a rectangle") {
     CHECK_MESSAGE(std::get<Segment>(*isec) == clipped, r, " intersection ", s);
     CHECK_MESSAGE(std::get<Segment>(*isec_reverse) == clipped, s, " intersection ", r);
 }
+
+TEST_CASE("Segment and Rectangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle r({0, 0}, {4, 4});
+    const Segment s({6, 1}, {6, 3});
+
+    // Farthest rectangle vertices from s are (0,0) and (0,4), each at squared
+    // distance 37, which dominates the segment-side term (squared distance 4).
+    CHECK(r.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(r) == 37);
+}

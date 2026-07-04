@@ -131,3 +131,17 @@ TEST_CASE("Convex and OrientedSegment intersection construction") {
         CHECK_FALSE_MESSAGE(sq.intersection(outside), "sq ∩ outside should be empty");
     }
 }
+
+TEST_CASE("OrientedSegment and Convex squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const OrientedSegment s({6, 1}, {6, 3});
+
+    // Matches the unoriented Segment case: the farthest square vertices
+    // dominate, at squared distance 37.
+    CHECK(square.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(square) == 37);
+}

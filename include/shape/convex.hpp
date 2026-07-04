@@ -1770,6 +1770,60 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the squared Hausdorff distance to the given shape.
+     *
+     * The directed Hausdorff distance in either direction is attained at a
+     * vertex of the source shape, since distance to a convex shape is convex
+     * and its supremum over any polygon is attained at a vertex.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(point)`, for
+     *          an accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherTriangle& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the squared Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredHausdorffDistance` defined only once, on the higher-ranked
+     * shape (the only shape ranked above @ref Convex is @ref Polygon).
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
+                  && requires(const OtherShape& o, const Convex& self) {
+                         o.template squaredHausdorffDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
      * Complexity: O(log n) for n vertices.

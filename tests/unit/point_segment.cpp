@@ -158,3 +158,16 @@ TEST_CASE("Rational points") {
     }
 }
 
+TEST_CASE("Point and Segment squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment s({0, 0}, {4, 0});
+    const Point p(1, 3);
+
+    // The segment's farthest endpoint from p is (4,0) at squared distance 18,
+    // which dominates the point-side term (squaredDistance(p, s) == 9).
+    CHECK(s.squaredHausdorffDistance(p) == 18);
+    CHECK(p.squaredHausdorffDistance(s) == 18);
+}
+

@@ -158,3 +158,17 @@ TEST_CASE("Segment and triangle predicates tests") {
         CHECK_FALSE(triangle.separates(boundary_subsegment));
     }
 }
+
+TEST_CASE("Segment and Triangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle t({0, 0}, {4, 0}, {0, 4});
+    const Segment s({6, 1}, {6, 3});
+
+    // Farthest triangle vertices from s are (0,0) and (0,4), each at squared
+    // distance 37, which dominates the segment-side term.
+    CHECK(t.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(t) == 37);
+}

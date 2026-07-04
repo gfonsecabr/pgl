@@ -392,3 +392,17 @@ TEST_CASE("Convex interiorsIntersect(Segment) adversarial cases") {
         CHECK(translated.interiorContains(translated.pointInside<Rational>()));
     }
 }
+
+TEST_CASE("Segment and Convex squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Segment s({6, 1}, {6, 3});
+
+    // Farthest square vertices from s are (0,0) and (0,4), each at squared
+    // distance 37, which dominates the segment-side term.
+    CHECK(square.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(square) == 37);
+}
