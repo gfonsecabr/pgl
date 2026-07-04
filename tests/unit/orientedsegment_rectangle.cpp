@@ -130,3 +130,17 @@ TEST_CASE("Rectangle and OrientedSegment intersection construction") {
         CHECK_FALSE_MESSAGE(rect.intersection(outside), "rect ∩ outside should be empty");
     }
 }
+
+TEST_CASE("OrientedSegment and Rectangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle r({0, 0}, {4, 4});
+    const OrientedSegment s({6, 1}, {6, 3});
+
+    // Matches the unoriented Segment case: the farthest rectangle vertices
+    // dominate, at squared distance 37.
+    CHECK(r.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(r) == 37);
+}

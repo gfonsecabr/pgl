@@ -92,3 +92,16 @@ TEST_CASE("Point and Triangle intersection construction, both directions") {
         CHECK_FALSE(outside.intersection(triangle).has_value());
     }
 }
+
+TEST_CASE("Point and Triangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle t({0, 0}, {4, 0}, {0, 4});
+    const Point p(6, 1);
+
+    // Farthest triangle vertex from p is (0,4) at squared distance 45, which
+    // dominates the point-side (nearest-point) term.
+    CHECK(t.squaredHausdorffDistance(p) == 45);
+    CHECK(p.squaredHausdorffDistance(t) == 45);
+}

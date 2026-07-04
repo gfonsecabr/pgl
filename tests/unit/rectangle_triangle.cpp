@@ -143,3 +143,17 @@ TEST_CASE("Triangle intersection with Rectangle returns Convex or empty") {
         CHECK_FALSE(tri.intersection(Rectangle({10, 10}, {12, 12})));
     }
 }
+
+TEST_CASE("Rectangle and Triangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Rectangle r({8, 0}, {12, 4});
+    const Triangle t({0, 0}, {4, 0}, {0, 4});
+
+    // Farthest rectangle vertex from t is (12,4), squared distance 80, which
+    // dominates the farthest triangle vertex from r (squared distance 64).
+    CHECK(r.squaredHausdorffDistance(t) == 80);
+    CHECK(t.squaredHausdorffDistance(r) == 80);
+}

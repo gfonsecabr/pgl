@@ -137,7 +137,12 @@ pgl::Point<> p(isec);
 
 - `squaredHausdorffDistance<ResultNumber = NumberType>(Shape)`: Returns the
   squared Hausdorff distance, with the same `ResultNumber` convention and
-  truncation warning as `squaredDistance`.
+  truncation warning as `squaredDistance`. Defined for every pair among
+  `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`
+  — all bounded, convex shapes, so the directed distance in either direction
+  is always attained at a vertex. Not defined for `Line`, `OrientedLine`,
+  `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them
+  is generally infinite), nor yet for `Disk` or `Polygon`.
 
 - `bbox()`: Returns the minimum bounding box of the shape.
 

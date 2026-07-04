@@ -148,3 +148,16 @@ TEST_CASE("Convex intersection with Triangle") {
         CHECK_FALSE_MESSAGE(sq.intersection(t), "sq ∩ disjoint triangle should be empty");
     }
 }
+
+TEST_CASE("Triangle and Convex squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Triangle t({8, 0}, {12, 0}, {8, 4});
+
+    // Farthest vertex on either side is at squared distance 64 (opposite corners).
+    CHECK(sq.squaredHausdorffDistance(t) == 64);
+    CHECK(t.squaredHausdorffDistance(sq) == 64);
+}

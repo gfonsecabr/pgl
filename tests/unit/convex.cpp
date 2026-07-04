@@ -1093,6 +1093,92 @@ TEST_CASE("Convex squaredDistance to a convex") {
     }
 }
 
+TEST_CASE("Convex squaredHausdorffDistance to lower-ranked shapes") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+
+    SUBCASE("point") {
+        // Farthest square vertex from (7,2) is (0,4), squared distance 53,
+        // which dominates the point-side (nearest-point) term.
+        CHECK(square.squaredHausdorffDistance(Point(7, 2)) == 53);
+        CHECK(Point(7, 2).squaredHausdorffDistance(square) == 53);
+    }
+
+    SUBCASE("segment and oriented segment") {
+        const Segment s({7, 1}, {7, 3});
+        // Farthest square vertices from s are (0,0) and (0,4), squared distance 50.
+        CHECK(square.squaredHausdorffDistance(s) == 50);
+        CHECK(s.squaredHausdorffDistance(square) == 50);
+
+        const OrientedSegment os({7, 1}, {7, 3});
+        CHECK(square.squaredHausdorffDistance(os) == 50);
+        CHECK(os.squaredHausdorffDistance(square) == 50);
+    }
+
+    SUBCASE("rectangle") {
+        const Rectangle r({10, 10}, {12, 12});
+        CHECK(square.squaredHausdorffDistance(r) == 200);
+        CHECK(r.squaredHausdorffDistance(square) == 200);
+    }
+
+    SUBCASE("triangle") {
+        const Triangle t({10, 10}, {12, 10}, {11, 12});
+        CHECK(square.squaredHausdorffDistance(t) == 200);
+        CHECK(t.squaredHausdorffDistance(square) == 200);
+    }
+}
+
+TEST_CASE("Convex squaredHausdorffDistance to a convex matches brute force over vertices") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using pgl::ERational;
+
+    SUBCASE("disjoint squares") {
+        const Convex square({0, 0, 4, 0, 4, 4, 0, 4});
+        // Farthest witnesses are diagonally opposite corners of each square.
+        CHECK(square.squaredHausdorffDistance<ERational>(Convex({7, 0, 9, 0, 9, 4, 7, 4})) == 49);
+        CHECK(square.squaredHausdorffDistance<ERational>(Convex({7, 7, 9, 7, 9, 9, 7, 9})) == 98);
+    }
+
+    SUBCASE("matches brute force over vertex pairs") {
+        std::mt19937 rng(107);
+        std::uniform_int_distribution<int> coord(-30, 30);
+        for (int trial = 0; trial < 2000; ++trial) {
+            const auto randomConvex = [&] {
+                std::vector<Point> pts;
+                const int count = 3 + static_cast<int>(rng() % 9);
+                for (int i = 0; i < count; ++i) {
+                    pts.emplace_back(coord(rng), coord(rng));
+                }
+                return Convex(pts);
+            };
+            const Convex a = randomConvex();
+            const Convex b = randomConvex();
+            if (a.isDegenerate() || b.isDegenerate()) {
+                continue;
+            }
+
+            const auto farthestVertexDistance = [](const Convex& from, const Convex& to) {
+                ERational worst = to.squaredDistance<ERational>(from[0]);
+                for (std::size_t i = 1; i < from.size(); ++i) {
+                    worst = std::max(worst, to.squaredDistance<ERational>(from[i]));
+                }
+                return worst;
+            };
+            const ERational expected = std::max(farthestVertexDistance(a, b), farthestVertexDistance(b, a));
+
+            CHECK(a.squaredHausdorffDistance<ERational>(b) == expected);
+            CHECK(b.squaredHausdorffDistance<ERational>(a) == expected);  // symmetric
+        }
+    }
+}
+
 TEST_CASE("Convex squaredDistance to a triangle matches its convex hull") {
     using Point = pgl::Point<int>;
     using Convex = pgl::Convex<Point>;

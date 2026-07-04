@@ -1160,6 +1160,46 @@ struct Rectangle {
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRectangle& other) const;
 
     /**
+     * @brief Returns the squared Hausdorff distance to a point.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherPoint Type of the point.
+     * @param point Point to measure from.
+     * @return Squared Hausdorff distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(point)`, for
+     *          an accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the squared Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template squaredHausdorffDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Enlarges the rectangle so that it contains the given point.
      *
      * Existing corner labels are preserved when their coordinates do not
@@ -1479,9 +1519,6 @@ struct Rectangle {
     // template <std::ranges::input_range Range>
     //     requires std::constructible_from<PointType, std::ranges::range_reference_t<Range>>
     // constexpr void assignBoundingBox(Range&& points);
-
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
-    constexpr auto maxVertexDistanceTo(const OtherRectangle& other) const;
 
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};

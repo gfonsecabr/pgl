@@ -1184,6 +1184,38 @@ struct OrientedSegment {
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
 
     /**
+     * @brief Returns the squared Hausdorff distance to a point.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherPoint Type of the point.
+     * @param point Point to measure from.
+     * @return Squared Hausdorff distance.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredHausdorffDistance<double>(point)`, for
+     *          an accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the squared Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<OrientedSegment>)
+                  && requires(const OtherShape& o, const OrientedSegment& self) {
+                         o.template squaredHausdorffDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns an unordered segment defining the diameter.
      *
      * @return Unordered segment spanning the same endpoints.

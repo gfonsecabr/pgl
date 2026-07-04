@@ -95,3 +95,16 @@ TEST_CASE("Point and Rectangle intersection construction, both directions") {
         CHECK_FALSE(outside.intersection(outer).has_value());
     }
 }
+
+TEST_CASE("Point and Rectangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle r({0, 0}, {4, 4});
+    const Point p(6, 1);
+
+    // Farthest rectangle vertex from p is (0,4) at squared distance 45, which
+    // dominates the point-side term (squaredDistance(p, r) == 4).
+    CHECK(r.squaredHausdorffDistance(p) == 45);
+    CHECK(p.squaredHausdorffDistance(r) == 45);
+}

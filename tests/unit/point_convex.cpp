@@ -89,3 +89,16 @@ TEST_CASE("Point and Convex intersection construction, both directions") {
         CHECK_FALSE(outside.intersection(sq).has_value());
     }
 }
+
+TEST_CASE("Point and Convex squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Point p(6, 1);
+
+    // Farthest square vertex from p is (0,4) at squared distance 45, which
+    // dominates the point-side (nearest-point) term.
+    CHECK(sq.squaredHausdorffDistance(p) == 45);
+    CHECK(p.squaredHausdorffDistance(sq) == 45);
+}

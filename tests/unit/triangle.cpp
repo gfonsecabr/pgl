@@ -562,3 +562,27 @@ TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {
               == tri.squaredDistance(pgl::Rectangle<P>({10, 10}, {12, 12})));
     }
 }
+
+TEST_CASE("Triangle measures squared Hausdorff distance to every lower-ranked shape") {
+    using P = pgl::Point<int>;
+    const pgl::Triangle<P> tri({0, 0}, {4, 0}, {0, 4});
+
+    // Every case's farthest witness is a triangle vertex: (0,4) is farthest
+    // from the point-like and segment-like shapes, dominating their own
+    // (much smaller) farthest-point-from-the-triangle term.
+    CHECK(tri.squaredHausdorffDistance(P(10, 0)) == 116);
+    CHECK(P(10, 0).squaredHausdorffDistance(tri) == 116);
+
+    CHECK(tri.squaredHausdorffDistance(pgl::Segment<P>({10, 0}, {10, 4})) == 100);
+    CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredHausdorffDistance(tri) == 100);
+
+    CHECK(tri.squaredHausdorffDistance(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 100);
+    CHECK(pgl::OrientedSegment<P>({10, 0}, {10, 4}).squaredHausdorffDistance(tri) == 100);
+
+    CHECK(tri.squaredHausdorffDistance(pgl::Rectangle<P>({10, 10}, {12, 12})) == 200);
+    CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredHausdorffDistance(tri) == 200);
+
+    const pgl::Triangle<P> other({10, 10}, {11, 10}, {10, 11});
+    CHECK(tri.squaredHausdorffDistance(other) == 200);
+    CHECK(other.squaredHausdorffDistance(tri) == 200);
+}

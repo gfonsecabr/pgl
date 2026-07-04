@@ -140,3 +140,16 @@ TEST_CASE("Convex intersection with Rectangle") {
         CHECK_FALSE_MESSAGE(sq.intersection(r), "sq ∩ disjoint rect should be empty");
     }
 }
+
+TEST_CASE("Rectangle and Convex squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Rectangle r({8, 0}, {12, 4});
+
+    // Farthest vertex on either side is at squared distance 64 (opposite corners).
+    CHECK(sq.squaredHausdorffDistance(r) == 64);
+    CHECK(r.squaredHausdorffDistance(sq) == 64);
+}

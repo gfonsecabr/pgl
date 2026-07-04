@@ -265,6 +265,9 @@ TEST_CASE_TEMPLATE("Point computes dot product and Euclidean, L1, and Linf dista
 
     CHECK(first * second == 11);
     CHECK(first.squaredDistance(second) == 8);
+    // Hausdorff distance between two single-point sets is just their distance.
+    CHECK(first.squaredHausdorffDistance(second) == 8);
+    CHECK(second.squaredHausdorffDistance(first) == 8);
     CHECK(first.template distance<double>(second) == doctest::Approx(std::sqrt(8.0)));
     CHECK(first.distanceL1(second) == 4);
     CHECK(first.distanceLInf(second) == 2);

@@ -718,6 +718,34 @@ struct Point {
     }
 
     /**
+     * @brief Returns the squared Hausdorff distance to another point.
+     *
+     * Hausdorff distance between two single-point sets is just their distance.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam OtherPoint Type of the other point.
+     * @param other Other point.
+     * @return Squared Hausdorff distance.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the squared Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template squaredHausdorffDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherShape& other) const {
+        return other.template squaredHausdorffDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Euclidean distance to another point.
      *
      * @tparam ApproximateNumber Floating-point return type.

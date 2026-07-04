@@ -143,3 +143,17 @@ TEST_CASE("Triangle and OrientedSegment intersection construction") {
         CHECK_FALSE_MESSAGE(tri.intersection(outside), "tri ∩ outside should be empty");
     }
 }
+
+TEST_CASE("OrientedSegment and Triangle squared Hausdorff distance") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle t({0, 0}, {4, 0}, {0, 4});
+    const OrientedSegment s({6, 1}, {6, 3});
+
+    // Matches the unoriented Segment case: the farthest triangle vertices
+    // dominate, at squared distance 37.
+    CHECK(t.squaredHausdorffDistance(s) == 37);
+    CHECK(s.squaredHausdorffDistance(t) == 37);
+}
