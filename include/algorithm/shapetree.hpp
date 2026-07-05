@@ -53,6 +53,20 @@ template <class Fn, class Arg>
     }
 }
 
+// Squared distance from q to other, for use in the nearest-neighbor
+// branch-and-bound. Prefers the templated `squaredDistance<ResultNumber>`
+// overload; falls back to the untemplated, double-returning overload used
+// whenever a Disk is involved (a disk's exterior distance is irrational, so it
+// is never exact and thus never templated on a result type).
+template <class ResultNumber, class Q, class Other>
+[[nodiscard]] ResultNumber nearestSquaredDistance(const Q& q, const Other& other) {
+    if constexpr (requires { q.template squaredDistance<ResultNumber>(other); }) {
+        return q.template squaredDistance<ResultNumber>(other);
+    } else {
+        return static_cast<ResultNumber>(q.squaredDistance(other));
+    }
+}
+
 }  // namespace detail
 
 /**
@@ -391,14 +405,14 @@ class ShapeTree {
         void nearest(const ShapeTree& tree, const Q& q, ResultNumber& bestDist,
                      std::ptrdiff_t& bestIndex) const {
             if (bestIndex != -1) {
-                const ResultNumber lowerBound = q.template squaredDistance<ResultNumber>(box);
+                const ResultNumber lowerBound = detail::nearestSquaredDistance<ResultNumber>(q, box);
                 if (!(lowerBound < bestDist)) {
                     return;  // Nothing here can beat the current best.
                 }
             }
 
             for (std::size_t i : elementIndices) {
-                const ResultNumber d = q.template squaredDistance<ResultNumber>(tree.elements_[i]);
+                const ResultNumber d = detail::nearestSquaredDistance<ResultNumber>(q, tree.elements_[i]);
                 if (bestIndex == -1 || d < bestDist) {
                     bestDist = d;
                     bestIndex = static_cast<std::ptrdiff_t>(i);
@@ -419,8 +433,8 @@ class ShapeTree {
                 return;
             }
 
-            const ResultNumber leftBound = q.template squaredDistance<ResultNumber>(tree.nodes_[left].box);
-            const ResultNumber rightBound = q.template squaredDistance<ResultNumber>(tree.nodes_[right].box);
+            const ResultNumber leftBound = detail::nearestSquaredDistance<ResultNumber>(q, tree.nodes_[left].box);
+            const ResultNumber rightBound = detail::nearestSquaredDistance<ResultNumber>(q, tree.nodes_[right].box);
             const std::ptrdiff_t nearChild = leftBound <= rightBound ? left : right;
             const std::ptrdiff_t farChild = leftBound <= rightBound ? right : left;
             tree.nodes_[nearChild].nearest(tree, q, bestDist, bestIndex);
@@ -1233,6 +1247,11 @@ class ShapeTree {
      * shape's nearest point falls in its interior, since integer division there
      * truncates. With a truncating `ResultNumber` the box lower bound stays a
      * lower bound, so the pruning remains conservative.
+     *
+     * If `Disk` is involved (as `ShapeType` or as `Q`), its distance is
+     * irrational and thus never templated on a result type; those legs of the
+     * comparison fall back to the untemplated `double`-returning overload,
+     * converted to `ResultNumber`.
      *
      * @pre The tree is non-empty. A reference to a default-constructed
      *      @ref ShapeType is returned otherwise.
