@@ -670,6 +670,32 @@ TEST_CASE("Rectangle distances handle outside points, disjoint rectangles, and H
     CHECK(rectangle.squaredDistance(OrientedSegment({2, 5}, {3, 5})) == doctest::Approx(4.0));
     CHECK(rectangle.squaredDistance(Ray({6, 1}, {8, 1})) == doctest::Approx(4.0));
     CHECK(rectangle.squaredDistance(Ray({6, 1}, {2, 1})) == doctest::Approx(0.0));
+
+    CHECK(rectangle.distanceL1(Point(2, 2)) == 0);
+    CHECK(rectangle.distanceL1(Point(6, 5)) == 4);
+    CHECK(rectangle.distanceL1(inner) == 0);
+    CHECK(rectangle.distanceL1(touching) == 0);
+    CHECK(rectangle.distanceL1(disjoint) == 4);
+    CHECK(rectangle.hausdorffDistanceL1(inner) == 2);
+    CHECK(rectangle.distanceL1(Line({0, 5}, {4, 5})) == 2);
+    CHECK(rectangle.distanceL1(OrientedLine({6, 0}, {6, 3})) == 2);
+    CHECK(rectangle.distanceL1(Segment({6, 1}, {8, 1})) == 2);
+    CHECK(rectangle.distanceL1(OrientedSegment({2, 5}, {3, 5})) == 2);
+    CHECK(rectangle.distanceL1(Ray({6, 1}, {8, 1})) == 2);
+    CHECK(rectangle.distanceL1(Ray({6, 1}, {2, 1})) == 0);
+
+    CHECK(rectangle.distanceLInf(Point(2, 2)) == 0);
+    CHECK(rectangle.distanceLInf(Point(6, 5)) == 2);
+    CHECK(rectangle.distanceLInf(inner) == 0);
+    CHECK(rectangle.distanceLInf(touching) == 0);
+    CHECK(rectangle.distanceLInf(disjoint) == 2);
+    CHECK(rectangle.hausdorffDistanceLInf(inner) == 1);
+    CHECK(rectangle.distanceLInf(Line({0, 5}, {4, 5})) == 2);
+    CHECK(rectangle.distanceLInf(OrientedLine({6, 0}, {6, 3})) == 2);
+    CHECK(rectangle.distanceLInf(Segment({6, 1}, {8, 1})) == 2);
+    CHECK(rectangle.distanceLInf(OrientedSegment({2, 5}, {3, 5})) == 2);
+    CHECK(rectangle.distanceLInf(Ray({6, 1}, {8, 1})) == 2);
+    CHECK(rectangle.distanceLInf(Ray({6, 1}, {2, 1})) == 0);
 }
 
 TEST_CASE("Rectangle ordering and hashing ignore input corner order and point labels") {

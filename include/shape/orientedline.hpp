@@ -1072,6 +1072,76 @@ struct OrientedLine {
         return disk.squaredDistance(*this);
     }
 
+    /** @brief Returns the Manhattan (L1) distance to the given shape. */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
+                  && requires(const OtherShape& o, const OrientedLine& self) {
+                         o.template distanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /** @brief Returns the Chebyshev (LInf) distance to the given shape. */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<OrientedLine>)
+                  && requires(const OtherShape& o, const OrientedLine& self) {
+                         o.template distanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
     /** @brief Translates the oriented line by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedLine& operator+=(const OtherPoint& translation);

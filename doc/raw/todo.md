@@ -50,6 +50,12 @@ If the polyfunction `P` has $n$ vertices, then:
 - `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a polyfunction with $m$ vertices.
 - `P.intersection(P2)` takes $O(n+m)$ time if `P2` is another polyfunction with $m$ vertices and returns an `std::vector`of points.
 
+## Partially Implemented Features
+
+### L1 / LInf distance to and from Disk
+
+`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, and Polygon, plus `Disk`-to-`Point`. The remaining `Disk` pairs (`Disk` vs. `Segment`/`OrientedSegment`/`Line`/`OrientedLine`/`Ray`/`Halfplane`/`Rectangle`/`Triangle`/`Convex`/`Polygon`, and `Disk`-`Disk`) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
+
 ## Data Structures Not Yet Implemented
 
 ### Grid

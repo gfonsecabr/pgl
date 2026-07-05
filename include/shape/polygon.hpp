@@ -1222,6 +1222,94 @@ struct Polygon {
     template <class DiskPointType, class DiskLabel>
     [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const;
 
+    /** @brief Returns the Manhattan (L1) distance to the given shape. */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRay& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherTriangle& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceL1(const OtherConvex& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPolygon& other) const;
+
+    /** @brief Returns the Chebyshev (LInf) distance to the given shape. */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRay& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherTriangle& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherConvex& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPolygon& other) const;
+
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
      *
@@ -1666,6 +1754,14 @@ struct Polygon {
      */
     template <class ResultNumber, class OtherShape>
     constexpr ResultNumber edgeMinSquaredDistance(const OtherShape& other) const;
+
+    /** @copydoc edgeMinSquaredDistance */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinDistanceL1(const OtherShape& other) const;
+
+    /** @copydoc edgeMinSquaredDistance */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinDistanceLInf(const OtherShape& other) const;
 
     /**
      * @brief Twice the signed area (shoelace) of the untranslated vertices.

@@ -1145,6 +1145,174 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * An axis-aligned rectangle's closest point has integer coordinate gaps
+     * against another axis-aligned shape, so the point/rectangle overloads
+     * involve no division and are exact.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRay& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template distanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * An axis-aligned rectangle's closest point has integer coordinate gaps
+     * against another axis-aligned shape, so the point/rectangle overloads
+     * involve no division and are exact.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRay& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template distanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /** @brief Returns the Manhattan (L1) Hausdorff distance to the given shape. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherRectangle& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherSegment& other) const;
+
+    /** @copydoc hausdorffDistanceL1(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template hausdorffDistanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherShape& other) const {
+        return other.template hausdorffDistanceL1<ResultNumber>(*this);
+    }
+
+    /** @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherRectangle& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc hausdorffDistanceLInf(const OtherRectangle&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Rectangle>)
+                  && requires(const OtherShape& o, const Rectangle& self) {
+                         o.template hausdorffDistanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const {
+        return other.template hausdorffDistanceLInf<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the squared Hausdorff distance to another rectangle.
      *
      * For axis-aligned rectangles, the directed Hausdorff distance is attained

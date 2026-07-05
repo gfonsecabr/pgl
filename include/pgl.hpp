@@ -50,6 +50,8 @@
 #include "implementation/atxy.hpp"
 #include "implementation/intersection.hpp"
 #include "implementation/distance.hpp"
+#include "implementation/distancel1.hpp"
+#include "implementation/distancelinf.hpp"
 #include "visualization/canvas.hpp"
 #include "core/hash.hpp"
 #include "algorithm/intersections.hpp"

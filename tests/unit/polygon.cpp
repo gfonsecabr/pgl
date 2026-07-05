@@ -467,6 +467,53 @@ TEST_CASE("Polygon::squaredDistance to every shape") {
     }
 }
 
+TEST_CASE("Polygon::distanceL1/distanceLInf to every shape") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // Same square as the squaredDistance test above; every disjoint probe's
+    // closest feature is at x = 10, so the gap along x is 10 - 4 = 6 for both
+    // metrics (the offset is purely along one axis).
+    const Polygon square({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+    const int gap = 6;
+
+    SUBCASE("point") {
+        CHECK(square.distanceL1(Point(10, 0)) == gap);
+        CHECK(square.distanceLInf(Point(10, 0)) == gap);
+        CHECK(square.distanceL1(Point(2, 2)) == 0);  // interior
+        CHECK(Point(10, 0).distanceL1(square) == gap);
+    }
+
+    SUBCASE("segment, line, ray, halfplane") {
+        CHECK(square.distanceL1(pgl::Segment<Point>(Point(10, -1), Point(10, 1))) == gap);
+        CHECK(square.distanceL1(pgl::Line<Point>(Point(10, 0), Point(10, 7))) == gap);
+        CHECK(square.distanceL1(pgl::Ray<Point>(Point(10, 0), Point(10, 7))) == gap);
+        CHECK(square.distanceL1(pgl::Halfplane<Point>(Point(10, 7), Point(10, 0))) == gap);
+        CHECK(square.distanceLInf(pgl::Segment<Point>(Point(10, -1), Point(10, 1))) == gap);
+    }
+
+    SUBCASE("rectangle, triangle, convex, polygon") {
+        CHECK(square.distanceL1(pgl::Rectangle<Point>(Point(10, -1), Point(13, 1))) == gap);
+        CHECK(square.distanceL1(pgl::Triangle<Point>(Point(10, -2), Point(13, 0), Point(10, 2))) == gap);
+        const pgl::Convex<Point> cvx({Point(10, -1), Point(13, -1), Point(13, 1), Point(10, 1)});
+        CHECK(square.distanceL1(cvx) == gap);
+        const Polygon other({Point(10, 0), Point(14, 0), Point(14, 4), Point(10, 4)});
+        CHECK(square.distanceL1(other) == gap);
+        CHECK(other.distanceL1(square) == gap);
+        // Overlapping rectangle gives 0.
+        CHECK(square.distanceL1(pgl::Rectangle<Point>(Point(2, 2), Point(6, 6))) == 0);
+    }
+
+    SUBCASE("non-convex polygon uses the nearest boundary edge") {
+        const Polygon ell({Point(0, 0), Point(4, 0), Point(4, 2),
+                           Point(2, 2), Point(2, 4), Point(0, 4)});
+        // (3,3) sits in the notch, at L1 distance 1 from either inner edge.
+        CHECK(ell.distanceL1(Point(3, 3)) == 1);
+        CHECK(ell.distanceLInf(Point(3, 3)) == 1);
+        CHECK(ell.distanceL1(Point(1, 1)) == 0);  // interior
+    }
+}
+
 // ===========================================================================
 // Polygon::separates(Polygon): A.separates(B) asks whether removing the region A
 // disconnects B, i.e. B \ A has two or more connected components. The contract

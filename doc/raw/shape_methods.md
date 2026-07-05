@@ -144,6 +144,29 @@ pgl::Point<> p(isec);
   `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them
   is generally infinite), nor yet for `Disk` or `Polygon`.
 
+- `distanceL1(Shape)` / `distanceLInf(Shape)`: Return the Manhattan (L1) or
+  Chebyshev (LInf) distance to the given shape. Neither metric needs
+  squaring to stay exact, so `Point`-to-`Point` returns an exact value with
+  no `ResultNumber` template. Every other pair is
+  `distanceL1<ResultNumber = NumberType>(Shape)` /
+  `distanceLInf<ResultNumber = NumberType>(Shape)`, with the same
+  `ResultNumber` convention and truncation warning as `squaredDistance` (a
+  non-axis-aligned segment, ray, or line generally has a fractional exact
+  distance). Defined for every pair among `Point`, `Segment`,
+  `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`,
+  `Triangle`, `Convex`, and `Polygon`, plus `Disk`-`Point`: like `Disk`'s
+  other overloads this always returns `double`, since there is no closed
+  form for the distance from a point to a circle under either metric and it
+  is instead found with a numeric search. The remaining `Disk` pairs (`Disk`
+  against any shape other than `Point`, and `Disk`-`Disk`) are not yet
+  implemented — see [todo](todo.md).
+
+- `hausdorffDistanceL1(Shape)` / `hausdorffDistanceLInf(Shape)`: Return the
+  L1 or LInf Hausdorff distance, with the same `ResultNumber` convention as
+  `distanceL1` / `distanceLInf`. Defined for the same pairs as
+  `squaredHausdorffDistance`: `Point`, `Segment`, `OrientedSegment`,
+  `Rectangle`, `Triangle`, and `Convex`.
+
 - `bbox()`: Returns the minimum bounding box of the shape.
 
 - `fbox<T>()`: Returns a bounding box of the shape using floating point coordinates of type `T`. The bounding box may not be minimum but must contain the entire shape. The `min` coordinates are rounded down and the `max` are rounded up to the nearest floating point. If `!s1.fbox().intersects(s2.fbox()))` then `!s1.bbox().intersects(s2.bbox()))`. Also, if `s1.fbox().crosses(s2.fbox()))` then `s1.bbox().crosses(s2.bbox()))`.
