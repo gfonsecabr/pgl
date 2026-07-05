@@ -678,6 +678,38 @@ struct Disk {
     [[nodiscard]] double distanceLInf(const OtherPoint& point) const;
 
     /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Distance is symmetric, so this just calls @p other's own `distanceL1`
+     * requesting `double` (like every other `Disk` overload), which visits
+     * its wrapped alternative and throws if the pair is unsupported.
+     *
+     * @warning Fixed to this disk's own `Shape<PointType>` rather than a
+     *          deduced point type: `Disk::distanceL1` has no `ResultNumber`
+     *          template of its own (it always returns `double`), so it is a
+     *          function with a single template parameter, just like the
+     *          plain `distanceL1(const OtherPoint&)` above. If that single
+     *          slot were a deduced point type here too, an external explicit
+     *          probe such as `o.template distanceL1<ResultNumber>(self)`
+     *          (used throughout this codebase's rank-forwarding machinery)
+     *          would bind `ResultNumber`'s type directly to it, forcing an
+     *          attempt to form `Shape<ResultNumberType>` — e.g. `Shape<int>`
+     *          — which is not a valid point type and triggers a hard error
+     *          deep inside `std::variant`'s instantiation, not a
+     *          SFINAE-friendly failure. A fixed, already-valid parameter type
+     *          has no template parameter for an explicit argument to land on,
+     *          so such a probe is simply rejected as an arity mismatch.
+     */
+    [[nodiscard]] double distanceL1(const Shape<PointType>& other) const {
+        return other.template distanceL1<double>(*this);
+    }
+
+    /** @copydoc distanceL1(const Shape<PointType>&) const */
+    [[nodiscard]] double distanceLInf(const Shape<PointType>& other) const {
+        return other.template distanceLInf<double>(*this);
+    }
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Containment is boundary-inclusive: a point exactly on the circle counts as

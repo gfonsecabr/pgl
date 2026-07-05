@@ -99,13 +99,25 @@ constexpr ResultNumber segmentLikeDistanceL1(const Point<ResultNumber>& a, const
  * here, so the supremum over any polygonal domain is attained at a vertex.
  * That argument only relies on convexity, not on which metric induces the
  * distance, so it applies to L1 exactly as it does to the Euclidean case.
+ *
+ * `other.distanceL1` is only templated on `ResultNumber` from `Segment` rank
+ * upward; `Point::distanceL1` takes no such template (it needs no division
+ * to stay exact), so the vertex-to-`other` query below falls back to the
+ * untemplated call, casting its result, whenever `other` is itself a `Point`.
  */
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexDistanceL1(const Self& self, const OtherShape& other) {
     const auto self_vertices = self.vertices();
-    ResultNumber worst = other.template distanceL1<ResultNumber>(self_vertices[0]);
+    const auto distanceToVertex = [&other](const auto& vertex) -> ResultNumber {
+        if constexpr (requires { other.template distanceL1<ResultNumber>(vertex); }) {
+            return other.template distanceL1<ResultNumber>(vertex);
+        } else {
+            return static_cast<ResultNumber>(other.distanceL1(vertex));
+        }
+    };
+    ResultNumber worst = distanceToVertex(self_vertices[0]);
     for (std::size_t index = 1; index < self_vertices.size(); ++index) {
-        const ResultNumber current = other.template distanceL1<ResultNumber>(self_vertices[index]);
+        const ResultNumber current = distanceToVertex(self_vertices[index]);
         if (worst < current) {
             worst = current;
         }

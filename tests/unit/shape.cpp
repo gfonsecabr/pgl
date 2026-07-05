@@ -338,6 +338,142 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     CHECK(disk.squaredDistance<int>(t2) == t2.squaredDistance<int>(disk));
 }
 
+TEST_CASE("Shape dispatches squaredHausdorffDistance across wrapped shapes") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Line = pgl::Line<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
+    const Shape t2 = Triangle({10, 0}, {12, 0}, {10, 2});
+    CHECK(t1.squaredHausdorffDistance<int>(t2) == static_cast<Triangle>(t1).squaredHausdorffDistance<int>(static_cast<Triangle>(t2)));
+
+    // Defined for Point/Segment/OrientedSegment/Rectangle/Triangle/Convex only:
+    // an unbounded Line, or a Polygon (no overload yet), always throws.
+    const Shape line = Line({0, 0}, {1, 0});
+    const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
+    CHECK_THROWS_AS(t1.squaredHausdorffDistance<int>(line), std::logic_error);
+    CHECK_THROWS_AS(t1.squaredHausdorffDistance<int>(polygon), std::logic_error);
+}
+
+TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Line = pgl::Line<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape origin = Point(0, 0);
+    const Shape corner = Point(3, 4);
+
+    // Shape against Shape, and against a concrete alternative, agree.
+    CHECK(origin.distanceL1<int>(corner) == 7);
+    CHECK(origin.distanceL1<int>(Point(3, 4)) == 7);
+    CHECK(origin.distanceLInf<int>(corner) == 4);
+    CHECK(origin.distanceL1<int>(Segment({3, 4}, {3, 10})) == 7);
+
+    // Symmetric through the forwarding visitor (lower rank forwards to higher).
+    const Shape segment = Segment({3, 4}, {3, 10});
+    CHECK(origin.distanceL1<int>(segment) == segment.distanceL1<int>(origin));
+
+    // ResultNumber defaults to the wrapper's NumberType.
+    static_assert(std::is_same_v<decltype(origin.distanceL1(corner)), int>);
+
+    // A purely horizontal gap: L1 and LInf both equal the axis gap.
+    const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
+    const Shape t2 = Triangle({10, 0}, {12, 0}, {10, 2});
+    CHECK(t1.distanceL1<int>(t2) == 8);
+    CHECK(t1.distanceLInf<int>(t2) == 8);
+    CHECK(t2.distanceL1<int>(t1) == t1.distanceL1<int>(t2));
+
+    // Disk-Point is not templated on ResultNumber either, so the wrapper falls
+    // back to the double-returning overload and static_casts the result.
+    const Disk concreteDisk(Point(0, 0), 2);
+    const Shape disk = concreteDisk;
+    CHECK(disk.distanceL1<int>(Point(5, 5)) == static_cast<int>(concreteDisk.distanceL1(Point(5, 5))));
+    CHECK(disk.distanceLInf<int>(Point(5, 5)) == static_cast<int>(concreteDisk.distanceLInf(Point(5, 5))));
+
+    // Disk against anything but a Point is not yet implemented and throws.
+    const Shape line = Line({0, 0}, {1, 0});
+    CHECK_THROWS_AS(disk.distanceL1<int>(line), std::logic_error);
+    CHECK_THROWS_AS(disk.distanceLInf<int>(t1), std::logic_error);
+}
+
+TEST_CASE("Shape dispatches hausdorffDistanceL1/hausdorffDistanceLInf across wrapped shapes") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Line = pgl::Line<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
+    const Shape t2 = Triangle({10, 0}, {12, 0}, {10, 2});
+    // Hausdorff to/from a Point uses the same vertex-supremum path as Segment
+    // and Triangle against Point; make sure that path (fixed in this pass)
+    // actually gets exercised through the wrapper.
+    CHECK(t1.hausdorffDistanceL1<int>(Point(20, 0)) == static_cast<Triangle>(t1).hausdorffDistanceL1<int>(Point(20, 0)));
+    CHECK(t1.hausdorffDistanceL1<int>(t2) == static_cast<Triangle>(t1).hausdorffDistanceL1<int>(static_cast<Triangle>(t2)));
+    CHECK(t1.hausdorffDistanceLInf<int>(t2) == static_cast<Triangle>(t1).hausdorffDistanceLInf<int>(static_cast<Triangle>(t2)));
+
+    // Defined for Point/Segment/OrientedSegment/Rectangle/Triangle/Convex only:
+    // an unbounded Line, or a Polygon (no overload yet), always throws.
+    const Shape line = Line({0, 0}, {1, 0});
+    const Shape polygon = Polygon({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
+    CHECK_THROWS_AS(t1.hausdorffDistanceL1<int>(line), std::logic_error);
+    CHECK_THROWS_AS(t1.hausdorffDistanceLInf<int>(polygon), std::logic_error);
+}
+
+TEST_CASE("Concrete shapes accept a Shape argument for every distance method, symmetrically") {
+    // Distance is symmetric, so every concrete shape also accepts a Shape
+    // wrapper directly (not just the other way around), re-dispatching
+    // through the wrapper's own throw-safe visitor. Point and Disk are the
+    // most delicate cases: their plain point-to-point/point-to-disk overloads
+    // take no ResultNumber template of their own, which previously made the
+    // added Shape overload either infinite-recurse (Point-Point, via an
+    // unwanted implicit Point -> Shape conversion) or hard-fail to compile
+    // (Disk, via forming an invalid Shape<int> while probing with an explicit
+    // ResultNumber). Both are covered here so a regression would be caught.
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Point origin(0, 0);
+    const Point corner(3, 4);
+    const Shape shapeCorner = corner;
+
+    CHECK(origin.distanceL1(shapeCorner) == 7);
+    CHECK(origin.distanceLInf(shapeCorner) == 4);
+    CHECK(origin.distanceL1(shapeCorner) == shapeCorner.distanceL1(origin));
+
+    const Segment segment({0, 0}, {0, 4});
+    const Rectangle rectangle({0, 0}, {4, 4});
+    const Triangle triangle({0, 0}, {4, 0}, {0, 4});
+    const Convex convex(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Polygon polygon({{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    const Shape farPoint = Point(20, 0);
+
+    CHECK(segment.distanceL1(farPoint) == farPoint.distanceL1(segment));
+    CHECK(rectangle.distanceL1(farPoint) == farPoint.distanceL1(rectangle));
+    CHECK(triangle.distanceL1(farPoint) == farPoint.distanceL1(triangle));
+    CHECK(triangle.hausdorffDistanceL1(farPoint) == farPoint.hausdorffDistanceL1(triangle));
+    CHECK(convex.distanceL1(farPoint) == farPoint.distanceL1(convex));
+    CHECK(polygon.distanceL1(farPoint) == farPoint.distanceL1(polygon));
+
+    // Disk-Point works both ways; Disk against anything else still throws
+    // (not yet implemented), whether reached via the Shape wrapper or via the
+    // concrete Disk's own new Shape-argument overload.
+    const Disk disk(Point(0, 0), 2);
+    CHECK(disk.distanceL1(farPoint) == farPoint.distanceL1(disk));
+    CHECK_THROWS_AS((void)disk.distanceL1(Shape(segment)), std::logic_error);
+}
+
 TEST_CASE("Shape translates and scales through the wrapped value") {
     using Point = pgl::Point<int>;
     using EmptyShape = pgl::EmptyShape<Point>;
