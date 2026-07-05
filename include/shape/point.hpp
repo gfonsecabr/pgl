@@ -769,6 +769,22 @@ struct Point {
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& other) const;
 
     /**
+     * @brief Returns the Manhattan distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template distanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Chebyshev distance to another point.
      *
      * @tparam OtherNumber Coordinate type of the other point.
@@ -778,6 +794,88 @@ struct Point {
      */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the Chebyshev distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template distanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to another point.
+     *
+     * Hausdorff distance between two single-point sets is just their distance.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template hausdorffDistanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherShape& other) const {
+        return other.template hausdorffDistanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to another point.
+     *
+     * Hausdorff distance between two single-point sets is just their distance.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+                  && requires(const OtherShape& o, const Point& self) {
+                         o.template hausdorffDistanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const {
+        return other.template hausdorffDistanceLInf<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to a disk.
+     *
+     * Forwards to @ref Disk::distanceL1, which is not templated on a result
+     * type since a disk's exterior distance has no closed form and always
+     * returns `double`.
+     */
+    template <class DiskPointType, class DiskLabel>
+    [[nodiscard]] double distanceL1(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.distanceL1(*this);
+    }
+
+    /** @brief Returns the Chebyshev (LInf) distance to a disk. */
+    template <class DiskPointType, class DiskLabel>
+    [[nodiscard]] double distanceLInf(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.distanceLInf(*this);
+    }
 
     /**
      * @brief Translates a point by another point in place.

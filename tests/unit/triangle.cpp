@@ -563,6 +563,44 @@ TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {
     }
 }
 
+TEST_CASE("Triangle measures Manhattan and Chebyshev distance to every lower-ranked shape") {
+    using P = pgl::Point<int>;
+    const pgl::Triangle<P> tri({0, 0}, {4, 0}, {0, 4});
+
+    SUBCASE("intersecting shapes are at distance zero") {
+        CHECK(tri.distanceL1(P(1, 1)) == 0);
+        CHECK(tri.distanceLInf(P(1, 1)) == 0);
+        CHECK(tri.distanceL1(pgl::Line<P>({0, 1}, {1, 1})) == 0);
+        CHECK(tri.distanceL1(pgl::Rectangle<P>({1, 1}, {2, 2})) == 0);
+    }
+
+    SUBCASE("disjoint shapes measured along an axis") {
+        CHECK(tri.distanceL1(P(10, 0)) == 6);
+        CHECK(tri.distanceLInf(P(10, 0)) == 6);
+        CHECK(tri.distanceL1(pgl::Segment<P>({10, 0}, {10, 4})) == 6);
+        CHECK(tri.distanceLInf(pgl::Segment<P>({10, 0}, {10, 4})) == 6);
+        CHECK(tri.distanceL1(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 6);
+        CHECK(tri.distanceL1(pgl::Ray<P>({10, 0}, {11, 0})) == 6);
+        CHECK(tri.distanceL1(pgl::Line<P>({0, -1}, {1, -1})) == 1);       // bottom edge to y=-1
+        CHECK(tri.distanceLInf(pgl::Line<P>({0, -1}, {1, -1})) == 1);
+        CHECK(tri.distanceL1(pgl::OrientedLine<P>({0, -1}, {1, -1})) == 1);
+    }
+
+    SUBCASE("the closest point on the hypotenuse need not be an endpoint") {
+        // Nearest hypotenuse point to (2,3) is (1,3): L1 = |2-1| + |3-3| = 1.
+        CHECK(tri.distanceL1(P(2, 3)) == 1);
+    }
+
+    SUBCASE("the relation is symmetric: lower-ranked shapes forward to the triangle") {
+        CHECK(P(10, 0).distanceL1(tri) == tri.distanceL1(P(10, 0)));
+        CHECK(P(10, 0).distanceLInf(tri) == tri.distanceLInf(P(10, 0)));
+        CHECK(pgl::Segment<P>({10, 0}, {10, 4}).distanceL1(tri)
+              == tri.distanceL1(pgl::Segment<P>({10, 0}, {10, 4})));
+        CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).distanceL1(tri)
+              == tri.distanceL1(pgl::Rectangle<P>({10, 10}, {12, 12})));
+    }
+}
+
 TEST_CASE("Triangle measures squared Hausdorff distance to every lower-ranked shape") {
     using P = pgl::Point<int>;
     const pgl::Triangle<P> tri({0, 0}, {4, 0}, {0, 4});

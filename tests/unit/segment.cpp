@@ -513,6 +513,42 @@ TEST_CASE("Segment distances handle projections, intersections, degenerate cases
 
     CHECK(horizontal.squaredHausdorffDistance(parallel) == doctest::Approx(5.0));
     CHECK(horizontal.squaredHausdorffDistance(inner) == doctest::Approx(1.0));
+
+    CHECK(horizontal.distanceL1(Point(2, 3)) == 3);
+    CHECK(horizontal.distanceL1(Point(-1, 0)) == 1);
+    CHECK(horizontal.distanceL1(Point(5, 3)) == 4);
+    CHECK(horizontal.distanceL1(parallel) == 2);
+    CHECK(horizontal.distanceL1(far_right) == 2);
+    CHECK(horizontal.distanceL1(vertical) == 0);
+    CHECK(point_segment.distanceL1(Point(5, 0)) == 3);
+
+    CHECK(horizontal.distanceLInf(Point(2, 3)) == 3);
+    CHECK(horizontal.distanceLInf(Point(-1, 0)) == 1);
+    CHECK(horizontal.distanceLInf(Point(5, 3)) == 3);
+    CHECK(horizontal.distanceLInf(parallel) == 2);
+    CHECK(horizontal.distanceLInf(far_right) == 2);
+    CHECK(horizontal.distanceLInf(vertical) == 0);
+
+    CHECK(horizontal.hausdorffDistanceL1(parallel) == 3);
+    CHECK(horizontal.hausdorffDistanceL1(inner) == 1);
+    CHECK(horizontal.hausdorffDistanceLInf(parallel) == 2);
+    CHECK(horizontal.hausdorffDistanceLInf(inner) == 1);
+}
+
+TEST_CASE("Segment L1/LInf distance to an off-axis segment is exact only with a fractional ResultNumber") {
+    using Rational = pgl::Rational<int>;
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment diagonal({3, 0}, {0, 3});
+    const Point origin(0, 0);
+
+    // True LInf distance from the origin to this segment is 3/2 (nearest point
+    // (1.5, 1.5)); an int ResultNumber truncates, a Rational one is exact.
+    CHECK(diagonal.distanceLInf(origin) == 1);
+    CHECK(diagonal.distanceLInf<Rational>(origin) == Rational(3, 2));
+    CHECK(diagonal.distanceL1(origin) == 3);
+    CHECK(diagonal.distanceL1<Rational>(origin) == Rational(3));
 }
 
 TEST_CASE("Segment intersection can return an exact rational crossing point") {

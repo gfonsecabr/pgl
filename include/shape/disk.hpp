@@ -657,6 +657,27 @@ struct Disk {
     }
 
     /**
+     * @brief Returns the Manhattan (L1) distance from this disk to a point.
+     *
+     * Zero when the disk contains the point. Otherwise the nearest point of
+     * the disk lies on the circle, and its L1 distance to an external point
+     * is a trigonometric optimization with no closed form (unlike the
+     * Euclidean case's `|point - center| - radius`), so this refines a
+     * coarse angular scan with a golden-section search. Always returns
+     * `double`, like @ref squaredDistance(const OtherPoint&) const.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] double distanceL1(const OtherPoint& point) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance from this disk to a point.
+     *
+     * @copydetails distanceL1(const OtherPoint&) const
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] double distanceLInf(const OtherPoint& point) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Containment is boundary-inclusive: a point exactly on the circle counts as

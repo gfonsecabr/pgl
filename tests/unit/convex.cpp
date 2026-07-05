@@ -923,6 +923,54 @@ TEST_CASE("Convex squaredDistance to a point") {
     }
 }
 
+TEST_CASE("Convex L1/LInf distance to a point matches an O(n) brute-force edge scan") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+
+    SUBCASE("exterior points: nearest is an edge or a vertex") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        CHECK(square.distanceL1(Point(7, 2)) == 3);    // perpendicular to an edge
+        CHECK(square.distanceL1(Point(7, 8)) == 7);    // nearest is corner (4,4)
+        CHECK(square.distanceL1(Point(2, -3)) == 3);   // below an edge
+        CHECK(square.distanceLInf(Point(7, 2)) == 3);
+        CHECK(square.distanceLInf(Point(7, 8)) == 4);
+        CHECK(square.distanceLInf(Point(2, -3)) == 3);
+    }
+
+    SUBCASE("matches an O(n) brute-force scan over random convex polygons") {
+        std::mt19937 rng(2027);
+        std::uniform_int_distribution<int> coord(-25, 25);
+        for (int trial = 0; trial < 2000; ++trial) {
+            std::vector<Point> pts;
+            const int count = 3 + static_cast<int>(rng() % 9);
+            for (int i = 0; i < count; ++i) {
+                pts.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(pts);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+            const Point q(coord(rng), coord(rng));
+
+            if (convex.contains(q)) {
+                CHECK(convex.distanceL1(q) == 0);
+                CHECK(convex.distanceLInf(q) == 0);
+                continue;
+            }
+
+            int expectedL1 = convex.edges().front().distanceL1(q);
+            int expectedLInf = convex.edges().front().distanceLInf(q);
+            for (const auto& e : convex.edges()) {
+                expectedL1 = std::min(expectedL1, e.distanceL1(q));
+                expectedLInf = std::min(expectedLInf, e.distanceLInf(q));
+            }
+
+            CHECK(convex.distanceL1(q) == expectedL1);
+            CHECK(convex.distanceLInf(q) == expectedLInf);
+        }
+    }
+}
+
 TEST_CASE("Convex squaredDistance to a segment") {
     using Point = pgl::Point<int>;
     using Convex = pgl::Convex<Point>;

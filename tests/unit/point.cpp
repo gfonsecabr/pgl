@@ -271,6 +271,23 @@ TEST_CASE_TEMPLATE("Point computes dot product and Euclidean, L1, and Linf dista
     CHECK(first.template distance<double>(second) == doctest::Approx(std::sqrt(8.0)));
     CHECK(first.distanceL1(second) == 4);
     CHECK(first.distanceLInf(second) == 2);
+    CHECK(first.hausdorffDistanceL1(second) == 4);
+    CHECK(first.hausdorffDistanceLInf(second) == 2);
+}
+
+TEST_CASE("Point forwards distanceL1/distanceLInf to a higher-ranked shape") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Point p(10, 0);
+    const Segment s({0, -1}, {0, 1});
+    const Rectangle r({0, 0}, {2, 2});
+
+    CHECK(p.distanceL1(s) == s.distanceL1(p));
+    CHECK(p.distanceLInf(s) == s.distanceLInf(p));
+    CHECK(p.distanceL1(r) == r.distanceL1(p));
+    CHECK(p.distanceLInf(r) == r.distanceLInf(p));
 }
 
 TEST_CASE("Point with rational coordinates preserves exact fractions under scaling and division") {
