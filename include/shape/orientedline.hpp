@@ -1107,6 +1107,19 @@ struct OrientedLine {
         return other.template distanceL1<ResultNumber>(*this);
     }
 
+    /**
+     * @brief Returns the distance to the given shape, using symmetry to
+     * re-dispatch through the wrapper's own `distanceL1`.
+     *
+     * Distance is symmetric, so this just calls @p other's own `distanceL1`,
+     * which visits its wrapped alternative and throws if the pair is
+     * unsupported.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
     /** @brief Returns the Chebyshev (LInf) distance to the given shape. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
@@ -1139,6 +1152,19 @@ struct OrientedLine {
                          o.template distanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the distance to the given shape, using symmetry to
+     * re-dispatch through the wrapper's own `distanceLInf`.
+     *
+     * Distance is symmetric, so this just calls @p other's own `distanceLInf`,
+     * which visits its wrapped alternative and throws if the pair is
+     * unsupported.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 

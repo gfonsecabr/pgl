@@ -683,6 +683,184 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the squared Euclidean Hausdorff distance to the given shape.
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `squaredHausdorffDistance` requesting
+     * @p ResultNumber coordinates.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to this
+     *   wrapper's `NumberType`).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to measure the Hausdorff distance to.
+     * @return The squared Hausdorff distance as @p ResultNumber.
+     * @throws std::logic_error when `squaredHausdorffDistance` is undefined for
+     *   the pair selected at runtime. `Line`, `OrientedLine`, `Ray`, `Halfplane`,
+     *   `Disk`, and `Polygon` never define it (unbounded shapes have a generally
+     *   infinite Hausdorff distance; `Disk` and `Polygon` simply have no overload
+     *   yet), so any pair involving one of those always throws.
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *   generally a fraction, so the internal division truncates and the result
+     *   is inexact. Request a floating-point or pgl::Rational result type for an
+     *   accurate value.
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber squaredHausdorffDistance(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return squaredHausdorffDistanceOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return squaredHausdorffDistanceOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `distanceL1` requesting @p ResultNumber
+     * coordinates.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to this
+     *   wrapper's `NumberType`).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to measure the distance to.
+     * @return The L1 distance as @p ResultNumber.
+     * @throws std::logic_error when `distanceL1` is undefined for the pair
+     *   selected at runtime — anything involving an `EmptyShape`, and any `Disk`
+     *   pair other than `Disk`-`Point` (not yet implemented).
+     *
+     * @warning `Disk::distanceL1` (like `Disk::squaredDistance`) always computes
+     *   in `double` rather than being templated on @p ResultNumber; for a pair
+     *   involving a `Disk`, the `double` result is `static_cast` to
+     *   @p ResultNumber rather than computed exactly. The same is true of
+     *   `Point`-`Point`, whose `distanceL1` has no `ResultNumber` template since
+     *   it needs no division to stay exact.
+     *
+     * @warning With an integer @p ResultNumber the exact distance is generally a
+     *   fraction for a non-axis-aligned segment, ray, or line, so the internal
+     *   division truncates. Request a floating-point or pgl::Rational result
+     *   type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber distanceL1(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return distanceL1Of<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return distanceL1Of<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * @copydetails distanceL1
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber distanceLInf(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return distanceLInfOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return distanceLInfOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) Hausdorff distance to the given shape.
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `hausdorffDistanceL1` requesting
+     * @p ResultNumber coordinates.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to this
+     *   wrapper's `NumberType`).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to measure the Hausdorff distance to.
+     * @return The L1 Hausdorff distance as @p ResultNumber.
+     * @throws std::logic_error when `hausdorffDistanceL1` is undefined for the
+     *   pair selected at runtime. Defined only for `Point`, `Segment`,
+     *   `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`; any pair
+     *   involving `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk`, or
+     *   `Polygon` always throws.
+     *
+     * @warning With an integer @p ResultNumber the exact distance is generally a
+     *   fraction, so the internal division truncates. Request a floating-point
+     *   or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber hausdorffDistanceL1(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return hausdorffDistanceL1Of<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return hausdorffDistanceL1Of<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape.
+     *
+     * @copydetails hausdorffDistanceL1
+     */
+    template <class ResultNumber = NumberType, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    constexpr ResultNumber hausdorffDistanceLInf(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return hausdorffDistanceLInfOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return hausdorffDistanceLInfOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
      * @brief Translates the stored shape in place.
      *
      * Visits the active alternative and translates it by @p translation; the
@@ -985,6 +1163,73 @@ struct Shape {
             return static_cast<ResultNumber>(left.squaredDistance(right));
         } else {
             throw std::logic_error("Shape::squaredDistance is not defined for this shape pair");
+        }
+    }
+
+    // Measure the squared Hausdorff distance between two unwrapped alternatives.
+    // Defined only for Point, Segment, OrientedSegment, Rectangle, Triangle, and
+    // Convex, so any other pair (including anything against Line, OrientedLine,
+    // Ray, Halfplane, Disk, Polygon, or EmptyShape) takes the throw. Unlike
+    // squaredDistance there is no untemplated double-returning overload to probe
+    // for: Disk has no squaredHausdorffDistance at all.
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber squaredHausdorffDistanceOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template squaredHausdorffDistance<ResultNumber>(right); }) {
+            return left.template squaredHausdorffDistance<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::squaredHausdorffDistance is not defined for this shape pair");
+        }
+    }
+
+    // Measure the L1 distance between two unwrapped alternatives. The second
+    // probe covers both Disk (whose distanceL1 always returns double, like
+    // squaredDistance) and Point-Point (whose distanceL1 has no ResultNumber
+    // template at all, since it needs no division to stay exact). Any pair with
+    // neither overload (an EmptyShape, or a Disk paired with anything but a
+    // Point) takes the throw.
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber distanceL1Of(const Left& left, const Right& right) {
+        if constexpr (requires { left.template distanceL1<ResultNumber>(right); }) {
+            return left.template distanceL1<ResultNumber>(right);
+        } else if constexpr (requires { left.distanceL1(right); }) {
+            return static_cast<ResultNumber>(left.distanceL1(right));
+        } else {
+            throw std::logic_error("Shape::distanceL1 is not defined for this shape pair");
+        }
+    }
+
+    // LInf counterpart of distanceL1Of; see there for the probe order.
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber distanceLInfOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template distanceLInf<ResultNumber>(right); }) {
+            return left.template distanceLInf<ResultNumber>(right);
+        } else if constexpr (requires { left.distanceLInf(right); }) {
+            return static_cast<ResultNumber>(left.distanceLInf(right));
+        } else {
+            throw std::logic_error("Shape::distanceLInf is not defined for this shape pair");
+        }
+    }
+
+    // Measure the L1 Hausdorff distance between two unwrapped alternatives.
+    // Defined only for Point, Segment, OrientedSegment, Rectangle, Triangle, and
+    // Convex (same coverage as squaredHausdorffDistanceOf, and for the same
+    // reason: Disk has no hausdorffDistanceL1 overload to probe for either).
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber hausdorffDistanceL1Of(const Left& left, const Right& right) {
+        if constexpr (requires { left.template hausdorffDistanceL1<ResultNumber>(right); }) {
+            return left.template hausdorffDistanceL1<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::hausdorffDistanceL1 is not defined for this shape pair");
+        }
+    }
+
+    // LInf counterpart of hausdorffDistanceL1Of; see there for the coverage.
+    template <class ResultNumber, class Left, class Right>
+    static constexpr ResultNumber hausdorffDistanceLInfOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template hausdorffDistanceLInf<ResultNumber>(right); }) {
+            return left.template hausdorffDistanceLInf<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::hausdorffDistanceLInf is not defined for this shape pair");
         }
     }
 

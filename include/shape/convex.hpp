@@ -1833,6 +1833,18 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Distance is symmetric, so this just calls @p other's own `distanceL1`,
+     * which visits its wrapped alternative and throws if the pair is
+     * unsupported.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Chebyshev (LInf) distance to the given shape.
      *
      * Unlike @ref squaredDistance, this always uses the O(n) edge scan (no
@@ -1895,6 +1907,12 @@ struct Convex {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
     /** @brief Returns the Manhattan (L1) Hausdorff distance to the given shape. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
@@ -1935,6 +1953,12 @@ struct Convex {
         return other.template hausdorffDistanceL1<ResultNumber>(*this);
     }
 
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const Shape<OtherPoint>& other) const {
+        return other.template hausdorffDistanceL1<ResultNumber>(*this);
+    }
+
     /** @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
@@ -1972,6 +1996,12 @@ struct Convex {
                          o.template hausdorffDistanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const {
+        return other.template hausdorffDistanceLInf<ResultNumber>(*this);
+    }
+
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceLInf<ResultNumber>(*this);
     }
 

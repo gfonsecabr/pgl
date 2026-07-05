@@ -1266,6 +1266,18 @@ struct Polygon {
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr auto distanceL1(const OtherPolygon& other) const;
 
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Distance is symmetric, so this just calls @p other's own `distanceL1`,
+     * which visits its wrapped alternative and throws if the pair is
+     * unsupported.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
     /** @brief Returns the Chebyshev (LInf) distance to the given shape. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
@@ -1309,6 +1321,12 @@ struct Polygon {
     /** @copydoc distanceLInf(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPolygon& other) const;
+
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.

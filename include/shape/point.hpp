@@ -785,6 +785,29 @@ struct Point {
     }
 
     /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
+     * Distance is symmetric, so this just re-dispatches through @p other's own
+     * `distanceL1`, which already visits its wrapped alternative and throws if
+     * the pair is unsupported.
+     *
+     * @warning The point type is deduced from @p other (rather than fixed to
+     *          this point's own `Shape<Point<TNumber, TLabel>>`) so that
+     *          argument matching never falls back to a user-defined
+     *          conversion from a plain `Point` to `Shape`: since
+     *          `distanceL1(const OtherPoint&)` above takes no `ResultNumber`
+     *          template of its own, an explicit `<ResultNumber>` probe (as
+     *          used internally by `Shape`'s dispatcher) would otherwise treat
+     *          a fixed-type overload here as viable via that conversion,
+     *          recursing back into `Shape::distanceL1` forever for a
+     *          `Point`-`Point` pair.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Chebyshev distance to another point.
      *
      * @tparam OtherNumber Coordinate type of the other point.
@@ -808,6 +831,12 @@ struct Point {
                          o.template distanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
@@ -835,6 +864,12 @@ struct Point {
         return other.template hausdorffDistanceL1<ResultNumber>(*this);
     }
 
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceL1(const Shape<OtherPoint>& other) const {
+        return other.template hausdorffDistanceL1<ResultNumber>(*this);
+    }
+
     /**
      * @brief Returns the Chebyshev (LInf) Hausdorff distance to another point.
      *
@@ -856,6 +891,12 @@ struct Point {
                          o.template hausdorffDistanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherShape& other) const {
+        return other.template hausdorffDistanceLInf<ResultNumber>(*this);
+    }
+
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto hausdorffDistanceLInf(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceLInf<ResultNumber>(*this);
     }
 
