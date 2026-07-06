@@ -1658,7 +1658,7 @@ struct Polygon {
      * orientation, so the polygon is renormalized to stay canonical.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Polygon& operator*=(const Scalar& scalar) {
         for (auto& vertex : points_) {
             vertex *= scalar;
@@ -1675,7 +1675,7 @@ struct Polygon {
      * Complexity: O(n) for n vertices.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Polygon& operator/=(const Scalar& scalar) {
         for (auto& vertex : points_) {
             vertex /= scalar;
@@ -1913,7 +1913,7 @@ constexpr auto operator-(const Polygon<PointType, LabelType>& polygon, const Poi
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Polygon<PointType, LabelType>& polygon, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() * scalar), typename PointType::LabelType>;
     Polygon<ResultPointType, LabelType> result(polygon);
@@ -1925,13 +1925,13 @@ constexpr auto operator*(const Polygon<PointType, LabelType>& polygon, const Sca
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Polygon<PointType, LabelType>& polygon) {
     return polygon * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Polygon<PointType, LabelType>& polygon, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() / scalar), typename PointType::LabelType>;
     Polygon<ResultPointType, LabelType> result(polygon);

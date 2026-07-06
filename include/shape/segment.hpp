@@ -1454,12 +1454,12 @@ struct Segment {
 
     /** @brief Scales the segment around the origin by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Segment& operator*=(const Scalar& scalar);
 
     /** @brief Divides the segment coordinates by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Segment& operator/=(const Scalar& scalar);
 
    private:
@@ -1533,7 +1533,7 @@ constexpr auto operator-(const Segment<PointType, LabelType>& segment, const Poi
  * @return Scaled segment.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Segment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**
@@ -1547,7 +1547,7 @@ constexpr auto operator*(const Segment<PointType, LabelType>& segment, const Sca
  * @return Scaled segment.
  */
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Segment<PointType, LabelType>& segment);
 
 /**
@@ -1561,7 +1561,7 @@ constexpr auto operator*(const Scalar& scalar, const Segment<PointType, LabelTyp
  * @return Scaled segment.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Segment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**

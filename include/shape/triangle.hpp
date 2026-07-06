@@ -1383,12 +1383,12 @@ struct Triangle {
 
     /** @brief Scales all vertices by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Triangle& operator*=(const Scalar& scalar);
 
     /** @brief Divides all vertices by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Triangle& operator/=(const Scalar& scalar);
 
     template <bool Oriented>
@@ -1529,17 +1529,17 @@ constexpr auto operator-(const Triangle<PointType, LabelType>& triangle, const P
 
 /** @brief Returns a scaled copy of a triangle. */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar);
 
 /** @brief Returns a scaled copy of a triangle with the scalar on the left. */
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Triangle<PointType, LabelType>& triangle);
 
 /** @brief Returns a copy of a triangle divided by a scalar. */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar);
 
 /** @brief Streams a triangle as `<abc>` using canonical vertex order. */

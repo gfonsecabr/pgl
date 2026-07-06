@@ -182,7 +182,7 @@ struct EmptyShape {
      * @return This shape, unmodified.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr EmptyShape& operator*=(const Scalar&) {
         return *this;
     }
@@ -195,7 +195,7 @@ struct EmptyShape {
      * @return This shape, unmodified.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr EmptyShape& operator/=(const Scalar&) {
         return *this;
     }
@@ -300,7 +300,7 @@ constexpr auto operator-(const EmptyShape<PointType>&,
  * @return The empty shape over the promoted point type.
  */
 template <class PointType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const EmptyShape<PointType>&, const Scalar&) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() *
                                               std::declval<const Scalar&>())>;
@@ -309,7 +309,7 @@ constexpr auto operator*(const EmptyShape<PointType>&, const Scalar&) {
 
 /** @copydoc operator*(const EmptyShape<PointType>&, const Scalar&) */
 template <class Scalar, class PointType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const EmptyShape<PointType>& empty) {
     return empty * scalar;
 }
@@ -324,7 +324,7 @@ constexpr auto operator*(const Scalar& scalar, const EmptyShape<PointType>& empt
  * @return The empty shape over the promoted point type.
  */
 template <class PointType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const EmptyShape<PointType>&, const Scalar&) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() /
                                               std::declval<const Scalar&>())>;
