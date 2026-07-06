@@ -141,7 +141,7 @@ constexpr auto operator-(const Point<LeftNumber, LeftLabel>& left, const Point<R
 }
 
 template <class Number, class Label, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Point<Number, Label>& point, const Scalar& scalar) {
     using ResultNumber = std::common_type_t<Number, Scalar>;
     return Point<ResultNumber, Label>(
@@ -150,13 +150,13 @@ constexpr auto operator*(const Point<Number, Label>& point, const Scalar& scalar
 }
 
 template <class Scalar, class Number, class Label>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Point<Number, Label>& point) {
     return point * scalar;
 }
 
 template <class Number, class Label, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Point<Number, Label>& point, const Scalar& scalar) {
     using ResultNumber = std::common_type_t<Number, Scalar>;
     return Point<ResultNumber, Label>(
@@ -185,7 +185,7 @@ constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -195,7 +195,7 @@ constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -223,7 +223,7 @@ constexpr auto operator-(const Segment<PointType, LabelType>& segment, const Poi
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Segment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.min() * scalar;
     const auto second = segment.max() * scalar;
@@ -231,13 +231,13 @@ constexpr auto operator*(const Segment<PointType, LabelType>& segment, const Sca
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Segment<PointType, LabelType>& segment) {
     return segment * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Segment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.min() / scalar;
     const auto second = segment.max() / scalar;
@@ -333,7 +333,7 @@ constexpr OrientedSegment<PointType, LabelType>& OrientedSegment<PointType, Labe
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr OrientedSegment<PointType, LabelType>& OrientedSegment<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -342,7 +342,7 @@ constexpr OrientedSegment<PointType, LabelType>& OrientedSegment<PointType, Labe
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr OrientedSegment<PointType, LabelType>& OrientedSegment<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -369,7 +369,7 @@ constexpr auto operator-(const OrientedSegment<PointType, LabelType>& segment, c
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.source() * scalar;
     const auto second = segment.target() * scalar;
@@ -377,13 +377,13 @@ constexpr auto operator*(const OrientedSegment<PointType, LabelType>& segment, c
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType, LabelType>& segment) {
     return segment * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar) {
     const auto first = segment.source() / scalar;
     const auto second = segment.target() / scalar;
@@ -474,7 +474,7 @@ constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator-=(con
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -484,7 +484,7 @@ constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator*=(con
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -512,7 +512,7 @@ constexpr auto operator-(const Line<PointType, LabelType>& line, const Point<Tra
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& scalar) {
     const auto first = line.min() * scalar;
     const auto second = line.max() * scalar;
@@ -520,13 +520,13 @@ constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& s
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Line<PointType, LabelType>& line) {
     return line * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Line<PointType, LabelType>& line, const Scalar& scalar) {
     const auto first = line.min() / scalar;
     const auto second = line.max() / scalar;
@@ -637,7 +637,7 @@ constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -646,7 +646,7 @@ constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -673,7 +673,7 @@ constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const P
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar) {
     const auto first = line.source() * scalar;
     const auto second = line.target() * scalar;
@@ -681,13 +681,13 @@ constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const S
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType, LabelType>& line) {
     return line * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar) {
     const auto first = line.source() / scalar;
     const auto second = line.target() / scalar;
@@ -798,7 +798,7 @@ constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator-=(const
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -807,7 +807,7 @@ constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator*=(const
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -834,7 +834,7 @@ constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<Trans
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& scalar) {
     const auto first = ray.source() * scalar;
     const auto second = ray.target() * scalar;
@@ -842,13 +842,13 @@ constexpr auto operator*(const Ray<PointType, LabelType>& ray, const Scalar& sca
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Ray<PointType, LabelType>& ray) {
     return ray * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Ray<PointType, LabelType>& ray, const Scalar& scalar) {
     const auto first = ray.source() / scalar;
     const auto second = ray.target() / scalar;
@@ -944,7 +944,7 @@ constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::oper
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator*=(const Scalar& scalar) {
     auto saved = label_;
     *this = *this * scalar;
@@ -954,7 +954,7 @@ constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::oper
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator/=(const Scalar& scalar) {
     auto saved = label_;
     *this = *this / scalar;
@@ -982,7 +982,7 @@ constexpr auto operator-(const Rectangle<PointType, LabelType>& rectangle, const
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() * scalar;
     const auto second = rectangle.max() * scalar;
@@ -990,13 +990,13 @@ constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType, LabelType>& rectangle) {
     return rectangle * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() / scalar;
     const auto second = rectangle.max() / scalar;
@@ -1096,7 +1096,7 @@ constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operat
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -1107,7 +1107,7 @@ constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operat
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -1138,7 +1138,7 @@ constexpr auto operator-(const Triangle<PointType, LabelType>& triangle, const P
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar) {
     const auto first = triangle.a() * scalar;
     const auto second = triangle.b() * scalar;
@@ -1147,13 +1147,13 @@ constexpr auto operator*(const Triangle<PointType, LabelType>& triangle, const S
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Triangle<PointType, LabelType>& triangle) {
     return triangle * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Triangle<PointType, LabelType>& triangle, const Scalar& scalar) {
     const auto first = triangle.a() / scalar;
     const auto second = triangle.b() / scalar;
@@ -1250,7 +1250,7 @@ constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::oper
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator*=(const Scalar& scalar) {
     points_[0] *= scalar;
     points_[1] *= scalar;
@@ -1259,7 +1259,7 @@ constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::oper
 
 template <class PointType, class LabelType>
 template <class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::operator/=(const Scalar& scalar) {
     points_[0] /= scalar;
     points_[1] /= scalar;
@@ -1286,7 +1286,7 @@ constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar) {
     const auto first = halfplane.source() * scalar;
     const auto second = halfplane.target() * scalar;
@@ -1294,13 +1294,13 @@ constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType, LabelType>& halfplane) {
     return halfplane * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar) {
     const auto first = halfplane.source() / scalar;
     const auto second = halfplane.target() / scalar;
@@ -1423,7 +1423,7 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator-=
 
 template <class PointType, class LabelType>
 template <class Scalar>
-requires(!detail::is_point_v<Scalar>)
+requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator*=(const Scalar& scalar) {
     for (auto& vertex : points_) {
         vertex += translation_;
@@ -1436,7 +1436,7 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator*=
 
 template <class PointType, class LabelType>
 template <class Scalar>
-requires(!detail::is_point_v<Scalar>)
+requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator/=(const Scalar& scalar) {
     for (auto& vertex : points_) {
         vertex += translation_;
@@ -1718,6 +1718,113 @@ constexpr void Disk<PointType, LabelType>::rotate90(int k) {
         point.rotate90(k);
     }
     points_ = canonicalizePoints(points_[0], points_[1], points_[2]);
+}
+
+// ---------------------------------------------------------------------------
+// Transformation
+
+template <class Number, class ShapeT>
+    requires (detail::shapeRank<ShapeT> >= 0 && !RectangleConcept<ShapeT> && !DiskConcept<ShapeT>)
+constexpr auto operator*(const Transformation<Number>& transformation, const ShapeT& shape) {
+    // Applies the transformation to a single point, promoting the coordinate
+    // type the same way every other operator in this file does.
+    const auto point = [&transformation](const auto& p) {
+        using PLabel = typename std::decay_t<decltype(p)>::LabelType;
+        using PNumber = typename std::decay_t<decltype(p)>::NumberType;
+        using ResultNumber = std::common_type_t<Number, PNumber>;
+        return Point<ResultNumber, PLabel>(
+            transformation.a() * p.x() + transformation.b() * p.y() + transformation.tx(),
+            transformation.c() * p.x() + transformation.d() * p.y() + transformation.ty());
+    };
+
+    if constexpr (detail::is_empty_shape_v<ShapeT>) {
+        using ResultNumber = std::common_type_t<Number, typename ShapeT::NumberType>;
+        return EmptyShape<Point<ResultNumber, typename ShapeT::LabelType>>{};
+    } else if constexpr (PointConcept<ShapeT>) {
+        return point(shape);
+    } else if constexpr (SegmentConcept<ShapeT>) {
+        const auto first = point(shape.min());
+        const auto second = point(shape.max());
+        return Segment<std::decay_t<decltype(first)>, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (OrientedSegmentConcept<ShapeT>) {
+        const auto first = point(shape.source());
+        const auto second = point(shape.target());
+        return OrientedSegment<std::decay_t<decltype(first)>, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (LineConcept<ShapeT>) {
+        const auto first = point(shape.min());
+        const auto second = point(shape.max());
+        return Line<std::decay_t<decltype(first)>, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (OrientedLineConcept<ShapeT>) {
+        // Unlike Halfplane below, an OrientedLine has no "this is a fixed
+        // region" contract to preserve: "left"/"right" are just whichever
+        // side is currently left/right of source->target, so no swap is
+        // needed even when the transformation reverses orientation.
+        const auto first = point(shape.source());
+        const auto second = point(shape.target());
+        return OrientedLine<std::decay_t<decltype(first)>, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (RayConcept<ShapeT>) {
+        const auto first = point(shape.source());
+        const auto second = point(shape.target());
+        return Ray<std::decay_t<decltype(first)>, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (HalfplaneConcept<ShapeT>) {
+        const auto first = point(shape.source());
+        const auto second = point(shape.target());
+        using ResultPoint = std::decay_t<decltype(first)>;
+        // A negative determinant reflects the plane, flipping the inside
+        // side; swap source and target so the oriented boundary keeps the
+        // correct side, mirroring the same fix in Halfplane::scaledUpX for a
+        // negative scale factor.
+        if (transformation.determinant() < decltype(transformation.determinant()){}) {
+            return Halfplane<ResultPoint, typename ShapeT::LabelType>(second, first);
+        }
+        return Halfplane<ResultPoint, typename ShapeT::LabelType>(first, second);
+    } else if constexpr (TriangleConcept<ShapeT>) {
+        // Triangle's constructor normalizes (CCW, lex-min vertex first), so
+        // an orientation-reversing transformation is fixed up automatically.
+        const auto pa = point(shape.a());
+        const auto pb = point(shape.b());
+        const auto pc = point(shape.c());
+        return Triangle<std::decay_t<decltype(pa)>, typename ShapeT::LabelType>(pa, pb, pc);
+    } else if constexpr (ConvexConcept<ShapeT>) {
+        // The non-trusted constructor reruns the Graham scan, which both
+        // fixes up orientation and prunes any collinear points a degenerate
+        // transformation may introduce -- the same reasoning already used by
+        // Convex::rotated90.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        std::vector<ResultPoint> pts;
+        pts.reserve(shape.size());
+        for (const auto& p : shape) {
+            pts.push_back(point(p));
+        }
+        return Convex<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    } else if constexpr (PolygonConcept<ShapeT>) {
+        // The non-trusted constructor renormalizes (CCW, lex-min vertex
+        // first), the same reasoning already used by Polygon::rotated90.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        std::vector<ResultPoint> pts;
+        pts.reserve(shape.size());
+        for (const auto& p : shape) {
+            pts.push_back(point(p));
+        }
+        return Polygon<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    }
+}
+
+template <class Number, ShapeConcept ShapeT>
+constexpr auto operator*(const Transformation<Number>& transformation, const ShapeT& shape) {
+    using PointType = typename ShapeT::PointType_;
+    using ResultNumber = std::common_type_t<Number, typename PointType::NumberType>;
+    using ResultShape = Shape<Point<ResultNumber, typename PointType::LabelType>>;
+    return std::visit(
+        [&transformation](const auto& value) -> ResultShape {
+            if constexpr (requires { transformation * value; }) {
+                return ResultShape(transformation * value);
+            } else {
+                throw std::logic_error(
+                    "Transformation::operator* is not defined for the Rectangle/Disk alternative");
+            }
+        },
+        shape.variant());
 }
 
 }  // namespace pgl

@@ -1128,7 +1128,7 @@ struct Disk {
      * @return Reference to this disk.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Disk& operator/=(const Scalar& scalar) {
         for (auto& point : points_) {
             point /= scalar;
@@ -1242,7 +1242,7 @@ struct Disk {
      * @return Reference to this disk.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Disk& operator*=(const Scalar& scalar) {
         for (auto& point : points_) {
             point *= scalar;
@@ -1402,7 +1402,7 @@ constexpr auto operator-(const Disk<PointType, LabelType>& disk, const Point<Tra
 
 /// @brief Returns a copy of @p disk with every boundary point scaled by @p scalar.
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Disk<PointType, LabelType>& disk, const Scalar& scalar) {
     auto result = disk;
     result *= scalar;
@@ -1414,14 +1414,14 @@ constexpr auto operator*(const Disk<PointType, LabelType>& disk, const Scalar& s
 
 /// @brief Returns a copy of @p disk with every boundary point scaled by @p scalar.
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Disk<PointType, LabelType>& disk) {
     return disk * scalar;
 }
 
 /// @brief Returns a copy of @p disk with every boundary point divided by @p scalar.
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Disk<PointType, LabelType>& disk, const Scalar& scalar) {
     auto result = disk;
     result /= scalar;

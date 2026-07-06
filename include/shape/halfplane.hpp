@@ -1013,12 +1013,12 @@ struct Halfplane {
 
     /** @brief Scales the half-plane around the origin by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Halfplane& operator*=(const Scalar& scalar);
 
     /** @brief Divides the half-plane coordinates by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Halfplane& operator/=(const Scalar& scalar);
 
     /**
@@ -1045,15 +1045,15 @@ template <class PointType, class LabelType, class TranslationNumber, class Trans
 constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Halfplane<PointType, LabelType>& halfplane);
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Halfplane<PointType, LabelType>& halfplane, const Scalar& scalar);
 
 template <class PointType, class LabelType>

@@ -105,6 +105,17 @@ struct Disk;
 template <class PointType>
 struct Shape;
 
+/**
+ * @brief Affine transformation stored as a 2x3 matrix.
+ *
+ * Applied to a point or shape with `operator*`; composed with another
+ * transformation with `operator*` as well.
+ *
+ * @tparam Number Matrix entry / coordinate type.
+ */
+template <class Number>
+struct Transformation;
+
 /** @brief Lightweight SVG canvas for visualizing Pangolin primitives. */
 class Canvas;
 
@@ -211,6 +222,10 @@ template <class T> struct is_shape : std::false_type {};
 template <class PointType> struct is_shape<Shape<PointType>> : std::true_type {};
 template <class T> inline constexpr bool is_shape_v = is_shape<std::remove_cvref_t<T>>::value;
 
+template <class T> struct is_transformation : std::false_type {};
+template <class Number> struct is_transformation<Transformation<Number>> : std::true_type {};
+template <class T> inline constexpr bool is_transformation_v = is_transformation<std::remove_cvref_t<T>>::value;
+
 }  // namespace detail
 
 // Public per-shape concepts: each is satisfied by any specialization of that
@@ -230,5 +245,6 @@ template <class T> concept ConvexConcept = detail::is_convex_v<T>;
 template <class T> concept PolygonConcept = detail::is_polygon_v<T>;
 template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
+template <class T> concept TransformationConcept = detail::is_transformation_v<T>;
 
 }  // namespace pgl

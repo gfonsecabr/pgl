@@ -1203,7 +1203,7 @@ struct Line {
      * @return Reference to this line.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Line& operator*=(const Scalar& scalar);
 
     /**
@@ -1214,7 +1214,7 @@ struct Line {
      * @return Reference to this line.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Line& operator/=(const Scalar& scalar);
 
     /**
@@ -1297,7 +1297,7 @@ constexpr auto operator-(const Line<PointType, LabelType>& line, const Point<Tra
  * @return Scaled line.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& scalar);
 
 /**
@@ -1310,7 +1310,7 @@ constexpr auto operator*(const Line<PointType, LabelType>& line, const Scalar& s
  * @return Scaled line.
  */
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Line<PointType, LabelType>& line);
 
 /**
@@ -1323,7 +1323,7 @@ constexpr auto operator*(const Scalar& scalar, const Line<PointType, LabelType>&
  * @return Scaled line.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Line<PointType, LabelType>& line, const Scalar& scalar);
 
 /**

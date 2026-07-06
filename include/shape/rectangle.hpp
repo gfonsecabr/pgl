@@ -1636,7 +1636,7 @@ struct Rectangle {
      * @return Reference to this rectangle.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Rectangle& operator*=(const Scalar& scalar);
 
     /**
@@ -1650,7 +1650,7 @@ struct Rectangle {
      * @return Reference to this rectangle.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Rectangle& operator/=(const Scalar& scalar);
 
     template <bool Oriented>
@@ -1797,7 +1797,7 @@ constexpr auto operator-(const Rectangle<PointType, LabelType>& rectangle, const
  * @return Scaled rectangle.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar);
 
 /**
@@ -1811,7 +1811,7 @@ constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const
  * @return Scaled rectangle.
  */
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType, LabelType>& rectangle);
 
 /**
@@ -1825,7 +1825,7 @@ constexpr auto operator*(const Scalar& scalar, const Rectangle<PointType, LabelT
  * @return Scaled rectangle.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar);
 
 /**

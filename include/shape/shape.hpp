@@ -903,7 +903,7 @@ struct Shape {
      * @return This wrapper.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Shape& operator*=(const Scalar& scalar) {
         std::visit([&scalar](auto& alternative) { alternative *= scalar; }, value_);
         return *this;
@@ -920,7 +920,7 @@ struct Shape {
      * @return This wrapper.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Shape& operator/=(const Scalar& scalar) {
         std::visit([&scalar](auto& alternative) { alternative /= scalar; }, value_);
         return *this;
@@ -1330,7 +1330,7 @@ constexpr auto operator-(const Shape<PointType>& shape,
  * @return Scaled shape over the promoted point type.
  */
 template <class PointType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Shape<PointType>& shape, const Scalar& scalar) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() * scalar)>;
     return std::visit(
@@ -1342,7 +1342,7 @@ constexpr auto operator*(const Shape<PointType>& shape, const Scalar& scalar) {
 
 /** @copydoc operator*(const Shape<PointType>&, const Scalar&) */
 template <class Scalar, class PointType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Shape<PointType>& shape) {
     return shape * scalar;
 }
@@ -1359,7 +1359,7 @@ constexpr auto operator*(const Scalar& scalar, const Shape<PointType>& shape) {
  * @return Scaled shape over the promoted point type.
  */
 template <class PointType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Shape<PointType>& shape, const Scalar& scalar) {
     using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() / scalar)>;
     return std::visit(

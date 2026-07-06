@@ -78,6 +78,45 @@ pgl::Point p = s.midpoint();  // p = (3,4)
 pgl::Segment t = 3*(s-p) + p; // t = (0,1)--(6,7)
 ```
 
+### Transformations
+
+`pgl::Transformation<Number>` stores a general affine map — a 2x2 linear part
+plus a translation — as a 2x3 matrix. It is applied to a point or shape, and
+composed with another transformation, with the same operator `*`, so
+`t1 * t2 * shape` both composes and applies left to right (applying the
+right-hand transformation first).
+
+```c++
+pgl::Segment s = {0,0,5,5};
+auto t = pgl::Transformation<int>::rotation90(1) * pgl::Transformation<int>::translation(2,0);
+auto rotated = t * s;
+```
+
+Factories cover the common exact cases: `identity()`, `translation(dx,dy)`,
+`scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees),
+`shearX(k)`, `shearY(k)`, `reflectionX()`, `reflectionY()`. An arbitrary-angle
+`rotation<ResultNumber=double>(radians)` is also available but, unlike
+`rotation90`, requires an explicit floating-point `ResultNumber` since a
+general angle is generally irrational.
+
+`determinant()` is negative exactly when the transformation reverses
+orientation (a reflection, or an odd number of shears/reflections composed
+together). Shapes with a winding or normalization invariant (`Triangle`,
+`Convex`, `Polygon`) renormalize automatically through their own
+constructors, and `Halfplane` swaps its source and target to keep the same
+interior, mirroring the existing negative-scalar handling already used by
+`scaledUpX`.
+
+`inverse<ResultNumber = Number>()` returns the inverse transformation.
+**Warning:** this divides by `determinant()`, so for an integral `Number` it
+is inexact unless `ResultNumber` is a type such as `Rational<Number>` that
+represents the division exactly.
+
+`Transformation` is applied to every shape except `Rectangle` and `Disk`: a
+general affine map turns a rectangle into a parallelogram and a disk into an
+ellipse, and neither class can represent that, so there is no such overload —
+applying one is a compile error.
+
 ### Intersection
 
 The intersection of any two shapes may be calculated as follows. Note that the intersection of any two shapes is always an [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional.html) since the two shapes may not intersect. Since the intersection may have different types that depend on the two shapes, we sometimes use an

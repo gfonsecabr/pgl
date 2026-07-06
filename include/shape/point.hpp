@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/rational.hpp"
+#include "core/transformation.hpp"
 
 /**
  * @file point.hpp
@@ -1125,7 +1125,7 @@ template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel
  * @return Scaled point.
  */
 template <class Number, class Label, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 [[nodiscard]] constexpr auto operator*(const Point<Number, Label>& point, const Scalar& scalar);
 
 /**
@@ -1139,7 +1139,7 @@ template <class Number, class Label, class Scalar>
  * @return Scaled point.
  */
 template <class Scalar, class Number, class Label>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 [[nodiscard]] constexpr auto operator*(const Scalar& scalar, const Point<Number, Label>& point);
 
 /**
@@ -1167,7 +1167,7 @@ template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel
  * @return Scaled point.
  */
 template <class Number, class Label, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 [[nodiscard]] constexpr auto operator/(const Point<Number, Label>& point, const Scalar& scalar);
 
 /**

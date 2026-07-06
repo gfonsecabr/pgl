@@ -26,6 +26,7 @@
 #include "core/numeric.hpp"
 #include "core/bigint.hpp"
 #include "core/rational.hpp"
+#include "core/transformation.hpp"
 #include "shape/point.hpp"
 #include "shape/emptyshape.hpp"
 #include "implementation/orientation.hpp"

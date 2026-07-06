@@ -1451,12 +1451,12 @@ struct OrientedSegment {
 
     /** @brief Scales the oriented segment around the origin by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr OrientedSegment& operator*=(const Scalar& scalar);
 
     /** @brief Divides the oriented segment coordinates by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr OrientedSegment& operator/=(const Scalar& scalar);
 
   public:
@@ -1517,7 +1517,7 @@ constexpr auto operator-(const OrientedSegment<PointType, LabelType>& segment, c
  * @return Scaled oriented segment.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**
@@ -1531,7 +1531,7 @@ constexpr auto operator*(const OrientedSegment<PointType, LabelType>& segment, c
  * @return Scaled oriented segment.
  */
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType, LabelType>& segment);
 
 /**
@@ -1545,7 +1545,7 @@ constexpr auto operator*(const Scalar& scalar, const OrientedSegment<PointType, 
  * @return Scaled oriented segment.
  */
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const OrientedSegment<PointType, LabelType>& segment, const Scalar& scalar);
 
 /**

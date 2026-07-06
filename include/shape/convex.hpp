@@ -2298,7 +2298,7 @@ struct Convex {
      * @return A reference to the modified polygon.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Convex& operator*=(const Scalar& scalar);
 
     /**
@@ -2311,7 +2311,7 @@ struct Convex {
      * @return A reference to the modified polygon.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr Convex& operator/=(const Scalar& scalar);
 
     /**
@@ -2511,7 +2511,7 @@ constexpr auto operator-(const Convex<PointType, LabelType>& convex, const Point
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Convex<PointType, LabelType>& convex, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() * scalar), typename PointType::LabelType>;
     Convex<ResultPointType, LabelType> result(convex);
@@ -2523,13 +2523,13 @@ constexpr auto operator*(const Convex<PointType, LabelType>& convex, const Scala
 }
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const Convex<PointType, LabelType>& convex) {
     return convex * scalar;
 }
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const Convex<PointType, LabelType>& convex, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() / scalar), typename PointType::LabelType>;
     Convex<ResultPointType, LabelType> result(convex);

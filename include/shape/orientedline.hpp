@@ -1178,12 +1178,12 @@ struct OrientedLine {
 
     /** @brief Scales the oriented line around the origin by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr OrientedLine& operator*=(const Scalar& scalar);
 
     /** @brief Divides the oriented line coordinates by a scalar in place. */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
     constexpr OrientedLine& operator/=(const Scalar& scalar);
 
     /**
@@ -1214,15 +1214,15 @@ template <class PointType, class LabelType, class TranslationNumber, class Trans
 constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
 template <class Scalar, class PointType, class LabelType>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator*(const Scalar& scalar, const OrientedLine<PointType, LabelType>& line);
 
 template <class PointType, class LabelType, class Scalar>
-    requires(!detail::is_point_v<Scalar>)
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
 constexpr auto operator/(const OrientedLine<PointType, LabelType>& line, const Scalar& scalar);
 
 template <class PointType, class LabelType>
