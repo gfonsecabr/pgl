@@ -67,6 +67,48 @@ template <class ResultNumber, class Q, class Other>
     }
 }
 
+// Same fallback dance as nearestSquaredDistance, for the L1 (Manhattan) metric.
+template <class ResultNumber, class Q, class Other>
+[[nodiscard]] ResultNumber nearestDistanceL1(const Q& q, const Other& other) {
+    if constexpr (requires { q.template distanceL1<ResultNumber>(other); }) {
+        return q.template distanceL1<ResultNumber>(other);
+    } else {
+        return static_cast<ResultNumber>(q.distanceL1(other));
+    }
+}
+
+// Same fallback dance as nearestSquaredDistance, for the LInf (Chebyshev) metric.
+template <class ResultNumber, class Q, class Other>
+[[nodiscard]] ResultNumber nearestDistanceLInf(const Q& q, const Other& other) {
+    if constexpr (requires { q.template distanceLInf<ResultNumber>(other); }) {
+        return q.template distanceLInf<ResultNumber>(other);
+    } else {
+        return static_cast<ResultNumber>(q.distanceLInf(other));
+    }
+}
+
+// Metric tags selecting which detail::nearest*Distance is used by Node::nearest,
+// so the branch-and-bound traversal is written once and shared by squared-L2,
+// L1 and LInf nearest-neighbor queries.
+struct SquaredMetric {
+    template <class ResultNumber, class Q, class Other>
+    [[nodiscard]] static ResultNumber distance(const Q& q, const Other& other) {
+        return nearestSquaredDistance<ResultNumber>(q, other);
+    }
+};
+struct L1Metric {
+    template <class ResultNumber, class Q, class Other>
+    [[nodiscard]] static ResultNumber distance(const Q& q, const Other& other) {
+        return nearestDistanceL1<ResultNumber>(q, other);
+    }
+};
+struct LInfMetric {
+    template <class ResultNumber, class Q, class Other>
+    [[nodiscard]] static ResultNumber distance(const Q& q, const Other& other) {
+        return nearestDistanceLInf<ResultNumber>(q, other);
+    }
+};
+
 }  // namespace detail
 
 /**
@@ -396,23 +438,25 @@ class ShapeTree {
 
         // --- nearest neighbor: branch-and-bound on squared distance ---
 
-        // Refines (bestDist, bestIndex) with the closest element in this subtree.
-        // The subtree box gives a lower bound on the distance from q to anything
-        // it stores, so a subtree whose box is no nearer than the current best is
-        // pruned entirely. Children are descended nearest-box-first so the bound
+        // Refines (bestDist, bestIndex) with the closest element in this subtree,
+        // under the distance metric selected by `Metric` (squared-L2, L1 or LInf;
+        // see detail::SquaredMetric / L1Metric / LInfMetric). The subtree box
+        // gives a lower bound on the distance from q to anything it stores, so a
+        // subtree whose box is no nearer than the current best is pruned
+        // entirely. Children are descended nearest-box-first so the bound
         // tightens before the farther child is considered.
-        template <class ResultNumber, class Q>
+        template <class ResultNumber, class Metric, class Q>
         void nearest(const ShapeTree& tree, const Q& q, ResultNumber& bestDist,
                      std::ptrdiff_t& bestIndex) const {
             if (bestIndex != -1) {
-                const ResultNumber lowerBound = detail::nearestSquaredDistance<ResultNumber>(q, box);
+                const ResultNumber lowerBound = Metric::template distance<ResultNumber>(q, box);
                 if (!(lowerBound < bestDist)) {
                     return;  // Nothing here can beat the current best.
                 }
             }
 
             for (std::size_t i : elementIndices) {
-                const ResultNumber d = detail::nearestSquaredDistance<ResultNumber>(q, tree.elements_[i]);
+                const ResultNumber d = Metric::template distance<ResultNumber>(q, tree.elements_[i]);
                 if (bestIndex == -1 || d < bestDist) {
                     bestDist = d;
                     bestIndex = static_cast<std::ptrdiff_t>(i);
@@ -424,21 +468,21 @@ class ShapeTree {
 
             if (left == -1) {
                 if (right != -1) {
-                    tree.nodes_[right].nearest(tree, q, bestDist, bestIndex);
+                    tree.nodes_[right].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
                 }
                 return;
             }
             if (right == -1) {
-                tree.nodes_[left].nearest(tree, q, bestDist, bestIndex);
+                tree.nodes_[left].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
                 return;
             }
 
-            const ResultNumber leftBound = detail::nearestSquaredDistance<ResultNumber>(q, tree.nodes_[left].box);
-            const ResultNumber rightBound = detail::nearestSquaredDistance<ResultNumber>(q, tree.nodes_[right].box);
+            const ResultNumber leftBound = Metric::template distance<ResultNumber>(q, tree.nodes_[left].box);
+            const ResultNumber rightBound = Metric::template distance<ResultNumber>(q, tree.nodes_[right].box);
             const std::ptrdiff_t nearChild = leftBound <= rightBound ? left : right;
             const std::ptrdiff_t farChild = leftBound <= rightBound ? right : left;
-            tree.nodes_[nearChild].nearest(tree, q, bestDist, bestIndex);
-            tree.nodes_[farChild].nearest(tree, q, bestDist, bestIndex);
+            tree.nodes_[nearChild].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
+            tree.nodes_[farChild].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
         }
     };
 
@@ -861,6 +905,21 @@ class ShapeTree {
         }
     }
 
+    // Shared implementation behind nearestNeighbor/nearestNeighborL1/
+    // nearestNeighborLInf: runs the branch-and-bound traversal under `Metric`
+    // and returns the winning element (or a default-constructed one when empty).
+    template <class Metric, class ResultNumber, class Q>
+    [[nodiscard]] const ShapeType& nearestNeighborByMetric(const Q& q) const {
+        if (root_ == -1) {
+            static const ShapeType empty{};
+            return empty;
+        }
+        ResultNumber bestDist{};
+        std::ptrdiff_t bestIndex = -1;
+        nodes_[root_].template nearest<ResultNumber, Metric>(*this, q, bestDist, bestIndex);
+        return elements_[static_cast<std::size_t>(bestIndex)];
+    }
+
     // Discards the current node structure and rebuilds it from elements_.
     void buildFromElements() {
         nodes_.clear();
@@ -1267,14 +1326,49 @@ class ShapeTree {
      */
     template <class ResultNumber = NumberType, class Q>
     [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
-        if (root_ == -1) {
-            static const ShapeType empty{};
-            return empty;
-        }
-        ResultNumber bestDist{};
-        std::ptrdiff_t bestIndex = -1;
-        nodes_[root_].template nearest<ResultNumber>(*this, q, bestDist, bestIndex);
-        return elements_[static_cast<std::size_t>(bestIndex)];
+        return nearestNeighborByMetric<detail::SquaredMetric, ResultNumber>(q);
+    }
+
+    /**
+     * @brief Returns the stored shape nearest to a query shape under the L1
+     *        (Manhattan) metric.
+     *
+     * Same branch-and-bound traversal as @ref nearestNeighbor, but minimizes
+     * `distanceL1` instead of `squaredDistance`.
+     *
+     * @pre The tree is non-empty. A reference to a default-constructed
+     *      @ref ShapeType is returned otherwise.
+     *
+     * @tparam ResultNumber Coordinate type of the distance (default:
+     *         @ref NumberType).
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return The stored shape nearest to `q` under the L1 metric.
+     */
+    template <class ResultNumber = NumberType, class Q>
+    [[nodiscard]] const ShapeType& nearestNeighborL1(const Q& q) const {
+        return nearestNeighborByMetric<detail::L1Metric, ResultNumber>(q);
+    }
+
+    /**
+     * @brief Returns the stored shape nearest to a query shape under the LInf
+     *        (Chebyshev) metric.
+     *
+     * Same branch-and-bound traversal as @ref nearestNeighbor, but minimizes
+     * `distanceLInf` instead of `squaredDistance`.
+     *
+     * @pre The tree is non-empty. A reference to a default-constructed
+     *      @ref ShapeType is returned otherwise.
+     *
+     * @tparam ResultNumber Coordinate type of the distance (default:
+     *         @ref NumberType).
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @return The stored shape nearest to `q` under the LInf metric.
+     */
+    template <class ResultNumber = NumberType, class Q>
+    [[nodiscard]] const ShapeType& nearestNeighborLInf(const Q& q) const {
+        return nearestNeighborByMetric<detail::LInfMetric, ResultNumber>(q);
     }
 
     /**

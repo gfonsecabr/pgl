@@ -89,6 +89,53 @@ ResultNumber bruteNearestDistance(const std::vector<S>& v, const Q& q) {
     return best;
 }
 
+// Point-Point distanceL1/distanceLInf take no ResultNumber template of their
+// own (integer L1/LInf is always exact), unlike every other shape pair, so a
+// generic caller must probe for the templated overload before falling back.
+template <class ResultNumber, class Q, class Other>
+ResultNumber testDistanceL1(const Q& q, const Other& other) {
+    if constexpr (requires { q.template distanceL1<ResultNumber>(other); }) {
+        return q.template distanceL1<ResultNumber>(other);
+    } else {
+        return static_cast<ResultNumber>(q.distanceL1(other));
+    }
+}
+
+template <class ResultNumber, class Q, class Other>
+ResultNumber testDistanceLInf(const Q& q, const Other& other) {
+    if constexpr (requires { q.template distanceLInf<ResultNumber>(other); }) {
+        return q.template distanceLInf<ResultNumber>(other);
+    } else {
+        return static_cast<ResultNumber>(q.distanceLInf(other));
+    }
+}
+
+// Same as bruteNearestDistance, but under the L1 (Manhattan) metric.
+template <class ResultNumber, class S, class Q>
+ResultNumber bruteNearestDistanceL1(const std::vector<S>& v, const Q& q) {
+    ResultNumber best = testDistanceL1<ResultNumber>(q, v[0]);
+    for (std::size_t i = 1; i < v.size(); ++i) {
+        const ResultNumber d = testDistanceL1<ResultNumber>(q, v[i]);
+        if (d < best) {
+            best = d;
+        }
+    }
+    return best;
+}
+
+// Same as bruteNearestDistance, but under the LInf (Chebyshev) metric.
+template <class ResultNumber, class S, class Q>
+ResultNumber bruteNearestDistanceLInf(const std::vector<S>& v, const Q& q) {
+    ResultNumber best = testDistanceLInf<ResultNumber>(q, v[0]);
+    for (std::size_t i = 1; i < v.size(); ++i) {
+        const ResultNumber d = testDistanceLInf<ResultNumber>(q, v[i]);
+        if (d < best) {
+            best = d;
+        }
+    }
+    return best;
+}
+
 // A spread of query rectangles: tiny, medium, large, all-covering, far-away.
 std::vector<Rect> queryWindows() {
     std::vector<Rect> w;
@@ -344,6 +391,78 @@ TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
         const Triangle found = tree.nearestNeighbor<Rational>(q);
         const Rational expected = bruteNearestDistance<Rational>(tris, q);
         CHECK(q.squaredDistance<Rational>(found) == expected);
+    }
+}
+
+TEST_CASE("ShapeTree empty tree returns a default-constructed L1/LInf nearest neighbor") {
+    pgl::ShapeTree<Point> tree{std::vector<Point>{}};
+    CHECK(tree.nearestNeighborL1(Point(0, 0)) == Point{});
+    CHECK(tree.nearestNeighborLInf(Point(0, 0)) == Point{});
+}
+
+TEST_CASE("ShapeTree nearestNeighborL1 on points matches brute force") {
+    const std::vector<Point> points = makePoints(300, 17);
+
+    Rng rng{0xabcd};
+    std::vector<Point> queries;
+    for (int i = 0; i < 80; ++i) {
+        queries.emplace_back(rng.range(-200, 1200), rng.range(-200, 1200));
+    }
+
+    for (const std::size_t leafSize : {std::size_t{1}, std::size_t{4}, std::size_t{16}}) {
+        const pgl::ShapeTree<Point> tree(points, leafSize);
+        for (const Point& q : queries) {
+            const Point found = tree.nearestNeighborL1(q);
+            const int64_t expected = bruteNearestDistanceL1<int64_t>(points, q);
+            CHECK(testDistanceL1<int64_t>(q, found) == expected);
+        }
+    }
+}
+
+TEST_CASE("ShapeTree nearestNeighborLInf on points matches brute force") {
+    const std::vector<Point> points = makePoints(300, 17);
+
+    Rng rng{0xabcd};
+    std::vector<Point> queries;
+    for (int i = 0; i < 80; ++i) {
+        queries.emplace_back(rng.range(-200, 1200), rng.range(-200, 1200));
+    }
+
+    for (const std::size_t leafSize : {std::size_t{1}, std::size_t{4}, std::size_t{16}}) {
+        const pgl::ShapeTree<Point> tree(points, leafSize);
+        for (const Point& q : queries) {
+            const Point found = tree.nearestNeighborLInf(q);
+            const int64_t expected = bruteNearestDistanceLInf<int64_t>(points, q);
+            CHECK(testDistanceLInf<int64_t>(q, found) == expected);
+        }
+    }
+}
+
+TEST_CASE("ShapeTree nearestNeighborL1 on triangles matches brute force") {
+    using Rational = pgl::Rational<int64_t>;
+    const std::vector<Triangle> tris = makeTriangles(200, 19);
+    const pgl::ShapeTree<Triangle> tree(tris, 4);
+
+    Rng rng{0x1234};
+    for (int i = 0; i < 60; ++i) {
+        const Point q(rng.range(-200, 1200), rng.range(-200, 1200));
+        const Triangle found = tree.nearestNeighborL1<Rational>(q);
+        const Rational expected = bruteNearestDistanceL1<Rational>(tris, q);
+        CHECK(q.distanceL1<Rational>(found) == expected);
+    }
+}
+
+TEST_CASE("ShapeTree nearestNeighborLInf on triangles matches brute force") {
+    using Rational = pgl::Rational<int64_t>;
+    const std::vector<Triangle> tris = makeTriangles(200, 19);
+    const pgl::ShapeTree<Triangle> tree(tris, 4);
+
+    Rng rng{0x1234};
+    for (int i = 0; i < 60; ++i) {
+        const Point q(rng.range(-200, 1200), rng.range(-200, 1200));
+        const Triangle found = tree.nearestNeighborLInf<Rational>(q);
+        const Rational expected = bruteNearestDistanceLInf<Rational>(tris, q);
+        CHECK(q.distanceLInf<Rational>(found) == expected);
     }
 }
 
