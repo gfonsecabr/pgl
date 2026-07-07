@@ -1062,4 +1062,131 @@ constexpr auto Convex<PointType_, LabelType>::hausdorffDistanceLInf(const OtherC
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
 }
 
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto Polygon<PointType_, TLabel>::distanceLInf(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+// -----------------------------------------------------------------------------
+// MonotoneChain
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber MonotoneChain<PointType, LabelType>::edgeMinDistanceLInf(const OtherShape& other) const {
+    assert(size() >= 2);
+    ResultNumber best = this->template boundaryAt<false>(0).template distanceLInf<ResultNumber>(other);
+    for (std::size_t index = 1; index + 1 < size(); ++index) {
+        const ResultNumber current =
+            this->template boundaryAt<false>(index).template distanceLInf<ResultNumber>(other);
+        if (current < best) {
+            best = current;
+        }
+    }
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto MonotoneChain<PointType, LabelType>::distanceLInf(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
 }  // namespace pgl

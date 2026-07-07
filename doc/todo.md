@@ -19,44 +19,24 @@
 ## Shapes Not Yet Implemented
 
 - [`Polyline`](#polyline) Polyline, also called a polygonal chain, possibly having self-intersections.
-- [`PolyFunction`](#monotone-polyline) An x-monotone polyline.
+
+The x-monotone polyline (formerly sketched here as `PolyFunction`) is implemented as [`MonotoneChain`](shapes.md#monotone-chain).
 
 
 ### Polyline
 
-The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance.
+The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance, to be built on the implemented [`MonotoneChain`](shapes.md#monotone-chain).
 
 A polyline `P` has methods such as:
 
 - `P.isDegenerate()`: Returns true if all vertices are equal.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 
-
-### Monotone Polyline
-
-The class `PolyFunction` represents an x-monotone polyline, more precisely a polyline such that if vertex $u$ is before vertex $v$, then $u$ compares inferior to $v$. A polyline may be constructed from any container of points, which will be sorted automatically. If the points are already sorted, then a second parameter true can be given to avoid sorting the points again.
-
-We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A polyline `P` has methods such as:
-
-- `P.isDegenerate()`: Returns true if all vertices are equal.
-- `P.insert(P2)`: Extends the polyfunction in order to contain another point `P2` as a vertex.
-- `P.insert(points)`: Extends the polyfunction in order to contain other given vertices.
-- `s.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x`.  Takes $O(\log n)$ time for $n$ vertices.
-- `s.indexAtX(x)`: Returns an `std::optional<size_t>` that is true if the polyline contains a point of x-coordinate equal to x. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices. 
-- `P.isBelow(p)`: Returns an `std::optional<size_t>` that is true if a ray shot down from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
-- `P.isAbove(p)`: Returns an `std::optional<size_t>` that is true if a ray shot up from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
-
-If the polyfunction `P` has $n$ vertices, then:
-
-- `P.contains(s)` takes $O(\log n)$ time if `s` is a point or a segment.
-- `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a polyfunction with $m$ vertices.
-- `P.intersection(P2)` takes $O(n+m)$ time if `P2` is another polyfunction with $m$ vertices and returns an `std::vector`of points.
-
 ## Partially Implemented Features
 
 ### L1 / LInf distance to and from Disk
 
-`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, and Polygon, plus [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")-to-[`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."). The remaining [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") pairs ([`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") vs. [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.")/[`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.")/[`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line.")/[`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html "Directed infinite line with left/right side semantics plus optional line label.")/[`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label.")/[`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.")/[`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.")/[`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")/[`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.")/[`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), and [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")-[`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
+`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, MonotoneChain, and Polygon, plus [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")-to-[`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."). The remaining [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") pairs ([`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") vs. [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.")/[`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.")/[`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line.")/[`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html "Directed infinite line with left/right side semantics plus optional line label.")/[`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label.")/[`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.")/[`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.")/[`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")/[`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.")/[`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), and [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")-[`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
 
 ## Data Structures Not Yet Implemented
 

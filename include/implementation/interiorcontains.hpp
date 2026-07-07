@@ -1204,4 +1204,208 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk& 
     return true;
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Weakly x-monotone chain predicates: the relative interior of a chain is the
+ * chain minus its two extreme vertices, matching the convention of Segment.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
+    return !boundaryContains(point) && contains(point);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
+    // Containment already puts every point of the segment on the chain; the
+    // extreme chain vertices have degree one, so a contained segment avoids
+    // the chain's boundary iff its endpoints do.
+    return contains(other) && !boundaryContains(other.min()) && !boundaryContains(other.max());
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
+    return interiorContains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherLine& other) const {
+    return other.isDegenerate() && interiorContains(other.min());
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherRay& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return interiorContains(other.a());
+    }
+    return interiorContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    // A contained chain is a connected subset of this chain, so it can only
+    // reach this chain's extreme vertices through its own extremes.
+    return contains(other) && !boundaryContains(other[0]) &&
+           !boundaryContains(other[other.size() - 1]);
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorContains(value);
+        },
+        other.variant());
+}
+
+template <class Number, class Label>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Point<Number, Label>::interiorContains(const OtherChain& other) const {
+    return contains(other);
+}
+
+// The interiors below are convex sets, so they contain the chain iff they
+// contain all of its vertices.
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return asSegment().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return asLine().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return asConvex().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return asConvex().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    if (size() <= 2) {
+        return false;
+    }
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A polygon's interior is generally not convex, so it must interior-contain
+// every chain edge.
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return interiorContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!interiorContains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

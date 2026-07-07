@@ -66,6 +66,9 @@ template <class PointType, class Label>
 struct is_shape_alternative<PointType, Disk<PointType, Label>> : std::true_type {};
 
 template <class PointType>
+struct is_shape_alternative<PointType, MonotoneChain<PointType>> : std::true_type {};
+
+template <class PointType>
 struct is_shape_alternative<PointType, Polygon<PointType>> : std::true_type {};
 
 template <class PointType, class T>
@@ -164,6 +167,7 @@ struct Shape {
         Triangle<PointType>,
         Disk<PointType>,
         Convex<PointType>,
+        MonotoneChain<PointType>,
         Polygon<PointType>>;
 
     /**

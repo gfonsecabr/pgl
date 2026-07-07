@@ -2416,4 +2416,260 @@ Disk<PointType, LabelType>::intersection(const OtherPoint& other) const {
     return {};
 }
 
+// ---------------------------------------------------------------------------
+// MonotoneChain
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherChain& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment>;
+
+    std::vector<Piece> pieces;
+    if (empty() || other.empty()) {
+        return pieces;
+    }
+    if (size() == 1) {
+        if (other.contains((*this)[0])) {
+            pieces.emplace_back(ResultPoint((*this)[0]));
+        }
+        return pieces;
+    }
+    if (other.size() == 1) {
+        if (contains(other[0])) {
+            pieces.emplace_back(ResultPoint(other[0]));
+        }
+        return pieces;
+    }
+
+    // Merge sweep, mirroring intersects(): every edge pair with overlapping
+    // x-ranges delegates to the segment-segment intersection. Pairs skipped by
+    // a tied advance could only contribute the shared right endpoint, which
+    // the pair tested at the tie already reports.
+    std::size_t i = 0;
+    std::size_t j = 0;
+    const std::size_t iEnd = size() - 1;
+    const std::size_t jEnd = other.size() - 1;
+    while (i < iEnd && j < jEnd) {
+        const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
+        const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
+        if (!(mine.max().x() < theirs.min().x() || theirs.max().x() < mine.min().x())) {
+            if (auto piece = mine.template intersection<ResultNumber>(theirs)) {
+                pieces.push_back(std::move(*piece));
+            }
+        }
+        const auto order = mine.max() <=> theirs.max();
+        if (order <= 0) {
+            ++i;
+        }
+        if (order >= 0) {
+            ++j;
+        }
+    }
+
+    return coalescePieces<ResultNumber>(std::move(pieces));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::coalescePieces(
+    std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                             Segment<Point<ResultNumber, typename PointType::LabelType>>>> pieces) {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment>;
+
+    // The fold can report the same touch point through several edge pairs and
+    // splits a long collinear overlap at every vertex it crosses; sort the
+    // pieces by their lexicographic minimum (segments before points, so a
+    // following point is absorbed by the segment sharing its position), then
+    // coalesce in one pass.
+    std::sort(pieces.begin(), pieces.end(), [](const Piece& lhs, const Piece& rhs) {
+        const auto pieceMin = [](const Piece& piece) -> ResultPoint {
+            if (const auto* point = std::get_if<ResultPoint>(&piece)) {
+                return *point;
+            }
+            return std::get<ResultSegment>(piece).min();
+        };
+        const ResultPoint leftMin = pieceMin(lhs);
+        const ResultPoint rightMin = pieceMin(rhs);
+        if (leftMin != rightMin) {
+            return leftMin < rightMin;
+        }
+        const bool leftIsPoint = std::holds_alternative<ResultPoint>(lhs);
+        const bool rightIsPoint = std::holds_alternative<ResultPoint>(rhs);
+        if (leftIsPoint != rightIsPoint) {
+            return !leftIsPoint;
+        }
+        if (leftIsPoint) {
+            return false;
+        }
+        return std::get<ResultSegment>(lhs).max() < std::get<ResultSegment>(rhs).max();
+    });
+
+    std::vector<Piece> result;
+    for (const Piece& piece : pieces) {
+        if (const auto* point = std::get_if<ResultPoint>(&piece)) {
+            if (!result.empty()) {
+                // Sorting guarantees any piece that can cover this point has
+                // already been placed, and (both pieces lying on this chain's
+                // monotone arc) the covering piece is then the previous one.
+                const Piece& last = result.back();
+                if (const auto* lastPoint = std::get_if<ResultPoint>(&last)) {
+                    if (*lastPoint == *point) {
+                        continue;
+                    }
+                } else if (std::get<ResultSegment>(last).contains(*point)) {
+                    continue;
+                }
+            }
+            result.push_back(piece);
+            continue;
+        }
+        const auto& segment = std::get<ResultSegment>(piece);
+        if (!result.empty()) {
+            if (auto* lastSegment = std::get_if<ResultSegment>(&result.back());
+                lastSegment != nullptr && !(segment.min() < lastSegment->min()) &&
+                !(lastSegment->max() < segment.min()) &&
+                collinear(lastSegment->min(), lastSegment->max(), segment.min()) &&
+                collinear(lastSegment->min(), lastSegment->max(), segment.max())) {
+                // Collinear continuation (chains overlapping across a shared
+                // vertex without a bend): extend instead of splitting.
+                if (lastSegment->max() < segment.max()) {
+                    *lastSegment = ResultSegment(lastSegment->min(), segment.max());
+                }
+                continue;
+            }
+        }
+        result.push_back(piece);
+    }
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::edgeFoldIntersection(const OtherShape& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment>;
+
+    std::vector<Piece> pieces;
+    if (empty()) {
+        return pieces;
+    }
+    if (size() == 1) {
+        if (other.contains((*this)[0])) {
+            pieces.emplace_back(ResultPoint((*this)[0]));
+        }
+        return pieces;
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        const auto piece =
+            this->template boundaryAt<false>(i).template intersection<ResultNumber>(other);
+        if (piece) {
+            // Re-wrap in this chain's result types: the delegated intersection
+            // labels its points with the other shape's label type.
+            pieces.push_back(std::visit(
+                [](const auto& value) -> Piece {
+                    if constexpr (detail::is_point_v<std::remove_cvref_t<decltype(value)>>) {
+                        return Piece(ResultPoint(value));
+                    } else {
+                        return Piece(ResultSegment(value));
+                    }
+                },
+                *piece));
+        }
+    }
+    return coalescePieces<ResultNumber>(std::move(pieces));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherSegment& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherLine& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherRay& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherRectangle& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherTriangle& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+MonotoneChain<PointType, LabelType>::intersection(const OtherConvex& other) const {
+    return this->template edgeFoldIntersection<ResultNumber>(other);
+}
+
 }  // namespace pgl

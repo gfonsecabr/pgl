@@ -28,6 +28,7 @@ The following shapes are supported by Pangolin:
 - [`Line`](#line) Infinite straight line.
 - [`OrientedLine`](#oriented-line) Infinite oriented straight line.
 - [`Ray`](#ray) Half-line.
+- [`MonotoneChain`](#monotone-chain) Weakly x-monotone polyline.
 
 ##### 2-dimensional shapes:
 - [`Halfplane`](#half-plane) A straight line and all points on one side of it.
@@ -70,7 +71,7 @@ if (r.intersects(s))
 All shapes contain their boundaries (that is, they are closed in the topological sense). The boundary of a shape is the *manifold boundary*, that is:
 
 - A point has no boundary.
-- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary. 
+- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary.
 - The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
 
 
@@ -104,7 +105,7 @@ A point has methods:
 
 ### Segment
 
-The `Segment` class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order. 
+The `Segment` class template defines an unoriented straight line segment. The segment always stores the endpoints in increasing order.
 
 ```C++
 pgl::Segment s(1,2,3,4), t(3,4,1,2);
@@ -208,7 +209,7 @@ Represents the empty set. Its `size()` is 0, it intersects nothing, and it is co
 
 ### Line
 
-The class template `Line` represents an infinite unoriented straight line. A line is stored as any two points it contains, but two lines defined by two distinct collinear points always compare equal. The two points are stored in increasing order. 
+The class template `Line` represents an infinite unoriented straight line. A line is stored as any two points it contains, but two lines defined by two distinct collinear points always compare equal. The two points are stored in increasing order.
 
 ```C++
 pgl::Line l1(1,2,3,4), l2(2,3,1,2);
@@ -244,10 +245,10 @@ The class template `OrientedLine` represents an infinite oriented straight line.
 pgl::OrientedLine l1(1,2,3,4), l2(2,3,1,2);
 if (l1 != l2)
     std::cout << l1 << " != " << l2;
-l2 = l2.opposite();    
+l2 = l2.opposite();
 if (l1 == l2)
     std::cout << l1 << " == " << l2;
-// Output: -(1,2)--(3,4)-> != -(2,3)--(1,2)-> 
+// Output: -(1,2)--(3,4)-> != -(2,3)--(1,2)->
 //         -(1,2)--(3,4)-> == -(1,2)--(2,3)->
 ```
 
@@ -283,10 +284,10 @@ The class template `Ray` represents a half-line. A ray is stored as its source e
 pgl::Ray l1(1,2,3,4), l2(2,3,1,2);
 if (l1 != l2)
     std::cout << l1 << " != " << l2;
-l2 = l2.opposite();    
+l2 = l2.opposite();
 if (l1 == l2)
     std::cout << l1 << " == " << l2;
-// Output: (1,2)--(3,4)-> != (2,3)--(1,2)-> 
+// Output: (1,2)--(3,4)-> != (2,3)--(1,2)->
 //         (1,2)--(3,4)-> == (1,2)--(2,3)->
 ```
 
@@ -323,9 +324,9 @@ The class template `Halfplane` is stored as an oriented line, but represents a c
 pgl::Halfplane h1(1,2,3,4), h2(2,3,1,2);
 if (h1 != h2)
     std::cout << h1 << " != " << h2;
-// Output: ^-(1,2)--(3,4)-^ != ^-(2,3)--(1,2)-^ 
+// Output: ^-(1,2)--(3,4)-^ != ^-(2,3)--(1,2)-^
 
-h2 = h2.opposite();    
+h2 = h2.opposite();
 if (h1 == h2)
     std::cout << h1 << " == " << h2;
 // Output: ^-(1,2)--(3,4)-^ == ^-(1,2)--(2,3)-^
@@ -438,6 +439,31 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.diameter()`: As always returns a diameter `Segment`, but for disks the segment is always horizontal.
 
 - Other methods:
+
+
+### Monotone Chain
+
+The class template `MonotoneChain` represents an x-monotone polyline: a polyline whose vertices are strictly increasing in the lexicographic order (smaller x first, breaking ties by smaller y). A chain with $n$ vertices has $n-1$ edges and no closing edge, so it is an open curve and is automatically simple. Its boundary is its two extreme vertices and its interior is everything else.
+
+A chain may be constructed from any container of points, which will be sorted automatically and duplicates removed. The input is treated as a point set, not as a pre-linked chain, so any permutation of the same points yields the same chain. If the points are already sorted and unique, a second parameter true can be given to avoid sorting the points again.
+
+We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A chain `P` with $n$ vertices has methods such as:
+
+- `P.isDegenerate()`: Returns true if the chain has fewer than two vertices, and hence no edge.
+- `P.isStrictlyMonotone()`: Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
+- `P.insert(p)`: Extends the chain in order to contain another point `p` as a vertex.
+- `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
+- `P.indexAtX(x)`: Returns an `std::optional<size_t>` that is engaged if the chain contains a point of x-coordinate `x`. The returned value is the smallest index `i` such that `P[i].x() == x`, or the unique `i` with `P[i].x() < x < P[i+1].x()`. Takes $O(\log n)$ time.
+- `P.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. **Warning:** interpolation divides, so request a floating-point or `Rational` result type for an accurate value.
+- `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
+- `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
+- `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
+
+The monotone structure speeds up several predicates and constructions:
+
+- `P.contains(s)` takes $O(\log n)$ time if `s` is a point, and $O(\log n + k)$ if `s` is a segment whose x-range spans $k$ vertices (a chain contains a segment exactly when the segment is a straight sub-path of the chain).
+- `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
+- `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
 
 
 ### Polygon

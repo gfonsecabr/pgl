@@ -150,6 +150,56 @@ constexpr bool segmentIntersectsRectangleInteriorExact(const RectangleType& rect
     return distinct_boundary_contacts >= 2;
 }
 
+/**
+ * @brief Tests whether removing a convex shape disconnects a monotone chain.
+ *
+ * The chain is an arc, so removing `remover ∩ chain` disconnects it exactly
+ * when some connected component of that intersection avoids both extreme
+ * vertices. Because the remover is convex, its intersection with each chain
+ * edge is connected, and consecutive edge pieces belong to one component iff
+ * the shared vertex lies in the remover — so one pass over the edges tracks
+ * the components exactly, division-free.
+ *
+ * @pre `remover` is a convex point set (every currently supported shape except
+ *      Polygon and MonotoneChain).
+ */
+template <class Remover, MonotoneChainConcept Chain>
+constexpr bool separatesChain(const Remover& remover, const Chain& chain) {
+    const std::size_t n = chain.size();
+    if (n < 2) {
+        // Removing anything from at most one point cannot disconnect it.
+        return false;
+    }
+    bool active = false;     // a component is in progress
+    bool touched = false;    // ... and it touches an extreme vertex
+    for (std::size_t i = 0; i + 1 < n; ++i) {
+        const Segment<typename Chain::PointType> edge(chain[i], chain[i + 1]);
+        if (edge.intersects(remover)) {
+            const bool connected = active && remover.contains(chain[i]);
+            if (!connected) {
+                if (active && !touched) {
+                    return true;
+                }
+                touched = false;
+            }
+            active = true;
+            if (i == 0 && remover.contains(chain[0])) {
+                touched = true;
+            }
+            if (i + 2 == n && remover.contains(chain[n - 1])) {
+                touched = true;
+            }
+        } else {
+            if (active && !touched) {
+                return true;
+            }
+            active = false;
+            touched = false;
+        }
+    }
+    return active && !touched;
+}
+
 }  // namespace detail
 
 }  // namespace pgl

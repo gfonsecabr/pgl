@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <stdexcept>
 #include <set>
 #include <limits>
 #include <type_traits>
@@ -2195,6 +2196,402 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon& othe
             }
         }
     }
+    return false;
+}
+
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Cut predicates involving a weakly x-monotone chain. The chain is an arc, so
+ * whether a removal disconnects it reduces to a component walk over its edges
+ * (see detail::separatesChain); the chain disconnecting a one-dimensional
+ * shape is the dual walk, and the chain disconnecting a two-dimensional
+ * region is the crosscut scan of separatesTwoDimensional. The
+ * chain-removing-chain and polygon-removing-chain cases both reduce to the
+ * same arc-cut criterion, since a chain's arc order is its lexicographic
+ * vertex order: some ordered a < b < c on the chain has b covered by the
+ * remover and a, c uncovered.
+ */
+
+template <class PointType, class LabelType>
+template <class OtherShape, class TouchesBoundary>
+constexpr bool MonotoneChain<PointType, LabelType>::separatesOneDimensional(
+    const OtherShape& other, TouchesBoundary touchesBoundary) const {
+    if (points_.empty()) {
+        return false;
+    }
+    if (points_.size() == 1) {
+        // A single vertex disconnects `other` iff it is an interior point of it.
+        return other.interiorContains((*this)[0]);
+    }
+    // Walk the connected components of (this ∩ other): consecutive edge pieces
+    // belong to one component iff the shared chain vertex lies on `other`
+    // (`other` is convex, so each edge meets it in one connected piece). A
+    // component that avoids every boundary point of `other` disconnects it.
+    bool active = false;
+    bool touched = false;
+    for (std::size_t i = 0; i + 1 < points_.size(); ++i) {
+        const auto edge = this->template boundaryAt<false>(i);
+        if (edge.intersects(other)) {
+            const bool connected = active && other.contains((*this)[i]);
+            if (!connected) {
+                if (active && !touched) {
+                    return true;
+                }
+                touched = false;
+            }
+            active = true;
+            if (touchesBoundary(edge)) {
+                touched = true;
+            }
+        } else {
+            if (active && !touched) {
+                return true;
+            }
+            active = false;
+            touched = false;
+        }
+    }
+    return active && !touched;
+}
+
+template <class PointType, class LabelType>
+template <bool OtherIsConvex, class OtherShape>
+constexpr bool MonotoneChain<PointType, LabelType>::separatesTwoDimensional(const OtherShape& other) const {
+    if (points_.size() <= 1) {
+        return false;
+    }
+
+    // Removing the chain disconnects the region iff it removes a crosscut:
+    // either a single edge already disconnects the region, or the chain has
+    // points p < x < q in chain order with x in the region's interior and
+    // p, q both non-interior (boundary or beyond) -- the piece of the chain
+    // around x then runs boundary-to-boundary through the interior.
+    //
+    // The scan looks for the p/x/q pattern at the vertices. That is complete
+    // for a convex region: an edge between two interior vertices stays
+    // interior, so a mid-edge p, x, or q always has a vertex witness on the
+    // correct side (an edge whose non-interior endpoints sandwich an interior
+    // point is caught as a separating edge). A non-convex region breaks the
+    // first rule -- an edge can leave the interior between two interior
+    // vertices -- so OtherIsConvex == false additionally tests such edges,
+    // each excursion acting as one more non-interior stop between its
+    // endpoints. The last vertex pre-seeds the final non-interior stop, so
+    // the scan can stop as soon as the interior stop is confirmed.
+    bool a_check = false;  // saw a non-interior stop ...
+    bool b_check = false;  // ... then an interior stop ...
+    bool c_check = !other.interiorContains((*this)[size() - 1]);  // ... then a non-interior stop
+    const auto pattern_found = [&](bool stop_is_interior) {
+        if (!a_check) {
+            a_check = !stop_is_interior;
+        }
+        else if (!b_check) {
+            b_check = stop_is_interior;
+        }
+        else if (!c_check) {
+            c_check = !stop_is_interior;
+        }
+        return a_check && b_check && c_check;
+    };
+
+    bool prev_interior = other.interiorContains((*this)[0]);
+    pattern_found(prev_interior);
+    for (std::size_t i = 1; i < size(); ++i) {
+        const Segment<PointType> edge((*this)[i - 1], (*this)[i]);
+        if (edge.separates(other)) {
+            return true;
+        }
+        const bool cur_interior = other.interiorContains((*this)[i]);
+        if constexpr (!OtherIsConvex) {
+            if (prev_interior && cur_interior && !other.interiorContains(edge) &&
+                pattern_found(false)) {
+                return true;
+            }
+        }
+        if (pattern_found(cur_interior)) {
+            return true;
+        }
+        prev_interior = cur_interior;
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherSegment& other) const {
+    return separatesOneDimensional(other, [&other](const auto& edge) {
+        return edge.contains(other.min()) || edge.contains(other.max());
+    });
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
+    return separates(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherLine& other) const {
+    // A line has no boundary, so any nonempty intersection with the bounded
+    // chain disconnects it.
+    return intersects(other);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
+    return intersects(other);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherRay& other) const {
+    return separatesOneDimensional(other, [&other](const auto& edge) {
+        return edge.contains(other.source());
+    });
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherHalfplane& other) const {
+    // No straight edge can disconnect a halfplane (Segment::separates is
+    // always false there), but the chain can: bending through the interior
+    // between two non-interior stops seals off a pocket against the boundary
+    // line, which is exactly the crosscut pattern of the vertex scan.
+    return separatesTwoDimensional(other);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherRectangle& other) const {
+    if (!bbox().intersects(other)) {
+        return false;
+    }
+    if (bbox().separates(other)) {
+        return true;
+    }
+    return separatesTwoDimensional(other);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherTriangle& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox())) {
+        return true;
+    }
+    return separatesTwoDimensional(other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    return separatesTwoDimensional(other);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherConvex& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox())) {
+        return true;
+    }
+    return separatesTwoDimensional(other);
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox())) {
+        return true;
+    }
+    // The polygon may be non-convex, so the scan must also spot excursion
+    // edges (see separatesTwoDimensional).
+    return separatesTwoDimensional<false>(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherChain& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox())) {
+        return true;
+    }
+
+    // Polyline this separates polyline other if there exist
+    // three ordered points a,b,c in other, such that
+    // !this->contains(a), this->contains(b), !this->contains(c)
+    // These points a,b,c may not be vertices, but if they are on
+    // the same edge, than the edge is separated. If they are not
+    // on the same edge, then there are two edges that are not contained
+    // in this with an intermediate point b that is contained
+
+    bool a_check = false;
+    bool b_check = false;
+    bool c_check = !contains(other.get(-1));
+
+    for (std::size_t i = 1; i < other.size(); ++i) {
+        Segment<typename OtherChain::PointType> edge(other[i-1], other[i]);
+        if (separates(edge)) {
+            return true; // If edge is separated, then a,b,c are in edge
+        }
+        if (!a_check) { // We did not find point a st !this->contains(a) yet
+            if (!contains(edge)) {
+                a_check = true; // point of edge not contained in this is a
+                b_check = contains(other[i]); // maybe b st this->contains(b) is in edge
+            }
+        }
+        else if (!b_check) { // We did not find point b > a st this->contains(b) yet
+            b_check = intersects(edge); // If the edge intersects this, we found b
+        }
+        else if (!c_check) { // We did not find point c > b st !this->contains(c) yet
+            c_check = !contains(edge); // If edge is not contained, we found c
+        }
+
+        if (a_check && b_check && c_check) { // All points found
+            return true;
+        }
+    }
+
+    // There are no such a,b,c
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->separates(value);
+        },
+        other.variant());
+}
+
+template <class Number, class Label>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Point<Number, Label>::separates(const OtherChain& other) const {
+    // Removing a point disconnects the arc iff it is a relative-interior point.
+    return other.interiorContains(*this);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(asSegment(), other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Line<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Ray<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Rectangle<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Triangle<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Convex<PointType, LabelType>::separates(const OtherChain& other) const {
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherChain& other) const {
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox())) {
+        return true;
+    }
+
+    // Polygon this separates polyline other if there exist
+    // three ordered points a,b,c in other, such that
+    // !this->contains(a), this->contains(b), !this->contains(c)
+    // These points a,b,c may not be vertices, but if they are on
+    // the same edge, than the edge is separated. If they are not
+    // on the same edge, then there are two edges that are not contained
+    // in this with an intermediate point b that is contained
+
+    bool a_check = false;
+    bool b_check = false;
+    bool c_check = !contains(other.get(-1));
+
+    for (std::size_t i = 1; i < other.size(); ++i) {
+        Segment<typename OtherChain::PointType> edge(other[i-1], other[i]);
+        if (separates(edge)) {
+            return true; // If edge is separated, then a,b,c are in edge
+        }
+        if (!a_check) { // We did not find point a st !this->contains(a) yet
+            if (!contains(edge)) {
+                a_check = true; // point of edge not contained in this is a
+                b_check = contains(other[i]); // maybe b st this->contains(b) is in edge
+            }
+        }
+        else if (!b_check) { // We did not find point b > a st this->contains(b) yet
+            b_check = intersects(edge); // If the edge intersects this, we found b
+        }
+        else if (!c_check) { // We did not find point c > b st !this->contains(c) yet
+            c_check = !contains(edge); // If edge is not contained, we found c
+        }
+
+        if (a_check && b_check && c_check) { // All points found
+            return true;
+        }
+    }
+
+    // There are no such a,b,c
     return false;
 }
 

@@ -339,6 +339,12 @@ class Canvas {
         return push(Polygon<Point<double>>(polygon), polygon);
     }
 
+    /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
+    template <class PointType, class Label>
+    Canvas& operator<<(const MonotoneChain<PointType, Label>& chain) {
+        return push(MonotoneChain<Point<double>>(chain), chain);
+    }
+
     /** @brief Appends nothing: the empty shape has no geometry to draw. */
     template <class PointType>
     Canvas& operator<<(const EmptyShape<PointType>&) {
@@ -793,6 +799,28 @@ class Canvas {
                 out << "\""
                     << styleAttributes(element.style) << ">"
                     << titleTag << "</polygon>";
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+                if (shape.size() == 0) return {};
+                if (shape.size() == 1) {
+                    const auto vertex = shape[0];
+                    out << "<circle cx=\"" << viewport.mapX(vertex.x())
+                        << "\" cy=\"" << viewport.mapY(vertex.y())
+                        << "\" r=\"" << pointRadius_ << '"'
+                        << styleAttributes(element.style) << ">"
+                        << titleTag << "</circle>";
+                } else {
+                    // An open chain: a polyline, never closed or filled.
+                    out << "<polyline points=\"";
+                    bool firstVertex = true;
+                    for (const auto& vertex : shape) {
+                        if (!firstVertex) out << ' ';
+                        firstVertex = false;
+                        out << viewport.mapX(vertex.x()) << ',' << viewport.mapY(vertex.y());
+                    }
+                    out << "\""
+                        << styleAttributes(element.style) << ">"
+                        << titleTag << "</polyline>";
+                }
             } else if constexpr (std::same_as<S, Disk<PT>>) {
                 const auto center = shape.center();
                 const double cx = viewport.mapX(center.x());

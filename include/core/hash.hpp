@@ -292,6 +292,30 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for MonotoneChain.
+     */
+    template <class PointType, class LabelType>
+    struct hash<pgl::MonotoneChain<PointType, LabelType>> {
+        std::size_t operator()(const pgl::MonotoneChain<PointType, LabelType>& chain) const {
+            using Shape = pgl::MonotoneChain<PointType, LabelType>;
+            if (chain.hash_ != Shape::hashUnset_) {
+                return chain.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
+            for (const auto& vertex : chain) {
+                pgl::detail::hashCombine(seed, vertex);
+            }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            chain.hash_ = seed;
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for EmptyShape.
      */
     template <class PointType>
