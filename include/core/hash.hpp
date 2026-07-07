@@ -294,10 +294,10 @@ namespace std {
     /**
      * @brief Hash support for MonotoneChain.
      */
-    template <class PointType, class LabelType>
-    struct hash<pgl::MonotoneChain<PointType, LabelType>> {
-        std::size_t operator()(const pgl::MonotoneChain<PointType, LabelType>& chain) const {
-            using Shape = pgl::MonotoneChain<PointType, LabelType>;
+    template <class PointType, class LabelType, class Storage>
+    struct hash<pgl::MonotoneChain<PointType, LabelType, Storage>> {
+        std::size_t operator()(const pgl::MonotoneChain<PointType, LabelType, Storage>& chain) const {
+            using Shape = pgl::MonotoneChain<PointType, LabelType, Storage>;
             if (chain.hash_ != Shape::hashUnset_) {
                 return chain.hash_;
             }

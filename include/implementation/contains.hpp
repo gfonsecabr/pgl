@@ -1536,18 +1536,18 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherPolygon& other) c
  * 1-dimensional bounded set can contain.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherPoint& point) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherPoint& point) const {
     // The slice of the chain at any x is a single vertical segment (possibly a
     // point), so the point is on the chain iff the chain passes both weakly
     // below and weakly above it.
     return isBelow(point).has_value() && isAbove(point).has_value();
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<SegmentConcept OtherSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherSegment& other) const {
     if (!contains(other.min()) || !contains(other.max())) {
         return false;
     }
@@ -1571,39 +1571,39 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherSegment&
     return true;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherOrientedSegment& other) const {
     return contains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<LineConcept OtherLine>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherLine& other) const {
     return other.isDegenerate() && contains(other.min());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherOrientedLine& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RayConcept OtherRay>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherRay& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherRay& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherHalfplane& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherHalfplane& other) const {
     return other.isDegenerate() && contains(other.source());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherRectangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherRectangle& other) const {
     if (!other.isDegenerate()) {
         return false;
     }
@@ -1613,9 +1613,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherRectangl
     return contains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<TriangleConcept OtherTriangle>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherTriangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherTriangle& other) const {
     if (!other.isDegenerate()) {
         return false;
     }
@@ -1625,9 +1625,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherTriangle
     return contains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<ConvexConcept OtherConvex>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherConvex& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherConvex& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -1640,9 +1640,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherConvex& 
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PolygonConcept OtherPolygon>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherPolygon& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherPolygon& other) const {
     // A polygon lies on the 1-dimensional chain exactly when all of its edges
     // do; its interior is then empty, so the edge fold decides containment for
     // degenerate and non-degenerate polygons alike (a bent chain may pass
@@ -1662,15 +1662,15 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherPolygon&
     return true;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<DiskConcept OtherDisk>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherDisk& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherDisk& other) const {
     return other.a() == other.b() && other.b() == other.c() && contains(other.a());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<MonotoneChainConcept OtherChain>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherChain& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherChain& other) const {
     if (other.empty()) {
         return true;
     }
@@ -1687,9 +1687,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherChain& o
     return true;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->contains(value);

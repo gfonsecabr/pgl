@@ -272,8 +272,8 @@ std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelTyp
  * @param chain Chain to print.
  * @return The output stream.
  */
-template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, LabelType>& chain) {
+template <class PointType, class LabelType, class Storage>
+std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, LabelType, Storage>& chain) {
     stream << "MonotoneChain[";
     for (std::size_t i = 0; i < chain.size(); ++i) {
         if (i > 0) {

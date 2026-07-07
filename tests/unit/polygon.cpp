@@ -759,3 +759,84 @@ TEST_CASE("Polygon intersection<Q>(Polygon): named pinch cases stay simple") {
         for (const auto& p : ps) CHECK(p.isSimple());
     }
 }
+
+// The boolean Polygon x Polygon `intersects` predicate decomposes each boundary
+// into monotone chains and sweeps them, then falls back to a containment test
+// when neither boundary crosses the other. These cases pin down that contract.
+TEST_CASE("Polygon intersects Polygon (boolean predicate)") {
+    using Point = pgl::Point<int>;
+    using Poly = pgl::Polygon<Point>;
+
+    SUBCASE("overlapping squares cross") {
+        const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+        const Poly b({2, 2, 6, 2, 6, 6, 2, 6});
+        CHECK(a.intersects(b));
+        CHECK(b.intersects(a));
+    }
+
+    SUBCASE("disjoint squares with overlapping bounding boxes") {
+        // A sits bottom-left, B top-right; their axis-aligned boxes overlap in
+        // the middle but the triangles themselves miss each other entirely.
+        const Poly a({0, 0, 3, 0, 0, 3});
+        const Poly b({6, 6, 3, 6, 6, 3});
+        CHECK_FALSE(a.intersects(b));
+        CHECK_FALSE(b.intersects(a));
+    }
+
+    SUBCASE("one square wholly inside another (no boundary crossing)") {
+        const Poly outer({0, 0, 10, 0, 10, 10, 0, 10});
+        const Poly inner({3, 3, 6, 3, 6, 6, 3, 6});
+        CHECK(outer.intersects(inner));
+        CHECK(inner.intersects(outer));
+    }
+
+    SUBCASE("touching at a single shared vertex") {
+        const Poly a({0, 0, 2, 0, 2, 2, 0, 2});
+        const Poly b({2, 2, 4, 2, 4, 4, 2, 4});
+        CHECK(a.intersects(b));
+        CHECK(b.intersects(a));
+    }
+
+    SUBCASE("touching along a shared boundary segment") {
+        const Poly a({0, 0, 2, 0, 2, 2, 0, 2});
+        const Poly b({2, 0, 4, 0, 4, 2, 2, 2});  // shares the edge x=2, y in [0,2]
+        CHECK(a.intersects(b));
+        CHECK(b.intersects(a));
+    }
+
+    SUBCASE("non-convex polygon whose concavity holds the other (disjoint)") {
+        // A 'C' opening to the right; the mouth is the region x in (3,8],
+        // y in (2,7), which lies outside the polygon. A box sitting there is
+        // disjoint from the C even though the bounding boxes overlap heavily.
+        const Poly c({0, 0, 8, 0, 8, 2, 3, 2, 3, 7, 8, 7, 8, 9, 0, 9});
+        const Poly inMouth({4, 3, 6, 3, 6, 6, 4, 6});
+        CHECK_FALSE(c.intersects(inMouth));
+        CHECK_FALSE(inMouth.intersects(c));
+    }
+
+    SUBCASE("non-convex polygon whose arms cross the other") {
+        const Poly c({0, 0, 8, 0, 8, 2, 3, 2, 3, 7, 8, 7, 8, 9, 0, 9});
+        const Poly bar({5, 1, 9, 1, 9, 8, 5, 8});  // spans and overlaps both arms
+        CHECK(c.intersects(bar));
+        CHECK(bar.intersects(c));
+    }
+
+    SUBCASE("polygons with vertical edges (lexicographic decomposition)") {
+        // Both have vertical left/right edges; a lex-monotone (not merely
+        // x-monotone) split is required to reconstruct these boundaries exactly.
+        const Poly a({0, 0, 4, 0, 4, 5, 0, 5});
+        const Poly b({3, 4, 8, 4, 8, 9, 3, 9});
+        CHECK(a.intersects(b));
+        const Poly far({5, 6, 8, 6, 8, 9, 5, 9});  // clears A in both x and y
+        CHECK_FALSE(a.intersects(far));
+    }
+
+    SUBCASE("translated copies stay consistent under the lazy translation") {
+        const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+        Poly b({0, 0, 4, 0, 4, 4, 0, 4});
+        b += Point(2, 2);
+        CHECK(a.intersects(b));
+        b += Point(10, 10);  // now far away
+        CHECK_FALSE(a.intersects(b));
+    }
+}

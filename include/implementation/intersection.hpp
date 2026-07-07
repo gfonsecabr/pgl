@@ -2419,11 +2419,11 @@ Disk<PointType, LabelType>::intersection(const OtherPoint& other) const {
 // ---------------------------------------------------------------------------
 // MonotoneChain
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, MonotoneChainConcept OtherChain>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherChain& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherChain& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -2473,11 +2473,11 @@ MonotoneChain<PointType, LabelType>::intersection(const OtherChain& other) const
     return coalescePieces<ResultNumber>(std::move(pieces));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::coalescePieces(
+MonotoneChain<PointType, LabelType, Storage>::coalescePieces(
     std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                              Segment<Point<ResultNumber, typename PointType::LabelType>>>> pieces) {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
@@ -2551,21 +2551,21 @@ MonotoneChain<PointType, LabelType>::coalescePieces(
     return result;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherPoint& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherPoint& other) const {
     if (contains(other)) {
         return Point<ResultNumber, typename PointType::LabelType>(other);
     }
     return {};
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::edgeFoldIntersection(const OtherShape& other) const {
+MonotoneChain<PointType, LabelType, Storage>::edgeFoldIntersection(const OtherShape& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -2600,75 +2600,75 @@ MonotoneChain<PointType, LabelType>::edgeFoldIntersection(const OtherShape& othe
     return coalescePieces<ResultNumber>(std::move(pieces));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherSegment& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherSegment& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherOrientedSegment& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherLine& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherLine& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherOrientedLine& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherRay& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherRay& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherHalfplane& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherRectangle& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherRectangle& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherTriangle& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherTriangle& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, ConvexConcept OtherConvex>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-MonotoneChain<PointType, LabelType>::intersection(const OtherConvex& other) const {
+MonotoneChain<PointType, LabelType, Storage>::intersection(const OtherConvex& other) const {
     return this->template edgeFoldIntersection<ResultNumber>(other);
 }
 

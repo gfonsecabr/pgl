@@ -1380,9 +1380,9 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherChain& ot
 // -----------------------------------------------------------------------------
 // MonotoneChain
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
-constexpr ResultNumber MonotoneChain<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
+constexpr ResultNumber MonotoneChain<PointType, LabelType, Storage>::edgeMinSquaredDistance(const OtherShape& other) const {
     assert(size() >= 2);
     ResultNumber best = this->template boundaryAt<false>(0).template squaredDistance<ResultNumber>(other);
     for (std::size_t index = 1; index + 1 < size(); ++index) {
@@ -1395,108 +1395,108 @@ constexpr ResultNumber MonotoneChain<PointType, LabelType>::edgeMinSquaredDistan
     return best;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, PointConcept OtherPoint>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherPoint& point) const {
     if (intersects(point)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(point);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, SegmentConcept OtherSegment>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherOrientedSegment& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, LineConcept OtherLine>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherOrientedLine& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, RayConcept OtherRay>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherRay& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherHalfplane& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherRectangle& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherTriangle& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherTriangle& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, ConvexConcept OtherConvex>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherConvex& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherConvex& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, MonotoneChainConcept OtherChain>
-constexpr auto MonotoneChain<PointType, LabelType>::squaredDistance(const OtherChain& other) const {
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const OtherChain& other) const {
     if (intersects(other)) {
         return ResultNumber{};
     }
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class DiskPointType, class DiskLabel>
-double MonotoneChain<PointType, LabelType>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+double MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
     if (intersects(disk)) {
         return 0.0;
     }

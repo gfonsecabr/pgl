@@ -748,75 +748,75 @@ constexpr bool Disk<PointType, LabelType>::crosses(const Shape<OtherPoint>& othe
  * implemented yet throw through it.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<SegmentConcept OtherSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherSegment& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherOrientedSegment& other) const {
     return crosses(other.asSegment());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<LineConcept OtherLine>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherOrientedLine& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RayConcept OtherRay>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherRay& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherRay& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherHalfplane& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherRectangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherRectangle& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<TriangleConcept OtherTriangle>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherTriangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherTriangle& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<DiskConcept OtherDisk>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherDisk& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherDisk& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<ConvexConcept OtherConvex>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherConvex& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherConvex& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<MonotoneChainConcept OtherChain>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherChain& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherChain& other) const {
     return separates(other) && other.separates(*this);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->crosses(value);

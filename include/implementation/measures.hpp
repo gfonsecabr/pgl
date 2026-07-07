@@ -607,9 +607,9 @@ constexpr Segment<PointType> Convex<PointType, LabelType>::diameter() const {
 // -----------------------------------------------------------------------------
 // MonotoneChain
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ApproximateNumber>
-ApproximateNumber MonotoneChain<PointType, LabelType>::length() const {
+ApproximateNumber MonotoneChain<PointType, LabelType, Storage>::length() const {
     ApproximateNumber total{};
     for (std::size_t i = 1; i < points_.size(); ++i) {
         total += points_[i - 1].template distance<ApproximateNumber>(points_[i]);
@@ -617,8 +617,8 @@ ApproximateNumber MonotoneChain<PointType, LabelType>::length() const {
     return total;
 }
 
-template <class PointType, class LabelType>
-constexpr auto MonotoneChain<PointType, LabelType>::lengthL1() const {
+template <class PointType, class LabelType, class Storage>
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::lengthL1() const {
     decltype(std::declval<PointType>().distanceL1(std::declval<PointType>())) total{};
     for (std::size_t i = 1; i < points_.size(); ++i) {
         total += points_[i - 1].distanceL1(points_[i]);
@@ -626,8 +626,8 @@ constexpr auto MonotoneChain<PointType, LabelType>::lengthL1() const {
     return total;
 }
 
-template <class PointType, class LabelType>
-constexpr auto MonotoneChain<PointType, LabelType>::lengthLInf() const {
+template <class PointType, class LabelType, class Storage>
+constexpr auto MonotoneChain<PointType, LabelType, Storage>::lengthLInf() const {
     decltype(std::declval<PointType>().distanceLInf(std::declval<PointType>())) total{};
     for (std::size_t i = 1; i < points_.size(); ++i) {
         total += points_[i - 1].distanceLInf(points_[i]);
