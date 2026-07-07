@@ -340,10 +340,10 @@ constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType, Lab
 // -----------------------------------------------------------------------------
 // MonotoneChain
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class OtherNumber>
 constexpr std::optional<std::size_t>
-MonotoneChain<PointType, LabelType>::indexAtX(const OtherNumber& x) const {
+MonotoneChain<PointType, LabelType, Storage>::indexAtX(const OtherNumber& x) const {
     // Compare translated x-coordinates in the common type so mixed coordinate
     // types (e.g. an int chain queried with a Rational) compare exactly.
     using Compare = std::common_type_t<NumberType, OtherNumber>;
@@ -372,10 +372,10 @@ MonotoneChain<PointType, LabelType>::indexAtX(const OtherNumber& x) const {
     return i - 1;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherNumber>
 constexpr std::optional<ResultNumber>
-MonotoneChain<PointType, LabelType>::yAtX(const OtherNumber& x) const {
+MonotoneChain<PointType, LabelType, Storage>::yAtX(const OtherNumber& x) const {
     using Compare = std::common_type_t<NumberType, OtherNumber>;
     const auto idx = indexAtX(x);
     if (!idx) {
@@ -392,10 +392,10 @@ MonotoneChain<PointType, LabelType>::yAtX(const OtherNumber& x) const {
     return edge.template yAtX<ResultNumber>(x);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <PointConcept OtherPoint>
 constexpr std::optional<std::size_t>
-MonotoneChain<PointType, LabelType>::isBelow(const OtherPoint& point) const {
+MonotoneChain<PointType, LabelType, Storage>::isBelow(const OtherPoint& point) const {
     using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
     const auto idx = indexAtX(point.x());
     if (!idx) {
@@ -419,10 +419,10 @@ MonotoneChain<PointType, LabelType>::isBelow(const OtherPoint& point) const {
     return {};
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <PointConcept OtherPoint>
 constexpr std::optional<std::size_t>
-MonotoneChain<PointType, LabelType>::isAbove(const OtherPoint& point) const {
+MonotoneChain<PointType, LabelType, Storage>::isAbove(const OtherPoint& point) const {
     using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
     const auto idx = indexAtX(point.x());
     if (!idx) {
@@ -451,10 +451,10 @@ MonotoneChain<PointType, LabelType>::isAbove(const OtherPoint& point) const {
     return {};
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class LowNumber, class HighNumber>
 constexpr std::optional<std::pair<std::size_t, std::size_t>>
-MonotoneChain<PointType, LabelType>::edgeWindow(const LowNumber& xlo, const HighNumber& xhi) const {
+MonotoneChain<PointType, LabelType, Storage>::edgeWindow(const LowNumber& xlo, const HighNumber& xhi) const {
     using CompareLow = std::common_type_t<NumberType, LowNumber>;
     using CompareHigh = std::common_type_t<NumberType, HighNumber>;
     if (points_.size() < 2) {

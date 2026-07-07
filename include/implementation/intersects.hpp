@@ -7,7 +7,11 @@
  * @brief Implementations of the 'intersects' predicate.
  **/
 
+#include <algorithm>
 #include <limits>
+#include <span>
+#include <utility>
+#include <vector>
 #include "implementation/orientation.hpp"
 #include "predicates_helpers.hpp"
 
@@ -1089,6 +1093,102 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherConvex& othe
     return false;
 }
 
+namespace detail {
+
+/**
+ * @brief Lazily decomposes a simple polygon's boundary into its maximal
+ * lexicographically monotone chains, exposed as @ref MonotoneChainView spans.
+ *
+ * Consecutive boundary vertices are distinct, so every edge runs strictly
+ * lex-up or lex-down (never level); the boundary breaks into chains exactly at
+ * its lexicographic local extrema — the vertices where that direction reverses.
+ * A cyclic boundary cannot run one direction the whole way around, so such a
+ * break always exists and the boundary splits into at least two chains (exactly
+ * two for a convex polygon).
+ *
+ * Each chain's vertices, read in ascending lexicographic order, retrace its
+ * boundary arc exactly (a lex-monotone arc is weakly x-monotone with no
+ * y-backtracking vertical edge), which is @ref MonotoneChain's canonical form.
+ * A boundary arc is, however, either descending or wraps the vertex-array seam,
+ * so it cannot in general be a span straight into the polygon's own vertices.
+ * Instead every run is unrolled — reversed when descending — into one shared
+ * buffer reserved up front (its length is `n + #chains <= 2n`, so appends never
+ * reallocate), and each chain is a `std::span` into that buffer. The whole
+ * decomposition therefore costs a single allocation, not one per chain.
+ *
+ * Chains are materialized on demand via @ref produceNext so a caller can stop
+ * at the first crossing without unrolling the rest.
+ */
+template <class Poly>
+class PolygonMonotoneChains {
+  public:
+    using PT = typename Poly::PointType;
+    using ChainView = MonotoneChainView<PT>;
+
+    explicit PolygonMonotoneChains(const Poly& poly) : verts_(poly.vertices()) {
+        n_ = verts_.size();
+        buffer_.reserve(2 * n_);
+
+        // Edge i (verts_[i] -> verts_[i+1]) ascends lexicographically.
+        const auto ascends = [&](std::size_t i) { return verts_[i] < verts_[(i + 1) % n_]; };
+
+        // Anchor at a break vertex (its incoming edge reverses) so no run
+        // straddles index 0 ambiguously; record each run's first vertex and
+        // direction. The run's last vertex is the next run's first.
+        std::size_t start = 0;
+        for (std::size_t j = 0; j < n_; ++j) {
+            if (ascends((j + n_ - 1) % n_) != ascends(j)) {
+                start = j;
+                break;
+            }
+        }
+        std::size_t i = start;
+        do {
+            const bool up = ascends(i);
+            runs_.push_back({i, up});
+            std::size_t k = i;
+            while (ascends(k) == up) {
+                k = (k + 1) % n_;
+            }
+            i = k;
+        } while (i != start);
+    }
+
+    std::size_t chainCount() const { return runs_.size(); }
+    bool exhausted() const { return produced_ == runs_.size(); }
+    const std::vector<ChainView>& produced() const { return chains_; }
+
+    // Unrolls the next run into the shared buffer and returns its view.
+    const ChainView& produceNext() {
+        const auto [begin, up] = runs_[produced_];
+        const std::size_t end = runs_[(produced_ + 1) % runs_.size()].first;  // inclusive
+        const std::size_t bufStart = buffer_.size();
+        std::size_t idx = begin;
+        buffer_.push_back(verts_[idx]);
+        while (idx != end) {
+            idx = (idx + 1) % n_;
+            buffer_.push_back(verts_[idx]);
+        }
+        const std::size_t len = buffer_.size() - bufStart;
+        if (!up) {
+            std::reverse(buffer_.begin() + static_cast<std::ptrdiff_t>(bufStart), buffer_.end());
+        }
+        chains_.emplace_back(std::span<const PT>(buffer_.data() + bufStart, len), /*trusted=*/true);
+        ++produced_;
+        return chains_.back();
+    }
+
+  private:
+    std::vector<PT> verts_;                       // translated boundary vertices
+    std::vector<PT> buffer_;                       // runs unrolled ascending, contiguous
+    std::vector<std::pair<std::size_t, bool>> runs_;  // (first-vertex index, ascending?)
+    std::vector<ChainView> chains_;                // materialized views into buffer_
+    std::size_t n_ = 0;
+    std::size_t produced_ = 0;
+};
+
+}  // namespace detail
+
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolygon& other) const {
@@ -1102,24 +1202,38 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolygon& oth
         return true;
     }
 
-    for (const auto& vertex : other.vertices()) {
-        if (contains(vertex)) {
-            return true;
+    // Boundary crossing: decompose each boundary into maximal lexicographically
+    // monotone chains (backed by span views into one buffer per polygon) and
+    // test them with MonotoneChain's linear merge sweep, replacing the quadratic
+    // all-edge-pairs scan. The two decompositions are unrolled in lockstep and
+    // every newly produced chain is tested against all already-produced chains
+    // of the other polygon, so all computed pairs are covered before the next
+    // chain is built and the search stops at the first crossing.
+    detail::PolygonMonotoneChains mine(*this);
+    detail::PolygonMonotoneChains theirs(other);
+    while (!mine.exhausted() || !theirs.exhausted()) {
+        if (!mine.exhausted()) {
+            const auto& chain = mine.produceNext();
+            for (const auto& their : theirs.produced()) {
+                if (chain.intersects(their)) {
+                    return true;
+                }
+            }
         }
-    }
-    for (const auto& vertex : vertices()) {
-        if (other.contains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.intersects(otherEdge)) {
-                return true;
+        if (!theirs.exhausted()) {
+            const auto& chain = theirs.produceNext();
+            for (const auto& my : mine.produced()) {
+                if (chain.intersects(my)) {
+                    return true;
+                }
             }
         }
     }
-    return false;
+
+    // No boundary crossing: the polygons are either disjoint or one lies wholly
+    // inside the other, so a single point-in-polygon test each way settles it
+    // (every vertex of the inner polygon is contained in the outer one).
+    return contains(other.get(0)) || other.contains(get(0));
 }
 
 template <class PointType, class LabelType>
@@ -1289,15 +1403,15 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk& other)
  * chain-vs-chain merge sweep.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherPoint& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherPoint& other) const {
     return contains(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<SegmentConcept OtherSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherSegment& other) const {
     if (points_.empty()) {
         return false;
     }
@@ -1316,15 +1430,15 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherSegmen
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherOrientedSegment& other) const {
     return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<LineConcept OtherLine>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherLine& other) const {
     if (empty()) {
         return false;
     }
@@ -1339,9 +1453,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherLine& 
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherOrientedLine& other) const {
     if (empty()) {
         return false;
     }
@@ -1356,9 +1470,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherOrient
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RayConcept OtherRay>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRay& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherRay& other) const {
     if (empty()) {
         return false;
     }
@@ -1373,9 +1487,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRay& o
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherHalfplane& other) const {
     if (empty()) {
         return false;
     }
@@ -1390,9 +1504,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherHalfpl
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherRectangle& other) const {
     if (empty()) {
         return false;
     }
@@ -1413,9 +1527,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRectan
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<TriangleConcept OtherTriangle>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherTriangle& other) const {
     if (empty()) {
         return false;
     }
@@ -1430,9 +1544,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherTriang
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<ConvexConcept OtherConvex>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherConvex& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherConvex& other) const {
     if (empty()) {
         return false;
     }
@@ -1447,9 +1561,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherConvex
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<DiskConcept OtherDisk>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherDisk& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherDisk& other) const {
     if (empty()) {
         return false;
     }
@@ -1464,9 +1578,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherDisk& 
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->intersects(value);
@@ -1474,9 +1588,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::intersects(const Shape<Other
         other.variant());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<MonotoneChainConcept OtherChain>
-constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherChain& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherChain& other) const {
     if (empty() || other.empty()) {
         return false;
     }

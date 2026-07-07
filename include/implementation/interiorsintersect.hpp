@@ -1453,16 +1453,16 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk
  * interior points alongside the open edges.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherPoint& other) const {
     // A point's interior is the point itself, so this matches interiorContains.
     return interiorContains(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<SegmentConcept OtherSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherSegment& other) const {
     if (points_.size() < 2) {
         // A chain without an edge has an empty relative interior.
         return false;
@@ -1489,9 +1489,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const Oth
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherOrientedSegment& other) const {
     return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
@@ -1523,57 +1523,57 @@ constexpr bool chainInteriorsIntersect(const Chain& chain, const OtherShape& oth
 
 }  // namespace detail
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<LineConcept OtherLine>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherLine& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherOrientedLine& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RayConcept OtherRay>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherRay& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherHalfplane& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherRectangle& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<TriangleConcept OtherTriangle>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherTriangle& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<ConvexConcept OtherConvex>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherConvex& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<DiskConcept OtherDisk>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherDisk& other) const {
     return detail::chainInteriorsIntersect(*this, other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<MonotoneChainConcept OtherChain>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherChain& other) const {
     if (size() < 2 || other.size() < 2) {
         return false;
     }
@@ -1612,9 +1612,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const Oth
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->interiorsIntersect(value);

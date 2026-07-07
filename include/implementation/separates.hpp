@@ -2212,9 +2212,9 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon& othe
  * remover and a, c uncovered.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <class OtherShape, class TouchesBoundary>
-constexpr bool MonotoneChain<PointType, LabelType>::separatesOneDimensional(
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separatesOneDimensional(
     const OtherShape& other, TouchesBoundary touchesBoundary) const {
     if (points_.empty()) {
         return false;
@@ -2254,9 +2254,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separatesOneDimensional(
     return active && !touched;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template <bool OtherIsConvex, class OtherShape>
-constexpr bool MonotoneChain<PointType, LabelType>::separatesTwoDimensional(const OtherShape& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separatesTwoDimensional(const OtherShape& other) const {
     if (points_.size() <= 1) {
         return false;
     }
@@ -2315,45 +2315,45 @@ constexpr bool MonotoneChain<PointType, LabelType>::separatesTwoDimensional(cons
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<SegmentConcept OtherSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherSegment& other) const {
     return separatesOneDimensional(other, [&other](const auto& edge) {
         return edge.contains(other.min()) || edge.contains(other.max());
     });
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedSegmentConcept OtherOrientedSegment>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherOrientedSegment& other) const {
     return separates(other.asSegment());
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<LineConcept OtherLine>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherLine& other) const {
     // A line has no boundary, so any nonempty intersection with the bounded
     // chain disconnects it.
     return intersects(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<OrientedLineConcept OtherOrientedLine>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherOrientedLine& other) const {
     return intersects(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RayConcept OtherRay>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherRay& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRay& other) const {
     return separatesOneDimensional(other, [&other](const auto& edge) {
         return edge.contains(other.source());
     });
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<HalfplaneConcept OtherHalfplane>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherHalfplane& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherHalfplane& other) const {
     // No straight edge can disconnect a halfplane (Segment::separates is
     // always false there), but the chain can: bending through the interior
     // between two non-interior stops seals off a pocket against the boundary
@@ -2361,9 +2361,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherHalfpla
     return separatesTwoDimensional(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherRectangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRectangle& other) const {
     if (!bbox().intersects(other)) {
         return false;
     }
@@ -2373,9 +2373,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherRectang
     return separatesTwoDimensional(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<TriangleConcept OtherTriangle>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherTriangle& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherTriangle& other) const {
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
@@ -2385,18 +2385,18 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherTriangl
     return separatesTwoDimensional(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<DiskConcept OtherDisk>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherDisk& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherDisk& other) const {
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
     return separatesTwoDimensional(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<ConvexConcept OtherConvex>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherConvex& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherConvex& other) const {
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
@@ -2406,9 +2406,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherConvex&
     return separatesTwoDimensional(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PolygonConcept OtherPolygon>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherPolygon& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherPolygon& other) const {
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
@@ -2420,9 +2420,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherPolygon
     return separatesTwoDimensional<false>(other);
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<MonotoneChainConcept OtherChain>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherChain& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherChain& other) const {
     if (!bbox().intersects(other.bbox())) {
         return false;
     }
@@ -2469,9 +2469,9 @@ constexpr bool MonotoneChain<PointType, LabelType>::separates(const OtherChain& 
     return false;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->separates(value);

@@ -13,6 +13,8 @@
 #include <limits>
 #include <optional>
 #include <ostream>
+#include <ranges>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -20,8 +22,24 @@
 
 namespace pgl {
 
-template <class PointType = Point<>, class Label>
+template <class PointType = Point<>, class Label, class Storage>
 struct MonotoneChain;
+
+namespace detail {
+/**
+ * @brief True when a chain storage type owns its vertices (can be grown and
+ * sorted in place), as opposed to a non-owning view like `std::span`.
+ *
+ * Both the in-class declaration and the out-of-line definition of every
+ * mutating member spell this concept identically, so it gates owning-only
+ * operations (insert, in-place scaling/rotation, `operator*=`, …) out of the
+ * overload set for view instantiations.
+ */
+template <class Storage, class PointType>
+concept ownsChainStorage = requires(Storage& s, const PointType& p) {
+    s.push_back(p);
+};
+}  // namespace detail
 
 MonotoneChain() -> MonotoneChain<Point<>, NoLabel>;
 
@@ -67,11 +85,16 @@ MonotoneChain(std::initializer_list<Number>, bool) -> MonotoneChain<Point<Number
  *
  * @tparam PointType_ The vertex point type.
  */
-template <class PointType_, class TLabel>
+template <class PointType_, class TLabel, class Storage>
 struct MonotoneChain {
     using PointType = PointType_;
     using NumberType = PointType::NumberType;
     using LabelType = TLabel;
+    using StorageType = Storage;
+    // The owning counterpart of this chain: the same vertex and label type
+    // backed by an owned vector. Value-returning transformations produce this
+    // type so that even a view (which cannot own vertices) yields a real chain.
+    using OwningChain = MonotoneChain<PointType_, TLabel, std::vector<PointType_>>;
     static_assert(detail::is_point_v<PointType>, "MonotoneChain requires pgl::Point vertices");
 
     template <bool Oriented>
@@ -101,7 +124,8 @@ struct MonotoneChain {
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
-             std::convertible_to<std::ranges::range_value_t<Range>, PointType>
+             std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
+             detail::ownsChainStorage<Storage, PointType>
     constexpr explicit MonotoneChain(Range&& points, bool trusted = false) {
         for (const auto& p : points) {
             points_.push_back(p);
@@ -109,6 +133,28 @@ struct MonotoneChain {
         if (!trusted) {
             normalize();
         }
+        assert(std::is_sorted(points_.begin(), points_.end()) &&
+               std::adjacent_find(points_.begin(), points_.end()) == points_.end());
+    }
+
+    /**
+     * @brief Creates a non-owning chain viewing an external contiguous range of
+     * vertices (view instantiations only, e.g. @ref MonotoneChainView).
+     *
+     * The view cannot sort or deduplicate memory it does not own, so the input
+     * must already be in canonical form — sorted lexicographically with no
+     * duplicates (the @p trusted contract of the owning constructors). The
+     * caller retains ownership of the underlying storage and is responsible for
+     * keeping it alive for the lifetime of the view.
+     *
+     * @tparam Range Contiguous range of vertices convertible to @ref Storage.
+     * @param points Canonical range of vertices to view.
+     */
+    template<std::ranges::contiguous_range Range>
+    requires (!detail::ownsChainStorage<Storage, PointType>) &&
+             std::constructible_from<Storage, Range&&>
+    constexpr explicit MonotoneChain(Range&& points, bool /*trusted*/ = true)
+        : points_(std::forward<Range>(points)) {
         assert(std::is_sorted(points_.begin(), points_.end()) &&
                std::adjacent_find(points_.begin(), points_.end()) == points_.end());
     }
@@ -124,7 +170,9 @@ struct MonotoneChain {
      * @param coords Interleaved x/y coordinates of the vertices.
      * @param trusted Set to true if the points are already sorted and unique.
      */
-    constexpr explicit MonotoneChain(std::initializer_list<NumberType> coords, bool trusted = false) {
+    constexpr explicit MonotoneChain(std::initializer_list<NumberType> coords, bool trusted = false)
+        requires detail::ownsChainStorage<Storage, PointType>
+    {
         assert(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
@@ -148,9 +196,10 @@ struct MonotoneChain {
      * @tparam OtherPointType Source vertex type.
      * @param other Source chain.
      */
-    template<PointConcept OtherPointType, class OtherLabelType>
-        requires(std::constructible_from<PointType, const OtherPointType&>)
-    constexpr MonotoneChain(const MonotoneChain<OtherPointType, OtherLabelType>& other)
+    template<PointConcept OtherPointType, class OtherLabelType, class OtherStorage>
+        requires(std::constructible_from<PointType, const OtherPointType&> &&
+                 detail::ownsChainStorage<Storage, PointType>)
+    constexpr MonotoneChain(const MonotoneChain<OtherPointType, OtherLabelType, OtherStorage>& other)
         : points_(other.begin(), other.end()), label_(detail::copyLabel<LabelType>(other)) {}
 
     /**
@@ -223,7 +272,7 @@ struct MonotoneChain {
      * @brief Returns a constant iterator to the first vertex.
      */
     constexpr auto cbegin() const {
-        return Iterator(points_.cbegin(), translation_);
+        return Iterator(std::ranges::begin(points_), translation_);
     }
 
     /**
@@ -237,18 +286,23 @@ struct MonotoneChain {
      * @brief Returns a constant iterator past the last vertex.
      */
     constexpr auto cend() const {
-        return Iterator(points_.cend(), translation_);
+        return Iterator(std::ranges::end(points_), translation_);
     }
 
     /**
      * @brief Compares two chains by their canonical vertex sequences.
+     *
+     * Templated on the other chain's storage so an owning chain and a view over
+     * the same vertices compare equal; the vertices are read through the public
+     * (translation-applied) accessors, so no cross-instantiation access is needed.
      */
-    constexpr auto operator<=>(const MonotoneChain& other) const {
-        if (auto cmp = points_.size() <=> other.points_.size(); cmp != 0) {
+    template <class OtherStorage>
+    constexpr auto operator<=>(const MonotoneChain<PointType_, TLabel, OtherStorage>& other) const {
+        if (auto cmp = size() <=> other.size(); cmp != 0) {
             return cmp;
         }
-        for (std::size_t i = 0; i < points_.size(); ++i) {
-            if (auto cmp = points_[i] + translation_ <=> other.points_[i] + other.translation_; cmp != 0) {
+        for (std::size_t i = 0; i < size(); ++i) {
+            if (auto cmp = (*this)[i] <=> other[i]; cmp != 0) {
                 return cmp;
             }
         }
@@ -259,12 +313,13 @@ struct MonotoneChain {
      * @brief Checks equality of two chains.
      * @return True if both chains have the same vertices.
      */
-    constexpr bool operator==(const MonotoneChain& other) const {
-        if (points_.size() != other.points_.size()) {
+    template <class OtherStorage>
+    constexpr bool operator==(const MonotoneChain<PointType_, TLabel, OtherStorage>& other) const {
+        if (size() != other.size()) {
             return false;
         }
-        for (std::size_t i = 0; i < points_.size(); ++i) {
-            if (points_[i] + translation_ != other.points_[i] + other.translation_) {
+        for (std::size_t i = 0; i < size(); ++i) {
+            if ((*this)[i] != other[i]) {
                 return false;
             }
         }
@@ -354,7 +409,7 @@ struct MonotoneChain {
      * @brief Returns the vertices of the chain (translation applied).
      */
     constexpr std::vector<PointType> vertices() const {
-        auto ret = points_;
+        std::vector<PointType> ret(points_.begin(), points_.end());
         for (auto& vertex : ret) {
             vertex += translation_;
         }
@@ -434,7 +489,9 @@ struct MonotoneChain {
      *
      * @param point The vertex to add.
      */
-    constexpr void insert(const PointType& point) {
+    constexpr void insert(const PointType& point)
+        requires detail::ownsChainStorage<Storage, PointType>
+    {
         const PointType query = point - translation_;
         const auto it = std::lower_bound(points_.begin(), points_.end(), query);
         if (it != points_.end() && *it == query) {
@@ -456,7 +513,8 @@ struct MonotoneChain {
      */
     template<std::ranges::input_range Range>
     requires std::ranges::common_range<Range> &&
-             std::convertible_to<std::ranges::range_value_t<Range>, PointType>
+             std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
+             detail::ownsChainStorage<Storage, PointType>
     constexpr void insert(Range&& points) {
         const std::size_t oldSize = points_.size();
         for (const auto& p : points) {
@@ -1451,46 +1509,51 @@ struct MonotoneChain {
      * @param k Number of 90-degree CCW rotations (may be negative).
      * @return Rotated chain.
      */
-    [[nodiscard]] constexpr MonotoneChain rotated90(int k = 1) const;
+    [[nodiscard]] constexpr OwningChain rotated90(int k = 1) const;
 
     /**
      * @brief Rotates the chain by 90k degrees around the origin in place.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
      */
-    constexpr void rotate90(int k = 1);
+    constexpr void rotate90(int k = 1)
+        requires detail::ownsChainStorage<Storage, PointType>;
 
     /** @brief Returns the chain with its x-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr MonotoneChain scaledUpX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OwningChain scaledUpX(const OtherNumber scalar) const;
 
     /** @brief Multiplies the chain's x-coordinates by a factor in place. */
     template <class OtherNumber>
-    constexpr void scaleUpX(const OtherNumber scalar);
+    constexpr void scaleUpX(const OtherNumber scalar)
+        requires detail::ownsChainStorage<Storage, PointType>;
 
     /** @brief Returns the chain with its y-coordinates multiplied by a factor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr MonotoneChain scaledUpY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OwningChain scaledUpY(const OtherNumber scalar) const;
 
     /** @brief Multiplies the chain's y-coordinates by a factor in place. */
     template <class OtherNumber>
-    constexpr void scaleUpY(const OtherNumber scalar);
+    constexpr void scaleUpY(const OtherNumber scalar)
+        requires detail::ownsChainStorage<Storage, PointType>;
 
     /** @brief Returns the chain with its x-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr MonotoneChain scaledDownX(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OwningChain scaledDownX(const OtherNumber scalar) const;
 
     /** @brief Divides the chain's x-coordinates by a divisor in place. */
     template <class OtherNumber>
-    constexpr void scaleDownX(const OtherNumber scalar);
+    constexpr void scaleDownX(const OtherNumber scalar)
+        requires detail::ownsChainStorage<Storage, PointType>;
 
     /** @brief Returns the chain with its y-coordinates divided by a divisor. */
     template <class OtherNumber>
-    [[nodiscard]] constexpr MonotoneChain scaledDownY(const OtherNumber scalar) const;
+    [[nodiscard]] constexpr OwningChain scaledDownY(const OtherNumber scalar) const;
 
     /** @brief Divides the chain's y-coordinates by a divisor in place. */
     template <class OtherNumber>
-    constexpr void scaleDownY(const OtherNumber scalar);
+    constexpr void scaleDownY(const OtherNumber scalar)
+        requires detail::ownsChainStorage<Storage, PointType>;
 
     /**
      * @brief Translates the chain by the given point.
@@ -1533,7 +1596,8 @@ struct MonotoneChain {
      * point), so the chain is renormalized to stay canonical.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar> &&
+                 detail::ownsChainStorage<Storage, PointType>)
     constexpr MonotoneChain& operator*=(const Scalar& scalar) {
         for (auto& vertex : points_) {
             vertex *= scalar;
@@ -1550,7 +1614,8 @@ struct MonotoneChain {
      * Complexity: O(n log n) for n vertices; renormalizes like @ref operator*=.
      */
     template <class Scalar>
-        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
+        requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar> &&
+                 detail::ownsChainStorage<Storage, PointType>)
     constexpr MonotoneChain& operator/=(const Scalar& scalar) {
         for (auto& vertex : points_) {
             vertex /= scalar;
@@ -1607,7 +1672,7 @@ struct MonotoneChain {
     };
 
   private:
-    std::vector<PointType> points_{};
+    Storage points_{};
     [[no_unique_address]] mutable LabelType label_{};
     PointType translation_{};
     // Lazily computed bounding box, invalidated by resetCache() on every
@@ -1731,7 +1796,8 @@ struct MonotoneChain {
 
     class Iterator {
     private:
-        std::vector<PointType>::const_iterator it;
+        using BaseIterator = std::ranges::iterator_t<const Storage>;
+        BaseIterator it;
         PointType x;
 
     public:
@@ -1742,7 +1808,7 @@ struct MonotoneChain {
         using reference = PointType&;
 
         Iterator() = default;
-        Iterator(std::vector<PointType>::const_iterator it, PointType x) : it(it), x(x) {}
+        Iterator(BaseIterator it, PointType x) : it(it), x(x) {}
 
         // Dereference returns value + x
         PointType operator*() const {
@@ -1807,13 +1873,27 @@ struct MonotoneChain {
     };
 }; // struct MonotoneChain
 
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const MonotoneChain<PointType, LabelType>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {
+/**
+ * @brief A non-owning @ref MonotoneChain that views an external, already
+ * canonical (sorted, duplicate-free) contiguous range of vertices.
+ *
+ * `MonotoneChainView` shares every read-only operation with the owning chain
+ * — it is just @ref MonotoneChain instantiated over a `std::span` — but the
+ * caller owns the underlying storage and is responsible for keeping it alive
+ * and canonical for the view's lifetime. Mutating operations (insert, in-place
+ * scaling/rotation, `operator*=`, …) are not available; transformations that
+ * return a chain yield an owning @ref MonotoneChain instead.
+ */
+template <class PointType = Point<>, class Label = NoLabel>
+using MonotoneChainView = MonotoneChain<PointType, Label, std::span<const PointType>>;
+
+template <class PointType, class LabelType, class Storage, class TranslationNumber, class TranslationLabel>
+constexpr auto operator+(const MonotoneChain<PointType, LabelType, Storage>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {
     return translation + chain;
 }
 
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const MonotoneChain<PointType, LabelType>& chain) {
+template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType, class Storage>
+constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const MonotoneChain<PointType, LabelType, Storage>& chain) {
     using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
     MonotoneChain<ResultPointType, LabelType> result(chain);
     result += translation;
@@ -1823,14 +1903,14 @@ constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& trans
     return result;
 }
 
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator-(const MonotoneChain<PointType, LabelType>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {
+template <class PointType, class LabelType, class Storage, class TranslationNumber, class TranslationLabel>
+constexpr auto operator-(const MonotoneChain<PointType, LabelType, Storage>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {
     return chain + (-translation);
 }
 
-template <class PointType, class LabelType, class Scalar>
+template <class PointType, class LabelType, class Storage, class Scalar>
     requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
-constexpr auto operator*(const MonotoneChain<PointType, LabelType>& chain, const Scalar& scalar) {
+constexpr auto operator*(const MonotoneChain<PointType, LabelType, Storage>& chain, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() * scalar), typename PointType::LabelType>;
     MonotoneChain<ResultPointType, LabelType> result(chain);
     result *= scalar;
@@ -1840,15 +1920,15 @@ constexpr auto operator*(const MonotoneChain<PointType, LabelType>& chain, const
     return result;
 }
 
-template <class Scalar, class PointType, class LabelType>
+template <class Scalar, class PointType, class LabelType, class Storage>
     requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
-constexpr auto operator*(const Scalar& scalar, const MonotoneChain<PointType, LabelType>& chain) {
+constexpr auto operator*(const Scalar& scalar, const MonotoneChain<PointType, LabelType, Storage>& chain) {
     return chain * scalar;
 }
 
-template <class PointType, class LabelType, class Scalar>
+template <class PointType, class LabelType, class Storage, class Scalar>
     requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
-constexpr auto operator/(const MonotoneChain<PointType, LabelType>& chain, const Scalar& scalar) {
+constexpr auto operator/(const MonotoneChain<PointType, LabelType, Storage>& chain, const Scalar& scalar) {
     using ResultPointType = Point<decltype(std::declval<PointType>().x() / scalar), typename PointType::LabelType>;
     MonotoneChain<ResultPointType, LabelType> result(chain);
     result /= scalar;
@@ -1858,7 +1938,7 @@ constexpr auto operator/(const MonotoneChain<PointType, LabelType>& chain, const
     return result;
 }
 
-template <class PointType, class LabelType>
-std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, LabelType>& chain);
+template <class PointType, class LabelType, class Storage>
+std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, LabelType, Storage>& chain);
 
 }  // namespace pgl

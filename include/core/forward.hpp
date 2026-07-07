@@ -9,6 +9,7 @@
  */
 
 #include <type_traits>
+#include <vector>
 
 namespace pgl {
 
@@ -98,7 +99,7 @@ template <class PointType, class Label = NoLabel>
 struct Polygon;
 
 /** @brief Weakly x-monotone polyline stored by lexicographically sorted vertices. */
-template <class PointType, class Label = NoLabel>
+template <class PointType, class Label = NoLabel, class Storage = std::vector<PointType>>
 struct MonotoneChain;
 
 /** @brief Closed Euclidean disk stored by boundary points plus optional disk label. */
@@ -162,8 +163,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Disk<PointType, Label>> = 100;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Convex<PointType, Label>> = 110;
-template <class PointType, class Label>
-inline constexpr int shapeRank<MonotoneChain<PointType, Label>> = 115;
+template <class PointType, class Label, class Storage>
+inline constexpr int shapeRank<MonotoneChain<PointType, Label, Storage>> = 115;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Polygon<PointType, Label>> = 120;
 
@@ -221,7 +222,7 @@ template <class PointType, class Label> struct is_polygon<Polygon<PointType, Lab
 template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_monotone_chain : std::false_type {};
-template <class PointType, class Label> struct is_monotone_chain<MonotoneChain<PointType, Label>> : std::true_type {};
+template <class PointType, class Label, class Storage> struct is_monotone_chain<MonotoneChain<PointType, Label, Storage>> : std::true_type {};
 template <class T> inline constexpr bool is_monotone_chain_v = is_monotone_chain<std::remove_cvref_t<T>>::value;
 
 template <class T> struct is_disk : std::false_type {};

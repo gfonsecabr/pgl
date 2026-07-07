@@ -1018,18 +1018,18 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const Shape<Poin
  * extreme vertices, matching the endpoint convention of Segment.
  */
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const OtherPoint& point) const {
     if (points_.empty()) {
         return false;
     }
     return point == points_.front() + translation_ || point == points_.back() + translation_;
 }
 
-template <class PointType, class LabelType>
+template <class PointType, class LabelType, class Storage>
 template<PointConcept OtherPoint>
-constexpr bool MonotoneChain<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const Shape<OtherPoint>& other) const {
     return std::visit(
         [this](const auto& value) {
             return this->boundaryContains(value);
