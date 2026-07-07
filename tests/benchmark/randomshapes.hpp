@@ -210,3 +210,47 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) 
     }
     return w;
 }
+
+// Weakly x-monotone chains: m random points fed to MonotoneChain, whose
+// constructor sorts them lexicographically and drops duplicates. The result has
+// at most m vertices (fewer when x/y collisions coincide).
+template <class Number>
+std::vector<pgl::MonotoneChain<pgl::Point<Number>>> randomSmallMonotoneChains(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using MonotoneChain = pgl::MonotoneChain<Point>;
+    std::vector<MonotoneChain> w;
+    std::set<MonotoneChain> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::MonotoneChain<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, largeRange);
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(base + randomPoint<Number>(rng, smallRange));
+        }
+        MonotoneChain chain(points);
+        if (!chain.isDegenerate() && seen.insert(chain).second) {
+            w.push_back(chain);
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::MonotoneChain<pgl::Point<Number>>> randomLargeMonotoneChains(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using MonotoneChain = pgl::MonotoneChain<Point>;
+    std::vector<MonotoneChain> w;
+    std::set<MonotoneChain> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::MonotoneChain<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, largeRange));
+        }
+        MonotoneChain chain(points);
+        if (!chain.isDegenerate() && seen.insert(chain).second) {
+            w.push_back(chain);
+        }
+    }
+    return w;
+}

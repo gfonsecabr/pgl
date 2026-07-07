@@ -59,6 +59,7 @@ ALL_SHAPES = [
     "Disk",
     "Convex",
     "Polygon",
+    "MonotoneChain",
 ]
 
 # A bare Point has no extent, so it only ever appears as the second operand
@@ -90,6 +91,11 @@ ALL_METHODS = [
     "parallel",
     "intersection",
     "squaredDistance",
+    "distanceL1",
+    "distanceLInf",
+    "squaredHausdorffDistance",
+    "hausdorffDistanceL1",
+    "hausdorffDistanceLInf",
 ]
 
 # Ground-truth type for cross-type comparison
@@ -125,6 +131,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Trishape<{alias}>({n});"
     if shape == "Polygon":
         return f"auto {var} = {prefix}Polygons<N>({n}, 32);"
+    if shape == "MonotoneChain":
+        return f"auto {var} = {prefix}MonotoneChains<N>({n}, 32);"
     return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"
 
 
@@ -136,8 +144,10 @@ def _cpp_accumulate(method: str) -> str:
         return f"count += a.{method}(b) ? 1 : 0;"
     if method == "intersection":
         return "count += a.template intersection<N>(b).has_value() ? 1 : 0;"
-    if method == "squaredDistance":
-        return ("{ const auto d = a.squaredDistance(b);"
+    if method in {"squaredDistance", "distanceL1", "distanceLInf",
+                  "squaredHausdorffDistance", "hausdorffDistanceL1",
+                  "hausdorffDistanceLInf"}:
+        return (f"{{ const auto d = a.{method}(b);"
                     " const decltype(d) zero{}; count += (d == zero) ? 1 : 0; }")
     raise ValueError(f"Unknown method: {method!r}")
 
