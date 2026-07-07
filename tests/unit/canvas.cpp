@@ -197,3 +197,20 @@ TEST_CASE("Canvas draws runtime Shape alternatives") {
     CHECK(svg.find("<title>&lt;(0,0)(4,0)(0,3)&gt;</title>") != std::string::npos);
     CHECK(svg.find("<title>Convex[(0,0),(5,0),(5,4),(0,4)]</title>") != std::string::npos);
 }
+
+TEST_CASE("Canvas renders a MonotoneChain as an open polyline") {
+    const std::string path = "build/tests/output/monotonechain_canvas.svg";
+
+    pgl::Canvas canvas;
+    canvas << pgl::MonotoneChain<pgl::Point<int>>({0, 0, 2, 4, 4, 0})
+           << pgl::Shape<pgl::Point<int>>(pgl::MonotoneChain<pgl::Point<int>>({0, 2, 4, 2}));
+    canvas.writeSVG(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+    const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    CHECK(svg.find("<polyline") != std::string::npos);
+    CHECK(svg.find("<polygon") == std::string::npos);   // never closed or filled
+    CHECK(svg.find("<title>MonotoneChain[(0,0),(2,4),(4,0)]</title>") != std::string::npos);
+}

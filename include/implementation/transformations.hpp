@@ -1705,6 +1705,107 @@ constexpr void Polygon<PointType, LabelType>::scaleDownY(const OtherNumber scala
 }
 
 // ---------------------------------------------------------------------------
+// MonotoneChain
+//
+// Every transformed result goes through the non-trusted constructor: a
+// 90-degree rotation swaps the monotone axis, and a negative or zero scale
+// factor reverses or collapses the lexicographic order, so the vertex set is
+// re-sorted into the canonical chain on the transformed points.
+
+template <class PointType, class LabelType>
+constexpr MonotoneChain<PointType, LabelType> MonotoneChain<PointType, LabelType>::rotated90(int k) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.rotated90(k));
+    }
+    return MonotoneChain(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+constexpr void MonotoneChain<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
+    *this = rotated90(k);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr MonotoneChain<PointType, LabelType> MonotoneChain<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpX(scalar));
+    }
+    return MonotoneChain(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void MonotoneChain<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledUpX(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr MonotoneChain<PointType, LabelType> MonotoneChain<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpY(scalar));
+    }
+    return MonotoneChain(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void MonotoneChain<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledUpY(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr MonotoneChain<PointType, LabelType> MonotoneChain<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownX(scalar));
+    }
+    return MonotoneChain(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void MonotoneChain<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledDownX(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr MonotoneChain<PointType, LabelType> MonotoneChain<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownY(scalar));
+    }
+    return MonotoneChain(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void MonotoneChain<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledDownY(scalar);
+    label_ = std::move(saved);
+}
+
+// ---------------------------------------------------------------------------
 // Disk
 
 template <class PointType, class LabelType>
@@ -1807,6 +1908,18 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
             pts.push_back(point(p));
         }
         return Polygon<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    } else if constexpr (MonotoneChainConcept<ShapeT>) {
+        // A general affine map does not preserve x-monotonicity, so the
+        // non-trusted constructor re-sorts the transformed vertices into the
+        // canonical chain on the mapped point set, the same reasoning already
+        // used by MonotoneChain::rotated90.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        std::vector<ResultPoint> pts;
+        pts.reserve(shape.size());
+        for (const auto& p : shape) {
+            pts.push_back(point(p));
+        }
+        return MonotoneChain<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
     }
 }
 

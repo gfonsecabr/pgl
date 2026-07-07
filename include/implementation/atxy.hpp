@@ -337,4 +337,160 @@ constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType, Lab
     return std::array<Segment<PointType>, 2>{lower, upper};
 }
 
+// -----------------------------------------------------------------------------
+// MonotoneChain
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr std::optional<std::size_t>
+MonotoneChain<PointType, LabelType>::indexAtX(const OtherNumber& x) const {
+    // Compare translated x-coordinates in the common type so mixed coordinate
+    // types (e.g. an int chain queried with a Rational) compare exactly.
+    using Compare = std::common_type_t<NumberType, OtherNumber>;
+    if (points_.empty()) {
+        return {};
+    }
+    const auto tx = translation_.x();
+    if (static_cast<Compare>(x) < static_cast<Compare>(points_.front().x() + tx) ||
+        static_cast<Compare>(points_.back().x() + tx) < static_cast<Compare>(x)) {
+        return {};
+    }
+    // First index whose x is >= the query x; lower_bound gives the smallest
+    // such index, which at a vertical run of vertices is the bottom one.
+    const auto it = std::lower_bound(
+        points_.begin(), points_.end(), x,
+        [&tx](const PointType& p, const OtherNumber& value) {
+            return static_cast<Compare>(p.x() + tx) < static_cast<Compare>(value);
+        });
+    assert(it != points_.end());
+    const std::size_t i = static_cast<std::size_t>(it - points_.begin());
+    if (static_cast<Compare>(it->x() + tx) == static_cast<Compare>(x)) {
+        return i;
+    }
+    // x lies strictly between vertex i-1 and vertex i; the range check above
+    // guarantees i > 0 here.
+    return i - 1;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherNumber>
+constexpr std::optional<ResultNumber>
+MonotoneChain<PointType, LabelType>::yAtX(const OtherNumber& x) const {
+    using Compare = std::common_type_t<NumberType, OtherNumber>;
+    const auto idx = indexAtX(x);
+    if (!idx) {
+        return {};
+    }
+    const PointType a = (*this)[*idx];
+    if (static_cast<Compare>(a.x()) == static_cast<Compare>(x)) {
+        // Exactly at a vertex; at a vertical run this is its bottom vertex.
+        return static_cast<ResultNumber>(a.y());
+    }
+    // Strictly inside edge (idx, idx + 1); the edge's Segment overload does
+    // the one interpolation division in ResultNumber.
+    const Segment<PointType> edge(a, (*this)[*idx + 1]);
+    return edge.template yAtX<ResultNumber>(x);
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr std::optional<std::size_t>
+MonotoneChain<PointType, LabelType>::isBelow(const OtherPoint& point) const {
+    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+    const auto idx = indexAtX(point.x());
+    if (!idx) {
+        return {};
+    }
+    const PointType a = (*this)[*idx];
+    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+        // The chain covers x = point.x() from the bottom vertex of this run
+        // upward; a downward ray from the point hits iff the bottom is not
+        // above the point.
+        if (static_cast<Compare>(a.y()) <= static_cast<Compare>(point.y())) {
+            return idx;
+        }
+        return {};
+    }
+    // Strictly inside edge (idx, idx + 1), which runs left to right, so the
+    // point is on or above the edge iff it is not on the right of it.
+    if (orientationSign(a, (*this)[*idx + 1], point) >= 0) {
+        return idx;
+    }
+    return {};
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr std::optional<std::size_t>
+MonotoneChain<PointType, LabelType>::isAbove(const OtherPoint& point) const {
+    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+    const auto idx = indexAtX(point.x());
+    if (!idx) {
+        return {};
+    }
+    const PointType a = (*this)[*idx];
+    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+        // The chain covers x = point.x() up to the *top* vertex of the run
+        // starting at idx; locate it with a second binary search (the run is
+        // contiguous because the vertices are sorted lexicographically).
+        const auto tx = translation_.x();
+        const auto it = std::upper_bound(
+            points_.begin() + static_cast<std::ptrdiff_t>(*idx), points_.end(), point.x(),
+            [&tx](const auto& value, const PointType& p) {
+                return static_cast<Compare>(value) < static_cast<Compare>(p.x() + tx);
+            });
+        const PointType top = (*this)[static_cast<std::size_t>(it - points_.begin()) - 1];
+        if (static_cast<Compare>(top.y()) >= static_cast<Compare>(point.y())) {
+            return idx;
+        }
+        return {};
+    }
+    if (orientationSign(a, (*this)[*idx + 1], point) <= 0) {
+        return idx;
+    }
+    return {};
+}
+
+template <class PointType, class LabelType>
+template <class LowNumber, class HighNumber>
+constexpr std::optional<std::pair<std::size_t, std::size_t>>
+MonotoneChain<PointType, LabelType>::edgeWindow(const LowNumber& xlo, const HighNumber& xhi) const {
+    using CompareLow = std::common_type_t<NumberType, LowNumber>;
+    using CompareHigh = std::common_type_t<NumberType, HighNumber>;
+    if (points_.size() < 2) {
+        return {};
+    }
+    const auto tx = translation_.x();
+    if (static_cast<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.front().x() + tx) ||
+        static_cast<CompareLow>(points_.back().x() + tx) < static_cast<CompareLow>(xlo)) {
+        return {};
+    }
+    std::size_t first = 0;
+    if (static_cast<CompareLow>(points_.front().x() + tx) < static_cast<CompareLow>(xlo)) {
+        // The disjointness check above guarantees xlo is inside the x-extent.
+        first = *indexAtX(xlo);
+        if (first > 0) {
+            // When xlo lands exactly on vertex `first`, edge (first - 1, first)
+            // still touches the window at that single x.
+            --first;
+        }
+    }
+    std::size_t last = points_.size() - 1;
+    if (static_cast<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.back().x() + tx)) {
+        // Last vertex with x <= xhi; the disjointness check guarantees one exists.
+        const auto it = std::upper_bound(
+            points_.begin(), points_.end(), xhi,
+            [&tx](const HighNumber& value, const PointType& p) {
+                return static_cast<CompareHigh>(value) < static_cast<CompareHigh>(p.x() + tx);
+            });
+        last = static_cast<std::size_t>(it - points_.begin()) - 1;
+    }
+    // Vertex index -> index of the last edge starting no later than it.
+    last = std::min(last, points_.size() - 2);
+    if (last < first) {
+        return {};
+    }
+    return std::pair<std::size_t, std::size_t>{first, last};
+}
+
 }  // namespace pgl

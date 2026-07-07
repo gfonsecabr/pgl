@@ -1446,4 +1446,186 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk
     return other.pointInsideInteriorContainedIn(*this);
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Weakly x-monotone chain predicates. The chain's relative interior is the
+ * chain minus its two extreme vertices, so non-extreme vertices count as
+ * interior points alongside the open edges.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (points_.size() < 2) {
+        // A chain without an edge has an empty relative interior.
+        return false;
+    }
+    const auto window = edgeWindow(other.min().x(), other.max().x());
+    if (!window) {
+        return false;
+    }
+    for (std::size_t i = window->first; i <= window->second; ++i) {
+        if (this->template boundaryAt<false>(i).interiorsIntersect(other)) {
+            return true;
+        }
+    }
+    // The open edges miss the chain's own vertices, but the non-extreme ones
+    // are interior points of the chain: a segment whose open part passes
+    // exactly through such a vertex still meets the chain's interior.
+    const std::size_t firstVertex = std::max<std::size_t>(window->first, 1);
+    const std::size_t lastVertex = std::min(window->second + 1, points_.size() - 2);
+    for (std::size_t v = firstVertex; v <= lastVertex; ++v) {
+        if (other.interiorContains((*this)[v])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+namespace detail {
+
+// Shared body of MonotoneChain::interiorsIntersect against a shape whose
+// interior test is `other.interiorContains(point)`: the chain's relative
+// interior is its open edges plus its non-extreme vertices, so it meets the
+// other interior iff an open edge does or such a vertex lies inside it.
+template <class Chain, class OtherShape>
+constexpr bool chainInteriorsIntersect(const Chain& chain, const OtherShape& other) {
+    const std::size_t n = chain.size();
+    if (n < 2) {
+        // A chain without an edge has an empty relative interior.
+        return false;
+    }
+    for (std::size_t i = 0; i + 1 < n; ++i) {
+        if (Segment<typename Chain::PointType>(chain[i], chain[i + 1]).interiorsIntersect(other)) {
+            return true;
+        }
+    }
+    for (std::size_t v = 1; v + 1 < n; ++v) {
+        if (other.interiorContains(chain[v])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    if (size() < 2 || other.size() < 2) {
+        return false;
+    }
+    // Open-edge pairs via the same merge sweep as intersects().
+    std::size_t i = 0;
+    std::size_t j = 0;
+    const std::size_t iEnd = size() - 1;
+    const std::size_t jEnd = other.size() - 1;
+    while (i < iEnd && j < jEnd) {
+        const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
+        const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
+        if (!(mine.max().x() < theirs.min().x() || theirs.max().x() < mine.min().x()) &&
+            mine.interiorsIntersect(theirs)) {
+            return true;
+        }
+        const auto order = mine.max() <=> theirs.max();
+        if (order <= 0) {
+            ++i;
+        }
+        if (order >= 0) {
+            ++j;
+        }
+    }
+    // The open edges miss the chains' own vertices, but the non-extreme ones
+    // are interior, whichever chain they belong to.
+    for (std::size_t v = 1; v + 1 < size(); ++v) {
+        if (other.interiorContains((*this)[v])) {
+            return true;
+        }
+    }
+    for (std::size_t v = 1; v + 1 < other.size(); ++v) {
+        if (interiorContains(other[v])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
+}
+
 }  // namespace pgl

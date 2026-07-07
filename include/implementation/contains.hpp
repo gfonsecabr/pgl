@@ -1529,4 +1529,304 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherPolygon& other) c
     return true;
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Weakly x-monotone chain predicates: point location by binary search on x,
+ * straight sub-path containment, and degenerate reductions for the shapes a
+ * 1-dimensional bounded set can contain.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherPoint& point) const {
+    // The slice of the chain at any x is a single vertical segment (possibly a
+    // point), so the point is on the chain iff the chain passes both weakly
+    // below and weakly above it.
+    return isBelow(point).has_value() && isAbove(point).has_value();
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherSegment& other) const {
+    if (!contains(other.min()) || !contains(other.max())) {
+        return false;
+    }
+    // Both endpoints lie on the chain, which is a monotone arc in the
+    // lexicographic order, so the sub-arc between them equals the segment iff
+    // it never bends: every chain vertex lexicographically between the
+    // endpoints must be collinear with the segment. The scan stops at the
+    // first bend or at the far endpoint.
+    const auto first = std::upper_bound(
+        points_.begin(), points_.end(), other.min(),
+        [this](const auto& value, const PointType& p) { return value < p + translation_; });
+    for (auto it = first; it != points_.end(); ++it) {
+        const PointType vertex = *it + translation_;
+        if (!(vertex < other.max())) {
+            break;
+        }
+        if (orientationSign(other.min(), other.max(), vertex) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
+    return contains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherLine& other) const {
+    return other.isDegenerate() && contains(other.min());
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherRay& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherRectangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return contains(other.min());
+    }
+    return contains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherTriangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return contains(other.a());
+    }
+    return contains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherConvex& other) const {
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    if (other.size() == 2) {
+        return contains(Segment<typename OtherConvex::PointType>(other[0], other[1]));
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherPolygon& other) const {
+    // A polygon lies on the 1-dimensional chain exactly when all of its edges
+    // do; its interior is then empty, so the edge fold decides containment for
+    // degenerate and non-degenerate polygons alike (a bent chain may pass
+    // through every vertex without containing the edges, so a vertex fold
+    // would not be enough).
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (const auto& edge : other.edges()) {
+        if (!contains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherDisk& other) const {
+    return other.a() == other.b() && other.b() == other.c() && contains(other.a());
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    // The other chain is exactly the union of its edges, and each edge must be
+    // a straight sub-path of this chain.
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->contains(value);
+        },
+        other.variant());
+}
+
+// Every shape below is a convex point set, so it contains the chain iff it
+// contains all of the chain's vertices (an empty chain is trivially contained).
+
+template <class Number, class Label>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Point<Number, Label>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Segment<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherChain& other) const {
+    return asSegment().contains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Line<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherChain& other) const {
+    return asLine().contains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Ray<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Rectangle<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Disk<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Convex<PointType, LabelType>::contains(const OtherChain& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A polygon is generally not convex, so it must contain every chain edge.
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

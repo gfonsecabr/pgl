@@ -40,6 +40,7 @@
 #include "shape/triangle.hpp"
 #include "shape/disk.hpp"
 #include "shape/convex.hpp"
+#include "shape/monotonechain.hpp"
 #include "shape/polygon.hpp"
 #include "shape/shape.hpp"
 #include "implementation/io.hpp"
@@ -73,6 +74,7 @@
 namespace pgl {
 
 using ERational        = Rational<BigInt>;
+using ETransformation  = Transformation<ERational>;
 using EPoint           = Point<ERational>;
 using EEmptyShape      = EmptyShape<EPoint>;
 using ESegment         = Segment<EPoint>;
@@ -86,6 +88,7 @@ using ETriangle        = Triangle<EPoint>;
 using EDisk            = Disk<EPoint>;
 using EConvex          = Convex<EPoint>;
 using EPolygon         = Polygon<EPoint>;
+using EMonotoneChain   = MonotoneChain<EPoint>;
 using EShape           = Shape<EPoint>;
 
 }  // namespace pgl

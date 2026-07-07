@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shape/convex.hpp"
+#include "shape/monotonechain.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -840,6 +840,54 @@ struct Polygon {
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool contains(const OtherChain& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorContains(const OtherChain& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool intersects(const OtherChain& other) const;
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherChain& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The chain is an arc whose arc order is its lexicographic vertex order, so
+     * removing this polygon cuts the chain exactly when the chain has ordered
+     * points a < b < c with b inside the polygon and a, c outside (an edge
+     * carrying all three is a separated edge; otherwise a and c straddle a
+     * covered vertex or edge).
+     */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool separates(const OtherChain& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). @warning Relies on the not-yet-implemented `separates` and throws. */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool crosses(const OtherChain& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherChain& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceL1(const OtherChain& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherChain& other) const;
 
 
     /**

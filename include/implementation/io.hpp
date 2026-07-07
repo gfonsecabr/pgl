@@ -262,4 +262,26 @@ std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelTyp
     stream << "]";
     return stream;
 }
+
+// -----------------------------------------------------------------------------
+// MonotoneChain
+/**
+ * @brief Streams a MonotoneChain as `MonotoneChain[(P1),(P2),(P3),...]`.
+ *
+ * @param stream Output stream.
+ * @param chain Chain to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, LabelType>& chain) {
+    stream << "MonotoneChain[";
+    for (std::size_t i = 0; i < chain.size(); ++i) {
+        if (i > 0) {
+            stream << ",";
+        }
+        stream << chain[i];
+    }
+    stream << "]";
+    return stream;
+}
 }  // namespace pgl

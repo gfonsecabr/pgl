@@ -97,6 +97,10 @@ struct Convex;
 template <class PointType, class Label = NoLabel>
 struct Polygon;
 
+/** @brief Weakly x-monotone polyline stored by lexicographically sorted vertices. */
+template <class PointType, class Label = NoLabel>
+struct MonotoneChain;
+
 /** @brief Closed Euclidean disk stored by boundary points plus optional disk label. */
 template <class PointType, class Label>
 struct Disk;
@@ -159,6 +163,8 @@ inline constexpr int shapeRank<Disk<PointType, Label>> = 100;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Convex<PointType, Label>> = 110;
 template <class PointType, class Label>
+inline constexpr int shapeRank<MonotoneChain<PointType, Label>> = 115;
+template <class PointType, class Label>
 inline constexpr int shapeRank<Polygon<PointType, Label>> = 120;
 
 // Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
@@ -214,6 +220,10 @@ template <class T> struct is_polygon : std::false_type {};
 template <class PointType, class Label> struct is_polygon<Polygon<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
 
+template <class T> struct is_monotone_chain : std::false_type {};
+template <class PointType, class Label> struct is_monotone_chain<MonotoneChain<PointType, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_monotone_chain_v = is_monotone_chain<std::remove_cvref_t<T>>::value;
+
 template <class T> struct is_disk : std::false_type {};
 template <class PointType, class Label> struct is_disk<Disk<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_disk_v = is_disk<std::remove_cvref_t<T>>::value;
@@ -243,6 +253,7 @@ template <class T> concept RectangleConcept = detail::is_rectangle_v<T>;
 template <class T> concept TriangleConcept = detail::is_triangle_v<T>;
 template <class T> concept ConvexConcept = detail::is_convex_v<T>;
 template <class T> concept PolygonConcept = detail::is_polygon_v<T>;
+template <class T> concept MonotoneChainConcept = detail::is_monotone_chain_v<T>;
 template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 template <class T> concept TransformationConcept = detail::is_transformation_v<T>;

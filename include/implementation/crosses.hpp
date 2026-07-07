@@ -741,4 +741,93 @@ constexpr bool Disk<PointType, LabelType>::crosses(const Shape<OtherPoint>& othe
         other.variant());
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Mutual-cut predicates for a weakly x-monotone chain: `a.crosses(b)` is
+ * `a.separates(b) && b.separates(a)`, so the pairs whose `separates` is not
+ * implemented yet throw through it.
+ */
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherSegment& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+    return crosses(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherRay& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherRectangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherTriangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherDisk& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherConvex& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const OtherChain& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->crosses(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::crosses(const OtherChain& other) const {
+    return separates(other) && other.separates(*this);
+}
+
 }  // namespace pgl

@@ -17,44 +17,24 @@
 ## Shapes Not Yet Implemented
 
 - [`Polyline`](#polyline) Polyline, also called a polygonal chain, possibly having self-intersections.
-- [`PolyFunction`](#monotone-polyline) An x-monotone polyline.
+
+The x-monotone polyline (formerly sketched here as `PolyFunction`) is implemented as [`MonotoneChain`](shapes.md#monotone-chain).
 
 
 ### Polyline
 
-The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance.
+The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance, to be built on the implemented [`MonotoneChain`](shapes.md#monotone-chain).
 
 A polyline `P` has methods such as:
 
 - `P.isDegenerate()`: Returns true if all vertices are equal.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 
-
-### Monotone Polyline
-
-The class `PolyFunction` represents an x-monotone polyline, more precisely a polyline such that if vertex $u$ is before vertex $v$, then $u$ compares inferior to $v$. A polyline may be constructed from any container of points, which will be sorted automatically. If the points are already sorted, then a second parameter true can be given to avoid sorting the points again.
-
-We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A polyline `P` has methods such as:
-
-- `P.isDegenerate()`: Returns true if all vertices are equal.
-- `P.insert(P2)`: Extends the polyfunction in order to contain another point `P2` as a vertex.
-- `P.insert(points)`: Extends the polyfunction in order to contain other given vertices.
-- `s.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x`.  Takes $O(\log n)$ time for $n$ vertices.
-- `s.indexAtX(x)`: Returns an `std::optional<size_t>` that is true if the polyline contains a point of x-coordinate equal to x. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices. 
-- `P.isBelow(p)`: Returns an `std::optional<size_t>` that is true if a ray shot down from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
-- `P.isAbove(p)`: Returns an `std::optional<size_t>` that is true if a ray shot up from `p` intersects `P`. The returned value is the smallest index `i` such that `P[i+1].x() > p.x()` or `P[i].x() = p.x()`. Takes $O(\log n)$ time for $n$ vertices.
-
-If the polyfunction `P` has $n$ vertices, then:
-
-- `P.contains(s)` takes $O(\log n)$ time if `s` is a point or a segment.
-- `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a polyfunction with $m$ vertices.
-- `P.intersection(P2)` takes $O(n+m)$ time if `P2` is another polyfunction with $m$ vertices and returns an `std::vector`of points.
-
 ## Partially Implemented Features
 
 ### L1 / LInf distance to and from Disk
 
-`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, and Polygon, plus `Disk`-to-`Point`. The remaining `Disk` pairs (`Disk` vs. `Segment`/`OrientedSegment`/`Line`/`OrientedLine`/`Ray`/`Halfplane`/`Rectangle`/`Triangle`/`Convex`/`Polygon`, and `Disk`-`Disk`) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
+`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, MonotoneChain, and Polygon, plus `Disk`-to-`Point`. The remaining `Disk` pairs (`Disk` vs. `Segment`/`OrientedSegment`/`Line`/`OrientedLine`/`Ray`/`Halfplane`/`Rectangle`/`Triangle`/`Convex`/`Polygon`, and `Disk`-`Disk`) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
 
 ## Data Structures Not Yet Implemented
 

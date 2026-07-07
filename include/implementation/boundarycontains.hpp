@@ -1012,4 +1012,106 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const Shape<Poin
         other.variant());
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Weakly x-monotone chain predicates: the boundary of a chain is its two
+ * extreme vertices, matching the endpoint convention of Segment.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    if (points_.empty()) {
+        return false;
+    }
+    return point == points_.front() + translation_ || point == points_.back() + translation_;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->boundaryContains(value);
+        },
+        other.variant());
+}
+
+template <class Number, class Label>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Point<Number, Label>::boundaryContains(const OtherChain&) const {
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    // The boundary is a line (a convex set), so it contains the chain iff it
+    // contains every vertex.
+    for (const auto& vertex : other) {
+        if (!boundaryContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    return asConvex().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    return asConvex().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    if (isDegenerate()) {
+        return Line<PointType>(a(), c()).contains(other);
+    }
+    // Chain edges are straight, so only a single vertex can lie on the circle.
+    return other.empty() || (other.size() == 1 && boundaryContains(other[0]));
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    // A chain may run along the convex boundary through many collinear
+    // vertices, so fold the edges rather than counting vertices.
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!boundaryContains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!boundaryContains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

@@ -1282,4 +1282,255 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk& other)
     return false;
 }
 
+/**
+ * @section predicates-monotonechain MonotoneChain
+ * Weakly x-monotone chain predicates: intersection tests restricted by binary
+ * search to the edges whose x-range meets the other shape's, and the
+ * chain-vs-chain merge sweep.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherPoint& other) const {
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (points_.empty()) {
+        return false;
+    }
+    if (points_.size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    const auto window = edgeWindow(other.min().x(), other.max().x());
+    if (!window) {
+        return false;
+    }
+    for (std::size_t i = window->first; i <= window->second; ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    // A rectangle's x-extent is available directly, so only the chain edges in
+    // that window can meet it.
+    const auto window = edgeWindow(other.min().x(), other.max().x());
+    if (!window) {
+        return false;
+    }
+    for (std::size_t i = window->first; i <= window->second; ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherConvex& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        if (this->template boundaryAt<false>(i).intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType>::intersects(const OtherChain& other) const {
+    if (empty() || other.empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    if ((*this)[size() - 1].x() < other[0].x() || other[other.size() - 1].x() < (*this)[0].x()) {
+        return false;
+    }
+    // Merge sweep: both edge sequences are sorted by x-interval, so advancing
+    // the edge with the lexicographically smaller right endpoint visits every
+    // pair whose x-ranges overlap. On a tie both advance: the skipped pairs
+    // could only meet at that shared right endpoint, which belongs to the pair
+    // just tested, so nothing is missed.
+    std::size_t i = 0;
+    std::size_t j = 0;
+    const std::size_t iEnd = size() - 1;
+    const std::size_t jEnd = other.size() - 1;
+    while (i < iEnd && j < jEnd) {
+        const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
+        const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
+        if (!(mine.max().x() < theirs.min().x() || theirs.max().x() < mine.min().x()) &&
+            mine.intersects(theirs)) {
+            return true;
+        }
+        const auto order = mine.max() <=> theirs.max();
+        if (order <= 0) {
+            ++i;
+        }
+        if (order >= 0) {
+            ++j;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherChain& other) const {
+    if (other.empty()) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return intersects(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (intersects(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace pgl

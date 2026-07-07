@@ -102,8 +102,8 @@ general angle is generally irrational.
 `determinant()` is negative exactly when the transformation reverses
 orientation (a reflection, or an odd number of shears/reflections composed
 together). Shapes with a winding or normalization invariant (`Triangle`,
-`Convex`, `Polygon`) renormalize automatically through their own
-constructors, and `Halfplane` swaps its source and target to keep the same
+`Convex`, `MonotoneChain`, `Polygon`) renormalize automatically through their
+own constructors, and `Halfplane` swaps its source and target to keep the same
 interior, mirroring the existing negative-scalar handling already used by
 `scaledUpX`.
 
@@ -181,7 +181,7 @@ pgl::Point<> p(isec);
   — all bounded, convex shapes, so the directed distance in either direction
   is always attained at a vertex. Not defined for `Line`, `OrientedLine`,
   `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them
-  is generally infinite), nor yet for `Disk` or `Polygon`.
+  is generally infinite), nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
 
 - `distanceL1(Shape)` / `distanceLInf(Shape)`: Return the Manhattan (L1) or
   Chebyshev (LInf) distance to the given shape. Neither metric needs
@@ -193,7 +193,7 @@ pgl::Point<> p(isec);
   non-axis-aligned segment, ray, or line generally has a fractional exact
   distance). Defined for every pair among `Point`, `Segment`,
   `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`,
-  `Triangle`, `Convex`, and `Polygon`, plus `Disk`-`Point`: like `Disk`'s
+  `Triangle`, `Convex`, `MonotoneChain`, and `Polygon`, plus `Disk`-`Point`: like `Disk`'s
   other overloads this always returns `double`, since there is no closed
   form for the distance from a point to a circle under either metric and it
   is instead found with a numeric search. The remaining `Disk` pairs (`Disk`

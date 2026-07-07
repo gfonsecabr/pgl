@@ -595,3 +595,71 @@ TEST_CASE("EmptyShape is invariant under every transformation") {
     empty.scaleDownY(5);
     CHECK(empty == EmptyShape{});
 }
+
+TEST_CASE("Shape wraps a MonotoneChain") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Chain zig({0, 0, 2, 4, 4, 0, 4, 4, 6, 0});
+    const Shape shape = zig;
+    REQUIRE(shape.holdsAlternative<Chain>());
+    CHECK(*shape.getIf<Chain>() == zig);
+    CHECK(shape.size() == 5);
+    CHECK(shape[1] == Point(2, 4));
+    CHECK(shape.get(-1) == Point(6, 0));
+    CHECK(shape.get(5) == Point(0, 0));
+    CHECK(shape.index(Point(4, 0)) == 2);
+    CHECK_FALSE(shape.isDegenerate());
+    CHECK(shape.bbox() == pgl::Rectangle<Point>({0, 0}, {6, 4}));
+
+    std::ostringstream stream;
+    stream << shape;
+    CHECK(stream.str() == "MonotoneChain[(0,0),(2,4),(4,0),(4,4),(6,0)]");
+
+    std::unordered_set<Shape> shapes;
+    shapes.insert(shape);
+    shapes.insert(Shape(zig));
+    CHECK(shapes.size() == 1);
+}
+
+TEST_CASE("Shape dispatches predicates and measures through a MonotoneChain") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+    using Segment = pgl::Segment<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Shape shape = Chain({0, 0, 2, 4, 4, 0, 4, 4, 6, 0});
+    const Shape crossing = Segment({1, 0}, {1, 4});
+    const Shape miss = Segment({0, 5}, {1, 6});
+
+    CHECK(shape.intersects(crossing));
+    CHECK(crossing.intersects(shape));
+    CHECK_FALSE(shape.intersects(miss));
+    CHECK(shape.contains(Shape(Point(1, 2))));
+    CHECK(shape.interiorsIntersect(crossing));
+    CHECK(shape.crosses(crossing));
+    CHECK(crossing.crosses(shape));
+    CHECK(shape.separates(crossing));
+
+    // The nearest pair is the peak (2,4) against the segment's side.
+    CHECK(shape.squaredDistance<double>(miss) == doctest::Approx(4.5));
+    CHECK(shape.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
+    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
+
+    // A single-point crossing re-wraps into a Point-valued Shape. (The right
+    // operand stays concrete: a Shape-Shape intersection instantiates every
+    // pair, and the preexisting Rectangle-Polygon result cannot be wrapped.)
+    const Shape up = Chain({0, 0, 4, 4});
+    const Shape cross = up.intersection(Chain({0, 4, 4, 0}));
+    REQUIRE(cross.holdsAlternative<Point>());
+    CHECK(Point(cross) == Point(2, 2));
+
+    // Transformations preserve the alternative.
+    Shape moved = shape;
+    moved += Point(1, 1);
+    REQUIRE(moved.holdsAlternative<Chain>());
+    CHECK(moved[0] == Point(1, 1));
+    CHECK(moved.rotated90(2).holdsAlternative<Chain>());
+    CHECK(moved.scaledUpX(2).holdsAlternative<Chain>());
+}
