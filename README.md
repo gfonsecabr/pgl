@@ -186,9 +186,21 @@ FetchContent_MakeAvailable(pgl)
 target_include_directories(your_target PRIVATE ${pgl_SOURCE_DIR}/include)
 ```
 
+## Acknowledgments
+
+Pangolin is developed by [Guilherme D. da Fonseca](https://pageperso.lis-lab.fr/guilherme.fonseca/), with many contributions from the undergraduate student Djebril El Feddi.
+
+The library itself is dependency-free, but a few third-party components are bundled to
+support testing, benchmarking, and PDF export. We are grateful to their authors:
+
+- [doctest](https://github.com/doctest/doctest) by Viktor Kirilov — the unit-testing framework (MIT).
+- [PDFGen](https://github.com/AndreRenaud/PDFGen) by Andre Renaud — a trimmed port powers the `Canvas` PDF export (public domain / The Unlicense).
+- [plf_nanotimer](https://github.com/mattreecebentley/plf_nanotimer) by Matt Bentley — timing in the benchmark suite (zlib-style license).
+- Many AI have been used to write the code, including Claude, ChatGPT, and GitHub Copilot. We are grateful to their authors for making them available.
+
 ## More Information
 
 - For a brief description, check the documents at the [doc folder](doc/).
 - For some simple examples, check the files at the [examples folder](examples/).
 - For the **doxygen reference** and **benchmarks**, check the [library website on github.io](https://gfonsecabr.github.io/pgl/index.html).
-
+- A [python binding](https://github.com/gfonsecabr/pypgl/tree/main) called `pypgl` is also available, but it only supports `ERational` constructions.
