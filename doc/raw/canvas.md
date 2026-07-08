@@ -135,6 +135,10 @@ defaults:
 | `borders(bool enabled = true)` | Enables or disables a thin rectangular frame around the whole SVG. This is especially helpful when debugging clipping and margins. |
 | `writeSVG(const std::string& path)` | Writes the full SVG document to disk. Throws if the output file cannot be opened. |
 | `toSVG()` | Returns the complete SVG document as a string, which is useful for tests, web responses, or custom output pipelines. |
+| `writePDF(const std::string& path)` | Writes the full PDF document to disk. Throws if the output file cannot be opened or written. |
+| `toPDF()` | Returns the complete PDF document as a byte string. |
+| `writeIPE(const std::string& path)` | Writes the drawing as an Ipe XML document (`.ipe`) to disk, ready to open and edit in the [Ipe extensible drawing editor](https://ipe.otfried.org/). Throws if the output file cannot be opened or written. |
+| `toIPE()` | Returns the complete Ipe XML document as a string. |
 
 Two related width setters exist on purpose:
 

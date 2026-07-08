@@ -350,6 +350,70 @@ class Canvas {
     }
 
     /**
+     * @brief Serializes the canvas to an Ipe XML file (.ipe).
+     *
+     * The exported document defines a single page whose layout matches the
+     * canvas dimensions, reusing the same fitted viewport as SVG/PDF export.
+     * Colors and pen widths are stored as absolute (non-symbolic) Ipe
+     * attribute values. Opacities below 1 are declared as named `<opacity>`
+     * entries in the style sheet, since Ipe requires the `opacity` and
+     * `stroke-opacity` path attributes to reference a symbolic name.
+     *
+     * @param path Output file path.
+     * @return This canvas.
+     */
+    Canvas& writeIPE(const std::string& path) const {
+        std::ofstream output(path);
+        if (!output) {
+            throw std::runtime_error("Could not open IPE output file: " + path);
+        }
+
+        output << toIPE();
+        if (!output) {
+            throw std::runtime_error("Could not write IPE output file: " + path);
+        }
+        return const_cast<Canvas&>(*this);
+    }
+
+    /**
+     * @brief Serializes the canvas contents to an Ipe XML string.
+     *
+     * @return Complete Ipe (.ipe) XML document.
+     */
+    std::string toIPE() const {
+        const Bounds bounds = computeBounds();
+        const Viewport viewport = computeViewport(bounds);
+        const std::vector<int> opacities = collectIPEOpacities();
+
+        std::ostringstream out;
+        out << "<?xml version=\"1.0\"?>\n";
+        out << "<!DOCTYPE ipe SYSTEM \"ipe.dtd\">\n";
+        out << "<ipe version=\"70218\" creator=\"pgl::Canvas\">\n";
+        out << "<ipestyle name=\"pgl\">\n";
+        out << "<layout paper=\"" << widthPixels_ << ' ' << heightPixels_
+            << "\" origin=\"0 0\" frame=\"" << widthPixels_ << ' ' << heightPixels_ << "\"/>\n";
+        for (const int key : opacities) {
+            out << "<opacity name=\"" << ipeOpacityName(key) << "\" value=\"" << (key / 1000.0) << "\"/>\n";
+        }
+        out << "</ipestyle>\n";
+        out << "<page>\n";
+        out << "<layer name=\"alpha\"/>\n";
+        out << "<view layers=\"alpha\" active=\"alpha\"/>\n";
+
+        if (drawBorder_) {
+            appendIPEBorder(out);
+        }
+
+        for (const Element& element : elements_) {
+            appendElementToIPE(out, element, viewport);
+        }
+
+        out << "</page>\n";
+        out << "</ipe>\n";
+        return out.str();
+    }
+
+    /**
      * @brief Applies a style command to the current drawing style.
      *
      * Existing elements keep their captured style.
@@ -1458,6 +1522,286 @@ class Canvas {
                     << titleTag << "</circle>";
             }
             return out.str();
+        }, element.shape.variant());
+    }
+
+    // ---------------------------------------------------------------
+    // Ipe (.ipe) export
+    // ---------------------------------------------------------------
+
+    // Ipe's `opacity`/`stroke-opacity` path attributes must reference a
+    // symbolic name defined in the style sheet, so distinct opacity values
+    // (rounded to three decimal places) are collected up front and declared
+    // as `<opacity>` entries named after their rounded per-mille value.
+    std::vector<int> collectIPEOpacities() const {
+        std::vector<int> keys;
+        for (const Element& element : elements_) {
+            const PDFStyle style = pdfStyleOf(element.style);
+            if (!pdfgen::PDF_IS_TRANSPARENT(style.stroke) && style.strokeAlpha < 1.0f) {
+                keys.push_back(static_cast<int>(std::lround(style.strokeAlpha * 1000.0f)));
+            }
+            if (!pdfgen::PDF_IS_TRANSPARENT(style.fill) && style.fillAlpha < 1.0f) {
+                keys.push_back(static_cast<int>(std::lround(style.fillAlpha * 1000.0f)));
+            }
+        }
+        std::sort(keys.begin(), keys.end());
+        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+        return keys;
+    }
+
+    static std::string ipeOpacityName(int perMille) {
+        return "op" + std::to_string(perMille);
+    }
+
+    static std::string ipeColorTriplet(std::uint32_t colour) {
+        std::ostringstream out;
+        out << pdfgen::PDF_RGB_R(colour) << ' ' << pdfgen::PDF_RGB_G(colour) << ' ' << pdfgen::PDF_RGB_B(colour);
+        return out.str();
+    }
+
+    static std::string ipeStrokeAttributes(const PDFStyle& style) {
+        std::ostringstream out;
+        if (!pdfgen::PDF_IS_TRANSPARENT(style.stroke)) {
+            out << " stroke=\"" << ipeColorTriplet(style.stroke) << '"';
+            if (style.strokeAlpha < 1.0f) {
+                out << " stroke-opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(style.strokeAlpha * 1000.0f))) << '"';
+            }
+            if (style.strokeWidth > 0.0f) {
+                out << " pen=\"" << style.strokeWidth << '"';
+            }
+        }
+        return out.str();
+    }
+
+    static std::string ipeFillAttributes(const PDFStyle& style) {
+        std::ostringstream out;
+        if (!pdfgen::PDF_IS_TRANSPARENT(style.fill)) {
+            out << " fill=\"" << ipeColorTriplet(style.fill) << '"';
+            if (style.fillAlpha < 1.0f) {
+                out << " opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(style.fillAlpha * 1000.0f))) << '"';
+            }
+        }
+        return out.str();
+    }
+
+    static std::string ipeStyleAttributes(const PDFStyle& style) {
+        return ipeStrokeAttributes(style) + ipeFillAttributes(style);
+    }
+
+    template <class PointLike>
+    std::pair<double, double> mapIPEPoint(const PointLike& point, const Viewport& viewport) const {
+        return {viewport.mapX(point.x()), pdfYFromSVG(viewport.mapY(point.y()))};
+    }
+
+    static void appendIPEPath(
+        std::ostringstream& out,
+        const std::vector<std::pair<double, double>>& points,
+        bool closePath,
+        const std::string& attributes) {
+        if (points.empty() || attributes.empty()) return;
+        out << "<path" << attributes << ">\n"
+            << points[0].first << ' ' << points[0].second << " m\n";
+        for (std::size_t index = 1; index < points.size(); ++index) {
+            out << points[index].first << ' ' << points[index].second << " l\n";
+        }
+        if (closePath) out << "h\n";
+        out << "</path>\n";
+    }
+
+    static void appendIPEEllipse(
+        std::ostringstream& out,
+        double cx,
+        double cy,
+        double radius,
+        const std::string& attributes) {
+        if (attributes.empty()) return;
+        // Ipe draws an ellipse/circle by applying an affine matrix (a b c d e f)
+        // to the unit circle; a circle of the given radius uses "r 0 0 r cx cy".
+        out << "<path" << attributes << ">\n"
+            << radius << " 0 0 " << radius << ' ' << cx << ' ' << cy << " e\n"
+            << "</path>\n";
+    }
+
+    // Mirrors the arrowhead triangle used for PDF export (addArrowhead) so
+    // that OrientedSegment/OrientedLine/Ray render consistently across
+    // SVG's marker-mid, the PDF triangle, and this Ipe triangle.
+    static std::array<std::pair<double, double>, 3> ipeArrowTriangle(
+        double startX, double startY, double endX, double endY, double strokeWidth) {
+        const double dx = endX - startX;
+        const double dy = endY - startY;
+        const double length = std::sqrt(dx * dx + dy * dy);
+        if (length == 0.0) {
+            return {{{startX, startY}, {startX, startY}, {startX, startY}}};
+        }
+
+        const double ux = dx / length;
+        const double uy = dy / length;
+        const double px = -uy;
+        const double py = ux;
+        const double size = std::max(6.0, strokeWidth * 4.0);
+        const double midX = (startX + endX) / 2.0;
+        const double midY = (startY + endY) / 2.0;
+        const double tipX = midX + ux * size * 0.6;
+        const double tipY = midY + uy * size * 0.6;
+        const double baseCenterX = midX - ux * size * 0.4;
+        const double baseCenterY = midY - uy * size * 0.4;
+        const double halfBase = size * 0.35;
+
+        return {{
+            {tipX, tipY},
+            {baseCenterX + px * halfBase, baseCenterY + py * halfBase},
+            {baseCenterX - px * halfBase, baseCenterY - py * halfBase},
+        }};
+    }
+
+    void appendIPEArrowhead(
+        std::ostringstream& out,
+        double startX, double startY, double endX, double endY,
+        const PDFStyle& style) const {
+        const std::uint32_t colour = arrowColor(style);
+        if (pdfgen::PDF_IS_TRANSPARENT(colour)) return;
+
+        const auto triangle = ipeArrowTriangle(startX, startY, endX, endY, style.strokeWidth);
+        if (triangle[0] == triangle[1]) return;
+
+        std::ostringstream attrs;
+        attrs << " fill=\"" << ipeColorTriplet(colour) << '"';
+        const float alpha = arrowAlpha(style);
+        if (alpha < 1.0f) {
+            attrs << " opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(alpha * 1000.0f))) << '"';
+        }
+        appendIPEPath(out, {triangle[0], triangle[1], triangle[2]}, true, attrs.str());
+    }
+
+    void appendIPEBorder(std::ostringstream& out) const {
+        const double x1 = 0.5;
+        const double y1 = 0.5;
+        const double x2 = std::max(widthPixels_ - 0.5, 0.0);
+        const double y2 = std::max(heightPixels_ - 0.5, 0.0);
+        appendIPEPath(out, {{x1, y1}, {x2, y1}, {x2, y2}, {x1, y2}}, true, " stroke=\"0 0 0\" pen=\"1\"");
+    }
+
+    void appendElementToIPE(std::ostringstream& out, const Element& element, const Viewport& viewport) const {
+        using PT = Point<double>;
+        const PDFStyle style = pdfStyleOf(element.style);
+        const std::string attrs = ipeStyleAttributes(style);
+
+        std::visit([&](const auto& shape) {
+            using S = std::decay_t<decltype(shape)>;
+
+            if constexpr (std::same_as<S, PT>) {
+                const auto [cx, cy] = mapIPEPoint(shape, viewport);
+                appendIPEEllipse(out, cx, cy, style.pointRadius, attrs);
+            } else if constexpr (std::same_as<S, Segment<PT>>) {
+                appendIPEPath(out, {mapIPEPoint(shape.min(), viewport), mapIPEPoint(shape.max(), viewport)}, false, attrs);
+            } else if constexpr (std::same_as<S, OrientedSegment<PT>>) {
+                const auto p1 = mapIPEPoint(shape.source(), viewport);
+                const auto p2 = mapIPEPoint(shape.target(), viewport);
+                appendIPEPath(out, {p1, p2}, false, attrs);
+                appendIPEArrowhead(out, p1.first, p1.second, p2.first, p2.second, style);
+            } else if constexpr (std::same_as<S, Line<PT>>) {
+                const double x1 = viewport.mapX(shape.min().x());
+                const double y1 = viewport.mapY(shape.min().y());
+                const double x2 = viewport.mapX(shape.max().x());
+                const double y2 = viewport.mapY(shape.max().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                if (vx1 == vx2 && vy1 == vy2) {
+                    appendIPEEllipse(out, vx1, pdfYFromSVG(vy1), style.pointRadius, attrs);
+                } else {
+                    appendIPEPath(out, {{vx1, pdfYFromSVG(vy1)}, {vx2, pdfYFromSVG(vy2)}}, false, attrs);
+                }
+            } else if constexpr (std::same_as<S, OrientedLine<PT>>) {
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                const double p1x = vx1;
+                const double p1y = pdfYFromSVG(vy1);
+                const double p2x = vx2;
+                const double p2y = pdfYFromSVG(vy2);
+                appendIPEPath(out, {{p1x, p1y}, {p2x, p2y}}, false, attrs);
+                appendIPEArrowhead(out, p1x, p1y, p2x, p2y, style);
+            } else if constexpr (std::same_as<S, Ray<PT>>) {
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipRayToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                const double p1x = vx1;
+                const double p1y = pdfYFromSVG(vy1);
+                const double p2x = vx2;
+                const double p2y = pdfYFromSVG(vy2);
+                appendIPEPath(out, {{p1x, p1y}, {p2x, p2y}}, false, attrs);
+                appendIPEArrowhead(out, p1x, p1y, p2x, p2y, style);
+            } else if constexpr (std::same_as<S, Halfplane<PT>>) {
+                const auto polygon = clipHalfplaneToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    std::vector<std::pair<double, double>> points;
+                    points.reserve(polygon.size());
+                    for (const auto& [worldX, worldY] : polygon) {
+                        points.emplace_back(viewport.mapX(worldX), pdfYFromSVG(viewport.mapY(worldY)));
+                    }
+                    appendIPEPath(out, points, true, ipeFillAttributes(style));
+                }
+
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (visible) {
+                    appendIPEPath(
+                        out,
+                        {{visible->x1, pdfYFromSVG(visible->y1)}, {visible->x2, pdfYFromSVG(visible->y2)}},
+                        false,
+                        ipeStrokeAttributes(style));
+                }
+            } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                const double minX = viewport.mapX(shape.min().x());
+                const double maxX = viewport.mapX(shape.max().x());
+                const double minY = pdfYFromSVG(viewport.mapY(shape.max().y()));
+                const double maxY = pdfYFromSVG(viewport.mapY(shape.min().y()));
+                appendIPEPath(out, {{minX, minY}, {maxX, minY}, {maxX, maxY}, {minX, maxY}}, true, attrs);
+            } else if constexpr (std::same_as<S, Triangle<PT>>) {
+                appendIPEPath(
+                    out,
+                    {mapIPEPoint(shape.a(), viewport), mapIPEPoint(shape.b(), viewport), mapIPEPoint(shape.c(), viewport)},
+                    true,
+                    attrs);
+            } else if constexpr (std::same_as<S, Convex<PT>> || std::same_as<S, Polygon<PT>>) {
+                if (shape.size() == 0) return;
+                std::vector<std::pair<double, double>> points;
+                points.reserve(shape.size());
+                for (const auto& vertex : shape) {
+                    points.push_back(mapIPEPoint(vertex, viewport));
+                }
+                appendIPEPath(out, points, true, attrs);
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+                if (shape.size() == 0) return;
+                if (shape.size() == 1) {
+                    const auto [cx, cy] = mapIPEPoint(shape[0], viewport);
+                    appendIPEEllipse(out, cx, cy, style.pointRadius, attrs);
+                } else {
+                    std::vector<std::pair<double, double>> points;
+                    points.reserve(shape.size());
+                    for (const auto& vertex : shape) {
+                        points.push_back(mapIPEPoint(vertex, viewport));
+                    }
+                    // An open chain: a polyline, never closed or filled.
+                    appendIPEPath(out, points, false, ipeStrokeAttributes(style));
+                }
+            } else if constexpr (std::same_as<S, Disk<PT>>) {
+                const auto center = mapIPEPoint(shape.center(), viewport);
+                const double radius = shape.radius() * viewport.scale;
+                appendIPEEllipse(out, center.first, center.second, radius, attrs);
+            }
         }, element.shape.variant());
     }
 
