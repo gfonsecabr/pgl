@@ -117,6 +117,35 @@ TEST_CASE("Polygon intersects Polygon with fractional crossings (rational result
         }
 }
 
+// KNOWN BUG (marked should_fail): Polygon::intersection(Polygon) drops the
+// overlap for some simple polygons whose boundaries cross many times. A and B
+// below are both simple and their boundaries properly cross 10 times, so the
+// intersection must contain a positive-area polygon -- yet it currently comes
+// back empty. interiorsIntersect(A, B) correctly reports the overlap, so the
+// fault is isolated to the intersection construction. Remove the should_fail
+// decorator once it is fixed (doctest then flags the test for cleanup).
+TEST_CASE("Polygon intersection keeps the overlap when boundaries cross many times"
+          * doctest::should_fail()) {
+    using Q = pgl::Rational<int64_t>;
+    using P = pgl::Point<int>;
+    using QPolygon = pgl::Polygon<pgl::Point<Q>>;
+
+    const pgl::Polygon<P> a({1, 0, 5, 6, 4, 2, 11, 3, 12, 11, 10, 12, 1, 6, 4, 5});
+    const pgl::Polygon<P> b({3, 11, 4, 3, 5, 2, 8, 2, 11, 1, 12, 5, 4, 12, 7, 4});
+    REQUIRE(a.isSimple());
+    REQUIRE(b.isSimple());
+    REQUIRE(a.interiorsIntersect(b));  // the interiors genuinely overlap
+
+    const auto pieces = a.intersection<Q>(b);
+    bool hasArea = false;
+    for (const auto& v : pieces) {
+        if (std::holds_alternative<QPolygon>(v) && std::get<QPolygon>(v).twiceArea() != Q(0)) {
+            hasArea = true;
+        }
+    }
+    CHECK(hasArea);  // fails today: intersection returns no positive-area piece
+}
+
 // Regression: two polygons sharing only a boundary segment must NOT report
 // interiorsIntersect, and the predicate must be symmetric. The 1x5 rectangle's
 // left edge (x=50) overlaps part of the L-shape's right edge (x=50, y in
@@ -901,6 +930,17 @@ TEST_CASE("Polygon interiorsIntersect (boolean predicate)") {
     SUBCASE("sharing a boundary edge, interiors on opposite sides: no overlap") {
         const Poly a({0, 0, 2, 0, 2, 2, 0, 2});
         const Poly b({2, 0, 4, 0, 4, 2, 2, 2});  // shares edge x=2, y in [0,2]
+        CHECK_FALSE(a.interiorsIntersect(b));
+        CHECK_FALSE(b.interiorsIntersect(a));
+    }
+    SUBCASE("notch mouth tangent to a neighbour's edge: no overlap") {
+        // Regression: A sits in x >= 3 with a notch touching x = 3 only at the
+        // vertices (3,0),(3,3); B sits in x <= 3. Their boundaries share the
+        // vertical segment x = 3, y in [0,3] but the interiors lie on opposite
+        // sides. The Segment::separates(Polygon) fallback used to miscount B's
+        // vertical edge as cutting A.
+        const Poly a({3, 0, 6, 0, 5, 7, 3, 3, 4, 1});
+        const Poly b({0, 4, 3, 0, 3, 3, 2, 4});
         CHECK_FALSE(a.interiorsIntersect(b));
         CHECK_FALSE(b.interiorsIntersect(a));
     }
