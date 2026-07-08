@@ -259,7 +259,13 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherConvex& other
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    // A chord that splits the polygon runs through its interior, so the open
+    // segment must meet the open polygon. This necessary condition also rejects
+    // an exterior chord between two boundary vertices — e.g. a segment along the
+    // mouth of a notch — that the boundary-crossing count below would otherwise
+    // miscount as a cut (its endpoints touch the boundary tangentially without
+    // the segment ever entering the interior).
+    if (isDegenerate() || other.isDegenerate() || !other.interiorsIntersect(*this)) {
         return false;
     }
 

@@ -181,6 +181,20 @@ TEST_CASE("Segment separates non-convex Polygon") {
 
         CHECK_FALSE(ell.separates(through_reflex));
     }
+
+    // Regression: a segment joining two boundary vertices along the OUTSIDE of a
+    // notch touches the boundary only tangentially and never enters the interior,
+    // so it does not cut. The boundary-crossing count alone mistook the two
+    // vertex touches for a chord; the interior-intersection guard rejects it.
+    SUBCASE("exterior chord along a notch mouth does not cut") {
+        // A lies entirely in x >= 3, touching x = 3 only at the vertices (3,0)
+        // and (3,3); its boundary detours right through (4,1) between them.
+        const Polygon a({3, 0, 6, 0, 5, 7, 3, 3, 4, 1});
+        const Segment mouth({3, 0}, {3, 3});  // vertical, along A's left tangent
+
+        CHECK_FALSE(a.interiorsIntersect(mouth));  // segment interior stays outside A
+        CHECK_FALSE(mouth.separates(a));
+    }
 }
 
 TEST_CASE("Segment separates a convex Polygon and Convex identically") {
