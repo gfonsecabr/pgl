@@ -60,6 +60,11 @@ ALL_SHAPES = [
     "Convex",
     "Polygon",
     "MonotoneChain",
+    # Same geometry as an existing shape, but stored as a more general type so the
+    # cube exercises the storage type's code paths on that geometry.
+    "TriangleAsPolygon",
+    "TriangleAsConvex",
+    "ConvexAsPolygon",
 ]
 
 # A bare Point has no extent, so it only ever appears as the second operand
@@ -117,6 +122,11 @@ def _cpp_shape_type(shape: str) -> str:
     """C++ type for a shape kind, parameterised on the number type N."""
     if shape == "Point":
         return "pgl::Point<N>"
+    # "As-other-type" shapes are generated as one shape but stored as another.
+    if shape in ("TriangleAsPolygon", "ConvexAsPolygon"):
+        return "pgl::Polygon<pgl::Point<N>>"
+    if shape == "TriangleAsConvex":
+        return "pgl::Convex<pgl::Point<N>>"
     return f"pgl::{shape}<pgl::Point<N>>"
 
 
@@ -134,6 +144,12 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Polygons<N>({n}, 32);"
     if shape == "MonotoneChain":
         return f"auto {var} = {prefix}MonotoneChains<N>({n}, 32);"
+    if shape == "TriangleAsPolygon":
+        return f"auto {var} = {prefix}TriangleAsPolygon<N>({n});"
+    if shape == "TriangleAsConvex":
+        return f"auto {var} = {prefix}TriangleAsConvex<N>({n});"
+    if shape == "ConvexAsPolygon":
+        return f"auto {var} = {prefix}ConvexAsPolygon<N>({n}, 1000);"
     return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"
 
 
