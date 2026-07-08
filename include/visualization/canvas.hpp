@@ -1,6 +1,7 @@
 #pragma once
 
 #include "implementation/distance.hpp"
+#include "third_party/pdfgen.hpp"
 
 /**
  * @file canvas.hpp
@@ -8,10 +9,13 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -265,6 +269,84 @@ class Canvas {
 
         out << "</svg>\n";
         return out.str();
+    }
+
+    /**
+     * @brief Serializes the canvas to a PDF file.
+     *
+     * PDF export reuses the same fitted viewport as SVG export so the page
+     * matches the canvas dimensions and overall layout. Stroke and fill opacity
+     * are exported through standard PDF ExtGState resources (`/ca` and `/CA`).
+     *
+     * @param path Output file path.
+     * @return This canvas.
+     */
+    Canvas& writePDF(const std::string& path) const {
+        std::ofstream output(path, std::ios::binary);
+        if (!output) {
+            throw std::runtime_error("Could not open PDF output file: " + path);
+        }
+
+        const std::string pdf = toPDF();
+        output.write(pdf.data(), static_cast<std::streamsize>(pdf.size()));
+        if (!output) {
+            throw std::runtime_error("Could not write PDF output file: " + path);
+        }
+        return const_cast<Canvas&>(*this);
+    }
+
+    /**
+     * @brief Serializes the canvas contents to a PDF byte string.
+     *
+     * @return Complete PDF document bytes.
+     */
+    std::string toPDF() const {
+        const Bounds bounds = computeBounds();
+        const Viewport viewport = computeViewport(bounds);
+
+        pdfgen::pdf_info info{};
+        std::snprintf(info.creator, sizeof(info.creator), "%s", "pgl::Canvas");
+        std::snprintf(info.producer, sizeof(info.producer), "%s", "pgl");
+        std::snprintf(info.title, sizeof(info.title), "%s", "Pangolin Canvas Export");
+
+        std::unique_ptr<pdfgen::pdf_doc, void (*)(pdfgen::pdf_doc*)> pdf(
+            pdfgen::pdf_create(static_cast<float>(widthPixels_), static_cast<float>(heightPixels_), &info),
+            pdfgen::pdf_destroy
+        );
+        if (!pdf) {
+            throw std::runtime_error("Could not create PDF document.");
+        }
+
+        pdfgen::pdf_object* page = pdfgen::pdf_append_page(pdf.get());
+        if (page == nullptr) {
+            throwPDFError(pdf.get(), "append PDF page");
+        }
+
+        if (drawBorder_) {
+            const int result = pdfgen::pdf_add_rectangle(
+                pdf.get(),
+                page,
+                0.5f,
+                0.5f,
+                static_cast<float>(std::max(widthPixels_ - 1.0, 0.0)),
+                static_cast<float>(std::max(heightPixels_ - 1.0, 0.0)),
+                1.0f,
+                pdfgen::PDF_BLACK
+            );
+            if (result < 0) {
+                throwPDFError(pdf.get(), "draw PDF border");
+            }
+        }
+
+        for (const Element& element : elements_) {
+            appendElementToPDF(pdf.get(), page, element, viewport);
+        }
+
+        std::string bytes;
+        if (pdfgen::pdf_save_buffer(pdf.get(), bytes) < 0) {
+            throwPDFError(pdf.get(), "serialize PDF");
+        }
+        return bytes;
     }
 
     /**
@@ -659,6 +741,535 @@ class Canvas {
         out << "  <rect x=\"0.5\" y=\"0.5\" width=\"" << std::max(widthPixels_ - 1.0, 0.0)
             << "\" height=\"" << std::max(heightPixels_ - 1.0, 0.0)
             << "\" stroke=\"black\" fill=\"none\" stroke-width=\"1\"/>\n";
+    }
+
+    struct PDFStyle {
+        std::uint32_t stroke = pdfgen::PDF_BLACK;
+        std::uint32_t fill = pdfgen::PDF_TRANSPARENT;
+        float strokeWidth = 1.0f;
+        float pointRadius = 3.0f;
+        float fillAlpha = 1.0f;
+        float strokeAlpha = 1.0f;
+    };
+
+    static void throwPDFError(const pdfgen::pdf_doc* pdf, const std::string& action) {
+        int errval = 0;
+        const char* message = pdfgen::pdf_get_err(pdf, &errval);
+        std::ostringstream out;
+        out << "Could not " << action << ": " << (message != nullptr ? message : "unknown PDF error");
+        if (errval != 0) {
+            out << " (" << errval << ')';
+        }
+        throw std::runtime_error(out.str());
+    }
+
+    static float numericLengthOr(const std::string& value, float fallback) {
+        if (const std::optional<double> numeric = parseNumericLength(value)) {
+            return static_cast<float>(*numeric);
+        }
+        return fallback;
+    }
+
+    static float opacityOr(const std::string& value, float fallback) {
+        if (const std::optional<double> numeric = parseNumericLength(value)) {
+            if (std::isfinite(*numeric)) {
+                return std::clamp(static_cast<float>(*numeric), 0.0f, 1.0f);
+            }
+        }
+        return fallback;
+    }
+
+    static std::string lowercase(const std::string& value) {
+        std::string result = value;
+        std::transform(result.begin(), result.end(), result.begin(), [](unsigned char character) {
+            return static_cast<char>(std::tolower(character));
+        });
+        return result;
+    }
+
+    static std::optional<int> parseHexDigit(char character) {
+        if ('0' <= character && character <= '9') return character - '0';
+        if ('a' <= character && character <= 'f') return 10 + (character - 'a');
+        if ('A' <= character && character <= 'F') return 10 + (character - 'A');
+        return std::nullopt;
+    }
+
+    static std::optional<unsigned int> parseHexByte(char high, char low) {
+        const auto highNibble = parseHexDigit(high);
+        const auto lowNibble = parseHexDigit(low);
+        if (!highNibble || !lowNibble) {
+            return std::nullopt;
+        }
+        return static_cast<unsigned int>((*highNibble << 4) | *lowNibble);
+    }
+
+    static std::optional<unsigned int> parseRGBComponent(const std::string& value) {
+        const std::string component = trim(value);
+        if (component.empty()) {
+            return std::nullopt;
+        }
+        std::size_t parsedCharacters = 0;
+        try {
+            const int parsed = std::stoi(component, &parsedCharacters);
+            if (parsedCharacters != component.size() || parsed < 0 || parsed > 255) {
+                return std::nullopt;
+            }
+            return static_cast<unsigned int>(parsed);
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    static std::optional<std::uint32_t> parsePDFColor(const std::string& value) {
+        const std::string normalized = lowercase(trim(value));
+        if (normalized.empty()) {
+            return std::nullopt;
+        }
+        if (normalized == "none") {
+            return pdfgen::PDF_TRANSPARENT;
+        }
+
+        if (normalized.size() == 7 && normalized[0] == '#') {
+            const auto red = parseHexByte(normalized[1], normalized[2]);
+            const auto green = parseHexByte(normalized[3], normalized[4]);
+            const auto blue = parseHexByte(normalized[5], normalized[6]);
+            if (red && green && blue) {
+                return pdfgen::PDF_RGB(*red, *green, *blue);
+            }
+        }
+
+        if (normalized.size() == 4 && normalized[0] == '#') {
+            const auto red = parseHexDigit(normalized[1]);
+            const auto green = parseHexDigit(normalized[2]);
+            const auto blue = parseHexDigit(normalized[3]);
+            if (red && green && blue) {
+                return pdfgen::PDF_RGB(
+                    static_cast<unsigned int>(*red * 17),
+                    static_cast<unsigned int>(*green * 17),
+                    static_cast<unsigned int>(*blue * 17)
+                );
+            }
+        }
+
+        if (normalized.rfind("rgb(", 0) == 0 && normalized.back() == ')') {
+            const std::string body = normalized.substr(4, normalized.size() - 5);
+            std::vector<std::string> parts;
+            std::size_t start = 0;
+            while (start <= body.size()) {
+                const std::size_t comma = body.find(',', start);
+                if (comma == std::string::npos) {
+                    parts.push_back(body.substr(start));
+                    break;
+                }
+                parts.push_back(body.substr(start, comma - start));
+                start = comma + 1;
+            }
+            if (parts.size() == 3) {
+                const auto red = parseRGBComponent(parts[0]);
+                const auto green = parseRGBComponent(parts[1]);
+                const auto blue = parseRGBComponent(parts[2]);
+                if (red && green && blue) {
+                    return pdfgen::PDF_RGB(*red, *green, *blue);
+                }
+            }
+        }
+
+        static constexpr std::array<std::pair<const char*, std::uint32_t>, 30> namedColors{{
+            {"black", pdfgen::PDF_BLACK},
+            {"white", pdfgen::PDF_WHITE},
+            {"red", pdfgen::PDF_RED},
+            {"green", pdfgen::PDF_GREEN},
+            {"blue", pdfgen::PDF_BLUE},
+            {"yellow", pdfgen::PDF_RGB(255, 255, 0)},
+            {"orange", pdfgen::PDF_RGB(255, 165, 0)},
+            {"purple", pdfgen::PDF_RGB(128, 0, 128)},
+            {"teal", pdfgen::PDF_RGB(0, 128, 128)},
+            {"navy", pdfgen::PDF_RGB(0, 0, 128)},
+            {"skyblue", pdfgen::PDF_RGB(135, 206, 235)},
+            {"gold", pdfgen::PDF_RGB(255, 215, 0)},
+            {"royalblue", pdfgen::PDF_RGB(65, 105, 225)},
+            {"crimson", pdfgen::PDF_RGB(220, 20, 60)},
+            {"darkgreen", pdfgen::PDF_RGB(0, 100, 0)},
+            {"darkmagenta", pdfgen::PDF_RGB(139, 0, 139)},
+            {"plum", pdfgen::PDF_RGB(221, 160, 221)},
+            {"sienna", pdfgen::PDF_RGB(160, 82, 45)},
+            {"brown", pdfgen::PDF_RGB(165, 42, 42)},
+            {"gray", pdfgen::PDF_RGB(128, 128, 128)},
+            {"grey", pdfgen::PDF_RGB(128, 128, 128)},
+            {"silver", pdfgen::PDF_RGB(192, 192, 192)},
+            {"aqua", pdfgen::PDF_RGB(0, 255, 255)},
+            {"cyan", pdfgen::PDF_RGB(0, 255, 255)},
+            {"magenta", pdfgen::PDF_RGB(255, 0, 255)},
+            {"fuchsia", pdfgen::PDF_RGB(255, 0, 255)},
+            {"lime", pdfgen::PDF_RGB(0, 255, 0)},
+            {"olive", pdfgen::PDF_RGB(128, 128, 0)},
+            {"maroon", pdfgen::PDF_RGB(128, 0, 0)},
+            {"pink", pdfgen::PDF_RGB(255, 192, 203)},
+        }};
+        for (const auto& [name, colour] : namedColors) {
+            if (normalized == name) {
+                return colour;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    static PDFStyle pdfStyleOf(const CanvasStyle& style) {
+        PDFStyle result;
+        result.stroke = parsePDFColor(style.stroke).value_or(pdfgen::PDF_BLACK);
+        result.fill = parsePDFColor(style.fill).value_or(pdfgen::PDF_TRANSPARENT);
+        result.strokeWidth = numericLengthOr(style.strokeWidth, 1.0f);
+        result.pointRadius = numericLengthOr(style.pointRadius, 3.0f);
+        result.fillAlpha = opacityOr(style.fillOpacity, 1.0f);
+        result.strokeAlpha = opacityOr(style.strokeOpacity, 1.0f);
+        return result;
+    }
+
+    float pdfYFromSVG(double svgY) const {
+        return static_cast<float>(heightPixels_ - svgY);
+    }
+
+    template <class PointLike>
+    std::pair<float, float> mapPDFPoint(const PointLike& point, const Viewport& viewport) const {
+        return {
+            static_cast<float>(viewport.mapX(point.x())),
+            pdfYFromSVG(viewport.mapY(point.y())),
+        };
+    }
+
+    static std::vector<pdfgen::pdf_path_operation> polygonPathOperations(
+        const std::vector<std::pair<float, float>>& points,
+        bool closePath) {
+        std::vector<pdfgen::pdf_path_operation> operations;
+        if (points.empty()) {
+            return operations;
+        }
+
+        operations.reserve(points.size() + (closePath ? 1u : 0u));
+        operations.push_back({'m', points[0].first, points[0].second, 0.0f, 0.0f, 0.0f, 0.0f});
+        for (std::size_t index = 1; index < points.size(); ++index) {
+            operations.push_back({'l', points[index].first, points[index].second, 0.0f, 0.0f, 0.0f, 0.0f});
+        }
+        if (closePath) {
+            operations.push_back({'h', 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+        }
+        return operations;
+    }
+
+    static std::uint32_t arrowColor(const PDFStyle& style) {
+        return pdfgen::PDF_IS_TRANSPARENT(style.stroke) ? style.fill : style.stroke;
+    }
+
+    static float arrowAlpha(const PDFStyle& style) {
+        return pdfgen::PDF_IS_TRANSPARENT(style.stroke) ? style.fillAlpha : style.strokeAlpha;
+    }
+
+    void addArrowhead(
+        pdfgen::pdf_doc* pdf,
+        pdfgen::pdf_object* page,
+        float startX,
+        float startY,
+        float endX,
+        float endY,
+        const PDFStyle& style) const {
+        const std::uint32_t colour = arrowColor(style);
+        if (pdfgen::PDF_IS_TRANSPARENT(colour)) {
+            return;
+        }
+
+        const float dx = endX - startX;
+        const float dy = endY - startY;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        if (length == 0.0f) {
+            return;
+        }
+
+        const float ux = dx / length;
+        const float uy = dy / length;
+        const float px = -uy;
+        const float py = ux;
+        const float size = std::max(6.0f, style.strokeWidth * 4.0f);
+        const float midX = (startX + endX) / 2.0f;
+        const float midY = (startY + endY) / 2.0f;
+        const float tipX = midX + ux * size * 0.6f;
+        const float tipY = midY + uy * size * 0.6f;
+        const float baseCenterX = midX - ux * size * 0.4f;
+        const float baseCenterY = midY - uy * size * 0.4f;
+        const float halfBase = size * 0.35f;
+
+        const float xs[] = {
+            tipX,
+            baseCenterX + px * halfBase,
+            baseCenterX - px * halfBase,
+        };
+        const float ys[] = {
+            tipY,
+            baseCenterY + py * halfBase,
+            baseCenterY - py * halfBase,
+        };
+        if (pdfgen::pdf_add_filled_polygon(pdf, page, xs, ys, 3, 0.0f, colour, arrowAlpha(style), 1.0f) < 0) {
+            throwPDFError(pdf, "draw PDF arrowhead");
+        }
+    }
+
+    void addPath(
+        pdfgen::pdf_doc* pdf,
+        pdfgen::pdf_object* page,
+        const std::vector<std::pair<float, float>>& points,
+        bool closePath,
+        const PDFStyle& style,
+        std::uint32_t fillOverride = pdfgen::PDF_TRANSPARENT) const {
+        if (points.empty()) {
+            return;
+        }
+        const auto operations = polygonPathOperations(points, closePath);
+        const std::uint32_t fillColour = fillOverride == pdfgen::PDF_TRANSPARENT ? style.fill : fillOverride;
+        if (pdfgen::pdf_add_custom_path(
+                pdf,
+                page,
+                operations.data(),
+                static_cast<int>(operations.size()),
+                style.strokeWidth,
+                style.stroke,
+                fillColour,
+                style.fillAlpha,
+                style.strokeAlpha) < 0) {
+            throwPDFError(pdf, "draw PDF path");
+        }
+    }
+
+    void appendElementToPDF(
+        pdfgen::pdf_doc* pdf,
+        pdfgen::pdf_object* page,
+        const Element& element,
+        const Viewport& viewport) const {
+        using PT = Point<double>;
+        const PDFStyle style = pdfStyleOf(element.style);
+
+        std::visit([&](const auto& shape) {
+            using S = std::decay_t<decltype(shape)>;
+
+            if constexpr (std::same_as<S, PT>) {
+                const auto [x, y] = mapPDFPoint(shape, viewport);
+                if (pdfgen::pdf_add_circle(
+                        pdf,
+                        page,
+                        x,
+                        y,
+                        style.pointRadius,
+                        style.strokeWidth,
+                        style.stroke,
+                        style.fill,
+                        style.fillAlpha,
+                        style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF point");
+                }
+            } else if constexpr (std::same_as<S, Segment<PT>>) {
+                const auto [x1, y1] = mapPDFPoint(shape.min(), viewport);
+                const auto [x2, y2] = mapPDFPoint(shape.max(), viewport);
+                if (pdfgen::pdf_add_line(pdf, page, x1, y1, x2, y2, style.strokeWidth, style.stroke, style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF segment");
+                }
+            } else if constexpr (std::same_as<S, OrientedSegment<PT>>) {
+                const auto [x1, y1] = mapPDFPoint(shape.source(), viewport);
+                const auto [x2, y2] = mapPDFPoint(shape.target(), viewport);
+                if (pdfgen::pdf_add_line(pdf, page, x1, y1, x2, y2, style.strokeWidth, style.stroke, style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF oriented segment");
+                }
+                // PDF export approximates SVG marker-mid arrowheads with a small
+                // filled triangle centered on the visible segment midpoint.
+                addArrowhead(pdf, page, x1, y1, x2, y2, style);
+            } else if constexpr (std::same_as<S, Line<PT>>) {
+                const double x1 = viewport.mapX(shape.min().x());
+                const double y1 = viewport.mapY(shape.min().y());
+                const double x2 = viewport.mapX(shape.max().x());
+                const double y2 = viewport.mapY(shape.max().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                if (vx1 == vx2 && vy1 == vy2) {
+                    if (pdfgen::pdf_add_circle(
+                            pdf,
+                            page,
+                            static_cast<float>(vx1),
+                            pdfYFromSVG(vy1),
+                            style.pointRadius,
+                            style.strokeWidth,
+                            style.stroke,
+                            style.fill,
+                            style.fillAlpha,
+                            style.strokeAlpha) < 0) {
+                        throwPDFError(pdf, "draw PDF degenerate line");
+                    }
+                } else if (pdfgen::pdf_add_line(
+                               pdf,
+                               page,
+                               static_cast<float>(vx1),
+                               pdfYFromSVG(vy1),
+                               static_cast<float>(vx2),
+                               pdfYFromSVG(vy2),
+                               style.strokeWidth,
+                               style.stroke,
+                               style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF line");
+                }
+            } else if constexpr (std::same_as<S, OrientedLine<PT>>) {
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                const float px1 = static_cast<float>(vx1);
+                const float py1 = pdfYFromSVG(vy1);
+                const float px2 = static_cast<float>(vx2);
+                const float py2 = pdfYFromSVG(vy2);
+                if (pdfgen::pdf_add_line(pdf, page, px1, py1, px2, py2, style.strokeWidth, style.stroke, style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF oriented line");
+                }
+                addArrowhead(pdf, page, px1, py1, px2, py2, style);
+            } else if constexpr (std::same_as<S, Ray<PT>>) {
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipRayToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (!visible) return;
+                const auto& [vx1, vy1, vx2, vy2] = *visible;
+                const float px1 = static_cast<float>(vx1);
+                const float py1 = pdfYFromSVG(vy1);
+                const float px2 = static_cast<float>(vx2);
+                const float py2 = pdfYFromSVG(vy2);
+                if (pdfgen::pdf_add_line(pdf, page, px1, py1, px2, py2, style.strokeWidth, style.stroke, style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF ray");
+                }
+                addArrowhead(pdf, page, px1, py1, px2, py2, style);
+            } else if constexpr (std::same_as<S, Halfplane<PT>>) {
+                const auto polygon = clipHalfplaneToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    std::vector<std::pair<float, float>> pdfPoints;
+                    pdfPoints.reserve(polygon.size());
+                    for (const auto& [worldX, worldY] : polygon) {
+                        pdfPoints.emplace_back(
+                            static_cast<float>(viewport.mapX(worldX)),
+                            pdfYFromSVG(viewport.mapY(worldY))
+                        );
+                    }
+                    addPath(
+                        pdf,
+                        page,
+                        pdfPoints,
+                        true,
+                        PDFStyle{pdfgen::PDF_TRANSPARENT, style.fill, 0.0f, style.pointRadius, style.fillAlpha, 1.0f},
+                        style.fill
+                    );
+                }
+
+                const double x1 = viewport.mapX(shape.source().x());
+                const double y1 = viewport.mapY(shape.source().y());
+                const double x2 = viewport.mapX(shape.target().x());
+                const double y2 = viewport.mapY(shape.target().y());
+                const auto visible = clipInfiniteLineToBox(x1, y1, x2, y2, 0.0, 0.0, widthPixels_, heightPixels_);
+                if (visible && pdfgen::pdf_add_line(
+                        pdf,
+                        page,
+                        static_cast<float>(visible->x1),
+                        pdfYFromSVG(visible->y1),
+                        static_cast<float>(visible->x2),
+                        pdfYFromSVG(visible->y2),
+                        style.strokeWidth,
+                        style.stroke,
+                        style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF halfplane boundary");
+                }
+            } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                const float x = static_cast<float>(viewport.mapX(shape.min().x()));
+                const float y = pdfYFromSVG(viewport.mapY(shape.min().y()));
+                const float width = static_cast<float>(std::abs(viewport.mapX(shape.max().x()) - viewport.mapX(shape.min().x())));
+                const float height = std::abs(pdfYFromSVG(viewport.mapY(shape.max().y())) - pdfYFromSVG(viewport.mapY(shape.min().y())));
+                if (pdfgen::pdf_add_filled_rectangle(
+                        pdf,
+                        page,
+                        x,
+                        y,
+                        width,
+                        height,
+                        style.strokeWidth,
+                        style.fill,
+                        style.stroke,
+                        style.fillAlpha,
+                        style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF rectangle");
+                }
+            } else if constexpr (std::same_as<S, Triangle<PT>>) {
+                addPath(pdf, page, {mapPDFPoint(shape.a(), viewport), mapPDFPoint(shape.b(), viewport), mapPDFPoint(shape.c(), viewport)}, true, style);
+            } else if constexpr (std::same_as<S, Convex<PT>>) {
+                if (shape.size() == 0) return;
+                std::vector<std::pair<float, float>> points;
+                points.reserve(shape.size());
+                for (const auto& vertex : shape) {
+                    points.push_back(mapPDFPoint(vertex, viewport));
+                }
+                addPath(pdf, page, points, true, style);
+            } else if constexpr (std::same_as<S, Polygon<PT>>) {
+                if (shape.size() == 0) return;
+                std::vector<std::pair<float, float>> points;
+                points.reserve(shape.size());
+                for (const auto& vertex : shape) {
+                    points.push_back(mapPDFPoint(vertex, viewport));
+                }
+                addPath(pdf, page, points, true, style);
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+                if (shape.size() == 0) return;
+                if (shape.size() == 1) {
+                    const auto [x, y] = mapPDFPoint(shape[0], viewport);
+                    if (pdfgen::pdf_add_circle(
+                            pdf,
+                            page,
+                            x,
+                            y,
+                            style.pointRadius,
+                            style.strokeWidth,
+                            style.stroke,
+                            style.fill,
+                            style.fillAlpha,
+                            style.strokeAlpha) < 0) {
+                        throwPDFError(pdf, "draw PDF monotone chain point");
+                    }
+                } else {
+                    std::vector<std::pair<float, float>> points;
+                    points.reserve(shape.size());
+                    for (const auto& vertex : shape) {
+                        points.push_back(mapPDFPoint(vertex, viewport));
+                    }
+                    addPath(
+                        pdf,
+                        page,
+                        points,
+                        false,
+                        PDFStyle{style.stroke, pdfgen::PDF_TRANSPARENT, style.strokeWidth, style.pointRadius, 1.0f, style.strokeAlpha}
+                    );
+                }
+            } else if constexpr (std::same_as<S, Disk<PT>>) {
+                const auto [x, y] = mapPDFPoint(shape.center(), viewport);
+                const float radius = static_cast<float>(shape.radius() * viewport.scale);
+                if (pdfgen::pdf_add_circle(
+                        pdf,
+                        page,
+                        x,
+                        y,
+                        radius,
+                        style.strokeWidth,
+                        style.stroke,
+                        style.fill,
+                        style.fillAlpha,
+                        style.strokeAlpha) < 0) {
+                    throwPDFError(pdf, "draw PDF disk");
+                }
+            }
+        }, element.shape.variant());
     }
 
     std::string elementToSVG(const Element& element, const Viewport& viewport) const {

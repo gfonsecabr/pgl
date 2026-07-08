@@ -82,6 +82,78 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
     CHECK(svg.find("vector-effect=\"non-scaling-stroke\"") != std::string::npos);
 }
 
+TEST_CASE("Canvas writes a PDF file") {
+    const std::string path = "build/tests/output/canvas_test.pdf";
+
+    pgl::Canvas canvas;
+    canvas.size(640.0, 480.0).margin(24.0).pointRadius(4.0).strokeWidth(3.0).borders(true);
+
+    canvas << pgl::stroke("royalblue")
+           << pgl::fill("none")
+           << pgl::Segment<pgl::Point<int>>({0, 0}, {40, 30})
+           << pgl::stroke("black")
+           << pgl::fill("gold")
+           << pgl::Triangle<pgl::Point<int>>({10, 10}, {30, 15}, {20, 35})
+           << pgl::stroke("darkmagenta")
+           << pgl::fill("plum")
+           << pgl::Disk<pgl::Point<int>>({55, 20}, 8);
+
+    canvas.writePDF(path);
+
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+
+    const std::string pdf((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    REQUIRE(pdf.size() > 32);
+
+    CHECK(pdf.rfind("%PDF-1.3", 0) == 0);
+    CHECK(pdf.find("xref") != std::string::npos);
+    CHECK(pdf.find("trailer") != std::string::npos);
+    CHECK(pdf.find("/Type /Page") != std::string::npos);
+    CHECK(pdf.find("/ExtGState") == std::string::npos);
+    CHECK(pdf.find("%%EOF") != std::string::npos);
+    CHECK(pdf.find("%%EOF") + 5 >= pdf.size() - 2);
+}
+
+TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
+    const std::string path = "build/tests/output/canvas_opacity_test.pdf";
+
+    pgl::Canvas canvas;
+    canvas.size(320.0, 240.0).margin(16.0).strokeWidth(4.0);
+
+    canvas << pgl::stroke("darkmagenta")
+           << pgl::fill("plum")
+           << pgl::fillOpacity("0.5")
+           << pgl::strokeOpacity("0.25")
+           << pgl::Triangle<pgl::Point<int>>({10, 10}, {70, 20}, {35, 80})
+           << pgl::Rectangle<pgl::Point<int>>({90, 15}, {150, 75});
+
+    canvas.writePDF(path);
+
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+
+    const std::string pdf((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    REQUIRE(pdf.size() > 32);
+
+    const auto countSubstring = [](const std::string& haystack, const std::string& needle) {
+        std::size_t count = 0;
+        std::size_t offset = haystack.find(needle);
+        while (offset != std::string::npos) {
+            ++count;
+            offset = haystack.find(needle, offset + needle.size());
+        }
+        return count;
+    };
+
+    CHECK(pdf.rfind("%PDF-1.4", 0) == 0);
+    CHECK(pdf.find("/ExtGState <<") != std::string::npos);
+    CHECK(pdf.find("/ca 0.500000") != std::string::npos);
+    CHECK(pdf.find("/CA 0.250000") != std::string::npos);
+    CHECK(pdf.find("/GS0 gs") != std::string::npos);
+    CHECK(countSubstring(pdf, "/Type /ExtGState") == 1);
+}
+
 TEST_CASE("Canvas draws all implemented primitive shapes into SVG") {
     const std::string path = "build/tests/output/primitives_canvas.svg";
 
