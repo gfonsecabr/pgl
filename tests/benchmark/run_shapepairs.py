@@ -31,7 +31,7 @@ Options:
     --build-dir DIR    Build root  (default: build/tests/benchmark)
     --cxx     CXX      Compiler    (default: $CXX or c++)
     --cxxflags FLAGS   Flags       (default: $CXXFLAGS or -std=c++23 -O3 -DNDEBUG)
-    --jobs    N        Parallel compile jobs (default: 1)
+    --jobs    N        Parallel compile jobs (default: all available CPUs)
     --dry-run          Write C++ sources but do not compile or run
 """
 
@@ -257,6 +257,8 @@ def parse_output(raw: str) -> tuple[int, float] | None:
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    default_jobs = max(1, os.cpu_count() or 1)
+
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -271,7 +273,7 @@ def main() -> None:
     ap.add_argument("--build-dir", dest="build_dir", default=None)
     ap.add_argument("--cxx",       default=os.environ.get("CXX", "c++"))
     ap.add_argument("--cxxflags",  default=os.environ.get("CXXFLAGS", "-std=c++23 -O3 -DNDEBUG"))
-    ap.add_argument("--jobs",      type=int, default=1)
+    ap.add_argument("--jobs",      type=int, default=default_jobs)
     ap.add_argument("--repetitions", type=int, default=1,
                     help="run each binary N times and keep the median time")
     ap.add_argument("--dry-run",   dest="dry_run", action="store_true")
