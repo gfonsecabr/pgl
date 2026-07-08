@@ -98,7 +98,7 @@ std::cout << " and has length " << s.length() << std::endl;
 
 ## Visualization
 
-A `Canvas` class is provided for [SVG visualization](doc/canvas.md):
+A `Canvas` class is provided for [visualization](doc/canvas.md). It includes support to export to `svg`, `pdf`, and [ipe](https://github.com/otfried/ipe) files.
 
 <img align="right" src="doc/figures/example2.svg" width="200"/>
 
@@ -110,6 +110,8 @@ pgl::Triangle tri = {-1, -1, 0, 2, 1, -2};
 canvas << pgl::stroke("green") << tri;
 canvas << pgl::stroke("blue") << 2*tri;
 canvas.writeSVG("example2.svg");
+canvas.writePDF("example2.pdf");
+canvas.writeIPE("example2.ipe");
 ```
 
 ## Comparison and Hashing
