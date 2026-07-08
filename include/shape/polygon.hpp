@@ -1032,6 +1032,15 @@ struct Polygon {
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundariesIntersect(const OtherPolygon& other) const;
 
+    /**
+     * @brief Tests whether the two polygon boundaries have mononotone chains that strong cross
+     *
+     * @return `true` if two monotone chains strong cross.
+     */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundariesStrongCross(const OtherPolygon& other) const;
+
+
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<DiskConcept OtherDisk>
     constexpr bool intersects(const OtherDisk& other) const;
