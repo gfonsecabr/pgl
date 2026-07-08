@@ -1367,11 +1367,51 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other
     if (other.size() == 1) {
         return contains(other[0]);
     }
+
+    if (!contains(other.get(0))) {
+        return false;
+    }
+
+    bool boundaries_intersect = false;
+
+    BoundaryChains<Polygon> mine(*this);
+    BoundaryChains<OtherPolygon> theirs(other);
+    while (!mine.exhausted() || !theirs.exhausted()) {
+        if (!mine.exhausted()) {
+            const auto& chain = mine.produceNext();
+            for (const auto& their : theirs.produced()) {
+                if (chain.intersects(their)) {
+                    boundaries_intersect = true;
+                    if (chain.edgesCross(their)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if (!theirs.exhausted()) {
+            const auto& chain = theirs.produceNext();
+            for (const auto& my : mine.produced()) {
+                if (chain.intersects(my)) {
+                    boundaries_intersect = true;
+                    if (chain.edgesCross(my)) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!boundaries_intersect) {
+        return true;
+    }
+
+    // The boundaries intersect without crossing, check everything quadratically
     for (std::size_t i = 0; i < other.size(); ++i) {
         if (!contains(Segment<typename OtherPolygon::PointType>(other[i], other[(i + 1) % other.size()]))) {
             return false;
         }
     }
+
     return true;
 }
 
