@@ -189,35 +189,6 @@ class Canvas {
     }
 
     /**
-     * @brief Sets the current stroke width.
-     *
-     * New elements inserted afterwards capture this width.
-     *
-     * @param widthPixels Positive stroke width in pixels.
-     * @return This canvas.
-     */
-    Canvas& strokeWidth(double widthPixels) {
-        requireStrictlyPositive(widthPixels, "stroke width");
-        style_.strokeWidth = toString(widthPixels);
-        return *this;
-    }
-
-    /**
-     * @brief Sets the current rendered radius of point primitives.
-     *
-     * New elements inserted afterwards capture this radius, so different
-     * points can be given different radii by changing this between insertions.
-     *
-     * @param radiusPixels Positive radius in pixels.
-     * @return This canvas.
-     */
-    Canvas& pointRadius(double radiusPixels) {
-        requireStrictlyPositive(radiusPixels, "point radius");
-        style_.pointRadius = toString(radiusPixels);
-        return *this;
-    }
-
-    /**
      * @brief Sets the margin reserved around the fitted drawing.
      *
      * @param marginPixels Non-negative margin in pixels.

@@ -12,8 +12,7 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
 
     pgl::Canvas canvas;
     canvas.borders(true);
-    canvas.pointRadius(5.0);
-    canvas.strokeWidth(5.0);
+    canvas << pgl::pointRadius("5") << pgl::strokeWidth("5");
     const pgl::Point<int> first_point(10, 20);
     const pgl::Point<int> second_point(30, 70);
     const pgl::Segment<pgl::Point<int>> first_segment(first_point, second_point);
@@ -86,9 +85,11 @@ TEST_CASE("Canvas writes a PDF file") {
     const std::string path = "build/tests/output/canvas_test.pdf";
 
     pgl::Canvas canvas;
-    canvas.size(640.0, 480.0).margin(24.0).pointRadius(4.0).strokeWidth(3.0).borders(true);
+    canvas.size(640.0, 480.0).margin(24.0).borders(true);
 
-    canvas << pgl::stroke("royalblue")
+    canvas << pgl::pointRadius("4.0")
+           << pgl::strokeWidth("3.0")
+           << pgl::stroke("royalblue")
            << pgl::fill("none")
            << pgl::Segment<pgl::Point<int>>({0, 0}, {40, 30})
            << pgl::stroke("black")
@@ -119,9 +120,10 @@ TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
     const std::string path = "build/tests/output/canvas_opacity_test.pdf";
 
     pgl::Canvas canvas;
-    canvas.size(320.0, 240.0).margin(16.0).strokeWidth(4.0);
+    canvas.size(320.0, 240.0).margin(16.0);
 
-    canvas << pgl::stroke("darkmagenta")
+    canvas << pgl::strokeWidth("4.0")
+           << pgl::stroke("darkmagenta")
            << pgl::fill("plum")
            << pgl::fillOpacity("0.5")
            << pgl::strokeOpacity("0.25")
@@ -158,9 +160,11 @@ TEST_CASE("Canvas writes an Ipe (.ipe) XML file") {
     const std::string path = "build/tests/output/canvas_test.ipe";
 
     pgl::Canvas canvas;
-    canvas.size(320.0, 240.0).margin(16.0).pointRadius(4.0).strokeWidth(3.0).borders(true);
+    canvas.size(320.0, 240.0).margin(16.0).borders(true);
 
-    canvas << pgl::stroke("royalblue")
+    canvas << pgl::pointRadius("4.0")
+           << pgl::strokeWidth("3.0")
+           << pgl::stroke("royalblue")
            << pgl::fill("none")
            << pgl::Segment<pgl::Point<int>>({0, 0}, {40, 30})
            << pgl::stroke("black")
@@ -224,7 +228,7 @@ TEST_CASE("Canvas draws all implemented primitive shapes into SVG") {
     const std::string path = "build/tests/output/primitives_canvas.svg";
 
     pgl::Canvas canvas;
-    canvas.size(900.0, 700.0).margin(30.0).pointRadius(4.0).strokeWidth(4.0).borders(true);
+    canvas.size(900.0, 700.0).margin(30.0).borders(true);
 
     const pgl::Point<int> point(10, 20);
     const pgl::Segment<pgl::Point<int>> segment({0, 0}, {40, 30});
@@ -237,7 +241,9 @@ TEST_CASE("Canvas draws all implemented primitive shapes into SVG") {
     const pgl::Triangle<pgl::Point<int>> triangle({20, 140}, {90, 150}, {50, 210});
     const pgl::Convex<pgl::Point<int>> convex(std::vector<pgl::Point<int>>{{230, 130}, {290, 130}, {290, 190}, {230, 190}});
 
-    canvas << pgl::stroke("black")
+    canvas << pgl::pointRadius("4.0")
+           << pgl::strokeWidth("4.0")
+           << pgl::stroke("black")
            << pgl::fill("black")
            << point
            << pgl::stroke("royalblue")
