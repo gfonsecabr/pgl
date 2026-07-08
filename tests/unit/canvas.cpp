@@ -154,6 +154,72 @@ TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
     CHECK(countSubstring(pdf, "/Type /ExtGState") == 1);
 }
 
+TEST_CASE("Canvas writes an Ipe (.ipe) XML file") {
+    const std::string path = "build/tests/output/canvas_test.ipe";
+
+    pgl::Canvas canvas;
+    canvas.size(320.0, 240.0).margin(16.0).pointRadius(4.0).strokeWidth(3.0).borders(true);
+
+    canvas << pgl::stroke("royalblue")
+           << pgl::fill("none")
+           << pgl::Segment<pgl::Point<int>>({0, 0}, {40, 30})
+           << pgl::stroke("black")
+           << pgl::fill("gold")
+           << pgl::fillOpacity("0.5")
+           << pgl::Triangle<pgl::Point<int>>({10, 10}, {30, 15}, {20, 35})
+           << pgl::stroke("darkmagenta")
+           << pgl::fill("plum")
+           << pgl::fillOpacity("1")
+           << pgl::Disk<pgl::Point<int>>({55, 20}, 8)
+           << pgl::OrientedSegment<pgl::Point<int>>({0, 30}, {40, 0});
+
+    canvas.writeIPE(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+
+    const std::string ipe((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    CHECK(ipe.rfind("<?xml version=\"1.0\"?>", 0) == 0);
+    CHECK(ipe.find("<!DOCTYPE ipe SYSTEM \"ipe.dtd\">") != std::string::npos);
+    CHECK(ipe.find("<ipe version=\"70218\"") != std::string::npos);
+    CHECK(ipe.find("<ipestyle name=\"pgl\">") != std::string::npos);
+    CHECK(ipe.find("<layout paper=\"320 240\" origin=\"0 0\" frame=\"320 240\"/>") != std::string::npos);
+    // fillOpacity("0.5") must be declared as a named <opacity> entry, since
+    // Ipe requires opacity attributes to reference a symbolic name.
+    CHECK(ipe.find("<opacity name=\"op500\" value=\"0.5\"/>") != std::string::npos);
+    CHECK(ipe.find("<layer name=\"alpha\"/>") != std::string::npos);
+    CHECK(ipe.find("<view layers=\"alpha\" active=\"alpha\"/>") != std::string::npos);
+    CHECK(ipe.find("</page>") != std::string::npos);
+    CHECK(ipe.find("</ipe>") != std::string::npos);
+
+    // The Segment is stroked only, with no fill.
+    CHECK(ipe.find("stroke=\"0.254902 0.411765 0.882353\"") != std::string::npos);
+    CHECK(ipe.find(" m\n") != std::string::npos);
+    CHECK(ipe.find(" l\n") != std::string::npos);
+
+    // The Triangle is stroked and filled, with the fill opacity applied.
+    CHECK(ipe.find("fill=\"1 0.843137 0\" opacity=\"op500\"") != std::string::npos);
+    CHECK(ipe.find("h\n") != std::string::npos);
+
+    // The Disk is exported as an ellipse using Ipe's affine-matrix syntax
+    // (a circle of radius r centered at (cx, cy) is "r 0 0 r cx cy e").
+    CHECK(ipe.find(" e\n") != std::string::npos);
+
+    // The OrientedSegment gets an extra filled triangle path for its arrowhead.
+    const std::size_t pathCount = [&ipe]() {
+        std::size_t count = 0;
+        std::size_t offset = ipe.find("<path");
+        while (offset != std::string::npos) {
+            ++count;
+            offset = ipe.find("<path", offset + 5);
+        }
+        return count;
+    }();
+    // border + segment + triangle + disk + oriented segment + its arrowhead.
+    CHECK(pathCount == 6);
+}
+
 TEST_CASE("Canvas draws all implemented primitive shapes into SVG") {
     const std::string path = "build/tests/output/primitives_canvas.svg";
 
