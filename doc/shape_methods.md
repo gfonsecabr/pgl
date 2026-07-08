@@ -221,6 +221,11 @@ pgl::Point<> p(isec);
 - `pointInside()`: Returns a point strictly in the interior of the shape. Uses
   only division by a power of 2.
 
+- `pointInsideInteriorContainedIn(other)`: Returns true if some point in this
+  shape's relative interior lies in the strict interior of the argument `other`.
+  It uses the `pointInside()` witness, scaling both shapes to keep the witness
+  exact when integer truncation would round it onto the boundary.
+
 - `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`. Notice that two shapes (for example lines) may be equal (according to `==`) but still behave differently for verticesContain if they are defined by different points.
 
 ## Iterating

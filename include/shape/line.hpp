@@ -1243,6 +1243,16 @@ struct Line {
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
+    /**
+     * @brief Tests whether some point in this shape's relative interior lies in
+     *        the strict interior of @p shape.
+     *
+     * Uses @ref pointInside as the witness; it lies exactly in this shape's
+     * relative interior, so no scaled fallback is required.
+     */
+    template <class OtherShape>
+    [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const;
+
 
     /**
      * @brief Returns normalized dual-line coordinates for the supporting line.

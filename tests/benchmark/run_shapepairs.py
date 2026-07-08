@@ -25,7 +25,7 @@ Options:
                        at least one operand is a focus shape (its row AND column).
                        Focus shapes are added to --shapes automatically.
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
-    --methods M,...    Methods to include (default: all 11)
+    --methods M,...    Methods to include (default: all 17)
     --types   T,...    Number types (default: all 5)
     --output  FILE     JSON output path (default: build/tests/benchmark/benchmarks.json)
     --build-dir DIR    Build root  (default: build/tests/benchmark)
@@ -83,6 +83,7 @@ ALL_METHODS = [
     "contains",
     "interiorContains",
     "boundaryContains",
+    "pointInsideInteriorContainedIn",
     "intersects",
     "interiorsIntersect",
     "separates",
@@ -139,6 +140,7 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
 def _cpp_accumulate(method: str) -> str:
     """C++ inner-loop body that increments 'count' for one (a, b) pair."""
     if method in {"contains", "interiorContains", "boundaryContains",
+                  "pointInsideInteriorContainedIn",
                   "intersects", "interiorsIntersect", "separates", "crosses",
                   "collinear", "parallel"}:
         return f"count += a.{method}(b) ? 1 : 0;"

@@ -85,6 +85,18 @@ constexpr Point<ResultNumber> Segment<PointType, LabelType>::pointInside() const
     return midpoint<ResultNumber>();
 }
 
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Segment<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // Integer truncation rounded the midpoint onto an endpoint; scaling by 2
+    // makes it exact without changing the containment relation.
+    return (shape * 2).interiorContains((*this * 2).pointInside());
+}
+
 // -----------------------------------------------------------------------------
 // OrientedSegment
 
@@ -146,6 +158,13 @@ constexpr Point<ResultNumber> OrientedSegment<PointType, LabelType>::pointInside
     return midpoint<ResultNumber>();
 }
 
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool OrientedSegment<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    // Orientation does not affect the point set, so defer to the segment.
+    return asSegment().pointInsideInteriorContainedIn(shape);
+}
+
 // -----------------------------------------------------------------------------
 // Line
 
@@ -171,6 +190,13 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Line<PointType, LabelType>::pointInside() const {
     return Point<ResultNumber>(min());
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Line<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    // pointInside() lies exactly on the line, so it is a valid interior witness.
+    return shape.interiorContains(pointInside());
 }
 
 // -----------------------------------------------------------------------------
@@ -200,6 +226,13 @@ constexpr Point<ResultNumber> OrientedLine<PointType, LabelType>::pointInside() 
     return Point<ResultNumber>(source());
 }
 
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool OrientedLine<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    // Orientation does not affect the point set, so defer to the line.
+    return asLine().pointInsideInteriorContainedIn(shape);
+}
+
 // -----------------------------------------------------------------------------
 // Ray
 
@@ -225,6 +258,14 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Ray<PointType, LabelType>::pointInside() const {
     return Point<ResultNumber>(target());
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Ray<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    // pointInside() is an exact ray point past the source, so it is a valid
+    // interior witness.
+    return shape.interiorContains(pointInside());
 }
 
 // -----------------------------------------------------------------------------
@@ -275,6 +316,18 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::pointInside() const {
     return midpoint<ResultNumber>();
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Rectangle<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // Integer truncation rounded the midpoint onto the boundary; scaling by 2
+    // makes it exact without changing the containment relation.
+    return (shape * 2).interiorContains((*this * 2).pointInside());
 }
 
 // -----------------------------------------------------------------------------
@@ -335,6 +388,18 @@ constexpr Point<ResultNumber> Triangle<PointType, LabelType>::pointInside() cons
     Point<ResultNumber> p = points_[0] + points_[1];
     p = (p/2 + points_[2])/2;
     return p;
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Triangle<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // pointInside() divides by 4; integer truncation rounded it onto the
+    // boundary, so scaling by 4 makes it exact without changing containment.
+    return (shape * 4).interiorContains((*this * 4).pointInside());
 }
 
 template <class PointType, class LabelType>
@@ -405,6 +470,14 @@ constexpr Point<ResultNumber> Halfplane<PointType, LabelType>::pointInside() con
         return {x - one, y};
     }
     return {x + one, y - one};
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Halfplane<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    // pointInside() is an exact lattice point strictly inside the halfplane, so
+    // it is a valid interior witness.
+    return shape.interiorContains(pointInside());
 }
 
 
@@ -495,6 +568,18 @@ constexpr Point<ResultNumber> Convex<PointType, LabelType>::pointInside() const 
     // the (now integer) default would truncate and can fall outside the polygon.
     return Point<ResultNumber>(triangle.template pointInside<ResultNumber>())
            + static_cast<Point<ResultNumber>>(translation_);
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Convex<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // pointInside() divides by up to 4; integer truncation rounded it onto the
+    // boundary, so scaling by 4 makes it exact without changing containment.
+    return (shape * 4).interiorContains((*this * 4).pointInside());
 }
 
 template <class PointType, class LabelType>
@@ -653,6 +738,18 @@ constexpr Point<ResultNumber> Polygon<PointType, LabelType>::pointInside() const
     return t.template pointInside<ResultNumber>();
 }
 
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool Polygon<PointType, LabelType>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // pointInside() divides by up to 4; integer truncation rounded it onto the
+    // boundary, so scaling by 4 makes it exact without changing containment.
+    return (shape * 4).interiorContains((*this * 4).pointInside());
+}
+
 // -----------------------------------------------------------------------------
 // MonotoneChain
 
@@ -693,6 +790,19 @@ constexpr Point<ResultNumber> MonotoneChain<PointType, LabelType, Storage>::poin
     }
 
     return Segment<PointType>((*this)[0], (*this)[1]).template pointInside<ResultNumber>();
+}
+
+template <class PointType, class LabelType, class Storage>
+template <class OtherShape>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // pointInside() is the first edge's midpoint (divides by 2); integer
+    // truncation rounded it onto a vertex, so scaling by 2 makes it exact
+    // without changing the containment relation.
+    return (shape * 2).interiorContains((*this * 2).pointInside());
 }
 
 }  // namespace pgl
