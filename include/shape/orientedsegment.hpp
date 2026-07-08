@@ -1457,6 +1457,17 @@ struct OrientedSegment {
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
+    /**
+     * @brief Tests whether some point in this shape's relative interior lies in
+     *        the strict interior of @p shape.
+     *
+     * Uses @ref pointInside as the witness. When integer truncation rounds that
+     * witness onto or outside the boundary, this shape and @p shape are scaled
+     * so the witness is exact, leaving the containment relation unchanged.
+     */
+    template <class OtherShape>
+    [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const;
+
     /** @brief Translates the oriented segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedSegment& operator+=(const OtherPoint& translation);
