@@ -43,8 +43,8 @@ Override the compiler/flags as usual: `CXX=g++ CXXFLAGS="-std=c++23 -O3" …`.
 
 > The full cube is ~256 shape-size pairs × 11 methods × 5 number types — many
 > thousands of programs to compile. Compilation is parallelised across all cores
-> (`--jobs $(nproc)`); narrow it with `--shapes/--sizes/--methods/--types` while
-> iterating.
+> by default; narrow it with `--shapes/--sizes/--methods/--types` while iterating,
+> or override with `--jobs N`.
 
 ## Running pieces by hand
 
