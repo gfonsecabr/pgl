@@ -211,6 +211,75 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) 
     return w;
 }
 
+// "As-other-type" generators: build shapes with one shape's generator, then
+// store the equivalent representation of a more general storage type. This lets
+// the shape-pair cube measure, e.g., Polygon's code paths when the polygon is
+// actually a triangle. Generation (and thus the small/large geometry and the
+// dedup seed) matches the source shape exactly; only the container type differs.
+
+// Triangles, generated as Triangle, stored as Polygon (via Triangle::asPolygon).
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomSmallTriangleAsPolygon(int n) {
+    using Point = pgl::Point<Number>;
+    auto tris = randomSmallTrishape<pgl::Triangle<Point>>(n);
+    std::vector<pgl::Polygon<Point>> w;
+    w.reserve(tris.size());
+    for (const auto& t : tris) w.push_back(t.asPolygon());
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargeTriangleAsPolygon(int n) {
+    using Point = pgl::Point<Number>;
+    auto tris = randomLargeTrishape<pgl::Triangle<Point>>(n);
+    std::vector<pgl::Polygon<Point>> w;
+    w.reserve(tris.size());
+    for (const auto& t : tris) w.push_back(t.asPolygon());
+    return w;
+}
+
+// Triangles, generated as Triangle, stored as Convex (via Triangle::asConvex).
+template <class Number>
+std::vector<pgl::Convex<pgl::Point<Number>>> randomSmallTriangleAsConvex(int n) {
+    using Point = pgl::Point<Number>;
+    auto tris = randomSmallTrishape<pgl::Triangle<Point>>(n);
+    std::vector<pgl::Convex<Point>> w;
+    w.reserve(tris.size());
+    for (const auto& t : tris) w.push_back(t.asConvex());
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Convex<pgl::Point<Number>>> randomLargeTriangleAsConvex(int n) {
+    using Point = pgl::Point<Number>;
+    auto tris = randomLargeTrishape<pgl::Triangle<Point>>(n);
+    std::vector<pgl::Convex<Point>> w;
+    w.reserve(tris.size());
+    for (const auto& t : tris) w.push_back(t.asConvex());
+    return w;
+}
+
+// Convexes, generated as Convex, stored as Polygon (via Convex::asPolygon).
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomSmallConvexAsPolygon(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto cs = randomSmallConvexes<Number>(n, m);
+    std::vector<pgl::Polygon<Point>> w;
+    w.reserve(cs.size());
+    for (const auto& c : cs) w.push_back(c.asPolygon());
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargeConvexAsPolygon(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto cs = randomLargeConvexes<Number>(n, m);
+    std::vector<pgl::Polygon<Point>> w;
+    w.reserve(cs.size());
+    for (const auto& c : cs) w.push_back(c.asPolygon());
+    return w;
+}
+
 // Weakly x-monotone chains: m random points fed to MonotoneChain, whose
 // constructor sorts them lexicographically and drops duplicates. The result has
 // at most m vertices (fewer when x/y collisions coincide).
