@@ -1476,10 +1476,22 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const Ot
     // pair whose x-ranges overlap. On a tie both advance: the skipped pairs
     // could only meet at that shared right endpoint, which belongs to the pair
     // just tested, so nothing is missed.
-    std::size_t i = 0;
-    std::size_t j = 0;
     const std::size_t iEnd = size() - 1;
     const std::size_t jEnd = other.size() - 1;
+    // Seed past the leading edges left of the shared x-window: an edge whose
+    // x-range ends before max(minX) cannot overlap the other chain. indexAtX
+    // locates the first candidate edge in O(log n) instead of advancing the
+    // sweep one edge at a time; a disengaged result means the chains' x-ranges
+    // are disjoint, so there is no overlapping pair to test.
+    using XType = std::common_type_t<NumberType, typename OtherChain::PointType::NumberType>;
+    const XType xlo = std::max<XType>((*this)[0].x(), other[0].x());
+    const auto iSeed = indexAtX(xlo);
+    const auto jSeed = other.indexAtX(xlo);
+    // Back up one edge: the edge whose right endpoint sits exactly on xlo can
+    // still meet the other chain there (e.g. a vertical edge at xlo), yet
+    // indexAtX returns the vertex at xlo, i.e. the following edge.
+    std::size_t i = (iSeed && jSeed) ? (*iSeed > 0 ? *iSeed - 1 : 0) : iEnd;
+    std::size_t j = (iSeed && jSeed) ? (*jSeed > 0 ? *jSeed - 1 : 0) : jEnd;
     while (i < iEnd && j < jEnd) {
         const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
         const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
