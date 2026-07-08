@@ -1014,21 +1014,21 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherHalfplane& o
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRectangle& other) const {
-    for (const auto& vertex : other.vertices()) {
-        if (contains(vertex)) {
-            return true;
-        }
+    if (size() == 0) {
+        return false;
     }
-    for (const auto& vertex : vertices()) {
-        if (other.contains(vertex)) {
-            return true;
-        }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
+        return true;
+    }
+    if (other.contains((*this)[0]) || contains(other[0])) {
+        return true;
     }
     for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.intersects(otherEdge)) {
-                return true;
-            }
+        if (other.intersects(edge)) {
+            return true;
         }
     }
     return false;
@@ -1037,21 +1037,21 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRectangle& o
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherTriangle& other) const {
-    for (const auto& vertex : other.vertices()) {
-        if (contains(vertex)) {
-            return true;
-        }
+    if (size() == 0) {
+        return false;
     }
-    for (const auto& vertex : vertices()) {
-        if (other.contains(vertex)) {
-            return true;
-        }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
+        return true;
+    }
+    if (other.contains((*this)[0]) || contains(other[0])) {
+        return true;
     }
     for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.intersects(otherEdge)) {
-                return true;
-            }
+        if (other.intersects(edge)) {
+            return true;
         }
     }
     return false;
@@ -1069,21 +1069,12 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherConvex& othe
     if (bbox().separates(other.bbox()) || other.bbox().separates(this->bbox())) {
         return true;
     }
-    for (const auto& vertex : other.vertices()) {
-        if (contains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& vertex : vertices()) {
-        if (other.contains(vertex)) {
-            return true;
-        }
+    if (other.contains((*this)[0]) || contains(other[0])) {
+        return true;
     }
     for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.intersects(otherEdge)) {
-                return true;
-            }
+        if (other.intersects(edge)) {
+            return true;
         }
     }
     return false;

@@ -1341,18 +1341,7 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherTriangle& othe
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other) const {
-    if (other.size() == 0) {
-        return true;
-    }
-    if (other.size() == 1) {
-        return contains(other[0]);
-    }
-    for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!contains(Segment<typename OtherConvex::PointType>(other[i], other[(i + 1) % other.size()]))) {
-            return false;
-        }
-    }
-    return true;
+    return contains(other.asPolygon());
 }
 
 template <class PointType, class LabelType>
