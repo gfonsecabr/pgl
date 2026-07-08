@@ -948,12 +948,12 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherPolygo
     if (other.size() == 1) {
         return interiorContains(other[0]);
     }
-    for (std::size_t i = 0; i < other.size(); ++i) {
-        if (!interiorContains(Segment<typename OtherPolygon::PointType>(other[i], other[(i + 1) % other.size()]))) {
-            return false;
-        }
+
+    if (!interiorContains(other[0])) {
+        return false;
     }
-    return true;
+
+    return !boundariesIntersect(other);
 }
 
 // ---------------------------------------------------------------------------
