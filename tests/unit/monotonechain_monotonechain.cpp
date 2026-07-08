@@ -202,6 +202,96 @@ TEST_CASE("MonotoneChain vs MonotoneChain separates and crosses") {
     }
 }
 
+TEST_CASE("MonotoneChain vs MonotoneChain edgesCross") {
+    SUBCASE("a proper crossing strongly crosses") {
+        const Chain up({0, 0, 2, 2});
+        const Chain down({0, 2, 2, 0});
+        CHECK(up.edgesCross(down));
+        CHECK(down.edgesCross(up));
+    }
+
+    SUBCASE("crossing through a vertical edge") {
+        const Chain horizontal({0, 3, 6, 3});
+        CHECK(zigzag.edgesCross(horizontal));
+        CHECK(horizontal.edgesCross(zigzag));
+    }
+
+    SUBCASE("touching at a single vertex without swapping sides is not a strong cross") {
+        const Chain fromPeak({2, 4, 5, 9});
+        CHECK_FALSE(zigzag.edgesCross(fromPeak));
+        CHECK_FALSE(fromPeak.edgesCross(zigzag));
+    }
+
+    SUBCASE("collinear overlap that never returns is not a strong cross") {
+        const Chain straight({0, 0, 4, 4});
+        const Chain overlapping({1, 1, 2, 2, 3, 3, 6, 3});
+        CHECK_FALSE(straight.edgesCross(overlapping));
+        CHECK_FALSE(overlapping.edgesCross(straight));
+    }
+
+    SUBCASE("a chain that stays entirely to one side never strongly crosses") {
+        const Chain base({0, 0, 10, 0});
+        const Chain above({0, 5, 10, 6});
+        CHECK_FALSE(base.edgesCross(above));
+        CHECK_FALSE(above.edgesCross(base));
+    }
+
+    SUBCASE("a tangent dip that touches the base at both ends but stays on one side") {
+        const Chain base({0, 0, 10, 0});
+        const Chain dip({2, 0, 4, -2, 6, 0});
+        CHECK_FALSE(base.edgesCross(dip));
+        CHECK_FALSE(dip.edgesCross(base));
+    }
+
+    SUBCASE("disjoint x-extents never strongly cross") {
+        CHECK_FALSE(zigzag.edgesCross(Chain({7, 0, 9, 9})));
+        CHECK_FALSE(Chain({7, 0, 9, 9}).edgesCross(zigzag));
+    }
+
+    SUBCASE("a single-vertex chain never strongly crosses anything") {
+        const Chain point({3, 100});
+        CHECK_FALSE(zigzag.edgesCross(point));
+        CHECK_FALSE(point.edgesCross(zigzag));
+    }
+
+    SUBCASE("a chain that is a single vertical edge never strongly crosses, even if it "
+            "brackets the other chain's value at their shared x") {
+        // vertical spans y in [0,2] at x=0; horizontal sits at y=1, also
+        // starting at x=0. Naively vertical[0]=(0,0) is strictly below
+        // horizontal and vertical[1]=(0,2) is strictly above it, but that
+        // "crossing" lives entirely at the single x=0 the two chains share,
+        // which is both chains' own boundary vertex -- not robust.
+        const Chain vertical({0, 0, 0, 2});
+        const Chain horizontal({0, 1, 1, 1});
+        CHECK_FALSE(vertical.edgesCross(horizontal));
+        CHECK_FALSE(horizontal.edgesCross(vertical));
+    }
+
+    SUBCASE("a leading vertical edge that only brackets the other chain at the shared "
+            "boundary is not a proper crossing") {
+        const Chain verticalThenRising({0, 0, 0, 2, 3, 5});
+        const Chain horizontal({0, 1, 1, 1});
+        // The vertical edge x=0 spans y in [0,2] and the horizontal starts at
+        // (0,1) on it, so the chains meet only at the horizontal's endpoint and
+        // the rising part stays strictly above: a tangential touch, not a
+        // transversal crossing, so no edge pair *properly* crosses.
+        CHECK_FALSE(verticalThenRising.edgesCross(horizontal));
+        CHECK_FALSE(horizontal.edgesCross(verticalThenRising));
+    }
+
+    SUBCASE("a chain with several sign changes strongly crosses") {
+        const Chain sawtooth({0, -1, 1, 5, 2, -1, 3, 5, 4, 2, 5, 5, 6, -1});
+        CHECK(zigzag.edgesCross(sawtooth));
+        CHECK(sawtooth.edgesCross(zigzag));
+    }
+
+    SUBCASE("mixed numeric types") {
+        const pgl::MonotoneChain<pgl::Point<long>> wide({0L, 3L, 6L, 3L});
+        CHECK(zigzag.edgesCross(wide));
+        CHECK(wide.edgesCross(zigzag));
+    }
+}
+
 TEST_CASE("MonotoneChain separates agrees with an intersection-based oracle") {
     // Oracle: A separates B iff, walking B in arc (lexicographic) order, some
     // connected covered component avoids both extreme vertices of B. The

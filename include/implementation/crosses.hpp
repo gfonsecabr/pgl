@@ -824,6 +824,43 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const Shape
         other.variant());
 }
 
+template <class PointType, class LabelType, class Storage>
+template<MonotoneChainConcept OtherChain>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::edgesCross(const OtherChain& other) const {
+    if (size() < 2 || other.size() < 2) {
+        return false;
+    }
+    // A strong (robust, transversal) crossing is exactly a properly crossing
+    // edge pair: two edges whose interiors meet with the chains passing to
+    // opposite sides (Segment::crosses). A mere touch, a collinear overlap, or a
+    // vertical edge that only brackets the other chain at a shared boundary x
+    // are not proper crossings, so they do not count -- unlike "some vertex
+    // above and some below", they cannot be slid apart into a non-crossing by an
+    // arbitrarily small perturbation. Both edge sequences are sorted by
+    // x-interval, so a merge sweep advancing the edge with the smaller right
+    // endpoint visits every pair whose x-ranges overlap in O(n + m).
+    std::size_t i = 0;
+    std::size_t j = 0;
+    const std::size_t iEnd = size() - 1;
+    const std::size_t jEnd = other.size() - 1;
+    while (i < iEnd && j < jEnd) {
+        const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
+        const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
+        if (!(mine.max().x() < theirs.min().x() || theirs.max().x() < mine.min().x()) &&
+            mine.crosses(theirs)) {
+            return true;
+        }
+        const auto order = mine.max() <=> theirs.max();
+        if (order <= 0) {
+            ++i;
+        }
+        if (order >= 0) {
+            ++j;
+        }
+    }
+    return false;
+}
+
 template <class PointType, class LabelType>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Polygon<PointType, LabelType>::crosses(const OtherChain& other) const {

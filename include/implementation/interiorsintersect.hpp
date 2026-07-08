@@ -1186,6 +1186,35 @@ constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPol
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType, LabelType>::boundariesStrongCross(const OtherPolygon& other) const {
+    // Produce both boundary decompositions in lockstep, testing each new chain
+    // against every already-produced chain of the other polygon before building
+    // the next, and stop at the first shared point. See BoundaryChains.
+    BoundaryChains<Polygon> mine(*this);
+    BoundaryChains<OtherPolygon> theirs(other);
+    while (!mine.exhausted() || !theirs.exhausted()) {
+        if (!mine.exhausted()) {
+            const auto& chain = mine.produceNext();
+            for (const auto& their : theirs.produced()) {
+                if (chain.edgesCross(their)) {
+                    return true;
+                }
+            }
+        }
+        if (!theirs.exhausted()) {
+            const auto& chain = theirs.produceNext();
+            for (const auto& my : mine.produced()) {
+                if (chain.edgesCross(my)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
     // Cheap bounding-box reject: if the closed boxes are disjoint the interiors
     // cannot meet, so the machinery below is skipped for distant pairs.
@@ -1208,15 +1237,45 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     // point-in-polygon test each way (every vertex of the inner polygon lies in
     // the outer interior). This short-circuits the quadratic scan below, which
     // is then only reached when the boundaries actually touch.
-    if (!boundariesIntersect(other)) {
+    // Similarly, if the boundaries strongly cross, then the interiors intersect
+
+    bool boundaries_intersect = false;
+
+    BoundaryChains<Polygon> mine(*this);
+    BoundaryChains<OtherPolygon> theirs(other);
+    while (!mine.exhausted() || !theirs.exhausted()) {
+        if (!mine.exhausted()) {
+            const auto& chain = mine.produceNext();
+            for (const auto& their : theirs.produced()) {
+                if (chain.intersects(their)) {
+                    boundaries_intersect = true;
+                    if (chain.edgesCross(their)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        if (!theirs.exhausted()) {
+            const auto& chain = theirs.produceNext();
+            for (const auto& my : mine.produced()) {
+                if (chain.intersects(my)) {
+                    boundaries_intersect = true;
+                    if (chain.edgesCross(my)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!boundaries_intersect) {
         return interiorContains(other.get(0)) || other.interiorContains(get(0));
     }
 
-    // Boundaries touch: distinguish a mere boundary contact from a real interior
-    // overlap. A vertex of one strictly inside the other, a proper edge
-    // crossing, or an edge of one passing through the other's interior (the
-    // separates checks, which also catch collinear-overlap contact) each imply
-    // the open interiors meet.
+    // Boundaries touch but do not have crossing chains:
+    // distinguish a mere boundary contact from a real interior
+    // overlap that went through a vertex between monotone chains.
+
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
             return true;
@@ -1225,13 +1284,6 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     for (const auto& vertex : vertices()) {
         if (other.interiorContains(vertex)) {
             return true;
-        }
-    }
-    for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.crosses(otherEdge)) {
-                return true;
-            }
         }
     }
     for (const auto& edge : edges()) {

@@ -395,6 +395,70 @@ MonotoneChain<PointType, LabelType, Storage>::yAtX(const OtherNumber& x) const {
 template <class PointType, class LabelType, class Storage>
 template <PointConcept OtherPoint>
 constexpr std::optional<std::size_t>
+MonotoneChain<PointType, LabelType, Storage>::isStrictlyBelow(const OtherPoint& point) const {
+    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+    const auto idx = indexAtX(point.x());
+    if (!idx) {
+        return {};
+    }
+    const PointType a = (*this)[*idx];
+    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+        // idx is the bottom vertex of the vertical run at x = point.x(); the
+        // chain lies strictly below the point only when the run's *top* vertex
+        // is still below it (a point inside the run lies on the chain, so it
+        // counts as neither above nor below). Locate the top with a second
+        // binary search — the run is contiguous because the vertices are sorted
+        // lexicographically.
+        const auto tx = translation_.x();
+        const auto it = std::upper_bound(
+            points_.begin() + static_cast<std::ptrdiff_t>(*idx), points_.end(), point.x(),
+            [&tx](const auto& value, const PointType& p) {
+                return static_cast<Compare>(value) < static_cast<Compare>(p.x() + tx);
+            });
+        const PointType top = (*this)[static_cast<std::size_t>(it - points_.begin()) - 1];
+        if (static_cast<Compare>(top.y()) < static_cast<Compare>(point.y())) {
+            return idx;
+        }
+        return {};
+    }
+    // Strictly inside edge (idx, idx + 1), which runs left to right, so the
+    // point is above the edge iff it is not on the right of it.
+    if (orientationSign(a, (*this)[*idx + 1], point) > 0) {
+        return idx;
+    }
+    return {};
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PointConcept OtherPoint>
+constexpr std::optional<std::size_t>
+MonotoneChain<PointType, LabelType, Storage>::isStrictlyAbove(const OtherPoint& point) const {
+    using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
+    const auto idx = indexAtX(point.x());
+    if (!idx) {
+        return {};
+    }
+    const PointType a = (*this)[*idx];
+    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+        // idx is the bottom vertex of the vertical run at x = point.x(); the
+        // chain lies strictly above the point only when even that bottom vertex
+        // is above it (a point inside the run lies on the chain, so it counts as
+        // neither above nor below).
+        if (static_cast<Compare>(a.y()) > static_cast<Compare>(point.y())) {
+            return idx;
+        }
+        return {};
+    }
+    if (orientationSign(a, (*this)[*idx + 1], point) < 0) {
+        return idx;
+    }
+    return {};
+}
+
+
+template <class PointType, class LabelType, class Storage>
+template <PointConcept OtherPoint>
+constexpr std::optional<std::size_t>
 MonotoneChain<PointType, LabelType, Storage>::isBelow(const OtherPoint& point) const {
     using Compare = std::common_type_t<NumberType, typename OtherPoint::NumberType>;
     const auto idx = indexAtX(point.x());

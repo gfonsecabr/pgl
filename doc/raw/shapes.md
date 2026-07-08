@@ -464,6 +464,7 @@ The monotone structure speeds up several predicates and constructions:
 - `P.contains(s)` takes $O(\log n)$ time if `s` is a point, and $O(\log n + k)$ if `s` is a segment whose x-range spans $k$ vertices (a chain contains a segment exactly when the segment is a straight sub-path of the chain).
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
 - `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
+- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
 
 
 ### Polygon

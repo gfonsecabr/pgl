@@ -568,6 +568,45 @@ struct MonotoneChain {
     [[nodiscard]] constexpr std::optional<ResultNumber> yAtX(const OtherNumber& x) const;
 
     /**
+     * @brief Tests whether the whole chain lies strictly below a point at its x.
+     *
+     * Engaged iff, at `point.x()`, every part of the chain is strictly below
+     * @p point — i.e. the top of the chain's vertical run there is below the
+     * point. A point lying on the chain (including inside a vertical edge)
+     * counts as neither below nor above, so @ref isStrictlyBelow and
+     * @ref isStrictlyAbove are mutually exclusive, and both are empty when the
+     * point is on the chain or `point.x()` is outside the chain's x-extent.
+     * (Contrast the weak @ref isBelow, which a point on the chain satisfies.)
+     * The engaged value is the index @ref indexAtX returns for `point.x()`.
+     *
+     * Complexity: O(log n) for n vertices. Exact (division-free).
+     *
+     * @param point The query point.
+     * @return The index at `point.x()` when the chain is strictly below,
+     *         otherwise empty.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<std::size_t> isStrictlyBelow(const OtherPoint& point) const;
+
+    /**
+     * @brief Tests whether the whole chain lies strictly above a point at its x.
+     *
+     * Engaged iff, at `point.x()`, every part of the chain is strictly above
+     * @p point — i.e. the bottom of the chain's vertical run there is above the
+     * point. A point lying on the chain (including inside a vertical edge)
+     * counts as neither; see @ref isStrictlyBelow.
+     *
+     * Complexity: O(log n) for n vertices. Exact (division-free).
+     *
+     * @param point The query point.
+     * @return The index at `point.x()` when the chain is strictly above,
+     *         otherwise empty.
+     */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<std::size_t> isStrictlyAbove(const OtherPoint& point) const;
+
+
+    /**
      * @brief Tests whether the chain passes weakly below a point.
      *
      * Engaged iff a ray shot straight *down* from @p point intersects the
@@ -1180,6 +1219,22 @@ struct MonotoneChain {
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
     }
+
+    /**
+     * @brief Tests whether the two chains have edges that cross.
+     *
+     * True iff some edge of this chain and some edge of @p other cross:
+     * their interiors meet at a single point.
+     *
+     * Both edge sequences are sorted by x-interval, so the proper-crossing pair
+     * is found by a merge sweep in O(n + m) for chains with n and m vertices.
+     *
+     * @tparam OtherChain Type of the other chain.
+     * @param other The other chain.
+     * @return `true` if an edge of this chain crosses an edge of @p other.
+     */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool edgesCross(const OtherChain& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
