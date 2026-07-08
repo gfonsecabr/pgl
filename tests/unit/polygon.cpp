@@ -920,3 +920,30 @@ TEST_CASE("Polygon interiorsIntersect (boolean predicate)") {
         CHECK(b.interiorsIntersect(a));
     }
 }
+
+// pointInside must return a point strictly inside the polygon for both the
+// "ear" branch (leftmost-vertex triangle is empty) and the "diagonal" branch
+// (some vertex lies inside that triangle, so a diagonal is used instead).
+TEST_CASE("Polygon pointInside is interior for convex and non-convex polygons") {
+    using Point = pgl::Point<int>;
+    using Poly = pgl::Polygon<Point>;
+    using Rational = pgl::Rational<long long>;
+
+    auto check = [](const Poly& p) {
+        CHECK(p.interiorContains(p.pointInside<Rational>()));
+    };
+
+    SUBCASE("convex") {
+        check(Poly({0, 0, 4, 0, 4, 4, 0, 4}));       // square
+        check(Poly({0, 0, 6, 0, 3, 5}));             // triangle
+    }
+    SUBCASE("non-convex, ear branch") {
+        check(Poly({0, 0, 6, 0, 6, 2, 2, 2, 2, 6, 0, 6}));   // L-shape
+    }
+    SUBCASE("non-convex, diagonal branch") {
+        // The leftmost vertex's neighbour triangle swallows interior vertices,
+        // forcing the p0->q diagonal midpoint.
+        check(Poly({0, 0, 9, 0, 9, 9, 6, 9, 6, 3, 3, 3, 3, 9, 0, 9}));  // U-shape
+        check(Poly({0, 0, 8, 1, 9, 9, 5, 4, 6, 8}));                    // arrowhead notch
+    }
+}

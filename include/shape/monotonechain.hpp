@@ -1499,6 +1499,18 @@ struct MonotoneChain {
     constexpr auto lengthLInf() const;
 
     /**
+     * @brief Returns a point inside the chain.
+     *
+     * This is the point inside the segment formed by the first two
+     * vertices, i.e. the midpoint of that edge.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @warning Divides coordinates by 2. Inexact for odd integer coordinates.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
+
+    /**
      * @brief Returns the chain rotated by 90k degrees around the origin.
      *
      * An odd number of rotations turns an x-monotone chain into a y-monotone

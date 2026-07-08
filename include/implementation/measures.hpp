@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "implementation/transformations.hpp"
 
 /**
@@ -260,7 +262,7 @@ constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::centroid() const 
 
 template <class PointType, class LabelType>
 constexpr Disk<PointType, NoLabel> Rectangle<PointType, LabelType>::circumcircle() const {
-    return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly 
+    return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly
 }
 
 template <class PointType, class LabelType>
@@ -605,6 +607,53 @@ constexpr Segment<PointType> Convex<PointType, LabelType>::diameter() const {
 }
 
 // -----------------------------------------------------------------------------
+// Polygon
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> Polygon<PointType, LabelType>::pointInside() const {
+    const std::size_t n = size();
+    if (n < 3) {
+        // Degenerate polygon (UB per the library contract); fall back to a
+        // representative point rather than reading past the end.
+        return verticesCentroid<ResultNumber>();
+    }
+
+    // In canonical form the lexicographically smallest vertex is stored first,
+    // so p0 is a convex vertex; a and b are its boundary neighbours, and the
+    // triangle (a, p0, b) is counterclockwise and lies locally inside.
+    const PointType p0 = (*this)[0];
+    const Triangle<PointType> t(p0,get(1),get(-1));
+
+    if (t.isDegenerate()) {
+        // Degenerate input polygon: all its vertices have the same x coordinate
+        return p0;
+    }
+
+    // Leftmost (lexicographically smallest) vertex inside the closed triangle
+    // (a, p0, b), skipping the three corners at indices 0, 1 and n-1. Because
+    // p0 is the global lex-min vertex, the diagonal from p0 to this vertex
+    // stays inside the polygon.
+    std::optional<PointType> q;
+    for (std::size_t i = 2; i + 1 < n; ++i) {
+        const PointType v = (*this)[i];
+        if (t.interiorContains(v)) {
+            if (!q.has_value() || v < *q) {
+                q = v;
+            }
+        }
+    }
+
+    if (q.has_value()) {
+        // p0 q is a diagonal; its midpoint is strictly interior (divides by 2).
+        return (Point<ResultNumber>(p0) + Point<ResultNumber>(*q)) / ResultNumber(2);
+    }
+
+    // The triangle is an ear: return its interior point (divides by 4).
+    return t.template pointInside<ResultNumber>();
+}
+
+// -----------------------------------------------------------------------------
 // MonotoneChain
 
 template <class PointType, class LabelType, class Storage>
@@ -633,6 +682,17 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::lengthLInf() const 
         total += points_[i - 1].distanceLInf(points_[i]);
     }
     return total;
+}
+
+template <class PointType, class LabelType, class Storage>
+template <class ResultNumber>
+constexpr Point<ResultNumber> MonotoneChain<PointType, LabelType, Storage>::pointInside() const {
+    if (size() < 2) {
+        // Degenerate case
+        return size() == 0 ? PointType() : (*this)[0];
+    }
+
+    return Segment<PointType>((*this)[0], (*this)[1]).template pointInside<ResultNumber>();
 }
 
 }  // namespace pgl

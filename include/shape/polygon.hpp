@@ -492,6 +492,28 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns a point strictly inside the (simple) polygon.
+     *
+     * Works for non-convex polygons. The lexicographically smallest vertex
+     * `p0` (stored first in canonical form) is convex, so the triangle formed
+     * by `p0` and its two boundary neighbours `a`, `b` lies locally inside the
+     * polygon. If no other vertex falls inside that triangle it is an ear and
+     * its interior point is returned; otherwise the lexicographically smallest
+     * vertex `q` inside the triangle yields a valid diagonal `p0 q`, and its
+     * midpoint is returned. Only meaningful for a simple polygon.
+     *
+     * Complexity: O(n).
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @return A point guaranteed to be inside the polygon.
+     * @warning The ear branch calls @ref Triangle::pointInside and so divides
+     *          coordinates by 4; the diagonal branch divides by 2. Inexact for
+     *          integer coordinates not divisible by that factor.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
+
+    /**
      * @brief Builds the constrained Delaunay triangulation of this polygon.
      *
      * Equivalent to `Triangulation(*this)`. The polygon must be simple
