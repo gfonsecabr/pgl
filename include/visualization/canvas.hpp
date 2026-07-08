@@ -32,6 +32,7 @@ enum class CanvasProperty {
     fillOpacity,
     strokeOpacity,
     strokeWidth,
+    pointRadius,
 };
 
 /**
@@ -51,6 +52,7 @@ struct CanvasStyle {
     std::string fillOpacity = "1";
     std::string strokeOpacity = "1";
     std::string strokeWidth = "2";
+    std::string pointRadius = "3";
 
     /**
      * @brief Applies one style command in place.
@@ -73,6 +75,9 @@ struct CanvasStyle {
                 break;
             case CanvasProperty::strokeWidth:
                 strokeWidth = command.value;
+                break;
+            case CanvasProperty::pointRadius:
+                pointRadius = command.value;
                 break;
         }
     }
@@ -101,6 +106,11 @@ inline CanvasCommand strokeOpacity(std::string value) {
 /** @brief Creates a command that changes the current stroke width. */
 inline CanvasCommand strokeWidth(std::string value) {
     return {CanvasProperty::strokeWidth, std::move(value)};
+}
+
+/** @brief Creates a command that changes the current point radius. */
+inline CanvasCommand pointRadius(std::string value) {
+    return {CanvasProperty::pointRadius, std::move(value)};
 }
 
 /**
@@ -175,18 +185,6 @@ class Canvas {
     }
 
     /**
-     * @brief Sets the rendered radius of point primitives.
-     *
-     * @param radiusPixels Positive radius in pixels.
-     * @return This canvas.
-     */
-    Canvas& pointRadius(double radiusPixels) {
-        requireStrictlyPositive(radiusPixels, "point radius");
-        pointRadius_ = radiusPixels;
-        return *this;
-    }
-
-    /**
      * @brief Sets the current stroke width.
      *
      * New elements inserted afterwards capture this width.
@@ -197,6 +195,21 @@ class Canvas {
     Canvas& strokeWidth(double widthPixels) {
         requireStrictlyPositive(widthPixels, "stroke width");
         style_.strokeWidth = toString(widthPixels);
+        return *this;
+    }
+
+    /**
+     * @brief Sets the current rendered radius of point primitives.
+     *
+     * New elements inserted afterwards capture this radius, so different
+     * points can be given different radii by changing this between insertions.
+     *
+     * @param radiusPixels Positive radius in pixels.
+     * @return This canvas.
+     */
+    Canvas& pointRadius(double radiusPixels) {
+        requireStrictlyPositive(radiusPixels, "point radius");
+        style_.pointRadius = toString(radiusPixels);
         return *this;
     }
 
@@ -574,10 +587,12 @@ class Canvas {
             value += borderInset_;
         }
 
-        value = std::max(value, marginPixels_ + pointRadius_);
         for (const Element& element : elements_) {
             if (const std::optional<double> width = parseNumericLength(element.style.strokeWidth)) {
                 value = std::max(value, marginPixels_ + *width / 2.0);
+            }
+            if (const std::optional<double> radius = parseNumericLength(element.style.pointRadius)) {
+                value = std::max(value, marginPixels_ + *radius);
             }
         }
 
@@ -658,7 +673,7 @@ class Canvas {
                 const double cx = viewport.mapX(shape.x());
                 const double cy = viewport.mapY(shape.y());
                 out << "<circle cx=\"" << cx << "\" cy=\"" << cy
-                    << "\" r=\"" << pointRadius_ << '"'
+                    << "\" r=\"" << element.style.pointRadius << '"'
                     << styleAttributes(element.style) << ">"
                     << titleTag << "</circle>";
             } else if constexpr (std::same_as<S, Segment<PT>>) {
@@ -693,7 +708,7 @@ class Canvas {
                 const auto& [vx1, vy1, vx2, vy2] = *visible;
                 if (vx1 == vx2 && vy1 == vy2) {
                     out << "<circle cx=\"" << vx1 << "\" cy=\"" << vy1
-                        << "\" r=\"" << pointRadius_ << '"'
+                        << "\" r=\"" << element.style.pointRadius << '"'
                         << styleAttributes(element.style) << ">"
                         << titleTag << "</circle>";
                 } else {
@@ -805,7 +820,7 @@ class Canvas {
                     const auto vertex = shape[0];
                     out << "<circle cx=\"" << viewport.mapX(vertex.x())
                         << "\" cy=\"" << viewport.mapY(vertex.y())
-                        << "\" r=\"" << pointRadius_ << '"'
+                        << "\" r=\"" << element.style.pointRadius << '"'
                         << styleAttributes(element.style) << ">"
                         << titleTag << "</circle>";
                 } else {
@@ -840,7 +855,6 @@ class Canvas {
     double zoom_ = 1.0;
     double widthPixels_ = 1000.0;
     double heightPixels_ = 1000.0;
-    double pointRadius_ = 3;
     double marginPixels_ = 20.0;
     bool drawBorder_ = false;
 
