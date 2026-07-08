@@ -117,16 +117,8 @@ TEST_CASE("Polygon intersects Polygon with fractional crossings (rational result
         }
 }
 
-// KNOWN BUG (marked should_fail): Polygon::intersection(Polygon) drops the
-// overlap for some simple polygons whose boundaries cross many times. A and B
-// below are both simple and their boundaries properly cross 10 times, so the
-// intersection must contain a positive-area polygon -- yet it currently comes
-// back empty. interiorsIntersect(A, B) correctly reports the overlap, so the
-// fault is isolated to the intersection construction. Remove the should_fail
-// decorator once it is fixed (doctest then flags the test for cleanup).
-TEST_CASE("Polygon intersection keeps the overlap when boundaries cross many times"
-          * doctest::should_fail()) {
-    using Q = pgl::Rational<int64_t>;
+TEST_CASE("Polygon intersection keeps the overlap when boundaries cross many times") {
+    using Q = pgl::ERational;
     using P = pgl::Point<int>;
     using QPolygon = pgl::Polygon<pgl::Point<Q>>;
 
@@ -143,7 +135,7 @@ TEST_CASE("Polygon intersection keeps the overlap when boundaries cross many tim
             hasArea = true;
         }
     }
-    CHECK(hasArea);  // fails today: intersection returns no positive-area piece
+    CHECK(hasArea);
 }
 
 // Regression: two polygons sharing only a boundary segment must NOT report
