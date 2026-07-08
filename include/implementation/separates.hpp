@@ -1362,7 +1362,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherDisk& other) c
     // the earlier scheme that ignored crossings split across single-crossing
     // edges -- which under-reported, e.g. a thin rhombus laid across the disk.
     int crossings = 0;
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         const bool min_inside = other.interiorContains(edge.min());
         const bool max_inside = other.interiorContains(edge.max());
         if (min_inside != max_inside) {
@@ -1864,7 +1864,7 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) 
     //   - otherwise 0.
     if (isConvex()) {
         int crossings = 0;
-        for (const auto& edge : edges()) {
+        for (const auto& edge : edgesView()) {
             const bool min_inside = other.interiorContains(edge.min());
             const bool max_inside = other.interiorContains(edge.max());
             if (min_inside != max_inside) {

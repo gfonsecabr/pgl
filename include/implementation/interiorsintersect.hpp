@@ -881,7 +881,7 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherConve
     // then there is an edge of this that intersects the interior of other.
 
 
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.interiorsIntersect(edge)) {
             return true;
         }
@@ -897,7 +897,7 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk&
     // disk lies inside the convex (a point strictly inside the disk is in the
     // convex's interior). The latter uses a disk-interior point as the witness:
     // a disk tangent to an edge from inside still overlaps the interior.
-    for (auto &edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.interiorsIntersect(other)) {
             return true;
         }
@@ -962,7 +962,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherSegm
     }
     // A transversal crossing of any boundary edge places an interior point on
     // the open segment.
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.crosses(other)) {
             return true;
         }
@@ -1012,7 +1012,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRay&
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.crosses(other)) {
             return true;
         }
@@ -1090,7 +1090,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRect
             return true;
         }
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         for (const auto& otherEdge : other.edges()) {
             if (edge.crosses(otherEdge)) {
                 return true;
@@ -1116,7 +1116,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherTria
             return true;
         }
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         for (const auto& otherEdge : other.edges()) {
             if (edge.crosses(otherEdge)) {
                 return true;
@@ -1145,8 +1145,8 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConv
             return true;
         }
     }
-    for (const auto& edge : edges()) {
-        for (const auto& otherEdge : other.edges()) {
+    for (const auto& edge : edgesView()) {
+        for (const auto& otherEdge : other.edgesView()) {
             if (edge.crosses(otherEdge)) {
                 return true;
             }
@@ -1286,12 +1286,12 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
             return true;
         }
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.separates(other)) {
             return true;
         }
     }
-    for (const auto& edge : other.edges()) {
+    for (const auto& edge : other.edgesView()) {
         if (edge.separates(*this)) {
             return true;
         }
@@ -1535,7 +1535,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk
     // strictly inside the disk falling in the polygon's strict interior. The
     // interior witness matters: a disk tangent to an edge from inside still
     // overlaps the interior.
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.interiorsIntersect(other)) {
             return true;
         }

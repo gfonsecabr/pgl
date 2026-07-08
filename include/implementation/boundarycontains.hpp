@@ -758,7 +758,7 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherSegmen
     // A straight segment on the boundary of a simple polygon (one without
     // straight-angle vertices) lies within a single edge, mirroring the
     // single-edge containment used by Convex::boundaryContains.
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.contains(other)) {
             return true;
         }

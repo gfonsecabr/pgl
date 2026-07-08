@@ -1116,7 +1116,7 @@ constexpr bool Convex<PointType, LabelType>::contains(const OtherConvex& other) 
             }
         }
     } else {
-        for (auto &edge : orientedEdges()) {
+        for (const auto& edge : orientedEdgesView()) {
             if (!edge.leftHalfplane().contains(other)) {
                 return false;
             }
@@ -1128,7 +1128,7 @@ constexpr bool Convex<PointType, LabelType>::contains(const OtherConvex& other) 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::contains(const OtherDisk& other) const {
-    for (auto &edge : orientedEdges()) {
+    for (const auto& edge : orientedEdgesView()) {
         if (!edge.leftHalfplane().contains(other)) {
             return false;
         }
@@ -1415,7 +1415,7 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherDisk& other) c
         return false;
     }
 
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.interiorsIntersect(edge)) {
             return false;
         }
@@ -1683,7 +1683,7 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const Othe
     if (other.size() == 1) {
         return contains(other[0]);
     }
-    for (const auto& edge : other.edges()) {
+    for (const auto& edge : other.edgesView()) {
         if (!contains(edge)) {
             return false;
         }
