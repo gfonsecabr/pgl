@@ -13,6 +13,7 @@
 #include <limits>
 #include <optional>
 #include <ostream>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -973,10 +974,30 @@ struct Polygon {
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
      *
-     * Complexity: O(n m) for polygons with n and m vertices.
+     * Decomposes both boundaries into monotone chains via @ref
+     * boundariesIntersect; when the boundaries are disjoint a single
+     * point-in-polygon test each way settles containment.
      */
     template<PolygonConcept OtherPolygon>
     constexpr bool intersects(const OtherPolygon& other) const;
+
+    /**
+     * @brief Tests whether the two polygon boundaries share at least one point
+     * (∂A ∩ ∂B ≠ ∅).
+     *
+     * Decomposes each boundary into its maximal lexicographically monotone
+     * chains — @ref MonotoneChainView spans into one buffer per polygon — and
+     * tests them with @ref MonotoneChain's linear merge sweep. The two
+     * decompositions are produced in lockstep and every newly produced chain is
+     * tested against all already-produced chains of the other polygon, so all
+     * computed pairs are covered before the next chain is built and the search
+     * stops at the first shared point. This underlies both @ref intersects and
+     * @ref interiorsIntersect, which add the interior reasoning on top.
+     *
+     * @return `true` if the boundaries touch or cross anywhere.
+     */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundariesIntersect(const OtherPolygon& other) const;
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<DiskConcept OtherDisk>
@@ -1860,6 +1881,99 @@ struct Polygon {
         const auto minIt = std::min_element(points_.begin(), points_.end());
         std::rotate(points_.begin(), minIt, points_.end());
     }
+
+    /**
+     * @brief Lazily decomposes a simple polygon's boundary into its maximal
+     * lexicographically monotone chains, exposed as @ref MonotoneChainView spans.
+     *
+     * Consecutive boundary vertices are distinct, so every edge runs strictly
+     * lex-up or lex-down (never level); the boundary breaks into chains exactly
+     * at its lexicographic local extrema — the vertices where that direction
+     * reverses. A cyclic boundary cannot run one direction the whole way around,
+     * so such a break always exists and the boundary splits into at least two
+     * chains (exactly two for a convex polygon).
+     *
+     * Each chain's vertices, read in ascending lexicographic order, retrace its
+     * boundary arc exactly (a lex-monotone arc is weakly x-monotone with no
+     * y-backtracking vertical edge), which is @ref MonotoneChain's canonical
+     * form. A boundary arc is, however, either descending or wraps the
+     * vertex-array seam, so it cannot in general be a span straight into the
+     * polygon's own vertices. Instead every run is unrolled — reversed when
+     * descending — into one shared buffer reserved up front (its length is
+     * `n + #chains <= 2n`, so appends never reallocate), and each chain is a
+     * `std::span` into that buffer. The whole decomposition therefore costs a
+     * single allocation, not one per chain.
+     *
+     * Chains are materialized on demand via @ref produceNext so a caller can
+     * stop at the first crossing without unrolling the rest. @p Poly is the
+     * source polygon type, so this serves both operands of a mixed comparison.
+     */
+    template <class Poly>
+    class BoundaryChains {
+      public:
+        using PT = typename Poly::PointType;
+        using ChainView = MonotoneChainView<PT>;
+
+        explicit BoundaryChains(const Poly& poly) : verts_(poly.vertices()) {
+            n_ = verts_.size();
+            buffer_.reserve(2 * n_);
+
+            // Edge i (verts_[i] -> verts_[i+1]) ascends lexicographically.
+            const auto ascends = [&](std::size_t i) { return verts_[i] < verts_[(i + 1) % n_]; };
+
+            // Anchor at a break vertex (its incoming edge reverses) so no run
+            // straddles index 0 ambiguously; record each run's first vertex and
+            // direction. The run's last vertex is the next run's first.
+            std::size_t start = 0;
+            for (std::size_t j = 0; j < n_; ++j) {
+                if (ascends((j + n_ - 1) % n_) != ascends(j)) {
+                    start = j;
+                    break;
+                }
+            }
+            std::size_t i = start;
+            do {
+                const bool up = ascends(i);
+                runs_.push_back({i, up});
+                std::size_t k = i;
+                while (ascends(k) == up) {
+                    k = (k + 1) % n_;
+                }
+                i = k;
+            } while (i != start);
+        }
+
+        bool exhausted() const { return produced_ == runs_.size(); }
+        const std::vector<ChainView>& produced() const { return chains_; }
+
+        // Unrolls the next run into the shared buffer and returns its view.
+        const ChainView& produceNext() {
+            const auto [begin, up] = runs_[produced_];
+            const std::size_t end = runs_[(produced_ + 1) % runs_.size()].first;  // inclusive
+            const std::size_t bufStart = buffer_.size();
+            std::size_t idx = begin;
+            buffer_.push_back(verts_[idx]);
+            while (idx != end) {
+                idx = (idx + 1) % n_;
+                buffer_.push_back(verts_[idx]);
+            }
+            const std::size_t len = buffer_.size() - bufStart;
+            if (!up) {
+                std::reverse(buffer_.begin() + static_cast<std::ptrdiff_t>(bufStart), buffer_.end());
+            }
+            chains_.emplace_back(std::span<const PT>(buffer_.data() + bufStart, len), /*trusted=*/true);
+            ++produced_;
+            return chains_.back();
+        }
+
+      private:
+        std::vector<PT> verts_;                            // translated boundary vertices
+        std::vector<PT> buffer_;                            // runs unrolled ascending, contiguous
+        std::vector<std::pair<std::size_t, bool>> runs_;   // (first-vertex index, ascending?)
+        std::vector<ChainView> chains_;                    // materialized views into buffer_
+        std::size_t n_ = 0;
+        std::size_t produced_ = 0;
+    };
 
     class Iterator {
     private:

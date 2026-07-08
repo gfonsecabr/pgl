@@ -840,3 +840,83 @@ TEST_CASE("Polygon intersects Polygon (boolean predicate)") {
         CHECK_FALSE(a.intersects(b));
     }
 }
+
+// boundariesIntersect (public) reports whether the two boundaries share a
+// point, independent of interior containment.
+TEST_CASE("Polygon boundariesIntersect") {
+    using Point = pgl::Point<int>;
+    using Poly = pgl::Polygon<Point>;
+
+    const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+
+    SUBCASE("crossing boundaries") {
+        const Poly b({2, 2, 6, 2, 6, 6, 2, 6});
+        CHECK(a.boundariesIntersect(b));
+        CHECK(b.boundariesIntersect(a));
+    }
+    SUBCASE("disjoint boundaries") {
+        const Poly b({10, 10, 12, 10, 12, 12, 10, 12});
+        CHECK_FALSE(a.boundariesIntersect(b));
+    }
+    SUBCASE("nested with disjoint boundaries") {
+        const Poly inner({1, 1, 3, 1, 3, 3, 1, 3});  // strictly inside a
+        CHECK_FALSE(a.boundariesIntersect(inner));
+    }
+    SUBCASE("touching at a single vertex") {
+        const Poly b({4, 4, 6, 4, 6, 6, 4, 6});
+        CHECK(a.boundariesIntersect(b));
+    }
+}
+
+// interiorsIntersect (A° ∩ B° ≠ ∅): overlap yes, mere boundary contact no. The
+// disjoint-boundary fast path and the boundary-touch fallback are both covered.
+TEST_CASE("Polygon interiorsIntersect (boolean predicate)") {
+    using Point = pgl::Point<int>;
+    using Poly = pgl::Polygon<Point>;
+
+    SUBCASE("overlapping interiors") {
+        const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+        const Poly b({2, 2, 6, 2, 6, 6, 2, 6});
+        CHECK(a.interiorsIntersect(b));
+        CHECK(b.interiorsIntersect(a));
+    }
+    SUBCASE("disjoint polygons") {
+        const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+        const Poly b({10, 10, 14, 10, 14, 14, 10, 14});
+        CHECK_FALSE(a.interiorsIntersect(b));
+        CHECK_FALSE(b.interiorsIntersect(a));
+    }
+    SUBCASE("nested: inner interior lies in outer interior (fast path)") {
+        const Poly outer({0, 0, 10, 0, 10, 10, 0, 10});
+        const Poly inner({3, 3, 6, 3, 6, 6, 3, 6});
+        CHECK(outer.interiorsIntersect(inner));
+        CHECK(inner.interiorsIntersect(outer));
+    }
+    SUBCASE("touching only at a vertex: no interior overlap") {
+        const Poly a({0, 0, 2, 0, 2, 2, 0, 2});
+        const Poly b({2, 2, 4, 2, 4, 4, 2, 4});
+        CHECK_FALSE(a.interiorsIntersect(b));
+        CHECK_FALSE(b.interiorsIntersect(a));
+    }
+    SUBCASE("sharing a boundary edge, interiors on opposite sides: no overlap") {
+        const Poly a({0, 0, 2, 0, 2, 2, 0, 2});
+        const Poly b({2, 0, 4, 0, 4, 2, 2, 2});  // shares edge x=2, y in [0,2]
+        CHECK_FALSE(a.interiorsIntersect(b));
+        CHECK_FALSE(b.interiorsIntersect(a));
+    }
+    SUBCASE("collinear boundary overlap, interiors on the same side: overlap") {
+        // A's right edge x=4,y in [0,4] runs strictly through B's interior, so
+        // the interiors overlap even though no vertex is strictly inside the
+        // other and no edges properly cross (the separates fallback catches it).
+        const Poly a({0, 0, 4, 0, 4, 4, 0, 4});
+        const Poly b({2, 0, 6, 0, 6, 4, 2, 4});
+        CHECK(a.interiorsIntersect(b));
+        CHECK(b.interiorsIntersect(a));
+    }
+    SUBCASE("proper edge crossing (bowtie overlap)") {
+        const Poly a({0, 0, 4, 0, 4, 1, 0, 1});   // thin horizontal bar
+        const Poly b({1, -2, 3, -2, 3, 3, 1, 3});  // thin vertical bar crossing it
+        CHECK(a.interiorsIntersect(b));
+        CHECK(b.interiorsIntersect(a));
+    }
+}
