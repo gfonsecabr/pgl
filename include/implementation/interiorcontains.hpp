@@ -803,7 +803,7 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherConvex&
             }
         }
     } else {
-        for (auto &edge : orientedEdges()) {
+        for (const auto& edge : orientedEdgesView()) {
             if (!edge.leftHalfplane().interiorContains(other)) {
                 return false;
             }
@@ -815,7 +815,7 @@ constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherConvex&
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
-    for (auto &edge : orientedEdges()) {
+    for (const auto& edge : orientedEdgesView()) {
         if (!edge.leftHalfplane().interiorContains(other)) {
             return false;
         }
@@ -857,7 +857,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherSegmen
     if (!interiorContains(other.min()) || !interiorContains(other.max())) {
         return false;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return false;
         }
@@ -1185,7 +1185,7 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherDisk& 
     if (!interiorContains(other.a())) {
         return false;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return false;
         }

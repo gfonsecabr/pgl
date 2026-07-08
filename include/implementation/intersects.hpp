@@ -821,7 +821,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherConvex& other
         return true;
     }
 
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return true;
         }
@@ -836,7 +836,7 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherDisk& other) 
     if (contains(other[0])) {
         return true;
     }
-    for (auto &edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.intersects(other)) {
             return true;
         }
@@ -935,7 +935,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherSegment& oth
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.intersects(other)) {
             return true;
         }
@@ -985,7 +985,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRay& other) 
     if (contains(other.source())) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.intersects(other)) {
             return true;
         }
@@ -1026,7 +1026,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRectangle& o
     if (other.contains((*this)[0]) || contains(other[0])) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return true;
         }
@@ -1049,7 +1049,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherTriangle& ot
     if (other.contains((*this)[0]) || contains(other[0])) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return true;
         }
@@ -1072,7 +1072,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherConvex& othe
     if (other.contains((*this)[0]) || contains(other[0])) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (other.intersects(edge)) {
             return true;
         }
@@ -1256,7 +1256,7 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherDisk& other)
     if (contains(other.a())) {
         return true;
     }
-    for (const auto& edge : edges()) {
+    for (const auto& edge : edgesView()) {
         if (edge.intersects(other)) {
             return true;
         }

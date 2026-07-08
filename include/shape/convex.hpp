@@ -13,6 +13,7 @@
 #include <limits>
 #include <optional>
 #include <ostream>
+#include <ranges>
 #include <type_traits>
 #include <utility>
 
@@ -426,6 +427,26 @@ struct Convex {
             result.emplace_back(p1, p2);
         }
         return result;
+    }
+
+    /**
+     * @brief Returns a lazy view over the edges, materializing each @ref
+     * Segment on the fly instead of allocating a vector.
+     *
+     * Same edge sequence as @ref edges() (including the closing edge back to
+     * vertex 0) but with no heap allocation, so it is preferable when the
+     * edges are only iterated once — e.g. inside predicate loops.
+     */
+    constexpr auto edgesView() const {
+        return std::ranges::subrange(edgesBegin(), edgesEnd());
+    }
+
+    /**
+     * @brief Lazy view counterpart of @ref orientedEdges(); see @ref
+     * edgesView().
+     */
+    constexpr auto orientedEdgesView() const {
+        return std::ranges::subrange(orientedEdgesBegin(), orientedEdgesEnd());
     }
 
     /**

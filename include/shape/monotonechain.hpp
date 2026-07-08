@@ -445,6 +445,26 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Returns a lazy view over the edges, materializing each @ref
+     * Segment on the fly instead of allocating a vector.
+     *
+     * Same edge sequence as @ref edges() (n - 1 edges, no closing edge) but
+     * with no heap allocation, so it is preferable when the edges are only
+     * iterated once — e.g. inside predicate loops.
+     */
+    constexpr auto edgesView() const {
+        return std::ranges::subrange(edgesBegin(), edgesEnd());
+    }
+
+    /**
+     * @brief Lazy view counterpart of @ref orientedEdges(); see @ref
+     * edgesView().
+     */
+    constexpr auto orientedEdgesView() const {
+        return std::ranges::subrange(orientedEdgesBegin(), orientedEdgesEnd());
+    }
+
+    /**
      * @brief Returns an iterator to the first unoriented edge.
      * @return Iterator to edge `(vertex 0, vertex 1)`.
      */
