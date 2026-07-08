@@ -827,8 +827,8 @@ TEST_CASE("Polygon intersects Polygon (boolean predicate)") {
         const Poly a({0, 0, 4, 0, 4, 5, 0, 5});
         const Poly b({3, 4, 8, 4, 8, 9, 3, 9});
         CHECK(a.intersects(b));
-        const Poly far({5, 6, 8, 6, 8, 9, 5, 9});  // clears A in both x and y
-        CHECK_FALSE(a.intersects(far));
+        const Poly away({5, 6, 8, 6, 8, 9, 5, 9});  // clears A in both x and y
+        CHECK_FALSE(a.intersects(away));
     }
 
     SUBCASE("translated copies stay consistent under the lazy translation") {
