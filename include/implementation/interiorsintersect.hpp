@@ -1675,10 +1675,21 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(
         return false;
     }
     // Open-edge pairs via the same merge sweep as intersects().
-    std::size_t i = 0;
-    std::size_t j = 0;
     const std::size_t iEnd = size() - 1;
     const std::size_t jEnd = other.size() - 1;
+    // Seed past the leading edges left of the shared x-window (see the sweep in
+    // MonotoneChain::intersects): indexAtX locates the first candidate in
+    // O(log n); a disengaged result means the x-ranges are disjoint, so the
+    // merge has no work (the vertex loops below still run and correctly find
+    // nothing, as no vertex of one chain can lie on the disjoint other).
+    using XType = std::common_type_t<NumberType, typename OtherChain::PointType::NumberType>;
+    const XType xlo = std::max<XType>((*this)[0].x(), other[0].x());
+    const auto iSeed = indexAtX(xlo);
+    const auto jSeed = other.indexAtX(xlo);
+    // Back up one edge: the edge whose right endpoint sits exactly on xlo can
+    // still meet the other chain there, yet indexAtX returns the next edge.
+    std::size_t i = (iSeed && jSeed) ? (*iSeed > 0 ? *iSeed - 1 : 0) : iEnd;
+    std::size_t j = (iSeed && jSeed) ? (*jSeed > 0 ? *jSeed - 1 : 0) : jEnd;
     while (i < iEnd && j < jEnd) {
         const Segment<PointType> mine((*this)[i], (*this)[i + 1]);
         const Segment<typename OtherChain::PointType> theirs(other[j], other[j + 1]);
