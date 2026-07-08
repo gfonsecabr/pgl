@@ -1157,9 +1157,38 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConv
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPolygon& other) const {
+    // Produce both boundary decompositions in lockstep, testing each new chain
+    // against every already-produced chain of the other polygon before building
+    // the next, and stop at the first shared point. See BoundaryChains.
+    BoundaryChains<Polygon> mine(*this);
+    BoundaryChains<OtherPolygon> theirs(other);
+    while (!mine.exhausted() || !theirs.exhausted()) {
+        if (!mine.exhausted()) {
+            const auto& chain = mine.produceNext();
+            for (const auto& their : theirs.produced()) {
+                if (chain.intersects(their)) {
+                    return true;
+                }
+            }
+        }
+        if (!theirs.exhausted()) {
+            const auto& chain = theirs.produceNext();
+            for (const auto& my : mine.produced()) {
+                if (chain.intersects(my)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
     // Cheap bounding-box reject: if the closed boxes are disjoint the interiors
-    // cannot meet, so the O(n^2) machinery below is skipped for distant pairs.
+    // cannot meet, so the machinery below is skipped for distant pairs.
     if (size() == 0 || other.size() == 0 || !bbox().intersects(other.bbox())) {
         return false;
     }
@@ -1172,6 +1201,22 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     if (*this == other) {
         return true;
     }
+
+    // When the boundaries are disjoint the polygons are either separate or one
+    // is nested in the other, so the interiors meet iff one polygon contains the
+    // other — which, with no boundary contact, reduces to a single interior
+    // point-in-polygon test each way (every vertex of the inner polygon lies in
+    // the outer interior). This short-circuits the quadratic scan below, which
+    // is then only reached when the boundaries actually touch.
+    if (!boundariesIntersect(other)) {
+        return interiorContains(other.get(0)) || other.interiorContains(get(0));
+    }
+
+    // Boundaries touch: distinguish a mere boundary contact from a real interior
+    // overlap. A vertex of one strictly inside the other, a proper edge
+    // crossing, or an edge of one passing through the other's interior (the
+    // separates checks, which also catch collinear-overlap contact) each imply
+    // the open interiors meet.
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
             return true;
