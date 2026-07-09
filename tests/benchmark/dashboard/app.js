@@ -60,16 +60,31 @@ const _AS_TYPE = {
   ConvexAsPolygon:   { source: "Convex",   stored: "Polygon" },
 };
 
+// Shapes built from a sample of m points rather than a fixed number of defining
+// points: how many are drawn, and what the constructor makes of them. Mirrors
+// the randomSmall/LargeXxx generators in randomshapes.hpp.
+const _SAMPLED = {
+  Polygon:       { m: 32, build: "untangled into a simple polygon (at most 32 vertices)" },
+  MonotoneChain: { m: 32, build: "sorted lexicographically with duplicates dropped (at most 32 vertices)" },
+  Convex:        { m: 1000, build: "reduced to their convex hull (~34 vertices on average)" },
+};
+
 // Number of points defining a random shape, mirroring randomshapes.hpp.
 const _BISHAPES = new Set(["Segment", "OrientedSegment", "Line", "OrientedLine", "Rectangle"]);
 const _TRISHAPES = new Set(["Triangle", "Disk"]);
 function nDefiningPoints(shape) {
   if (_AS_TYPE[shape]) return nDefiningPoints(_AS_TYPE[shape].source);
+  if (_SAMPLED[shape]) return _SAMPLED[shape].m;
   if (_BISHAPES.has(shape)) return 2;
   if (_TRISHAPES.has(shape)) return 3;
-  if (shape === "Polygon" || shape === "MonotoneChain") return 32;
-  return 1000; // Convex hull sample size (m in run_shapepairs.py)
+  return 1000; // Unknown shape: fall back to the point-sample size in run_shapepairs.py
 }
+
+// Where a random point sample of size n is drawn from, per size class.
+const pointCloud = (n, size) =>
+  size === "large"
+    ? `${n} random integer points in a disk of radius 5000`
+    : `${n} random integer points in a disk of radius 500 translated by a random integer vector of length ≤ 5000`;
 
 // Plain-language description of how a random shape of this kind/size is drawn,
 // used as a tooltip. Mirrors the generators in tests/benchmark/randomshapes.hpp
@@ -80,15 +95,11 @@ function distributionTip(shape, size) {
   const as = _AS_TYPE[shape];
   if (as)
     return `${distributionTip(as.source, size)}, then stored as a ${as.stored}`;
-  if (shape === "Polygon") {
-    if (size === "large")
-      return "Random Polygon (large): a simple polygon on 32 random integer points in a disk of radius 5000, untangled";
-    return "Random Polygon (small): a simple polygon on 32 random integer points in a disk of radius 500 translated by a random integer vector of length ≤ 5000, untangled";
-  }
+  const sampled = _SAMPLED[shape];
+  if (sampled)
+    return `Random ${shape} (${size}): ${pointCloud(sampled.m, size)}, ${sampled.build}`;
   const n = nDefiningPoints(shape);
-  if (size === "large")
-    return `Random ${shape} (large): ${n} random integer defining points in a disk of radius 5000`;
-  return `Random ${shape} (small): ${n} random integer defining points in a disk of radius 500 translated by a random integer vector of length ≤ 5000`;
+  return `Random ${shape} (${size}): ${pointCloud(n, size)} as defining points`;
 }
 
 async function load() {
