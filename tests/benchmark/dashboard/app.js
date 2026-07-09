@@ -52,12 +52,22 @@ function variantName(shape, size) {
   return `${size} ${shape}`;
 }
 
+// Shapes drawn with one shape's generator but stored as a more general type, so
+// the cube exercises the storage type's code paths on that geometry.
+const _AS_TYPE = {
+  TriangleAsPolygon: { source: "Triangle", stored: "Polygon" },
+  TriangleAsConvex:  { source: "Triangle", stored: "Convex" },
+  ConvexAsPolygon:   { source: "Convex",   stored: "Polygon" },
+};
+
 // Number of points defining a random shape, mirroring randomshapes.hpp.
 const _BISHAPES = new Set(["Segment", "OrientedSegment", "Line", "OrientedLine", "Rectangle"]);
 const _TRISHAPES = new Set(["Triangle", "Disk"]);
 function nDefiningPoints(shape) {
+  if (_AS_TYPE[shape]) return nDefiningPoints(_AS_TYPE[shape].source);
   if (_BISHAPES.has(shape)) return 2;
   if (_TRISHAPES.has(shape)) return 3;
+  if (shape === "Polygon" || shape === "MonotoneChain") return 32;
   return 1000; // Convex hull sample size (m in run_shapepairs.py)
 }
 
@@ -67,6 +77,9 @@ function nDefiningPoints(shape) {
 function distributionTip(shape, size) {
   if (shape === "Point")
     return "Random integer points in a disk of radius 5000";
+  const as = _AS_TYPE[shape];
+  if (as)
+    return `${distributionTip(as.source, size)}, then stored as a ${as.stored}`;
   if (shape === "Polygon") {
     if (size === "large")
       return "Random Polygon (large): a simple polygon on 32 random integer points in a disk of radius 5000, untangled";
