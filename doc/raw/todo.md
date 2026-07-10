@@ -14,23 +14,11 @@
 
 > ⚠️ **Work in Progress**: This library is still under construction and contains **bugs and missing features**. Use in production environments is not recommended.
 
-## Shapes Not Yet Implemented
-
-- [`Polyline`](#polyline) Polyline, also called a polygonal chain, possibly having self-intersections.
-
-The x-monotone polyline (formerly sketched here as `PolyFunction`) is implemented as [`MonotoneChain`](shapes.md#monotone-chain).
-
-
-### Polyline
-
-The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. It can be constructed for any number of points in a container that must be given in the order they appear on the polyline. The vertices are accessed in order starting from the minimum extreme vertex (minimum x, breaking ties by minimum y). Internally, the polyline is stored as multiple x-monotone polylines for improved performance, to be built on the implemented [`MonotoneChain`](shapes.md#monotone-chain).
-
-A polyline `P` has methods such as:
-
-- `P.isDegenerate()`: Returns true if all vertices are equal.
-- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
-
 ## Partially Implemented Features
+
+### Polyline shape pairs
+
+[`Polyline`](shapes.md#polyline) implements its predicates and distances for `Point`, `Segment`, and `Polyline` arguments. The remaining shape pairs, membership in `Shape`, and the `intersection` constructions are not implemented yet.
 
 ### L1 / LInf distance to and from Disk
 

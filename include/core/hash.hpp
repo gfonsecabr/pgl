@@ -316,6 +316,30 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for Polyline.
+     */
+    template <class PointType, class LabelType>
+    struct hash<pgl::Polyline<PointType, LabelType>> {
+        std::size_t operator()(const pgl::Polyline<PointType, LabelType>& polyline) const {
+            using Shape = pgl::Polyline<PointType, LabelType>;
+            if (polyline.hash_ != Shape::hashUnset_) {
+                return polyline.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
+            for (const auto& vertex : polyline) {
+                pgl::detail::hashCombine(seed, vertex);
+            }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            polyline.hash_ = seed;
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for EmptyShape.
      */
     template <class PointType>

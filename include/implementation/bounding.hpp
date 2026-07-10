@@ -449,4 +449,24 @@ constexpr Rectangle<Point<ResultNumber>> MonotoneChain<PointType, LabelType, Sto
     return bbox().template fbox<ResultNumber>();
 }
 
+// ---------------------------------------------------------------------------
+// Polyline
+
+template <class PointType, class LabelType>
+constexpr const Rectangle<PointType>& Polyline<PointType, LabelType>::bbox() const {
+    if (bbox_) {
+        return *bbox_;
+    }
+    if (points_.empty()) {
+        return bbox_.emplace();
+    }
+    return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+}
+
+template <class PointType, class LabelType>
+template <std::floating_point ResultNumber>
+constexpr Rectangle<Point<ResultNumber>> Polyline<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ResultNumber>();
+}
+
 }  // namespace pgl

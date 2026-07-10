@@ -1397,4 +1397,60 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherChain&
     return true;
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Open polygonal chain predicates. The relative interior of a polyline is the
+ * polyline minus its two extreme vertices as a point set: a self-intersecting
+ * polyline may pass through an extreme vertex again mid-chain, and that point
+ * is still excluded.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
+    return !boundaryContains(point) && contains(point);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
+    // The interior is the polyline minus the two extreme points, so a
+    // contained segment lies in it iff the segment avoids those points
+    // entirely -- not just with its endpoints: the polyline may revisit an
+    // extreme vertex in the middle of the segment.
+    return contains(other) && !other.contains((*this)[0]) &&
+           !other.contains((*this)[size() - 1]);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    // Same set subtraction as the segment overload: the contained polyline
+    // must avoid both extreme points of this polyline entirely.
+    return contains(other) && !other.contains((*this)[0]) &&
+           !other.contains((*this)[size() - 1]);
+}
+
+template <class Number, class Label>
+template<PolylineConcept OtherPolyline>
+constexpr bool Point<Number, Label>::interiorContains(const OtherPolyline& other) const {
+    return contains(other);
+}
+
+// A segment's relative interior is convex, so it contains the polyline iff it
+// contains all of its vertices.
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

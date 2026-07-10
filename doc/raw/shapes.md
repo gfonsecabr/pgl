@@ -29,6 +29,7 @@ The following shapes are supported by Pangolin:
 - [`OrientedLine`](#oriented-line) Infinite oriented straight line.
 - [`Ray`](#ray) Half-line.
 - [`MonotoneChain`](#monotone-chain) Weakly x-monotone polyline.
+- [`Polyline`](#polyline) Polygonal chain, possibly self-intersecting.
 
 ##### 2-dimensional shapes:
 - [`Halfplane`](#half-plane) A straight line and all points on one side of it.
@@ -465,6 +466,23 @@ The monotone structure speeds up several predicates and constructions:
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
 - `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
 - `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
+
+
+### Polyline
+
+The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. Unlike `MonotoneChain`, the order of the vertices matter and the polyline is allowed to self-intersect. A polyline with $n$ vertices has $n-1$ edges and no closing edge. Its boundary is its two extreme vertices and its interior is everything else.
+
+A polyline can be constructed from any container of points, or from a flat list of coordinates. The only normalization is the direction: the constructor the smallest extreme at index 0. If the sequence is already in canonical direction, a second parameter true skips the check.
+
+A polyline `P` with $n$ vertices has methods such as:
+
+- `P.isDegenerate()`: Returns true if all vertices are equal (in particular for an empty or single-vertex polyline).
+- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types (and $O(n^2)$ for floating point).
+- `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
+
+Since a self-intersecting polyline has no monotone structure to exploit, the predicates scan the edges: they take $O(n)$ time against a point or a segment (segment containment takes $O(n \log n)$, as a segment may be covered by several non-consecutive collinear edges) and $O(nm)$ time against another polyline with $m$ vertices. The cut predicates use set semantics: `separates` joins the surviving pieces through self-crossings and revisited vertices, so removing one point never disconnects a closed polyline. In this first version the predicates and distances are implemented for `Point`, `Segment`, and `Polyline` arguments; the remaining shape pairs, membership in `Shape`, and the `intersection` constructions are planned.
+
+- Other methods:
 
 
 ### Polygon

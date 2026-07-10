@@ -41,6 +41,7 @@
 #include "shape/disk.hpp"
 #include "shape/convex.hpp"
 #include "shape/monotonechain.hpp"
+#include "shape/polyline.hpp"
 #include "shape/polygon.hpp"
 #include "shape/shape.hpp"
 #include "implementation/io.hpp"
@@ -89,6 +90,7 @@ using EDisk            = Disk<EPoint>;
 using EConvex          = Convex<EPoint>;
 using EPolygon         = Polygon<EPoint>;
 using EMonotoneChain   = MonotoneChain<EPoint>;
+using EPolyline        = Polyline<EPoint>;
 using EShape           = Shape<EPoint>;
 
 }  // namespace pgl

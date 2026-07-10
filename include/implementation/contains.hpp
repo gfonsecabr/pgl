@@ -1858,4 +1858,119 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherChain& other) 
     return true;
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Open polygonal chain predicates: the polyline keeps its vertices in
+ * traversal order and may self-intersect, so there is no monotone structure
+ * to exploit — point location scans the edges and segment containment sweeps
+ * the union of collinear edge overlaps.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherPoint& point) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return (*this)[0] == point;
+    }
+    for (const auto& edge : edgesView()) {
+        if (edge.contains(point)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherSegment& other) const {
+    if (other.min() == other.max()) {
+        return contains(other.min());
+    }
+    if (size() < 2) {
+        // Without an edge the polyline cannot cover a positive-length segment.
+        return false;
+    }
+    // A self-intersecting polyline can cover the segment with several,
+    // possibly non-consecutive collinear edges, so collect the overlap of
+    // every edge lying on the segment's supporting line and check that the
+    // union leaves no gap. Collinear points compare consistently along the
+    // line in the lexicographic point order, so the overlaps are ordinary
+    // closed intervals in that order.
+    using CommonPoint =
+        Point<std::common_type_t<NumberType, typename OtherSegment::PointType::NumberType>>;
+    std::vector<std::pair<CommonPoint, CommonPoint>> overlaps;
+    for (const auto& edge : edgesView()) {
+        if (orientationSign(other.min(), other.max(), edge.min()) != 0 ||
+            orientationSign(other.min(), other.max(), edge.max()) != 0) {
+            continue;  // the edge leaves the segment's supporting line
+        }
+        const CommonPoint lo =
+            (edge.min() < other.min()) ? CommonPoint(other.min()) : CommonPoint(edge.min());
+        const CommonPoint hi =
+            (other.max() < edge.max()) ? CommonPoint(other.max()) : CommonPoint(edge.max());
+        if (hi < lo) {
+            continue;  // collinear but disjoint from the segment
+        }
+        overlaps.emplace_back(lo, hi);
+    }
+    std::sort(overlaps.begin(), overlaps.end());
+    CommonPoint covered(other.min());
+    for (const auto& [lo, hi] : overlaps) {
+        if (covered < lo) {
+            return false;  // the part between covered and lo is off the polyline
+        }
+        if (covered < hi) {
+            covered = hi;
+        }
+    }
+    return !(covered < CommonPoint(other.max()));
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    // The other polyline is exactly the union of its edges.
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A point and a segment are convex point sets, so they contain the polyline
+// iff they contain all of its vertices (an empty polyline is trivially
+// contained).
+
+template <class Number, class Label>
+template<PolylineConcept OtherPolyline>
+constexpr bool Point<Number, Label>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Segment<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

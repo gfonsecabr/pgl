@@ -877,4 +877,22 @@ constexpr bool Polygon<PointType, LabelType>::crosses(const OtherChain& other) c
     return separates(other) && other.separates(*this);
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Mutual-cut predicates for an open polygonal chain: `a.crosses(b)` is
+ * `a.separates(b) && b.separates(a)`.
+ */
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherSegment& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherPolyline& other) const {
+    return separates(other) && other.separates(*this);
+}
+
 }  // namespace pgl

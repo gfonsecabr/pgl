@@ -284,4 +284,26 @@ std::ostream& operator<<(std::ostream& stream, const MonotoneChain<PointType, La
     stream << "]";
     return stream;
 }
+
+// -----------------------------------------------------------------------------
+// Polyline
+/**
+ * @brief Streams a Polyline as `Polyline[(P1),(P2),(P3),...]`.
+ *
+ * @param stream Output stream.
+ * @param polyline Polyline to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const Polyline<PointType, LabelType>& polyline) {
+    stream << "Polyline[";
+    for (std::size_t i = 0; i < polyline.size(); ++i) {
+        if (i > 0) {
+            stream << ",";
+        }
+        stream << polyline[i];
+    }
+    stream << "]";
+    return stream;
+}
 }  // namespace pgl

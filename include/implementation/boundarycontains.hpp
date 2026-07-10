@@ -1114,4 +1114,25 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherChain&
     return true;
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Open polygonal chain predicates: the boundary of a polyline is its two
+ * extreme vertices, matching the endpoint convention of Segment.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    if (points_.empty()) {
+        return false;
+    }
+    return point == points_.front() + translation_ || point == points_.back() + translation_;
+}
+
+template <class Number, class Label>
+template<PolylineConcept OtherPolyline>
+constexpr bool Point<Number, Label>::boundaryContains(const OtherPolyline&) const {
+    return false;
+}
+
 }  // namespace pgl

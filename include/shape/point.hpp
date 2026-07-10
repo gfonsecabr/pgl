@@ -583,6 +583,22 @@ struct Point {
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool separates(const OtherChain& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool contains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
+
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
@@ -1197,18 +1213,5 @@ template <class Number, class Label, class Scalar>
  */
 template <class Number, class Label>
 std::ostream& operator<<(std::ostream& stream, const Point<Number, Label>& point);
-
-/**
- * @brief An open polyline: an ordered sequence of points.
- *
- * @note Stub: this is a placeholder alias for a `Polyline` class that has not
- * been implemented yet. For now it is simply a `std::vector` of points, with no
- * normalization or closure invariant. It is expected to be replaced by a proper
- * shape type (with its own predicates and constructions) in the future.
- *
- * @tparam PointType The vertex point type.
- */
-template <class PointType = Point<>>
-using Polyline = std::vector<PointType>;
 
 }//pgl
