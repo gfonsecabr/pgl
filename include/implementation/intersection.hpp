@@ -2085,7 +2085,7 @@ Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
         if (!leaf) {
             break;
         }
-        ResultPolyline path;
+        std::vector<ResultPoint> path;
         ResultPoint current = *leaf;
         path.push_back(current);
         while (degree(current) == 1) {
@@ -2094,7 +2094,7 @@ Polygon<PointType, LabelType>::intersection(const OtherPolygon& other) const {
             path.push_back(next);
             current = next;
         }
-        result.emplace_back(std::move(path));
+        result.emplace_back(ResultPolyline(std::move(path)));
     }
 
     // Trace the remaining cycles as faces of the planar graph: following, at each

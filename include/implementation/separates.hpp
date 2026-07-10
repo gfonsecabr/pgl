@@ -2847,4 +2847,234 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherChain& other)
     return false;
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Cut predicates involving a possibly self-intersecting polyline. Unlike a
+ * monotone chain, a polyline's set connectivity does not match its traversal
+ * order: the free pieces left by a removal can reconnect through
+ * self-crossings and revisited vertices (removing a mid point of a closed
+ * polyline does not disconnect it). detail::separates1DSet therefore treats
+ * the target as a point set and joins its free pieces geometrically.
+ */
+
+namespace detail {
+
+/**
+ * @brief Tests whether removing @p remover disconnects the 1-dimensional set
+ * formed by @p targetEdges (the edge list of a possibly self-intersecting
+ * polyline, or a single segment).
+ *
+ * Unlike detail::separatesChain, which walks an arc whose set connectivity
+ * matches its parameter order, this helper treats the target as a point set.
+ * For every target edge the removed intervals are computed with exact
+ * coordinates (`Rational<BigInt>` unless an input is floating point), the
+ * complementary free pieces keep an open/closed flag per endpoint, and a
+ * union-find joins pieces that share a surviving point: a positive-length
+ * collinear overlap, or a single common point that is not an excluded (open)
+ * endpoint of either piece.
+ *
+ * @param remover The removed shape: a point, a segment, or a polyline.
+ * @param targetEdges Edges of the target (zero-length edges are skipped).
+ * @return `true` if the target minus the remover has at least two connected
+ *         components.
+ */
+template <class Remover, class TargetEdgeRange>
+bool separates1DSet(const Remover& remover, const TargetEdgeRange& targetEdges) {
+    using TargetEdge = std::remove_cvref_t<std::ranges::range_value_t<TargetEdgeRange>>;
+    using TargetNumber = typename TargetEdge::PointType::NumberType;
+    using RemoverNumber = typename Remover::NumberType;
+    constexpr bool approximate = std::is_floating_point_v<TargetNumber> ||
+                                 std::is_floating_point_v<RemoverNumber>;
+    using ExactNumber = std::conditional_t<approximate, double, Rational<BigInt>>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+
+    // A free piece: a maximal subsegment of one target edge that survives the
+    // removal. An endpoint marked open lies on the remover and is excluded
+    // from the piece.
+    struct Piece {
+        ExactPoint lo;
+        ExactPoint hi;
+        bool loOpen;
+        bool hiOpen;
+    };
+    std::vector<Piece> pieces;
+
+    for (const auto& edge : targetEdges) {
+        if (edge.min() == edge.max()) {
+            continue;  // zero-length edge: adds no connectivity of its own
+        }
+        // Removed intervals along the edge, as closed intervals in the
+        // lexicographic point order (the linear order along the edge).
+        std::vector<std::pair<ExactPoint, ExactPoint>> removed;
+        const auto addRemoved = [&removed](const auto& optionalPiece) {
+            if (!optionalPiece) {
+                return;
+            }
+            if (const auto* point = std::get_if<0>(&*optionalPiece)) {
+                removed.emplace_back(ExactPoint(*point), ExactPoint(*point));
+            } else {
+                const auto& overlap = std::get<1>(*optionalPiece);
+                removed.emplace_back(ExactPoint(overlap.min()), ExactPoint(overlap.max()));
+            }
+        };
+        if constexpr (is_point_v<Remover>) {
+            if (edge.contains(remover)) {
+                removed.emplace_back(ExactPoint(remover), ExactPoint(remover));
+            }
+        } else if constexpr (is_segment_v<Remover>) {
+            addRemoved(edge.template intersection<ExactNumber>(remover));
+        } else {
+            static_assert(is_polyline_v<Remover>, "unsupported remover kind");
+            if (remover.size() == 1) {
+                if (edge.contains(remover[0])) {
+                    removed.emplace_back(ExactPoint(remover[0]), ExactPoint(remover[0]));
+                }
+            } else {
+                for (const auto& removerEdge : remover.edgesView()) {
+                    addRemoved(edge.template intersection<ExactNumber>(removerEdge));
+                }
+            }
+        }
+        std::sort(removed.begin(), removed.end());
+        // Sweep the merged removed blocks and emit the complementary free
+        // pieces. A free endpoint abutting a removed block is open; the edge
+        // extremes are closed unless removed.
+        ExactPoint cursor(edge.min());
+        bool cursorOpen = false;
+        std::size_t i = 0;
+        while (i < removed.size()) {
+            const ExactPoint blockLo = removed[i].first;
+            ExactPoint blockHi = removed[i].second;
+            for (++i; i < removed.size() && !(blockHi < removed[i].first); ++i) {
+                if (blockHi < removed[i].second) {
+                    blockHi = removed[i].second;
+                }
+            }
+            if (cursor < blockLo) {
+                pieces.push_back({cursor, blockLo, cursorOpen, true});
+            }
+            cursor = blockHi;
+            cursorOpen = true;
+        }
+        const ExactPoint edgeHi(edge.max());
+        if (cursor < edgeHi) {
+            pieces.push_back({cursor, edgeHi, cursorOpen, false});
+        }
+    }
+
+    if (pieces.size() < 2) {
+        return false;  // zero or one piece is never disconnected
+    }
+
+    // Union-find over the pieces; two pieces join iff they share a point that
+    // survives the removal.
+    std::vector<std::size_t> parent(pieces.size());
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        parent[i] = i;
+    }
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto connected = [](const Piece& a, const Piece& b) {
+        const ExactSegment sa(a.lo, a.hi);
+        const ExactSegment sb(b.lo, b.hi);
+        if (!sa.intersects(sb)) {
+            return false;
+        }
+        if (sa.collinear(sb) && sa.min() < sb.max() && sb.min() < sa.max()) {
+            // A positive-length overlap survives losing at most four
+            // excluded endpoints.
+            return true;
+        }
+        // Single common point: it joins the pieces unless it coincides with
+        // an excluded (open) endpoint of either piece (the unique common
+        // point equals x iff x lies on the other piece's segment).
+        if (a.loOpen && sb.contains(a.lo)) {
+            return false;
+        }
+        if (a.hiOpen && sb.contains(a.hi)) {
+            return false;
+        }
+        if (b.loOpen && sa.contains(b.lo)) {
+            return false;
+        }
+        if (b.hiOpen && sa.contains(b.hi)) {
+            return false;
+        }
+        return true;
+    };
+    for (std::size_t i = 0; i < pieces.size(); ++i) {
+        for (std::size_t j = i + 1; j < pieces.size(); ++j) {
+            const std::size_t ri = findRoot(i);
+            const std::size_t rj = findRoot(j);
+            if (ri != rj && connected(pieces[i], pieces[j])) {
+                parent[ri] = rj;
+            }
+        }
+    }
+    std::size_t components = 0;
+    for (std::size_t i = 0; i < pieces.size(); ++i) {
+        if (findRoot(i) == i) {
+            ++components;
+        }
+    }
+    return components >= 2;
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherSegment& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        // A single vertex disconnects the segment iff it is an interior point of it.
+        return other.interiorContains((*this)[0]);
+    }
+    return detail::separates1DSet(*this, std::array<OtherSegment, 1>{other});
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    if (empty() || other.size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (size() == 1) {
+        return (*this)[0].separates(other);
+    }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+template <class Number, class Label>
+template<PolylineConcept OtherPolyline>
+constexpr bool Point<Number, Label>::separates(const OtherPolyline& other) const {
+    // Unlike a monotone chain, the polyline may reconnect around the removed
+    // point through a self-crossing or a revisited vertex, so an interior
+    // point is not necessarily a cut point.
+    if (other.size() < 2) {
+        return false;
+    }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    if (other.size() < 2) {
+        return false;
+    }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
 }  // namespace pgl

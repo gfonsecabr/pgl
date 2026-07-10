@@ -814,4 +814,50 @@ bool Polygon<PointType_, LabelType>::isSimple() const {
     return true;
 }
 
+template <class PointType_, class TLabel>
+template <class Rational>
+bool Polyline<PointType_, TLabel>::isSimple() const {
+    using Number = typename PointType::NumberType;
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    if (n < 2) {
+        return true;  // no edge: vacuously simple
+    }
+
+    std::vector<pgl::Segment<PointType>> edges;
+    edges.reserve(static_cast<std::size_t>(n - 1));
+    for (std::ptrdiff_t i = 0; i + 1 < n; ++i) {
+        pgl::Segment<PointType> edge(get(i), get(i + 1));
+        if (edge.isDegenerate()) {
+            return false;  // zero-length edge / repeated consecutive vertex
+        }
+        edges.push_back(edge);
+    }
+
+    // Exact sweep for large integer/rational polylines; brute force for small
+    // ones or floating-point coordinates (which the exact sweep cannot handle).
+    if constexpr (!std::is_floating_point_v<Number>) {
+        if (edges.size() > 8) {
+            pgl::detail::BentleyOttmann<Rational, pgl::Segment<PointType>> bo;
+            return bo.testPolyLine(edges);
+        }
+    }
+
+    const std::ptrdiff_t m = static_cast<std::ptrdiff_t>(edges.size());
+    for (std::ptrdiff_t i = 0; i < m; ++i) {
+        for (std::ptrdiff_t j = i + 1; j < m; ++j) {
+            // In an open chain the first and last edges are NOT adjacent, so a
+            // closed polyline (first vertex equal to the last) is not simple.
+            const bool adjacent = (j == i + 1);
+            if (adjacent) {
+                if (edges[i].interiorsIntersect(edges[j])) {
+                    return false;  // consecutive edges overlap beyond the shared vertex
+                }
+            } else if (edges[i].intersects(edges[j])) {
+                return false;  // non-adjacent edges must be disjoint
+            }
+        }
+    }
+    return true;
+}
+
 } // namespace pgl

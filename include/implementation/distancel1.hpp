@@ -1202,4 +1202,49 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::distanceL1(const Ot
     return this->template edgeMinDistanceL1<ResultNumber>(other);
 }
 
+// -----------------------------------------------------------------------------
+// Polyline
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber Polyline<PointType, LabelType>::edgeMinDistanceL1(const OtherShape& other) const {
+    assert(size() >= 2);
+    ResultNumber best = this->template boundaryAt<false>(0).template distanceL1<ResultNumber>(other);
+    for (std::size_t index = 1; index + 1 < size(); ++index) {
+        const ResultNumber current =
+            this->template boundaryAt<false>(index).template distanceL1<ResultNumber>(other);
+        if (current < best) {
+            best = current;
+        }
+    }
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto Polyline<PointType, LabelType>::distanceL1(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto Polyline<PointType, LabelType>::distanceL1(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto Polyline<PointType, LabelType>::distanceL1(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
 }  // namespace pgl

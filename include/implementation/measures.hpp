@@ -792,6 +792,48 @@ constexpr Point<ResultNumber> MonotoneChain<PointType, LabelType, Storage>::poin
     return Segment<PointType>((*this)[0], (*this)[1]).template pointInside<ResultNumber>();
 }
 
+// -----------------------------------------------------------------------------
+// Polyline
+
+template <class PointType, class LabelType>
+template <class ApproximateNumber>
+ApproximateNumber Polyline<PointType, LabelType>::length() const {
+    ApproximateNumber total{};
+    for (std::size_t i = 1; i < points_.size(); ++i) {
+        total += points_[i - 1].template distance<ApproximateNumber>(points_[i]);
+    }
+    return total;
+}
+
+template <class PointType, class LabelType>
+constexpr auto Polyline<PointType, LabelType>::lengthL1() const {
+    decltype(std::declval<PointType>().distanceL1(std::declval<PointType>())) total{};
+    for (std::size_t i = 1; i < points_.size(); ++i) {
+        total += points_[i - 1].distanceL1(points_[i]);
+    }
+    return total;
+}
+
+template <class PointType, class LabelType>
+constexpr auto Polyline<PointType, LabelType>::lengthLInf() const {
+    decltype(std::declval<PointType>().distanceLInf(std::declval<PointType>())) total{};
+    for (std::size_t i = 1; i < points_.size(); ++i) {
+        total += points_[i - 1].distanceLInf(points_[i]);
+    }
+    return total;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> Polyline<PointType, LabelType>::pointInside() const {
+    if (size() < 2) {
+        // Degenerate case
+        return size() == 0 ? PointType() : (*this)[0];
+    }
+
+    return Segment<PointType>((*this)[0], (*this)[1]).template pointInside<ResultNumber>();
+}
+
 template <class PointType, class LabelType, class Storage>
 template <class OtherShape>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::pointInsideInteriorContainedIn(const OtherShape& shape) const {

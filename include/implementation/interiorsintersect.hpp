@@ -1736,4 +1736,88 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherChai
     return detail::chainInteriorsIntersect(other, *this);
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Open polygonal chain predicates. The polyline's relative interior is the
+ * polyline minus its two extreme *points* (a self-intersecting polyline may
+ * pass through an extreme again mid-chain, and that point is still excluded),
+ * so the tests work with closed edges and explicitly discard meeting points
+ * that coincide with an excluded extreme or endpoint.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (size() < 2) {
+        // A polyline covering at most one point has an empty relative interior.
+        return false;
+    }
+    // The wanted set is (A ∖ {front, back}) ∩ (S ∖ {S.min, S.max}): the closed
+    // intersection minus at most four excluded points. A positive-length
+    // collinear overlap survives the removal of finitely many points; a single
+    // meeting point survives iff it is not one of the four. Working with
+    // closed edges also covers a segment passing exactly through a non-extreme
+    // vertex without crossing any open edge.
+    const PointType front = (*this)[0];
+    const PointType back = (*this)[size() - 1];
+    for (const auto& edge : edgesView()) {
+        if (!edge.intersects(other)) {
+            continue;
+        }
+        if (edge.collinear(other) && edge.min() < other.max() && other.min() < edge.max()) {
+            return true;  // positive-length overlap
+        }
+        // The intersection is a single point; it counts unless it is one of
+        // the excluded extremes/endpoints (tested division-free: the unique
+        // common point equals x iff x lies on both segments).
+        const bool excluded = (edge.contains(front) && other.contains(front)) ||
+                              (edge.contains(back) && other.contains(back)) ||
+                              edge.contains(other.min()) || edge.contains(other.max());
+        if (!excluded) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
+    if (size() < 2 || other.size() < 2) {
+        return false;
+    }
+    // Same closed-edge scheme as the segment overload, with the four excluded
+    // points being the extremes of the two polylines.
+    const PointType front = (*this)[0];
+    const PointType back = (*this)[size() - 1];
+    const auto otherFront = other[0];
+    const auto otherBack = other[other.size() - 1];
+    for (const auto& mine : edgesView()) {
+        for (const auto& theirs : other.edgesView()) {
+            if (!mine.intersects(theirs)) {
+                continue;
+            }
+            if (mine.collinear(theirs) && mine.min() < theirs.max() && theirs.min() < mine.max()) {
+                return true;  // positive-length overlap
+            }
+            const bool excluded =
+                (mine.contains(front) && theirs.contains(front)) ||
+                (mine.contains(back) && theirs.contains(back)) ||
+                (mine.contains(otherFront) && theirs.contains(otherFront)) ||
+                (mine.contains(otherBack) && theirs.contains(otherBack));
+            if (!excluded) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 }  // namespace pgl

@@ -1527,4 +1527,59 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherChain& other
     return false;
 }
 
+/**
+ * @section predicates-polyline Polyline
+ * Open polygonal chain predicates: a polyline may self-intersect, so there is
+ * no monotone structure to prune the edge tests — the scans are linear in one
+ * polyline and all-pairs between two.
+ */
+
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPoint& other) const {
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    for (const auto& edge : edgesView()) {
+        if (edge.intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPolyline& other) const {
+    if (empty() || other.empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    for (const auto& mine : edgesView()) {
+        for (const auto& theirs : other.edgesView()) {
+            if (mine.intersects(theirs)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 }  // namespace pgl

@@ -1811,6 +1811,107 @@ constexpr void MonotoneChain<PointType, LabelType, Storage>::scaleDownY(const Ot
 }
 
 // ---------------------------------------------------------------------------
+// Polyline
+//
+// Every transformed result goes through the non-trusted constructor, which
+// preserves the vertex sequence and only fixes the direction canonicalization:
+// a rotation or a negative scale factor can reverse the lexicographic order of
+// the extreme vertices.
+
+template <class PointType, class LabelType>
+constexpr Polyline<PointType, LabelType> Polyline<PointType, LabelType>::rotated90(int k) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.rotated90(k));
+    }
+    return Polyline<PointType, LabelType>(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+constexpr void Polyline<PointType, LabelType>::rotate90(int k) {
+    auto saved = label_;
+    *this = rotated90(k);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr Polyline<PointType, LabelType> Polyline<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpX(scalar));
+    }
+    return Polyline<PointType, LabelType>(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void Polyline<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledUpX(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr Polyline<PointType, LabelType> Polyline<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledUpY(scalar));
+    }
+    return Polyline<PointType, LabelType>(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void Polyline<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledUpY(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr Polyline<PointType, LabelType> Polyline<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownX(scalar));
+    }
+    return Polyline<PointType, LabelType>(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void Polyline<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledDownX(scalar);
+    label_ = std::move(saved);
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr Polyline<PointType, LabelType> Polyline<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
+    std::vector<PointType> pts;
+    pts.reserve(size());
+    for (const auto& p : *this) {
+        pts.push_back(p.scaledDownY(scalar));
+    }
+    return Polyline<PointType, LabelType>(std::move(pts));
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void Polyline<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    auto saved = label_;
+    *this = scaledDownY(scalar);
+    label_ = std::move(saved);
+}
+
+// ---------------------------------------------------------------------------
 // Disk
 
 template <class PointType, class LabelType>
@@ -1925,6 +2026,17 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
             pts.push_back(point(p));
         }
         return MonotoneChain<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    } else if constexpr (PolylineConcept<ShapeT>) {
+        // The vertices are mapped in traversal order; the non-trusted
+        // constructor only fixes the direction canonicalization, which an
+        // orientation-reversing transformation may flip.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        std::vector<ResultPoint> pts;
+        pts.reserve(shape.size());
+        for (const auto& p : shape) {
+            pts.push_back(point(p));
+        }
+        return Polyline<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
     }
 }
 
