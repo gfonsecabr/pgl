@@ -5,10 +5,13 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
-using Polyline = pgl::Polyline<Point>;
+// Aliased as `PLine` (not `Polyline`) because doctest pulls in <windows.h> on
+// MSVC, whose GDI `Polyline` function collides with a file-scope `using
+// Polyline`.
+using PLine = pgl::Polyline<Point>;
 
 // zig-zag: (0,0) - (2,2) - (4,0)
-static const Polyline zig({0, 0, 2, 2, 4, 0});
+static const PLine zig({0, 0, 2, 2, 4, 0});
 
 TEST_CASE("Polyline intersects Segment") {
     CHECK(zig.intersects(Segment(Point(1, -1), Point(1, 3))));   // crosses the first edge
@@ -18,13 +21,13 @@ TEST_CASE("Polyline intersects Segment") {
     CHECK(!zig.intersects(Segment(Point(5, 0), Point(6, 0))));
 
     SUBCASE("single-vertex polyline") {
-        const Polyline dot({Point(1, 1)});
+        const PLine dot({Point(1, 1)});
         CHECK(dot.intersects(Segment(Point(0, 0), Point(2, 2))));
         CHECK(!dot.intersects(Segment(Point(0, 1), Point(0, 5))));
     }
 
     SUBCASE("empty polyline") {
-        CHECK(!Polyline().intersects(Segment(Point(0, 0), Point(1, 1))));
+        CHECK(!PLine().intersects(Segment(Point(0, 0), Point(1, 1))));
     }
 }
 
@@ -37,11 +40,11 @@ TEST_CASE("Polyline contains Segment") {
     SUBCASE("a segment covered by two non-consecutive collinear edges") {
         // Edges (0,0)-(2,0) and (1,0)-(4,0) overlap on y = 0; together they
         // cover (0,0)-(4,0) even though they are not consecutive.
-        const Polyline overlapping({0, 0, 2, 0, 1, 3, 1, 0, 4, 0});
+        const PLine overlapping({0, 0, 2, 0, 1, 3, 1, 0, 4, 0});
         CHECK(overlapping.contains(Segment(Point(0, 0), Point(4, 0))));
         CHECK(overlapping.contains(Segment(Point(1, 0), Point(2, 0))));
         // A gap breaks the coverage: edges (0,0)-(1,0) and (2,0)-(4,0).
-        const Polyline gapped({0, 0, 1, 0, 1, 3, 2, 0, 4, 0});
+        const PLine gapped({0, 0, 1, 0, 1, 3, 2, 0, 4, 0});
         CHECK(!gapped.contains(Segment(Point(0, 0), Point(4, 0))));
         CHECK(gapped.contains(Segment(Point(2, 0), Point(3, 0))));
     }
@@ -49,13 +52,13 @@ TEST_CASE("Polyline contains Segment") {
 
 TEST_CASE("Segment contains Polyline") {
     const Segment diagonal(Point(0, 0), Point(4, 4));
-    CHECK(diagonal.contains(Polyline({1, 1, 2, 2})));
-    CHECK(diagonal.contains(Polyline({1, 1, 3, 3, 2, 2})));  // back-tracking but on the segment
+    CHECK(diagonal.contains(PLine({1, 1, 2, 2})));
+    CHECK(diagonal.contains(PLine({1, 1, 3, 3, 2, 2})));  // back-tracking but on the segment
     CHECK(!diagonal.contains(zig));
-    CHECK(diagonal.contains(Polyline()));
+    CHECK(diagonal.contains(PLine()));
 
-    CHECK(diagonal.interiorContains(Polyline({1, 1, 2, 2})));
-    CHECK(!diagonal.interiorContains(Polyline({0, 0, 2, 2})));  // touches the endpoint
+    CHECK(diagonal.interiorContains(PLine({1, 1, 2, 2})));
+    CHECK(!diagonal.interiorContains(PLine({0, 0, 2, 2})));  // touches the endpoint
     CHECK(!diagonal.boundaryContains(zig));
 }
 
@@ -67,7 +70,7 @@ TEST_CASE("Polyline interiorContains Segment") {
     SUBCASE("a revisited extreme excludes a covering segment") {
         // The polyline revisits its extreme point (0,0) in the middle of the
         // last edge, so a segment through (0,0) is never interior.
-        const Polyline revisits({0, 0, 2, 0, 2, 2, -1, -1, 1, 1});
+        const PLine revisits({0, 0, 2, 0, 2, 2, -1, -1, 1, 1});
         CHECK(revisits.contains(Segment(Point(0, 0), Point(1, 1))));
         CHECK(!revisits.interiorContains(Segment(Point(-1, -1), Point(1, 1))));
     }
@@ -128,7 +131,7 @@ TEST_CASE("Polyline separates Segment and vice versa") {
     }
 
     SUBCASE("set semantics: a closed polyline resists a single crossing") {
-        const Polyline loop({0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
+        const PLine loop({0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
         const Segment oneCut(Point(1, -1), Point(1, 1));
         CHECK(!oneCut.separates(loop));
         const Segment twoCuts(Point(1, -1), Point(1, 3));
@@ -136,7 +139,7 @@ TEST_CASE("Polyline separates Segment and vice versa") {
     }
 
     SUBCASE("a single-vertex polyline separates through its point") {
-        const Polyline dot({Point(1, 1)});
+        const PLine dot({Point(1, 1)});
         CHECK(dot.separates(Segment(Point(0, 0), Point(2, 2))));
         CHECK(!dot.separates(Segment(Point(1, 1), Point(2, 2))));
     }

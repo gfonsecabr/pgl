@@ -4,14 +4,17 @@
 #include "pgl.hpp"
 
 using Point = pgl::Point<int>;
-using Polyline = pgl::Polyline<Point>;
+// Aliased as `PLine` (not `Polyline`) because doctest pulls in <windows.h> on
+// MSVC, whose GDI `Polyline` function collides with a file-scope `using
+// Polyline`.
+using PLine = pgl::Polyline<Point>;
 
 // zig-zag: (0,0) - (2,2) - (4,0)
-static const Polyline zig({0, 0, 2, 2, 4, 0});
+static const PLine zig({0, 0, 2, 2, 4, 0});
 // bow-tie crossing itself at (1,1): (0,0) - (2,2) - (2,0) - (0,2)
-static const Polyline bow({0, 0, 2, 2, 2, 0, 0, 2});
+static const PLine bow({0, 0, 2, 2, 2, 0, 0, 2});
 // closed square written as a polyline: first vertex equals the last
-static const Polyline loop({0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
+static const PLine loop({0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
 
 TEST_CASE("Polyline contains Point") {
     CHECK(zig.contains(Point(0, 0)));
@@ -26,13 +29,13 @@ TEST_CASE("Polyline contains Point") {
     }
 
     SUBCASE("single-vertex polyline") {
-        const Polyline dot({Point(3, 4)});
+        const PLine dot({Point(3, 4)});
         CHECK(dot.contains(Point(3, 4)));
         CHECK(!dot.contains(Point(3, 5)));
     }
 
     SUBCASE("empty polyline contains nothing") {
-        CHECK(!Polyline().contains(Point(0, 0)));
+        CHECK(!PLine().contains(Point(0, 0)));
     }
 }
 
@@ -41,7 +44,7 @@ TEST_CASE("Polyline boundaryContains Point") {
     CHECK(zig.boundaryContains(Point(4, 0)));
     CHECK(!zig.boundaryContains(Point(2, 2)));
     CHECK(!zig.boundaryContains(Point(1, 1)));
-    CHECK(!Polyline().boundaryContains(Point(0, 0)));
+    CHECK(!PLine().boundaryContains(Point(0, 0)));
 
     SUBCASE("the point's boundary is empty") {
         CHECK(!Point(0, 0).boundaryContains(zig));
@@ -62,7 +65,7 @@ TEST_CASE("Polyline interiorContains Point") {
     }
 
     SUBCASE("point interior-contains a degenerate polyline") {
-        CHECK(Point(1, 1).interiorContains(Polyline({1, 1, 1, 1})));
+        CHECK(Point(1, 1).interiorContains(PLine({1, 1, 1, 1})));
         CHECK(!Point(1, 1).interiorContains(zig));
     }
 }
@@ -79,20 +82,20 @@ TEST_CASE("Polyline intersects Point in both directions") {
 }
 
 TEST_CASE("Point contains Polyline") {
-    CHECK(Point(1, 1).contains(Polyline({1, 1, 1, 1})));
+    CHECK(Point(1, 1).contains(PLine({1, 1, 1, 1})));
     CHECK(!Point(1, 1).contains(zig));
-    CHECK(Point(1, 1).contains(Polyline()));
+    CHECK(Point(1, 1).contains(PLine()));
 }
 
 TEST_CASE("Point separates Polyline") {
     SUBCASE("an interior point cuts an open chain") {
-        CHECK(Point(1, 0).separates(Polyline({0, 0, 2, 0, 2, 2})));
-        CHECK(Point(2, 0).separates(Polyline({0, 0, 2, 0, 2, 2})));  // interior vertex
+        CHECK(Point(1, 0).separates(PLine({0, 0, 2, 0, 2, 2})));
+        CHECK(Point(2, 0).separates(PLine({0, 0, 2, 0, 2, 2})));  // interior vertex
     }
 
     SUBCASE("an extreme point does not cut") {
-        CHECK(!Point(0, 0).separates(Polyline({0, 0, 2, 0, 2, 2})));
-        CHECK(!Point(2, 2).separates(Polyline({0, 0, 2, 0, 2, 2})));
+        CHECK(!Point(0, 0).separates(PLine({0, 0, 2, 0, 2, 2})));
+        CHECK(!Point(2, 2).separates(PLine({0, 0, 2, 0, 2, 2})));
     }
 
     SUBCASE("a point off the polyline does not cut") {
@@ -105,7 +108,7 @@ TEST_CASE("Point separates Polyline") {
     }
 
     SUBCASE("a loop with a tail: cutting the tail separates, cutting the loop does not") {
-        const Polyline loopTail({-2, 0, 0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
+        const PLine loopTail({-2, 0, 0, 0, 2, 0, 2, 2, 0, 2, 0, 0});
         CHECK(Point(-1, 0).separates(loopTail));
         CHECK(!Point(1, 2).separates(loopTail));
     }
