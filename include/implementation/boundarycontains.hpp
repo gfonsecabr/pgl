@@ -1135,4 +1135,76 @@ constexpr bool Point<Number, Label>::boundaryContains(const OtherPolyline&) cons
     return false;
 }
 
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    // The boundary is a line (a convex set), so it contains the polyline iff
+    // it contains every vertex.
+    for (const auto& vertex : other) {
+        if (!boundaryContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    return asConvex().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    return asConvex().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    if (isDegenerate()) {
+        return Line<PointType>(a(), c()).contains(other);
+    }
+    // Polyline edges are straight, so only a polyline covering a single point
+    // can lie on the circle.
+    return other.empty() || (other.isDegenerate() && boundaryContains(other[0]));
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    // A polyline may run along the convex boundary through many collinear
+    // vertices, so fold the edges rather than counting vertices.
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!boundaryContains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!boundaryContains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl

@@ -1417,6 +1417,22 @@ struct Convex {
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool separates(const OtherChain& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool contains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
+
     /**
      * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *

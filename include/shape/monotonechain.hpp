@@ -1178,6 +1178,31 @@ struct MonotoneChain {
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool separates(const OtherChain& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool contains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const {
+        // The boundary is the two extreme vertices, so only a polyline
+        // covering at most one point fits inside it.
+        return other.empty() || (other.isDegenerate() && boundaryContains(other[0]));
+    }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * Set semantics: the polyline's free pieces may reconnect through its own
+     * self-intersections (see `detail::separates1DSet`).
+     */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
+
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {

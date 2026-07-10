@@ -16,13 +16,13 @@
 
 ## Partially Implemented Features
 
-### Polyline shape pairs
+### Polyline in Shape and intersection
 
-[`Polyline`](shapes.md#polyline) implements its predicates and distances for `Point`, `Segment`, and `Polyline` arguments. The remaining shape pairs, membership in `Shape`, and the `intersection` constructions are not implemented yet.
+[`Polyline`](shapes.md#polyline) implements its predicates and distances against every shape, but membership in `Shape` and the `intersection` constructions are not implemented yet.
 
 ### L1 / LInf distance to and from Disk
 
-`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, MonotoneChain, and Polygon, plus `Disk`-to-`Point`. The remaining `Disk` pairs (`Disk` vs. `Segment`/`OrientedSegment`/`Line`/`OrientedLine`/`Ray`/`Halfplane`/`Rectangle`/`Triangle`/`Convex`/`Polygon`, and `Disk`-`Disk`) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
+`distanceL1` / `distanceLInf` (and `hausdorffDistanceL1` / `hausdorffDistanceLInf`) are implemented for every pair among Point, Segment, OrientedSegment, Line, OrientedLine, Ray, Halfplane, Rectangle, Triangle, Convex, MonotoneChain, Polyline, and Polygon, plus `Disk`-to-`Point`. The remaining `Disk` pairs (`Disk` vs. `Segment`/`OrientedSegment`/`Line`/`OrientedLine`/`Ray`/`Halfplane`/`Rectangle`/`Triangle`/`Convex`/`Polygon`, and `Disk`-`Disk`) are not yet implemented: unlike the Euclidean case, there is no closed form for the L1/LInf distance from a point to a circle, so these require a numeric optimization (the point-to-disk primitives already use a coarse-scan-plus-golden-section search) extended to bracket the minimum over an unbounded or two-dimensional domain. That bracketing needs more careful derivation and testing than fit in the initial pass.
 
 ## Data Structures Not Yet Implemented
 

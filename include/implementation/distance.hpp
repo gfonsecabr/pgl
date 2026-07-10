@@ -1548,4 +1548,103 @@ constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherPolyli
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class DiskPointType, class DiskLabel>
+double Polyline<PointType, LabelType>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+    if (intersects(disk)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(disk, *this);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
 }  // namespace pgl

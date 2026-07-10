@@ -1930,6 +1930,119 @@ constexpr bool Polyline<PointType, LabelType>::contains(const OtherSegment& othe
 }
 
 template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
+    return contains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherLine& other) const {
+    return other.isDegenerate() && contains(other.min());
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherRay& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherRectangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.min() == other.max()) {
+        return contains(other.min());
+    }
+    return contains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherTriangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return contains(other.a());
+    }
+    return contains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherConvex& other) const {
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    if (other.size() == 2) {
+        return contains(Segment<typename OtherConvex::PointType>(other[0], other[1]));
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolygon& other) const {
+    // A polygon lies on the 1-dimensional polyline exactly when all of its
+    // edges do; its interior is then empty, so the edge fold decides
+    // containment for degenerate and non-degenerate polygons alike.
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (!contains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherDisk& other) const {
+    return other.a() == other.b() && other.b() == other.c() && contains(other.a());
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    // The chain is exactly the union of its edges.
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherChain::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolyline& other) const {
     if (other.empty()) {
@@ -1967,6 +2080,136 @@ template<PolylineConcept OtherPolyline>
 constexpr bool Segment<PointType, LabelType>::contains(const OtherPolyline& other) const {
     for (const auto& vertex : other) {
         if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    return asSegment().contains(other);
+}
+
+// Every shape below is a convex point set, so it contains the polyline iff it
+// contains all of the polyline's vertices (an empty polyline is trivially
+// contained).
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Line<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    return asLine().contains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Ray<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Rectangle<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Disk<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Convex<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A monotone chain is 1-dimensional and generally bent, so it must contain
+// every polyline edge as a straight sub-path.
+template <class PointType, class LabelType, class Storage>
+template<PolylineConcept OtherPolyline>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A polygon is generally not convex, so it must contain every polyline edge.
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!contains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
             return false;
         }
     }

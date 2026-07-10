@@ -1423,6 +1423,60 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherSegme
 }
 
 template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
+    return interiorContains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherLine& other) const {
+    return other.isDegenerate() && interiorContains(other.min());
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherRay& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.a() == other.c()) {
+        return interiorContains(other.a());
+    }
+    return interiorContains(Segment<typename OtherTriangle::PointType>(other.a(), other.c()));
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    // Same set subtraction as the segment overload: the contained chain must
+    // avoid both extreme points of this polyline entirely.
+    return contains(other) && !other.contains((*this)[0]) &&
+           !other.contains((*this)[size() - 1]);
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
     if (other.empty()) {
@@ -1447,6 +1501,121 @@ template<PolylineConcept OtherPolyline>
 constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
     for (const auto& vertex : other) {
         if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return asSegment().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return asLine().interiorContains(other);
+}
+
+// The interiors below are convex sets, so they contain the polyline iff they
+// contain all of its vertices.
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return asConvex().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return asConvex().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    if (size() <= 2) {
+        return false;
+    }
+    for (const auto& vertex : other) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A contained polyline is a subset of the chain, so it can only reach the
+// chain's extreme vertices as a point set; subtract them explicitly (the
+// polyline may revisit such a point mid-sequence).
+template <class PointType, class LabelType, class Storage>
+template<PolylineConcept OtherPolyline>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorContains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    return contains(other) && !other.contains((*this)[0]) &&
+           !other.contains((*this)[size() - 1]);
+}
+
+// A polygon's interior is generally not convex, so it must interior-contain
+// every polyline edge.
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return interiorContains(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (!interiorContains(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
             return false;
         }
     }

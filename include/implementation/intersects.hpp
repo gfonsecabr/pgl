@@ -1558,6 +1558,111 @@ constexpr bool Polyline<PointType, LabelType>::intersects(const OtherSegment& ot
 }
 
 template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+namespace detail {
+
+// Shared body of Polyline::intersects against a shape with a
+// `contains(point)` test and a segment intersection test: the polyline meets
+// it iff some edge does (or its single vertex lies inside it).
+template <class PolylineType, class OtherShape>
+constexpr bool polylineIntersects(const PolylineType& polyline, const OtherShape& other) {
+    if (polyline.empty()) {
+        return false;
+    }
+    if (polyline.size() == 1) {
+        return other.contains(polyline[0]);
+    }
+    for (const auto& edge : polyline.edgesView()) {
+        if (edge.intersects(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherLine& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherRay& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (size() > 1 && !bbox().intersects(other)) {
+        return false;
+    }
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherConvex& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    return detail::polylineIntersects(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::intersects(const OtherChain& other) const {
+    if (empty() || other.empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        return other.contains((*this)[0]);
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    // The chain's own segment test prunes by x-range, so fold it over the
+    // polyline edges.
+    for (const auto& edge : edgesView()) {
+        if (other.intersects(edge)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPolyline& other) const {
     if (empty() || other.empty()) {
@@ -1577,6 +1682,23 @@ constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPolyline& o
             if (mine.intersects(theirs)) {
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolyline& other) const {
+    if (other.empty()) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return intersects(other[0]);
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        if (intersects(Segment<typename OtherPolyline::PointType>(other[i], other[i + 1]))) {
+            return true;
         }
     }
     return false;
