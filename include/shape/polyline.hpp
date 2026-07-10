@@ -485,6 +485,85 @@ struct Polyline {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the line is degenerate and its unique point lies on the polyline.
+     */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the oriented line is degenerate and its unique point lies on the polyline.
+     */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the ray is degenerate and its unique point lies on the polyline.
+     */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the halfplane is degenerate and its unique point lies on the polyline.
+     */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the rectangle is degenerate and its diagonal lies on the polyline.
+     */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the triangle is degenerate and its spanning segment lies on the polyline.
+     */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if the convex has at most two vertices and they span a subset of the polyline.
+     */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A polygon lies on the 1-dimensional polyline exactly when all of its
+     * edges do (its interior is then empty), so this folds @ref contains over
+     * the polygon's edges.
+     */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     * @return `true` if all three boundary points of `other` are equal and the polyline contains that point.
+     */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A chain is exactly the union of its edges, so this folds the
+     * (gap-sweeping) segment containment over them.
+     */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool contains(const OtherChain& other) const;
+
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
@@ -518,10 +597,47 @@ struct Polyline {
     [[nodiscard]] constexpr bool boundaryContains(const OtherPoint& point) const;
 
     // The boundary of a polyline is exactly its two extreme vertices, a finite
-    // point set, so it contains no positive-length shape.
+    // point set, so it contains no positive-length or two-dimensional shape.
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherLine&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRay&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const {
+        // The boundary is the two extreme vertices, so only a chain without an
+        // edge fits inside it.
+        return other.empty() || (other.size() == 1 && boundaryContains(other[0]));
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const {
@@ -564,6 +680,49 @@ struct Polyline {
     [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherLine& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
+
+    // A polyline is one-dimensional: its relative interior cannot contain any
+    // unbounded or two-dimensional shape.
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon&) const { return false; }
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk&) const { return false; }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorContains(const OtherChain& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
@@ -594,6 +753,44 @@ struct Polyline {
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool intersects(const OtherLine& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedLine& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool intersects(const OtherRectangle& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool intersects(const OtherTriangle& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool intersects(const OtherConvex& other) const;
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool intersects(const OtherDisk& other) const;
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Folds the chain's own (pruned) segment test over the polyline edges.
+     *
+     * Complexity: O(n (log m + k)) for a polyline with n vertices and a chain
+     * with m vertices.
+     */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool intersects(const OtherChain& other) const;
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
@@ -649,6 +846,37 @@ struct Polyline {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
 
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRectangle& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherTriangle& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherConvex& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherDisk& other) const;
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherChain& other) const;
+
     /**
      * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
      *
@@ -694,6 +922,52 @@ struct Polyline {
      */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool separates(const OtherSegment& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedSegment& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool separates(const OtherLine& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool separates(const OtherOrientedLine& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool separates(const OtherRay& other) const;
+
+    // --- 2-dimensional targets: the region minus the polyline is disconnected
+    // iff the polyline (clipped to the region) together with the region's
+    // boundary closes a cycle through the interior. Unlike a monotone chain, a
+    // self-intersecting polyline can seal a pocket with a loop that never
+    // leaves the interior, so the traversal-order crosscut scan is replaced by
+    // a cycle search on the polyline's self-intersection arrangement (see
+    // detail::polylineSeparatesConvexRegion). ---
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool separates(const OtherHalfplane& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool separates(const OtherRectangle& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool separates(const OtherTriangle& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool separates(const OtherConvex& other) const;
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool separates(const OtherPolygon& other) const;
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The chain is a 1-dimensional set like the polyline, so its free pieces
+     * are joined geometrically (see `detail::separates1DSet`).
+     */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool separates(const OtherChain& other) const;
     /**
      * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
      *
@@ -719,6 +993,36 @@ struct Polyline {
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool crosses(const OtherSegment& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedSegment& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<LineConcept OtherLine>
+    [[nodiscard]] constexpr bool crosses(const OtherLine& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool crosses(const OtherOrientedLine& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<RayConcept OtherRay>
+    [[nodiscard]] constexpr bool crosses(const OtherRay& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool crosses(const OtherHalfplane& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool crosses(const OtherRectangle& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool crosses(const OtherTriangle& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool crosses(const OtherDisk& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool crosses(const OtherConvex& other) const;
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool crosses(const OtherChain& other) const;
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool crosses(const OtherPolyline& other) const;
@@ -756,8 +1060,44 @@ struct Polyline {
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherChain& other) const;
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPolyline& other) const;
+
+    /**
+     * @brief Returns the squared Euclidean distance to a disk.
+     *
+     * Forwards to @ref Disk::squaredDistance's model: a disk's exterior
+     * distance is irrational, so it always returns `double`.
+     */
+    template <class DiskPointType, class DiskLabel>
+    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
@@ -789,6 +1129,33 @@ struct Polyline {
     /** @copydoc distanceL1(const OtherPoint&) const */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRay& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherTriangle& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceL1(const OtherConvex& other) const;
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceL1(const OtherChain& other) const;
     /** @copydoc distanceL1(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr auto distanceL1(const OtherPolyline& other) const;
@@ -823,6 +1190,33 @@ struct Polyline {
     /** @copydoc distanceLInf(const OtherPoint&) const */
     template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRay& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherTriangle& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherConvex& other) const;
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherChain& other) const;
     /** @copydoc distanceLInf(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPolyline& other) const;

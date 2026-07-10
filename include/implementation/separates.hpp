@@ -2924,8 +2924,20 @@ bool separates1DSet(const Remover& remover, const TargetEdgeRange& targetEdges) 
             }
         } else if constexpr (is_segment_v<Remover>) {
             addRemoved(edge.template intersection<ExactNumber>(remover));
+        } else if constexpr (is_polygon_v<Remover>) {
+            // A (possibly reflex) polygon can bite several intervals out of
+            // one edge; its segment intersection lists them all as pieces.
+            for (const auto& piece : remover.template intersection<ExactNumber>(edge)) {
+                if (const auto* point = std::get_if<0>(&piece)) {
+                    removed.emplace_back(ExactPoint(*point), ExactPoint(*point));
+                } else {
+                    const auto& overlap = std::get<1>(piece);
+                    removed.emplace_back(ExactPoint(overlap.min()), ExactPoint(overlap.max()));
+                }
+            }
         } else {
-            static_assert(is_polyline_v<Remover>, "unsupported remover kind");
+            static_assert(is_polyline_v<Remover> || is_monotone_chain_v<Remover>,
+                          "unsupported remover kind");
             if (remover.size() == 1) {
                 if (edge.contains(remover[0])) {
                     removed.emplace_back(ExactPoint(remover[0]), ExactPoint(remover[0]));
@@ -3074,6 +3086,509 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherPolyline& oth
     if (other.size() < 2) {
         return false;
     }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+namespace detail {
+
+/**
+ * @brief The self-intersection arrangement of a polyline as deduplicated
+ * sub-edges with exact coordinates.
+ *
+ * Every edge is split at its intersections with every other edge (crossing
+ * points and collinear-overlap endpoints) and at its intersections with the
+ * extra @p cutters, so the returned sub-edges meet each other only at shared
+ * endpoints, and retraced (overlapping) parts of the polyline collapse to a
+ * single sub-edge. Zero-length edges are dropped.
+ *
+ * @tparam ExactPoint Point type of the result (exact unless the input is
+ *         floating point).
+ * @param polyline The polyline to arrange.
+ * @param cutters Extra segments to split at (not emitted themselves).
+ * @return The arrangement's sub-edges, sorted and unique.
+ */
+template <class ExactPoint, class PolylineType, class CutterRange>
+std::vector<Segment<ExactPoint>> arrangedPolylineEdges(const PolylineType& polyline,
+                                                       const CutterRange& cutters) {
+    using ExactSegment = Segment<ExactPoint>;
+    using ExactNumber = typename ExactPoint::NumberType;
+
+    std::vector<ExactSegment> edges;
+    for (const auto& edge : polyline.edgesView()) {
+        if (edge.min() != edge.max()) {
+            edges.emplace_back(ExactPoint(edge.min()), ExactPoint(edge.max()));
+        }
+    }
+
+    std::vector<ExactSegment> result;
+    std::vector<ExactPoint> cuts;
+    for (std::size_t i = 0; i < edges.size(); ++i) {
+        cuts.clear();
+        cuts.push_back(edges[i].min());
+        cuts.push_back(edges[i].max());
+        const auto addCuts = [&](const auto& s) {
+            const auto piece = edges[i].template intersection<ExactNumber>(s);
+            if (!piece) {
+                return;
+            }
+            if (const auto* point = std::get_if<0>(&*piece)) {
+                cuts.push_back(ExactPoint(*point));
+            } else {
+                const auto& overlap = std::get<1>(*piece);
+                cuts.push_back(ExactPoint(overlap.min()));
+                cuts.push_back(ExactPoint(overlap.max()));
+            }
+        };
+        for (std::size_t j = 0; j < edges.size(); ++j) {
+            if (j != i) {
+                addCuts(edges[j]);
+            }
+        }
+        for (const auto& cutter : cutters) {
+            addCuts(cutter);
+        }
+        // All cut points lie on edge i, so the lexicographic point order is
+        // the linear order along the edge.
+        std::sort(cuts.begin(), cuts.end());
+        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+        for (std::size_t k = 0; k + 1 < cuts.size(); ++k) {
+            result.emplace_back(cuts[k], cuts[k + 1]);
+        }
+    }
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
+/** @brief Exact coordinate type for a mixed pair, mirroring separates1DSet. */
+template <class ANumber, class BNumber>
+using Exact1DNumber = std::conditional_t<
+    std::is_floating_point_v<ANumber> || std::is_floating_point_v<BNumber>,
+    double, Rational<BigInt>>;
+
+/**
+ * @brief Tests whether removing a *convex* shape disconnects a polyline.
+ *
+ * The polyline's free pieces are tracked on its self-intersection
+ * arrangement: because the remover is convex, its contact with a sub-edge
+ * whose endpoints both survive always cuts the middle of that sub-edge, so
+ * two arrangement vertices stay connected through a sub-edge iff the remover
+ * misses it entirely. A partially-eaten sub-edge leaves stubs attached to its
+ * surviving endpoints, which never changes the component count. Division-free
+ * once the arrangement is built.
+ *
+ * @pre `remover` is a convex point set with `contains(point)` and
+ *      `intersects(segment)` predicates.
+ */
+template <class Remover, class PolylineType>
+bool separatesPolylineSet(const Remover& remover, const PolylineType& target) {
+    if (target.size() < 2) {
+        // Removing anything from at most one point cannot disconnect it.
+        return false;
+    }
+    using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
+                                      typename Remover::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    const auto subEdges = arrangedPolylineEdges<ExactPoint>(
+        target, std::array<Segment<ExactPoint>, 0>{});
+
+    std::map<ExactPoint, std::size_t> nodes;
+    std::vector<std::size_t> parent;
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto nodeOf = [&](const ExactPoint& p) {
+        const auto [it, inserted] = nodes.try_emplace(p, parent.size());
+        if (inserted) {
+            parent.push_back(parent.size());
+        }
+        return it->second;
+    };
+
+    for (const auto& s : subEdges) {
+        // contains(endpoint) implies intersects(s), so a sub-edge missed by
+        // the remover always has both endpoints surviving.
+        const bool minSurvives = !remover.contains(s.min());
+        const bool maxSurvives = !remover.contains(s.max());
+        std::optional<std::size_t> a;
+        std::optional<std::size_t> b;
+        if (minSurvives) {
+            a = nodeOf(s.min());
+        }
+        if (maxSurvives) {
+            b = nodeOf(s.max());
+        }
+        if (a && b && !remover.intersects(s)) {
+            parent[findRoot(*a)] = findRoot(*b);
+        }
+    }
+
+    std::size_t components = 0;
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        if (findRoot(i) == i && ++components >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Tests whether removing a polyline disconnects a *convex*
+ * two-dimensional region.
+ *
+ * Let K be the polyline clipped to the closed region. The open region minus K
+ * is disconnected iff the graph formed by K's through-the-interior sub-edges,
+ * with every point of the region's boundary contracted to a single node,
+ * contains a cycle (Jordan: such a cycle — a closed loop of removed points,
+ * possibly closed through a boundary arc — seals off a pocket; conversely a
+ * forest of slits never separates a simply connected region). Unlike the
+ * traversal-order crosscut scan of MonotoneChain::separatesTwoDimensional,
+ * this catches pockets sealed by the polyline's self-intersections.
+ *
+ * Convexity keeps the clipping implicit: a sub-edge meets the region in one
+ * interval whose relative interior lies in the open region unless the
+ * sub-edge runs along a supporting line, so `interiorsIntersect` selects the
+ * interior sub-edges and `interiorContains` classifies their endpoints
+ * (an endpoint outside the closed region stands for a clipped end on the
+ * boundary). This stays predicate-based, so it is exact even for a Disk.
+ */
+template <class PolylineType, class Region>
+bool polylineSeparatesConvexRegion(const PolylineType& polyline, const Region& other) {
+    if (polyline.size() < 2) {
+        return false;
+    }
+    using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
+                                      typename Region::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    const auto subEdges = arrangedPolylineEdges<ExactPoint>(
+        polyline, std::array<Segment<ExactPoint>, 0>{});
+
+    std::map<ExactPoint, std::size_t> nodes;
+    std::vector<std::size_t> parent(1, 0);  // slot 0: the contracted boundary
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto nodeOf = [&](const ExactPoint& p) {
+        const auto [it, inserted] = nodes.try_emplace(p, parent.size());
+        if (inserted) {
+            parent.push_back(parent.size());
+        }
+        return it->second;
+    };
+
+    for (const auto& s : subEdges) {
+        if (!other.interiorsIntersect(s)) {
+            continue;  // no piece through the interior (skips boundary runs)
+        }
+        const std::size_t a = other.interiorContains(s.min()) ? nodeOf(s.min()) : 0;
+        const std::size_t b = other.interiorContains(s.max()) ? nodeOf(s.max()) : 0;
+        const std::size_t ra = findRoot(a);
+        const std::size_t rb = findRoot(b);
+        if (ra == rb) {
+            return true;  // the sub-edge closes a cycle through the interior
+        }
+        parent[ra] = rb;
+    }
+    return false;
+}
+
+/**
+ * @brief Tests whether removing a polyline disconnects a simple polygon.
+ *
+ * Same cycle criterion as @ref polylineSeparatesConvexRegion, but a reflex
+ * polygon breaks the one-interval property, so the arrangement is
+ * additionally split at the polygon's boundary; each resulting sub-edge is
+ * then uniformly inside, outside, or on the boundary, classified by its
+ * midpoint.
+ */
+template <class PolylineType, class PolygonType>
+bool polylineSeparatesPolygon(const PolylineType& polyline, const PolygonType& other) {
+    if (polyline.size() < 2) {
+        return false;
+    }
+    using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
+                                      typename PolygonType::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+
+    std::vector<ExactSegment> cutters;
+    for (const auto& edge : other.edgesView()) {
+        cutters.emplace_back(ExactPoint(edge.min()), ExactPoint(edge.max()));
+    }
+    const auto subEdges = arrangedPolylineEdges<ExactPoint>(polyline, cutters);
+
+    std::map<ExactPoint, std::size_t> nodes;
+    std::vector<std::size_t> parent(1, 0);  // slot 0: the contracted boundary
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto nodeOf = [&](const ExactPoint& p) {
+        const auto [it, inserted] = nodes.try_emplace(p, parent.size());
+        if (inserted) {
+            parent.push_back(parent.size());
+        }
+        return it->second;
+    };
+
+    for (const auto& s : subEdges) {
+        const ExactPoint mid((s.min().x() + s.max().x()) / ExactNumber(2),
+                             (s.min().y() + s.max().y()) / ExactNumber(2));
+        if (!other.interiorContains(mid)) {
+            continue;  // outside or along the boundary
+        }
+        // The sub-edge never crosses the boundary, so its endpoints are in the
+        // closed polygon: on the boundary (contracted) or strictly inside.
+        const std::size_t a = other.boundaryContains(s.min()) ? 0 : nodeOf(s.min());
+        const std::size_t b = other.boundaryContains(s.max()) ? 0 : nodeOf(s.max());
+        const std::size_t ra = findRoot(a);
+        const std::size_t rb = findRoot(b);
+        if (ra == rb) {
+            return true;  // the sub-edge closes a cycle through the interior
+        }
+        parent[ra] = rb;
+    }
+    return false;
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
+    return separates(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherLine& other) const {
+    // A line has no boundary, so any nonempty intersection with the bounded
+    // polyline disconnects it.
+    return intersects(other);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
+    return intersects(other);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherRay& other) const {
+    if (empty()) {
+        return false;
+    }
+    if (size() == 1) {
+        // A single vertex disconnects the ray iff it is an interior point of it.
+        return other.interiorContains((*this)[0]);
+    }
+    using ExactNumber = detail::Exact1DNumber<NumberType, typename OtherRay::PointType::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    // Clip the ray to a segment leaving the polyline's bounding box: every
+    // removed point lies inside the box, so the clipped segment has the same
+    // free pieces as the ray, its far end standing in for the infinite tail.
+    const ExactPoint source(other.source());
+    const ExactPoint target(other.target());
+    const ExactNumber dx = target.x() - source.x();
+    const ExactNumber dy = target.y() - source.y();
+    if (dx == ExactNumber{} && dy == ExactNumber{}) {
+        return false;  // degenerate ray
+    }
+    const auto& box = bbox();
+    ExactNumber scale(1);
+    const auto extend = [&scale](const ExactNumber& s, const ExactNumber& d,
+                                 const ExactNumber& lo, const ExactNumber& hi) {
+        if (d > ExactNumber{}) {
+            const ExactNumber needed = (hi - s) / d + ExactNumber(1);
+            if (scale < needed) {
+                scale = needed;
+            }
+        } else if (d < ExactNumber{}) {
+            const ExactNumber needed = (s - lo) / -d + ExactNumber(1);
+            if (scale < needed) {
+                scale = needed;
+            }
+        }
+    };
+    extend(source.x(), dx, ExactNumber(box.min().x()), ExactNumber(box.max().x()));
+    extend(source.y(), dy, ExactNumber(box.min().y()), ExactNumber(box.max().y()));
+    const ExactPoint beyond(source.x() + scale * dx, source.y() + scale * dy);
+    return detail::separates1DSet(
+        *this, std::array<Segment<ExactPoint>, 1>{Segment<ExactPoint>(source, beyond)});
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherHalfplane& other) const {
+    return detail::polylineSeparatesConvexRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherRectangle& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other)) {
+        return false;
+    }
+    return detail::polylineSeparatesConvexRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherTriangle& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    return detail::polylineSeparatesConvexRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    return detail::polylineSeparatesConvexRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherConvex& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    return detail::polylineSeparatesConvexRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    return detail::polylineSeparatesPolygon(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherChain& other) const {
+    if (empty() || other.size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    if (size() == 1) {
+        return (*this)[0].separates(other);
+    }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return asSegment().separates(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Line<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return asLine().separates(other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Ray<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Rectangle<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Triangle<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Convex<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    return detail::separatesPolylineSet(*this, other);
+}
+
+template <class PointType, class LabelType, class Storage>
+template<PolylineConcept OtherPolyline>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherPolyline& other) const {
+    if (empty() || other.size() < 2) {
+        return false;
+    }
+    if (size() == 1) {
+        return (*this)[0].separates(other);
+    }
+    // The chain is neither convex nor a single interval on the polyline's
+    // edges, so its removed pieces are computed exactly.
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    if (other.size() < 2) {
+        return false;
+    }
+    if (!bbox().intersects(other.bbox())) {
+        return false;
+    }
+    // The polygon may be reflex, so it can bite several intervals out of one
+    // polyline edge; the free pieces are joined geometrically.
     return detail::separates1DSet(*this, other.edgesView());
 }
 

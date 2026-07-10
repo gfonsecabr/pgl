@@ -890,8 +890,74 @@ constexpr bool Polyline<PointType, LabelType>::crosses(const OtherSegment& other
 }
 
 template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+    return crosses(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherRay& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherRectangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherTriangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherDisk& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherConvex& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::crosses(const OtherChain& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polyline<PointType, LabelType>::crosses(const OtherPolyline& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::crosses(const OtherPolyline& other) const {
     return separates(other) && other.separates(*this);
 }
 

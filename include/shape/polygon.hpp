@@ -944,6 +944,52 @@ struct Polygon {
     template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr auto distanceLInf(const OtherChain& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool contains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool intersects(const OtherPolyline& other) const;
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPolyline& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * Set semantics: the polyline's free pieces may reconnect through its own
+     * self-intersections, so they are joined geometrically rather than in
+     * traversal order (see `detail::separates1DSet`).
+     */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool crosses(const OtherPolyline& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPolyline& other) const;
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPolyline& other) const;
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPolyline& other) const;
+
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).

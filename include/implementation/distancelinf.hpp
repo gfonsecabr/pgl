@@ -1234,4 +1234,95 @@ constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherPolyline&
     return this->template edgeMinDistanceLInf<ResultNumber>(other);
 }
 
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto Polyline<PointType, LabelType>::distanceLInf(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto Polygon<PointType_, TLabel>::distanceLInf(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
 }  // namespace pgl

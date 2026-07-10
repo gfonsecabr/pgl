@@ -1788,6 +1788,163 @@ constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherSeg
 }
 
 template <class PointType, class LabelType>
+template<OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
+}
+
+template <class PointType, class LabelType>
+template<LineConcept OtherLine>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    // The wanted set is (A ∖ {front, back}) ∩ line: the closed intersection
+    // minus at most two excluded points. Since the line is infinite, an edge
+    // meets it either along the whole edge (edge on the line) or in a single
+    // point.
+    const PointType front = (*this)[0];
+    const PointType back = (*this)[size() - 1];
+    for (const auto& edge : edgesView()) {
+        if (!edge.intersects(other)) {
+            continue;
+        }
+        if (other.contains(edge.min()) && other.contains(edge.max()) &&
+            edge.min() != edge.max()) {
+            return true;  // positive-length overlap survives losing two points
+        }
+        // Single meeting point; it counts unless it is an excluded extreme
+        // (tested division-free: the unique common point equals x iff x lies
+        // on both operands).
+        const bool excluded = (edge.contains(front) && other.contains(front)) ||
+                              (edge.contains(back) && other.contains(back));
+        if (!excluded) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template<OrientedLineConcept OtherOrientedLine>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+    return interiorsIntersect(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template<RayConcept OtherRay>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+    if (size() < 2) {
+        return false;
+    }
+    // The ray's relative interior is the ray minus its source, so the excluded
+    // points are the polyline's extremes and the source.
+    const PointType front = (*this)[0];
+    const PointType back = (*this)[size() - 1];
+    const auto supporting = other.asLine();
+    for (const auto& edge : edgesView()) {
+        if (!edge.intersects(other)) {
+            continue;
+        }
+        if (supporting.contains(edge.min()) && supporting.contains(edge.max())) {
+            // Collinear contact: the overlap with the ray is an interval whose
+            // far end is an edge endpoint on the ray.
+            const bool minOnRay = other.contains(edge.min());
+            const bool maxOnRay = other.contains(edge.max());
+            if (minOnRay && maxOnRay && edge.min() != edge.max()) {
+                return true;  // positive-length overlap
+            }
+            if (minOnRay != maxOnRay) {
+                // Overlap [source, endpoint-on-ray]; positive length iff that
+                // endpoint is not the source itself.
+                const PointType onRay = minOnRay ? edge.min() : edge.max();
+                if (onRay != other.source()) {
+                    return true;
+                }
+                continue;  // the single meeting point is the excluded source
+            }
+            // Zero-length edge on the ray: fall through to the single-point test.
+        }
+        const bool excluded = (edge.contains(front) && other.contains(front)) ||
+                              (edge.contains(back) && other.contains(back)) ||
+                              edge.contains(other.source());
+        if (!excluded) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The shapes below have open two-dimensional interiors, so whenever such an
+// interior meets the polyline at all it also meets a polyline point other
+// than the two excluded extremes (an open neighborhood of the meeting point
+// contains further polyline points); the chain helper is therefore exact here
+// even though the polyline may revisit an extreme mid-sequence.
+
+template <class PointType, class LabelType>
+template<HalfplaneConcept OtherHalfplane>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<TriangleConcept OtherTriangle>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<ConvexConcept OtherConvex>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<DiskConcept OtherDisk>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    return detail::chainInteriorsIntersect(*this, other);
+}
+
+template <class PointType, class LabelType>
+template<MonotoneChainConcept OtherChain>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    if (size() < 2 || other.size() < 2) {
+        return false;
+    }
+    // Same closed-edge scheme as the polyline overload, with the four excluded
+    // points being the extremes of the polyline and of the chain.
+    const PointType front = (*this)[0];
+    const PointType back = (*this)[size() - 1];
+    const auto otherFront = other[0];
+    const auto otherBack = other[other.size() - 1];
+    for (const auto& mine : edgesView()) {
+        for (const auto& theirs : other.edgesView()) {
+            if (!mine.intersects(theirs)) {
+                continue;
+            }
+            if (mine.collinear(theirs) && mine.min() < theirs.max() && theirs.min() < mine.max()) {
+                return true;  // positive-length overlap
+            }
+            const bool excluded =
+                (mine.contains(front) && theirs.contains(front)) ||
+                (mine.contains(back) && theirs.contains(back)) ||
+                (mine.contains(otherFront) && theirs.contains(otherFront)) ||
+                (mine.contains(otherBack) && theirs.contains(otherBack));
+            if (!excluded) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
     if (size() < 2 || other.size() < 2) {
@@ -1818,6 +1975,14 @@ constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherPol
         }
     }
     return false;
+}
+
+// The polygon's interior is open and two-dimensional, so the chain helper is
+// exact for a polyline too (see the polyline section note above).
+template <class PointType, class LabelType>
+template<PolylineConcept OtherPolyline>
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
 }
 
 }  // namespace pgl
