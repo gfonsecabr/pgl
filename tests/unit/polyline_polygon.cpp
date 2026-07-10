@@ -6,17 +6,17 @@
 #include <vector>
 
 using Point = pgl::Point<int>;
-using Polygon = pgl::Polygon<Point>;
-// Aliased as `PLine` (not `Polyline`) because doctest pulls in <windows.h> on
-// MSVC, whose GDI `Polyline` function collides with a file-scope `using
-// Polyline`.
+// Aliased as `PGon`/`PLine` (not `Polygon`/`Polyline`) because doctest pulls
+// in <windows.h> on MSVC, whose GDI `Polygon`/`Polyline` functions collide
+// with file-scope `using Polygon`/`using Polyline`.
+using PGon = pgl::Polygon<Point>;
 using PLine = pgl::Polyline<Point>;
 
 // Square [0,6] x [0,6].
-static const Polygon square(std::vector<Point>{
+static const PGon square(std::vector<Point>{
     Point(0, 0), Point(6, 0), Point(6, 6), Point(0, 6)});
 // U-shaped polygon: the notch [2,4] x (2,6] is carved out of the square.
-static const Polygon ushape(std::vector<Point>{
+static const PGon ushape(std::vector<Point>{
     Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6),
     Point(4, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
 // zig-zag: (1,1) - (3,3) - (5,1), inside the square
