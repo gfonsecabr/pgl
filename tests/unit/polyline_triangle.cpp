@@ -104,3 +104,23 @@ TEST_CASE("Polyline and Triangle distance") {
     CHECK(zig.distanceLInf<Rational>(away) == Rational(7));
     CHECK(zig.squaredDistance<Rational>(tri) == Rational(0));
 }
+
+TEST_CASE("Polyline and Triangle intersection pieces") {
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a containing triangle returns the edges themselves") {
+        const auto pieces = zig.intersection(tri);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(2, 3)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(2, 3), Point(3, 1)));
+    }
+
+    SUBCASE("an edge is clipped at the triangle's leg") {
+        const auto pieces = PLine({-2, 2, 2, 2}).intersection(tri);
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 2), Point(2, 2)));
+    }
+}

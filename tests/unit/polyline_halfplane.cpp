@@ -123,3 +123,26 @@ TEST_CASE("Polyline and Halfplane distance") {
     CHECK(zig.distanceLInf<Rational>(high) == Rational(1));
     CHECK(zig.squaredDistance<Rational>(Halfplane({0, 1}, {1, 1})) == Rational(0));
 }
+
+TEST_CASE("Polyline and Halfplane intersection pieces") {
+    using Segment = pgl::Segment<Point>;
+    const Halfplane upper({0, 1}, {1, 1});  // closed side y >= 1
+
+    const auto pieces = zig.intersection(upper);
+    REQUIRE(pieces.size() == 2);
+    REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+    CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(2, 2)));
+    REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+    CHECK(std::get<Segment>(pieces[1]) == Segment(Point(2, 2), Point(3, 1)));
+
+    CHECK(zig.intersection(Halfplane({0, 3}, {1, 3})).empty());
+
+    SUBCASE("a swallowing halfplane returns the edges themselves") {
+        const auto whole = zig.intersection(Halfplane({0, -1}, {1, -1}));
+        REQUIRE(whole.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(whole[0]));
+        CHECK(std::get<Segment>(whole[0]) == Segment(Point(0, 0), Point(2, 2)));
+        REQUIRE(std::holds_alternative<Segment>(whole[1]));
+        CHECK(std::get<Segment>(whole[1]) == Segment(Point(2, 2), Point(4, 0)));
+    }
+}

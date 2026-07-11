@@ -159,3 +159,50 @@ TEST_CASE("Polyline distances to Polyline") {
         CHECK(a.squaredDistance<pgl::ERational>(b) == pgl::ERational(1));
     }
 }
+
+TEST_CASE("Polyline and Polyline intersection pieces") {
+    SUBCASE("touch points covered by an overlap segment are dropped") {
+        // bow shares zig's first edge; the bow's other edges touch it at
+        // (1,1) and (2,2), both inside the reported overlap.
+        const PLine bow({0, 0, 2, 2, 2, 0, 0, 2});
+        const auto pieces = zig.intersection(bow);
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
+    }
+
+    SUBCASE("collinear overlaps merge across interleaved pieces") {
+        // The first and last edges of `strands` overlap the other's bottom
+        // edge but sandwich the unrelated overlap at y = 1 between them in
+        // lexicographic order; the merge must still join them.
+        const PLine strands({0, 0, 10, 0, 3, 1, 4, 1, 5, 0, 12, 0});
+        const PLine other({0, 0, 12, 0, 12, 1, 0, 1});
+        const auto pieces = strands.intersection(other);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(12, 0)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(3, 1), Point(4, 1)));
+    }
+
+    SUBCASE("two proper crossings yield two points") {
+        const auto pieces = zig.intersection(PLine({1, -1, 1, 3, 3, 3, 3, -1}));
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+        REQUIRE(std::holds_alternative<Point>(pieces[1]));
+        CHECK(std::get<Point>(pieces[1]) == Point(3, 1));
+    }
+
+    SUBCASE("disjoint bounding boxes") {
+        CHECK(zig.intersection(PLine({10, 10, 12, 12})).empty());
+    }
+
+    SUBCASE("point-sized operands") {
+        const auto hit = zig.intersection(PLine({Point(3, 1)}));
+        REQUIRE(hit.size() == 1);
+        REQUIRE(std::holds_alternative<Point>(hit[0]));
+        CHECK(std::get<Point>(hit[0]) == Point(3, 1));
+        CHECK(PLine().intersection(zig).empty());
+    }
+}

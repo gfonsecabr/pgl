@@ -95,3 +95,23 @@ TEST_CASE("Polyline and Convex distance") {
     CHECK(zig.distanceLInf<Rational>(away) == Rational(2));
     CHECK(zig.squaredDistance<Rational>(square) == Rational(0));
 }
+
+TEST_CASE("Polyline and Convex intersection pieces") {
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a containing convex returns the edges themselves") {
+        const auto pieces = zig.intersection(square);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(2, 2), Point(4, 0)));
+    }
+
+    SUBCASE("an edge is clipped at the convex boundary") {
+        const auto pieces = PLine({-1, 2, 5, 2}).intersection(square);
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 2), Point(4, 2)));
+    }
+}

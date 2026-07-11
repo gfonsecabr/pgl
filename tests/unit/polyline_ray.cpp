@@ -134,3 +134,25 @@ TEST_CASE("Polyline and Ray distance") {
     CHECK(zig.distanceL1(away) == 2);
     CHECK(zig.distanceLInf(away) == 2);
 }
+
+TEST_CASE("Polyline and Ray intersection pieces") {
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a ray shooting up through one edge") {
+        const auto pieces = zig.intersection(Ray(Point(1, -1), Point(1, 0)));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+    }
+
+    SUBCASE("a ray along the loop's bottom edge overlaps in a segment") {
+        const auto pieces = loop.intersection(Ray(Point(1, 0), Point(2, 0)));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 0), Point(2, 0)));
+    }
+
+    SUBCASE("a ray that misses") {
+        CHECK(zig.intersection(Ray(Point(0, 3), Point(1, 3))).empty());
+    }
+}

@@ -137,3 +137,15 @@ TEST_CASE("Polyline distanceL1 and distanceLInf to Point") {
     CHECK(Point(4, 2).distanceLInf(zig) == 1);
     CHECK(zig.distanceL1<double>(Point(0, -1)) == doctest::Approx(1.0));
 }
+
+TEST_CASE("Polyline and Point intersection") {
+    const auto hit = zig.intersection(Point(1, 1));
+    REQUIRE(hit.has_value());
+    CHECK(*hit == Point(1, 1));
+    CHECK_FALSE(zig.intersection(Point(1, 2)).has_value());
+
+    // The point forwards to the polyline's overload.
+    const auto forwarded = Point(2, 2).intersection(zig);
+    REQUIRE(forwarded.has_value());
+    CHECK(*forwarded == Point(2, 2));
+}
