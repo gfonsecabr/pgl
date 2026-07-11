@@ -11,17 +11,23 @@
 #include "pgl.hpp"
 
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QMainWindow>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QRadioButton>
+#include <QShortcut>
 #include <QSplitter>
 #include <QTableWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QWidget>
@@ -60,28 +66,35 @@ enum class Kind {
 
 struct KindInfo {
     const char* name;
+    const char* cpp;  // pgl type alias used in copied/pasted C++ code
     int minPts;       // minimum number of control points
     bool variable;    // may hold more than minPts control points
 };
 
 static const KindInfo kKinds[] = {
-    {"Point", 1, false},
-    {"Segment", 2, false},
-    {"OrientedSegment", 2, false},
-    {"Line", 2, false},
-    {"OrientedLine", 2, false},
-    {"Ray", 2, false},
-    {"Halfplane", 2, false},
-    {"Rectangle", 2, false},
-    {"Triangle", 3, false},
-    {"Disk", 3, false},
-    {"Convex", 3, true},
-    {"MonotoneChain", 3, true},
-    {"Polyline", 2, true},
-    {"Polygon", 3, true},
+    {"Point", "EPoint", 1, false},
+    {"Segment", "ESegment", 2, false},
+    {"OrientedSegment", "EOrientedSegment", 2, false},
+    {"Line", "ELine", 2, false},
+    {"OrientedLine", "EOrientedLine", 2, false},
+    {"Ray", "ERay", 2, false},
+    {"Halfplane", "EHalfplane", 2, false},
+    {"Rectangle", "ERectangle", 2, false},
+    {"Triangle", "ETriangle", 3, false},
+    {"Disk", "EDisk", 3, false},
+    {"Convex", "EConvex", 3, true},
+    {"MonotoneChain", "EMonotoneChain", 3, true},
+    {"Polyline", "EPolyline", 2, true},
+    {"Polygon", "EPolygon", 3, true},
 };
 
 static const KindInfo& info(Kind k) { return kKinds[static_cast<int>(k)]; }
+
+// Display colors for shapes A and B (blue / orange), shared by the canvas
+// rendering and the active-shape box styling. QColor has no constexpr
+// constructor, so the value is kept constexpr and wrapped in a QColor on use.
+inline constexpr QRgb kShapeRgb[2] = {0x1754b1, 0xea6f12};
+inline QColor shapeColor(int which) { return QColor::fromRgb(kShapeRgb[which]); }
 
 // A drawable shape: a kind plus its integer (grid-snapped) control points.
 struct Item {
@@ -162,6 +175,58 @@ static std::optional<EShape> buildShape(const Item& it, QString* err) {
 }
 
 // ---------------------------------------------------------------------------
+// Clipboard round-trip: a shape as a line of pgl C++ you can paste into code,
+// e.g.  ETriangle a{{-4, -3}, {4, -3}, {0, 4}};  or  EPoint b{1, 2};
+// ---------------------------------------------------------------------------
+static QString serializeShape(const Item& it, char name) {
+    QString head = QString("%1 %2").arg(info(it.kind).cpp).arg(QChar(name));
+    if (it.pts.isEmpty()) return head + "{};";
+    if (it.kind == Kind::Point)
+        return head + QString("{%1, %2};").arg(it.pts[0].x()).arg(it.pts[0].y());
+    QStringList parts;
+    for (const QPoint& p : it.pts)
+        parts << QString("{%1, %2}").arg(p.x()).arg(p.y());
+    return head + "{" + parts.join(", ") + "};";
+}
+
+// Parses text produced by serializeShape (leading type name, then a flat list
+// of integer coordinates). Lenient about the variable name, whitespace, and
+// trailing semicolon; coordinates are rounded to the integer grid. Returns
+// false when the type is unknown or too few coordinates are present.
+static bool parseShape(const QString& text, Kind& kind, QVector<QPoint>& pts) {
+    static const QRegularExpression idRe("[A-Za-z_]\\w*");
+    QRegularExpressionMatch idm = idRe.match(text);
+    if (!idm.hasMatch()) return false;
+    const QString token = idm.captured(0);
+    int ki = -1;
+    for (int i = 0; i < static_cast<int>(Kind::Count); ++i)
+        if (token.compare(kKinds[i].cpp, Qt::CaseInsensitive) == 0 ||
+            token.compare(kKinds[i].name, Qt::CaseInsensitive) == 0) {
+            ki = i;
+            break;
+        }
+    if (ki < 0) return false;
+
+    const int brace = text.indexOf('{');
+    if (brace < 0) return false;
+    static const QRegularExpression numRe("[-+]?\\d+(?:\\.\\d+)?");
+    QVector<double> nums;
+    auto matches = numRe.globalMatch(text.mid(brace));
+    while (matches.hasNext()) nums << matches.next().captured(0).toDouble();
+    if (nums.size() < 2 || nums.size() % 2 != 0) return false;
+
+    QVector<QPoint> parsed;
+    for (int i = 0; i + 1 < nums.size(); i += 2)
+        parsed << QPoint(qRound(nums[i]), qRound(nums[i + 1]));
+    if (static_cast<int>(parsed.size()) < kKinds[ki].minPts) return false;
+    if (!kKinds[ki].variable) parsed = parsed.mid(0, kKinds[ki].minPts);
+
+    kind = static_cast<Kind>(ki);
+    pts = parsed;
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // Predicates evaluated for a pair, in both directions.
 // ---------------------------------------------------------------------------
 static const char* kPredicateNames[] = {
@@ -222,6 +287,12 @@ class Canvas : public QWidget {
         emit edited();
     }
     void setActive(int which) { active = which; }
+    // Replaces a shape's kind and control points wholesale (used by paste).
+    void setShape(int which, Kind k, const QVector<QPoint>& pts) {
+        items[which].kind = k;
+        items[which].pts = pts;
+        emit edited();
+    }
 
   signals:
     void edited();  // control points or kinds changed
@@ -473,7 +544,10 @@ void Canvas::drawEShape(QPainter& p, const EShape& s, const QColor& stroke,
     const bool isOLine = s.holdsAlternative<pgl::OrientedLine<EPoint>>();
     const bool isRay = s.holdsAlternative<pgl::Ray<EPoint>>();
     const bool isHP = s.holdsAlternative<pgl::Halfplane<EPoint>>();
-    const bool isPolyline = s.holdsAlternative<pgl::Polyline<EPoint>>();
+    // Polyline and the (weakly x-monotone) MonotoneChain are open chains: draw
+    // them as an unfilled polyline, without the closing edge a polygon adds.
+    const bool isOpen = s.holdsAlternative<pgl::Polyline<EPoint>>() ||
+                        s.holdsAlternative<pgl::MonotoneChain<EPoint>>();
 
     if (isSeg || isOSeg) {
         p.drawLine(W2S(w[0]), W2S(w[1]));
@@ -501,10 +575,10 @@ void Canvas::drawEShape(QPainter& p, const EShape& s, const QColor& stroke,
         return;
     }
 
-    // Bounded polygonal / polyline shapes.
+    // Bounded polygonal / open-chain shapes.
     QPolygonF poly;
     for (const QPointF& q : w) poly << W2S(q);
-    if (isPolyline) {
+    if (isOpen) {
         p.setBrush(Qt::NoBrush);
         p.drawPolyline(poly);
     } else {
@@ -548,7 +622,7 @@ void Canvas::paintEvent(QPaintEvent*) {
                    QColor(0xff, 0xd1, 0x66, 130), 6.0);
     }
 
-    const QColor colA(0x5c, 0xc8, 0xff), colB(0xff, 0x8a, 0x5c);
+    const QColor colA = shapeColor(0), colB = shapeColor(1);
     // Shape A.
     if (built[0])
         drawEShape(p, *built[0], colA, QColor(colA.red(), colA.green(), colA.blue(), 55), 2.2);
@@ -570,6 +644,23 @@ void Canvas::paintEvent(QPaintEvent*) {
                            .arg(info(items[active].kind).name));
 }
 
+// A group box that emits clicked() when pressed, so the shape's box can be
+// clicked to make that shape active. Clicks land here for the box background
+// and its passive labels; the combo and buttons handle their own clicks.
+class ClickBox : public QGroupBox {
+    Q_OBJECT
+  public:
+    using QGroupBox::QGroupBox;
+  signals:
+    void clicked();
+
+  protected:
+    void mousePressEvent(QMouseEvent* e) override {
+        emit clicked();
+        QGroupBox::mousePressEvent(e);
+    }
+};
+
 // ===========================================================================
 // Main window: kind selectors, live status, predicate table.
 // ===========================================================================
@@ -590,23 +681,39 @@ class MainWindow : public QMainWindow {
         degenA_ = new QLabel;
         degenB_ = new QLabel;
 
-        auto* boxA = new QGroupBox("Shape A");
-        auto* fa = new QFormLayout(boxA);
-        fa->addRow("Type", comboA_);
+        // A type combo flanked on the right by copy/paste-as-pgl-code buttons.
+        auto button = [](const QString& glyph, const QString& tip) {
+            auto* b = new QToolButton;
+            b->setText(glyph);
+            b->setToolTip(tip);
+            b->setAutoRaise(true);
+            b->setCursor(Qt::PointingHandCursor);
+            return b;
+        };
+        auto typeRow = [](QComboBox* combo, QToolButton* copyB, QToolButton* pasteB) {
+            auto* w = new QWidget;
+            auto* h = new QHBoxLayout(w);
+            h->setContentsMargins(0, 0, 0, 0);
+            h->setSpacing(4);
+            h->addWidget(combo, 1);
+            h->addWidget(copyB);
+            h->addWidget(pasteB);
+            return w;
+        };
+        auto* copyA = button("📋", "Copy shape A as pgl C++ code");
+        auto* pasteA = button("📥", "Set shape A from pasted pgl C++ code");
+        auto* copyB = button("📋", "Copy shape B as pgl C++ code");
+        auto* pasteB = button("📥", "Set shape B from pasted pgl C++ code");
+
+        boxA_ = new ClickBox("Shape A  (click to make active)");
+        auto* fa = new QFormLayout(boxA_);
+        fa->addRow("Type", typeRow(comboA_, copyA, pasteA));
         fa->addRow("Status", degenA_);
 
-        auto* boxB = new QGroupBox("Shape B");
-        auto* fb = new QFormLayout(boxB);
-        fb->addRow("Type", comboB_);
+        boxB_ = new ClickBox("Shape B  (click to make active)");
+        auto* fb = new QFormLayout(boxB_);
+        fb->addRow("Type", typeRow(comboB_, copyB, pasteB));
         fb->addRow("Status", degenB_);
-
-        auto* actBox = new QGroupBox("Active shape (edits + translate)");
-        auto* av = new QVBoxLayout(actBox);
-        radioA_ = new QRadioButton("A");
-        radioB_ = new QRadioButton("B");
-        radioA_->setChecked(true);
-        av->addWidget(radioA_);
-        av->addWidget(radioB_);
 
         table_ = new QTableWidget(kPredicateCount, 2);
         table_->setHorizontalHeaderLabels({"A ? B", "B ? A"});
@@ -632,27 +739,21 @@ class MainWindow : public QMainWindow {
         auto* iv = new QVBoxLayout(isectBox);
         iv->addWidget(isect_);
 
-        auto* help = new QLabel(
-            "Drag a handle to move a vertex.  Shift+drag to translate the active "
-            "shape.  Double-click to add a vertex (Convex / MonotoneChain / "
-            "Polyline / Polygon).  Right-click a handle to remove it.  "
-            "Drag empty space to pan, wheel to zoom.  Everything snaps to the grid.");
-        help->setWordWrap(true);
-        help->setStyleSheet("color:#9aa4b2;");
-
-        pv->addWidget(boxA);
-        pv->addWidget(boxB);
-        pv->addWidget(actBox);
+        pv->addWidget(boxA_);
+        pv->addWidget(boxB_);
         pv->addWidget(new QLabel("Predicates"));
         pv->addWidget(table_, 1);
         pv->addWidget(isectBox);
-        pv->addWidget(help);
         panel->setMaximumWidth(360);
 
+        // The canvas expands to fill horizontal growth; the panel is pinned to
+        // its width so no empty gap opens to the right of it.
+        canvas_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         auto* split = new QSplitter;
         split->addWidget(canvas_);
         split->addWidget(panel);
         split->setStretchFactor(0, 1);
+        split->setStretchFactor(1, 0);
         setCentralWidget(split);
         setWindowTitle("Pangolin — interactive predicate explorer");
         resize(1040, 900);
@@ -661,15 +762,40 @@ class MainWindow : public QMainWindow {
                 [this](int i) { canvas_->setKind(0, static_cast<Kind>(i)); });
         connect(comboB_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
                 [this](int i) { canvas_->setKind(1, static_cast<Kind>(i)); });
-        connect(radioA_, &QRadioButton::toggled, this, [this](bool on) {
-            if (on) { canvas_->setActive(0); canvas_->update(); }
-        });
-        connect(radioB_, &QRadioButton::toggled, this, [this](bool on) {
-            if (on) { canvas_->setActive(1); canvas_->update(); }
-        });
+        connect(boxA_, &ClickBox::clicked, this, [this] { setActive(0); });
+        connect(boxB_, &ClickBox::clicked, this, [this] { setActive(1); });
         connect(canvas_, &Canvas::edited, this, &MainWindow::recompute);
 
+        connect(copyA, &QToolButton::clicked, this, [this] { copyShape(0); });
+        connect(copyB, &QToolButton::clicked, this, [this] { copyShape(1); });
+        connect(pasteA, &QToolButton::clicked, this, [this] { pasteShape(0, comboA_); });
+        connect(pasteB, &QToolButton::clicked, this, [this] { pasteShape(1, comboB_); });
+
+        // Keyboard shortcuts: a/b make shape A/B active; Ctrl+a / Ctrl+b cycle
+        // that shape to the next type; Ctrl+c / Ctrl+v copy / paste the active
+        // shape. Routed through the shared handlers so the panel stays in sync.
+        auto shortcut = [this](const QKeySequence& keys, auto fn) {
+            connect(new QShortcut(keys, this), &QShortcut::activated, this, fn);
+        };
+        shortcut(QKeySequence(Qt::Key_A), [this] { setActive(0); });
+        shortcut(QKeySequence(Qt::Key_B), [this] { setActive(1); });
+        shortcut(QKeySequence(QStringLiteral("Ctrl+A")), [this] { cycleKind(comboA_); });
+        shortcut(QKeySequence(QStringLiteral("Ctrl+B")), [this] { cycleKind(comboB_); });
+        shortcut(QKeySequence::Copy, [this] { copyShape(canvas_->active); });
+        shortcut(QKeySequence::Paste, [this] {
+            pasteShape(canvas_->active, canvas_->active == 0 ? comboA_ : comboB_);
+        });
+
+        setActive(0);
         recompute();
+    }
+
+    // Makes shape `which` active and restyles the boxes to show it.
+    void setActive(int which) {
+        canvas_->setActive(which);
+        boxA_->setStyleSheet(boxStyle(which == 0, shapeColor(0)));
+        boxB_->setStyleSheet(boxStyle(which == 1, shapeColor(1)));
+        canvas_->update();
     }
 
   private slots:
@@ -716,6 +842,31 @@ class MainWindow : public QMainWindow {
             c->addItem(kKinds[i].name);
         return c;
     }
+    static void cycleKind(QComboBox* c) {
+        c->setCurrentIndex((c->currentIndex() + 1) % c->count());
+    }
+    void copyShape(int which) {
+        QGuiApplication::clipboard()->setText(
+            serializeShape(canvas_->items[which], which == 0 ? 'a' : 'b'));
+    }
+    void pasteShape(int which, QComboBox* combo) {
+        Kind k;
+        QVector<QPoint> pts;
+        if (!parseShape(QGuiApplication::clipboard()->text(), k, pts)) return;
+        // Sync the combo without its handler resetting the pasted points.
+        QSignalBlocker block(combo);
+        combo->setCurrentIndex(static_cast<int>(k));
+        canvas_->setShape(which, k, pts);
+    }
+    static QString boxStyle(bool active, const QColor& accent) {
+        const QString border = active ? accent.name() : QStringLiteral("#3a404b");
+        const QString title = active ? accent.name() : QStringLiteral("#9aa4b2");
+        return QString("QGroupBox{border:2px solid %1;border-radius:6px;"
+                       "margin-top:9px;padding-top:4px;}"
+                       "QGroupBox::title{subcontrol-origin:margin;left:9px;"
+                       "padding:0 4px;color:%2;}")
+            .arg(border, title);
+    }
     static void fillCell(QTableWidgetItem* it, bool v) {
         it->setText(v ? "✅" : "❌");
         it->setForeground(QColor(0xd8, 0xde, 0xe6));
@@ -740,12 +891,13 @@ class MainWindow : public QMainWindow {
     Canvas* canvas_;
     QComboBox *comboA_, *comboB_;
     QLabel *degenA_, *degenB_, *isect_;
-    QRadioButton *radioA_, *radioB_;
+    ClickBox *boxA_, *boxB_;
     QTableWidget* table_;
 };
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/logo.png"));
     MainWindow w;
     w.show();
     return app.exec();
