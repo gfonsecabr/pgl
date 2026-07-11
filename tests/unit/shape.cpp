@@ -466,6 +466,10 @@ TEST_CASE("Concrete shapes accept a Shape argument for every distance method, sy
     CHECK(convex.distanceL1(farPoint) == farPoint.distanceL1(convex));
     CHECK(polygon.distanceL1(farPoint) == farPoint.distanceL1(polygon));
 
+    const pgl::Polyline<Point> zigzag({0, 0, 2, 4, 4, 0});
+    CHECK(zigzag.distanceL1(farPoint) == farPoint.distanceL1(zigzag));
+    CHECK(zigzag.distanceLInf(farPoint) == farPoint.distanceLInf(zigzag));
+
     // Disk-Point works both ways; Disk against anything else still throws
     // (not yet implemented), whether reached via the Shape wrapper or via the
     // concrete Disk's own new Shape-argument overload.
@@ -662,4 +666,85 @@ TEST_CASE("Shape dispatches predicates and measures through a MonotoneChain") {
     CHECK(moved[0] == Point(1, 1));
     CHECK(moved.rotated90(2).holdsAlternative<Chain>());
     CHECK(moved.scaledUpX(2).holdsAlternative<Chain>());
+}
+
+TEST_CASE("Shape wraps a Polyline") {
+    using Point = pgl::Point<int>;
+    using Polyline = pgl::Polyline<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // A self-intersecting bow-tie: the traversal order is preserved, unlike a
+    // MonotoneChain, which would sort these vertices.
+    const Polyline bowtie({0, 0, 4, 4, 4, 0, 0, 4});
+    const Shape shape = bowtie;
+    REQUIRE(shape.holdsAlternative<Polyline>());
+    CHECK(*shape.getIf<Polyline>() == bowtie);
+    CHECK(shape.size() == 4);
+    CHECK(shape[1] == Point(4, 4));
+    CHECK(shape.get(-1) == Point(0, 4));
+    CHECK(shape.index(Point(4, 0)) == 2);
+    CHECK_FALSE(shape.isDegenerate());
+    CHECK(shape.bbox() == pgl::Rectangle<Point>({0, 0}, {4, 4}));
+
+    std::ostringstream stream;
+    stream << shape;
+    CHECK(stream.str() == "Polyline[(0,0),(4,4),(4,0),(0,4)]");
+
+    std::unordered_set<Shape> shapes;
+    shapes.insert(shape);
+    shapes.insert(Shape(bowtie));
+    // The reversal-canonical twin compares and hashes equal.
+    shapes.insert(Shape(Polyline({0, 4, 4, 0, 4, 4, 0, 0})));
+    CHECK(shapes.size() == 1);
+}
+
+TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
+    using Point = pgl::Point<int>;
+    using Polyline = pgl::Polyline<Point>;
+    using Segment = pgl::Segment<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Polyline zig({0, 0, 2, 4, 4, 0, 4, 4, 6, 0});
+    const Shape shape = zig;
+    const Shape crossing = Segment({1, 0}, {1, 4});
+    const Shape miss = Segment({0, 5}, {1, 6});
+
+    CHECK(shape.intersects(crossing));
+    CHECK(crossing.intersects(shape));
+    CHECK_FALSE(shape.intersects(miss));
+    CHECK(shape.contains(Shape(Point(1, 2))));
+    CHECK(shape.interiorsIntersect(crossing));
+    CHECK(shape.crosses(crossing));
+    CHECK(crossing.crosses(shape));
+    CHECK(shape.separates(crossing));
+
+    // The concrete polyline accepts the wrapper directly on every predicate.
+    CHECK(zig.intersects(crossing));
+    CHECK(zig.contains(Shape(Point(1, 2))));
+    CHECK_FALSE(zig.boundaryContains(crossing));
+    CHECK_FALSE(zig.interiorContains(miss));
+    CHECK(zig.interiorsIntersect(crossing));
+    CHECK(zig.separates(crossing));
+    CHECK(zig.crosses(crossing));
+
+    // The nearest pair is the peak (2,4) against the segment's side.
+    CHECK(shape.squaredDistance<double>(miss) == doctest::Approx(4.5));
+    CHECK(shape.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
+    CHECK(zig.distanceL1<pgl::Rational<int>>(Shape(Point(1, 3))) == pgl::Rational<int>(1, 2));
+    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<double>(crossing), std::logic_error);
+
+    // A single-point crossing re-wraps into a Point-valued Shape. (The right
+    // operand stays concrete, as in the MonotoneChain case above.)
+    const Shape up = Polyline({0, 0, 4, 4});
+    const Shape cross = up.intersection(Polyline({0, 4, 4, 0}));
+    REQUIRE(cross.holdsAlternative<Point>());
+    CHECK(Point(cross) == Point(2, 2));
+
+    // Transformations preserve the alternative.
+    Shape moved = shape;
+    moved += Point(1, 1);
+    REQUIRE(moved.holdsAlternative<Polyline>());
+    CHECK(moved[0] == Point(1, 1));
+    CHECK(moved.rotated90(2).holdsAlternative<Polyline>());
+    CHECK(moved.scaledUpX(2).holdsAlternative<Polyline>());
 }

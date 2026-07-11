@@ -3511,6 +3511,16 @@ constexpr bool Polyline<PointType, LabelType>::separates(const OtherChain& other
 }
 
 template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->separates(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherPolyline& other) const {
     return asSegment().separates(other);
