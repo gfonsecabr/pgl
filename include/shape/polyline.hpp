@@ -581,6 +581,10 @@ struct Polyline {
         return true;
     }
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool contains(const Shape<OtherPoint>& other) const;
+
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
@@ -650,6 +654,10 @@ struct Polyline {
     [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
 
     /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
@@ -730,6 +738,10 @@ struct Polyline {
     [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
         return true;
     }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
@@ -813,6 +825,10 @@ struct Polyline {
     }
 
     /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polyline>)
     [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
@@ -893,6 +909,10 @@ struct Polyline {
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
 
     /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
     template<typename OtherShape>
@@ -985,6 +1005,10 @@ struct Polyline {
         return false;
     }
 
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Shape<OtherPoint>& other) const;
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint&) const {
@@ -1031,11 +1055,136 @@ struct Polyline {
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template<PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polyline>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherPoint& other) const;
+
+    /**
+     * @brief Returns the intersection with a one-dimensional or convex shape
+     * (A ∩ B), a sequence of points and segments sorted by lexicographic order.
+     *
+     * Folds the shape over the polyline edges, delegating each edge to the
+     * segment-vs-shape intersection, then coalesces the pieces like
+     * @ref intersection(const OtherPolyline&) const.
+     *
+     * Complexity: O(n) segment intersections for n vertices, plus coalescing
+     * the resulting pieces (quadratic in their count).
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherSegment& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherOrientedSegment& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherLine& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherOrientedLine& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRay& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherHalfplane& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRectangle& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherTriangle& other) const;
+    /** @copydoc intersection(const OtherSegment&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the intersection with a monotone chain (A ∩ B), a
+     * sequence of points and segments sorted by lexicographic order.
+     *
+     * All-pairs edge test, preceded by a bounding-box cull; the pieces are
+     * coalesced like @ref intersection(const OtherPolyline&) const.
+     *
+     * Complexity: O(n m) for a polyline with n vertices and a chain with m
+     * vertices, plus coalescing the resulting pieces.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherChain& other) const;
+
+    /**
+     * @brief Returns the intersection of the two polylines (A ∩ B), a sequence
+     * of points and segments sorted by lexicographic order.
+     *
+     * Two polylines can overlap along collinear sub-segments, so the result is
+     * a vector of point-or-segment variants. Pieces are maximal: collinear
+     * touching overlaps are coalesced into single segments — even when they
+     * come from non-consecutive edges of a self-intersecting polyline — and
+     * points covered by a reported segment or repeated by several edge pairs
+     * are dropped. Computed by an all-pairs edge test with a bounding-box cull.
+     *
+     * Complexity: O(n m) for polylines with n and m vertices, plus coalescing
+     * the resulting pieces (quadratic in their count).
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @tparam OtherPolyline Type of the other polyline.
+     * @param other Polyline to intersect with.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherPolyline& other) const;
+
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Polyline>)
+                  && requires(const OtherShape& o, const Polyline& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
     }
 
     /**
@@ -1176,6 +1325,15 @@ struct Polyline {
     }
 
     /**
+     * @brief Returns the distance to the given shape, using symmetry to
+     * re-dispatch through the wrapper's own `distanceL1`.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the Chebyshev (LInf) distance to the given shape.
      *
      * Zero when the shapes intersect, otherwise the minimum over the polyline
@@ -1233,6 +1391,15 @@ struct Polyline {
                          o.template distanceLInf<ResultNumber>(self);
                      })
     [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the distance to the given shape, using symmetry to
+     * re-dispatch through the wrapper's own `distanceLInf`.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
@@ -1479,6 +1646,32 @@ struct Polyline {
     /** @copydoc edgeMinSquaredDistance */
     template <class ResultNumber, class OtherShape>
     constexpr ResultNumber edgeMinDistanceLInf(const OtherShape& other) const;
+
+    /**
+     * @brief Folds a shape's segment intersection over the polyline edges and
+     * coalesces the pieces (shared by the single-piece `intersection` overloads).
+     */
+    template <class ResultNumber, class OtherShape>
+    constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                       Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    edgeFoldIntersection(const OtherShape& other) const;
+
+    /**
+     * @brief Coalesces raw intersection pieces: collinear touching segments
+     * merge, and points covered by a segment or by an equal point are dropped;
+     * the survivors are sorted by lexicographic minimum (shared by every
+     * piecewise `intersection`).
+     *
+     * Unlike MonotoneChain::coalescePieces, the pieces of a self-intersecting
+     * polyline need not lie on one monotone arc, so a piece's absorber may sit
+     * anywhere in the list, not just next to it in sorted order; every piece is
+     * therefore tested against every kept segment (quadratic in the piece count).
+     */
+    template <class ResultNumber>
+    static constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                              Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+    coalescePieces(std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                            Segment<Point<ResultNumber, typename PointType::LabelType>>>> pieces);
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {

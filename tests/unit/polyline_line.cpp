@@ -135,3 +135,39 @@ TEST_CASE("Polyline and OrientedSegment delegate to the unoriented segment") {
     CHECK(zig.distanceL1(away) == 2);
     CHECK(zig.distanceLInf(away) == 2);
 }
+
+TEST_CASE("Polyline and Line intersection pieces") {
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a line crossing both edges") {
+        const auto pieces = zig.intersection(Line({0, 1}, {1, 1}));  // y = 1
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+        REQUIRE(std::holds_alternative<Point>(pieces[1]));
+        CHECK(std::get<Point>(pieces[1]) == Point(3, 1));
+    }
+
+    SUBCASE("a line along an edge overlaps in a segment") {
+        const auto pieces = zig.intersection(Line({0, 0}, {1, 1}));  // y = x
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
+    }
+
+    SUBCASE("a vertical line through the closed loop") {
+        const auto pieces = loop.intersection(Line({1, 0}, {1, 1}));  // x = 1
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 0));
+        REQUIRE(std::holds_alternative<Point>(pieces[1]));
+        CHECK(std::get<Point>(pieces[1]) == Point(1, 2));
+    }
+
+    SUBCASE("oriented lines delegate to the unoriented overload") {
+        const auto pieces = zig.intersection(OrientedLine({4, 1}, {0, 1}));
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+    }
+}

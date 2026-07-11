@@ -157,3 +157,64 @@ TEST_CASE("Polyline distances to Segment") {
     CHECK(zig.distanceLInf(Segment(Point(6, 0), Point(7, 0))) == 2);
     CHECK(zig.distanceL1(Segment(Point(0, 3), Point(4, 3))) == 1);
 }
+
+TEST_CASE("Polyline and Segment intersection pieces") {
+    SUBCASE("a segment crossing both edges") {
+        const auto pieces = zig.intersection(Segment(Point(0, 1), Point(4, 1)));
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+        REQUIRE(std::holds_alternative<Point>(pieces[1]));
+        CHECK(std::get<Point>(pieces[1]) == Point(3, 1));
+    }
+
+    SUBCASE("collinear overlap yields a single segment") {
+        const auto pieces = zig.intersection(Segment(Point(1, 1), Point(2, 2)));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(2, 2)));
+    }
+
+    SUBCASE("a touch at the apex is reported once") {
+        const auto pieces = zig.intersection(Segment(Point(2, 2), Point(2, 5)));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(2, 2));
+    }
+
+    SUBCASE("overlaps with non-consecutive collinear edges merge") {
+        // Edges (0,0)-(2,0) and (1,0)-(4,0) jointly cover the segment; the
+        // vertical edge's touch at (1,0) is absorbed by the merged overlap.
+        const PLine overlapping({0, 0, 2, 0, 1, 3, 1, 0, 4, 0});
+        const auto pieces = overlapping.intersection(Segment(Point(0, 0), Point(4, 0)));
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(4, 0)));
+    }
+
+    SUBCASE("a coverage gap yields two segments") {
+        // Edges (0,0)-(1,0) and (2,0)-(4,0) leave the gap (1,0)-(2,0) open.
+        const PLine gapped({0, 0, 1, 0, 1, 3, 2, 0, 4, 0});
+        const auto pieces = gapped.intersection(Segment(Point(0, 0), Point(4, 0)));
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(1, 0)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(2, 0), Point(4, 0)));
+    }
+
+    SUBCASE("the segment forwards to the polyline's overload") {
+        const auto pieces = Segment(Point(0, 1), Point(4, 1)).intersection(zig);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+    }
+
+    SUBCASE("oriented segments delegate to the unoriented overload") {
+        const auto pieces =
+            zig.intersection(pgl::OrientedSegment<Point>(Point(4, 1), Point(0, 1)));
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Point>(pieces[0]));
+        CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
+    }
+}
