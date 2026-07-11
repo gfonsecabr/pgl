@@ -2060,6 +2060,16 @@ constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolyline& oth
     return true;
 }
 
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->contains(value);
+        },
+        other.variant());
+}
+
 // A point and a segment are convex point sets, so they contain the polyline
 // iff they contain all of its vertices (an empty polyline is trivially
 // contained).

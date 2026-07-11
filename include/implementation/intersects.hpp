@@ -1688,6 +1688,16 @@ constexpr bool Polyline<PointType, LabelType>::intersects(const OtherPolyline& o
 }
 
 template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolyline& other) const {
     if (other.empty()) {

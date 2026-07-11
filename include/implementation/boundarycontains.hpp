@@ -1129,6 +1129,16 @@ constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherPoint
     return point == points_.front() + translation_ || point == points_.back() + translation_;
 }
 
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->boundaryContains(value);
+        },
+        other.variant());
+}
+
 template <class Number, class Label>
 template<PolylineConcept OtherPolyline>
 constexpr bool Point<Number, Label>::boundaryContains(const OtherPolyline&) const {

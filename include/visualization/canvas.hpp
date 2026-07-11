@@ -475,6 +475,12 @@ class Canvas {
         return push(MonotoneChain<Point<double>>(chain), chain);
     }
 
+    /** @brief Appends a polyline (an open, possibly self-intersecting chain) using the current captured style. */
+    template <class PointType, class Label>
+    Canvas& operator<<(const Polyline<PointType, Label>& polyline) {
+        return push(Polyline<Point<double>>(polyline), polyline);
+    }
+
     /** @brief Appends nothing: the empty shape has no geometry to draw. */
     template <class PointType>
     Canvas& operator<<(const EmptyShape<PointType>&) {
@@ -1256,7 +1262,7 @@ class Canvas {
                     points.push_back(mapPDFPoint(vertex, viewport));
                 }
                 addPath(pdf, page, points, true, style);
-            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return;
                 if (shape.size() == 1) {
                     const auto [x, y] = mapPDFPoint(shape[0], viewport);
@@ -1271,7 +1277,7 @@ class Canvas {
                             style.fill,
                             style.fillAlpha,
                             style.strokeAlpha) < 0) {
-                        throwPDFError(pdf, "draw PDF monotone chain point");
+                        throwPDFError(pdf, "draw PDF chain point");
                     }
                 } else {
                     std::vector<std::pair<float, float>> points;
@@ -1460,7 +1466,7 @@ class Canvas {
                 out << "\""
                     << styleAttributes(element.style) << ">"
                     << titleTag << "</polygon>";
-            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return {};
                 if (shape.size() == 1) {
                     const auto vertex = shape[0];
@@ -1754,7 +1760,7 @@ class Canvas {
                     points.push_back(mapIPEPoint(vertex, viewport));
                 }
                 appendIPEPath(out, points, true, attrs);
-            } else if constexpr (std::same_as<S, MonotoneChain<PT>>) {
+            } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return;
                 if (shape.size() == 1) {
                     const auto [cx, cy] = mapIPEPoint(shape[0], viewport);

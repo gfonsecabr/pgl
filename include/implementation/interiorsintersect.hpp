@@ -1977,6 +1977,16 @@ constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherPol
     return false;
 }
 
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
 // The polygon's interior is open and two-dimensional, so the chain helper is
 // exact for a polyline too (see the polyline section note above).
 template <class PointType, class LabelType>

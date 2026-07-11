@@ -956,6 +956,16 @@ constexpr bool Polyline<PointType, LabelType>::crosses(const OtherPolyline& othe
 }
 
 template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->crosses(value);
+        },
+        other.variant());
+}
+
+template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Polygon<PointType, LabelType>::crosses(const OtherPolyline& other) const {
     return separates(other) && other.separates(*this);

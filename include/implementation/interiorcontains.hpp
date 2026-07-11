@@ -1488,6 +1488,16 @@ constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherPolyl
            !other.contains((*this)[size() - 1]);
 }
 
+template <class PointType, class LabelType>
+template<PointConcept OtherPoint>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorContains(value);
+        },
+        other.variant());
+}
+
 template <class Number, class Label>
 template<PolylineConcept OtherPolyline>
 constexpr bool Point<Number, Label>::interiorContains(const OtherPolyline& other) const {

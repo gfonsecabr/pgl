@@ -69,6 +69,9 @@ template <class PointType>
 struct is_shape_alternative<PointType, MonotoneChain<PointType>> : std::true_type {};
 
 template <class PointType>
+struct is_shape_alternative<PointType, Polyline<PointType>> : std::true_type {};
+
+template <class PointType>
 struct is_shape_alternative<PointType, Polygon<PointType>> : std::true_type {};
 
 template <class PointType, class T>
@@ -168,6 +171,7 @@ struct Shape {
         Disk<PointType>,
         Convex<PointType>,
         MonotoneChain<PointType>,
+        Polyline<PointType>,
         Polygon<PointType>>;
 
     /**
@@ -657,8 +661,9 @@ struct Shape {
      * @throws std::logic_error when `squaredDistance` is undefined for the pair
      *   selected at runtime — anything involving an `EmptyShape`.
      *
-     * @warning `Disk::squaredDistance` (and the `Disk` overloads on `Convex` and
-     *   `Polygon`) always compute in `double` rather than being templated on
+     * @warning `Disk::squaredDistance` (and the `Disk` overloads on `Convex`,
+     *   `MonotoneChain`, `Polyline`, and `Polygon`) always compute in `double`
+     *   rather than being templated on
      *   @p ResultNumber; for a pair involving a `Disk`, the `double` result is
      *   `static_cast` to @p ResultNumber rather than computed exactly.
      *
@@ -700,9 +705,10 @@ struct Shape {
      * @return The squared Hausdorff distance as @p ResultNumber.
      * @throws std::logic_error when `squaredHausdorffDistance` is undefined for
      *   the pair selected at runtime. `Line`, `OrientedLine`, `Ray`, `Halfplane`,
-     *   `Disk`, and `Polygon` never define it (unbounded shapes have a generally
-     *   infinite Hausdorff distance; `Disk` and `Polygon` simply have no overload
-     *   yet), so any pair involving one of those always throws.
+     *   `Disk`, `MonotoneChain`, `Polyline`, and `Polygon` never define it
+     *   (unbounded shapes have a generally infinite Hausdorff distance; the
+     *   others simply have no overload yet), so any pair involving one of those
+     *   always throws.
      *
      * @warning With an integer @p ResultNumber the exact squared distance is
      *   generally a fraction, so the internal division truncates and the result
@@ -814,8 +820,8 @@ struct Shape {
      * @throws std::logic_error when `hausdorffDistanceL1` is undefined for the
      *   pair selected at runtime. Defined only for `Point`, `Segment`,
      *   `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`; any pair
-     *   involving `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk`, or
-     *   `Polygon` always throws.
+     *   involving `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk`,
+     *   `MonotoneChain`, `Polyline`, or `Polygon` always throws.
      *
      * @warning With an integer @p ResultNumber the exact distance is generally a
      *   fraction, so the internal division truncates. Request a floating-point
@@ -1157,8 +1163,9 @@ struct Shape {
     // The requires probes are SFINAE-safe and self-maintaining: a pair gains
     // support here as soon as either side implements squaredDistance for the
     // other (directly or via forwarding). The second probe covers Disk, whose
-    // squaredDistance (and the Disk overloads on Convex and Polygon) always
-    // returns double rather than being templated on ResultNumber.
+    // squaredDistance (and the Disk overloads on Convex, MonotoneChain,
+    // Polyline, and Polygon) always returns double rather than being templated
+    // on ResultNumber.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber squaredDistanceOf(const Left& left, const Right& right) {
         if constexpr (requires { left.template squaredDistance<ResultNumber>(right); }) {
@@ -1173,7 +1180,8 @@ struct Shape {
     // Measure the squared Hausdorff distance between two unwrapped alternatives.
     // Defined only for Point, Segment, OrientedSegment, Rectangle, Triangle, and
     // Convex, so any other pair (including anything against Line, OrientedLine,
-    // Ray, Halfplane, Disk, Polygon, or EmptyShape) takes the throw. Unlike
+    // Ray, Halfplane, Disk, MonotoneChain, Polyline, Polygon, or EmptyShape)
+    // takes the throw. Unlike
     // squaredDistance there is no untemplated double-returning overload to probe
     // for: Disk has no squaredHausdorffDistance at all.
     template <class ResultNumber, class Left, class Right>
