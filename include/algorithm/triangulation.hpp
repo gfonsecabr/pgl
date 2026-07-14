@@ -94,14 +94,24 @@ concept TriangulationRegionQuery =
     PointConcept<T> || TriangleConcept<T> || RectangleConcept<T> || ConvexConcept<T> ||
     DiskConcept<T> || HalfplaneConcept<T>;
 
-// Any shape the triangulation's intersection queries accept: a directed-traversal
-// shape (traced in order by the directed walk) or a region-query shape (grown by
-// the flood fill, unspecified order). The derived wrappers — trianglesIntersecting,
-// the interior-intersecting variants, the edge variants — are all built on
-// visitTrianglesIntersecting plus a per-shape predicate, so they take this whole
-// set; only the two visitTrianglesIntersecting overloads carry distinct walks.
+// A polygonal chain query: a polyline or a monotone chain. It is neither straight
+// (so no single directed walk covers it) nor convex (its intersection with the
+// hull may fall apart into several arcs, so no single flood fill covers it
+// either), and it gets its own traversal: the directed segment walk run over each
+// edge in turn, in chain order.
 template <class T>
-concept TriangulationQuery = DirectedTraversal<T> || TriangulationRegionQuery<T>;
+concept ChainTraversal = PolylineConcept<T> || MonotoneChainConcept<T>;
+
+// Any shape the triangulation's intersection queries accept: a directed-traversal
+// shape (traced in order by the directed walk), a chain (traced edge by edge, in
+// order), or a region-query shape (grown by the flood fill, unspecified order).
+// The derived wrappers — trianglesIntersecting, the interior-intersecting
+// variants, the edge variants — are all built on visitTrianglesIntersecting plus
+// a per-shape predicate, so they take this whole set; only the three
+// visitTrianglesIntersecting overloads carry distinct walks.
+template <class T>
+concept TriangulationQuery =
+    DirectedTraversal<T> || ChainTraversal<T> || TriangulationRegionQuery<T>;
 }  // namespace detail
 
 /**
@@ -976,7 +986,16 @@ struct Triangulation {
                 if (orientationSign(vertices_[e1], vertices_[e2], b) != 0) {
                     return NO_TRI;
                 }
-                return advanceFromVertex(progress(e1) > progress(e2) ? e1 : e2, start);
+                const VertexId fwd = progress(e1) > progress(e2) ? e1 : e2;
+                if constexpr (!unboundedFront) {
+                    // The target lies strictly inside this edge: s stops before the
+                    // forward endpoint, so its fan must not be visited. The two
+                    // triangles sharing the edge are all s meets, and both are out.
+                    if (progress(fwd) > pmax) {
+                        return NO_TRI;
+                    }
+                }
+                return advanceFromVertex(fwd, start);
             }
             emit(start);  // p strictly inside
             return start;
@@ -1124,18 +1143,19 @@ struct Triangulation {
     }
 
     /**
-     * @brief Returns the triangles met by @p s (a segment or (oriented) line, in
-     *        order, or a region query shape, in an unspecified order).
+     * @brief Returns the triangles met by @p s (a segment, (oriented) line, ray,
+     *        or chain, in order, or a region query shape, in an unspecified
+     *        order).
      *
      * A materialized form of @ref visitTrianglesIntersecting: the in-domain
      * triangles `t` with `s.intersects(t)`, in the order they are encountered
      * along `s`. The order is preserved (not sorted), since it is the point of
      * the traversal.
      *
-     * @param s A directed query — segment, oriented segment, line, or oriented
-     *          line — (traced in order) or a region query shape (reported in an
-     *          unspecified order); may use a different
-     *          point type.
+     * @param s A directed query — segment, oriented segment, line, oriented
+     *          line, or ray — or a chain (polyline, monotone chain), both traced
+     *          in order; or a region query shape (reported in an unspecified
+     *          order). It may use a different point type.
      */
     template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<TriangleType> trianglesIntersecting(const OS& s) const {
@@ -1151,7 +1171,8 @@ struct Triangulation {
      * with `t.interiorsIntersect(s)` — dropping those merely touched along an
      * edge or at a vertex. The traversal still passes through every met triangle
      * for navigation; the filtered ones simply are not reported. @p s may be a
-     * segment (reported in order) or a region query shape (unspecified order).
+     * directed query or a chain (reported in order) or a region query shape
+     * (unspecified order).
      *
      * @p f follows the visitor convention (return `true` to stop early, `void`
      * to visit all); returns whether the walk stopped early. @p s may use a
@@ -1172,13 +1193,13 @@ struct Triangulation {
      *
      * A materialized form of @ref visitTrianglesInteriorIntersecting: the
      * in-domain triangles `t` with `t.interiorsIntersect(s)` — in the order they
-     * are encountered along a segment `s`, or an unspecified order for a region
-     * query shape.
+     * are encountered along a segment or chain `s`, or an unspecified order for a
+     * region query shape.
      *
-     * @param s A directed query — segment, oriented segment, line, or oriented
-     *          line — (traced in order) or a region query shape (reported in an
-     *          unspecified order); may use a different
-     *          point type.
+     * @param s A directed query — segment, oriented segment, line, oriented
+     *          line, or ray — or a chain (polyline, monotone chain), both traced
+     *          in order; or a region query shape (reported in an unspecified
+     *          order). It may use a different point type.
      */
     template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<TriangleType> trianglesInteriorIntersecting(const OS& s) const {
@@ -1191,8 +1212,8 @@ struct Triangulation {
      * @brief Visits every triangulation edge met by @p s.
      *
      * Reports each in-domain edge `e` with `s.intersects(e)` exactly once, with
-     * its stored label (for a segment `s`, roughly in the order it meets them,
-     * ties broken arbitrarily; for a region query shape, in an unspecified
+     * its stored label (for a segment or chain `s`, roughly in the order it meets
+     * them, ties broken arbitrarily; for a region query shape, in an unspecified
      * order). Built on @ref visitTrianglesIntersecting: as each met triangle is
      * visited, its edges that @p s meets are reported (deduplicated across the
      * two triangles sharing an edge). Edges of ghost or out-of-domain triangles
@@ -1240,8 +1261,8 @@ struct Triangulation {
      * Like @ref visitEdgesIntersecting but reports only the edges `e` with
      * `s.interiorsIntersect(e)` — dropping those merely touched at a shared
      * endpoint (e.g. where a segment @p s passes through a mesh vertex, or an
-     * endpoint of @p s lands on an edge). @p s may be a segment or a region
-     * query shape.
+     * endpoint of @p s lands on an edge). @p s may be a directed query, a chain,
+     * or a region query shape.
      *
      * @p f follows the visitor convention (return `true` to stop early, `void`
      * to visit all); returns whether the walk stopped early. @p s may use a
@@ -1262,13 +1283,13 @@ struct Triangulation {
      *
      * A materialized form of @ref visitEdgesIntersecting: the in-domain edges
      * `e` with `s.intersects(e)`, each with its stored label — in the order they
-     * are encountered along a segment `s`, or an unspecified order for a region
-     * query shape.
+     * are encountered along a segment or chain `s`, or an unspecified order for a
+     * region query shape.
      *
-     * @param s A directed query — segment, oriented segment, line, or oriented
-     *          line — (traced in order) or a region query shape (reported in an
-     *          unspecified order); may use a different
-     *          point type.
+     * @param s A directed query — segment, oriented segment, line, oriented
+     *          line, or ray — or a chain (polyline, monotone chain), both traced
+     *          in order; or a region query shape (reported in an unspecified
+     *          order). It may use a different point type.
      */
     template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<SegmentType> edgesIntersecting(const OS& s) const {
@@ -1282,13 +1303,13 @@ struct Triangulation {
      *
      * A materialized form of @ref visitEdgesInteriorIntersecting: the in-domain
      * edges `e` with `s.interiorsIntersect(e)`, each with its stored label — in
-     * the order they are encountered along a segment `s`, or an unspecified order
-     * for a region query shape.
+     * the order they are encountered along a segment or chain `s`, or an
+     * unspecified order for a region query shape.
      *
-     * @param s A directed query — segment, oriented segment, line, or oriented
-     *          line — (traced in order) or a region query shape (reported in an
-     *          unspecified order); may use a different
-     *          point type.
+     * @param s A directed query — segment, oriented segment, line, oriented
+     *          line, or ray — or a chain (polyline, monotone chain), both traced
+     *          in order; or a region query shape (reported in an unspecified
+     *          order). It may use a different point type.
      */
     template <detail::TriangulationQuery OS>
     [[nodiscard]] std::vector<SegmentType> edgesInteriorIntersecting(const OS& s) const {
@@ -1335,6 +1356,61 @@ struct Triangulation {
     // interior-intersecting and edge variants are the shared wrappers above,
     // constrained on detail::TriangulationQuery, so they accept a region shape
     // here just as they accept a segment.
+
+    // ---- traversal along a chain (a polyline or a monotone chain) --------
+
+    /**
+     * @brief Visits every in-domain triangle that intersects the chain @p c, in
+     *        the order the chain first meets them.
+     *
+     * Generalizes @ref visitTrianglesIntersecting(const OS&, Fn) const from a
+     * single segment to a polygonal chain — a @ref Polyline or a
+     * @ref MonotoneChain. The chain is traced edge by edge with the directed
+     * segment walk, from vertex `c[0]` towards `c[c.size() - 1]`, and each
+     * triangle is reported the first time it is met: the set passed to @p f is
+     * exactly `{ t : t.intersects(c) }` over the in-domain triangles, so a
+     * triangle met again by a later edge (a chain that turns back into it, or
+     * self-intersects) is not reported twice. A chain that leaves the
+     * triangulated region and comes back is handled — unlike the region flood
+     * fill, the per-edge walks re-enter it — and a chain with a single vertex is
+     * the point query.
+     *
+     * The cost is that of the individual segment walks: proportional to the
+     * triangles met, plus one point location per edge.
+     *
+     * @p f follows the visitor convention: returning `true` stops the walk
+     * early, a `void` return visits every such triangle. Returns whether it
+     * stopped early. @p c may use a different point type.
+     */
+    template <detail::ChainTraversal C, class Fn>
+    bool visitTrianglesIntersecting(const C& c, Fn f) const {
+        if (firstGhost_ == 0) return false;  // no real triangles
+        if (c.size() < 2) {
+            return c.empty() ? false : visitTrianglesIntersecting(c[0], f);
+        }
+        // Triangles already reported, so an edge re-entering a triangle an
+        // earlier edge met does not report it again (the per-edge walks each
+        // deduplicate only within themselves).
+        std::unordered_set<TriangleType> seen;
+        bool stop = false;
+        for (const auto& e : c.orientedEdgesView()) {
+            visitTrianglesIntersecting(e, [&](const TriangleType& t) -> bool {
+                if (!seen.insert(t).second) {
+                    return false;  // already reported by an earlier edge
+                }
+                stop = detail::invokeVisitor(f, t);
+                return stop;
+            });
+            if (stop) {
+                break;
+            }
+        }
+        return stop;
+    }
+
+    // As for a region shape, the materialized form — trianglesIntersecting(c) —
+    // and the interior-intersecting and edge variants are the shared wrappers
+    // above, constrained on detail::TriangulationQuery.
 
     // ---- point location --------------------------------------------------
 

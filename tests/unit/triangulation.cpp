@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <numeric>
 #include <optional>
 #include <set>
 #include <string>
@@ -444,6 +445,47 @@ TEST_CASE("Segment traversal reports exactly the triangles and edges it meets") 
     }
 }
 
+TEST_CASE("A segment running along a mesh edge stops at its target") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 40; x += 10) {
+        for (int y = 0; y <= 40; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const auto all = tri.triangles();
+
+    const auto check = [&](const pgl::OrientedSegment<Point>& s) {
+        std::set<std::array<Point, 3>> got, ref;
+        for (const auto& t : tri.trianglesIntersecting(s)) {
+            got.insert({t[0], t[1], t[2]});
+        }
+        for (const auto& t : all) {
+            if (t.intersects(s)) ref.insert({t[0], t[1], t[2]});
+        }
+        CHECK(got == ref);
+    };
+
+    // Every mesh edge here spans several lattice points, so it can be walked
+    // along. A segment collinear with an edge but ending strictly inside it meets
+    // only the two triangles sharing that edge: the walk must not hop on to the
+    // far endpoint and visit its whole fan. Ending exactly at the far endpoint, it
+    // does meet that fan.
+    for (const auto& e : tri.edges()) {
+        const int dx = e[1].x() - e[0].x();
+        const int dy = e[1].y() - e[0].y();
+        const int g = std::gcd(dx, dy);
+        REQUIRE(g >= 4);
+        const Point step(dx / g, dy / g);
+        const Point from(e[0].x() + step.x(), e[0].y() + step.y());
+        const Point inside(e[0].x() + 2 * step.x(), e[0].y() + 2 * step.y());
+        check(pgl::OrientedSegment<Point>(from, inside));    // stops inside the edge
+        check(pgl::OrientedSegment<Point>(inside, from));    // and the other way
+        check(pgl::OrientedSegment<Point>(from, e[1]));      // stops at the far vertex
+    }
+}
+
 TEST_CASE("Line, oriented-line, and ray traversal is ordered along the query") {
     using Point = pgl::Point<int>;
     using OSeg = pgl::OrientedSegment<Point>;
@@ -711,6 +753,170 @@ TEST_CASE("Region traversal: interior-intersecting and edge variants match brute
     SUBCASE("line") { check(pgl::Line<Point>(P<Point>(-8, 5), P<Point>(88, 74))); }
     SUBCASE("ray") { check(pgl::Ray<Point>(P<Point>(38, 41), P<Point>(92, 70))); }
     SUBCASE("half-plane") { check(pgl::Halfplane<Point>(P<Point>(0, 33), P<Point>(80, 47))); }
+}
+
+TEST_CASE("Chain traversal reports exactly the triangles and edges a chain meets") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 80; x += 10) {
+        for (int y = 0; y <= 80; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const auto all = tri.triangles();
+    std::set<pgl::Segment<Point>> allEdges;
+    for (const auto& t : all) {
+        for (const auto& e : t.edges()) {
+            allEdges.insert(pgl::Segment<Point>(e[0], e[1]));
+        }
+    }
+
+    // A chain is traced edge by edge: the triangles must be exactly the
+    // brute-force intersecting set, each reported once, in the order the chain
+    // first meets them (the concatenated per-edge segment walks, duplicates
+    // dropped). The derived families must match their brute-force references too.
+    const auto check = [&](const auto& chain) {
+        const auto got = tri.trianglesIntersecting(chain);
+        std::set<std::array<Point, 3>> gotSet, refSet;
+        for (const auto& t : got) {
+            CHECK(t.intersects(chain));                        // no false positives
+            CHECK(gotSet.insert({t[0], t[1], t[2]}).second);   // no duplicates
+        }
+        for (const auto& t : all) {
+            if (t.intersects(chain)) refSet.insert({t[0], t[1], t[2]});
+        }
+        CHECK(gotSet == refSet);
+
+        std::vector<pgl::Triangle<Point>> ordered;
+        std::set<std::array<Point, 3>> once;
+        for (const auto& e : chain.orientedEdges()) {
+            for (const auto& t : tri.trianglesIntersecting(e)) {
+                if (once.insert({t[0], t[1], t[2]}).second) ordered.push_back(t);
+            }
+        }
+        CHECK(got == ordered);  // same triangles, in chain order
+
+        std::set<std::array<Point, 3>> ig, ir;
+        for (const auto& t : tri.trianglesInteriorIntersecting(chain)) {
+            CHECK(t.interiorsIntersect(chain));
+            ig.insert({t[0], t[1], t[2]});
+        }
+        for (const auto& t : all) {
+            if (t.interiorsIntersect(chain)) ir.insert({t[0], t[1], t[2]});
+        }
+        CHECK(ig == ir);
+
+        std::set<pgl::Segment<Point>> eg, er;
+        for (const auto& e : tri.edgesIntersecting(chain)) {
+            CHECK(chain.intersects(e));
+            eg.insert(e);
+        }
+        for (const auto& e : allEdges) {
+            if (chain.intersects(e)) er.insert(e);
+        }
+        CHECK(eg == er);
+
+        std::set<pgl::Segment<Point>> xg, xr;
+        for (const auto& e : tri.edgesInteriorIntersecting(chain)) {
+            CHECK(chain.interiorsIntersect(e));
+            xg.insert(e);
+        }
+        for (const auto& e : allEdges) {
+            if (chain.interiorsIntersect(e)) xr.insert(e);
+        }
+        CHECK(xg == xr);
+        return got;
+    };
+
+    SUBCASE("a polyline zigzagging inside the mesh") {
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(5, 7), P<Point>(35, 62),
+                                                         P<Point>(62, 13), P<Point>(74, 71)});
+        CHECK_FALSE(check(pl).empty());
+    }
+    SUBCASE("a polyline leaving the hull and coming back") {
+        // The middle vertex is well outside: the walk must exit and re-enter,
+        // which a single connected flood fill could not do.
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(10, 15), P<Point>(120, 40),
+                                                         P<Point>(20, 70)});
+        CHECK_FALSE(check(pl).empty());
+    }
+    SUBCASE("a polyline turning back into triangles it already met") {
+        // The last edge retraces the region of the first: every triangle stays
+        // reported exactly once.
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(12, 12), P<Point>(63, 47),
+                                                         P<Point>(66, 44), P<Point>(15, 9)});
+        CHECK_FALSE(check(pl).empty());
+    }
+    SUBCASE("a polyline running along mesh edges and through vertices") {
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(20, 20), P<Point>(50, 20),
+                                                         P<Point>(50, 60), P<Point>(30, 40)});
+        CHECK_FALSE(check(pl).empty());
+    }
+    SUBCASE("a polyline entirely outside the mesh") {
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(-40, 100), P<Point>(20, 120),
+                                                         P<Point>(90, 105)});
+        CHECK(check(pl).empty());
+    }
+    SUBCASE("a single-vertex polyline is the point query") {
+        const pgl::Polyline<Point> pl(std::vector<Point>{P<Point>(25, 35)});
+        CHECK(tri.trianglesIntersecting(pl) ==
+              tri.trianglesIntersecting(P<Point>(25, 35)));
+        CHECK_FALSE(tri.trianglesIntersecting(pl).empty());
+    }
+    SUBCASE("a monotone chain crossing the mesh") {
+        const pgl::MonotoneChain<Point> mc(std::vector<Point>{P<Point>(3, 9), P<Point>(27, 55),
+                                                              P<Point>(48, 18), P<Point>(76, 66)});
+        CHECK_FALSE(check(mc).empty());
+    }
+    SUBCASE("a monotone chain starting and ending outside the hull") {
+        const pgl::MonotoneChain<Point> mc(std::vector<Point>{
+            P<Point>(-30, 20), P<Point>(40, 45), P<Point>(115, 30)});
+        CHECK_FALSE(check(mc).empty());
+    }
+    SUBCASE("a monotone chain entirely outside the mesh") {
+        const pgl::MonotoneChain<Point> mc(
+            std::vector<Point>{P<Point>(-40, 100), P<Point>(20, 130), P<Point>(90, 105)});
+        CHECK(check(mc).empty());
+    }
+}
+
+TEST_CASE("Chain traversal supports early-exit and visiting") {
+    using Point = pgl::Point<int>;
+    std::vector<Point> pts;
+    for (int x = 0; x <= 60; x += 10) {
+        for (int y = 0; y <= 60; y += 10) {
+            pts.push_back(P<Point>(x, y));
+        }
+    }
+    pgl::Triangulation tri(pts);
+    const pgl::Polyline<Point> pl(
+        std::vector<Point>{P<Point>(5, 8), P<Point>(48, 25), P<Point>(22, 55)});
+
+    std::size_t visited = 0;
+    const bool stoppedAll =
+        tri.visitTrianglesIntersecting(pl, [&](const pgl::Triangle<Point>&) { ++visited; });
+    CHECK_FALSE(stoppedAll);
+    CHECK(visited == tri.trianglesIntersecting(pl).size());
+    CHECK(visited > 0);
+
+    // Stopping on the first triangle stops the whole chain, not just its edge.
+    std::size_t seen = 0;
+    const bool stopped = tri.visitTrianglesIntersecting(pl, [&](const pgl::Triangle<Point>&) {
+        ++seen;
+        return true;
+    });
+    CHECK(stopped);
+    CHECK(seen == 1);
+
+    // The edge variants stop early through the same chain walk.
+    std::size_t edges = 0;
+    const bool stoppedEdges = tri.visitEdgesIntersecting(pl, [&](const pgl::Segment<Point>&) {
+        ++edges;
+        return edges == 2;
+    });
+    CHECK(stoppedEdges);
+    CHECK(edges == 2);
 }
 
 TEST_CASE("Navigation: adjacency and the segment-to-edge bridge are consistent") {
