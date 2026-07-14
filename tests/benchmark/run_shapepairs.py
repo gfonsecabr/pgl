@@ -65,6 +65,10 @@ ALL_SHAPES = [
     "TriangleAsPolygon",
     "TriangleAsConvex",
     "ConvexAsPolygon",
+    # Same geometry as Polygon, held as its constrained Delaunay triangulation, so
+    # a predicate scanning the polygon can be compared against the same predicate
+    # walking its mesh. Building the mesh is setup; only the queries are timed.
+    "PolygonAsTriangulation",
 ]
 
 # A bare Point has no extent, so it only ever appears as the second operand
@@ -127,6 +131,8 @@ def _cpp_shape_type(shape: str) -> str:
         return "pgl::Polygon<pgl::Point<N>>"
     if shape == "TriangleAsConvex":
         return "pgl::Convex<pgl::Point<N>>"
+    if shape == "PolygonAsTriangulation":
+        return "pgl::Triangulation<pgl::Triangle<pgl::Point<N>>>"
     return f"pgl::{shape}<pgl::Point<N>>"
 
 
@@ -150,6 +156,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}TriangleAsConvex<N>({n});"
     if shape == "ConvexAsPolygon":
         return f"auto {var} = {prefix}ConvexAsPolygon<N>({n}, 1000);"
+    if shape == "PolygonAsTriangulation":
+        return f"auto {var} = {prefix}PolygonAsTriangulation<N>({n}, 32);"
     return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"
 
 

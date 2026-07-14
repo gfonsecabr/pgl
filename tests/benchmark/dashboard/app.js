@@ -58,6 +58,10 @@ const _AS_TYPE = {
   TriangleAsPolygon: { source: "Triangle", stored: "Polygon" },
   TriangleAsConvex:  { source: "Triangle", stored: "Convex" },
   ConvexAsPolygon:   { source: "Convex",   stored: "Polygon" },
+  // Not a re-storage of the same vertices but a different structure over the same
+  // region: the polygon's constrained Delaunay triangulation, built as setup so
+  // only the queries against the mesh are timed.
+  PolygonAsTriangulation: { source: "Polygon", stored: "Triangulation" },
 };
 
 // Shapes built from a sample of m points rather than a fixed number of defining

@@ -280,6 +280,30 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargeConvexAsPolygon(int n, 
     return w;
 }
 
+// Simple polygons, generated as Polygon, stored as the constrained Delaunay
+// triangulation of that polygon (via Polygon::triangulation()). Unlike the other
+// "as-other-type" generators this is not a re-storage of the same vertices but a
+// different data structure over the same region, so the cube can compare a
+// predicate answered by scanning the polygon against the same predicate answered
+// by walking its mesh. Building the mesh is setup: only the queries are timed.
+template <class Number>
+auto randomSmallPolygonAsTriangulation(int n, int m) {
+    const auto polys = randomSmallPolygons<Number>(n, m);
+    std::vector<decltype(polys.front().triangulation())> w;
+    w.reserve(polys.size());
+    for (const auto& poly : polys) w.push_back(poly.triangulation());
+    return w;
+}
+
+template <class Number>
+auto randomLargePolygonAsTriangulation(int n, int m) {
+    const auto polys = randomLargePolygons<Number>(n, m);
+    std::vector<decltype(polys.front().triangulation())> w;
+    w.reserve(polys.size());
+    for (const auto& poly : polys) w.push_back(poly.triangulation());
+    return w;
+}
+
 // Weakly x-monotone chains: m random points fed to MonotoneChain, whose
 // constructor sorts them lexicographically and drops duplicates. The result has
 // at most m vertices (fewer when x/y collisions coincide).
