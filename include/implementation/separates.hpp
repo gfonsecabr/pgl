@@ -27,6 +27,223 @@
 
 namespace pgl {
 
+namespace detail {
+
+/**
+ * @name Chord detection along a segment's supporting line
+ *
+ * `Segment/Ray::separates(Polygon)` look for a connected component of
+ * supporting-line ∩ polygon-interior whose closure the segment (or ray)
+ * covers whole. The helpers here reason about the points where the polygon
+ * boundary meets that line. Such a point is either a polygon vertex lying on
+ * the line, or the point where an edge traverses it; the latter has rational
+ * coordinates, so it is kept symbolically as its defining edge and handled
+ * through orientation signs alone.
+ */
+///@{
+
+/** Sign of the cross product `(b - a) x (q - p)` in the promoted coordinate type. */
+template <PointConcept A, PointConcept B, PointConcept P, PointConcept Q>
+constexpr auto vectorCrossSign(const A& a, const B& b, const P& p, const Q& q) {
+    using Coordinate = promoted_number_t<std::common_type_t<
+        typename A::NumberType, typename B::NumberType,
+        typename P::NumberType, typename Q::NumberType>>;
+    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
+    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
+    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
+    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+    return threeWay(abx * pqy, aby * pqx);
+}
+
+/** Sign of the dot product `(b - a) . (q - p)` in the promoted coordinate type. */
+template <PointConcept A, PointConcept B, PointConcept P, PointConcept Q>
+constexpr auto vectorDotSign(const A& a, const B& b, const P& p, const Q& q) {
+    using Coordinate = promoted_number_t<std::common_type_t<
+        typename A::NumberType, typename B::NumberType,
+        typename P::NumberType, typename Q::NumberType>>;
+    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
+    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
+    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
+    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+    return threeWay(abx * pqx, -(aby * pqy));
+}
+
+/**
+ * A point where the polygon boundary meets the segment's supporting line:
+ * either a vertex lying on the line (`u == v`), or the traversal point of the
+ * edge `(u, v)`, whose endpoints are strictly on opposite sides of the line.
+ */
+template <PointConcept HitPoint>
+struct LineHit {
+    HitPoint u{};
+    HitPoint v{};
+    bool crossing = false;
+};
+
+/**
+ * Three-way order of two boundary/line meeting points along the line directed
+ * from @p from to @p to. Hits compare without constructing their rational
+ * coordinates: a point on the line comes before edge e's traversal point iff
+ * it lies on the side of e the directed line arrives from, and a traversal
+ * point enters that side test through the linearity of the orientation
+ * determinant along its own edge, which clears the denominator.
+ */
+template <PointConcept LinePoint, PointConcept APoint, PointConcept BPoint>
+constexpr std::partial_ordering lineHitOrder(
+    const LinePoint& from, const LinePoint& to,
+    const LineHit<APoint>& a, const LineHit<BPoint>& b) {
+    if (!b.crossing) {
+        if (!a.crossing) {
+            // Two exact points: order by projection on the line direction.
+            return vectorDotSign(from, to, b.u, a.u);
+        }
+        const auto reversed = lineHitOrder(from, to, b, a);
+        return reversed < 0 ? std::partial_ordering::greater
+             : reversed > 0 ? std::partial_ordering::less
+                            : std::partial_ordering::equivalent;
+    }
+    // The side of edge b from which the directed line arrives at b's
+    // traversal point.
+    const auto arrival = vectorCrossSign(b.u, b.v, from, to);
+    if (!a.crossing) {
+        const auto side = vectorCrossSign(b.u, b.v, b.u, a.u);
+        if (side == 0) {
+            return std::partial_ordering::equivalent;
+        }
+        return ((side > 0) != (arrival > 0)) ? std::partial_ordering::less
+                                             : std::partial_ordering::greater;
+    }
+    // Substitute a's traversal point p = a.u + t (a.v - a.u), with
+    // t = du / (du - dv), into the determinant against edge b and multiply
+    // through by (du - dv): sign(det(b, p)) = sign(ov du - ou dv) sign(du - dv).
+    const auto du = orientationDeterminant(from, to, a.u);
+    const auto dv = orientationDeterminant(from, to, a.v);
+    const auto ou = orientationDeterminant(b.u, b.v, a.u);
+    const auto ov = orientationDeterminant(b.u, b.v, a.v);
+    using Wide = promoted_number_t<std::common_type_t<decltype(du), decltype(ou)>>;
+    const auto scaled = threeWay(static_cast<Wide>(ov) * static_cast<Wide>(du),
+                                 static_cast<Wide>(ou) * static_cast<Wide>(dv));
+    if (scaled == 0) {
+        return std::partial_ordering::equivalent;
+    }
+    const bool side_positive = (scaled > 0) == (du > dv);
+    return (side_positive != (arrival > 0)) ? std::partial_ordering::less
+                                            : std::partial_ordering::greater;
+}
+
+/**
+ * Whether the direction from @p from to @p to points strictly into the
+ * polygon's interior at @p vertex, whose neighbors along the CCW boundary are
+ * @p previous and @p next. The interior wedge at a vertex of a CCW polygon
+ * spans counterclockwise from the outgoing direction (vertex -> next) to the
+ * reversed incoming direction (vertex -> previous). A direction along either
+ * incident edge is on the boundary, not interior; at a straight (collinear)
+ * vertex the interior is the open left halfplane of the boundary.
+ */
+template <PointConcept VertexPoint, PointConcept LinePoint>
+constexpr bool interiorWedgeContainsDirection(
+    const VertexPoint& vertex, const VertexPoint& previous, const VertexPoint& next,
+    const LinePoint& from, const LinePoint& to) {
+    const auto outgoing_side = vectorCrossSign(vertex, next, from, to);
+    if (outgoing_side == 0 && vectorDotSign(vertex, next, from, to) > 0) {
+        return false;  // the direction continues along the outgoing edge
+    }
+    const auto incoming_side = vectorCrossSign(from, to, vertex, previous);
+    if (incoming_side == 0 && vectorDotSign(vertex, previous, from, to) > 0) {
+        return false;  // the direction doubles back along the incoming edge
+    }
+    const auto wedge = vectorCrossSign(vertex, next, vertex, previous);
+    if (wedge > 0) {  // convex corner: wedge narrower than a halfplane
+        return outgoing_side > 0 && incoming_side > 0;
+    }
+    if (wedge < 0) {  // reflex corner: wedge wider than a halfplane
+        return outgoing_side > 0 || incoming_side > 0;
+    }
+    return outgoing_side > 0;  // straight vertex: open left halfplane
+}
+
+/**
+ * Shared engine of `Segment/Ray::separates(Polygon)`: whether the section of
+ * the line directed from @p from to @p to with positions in [from, to] — or
+ * in [from, +infinity) when @p bounded_above is false — covers, closure
+ * included, some connected component of line ∩ polygon-interior. A covered
+ * component is a chord: endpoints on the boundary, open part through the
+ * interior, so removing it cuts the polygon in two; a component with an
+ * uncovered end instead leaves a passage around that end. Counting boundary
+ * crossings cannot decide this, because a tangential boundary touch splits a
+ * component without ever changing sides of the line.
+ *
+ * Pass 1 finds a = the first point of boundary ∩ line at or after @p from
+ * whose right side along the line opens into the polygon's interior. That is
+ * a local test on each boundary element: the interior wedge at a vertex lying
+ * on the line, or the traversal side of an edge crossing it (the interior is
+ * to the left of a CCW edge). No boundary contact straddles a, so the
+ * interior part right of a runs until the boundary next meets the line;
+ * pass 2 reports whether that happens at some b within the upper bound,
+ * closing the component into a covered chord [a, b].
+ * Two O(n) passes, O(1) space, exact throughout: positions along the line
+ * compare via orientation signs, never via rational coordinates.
+ */
+template <PointConcept LinePoint, PolygonConcept Polygon>
+constexpr bool lineSectionSeparatesPolygon(
+    const LinePoint& from, const LinePoint& to,
+    const Polygon& other, bool bounded_above) {
+    using PolygonPoint = typename Polygon::PointType;
+    using Hit = LineHit<PolygonPoint>;
+    const LineHit<LinePoint> low{from, from, false};
+    const LineHit<LinePoint> high{to, to, false};
+
+    const std::ptrdiff_t n = other.size();
+    // Visits every point where the boundary meets the line; stops early when
+    // the visitor returns true.
+    const auto scan_line_hits = [&](auto&& visit) {
+        auto side = orientationSign(from, to, other[0]);
+        for (std::ptrdiff_t i = 0; i < n; ++i) {
+            const auto next_side = orientationSign(from, to, other.get(i + 1));
+            if (side == 0) {
+                if (visit(Hit{other[i], other[i], false}, i)) {
+                    return true;
+                }
+            } else if (next_side != 0 && side != next_side) {
+                if (visit(Hit{other[i], other.get(i + 1), true}, i)) {
+                    return true;
+                }
+            }
+            side = next_side;
+        }
+        return false;
+    };
+
+    Hit opening{};
+    bool found = false;
+    scan_line_hits([&](const Hit& hit, std::ptrdiff_t i) {
+        const bool opens_interior = hit.crossing
+            ? vectorCrossSign(hit.u, hit.v, from, to) > 0
+            : interiorWedgeContainsDirection(
+                  hit.u, other.get(i - 1), other.get(i + 1), from, to);
+        if (opens_interior &&
+            lineHitOrder(from, to, hit, low) >= 0 &&
+            (!bounded_above || lineHitOrder(from, to, hit, high) <= 0) &&
+            (!found || lineHitOrder(from, to, hit, opening) < 0)) {
+            opening = hit;
+            found = true;
+        }
+        return false;
+    });
+    if (!found) {
+        return false;
+    }
+
+    return scan_line_hits([&](const Hit& hit, std::ptrdiff_t) {
+        return lineHitOrder(from, to, hit, opening) > 0 &&
+               (!bounded_above || lineHitOrder(from, to, hit, high) <= 0);
+    });
+}
+
+///@}
+
+}  // namespace detail
+
 /**
  * @section predicates-point Point
  * Point equality and the point-vs-shape predicates. This section also contains
@@ -259,39 +476,12 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherConvex& other
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    // A chord that splits the polygon runs through its interior, so the open
-    // segment must meet the open polygon. This necessary condition also rejects
-    // an exterior chord between two boundary vertices — e.g. a segment along the
-    // mouth of a notch — that the boundary-crossing count below would otherwise
-    // miscount as a cut (its endpoints touch the boundary tangentially without
-    // the segment ever entering the interior).
-    if (isDegenerate() || other.isDegenerate() || !other.interiorsIntersect(*this)) {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-
-    const int interior_count = other.interiorContains(min()) + other.interiorContains(max());
-
-    const std::size_t n = other.size();
-    int cross_count = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto v = other[i];
-        const auto w = other[(i + 1) % n];
-        bool cv = contains(v);
-        bool cw = contains(w);
-
-        if (cv && !cw) {
-            if (++cross_count >= 2 + interior_count) {
-                return true;
-            }
-        }
-        else if (!cv && !cw && separates(Segment<typename OtherPolygon::PointType>(v, w))) {
-            if (++cross_count >= 2 + interior_count) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    // The segment separates the polygon iff it covers whole some connected
+    // component of supporting-line ∩ interior; see the engine for details.
+    return detail::lineSectionSeparatesPolygon(min(), max(), other, true);
 }
 
 template <class PointType, class LabelType>
@@ -889,32 +1079,10 @@ constexpr bool Ray<PointType, LabelType>::separates(const OtherPolygon& other) c
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-
-    // Only the ray's source is a finite end that can lie strictly inside the
-    // polygon and leave a slit; the far end runs to infinity, always outside,
-    // so the threshold counts just the source.
-    const int interior_count = other.interiorContains(source());
-
-    const std::size_t n = other.size();
-    int cross_count = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        const auto v = other[i];
-        const auto w = other[(i + 1) % n];
-        const bool cv = contains(v);
-        const bool cw = contains(w);
-
-        if (cv && !cw) {
-            if (++cross_count >= 2 + interior_count) {
-                return true;
-            }
-        }
-        else if (!cv && !cw && separates(Segment<typename OtherPolygon::PointType>(v, w))) {
-            if (++cross_count >= 2 + interior_count) {
-                return true;
-            }
-        }
-    }
-    return false;
+    // Same chord criterion as Segment::separates(Polygon) with the far end at
+    // infinity: only the source can leave a component end uncovered, so the
+    // covered-component search is bounded below by the source alone.
+    return detail::lineSectionSeparatesPolygon(source(), target(), other, false);
 }
 
 template <class PointType, class LabelType>
