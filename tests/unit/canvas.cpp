@@ -4,8 +4,20 @@
 #include <cstdio>
 #include <fstream>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 #include "pgl.hpp"
+
+static_assert(std::is_same_v<
+              decltype(std::declval<const pgl::Canvas&>().writeSVG(std::declval<const std::string&>())),
+              void>);
+static_assert(std::is_same_v<
+              decltype(std::declval<const pgl::Canvas&>().writePDF(std::declval<const std::string&>())),
+              void>);
+static_assert(std::is_same_v<
+              decltype(std::declval<const pgl::Canvas&>().writeIPE(std::declval<const std::string&>())),
+              void>);
 
 TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an SVG file") {
     const std::string path = "build/tests/output/canvas_test.svg";
