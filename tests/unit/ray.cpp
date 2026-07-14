@@ -329,6 +329,13 @@ TEST_CASE("Ray covers the non-Convex contract for interiorsIntersect") {
     CHECK(horizontal.interiorsIntersect(Line({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Segment({2, -2}, {2, 2})));
     CHECK(horizontal.interiorsIntersect(Ray({2, -2}, {2, 2})));
+
+    // Coincident rays: neither source lies strictly inside the other ray, yet the
+    // two share every interior point.
+    CHECK(horizontal.interiorsIntersect(horizontal));
+    CHECK(horizontal.interiorsIntersect(Ray({0, 0}, {9, 0})));  // same source and direction
+    // The opposite ray from the same source meets it only at that source.
+    CHECK_FALSE(horizontal.interiorsIntersect(Ray({0, 0}, {-4, 0})));
 }
 
 TEST_CASE("Ray covers the non-Convex contract for separates") {

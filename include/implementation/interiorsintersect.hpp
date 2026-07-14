@@ -80,10 +80,16 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherSegm
     if (d1 != 0 || d2 != 0) {
         return false;
     }
+    // Collinear: the relative interiors meet iff the two overlap along a
+    // sub-segment of positive length, which happens iff an endpoint of one lies
+    // strictly inside the other — or the two coincide, the single overlapping
+    // configuration in which neither holds an endpoint of the other strictly
+    // inside (any other positive-length overlap pushes one endpoint in).
     return interiorContains(c) ||
            interiorContains(d) ||
            other.interiorContains(a) ||
-           other.interiorContains(b);
+           other.interiorContains(b) ||
+           (a == c && b == d);
 }
 
 template <class PointType, class LabelType>
@@ -478,7 +484,11 @@ constexpr bool Ray<PointType, LabelType>::interiorsIntersect(const OtherRay& oth
 
     if (other_source_side == std::partial_ordering::equivalent &&
         other_target_side == std::partial_ordering::equivalent) {
-        return interiorContains(other.source()) || other.interiorContains(source());
+        // Collinear, as in the segment case: one source lies strictly inside the
+        // other ray, or the two rays coincide — same source, same direction —
+        // which is the overlapping configuration neither test catches.
+        return interiorContains(other.source()) || other.interiorContains(source()) ||
+               (source() == other.source() && contains(other.target()));
     }
 
     if (other_source_side == other_target_side &&
@@ -1064,95 +1074,60 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherHalf
     return false;
 }
 
-// Two filled simple polygons have intersecting interiors iff a vertex of one is
-// strictly inside the other, or a pair of their edges properly cross. (Exact
-// coincidence is caught separately for the polygon-polygon overload.)
-template <class PointType, class LabelType>
-template<RectangleConcept OtherRectangle>
-constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+namespace detail {
+
+// Interiors of a filled simple polygon and another filled convex region (a
+// rectangle, triangle, or convex polygon).
+//
+// An edge of the area whose relative interior reaches into the polygon's interior
+// settles it: a vertex of the area strictly inside, a properly crossing pair of
+// edges, and an area sitting snugly in a corner of the polygon (every vertex on
+// the boundary, no edge crossing) all put one there. If no edge of the area does,
+// then the area's whole boundary misses the polygon's interior, which — the
+// interior being connected — leaves it wholly inside the area, coincident regions
+// included; an interior witness point of either then decides.
+template <class Poly, class Area>
+constexpr bool polygonAreaInteriorsIntersect(const Poly& poly, const Area& area) {
+    if (area.isDegenerate() || poly.isDegenerate()) {
         return false;
     }
-    if (!bbox().interiorsIntersect(other.bbox())) {
+    auto abbox = area.bbox();
+    if (!poly.bbox().interiorsIntersect(abbox)) {
         return false;
     }
-    if (bbox().separates(other.bbox()) || other.bbox().separates(bbox())) {
+    if (poly.bbox().separates(abbox) || abbox.separates(poly.bbox())) {
         return true;
     }
 
-    for (const auto& vertex : other.vertices()) {
-        if (interiorContains(vertex)) {
+    for (const auto& edge : area.edges()) {
+        if (edge.interiorsIntersect(poly)) {
             return true;
         }
     }
-    for (const auto& vertex : vertices()) {
-        if (other.interiorContains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& edge : edgesView()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.crosses(otherEdge)) {
-                return true;
-            }
-        }
-    }
-    return false;
+
+    // Nested (or coincident) with the boundaries in contact: one region's own
+    // interior witness point decides, exactly and without scanning a boundary.
+    return area.pointInsideInteriorContainedIn(poly) || poly.pointInsideInteriorContainedIn(area);
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template<RectangleConcept OtherRectangle>
+constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    return detail::polygonAreaInteriorsIntersect(*this, other);
 }
 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
-        return false;
-    }
-    for (const auto& vertex : other.vertices()) {
-        if (interiorContains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& vertex : vertices()) {
-        if (other.interiorContains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& edge : edgesView()) {
-        for (const auto& otherEdge : other.edges()) {
-            if (edge.crosses(otherEdge)) {
-                return true;
-            }
-        }
-    }
-    return false;
+    return detail::polygonAreaInteriorsIntersect(*this, other);
 }
 
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
-    if (isDegenerate() || other.isDegenerate() || !bbox().intersects(other.bbox())) {
-        return false;
-    }
-    if (bbox().crosses(other.bbox())) {
-        return true;
-    }
-    for (const auto& vertex : other.vertices()) {
-        if (interiorContains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& vertex : vertices()) {
-        if (other.interiorContains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& edge : edgesView()) {
-        for (const auto& otherEdge : other.edgesView()) {
-            if (edge.crosses(otherEdge)) {
-                return true;
-            }
-        }
-    }
-    return false;
+    return detail::polygonAreaInteriorsIntersect(*this, other);
 }
 
 template <class PointType, class LabelType>

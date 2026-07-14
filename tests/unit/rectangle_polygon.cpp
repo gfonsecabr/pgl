@@ -142,6 +142,23 @@ TEST_CASE("Rectangle and Polygon meet predicates") {
         CHECK_FALSE(corner.interiorsIntersect(r));
     }
 
+    SUBCASE("a rectangle snug against the polygon's boundary still shares its interior") {
+        // Every contact is degenerate — no vertex of either lies strictly inside the
+        // other, and no pair of edges properly crosses — yet the rectangle sits in
+        // the polygon and the two plainly share interior points.
+        const Polygon around({0, 0, 10, 0, 10, 10, 0, 10});
+        const Rectangle snug(Point(0, 0), Point(10, 5));  // shares three sides
+
+        CHECK(around.contains(snug));
+        CHECK(around.interiorsIntersect(snug));
+        CHECK(snug.interiorsIntersect(around));
+
+        // Coincident: same region, hence the same interior.
+        const Rectangle same(Point(0, 0), Point(10, 10));
+        CHECK(around.interiorsIntersect(same));
+        CHECK(same.interiorsIntersect(around));
+    }
+
     SUBCASE("disjoint shapes do not meet") {
         const Polygon away({20, 20, 30, 20, 30, 30, 20, 30});
 
