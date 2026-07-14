@@ -250,9 +250,8 @@ class Canvas {
      * are exported through standard PDF ExtGState resources (`/ca` and `/CA`).
      *
      * @param path Output file path.
-     * @return This canvas.
      */
-    Canvas& writePDF(const std::string& path) const {
+    void writePDF(const std::string& path) const {
         std::ofstream output(path, std::ios::binary);
         if (!output) {
             throw std::runtime_error("Could not open PDF output file: " + path);
@@ -263,7 +262,6 @@ class Canvas {
         if (!output) {
             throw std::runtime_error("Could not write PDF output file: " + path);
         }
-        return const_cast<Canvas&>(*this);
     }
 
     /**
@@ -331,9 +329,8 @@ class Canvas {
      * `stroke-opacity` path attributes to reference a symbolic name.
      *
      * @param path Output file path.
-     * @return This canvas.
      */
-    Canvas& writeIPE(const std::string& path) const {
+    void writeIPE(const std::string& path) const {
         std::ofstream output(path);
         if (!output) {
             throw std::runtime_error("Could not open IPE output file: " + path);
@@ -343,7 +340,6 @@ class Canvas {
         if (!output) {
             throw std::runtime_error("Could not write IPE output file: " + path);
         }
-        return const_cast<Canvas&>(*this);
     }
 
     /**
