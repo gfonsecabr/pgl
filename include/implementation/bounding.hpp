@@ -409,6 +409,27 @@ constexpr Rectangle<Point<ResultNumber>> Convex<PointType, LabelType>::fbox() co
     return bbox().template fbox<ResultNumber>();
 }
 
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr void Convex<PointType, LabelType>::insert(const OtherPoint& point) {
+    const PointType vertex = static_cast<PointType>(point);
+    if (contains(vertex)) {
+        return;
+    }
+    std::vector<PointType> points = vertices();
+    points.push_back(vertex);
+    rebuildHull(points);
+}
+
+template <class PointType, class LabelType>
+template <class TShape>
+    requires(!detail::is_point_v<TShape> && requires(const TShape& shape) { shape.vertices(); })
+constexpr void Convex<PointType, LabelType>::insert(const TShape& shape) {
+    // The hull of a shape is the hull of its vertices, so the point-range
+    // overload does the work.
+    insert(shape.vertices());
+}
+
 // ---------------------------------------------------------------------------
 // Polygon
 

@@ -1467,3 +1467,187 @@ TEST_CASE("Convex squaredDistance to a ray") {
         }
     }
 }
+
+TEST_CASE("Convex::insert grows the hull to contain the new geometry") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+
+    const std::vector<Point> squarePoints = {{0, 0}, {4, 0}, {4, 4}, {0, 4}};
+
+    SUBCASE("a point that is already contained leaves the hull unchanged") {
+        Convex square(squarePoints);
+        const Convex before = square;
+
+        square.insert(Point(2, 2));  // interior
+        CHECK(square == before);
+        square.insert(Point(4, 2));  // boundary
+        CHECK(square == before);
+        square.insert(Point(0, 0));  // vertex
+        CHECK(square == before);
+    }
+
+    SUBCASE("an outside point becomes a vertex and swallows the vertices it dominates") {
+        Convex square(squarePoints);
+        square.insert(Point(8, 2));
+        CHECK(square == Convex(std::vector<Point>{{0, 0}, {4, 0}, {8, 2}, {4, 4}, {0, 4}}));
+
+        Convex other(squarePoints);
+        other.insert(Point(8, 0));  // collinear with the bottom edge, past (4, 0)
+        CHECK(other == Convex(std::vector<Point>{{0, 0}, {8, 0}, {4, 4}, {0, 4}}));
+        CHECK(!other.verticesContain(Point(4, 0)));
+    }
+
+    SUBCASE("insertion builds a hull up from nothing") {
+        Convex convex;
+        convex.insert(Point(1, 1));
+        CHECK(convex.size() == 1);
+        convex.insert(Point(1, 1));
+        CHECK(convex.size() == 1);
+        convex.insert(Point(5, 1));
+        CHECK(convex.size() == 2);
+        convex.insert(Point(3, 1));  // on the segment, so not a hull vertex
+        CHECK(convex.size() == 2);
+        convex.insert(Point(3, 2));
+        CHECK(convex.size() == 3);
+        CHECK(convex.contains(pgl::Triangle<Point>(Point(1, 1), Point(5, 1), Point(3, 2))));
+    }
+
+    SUBCASE("a shape is inserted through its vertices") {
+        Convex convex(std::vector<Point>{{0, 0}, {2, 0}, {2, 2}, {0, 2}});
+        const pgl::Triangle<Point> triangle(Point(6, 0), Point(6, 6), Point(5, 0));
+        convex.insert(triangle);
+        CHECK(convex.contains(triangle));
+        CHECK(convex == Convex(std::vector<Point>{{0, 0}, {2, 0}, {2, 2}, {0, 2},
+                                                  {6, 0}, {6, 6}, {5, 0}}));
+
+        const pgl::Segment<Point> segment(Point(-3, 1), Point(-1, 1));
+        convex.insert(segment);
+        CHECK(convex.contains(segment));
+
+        Convex host(squarePoints);
+        host.insert(Convex(std::vector<Point>{{10, 10}, {12, 10}, {12, 12}}));
+        CHECK(host.contains(Point(12, 12)));
+        CHECK(host.contains(Point(0, 4)));
+    }
+
+    SUBCASE("a range of points is inserted at once") {
+        Convex convex(squarePoints);
+        convex.insert(std::vector<Point>{});
+        CHECK(convex == Convex(squarePoints));
+
+        convex.insert(std::vector<Point>{{2, 2}, {-2, 2}, {6, 2}});
+        CHECK(convex == Convex(std::vector<Point>{{0, 0}, {4, 0}, {6, 2}, {4, 4}, {0, 4}, {-2, 2}}));
+    }
+
+    SUBCASE("insertion folds away a pending translation") {
+        Convex convex(squarePoints);
+        convex += Point(10, 10);
+        convex.insert(Point(20, 15));
+        CHECK(convex == Convex(std::vector<Point>{{10, 10}, {14, 10}, {20, 15}, {14, 14}, {10, 14}}));
+    }
+
+    SUBCASE("incremental insertion matches the hull of all the points at once") {
+        std::mt19937 rng(20260714);
+        std::uniform_int_distribution<int> coord(-40, 40);
+        for (int trial = 0; trial < 200; ++trial) {
+            std::vector<Point> points;
+            for (int i = 0; i < 3 + static_cast<int>(rng() % 20); ++i) {
+                points.emplace_back(coord(rng), coord(rng));
+            }
+
+            Convex incremental;
+            for (const Point& point : points) {
+                incremental.insert(point);
+                if (!incremental.isDegenerate()) {  // contains is undefined on a degenerate hull
+                    CHECK(incremental.contains(point));
+                }
+            }
+
+            Convex bulk;
+            bulk.insert(points);
+
+            CHECK(incremental == Convex(points));
+            CHECK(bulk == Convex(points));
+        }
+    }
+}
+
+TEST_CASE("Convex::upperHull and Convex::lowerHull split the boundary at its lexicographic extremes") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using MonotoneChain = pgl::MonotoneChain<Point>;
+
+    SUBCASE("vertical edges go to the chain that ends at their extreme") {
+        const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+        CHECK(square.lowerHull() == MonotoneChain(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}}));
+        CHECK(square.upperHull() == MonotoneChain(std::vector<Point>{{0, 0}, {0, 4}, {4, 4}}));
+    }
+
+    SUBCASE("a triangle splits into one edge and two") {
+        const Convex triangle(std::vector<Point>{{0, 0}, {4, 0}, {0, 4}});
+        CHECK(triangle.lowerHull() == MonotoneChain(std::vector<Point>{{0, 0}, {4, 0}}));
+        CHECK(triangle.upperHull() == MonotoneChain(std::vector<Point>{{0, 0}, {0, 4}, {4, 0}}));
+    }
+
+    SUBCASE("degenerate convex polygons are their own chains") {
+        const Convex empty;
+        CHECK(empty.lowerHull().size() == 0);
+        CHECK(empty.upperHull().size() == 0);
+
+        const Convex point(std::vector<Point>{{2, 3}});
+        CHECK(point.lowerHull() == MonotoneChain(std::vector<Point>{{2, 3}}));
+        CHECK(point.upperHull() == MonotoneChain(std::vector<Point>{{2, 3}}));
+
+        const Convex segment(std::vector<Point>{{2, 3}, {5, 1}});
+        CHECK(segment.lowerHull() == MonotoneChain(std::vector<Point>{{2, 3}, {5, 1}}));
+        CHECK(segment.upperHull() == MonotoneChain(std::vector<Point>{{2, 3}, {5, 1}}));
+    }
+
+    SUBCASE("the chains partition the vertices and rebuild the polygon") {
+        std::mt19937 rng(7);
+        std::uniform_int_distribution<int> coord(-50, 50);
+        for (int trial = 0; trial < 200; ++trial) {
+            std::vector<Point> points;
+            for (int i = 0; i < 3 + static_cast<int>(rng() % 30); ++i) {
+                points.emplace_back(coord(rng), coord(rng));
+            }
+            const Convex convex(points);
+            if (convex.isDegenerate()) {
+                continue;
+            }
+
+            const auto lower = convex.lowerHull();
+            const auto upper = convex.upperHull();
+
+            // Both chains run between the two lexicographic extremes.
+            const Point minimum = convex[0];
+            const Point maximum = convex[convex.maxIndex()];
+            CHECK(lower[0] == minimum);
+            CHECK(upper[0] == minimum);
+            CHECK(lower[lower.size() - 1] == maximum);
+            CHECK(upper[upper.size() - 1] == maximum);
+
+            // They cover every vertex, sharing only the two extremes.
+            CHECK(lower.size() + upper.size() == convex.size() + 2);
+            std::set<Point> covered;
+            for (const Point& vertex : lower) {
+                covered.insert(vertex);
+            }
+            for (const Point& vertex : upper) {
+                covered.insert(vertex);
+            }
+            CHECK(covered == std::set<Point>(convex.begin(), convex.end()));
+
+            // The lower chain never passes above the upper one.
+            for (const Point& vertex : lower) {
+                for (const Point& other : upper) {
+                    if (vertex.x() == other.x()) {
+                        CHECK(vertex.y() <= other.y());
+                    }
+                }
+            }
+
+            CHECK(Convex(covered) == convex);
+        }
+    }
+}
