@@ -503,6 +503,124 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the lower hull: the boundary chain running from the
+     * lexicographically smallest vertex to the lexicographically largest one,
+     * counterclockwise (below the polygon).
+     *
+     * The two chains share their extreme vertices and together cover the whole
+     * boundary. A vertical edge at the rightmost x belongs to the lower hull, a
+     * vertical edge at the leftmost x to the upper hull, because the extremes
+     * are the lexicographic ones. For a degenerate convex polygon (at most two
+     * vertices) both chains are the polygon itself.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return The lower boundary chain, with no chain label.
+     */
+    constexpr MonotoneChain<PointType> lowerHull() const {
+        if (size() <= 1) {
+            return MonotoneChain<PointType>(vertices(), true);
+        }
+        // Vertices are stored counterclockwise from the lexicographic minimum,
+        // so walking up to the lexicographic maximum traverses the lower chain,
+        // already in increasing lexicographic order.
+        const std::size_t maximum = maxIndex();
+        std::vector<PointType> chain;
+        chain.reserve(maximum + 1);
+        for (std::size_t i = 0; i <= maximum; ++i) {
+            chain.push_back((*this)[i]);
+        }
+        return MonotoneChain<PointType>(chain, true);
+    }
+
+    /**
+     * @brief Returns the upper hull: the boundary chain running from the
+     * lexicographically smallest vertex to the lexicographically largest one,
+     * clockwise (above the polygon).
+     *
+     * See @ref lowerHull for how the two chains split the boundary.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return The upper boundary chain, with no chain label.
+     */
+    constexpr MonotoneChain<PointType> upperHull() const {
+        if (size() <= 1) {
+            return MonotoneChain<PointType>(vertices(), true);
+        }
+        // The upper chain is the rest of the boundary: the lexicographic maximum
+        // back to vertex 0 (the lexicographic minimum). Reading it backwards —
+        // vertex 0, then n-1 down to the maximum — yields increasing
+        // lexicographic order, which is the chain's canonical form.
+        const std::size_t n = size();
+        const std::size_t maximum = maxIndex();
+        std::vector<PointType> chain;
+        chain.reserve(n - maximum + 1);
+        chain.push_back((*this)[0]);
+        for (std::size_t i = n; i > maximum; --i) {
+            chain.push_back((*this)[i - 1]);
+        }
+        return MonotoneChain<PointType>(chain, true);
+    }
+
+    /**
+     * @brief Enlarges the convex polygon so that it contains the given point.
+     *
+     * Complexity: O(log n) when the point is already contained, O(n log n)
+     * otherwise, for n vertices.
+     *
+     * @tparam OtherPoint Type of the point.
+     * @param point Point to insert.
+     */
+    template <PointConcept OtherPoint>
+    constexpr void insert(const OtherPoint& point);
+
+    /**
+     * @brief Enlarges the convex polygon so that it contains a finite shape.
+     *
+     * The shape must expose `vertices()` — its convex hull is then the hull of
+     * those vertices. Shapes without vertices (disks) and infinite shapes
+     * (lines, rays, halfplanes) are intentionally not accepted.
+     *
+     * Complexity: O((n + k) log(n + k)) for n vertices and a shape with k vertices.
+     *
+     * @tparam TShape Shape type exposing `vertices()`.
+     * @param shape Shape to insert.
+     */
+    template <class TShape>
+        requires(!detail::is_point_v<TShape> && requires(const TShape& shape) { shape.vertices(); })
+    constexpr void insert(const TShape& shape);
+
+    /**
+     * @brief Enlarges the convex polygon so that it contains every point in a range.
+     *
+     * A shape (which exposes `vertices()`) is handled by the shape overload,
+     * even though it may itself be iterable as a range of points.
+     *
+     * Complexity: O((n + k) log(n + k)) for n vertices and k inserted points.
+     *
+     * @tparam Range Range of points.
+     * @param range Points to insert.
+     */
+    template <std::ranges::input_range Range = std::initializer_list<PointType>>
+        requires std::ranges::common_range<Range> &&
+                 std::convertible_to<std::ranges::range_value_t<Range>, PointType> &&
+                 (!requires(const std::remove_cvref_t<Range>& shape) { shape.vertices(); })
+    constexpr void insert(Range&& range) {
+        // Defined inline so MSVC can match the constrained overload; the
+        // overloaded out-of-line form trips MSVC's C2244.
+        std::vector<PointType> points = vertices();
+        const std::size_t oldSize = points.size();
+        for (const auto& point : range) {
+            points.push_back(static_cast<PointType>(point));
+        }
+        if (points.size() == oldSize) {
+            return;
+        }
+        rebuildHull(points);
+    }
+
+    /**
      * @brief Computes the centroid of the convex polygon.
      * @tparam ResultNumber The number type for the result.
      * @return The centroid point.
@@ -2449,6 +2567,14 @@ struct Convex {
         bbox_ = {};
         maxIndex_ = -1;
         hash_ = hashUnset_;
+    }
+
+    // Replaces the vertices by the convex hull of `points`, which are absolute
+    // coordinates (the translation is already applied), so it is folded away.
+    constexpr void rebuildHull(const std::vector<PointType>& points) {
+        points_ = grahamScan(points);
+        translation_ = {};
+        resetCache();
     }
 
     template <bool Oriented>
