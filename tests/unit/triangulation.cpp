@@ -134,7 +134,7 @@ TEST_CASE_TEMPLATE("Delaunay triangulation of a point set is exact and valid",
     CHECK(tri.triangles().size() == tri.numTriangles());
     CHECK(tri.edges().size() == tri.numEdges());
     for (const auto& t : tri.triangles()) {
-        CHECK(tri.contains(t));
+        CHECK(tri.has(t));
     }
 }
 
@@ -407,7 +407,7 @@ TEST_CASE("Locating a point returns the containing triangle") {
     const auto located = tri.locate(inside);
     REQUIRE(located.has_value());
     CHECK(located->contains(inside));
-    CHECK(tri.contains(*located));
+    CHECK(tri.has(*located));
 
     // A point well outside the convex hull has no containing triangle.
     CHECK_FALSE(tri.locate(P<Point>(1000, 1000)).has_value());
@@ -428,7 +428,7 @@ TEST_CASE("Segment traversal reports exactly the triangles and edges it meets") 
     CHECK_FALSE(crossed.empty());
     for (const auto& t : crossed) {
         CHECK(t.intersects(s));   // every reported triangle really meets s
-        CHECK(tri.contains(t));
+        CHECK(tri.has(t));
     }
 
     const auto entered = tri.trianglesInteriorIntersecting(s);
@@ -822,8 +822,8 @@ TEST_CASE("Flipping an interior edge yields the other diagonal and keeps the mes
     CHECK(tri.checkInvariants());
     CHECK(tri.numTriangles() == 2);
     CHECK(totalTwiceArea(tri) == areaBefore);  // same region, retriangulated
-    CHECK(tri.contains(*flipped));
-    CHECK_FALSE(tri.contains(*diagonal));
+    CHECK(tri.has(*flipped));
+    CHECK_FALSE(tri.has(*diagonal));
 }
 
 TEST_CASE("Flipping a set of edges in parallel requires disjoint quadrilaterals") {
@@ -870,8 +870,8 @@ TEST_CASE("Flipping a set of edges in parallel requires disjoint quadrilaterals"
         CHECK(tri.checkInvariants());
         CHECK(totalTwiceArea(tri) == areaBefore);  // same region, retriangulated
         for (std::size_t i = 0; i < chosen.size(); ++i) {
-            CHECK_FALSE(tri.contains(chosen[i]));  // original diagonal gone
-            CHECK(tri.contains((*res)[i]));        // replaced by the new diagonal
+            CHECK_FALSE(tri.has(chosen[i]));  // original diagonal gone
+            CHECK(tri.has((*res)[i]));        // replaced by the new diagonal
         }
     }
 
@@ -896,7 +896,7 @@ TEST_CASE("Flipping a set of edges in parallel requires disjoint quadrilaterals"
         CHECK_FALSE(tri.flip(conflicting).has_value());  // all-or-nothing: no change
         CHECK(totalTwiceArea(tri) == areaBefore);
         for (const auto& e : conflicting) {
-            CHECK(tri.contains(e));  // both edges still present
+            CHECK(tri.has(e));  // both edges still present
         }
     }
 
@@ -950,13 +950,13 @@ TEST_CASE_TEMPLATE("Inserting a point subdivides the containing triangle or edge
         CHECK(totalTwiceArea(tri) == hullArea);
         CHECK(tri.incidentTriangles(P<Point>(4, 4)).size() == 4);
         // The split diagonal is gone, replaced by its two halves.
-        CHECK_FALSE(tri.contains(Seg(P<Point>(0, 0), P<Point>(8, 8))));
-        CHECK_FALSE(tri.contains(Seg(P<Point>(8, 0), P<Point>(0, 8))));
+        CHECK_FALSE(tri.has(Seg(P<Point>(0, 0), P<Point>(8, 8))));
+        CHECK_FALSE(tri.has(Seg(P<Point>(8, 0), P<Point>(0, 8))));
         const bool halvesOfEither =
-            (tri.contains(Seg(P<Point>(0, 0), P<Point>(4, 4))) &&
-             tri.contains(Seg(P<Point>(4, 4), P<Point>(8, 8)))) ||
-            (tri.contains(Seg(P<Point>(8, 0), P<Point>(4, 4))) &&
-             tri.contains(Seg(P<Point>(4, 4), P<Point>(0, 8))));
+            (tri.has(Seg(P<Point>(0, 0), P<Point>(4, 4))) &&
+             tri.has(Seg(P<Point>(4, 4), P<Point>(8, 8)))) ||
+            (tri.has(Seg(P<Point>(8, 0), P<Point>(4, 4))) &&
+             tri.has(Seg(P<Point>(4, 4), P<Point>(0, 8))));
         CHECK(halvesOfEither);
     }
 
@@ -967,9 +967,9 @@ TEST_CASE_TEMPLATE("Inserting a point subdivides the containing triangle or edge
         CHECK(tri.numTriangles() == 3);
         CHECK(allCounterClockwise(tri));
         CHECK(totalTwiceArea(tri) == hullArea);
-        CHECK_FALSE(tri.contains(Seg(P<Point>(0, 0), P<Point>(8, 0))));
-        CHECK(tri.contains(Seg(P<Point>(0, 0), P<Point>(4, 0))));
-        CHECK(tri.contains(Seg(P<Point>(4, 0), P<Point>(8, 0))));
+        CHECK_FALSE(tri.has(Seg(P<Point>(0, 0), P<Point>(8, 0))));
+        CHECK(tri.has(Seg(P<Point>(0, 0), P<Point>(4, 0))));
+        CHECK(tri.has(Seg(P<Point>(4, 0), P<Point>(8, 0))));
         CHECK(tri.incidentTriangles(P<Point>(4, 0)).size() == 2);
     }
 
@@ -992,9 +992,9 @@ TEST_CASE_TEMPLATE("Inserting a point subdivides the containing triangle or edge
         grown.push_back(P<Point>(12, -4));
         CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
         CHECK(tri.incidentTriangles(P<Point>(12, -4)).size() == 2);
-        CHECK(tri.contains(Seg(P<Point>(8, 0), P<Point>(12, -4))));  // spoke
-        CHECK(tri.contains(Seg(P<Point>(0, 0), P<Point>(12, -4))));  // new hull edge
-        CHECK(tri.contains(Seg(P<Point>(8, 8), P<Point>(12, -4))));  // new hull edge
+        CHECK(tri.has(Seg(P<Point>(8, 0), P<Point>(12, -4))));  // spoke
+        CHECK(tri.has(Seg(P<Point>(0, 0), P<Point>(12, -4))));  // new hull edge
+        CHECK(tri.has(Seg(P<Point>(8, 8), P<Point>(12, -4))));  // new hull edge
     }
 
     SUBCASE("outside and collinear with a hull edge: no degenerate triangle") {
@@ -1089,7 +1089,7 @@ TEST_CASE("Insertion respects constrained edges and the polygon domain") {
         const auto before = tri.numTriangles();
         CHECK(tri.insert(P<Point>(2, 6)));
         CHECK(tri.checkInvariants());
-        CHECK_FALSE(tri.contains(boundary));
+        CHECK_FALSE(tri.has(boundary));
         CHECK(tri.isConstrained(Seg(P<Point>(4, 4), P<Point>(2, 6))));
         CHECK(tri.isConstrained(Seg(P<Point>(2, 6), P<Point>(0, 8))));
         CHECK(tri.numTriangles() == before + 1);  // the fill side stays hidden
@@ -1103,7 +1103,7 @@ TEST_CASE("Insertion respects constrained edges and the polygon domain") {
         CHECK(totalTwiceArea(tri) == polyArea);
         for (std::size_t i = 0; i < poly.size(); ++i) {
             const Seg e(poly[i], poly[(i + 1) % poly.size()]);
-            CHECK(tri.contains(e));
+            CHECK(tri.has(e));
             CHECK(tri.isConstrained(e));
         }
     }

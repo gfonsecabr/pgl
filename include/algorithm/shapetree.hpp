@@ -1286,7 +1286,7 @@ class ShapeTree {
      * @param shape Shape to look for.
      * @return `true` if an equal shape is stored, `false` otherwise.
      */
-    [[nodiscard]] bool contains(const ShapeType& shape) const {
+    [[nodiscard]] bool has(const ShapeType& shape) const {
         return root_ != -1 && nodes_[root_].containsShape(*this, shape, Rect(shape.bbox()));
     }
 

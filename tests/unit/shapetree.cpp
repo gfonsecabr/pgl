@@ -472,17 +472,17 @@ TEST_CASE("ShapeTree contains reports exact membership") {
 
     // Every stored shape is found.
     for (const Triangle& t : tris) {
-        CHECK(tree.contains(t));
+        CHECK(tree.has(t));
     }
 
     // A shape placed far outside the data range is absent. This is membership,
     // not geometric containment: an equal shape must be stored.
     const Triangle absent({5000, 5000}, {5040, 5000}, {5000, 5040});
-    CHECK_FALSE(tree.contains(absent));
+    CHECK_FALSE(tree.has(absent));
 
     // An empty tree contains nothing.
     pgl::ShapeTree<Triangle> emptyTree{std::vector<Triangle>{}};
-    CHECK_FALSE(emptyTree.contains(tris.front()));
+    CHECK_FALSE(emptyTree.has(tris.front()));
 }
 
 TEST_CASE("ShapeTree erase removes shapes and keeps queries correct") {
@@ -519,7 +519,7 @@ TEST_CASE("ShapeTree erase removes shapes and keeps queries correct") {
                     CHECK(tree.countContainedIn(q) == bruteCountContained(ref, q));
                 }
                 for (const Triangle& t : ref) {
-                    CHECK(tree.contains(t));
+                    CHECK(tree.has(t));
                 }
             }
         }
@@ -611,7 +611,7 @@ TEST_CASE("ShapeTree erase keeps the node array compact under interleaved insert
         CHECK(tree.countIntersecting(q) == bruteCountIntersecting(ref, q));
     }
     for (const Triangle& t : ref) {
-        CHECK(tree.contains(t));
+        CHECK(tree.has(t));
     }
 }
 
