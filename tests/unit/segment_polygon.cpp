@@ -3,6 +3,32 @@
 
 #include "pgl.hpp"
 
+#include <cstdlib>
+#include <numeric>
+#include <vector>
+
+namespace {
+
+// Same polygon, but with a vertex at every integer point of every edge, so
+// that predicates walking the vertex list also face long collinear runs.
+std::vector<pgl::Point<int>> densified(const std::vector<pgl::Point<int>>& vertices) {
+    std::vector<pgl::Point<int>> result;
+    const std::size_t n = vertices.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto& v = vertices[i];
+        const auto& w = vertices[(i + 1) % n];
+        const int dx = w.x() - v.x();
+        const int dy = w.y() - v.y();
+        const int steps = std::gcd(std::abs(dx), std::abs(dy));
+        for (int s = 0; s < steps; ++s) {
+            result.emplace_back(v.x() + dx / steps * s, v.y() + dy / steps * s);
+        }
+    }
+    return result;
+}
+
+}  // namespace
+
 // crosses requires mutual separation: a chord clear across the polygon cuts the
 // polygon AND is itself cut by the body, so it crosses both ways. A segment that
 // only enters (one endpoint inside), one fully outside, and one lying along an
@@ -194,6 +220,170 @@ TEST_CASE("Segment separates non-convex Polygon") {
 
         CHECK_FALSE(a.interiorsIntersect(mouth));  // segment interior stays outside A
         CHECK_FALSE(mouth.separates(a));
+    }
+}
+
+TEST_CASE("Segment separates comb Polygon only on transversal crossings") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // Comb: wide body (y in [0, 10]) with a taller block on the left (x in
+    // [0, 4], rising to y = 15) and two notches (x in [10, 16] and [20, 26])
+    // cut into the top edge down to y = 5.
+    const std::vector<Point> comb_vertices{
+        {0, 0}, {30, 0}, {30, 10}, {26, 10}, {26, 5}, {20, 5}, {20, 10},
+        {16, 10}, {16, 5}, {10, 5}, {10, 10}, {4, 10}, {4, 15}, {0, 15}};
+    const Polygon comb(comb_vertices);
+    const Polygon dense_comb(densified(comb_vertices));
+
+    SUBCASE("chord below the top edge crossing teeth and notches cuts") {
+        // Starts strictly inside the tall block, crosses both notches
+        // transversally, and pokes out on the right: the runs across the
+        // tooth and the right part are genuine chords.
+        const Segment below_top({2, 8}, {33, 8});
+
+        CHECK(below_top.separates(comb));
+        CHECK(below_top.separates(dense_comb));
+    }
+
+    SUBCASE("chord below the top edge poking out both ends cuts") {
+        const Segment across({-3, 8}, {33, 8});
+
+        CHECK(across.separates(comb));
+        CHECK(across.separates(dense_comb));
+    }
+
+    SUBCASE("segment along the top edge from inside the tall block is a slit") {
+        // Its only interior excursion is the slit inside the tall block;
+        // along the teeth it lies on boundary edges and spans the notch
+        // mouths, touching tangentially without ever crossing. The interior
+        // intersection guard alone cannot reject it.
+        const Segment grazing({2, 10}, {33, 10});
+
+        CHECK(comb.interiorsIntersect(grazing));
+        CHECK_FALSE(grazing.separates(comb));
+        CHECK_FALSE(grazing.separates(dense_comb));
+    }
+
+    // Spiky variant: same tall block, body up to y = 5, and two triangular
+    // teeth whose apexes reach up to y = 10.
+    const std::vector<Point> spiky_vertices{
+        {0, 0}, {30, 0}, {30, 5}, {24, 5}, {22, 10}, {20, 5},
+        {14, 5}, {12, 10}, {10, 5}, {4, 5}, {4, 15}, {0, 15}};
+    const Polygon spiky(spiky_vertices);
+    const Polygon dense_spiky(densified(spiky_vertices));
+
+    SUBCASE("segment grazing the tooth apexes tangentially is a slit") {
+        // Tangential single-vertex touches at the apexes (12, 10) and
+        // (22, 10) instead of collinear boundary runs; still no crossing.
+        const Segment grazing({2, 10}, {33, 10});
+
+        CHECK(spiky.interiorsIntersect(grazing));
+        CHECK_FALSE(grazing.separates(spiky));
+        CHECK_FALSE(grazing.separates(dense_spiky));
+    }
+
+    SUBCASE("chord through the spiky teeth below the apexes cuts") {
+        const Segment below_apexes({2, 8}, {33, 8});
+
+        CHECK(below_apexes.separates(spiky));
+        CHECK(below_apexes.separates(dense_spiky));
+    }
+}
+
+TEST_CASE("Segment separates Polygon along a boundary-carrying line") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // Rectangle [0, 6] x [0, 2] with a bump [2, 4] x [2, 3] on top. The
+    // segments below run along y = 2, the line carrying the bump's mouth
+    // (2, 2)-(4, 2) and the two boundary edges beside it, so every contact
+    // with the boundary is a collinear run rather than a crossing.
+    const std::vector<Point> bump_vertices{
+        {0, 0}, {6, 0}, {6, 2}, {4, 2}, {4, 3}, {2, 3}, {2, 2}, {0, 2}};
+    const Polygon bump(bump_vertices);
+    const Polygon dense_bump(densified(bump_vertices));
+
+    SUBCASE("endpoints on boundary edges, covering the mouth: cuts") {
+        // Covering the whole mouth severs the bump from the base even though
+        // the segment never changes sides of the boundary.
+        const Segment chord({1, 2}, {5, 2});
+
+        CHECK(chord.separates(bump));
+        CHECK(chord.separates(dense_bump));
+    }
+
+    SUBCASE("one endpoint on the boundary, one outside: cuts") {
+        const Segment chord({1, 2}, {7, 2});
+
+        CHECK(chord.separates(bump));
+        CHECK(chord.separates(dense_bump));
+    }
+
+    SUBCASE("exactly the mouth, endpoints on the reflex vertices: cuts") {
+        const Segment mouth({2, 2}, {4, 2});
+
+        CHECK(mouth.separates(bump));
+        CHECK(mouth.separates(dense_bump));
+    }
+
+    SUBCASE("one endpoint on the boundary, one inside the mouth: slit") {
+        // Only part of the mouth is covered; the bump stays connected to the
+        // base through the uncovered part.
+        const Segment slit({1, 2}, {3, 2});
+
+        CHECK_FALSE(slit.separates(bump));
+        CHECK_FALSE(slit.separates(dense_bump));
+    }
+
+    SUBCASE("segment along a boundary edge: no cut") {
+        const Segment on_edge({0, 2}, {2, 2});
+
+        CHECK_FALSE(on_edge.separates(bump));
+        CHECK_FALSE(on_edge.separates(dense_bump));
+    }
+
+    SUBCASE("same mouth chord with ERational coordinates") {
+        using EPoint = pgl::Point<pgl::ERational>;
+        const pgl::Polygon<EPoint> ebump(std::vector<EPoint>{
+            {0, 0}, {6, 0}, {6, 2}, {4, 2}, {4, 3}, {2, 3}, {2, 2}, {0, 2}});
+        const pgl::Segment<EPoint> chord{{1, 2}, {5, 2}};
+
+        CHECK(chord.separates(ebump));
+    }
+}
+
+TEST_CASE("Segment separates Polygon sealing a pocket between tangential touches") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // Square [0, 12] x [0, 4] minus two spikes rising from the bottom edge to
+    // apexes at (4, 2) and (8, 2). A segment along y = 2 meets the boundary
+    // only at the apexes -- tangential touches that never change sides of the
+    // line -- yet covering both seals the pocket between the spikes.
+    const std::vector<Point> spikes_vertices{
+        {0, 0}, {3, 0}, {4, 2}, {5, 0}, {7, 0}, {8, 2},
+        {9, 0}, {12, 0}, {12, 4}, {0, 4}};
+    const Polygon spikes(spikes_vertices);
+    const Polygon dense_spikes(densified(spikes_vertices));
+
+    SUBCASE("both endpoints strictly interior, covering both apexes: cuts") {
+        const Segment sealing({1, 2}, {11, 2});
+
+        CHECK(spikes.interiorContains(sealing.min()));
+        CHECK(spikes.interiorContains(sealing.max()));
+        CHECK(sealing.separates(spikes));
+        CHECK(sealing.separates(dense_spikes));
+    }
+
+    SUBCASE("covering one apex only: passage past the other remains") {
+        const Segment partial({1, 2}, {6, 2});
+
+        CHECK_FALSE(partial.separates(spikes));
+        CHECK_FALSE(partial.separates(dense_spikes));
     }
 }
 

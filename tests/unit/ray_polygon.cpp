@@ -217,6 +217,48 @@ TEST_CASE("Polygon separates Ray for reflex/edge-collinear non-convex cases") {
     }
 }
 
+TEST_CASE("Ray separates Polygon along a boundary-carrying line") {
+    using Point = pgl::Point<int>;
+    using Ray = pgl::Ray<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // Rectangle [0, 6] x [0, 2] with a bump [2, 4] x [2, 3] on top; the rays
+    // run along y = 2, the line carrying the bump's mouth (2, 2)-(4, 2) and
+    // the two boundary edges beside it.
+    const Polygon bump({0, 0, 6, 0, 6, 2, 4, 2, 4, 3, 2, 3, 2, 2, 0, 2});
+
+    SUBCASE("source on a boundary edge, running over the whole mouth: cuts") {
+        const Ray over_mouth({1, 2}, {2, 2});
+
+        CHECK(over_mouth.separates(bump));
+    }
+
+    SUBCASE("source inside the mouth, running right: passage remains") {
+        // The uncovered left half of the mouth keeps the bump attached.
+        const Ray from_mouth({3, 2}, {4, 2});
+
+        CHECK_FALSE(from_mouth.separates(bump));
+    }
+
+    // Square [0, 12] x [0, 4] minus two spikes rising from the bottom edge to
+    // apexes at (4, 2) and (8, 2); covering both tangential apexes seals the
+    // pocket between the spikes.
+    const Polygon spikes({0, 0, 3, 0, 4, 2, 5, 0, 7, 0, 8, 2, 9, 0, 12, 0, 12, 4, 0, 4});
+
+    SUBCASE("interior source, running over both apexes: cuts") {
+        const Ray sealing({1, 2}, {2, 2});
+
+        CHECK(spikes.interiorContains(sealing.source()));
+        CHECK(sealing.separates(spikes));
+    }
+
+    SUBCASE("interior source past both apexes: slit out the wall") {
+        const Ray slit({10, 2}, {11, 2});
+
+        CHECK_FALSE(slit.separates(spikes));
+    }
+}
+
 TEST_CASE("Ray separates Polygon matches Ray separates Convex") {
     using Point = pgl::Point<int>;
     using Ray = pgl::Ray<Point>;
