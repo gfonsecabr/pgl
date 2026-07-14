@@ -1970,8 +1970,14 @@ struct MonotoneChain {
         }
 
         // Other comparisons
-        auto operator<=>(const Iterator& other) const {
-            return it <=> other.it;
+        std::strong_ordering operator<=>(const Iterator& other) const {
+            if (it < other.it) {
+                return std::strong_ordering::less;
+            }
+            if (it > other.it) {
+                return std::strong_ordering::greater;
+            }
+            return std::strong_ordering::equal;
         }
 
         // Addition
