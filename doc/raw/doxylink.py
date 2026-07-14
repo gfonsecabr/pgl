@@ -226,7 +226,11 @@ def resolve(content, override, context, methods, class_by_norm, class_page,
 
     # A token that names a class. Standing alone (optionally pgl::-qualified), link
     # it to its class page; with a receiver or arguments it is not a plain mention.
-    if norm(method) in class_by_norm:
+    # Class names are capitalized, so a lowercase token never names one: `shape` is a
+    # variable, and `triangulation` is Polygon::triangulation(), not pgl::Triangulation.
+    # Without this guard both would be captured here -- the first mis-linked to the
+    # class page, the second swallowed as not-a-mention before method resolution runs.
+    if method[:1].isupper() and norm(method) in class_by_norm:
         if receiver is None and parens is None:
             full = class_by_norm[norm(method)]
             page = class_page.get(full)
