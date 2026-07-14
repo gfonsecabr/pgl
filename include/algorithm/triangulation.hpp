@@ -476,10 +476,10 @@ struct Triangulation {
     // ---- membership ------------------------------------------------------
 
     /** @brief True if @p t is one of the triangles of this triangulation. */
-    [[nodiscard]] bool contains(const TriangleType& t) const { return inDomain(idOf(t)); }
+    [[nodiscard]] bool has(const TriangleType& t) const { return inDomain(idOf(t)); }
 
     /** @brief True if @p s is an edge incident to the visible triangulation. */
-    [[nodiscard]] bool contains(const SegmentType& s) const {
+    [[nodiscard]] bool has(const SegmentType& s) const {
         auto se = segToEdge_.find(s);
         return se != segToEdge_.end() && edgeInDomain(se->second);
     }
@@ -1392,7 +1392,7 @@ struct Triangulation {
      *
      * @param t A triangle of this triangulation.
      * @return Reference to its stored label.
-     * @pre `contains(t)` — @p t is one of the triangulation's triangles.
+     * @pre `has(t)` — @p t is one of the triangulation's triangles.
      */
     template <class L = TriangleLabel>
         requires(detail::has_label_v<L>)
@@ -1421,7 +1421,7 @@ struct Triangulation {
      *
      * @param s An edge of this triangulation.
      * @return Reference to its stored label.
-     * @pre `contains(s)` — @p s is one of the triangulation's edges.
+     * @pre `has(s)` — @p s is one of the triangulation's edges.
      */
     template <class L = SegmentLabel>
         requires(detail::has_label_v<L>)
