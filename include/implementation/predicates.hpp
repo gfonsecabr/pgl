@@ -457,12 +457,12 @@ constexpr bool Line<PointType, LabelType>::collinear(const OtherRay& other) cons
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> Line<PointType, LabelType>::halfplaneAbove() const {
-    return Halfplane<PointType>(max(), min());
+    return Halfplane<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> Line<PointType, LabelType>::halfplaneBelow() const {
-    return Halfplane<PointType>(min(), max());
+    return Halfplane<PointType>(max(), min());
 }
 
 /**
@@ -585,12 +585,12 @@ constexpr bool OrientedLine<PointType, LabelType>::parallel(const OtherRay& othe
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::halfplaneAbove() const {
-    return Halfplane<PointType>(max(), min());
+    return Halfplane<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> OrientedLine<PointType, LabelType>::halfplaneBelow() const {
-    return Halfplane<PointType>(min(), max());
+    return Halfplane<PointType>(max(), min());
 }
 
 template <class PointType, class LabelType>
@@ -736,12 +736,12 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherRay& other) co
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> Ray<PointType, LabelType>::halfplaneAbove() const {
-    return Halfplane<PointType>(max(), min());
+    return Halfplane<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 constexpr Halfplane<PointType> Ray<PointType, LabelType>::halfplaneBelow() const {
-    return Halfplane<PointType>(min(), max());
+    return Halfplane<PointType>(max(), min());
 }
 
 template <class PointType, class LabelType>

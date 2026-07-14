@@ -114,16 +114,16 @@ TEST_CASE("Line builds geometric above and below half-planes") {
     const auto above = diagonal.halfplaneAbove();
     const auto below = diagonal.halfplaneBelow();
 
-    CHECK(above.contains(Point(1, 0)));
+    CHECK(above.contains(Point(0, 1)));
     CHECK(above.boundaryContains(Point(2, 2)));
-    CHECK_FALSE(above.contains(Point(0, 1)));
+    CHECK_FALSE(above.contains(Point(1, 0)));
 
-    CHECK(below.contains(Point(0, 1)));
-    CHECK_FALSE(below.contains(Point(1, 0)));
+    CHECK(below.contains(Point(1, 0)));
+    CHECK_FALSE(below.contains(Point(0, 1)));
 
     const Line vertical({2, 4}, {2, -1});
-    CHECK(vertical.halfplaneAbove().contains(Point(3, 0)));
-    CHECK_FALSE(vertical.halfplaneAbove().contains(Point(1, 0)));
+    CHECK(vertical.halfplaneAbove().contains(Point(1, 0)));
+    CHECK_FALSE(vertical.halfplaneAbove().contains(Point(3, 0)));
 }
 
 TEST_CASE("Line equality, ordering, and hashing depend on the represented geometric line") {

@@ -128,11 +128,11 @@ TEST_CASE("Ray builds geometric and orientation-dependent half-planes") {
 
     const Ray ray({4, 4}, {0, 0});
 
-    CHECK(ray.halfplaneAbove().contains(Point(1, 0)));
-    CHECK_FALSE(ray.halfplaneAbove().contains(Point(0, 1)));
+    CHECK(ray.halfplaneAbove().contains(Point(0, 1)));
+    CHECK_FALSE(ray.halfplaneAbove().contains(Point(1, 0)));
 
-    CHECK(ray.halfplaneBelow().contains(Point(0, 1)));
-    CHECK_FALSE(ray.halfplaneBelow().contains(Point(1, 0)));
+    CHECK(ray.halfplaneBelow().contains(Point(1, 0)));
+    CHECK_FALSE(ray.halfplaneBelow().contains(Point(0, 1)));
 
     CHECK(ray.leftHalfplane().contains(Point(1, 0)));
     CHECK_FALSE(ray.leftHalfplane().contains(Point(0, 1)));

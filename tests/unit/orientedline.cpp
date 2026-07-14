@@ -125,11 +125,11 @@ TEST_CASE("OrientedLine builds geometric and orientation-dependent half-planes")
 
     const OrientedLine line({4, 4}, {0, 0});
 
-    CHECK(line.halfplaneAbove().contains(Point(1, 0)));
-    CHECK_FALSE(line.halfplaneAbove().contains(Point(0, 1)));
+    CHECK(line.halfplaneAbove().contains(Point(0, 1)));
+    CHECK_FALSE(line.halfplaneAbove().contains(Point(1, 0)));
 
-    CHECK(line.halfplaneBelow().contains(Point(0, 1)));
-    CHECK_FALSE(line.halfplaneBelow().contains(Point(1, 0)));
+    CHECK(line.halfplaneBelow().contains(Point(1, 0)));
+    CHECK_FALSE(line.halfplaneBelow().contains(Point(0, 1)));
 
     CHECK(line.leftHalfplane().contains(Point(1, 0)));
     CHECK_FALSE(line.leftHalfplane().contains(Point(0, 1)));
