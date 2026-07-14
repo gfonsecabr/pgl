@@ -353,6 +353,15 @@ TEST_CASE("Segment distinguishes crossing, touching, overlap, containment, and T
         CHECK_FALSE(horizontal.interiorsIntersect(touching_endpoint));
     }
 
+    SUBCASE("a segment coincides with itself, interiors included") {
+        // The collinear test asks for an endpoint of one strictly inside the other,
+        // which two coincident segments have not — yet their interiors are the same.
+        CHECK(horizontal.interiorsIntersect(horizontal));
+        CHECK(horizontal.interiorsIntersect(Segment({4, 0}, {0, 0})));  // same, reversed
+        CHECK(horizontal.intersects(horizontal));
+        CHECK_FALSE(horizontal.crosses(horizontal));
+    }
+
     SUBCASE("colinear segments can still be completely disjoint") {
         CHECK_FALSE(horizontal.separates(disjoint));
         CHECK_FALSE(disjoint.separates(horizontal));

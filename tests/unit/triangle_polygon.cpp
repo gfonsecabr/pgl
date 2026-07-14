@@ -131,6 +131,17 @@ TEST_CASE("Triangle and Polygon meet predicates") {
         CHECK(over.interiorsIntersect(t));
     }
 
+    SUBCASE("a triangle snug in the polygon's corner still shares its interior") {
+        // No vertex of either is strictly inside the other and no edges properly
+        // cross — every contact is degenerate — yet the triangle lies in the polygon.
+        const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+        const Triangle snug(Point(0, 0), Point(5, 0), Point(0, 5));
+
+        CHECK(square.contains(snug));
+        CHECK(square.interiorsIntersect(snug));
+        CHECK(snug.interiorsIntersect(square));
+    }
+
     SUBCASE("touching only at a vertex meets but interiors do not") {
         const Polygon corner({10, 0, 20, 0, 20, 10, 10, 10});
 

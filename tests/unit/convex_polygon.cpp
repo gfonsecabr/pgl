@@ -272,6 +272,18 @@ TEST_CASE("Polygon contains a convex") {
     CHECK_FALSE(small.boundaryContains(big));
     CHECK(small.intersects(big));
     CHECK(small.interiorsIntersect(big));
+
+    // Snug against the boundary: every contact is degenerate — no vertex of either
+    // strictly inside the other, no pair of edges properly crossing — yet the two
+    // share interior points. Coincident regions are the extreme of the same case.
+    const Convex snug({{0, 0}, {20, 0}, {20, 10}, {0, 10}});  // shares three sides
+    CHECK(big.contains(snug));
+    CHECK(big.interiorsIntersect(snug));
+    CHECK(snug.interiorsIntersect(big));
+
+    const Convex same({{0, 0}, {20, 0}, {20, 20}, {0, 20}});
+    CHECK(big.interiorsIntersect(same));
+    CHECK(same.interiorsIntersect(big));
 }
 
 TEST_CASE("Convex and polygon overlap without either containing the other") {
