@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace pgl {
@@ -101,6 +102,17 @@ concept TriangulationRegionQuery =
 // edge in turn, in chain order.
 template <class T>
 concept ChainTraversal = PolylineConcept<T> || MonotoneChainConcept<T>;
+
+// A query shape bounded by a closed polygonal chain: a triangle, rectangle,
+// convex polygon, or (possibly non-convex) polygon. Containment of
+// such a shape in the triangulated domain reduces to containment of its boundary
+// edges: the domain is a simply connected region (a simple polygon, or the convex
+// hull), so its complement is connected — a point of the shape outside the domain
+// could be joined to infinity without ever meeting the domain, and that path has
+// to cross the shape's boundary, which is inside it. Contradiction.
+template <class T>
+concept PolygonalRegion =
+    TriangleConcept<T> || RectangleConcept<T> || ConvexConcept<T> || PolygonConcept<T>;
 
 // Any shape the triangulation's intersection queries accept: a directed-traversal
 // shape (traced in order by the directed walk), a chain (traced edge by edge, in
@@ -721,6 +733,27 @@ struct Triangulation {
      */
     template <detail::DirectedTraversal OS, class Fn>
     bool visitTrianglesIntersecting(const OS& s, Fn f) const {
+        return visitTriangleIdsIntersecting<false>(
+            s, [&](TriId t) { return detail::invokeVisitor(f, triangleValue(t)); });
+    }
+
+  private:
+    /**
+     * @brief The directed walk itself, reporting internal triangle ids.
+     *
+     * The public @ref visitTrianglesIntersecting is this walk with a visitor that
+     * materializes each id as a `Triangle` value. `f` takes a `TriId` and returns
+     * `bool` (`true` stops the walk).
+     *
+     * With @p AllTriangles the walk reports every real triangle it meets, the
+     * out-of-domain hull-fill ones included, and additionally reports the ghost
+     * triangle it steps into when the query leaves the triangulated region — the
+     * only ghost ever passed to `f`, so `isGhost(t)` means exactly "the query
+     * left the region here". That is what @ref contains needs: the domain is what
+     * the query must stay inside, so it has to see what lies outside it.
+     */
+    template <bool AllTriangles, detail::DirectedTraversal OS, class Fn>
+    bool visitTriangleIdsIntersecting(const OS& s, Fn f) const {
         if (firstGhost_ == 0) return false;
         const auto a = s[0];
         const auto b = s[1];
@@ -749,14 +782,19 @@ struct Triangulation {
             ~MarkClearer() { for (TriId t : marked) tris[t].walkMark = 0; }
         } markClearer{triangles_, marked};
         bool stop = false;
-        // Emit a triangle to f, once. Ghost and out-of-domain (polygon hull-fill)
-        // triangles are walked through for navigation but never reported, so the
-        // reported set is exactly the in-domain triangles s meets.
+        // The triangle the walk came from, so it never steps straight back out
+        // through the edge it just crossed. Set by the entry helpers below too.
+        TriId prev = NO_TRI;
+        // Emit a triangle to f, once. Ghost triangles are walked through for
+        // navigation but never reported here, and out-of-domain (polygon
+        // hull-fill) ones only under AllTriangles, so the reported set is exactly
+        // the (in-domain, or all real) triangles s meets.
         const auto emit = [&](TriId t) {
-            if (!stop && inDomain(t) && !triangles_[t].walkMark) {
+            const bool report = AllTriangles ? (t != NO_TRI && !isGhost(t)) : inDomain(t);
+            if (!stop && report && !triangles_[t].walkMark) {
                 triangles_[t].walkMark = 1;
                 marked.push_back(t);
-                if (detail::invokeVisitor(f, triangleValue(t))) stop = true;
+                if (f(t)) stop = true;
             }
         };
         // The next triangle when rotating around vertex w, having arrived from
@@ -783,17 +821,23 @@ struct Triangulation {
                 cur = next;
             } while (cur != startTri && cur != NO_TRI && !stop && ++g < lim);
         };
-        // Does the ray from p (on closure of t) toward b enter t's interior?
-        // 1 = enters, 0 = no, -1 = runs collinearly along an edge of t.
+        // Continuing forward from p — a point on the closure of t — does the query
+        // enter t's interior? 1 = enters, 0 = no, -1 = runs collinearly along an
+        // edge of t. Forward is the *direction* a->b, not "towards the point b":
+        // b is the far end only for a segment, while a line or a ray runs past its
+        // second defining point, and beyond it "towards b" points backwards.
+        // cross(w - u, b - a) is that direction's side of the edge (u,w), and the
+        // triangle being CCW its interior is the positive side.
         const auto rayEnters = [&](TriId t, const auto& p) -> int {
             const auto& v = triangles_[t].v;
             for (int k = 0; k < 3; ++k) {
                 const auto& u = vertices_[v[(k + 1) % 3]];
                 const auto& w = vertices_[v[(k + 2) % 3]];
                 if (orientationSign(u, w, p) == 0) {
-                    const auto ob = orientationSign(u, w, b);
-                    if (ob < 0) return 0;
-                    if (ob == 0) return -1;
+                    const auto forward =
+                        orientationDeterminant(u, w, b) - orientationDeterminant(u, w, a);
+                    if (forward < 0) return 0;
+                    if (forward == 0) return -1;
                 }
             }
             return 1;
@@ -862,40 +906,6 @@ struct Triangulation {
             return NO_TRI;
         };
 
-        // When s starts outside the convex hull, find the ghost triangle whose
-        // hull edge s crosses to enter it — by *following the ghost ring*, not
-        // scanning the whole boundary. The triangulated region is the convex
-        // hull, so s meets it in a single interval: one entry suffices.
-        //
-        // Ghost triangles share a single placeholder apex (they are topological,
-        // not Euclidean), so navigation uses only the real hull endpoints: at
-        // each ghost step toward whichever endpoint of its hull edge is closer
-        // to the supporting line a->b (smaller |orientation determinant|). Once
-        // an edge straddles that line, test whether s actually reaches it. This
-        // walks O(arc) ghosts toward the crossing rather than all of them.
-        [[maybe_unused]] const auto enterFromGhost = [&](TriId g0) -> TriId {
-            TriId g = g0;
-            std::size_t guard = 0, lim = triangles_.size() + 1;
-            while (g != NO_TRI && isGhost(g) && ++guard < lim) {
-                const VertexId va = triangles_[g].v[0];
-                const VertexId vb = triangles_[g].v[1];
-                const auto da = orientationDeterminant(a, b, vertices_[va]);
-                const auto db = orientationDeterminant(a, b, vertices_[vb]);
-                const bool straddle = da == 0 || db == 0 || (da > 0) != (db > 0);
-                if (straddle) {
-                    // The hull edge crosses the line a->b; s enters here iff it
-                    // actually reaches the edge (else it never meets the hull).
-                    return s.intersects(edgeSegment(Edge{g, 2})) ? g : NO_TRI;
-                }
-                // Same side of the line: step toward the closer endpoint. The
-                // ghost sharing va is nbr[1]; the one sharing vb is nbr[0].
-                const auto absA = da < 0 ? -da : da;
-                const auto absB = db < 0 ? -db : db;
-                g = triangles_[g].nbr[absA < absB ? 1 : 0];
-            }
-            return NO_TRI;
-        };
-
         // Whether the directed line a->b crosses ghost g's hull edge from outside
         // into the hull (rather than exiting it). The interior lies on the side of
         // the hull edge holding the inside triangle's apex; the line enters iff its
@@ -916,16 +926,28 @@ struct Triangulation {
             return dirCross != 0 && (dirCross > 0) == (insideSide > 0);
         };
 
-        // For a line / oriented line: the ghost whose hull edge the directed line
-        // a->b crosses to ENTER the hull, or NO_TRI if the line misses it. The
-        // O(arc) descent toward the supporting line (the same stepping as
-        // enterFromGhost) lands on one of the two hull crossings; if that one is
-        // where the line exits, the entry is the only other crossing, reached by
-        // walking the ghost ring in one direction to the next straddle. Unlike
-        // enterFromGhost it never uses s.intersects: an infinite line meets both
-        // straddling edges, so only the direction a->b distinguishes entry from exit.
-        [[maybe_unused]] const auto lineEntry = [&]() -> TriId {
-            TriId g = firstGhost_, crossing = NO_TRI;
+        // The ghost whose hull edge the directed query crosses to ENTER the hull,
+        // or NO_TRI if it never reaches the hull at all. Used by every query whose
+        // start lies outside: the direction a->b is what picks the entry out of the
+        // (at most two) hull edges the supporting line meets, so a segment starting
+        // outside is entered exactly like a line.
+        //
+        // Ghost triangles share a single placeholder apex (they are topological,
+        // not Euclidean), so navigation uses only the real hull endpoints: each step
+        // moves toward whichever endpoint of the current hull edge is closer to the
+        // supporting line a->b (smaller |orientation determinant|), so the descent
+        // walks O(arc) ghosts toward a crossing rather than scanning all of them.
+        //
+        // That descent lands on *a* crossing, which need not be the entry: it may be
+        // where the query leaves the hull, and a crossing where the line merely
+        // touches a vertex the two hull edges share is no entry at all. So the ring
+        // is then followed until a hull edge the line genuinely enters through.
+        // A line running *along* a hull edge enters through no edge, yet still meets
+        // the triangles lining it, so that collinear edge is kept as a fallback.
+        // @p g0 seeds the descent: the ghost the query's own source located, when it
+        // has one, so the walk starts near its crossing and stays O(arc).
+        [[maybe_unused]] const auto lineEntry = [&](TriId g0) -> TriId {
+            TriId g = g0, crossing = NO_TRI;
             std::size_t guard = 0, lim = triangles_.size() + 1;
             while (g != NO_TRI && isGhost(g) && ++guard < lim) {
                 const VertexId va = triangles_[g].v[0];
@@ -937,24 +959,57 @@ struct Triangulation {
                 const auto absB = db < 0 ? -db : db;
                 g = triangles_[g].nbr[absA < absB ? 1 : 0];
             }
-            if (crossing == NO_TRI) return NO_TRI;      // the line misses the hull
-            if (lineEnters(crossing)) return crossing;   // the descent found the entry
-            // The descent found the exit; the entry is the only other crossing —
-            // walk the ghost ring in one direction until the next straddle.
-            TriId h = triangles_[crossing].nbr[0], from = crossing;
+            if (crossing == NO_TRI) return NO_TRI;  // the supporting line misses the hull
+            TriId h = crossing, from = NO_TRI, collinear = NO_TRI;
             guard = 0;
             while (h != NO_TRI && isGhost(h) && ++guard < lim) {
                 const VertexId va = triangles_[h].v[0];
                 const VertexId vb = triangles_[h].v[1];
                 const auto da = orientationDeterminant(a, b, vertices_[va]);
                 const auto db = orientationDeterminant(a, b, vertices_[vb]);
-                if (da == 0 || db == 0 || (da > 0) != (db > 0)) return h;  // entry crossing
+                const bool straddle = da == 0 || db == 0 || (da > 0) != (db > 0);
+                if (da == 0 && db == 0) {
+                    collinear = h;  // the query runs along this hull edge
+                } else if (straddle && lineEnters(h)) {
+                    return h;
+                }
                 const TriId next = triangles_[h].nbr[0] == from ? triangles_[h].nbr[1]
                                                                 : triangles_[h].nbr[0];
                 from = h;
                 h = next;
+                if (h == crossing) break;  // came full circle
             }
-            return NO_TRI;  // unreachable: a line crossing the hull crosses it twice
+            return collinear;
+        };
+
+        // Begin the trace at the hull edge of ghost `g`, which the query crosses to
+        // enter the triangulated region. Crossing through an *endpoint* of that edge
+        // — a mesh vertex — is not the same as crossing through its relative
+        // interior: there the query meets that vertex's whole fan, and may only
+        // graze the hull there or run on along its boundary. So it enters exactly
+        // like any other on-vertex advance (fan, then follow), which is also what
+        // makes the entry independent of which of the vertex's two ghosts was found.
+        // Otherwise it simply enters the triangle just inside the edge.
+        [[maybe_unused]] const auto enterThroughGhost = [&](TriId g) -> TriId {
+            const VertexId va = triangles_[g].v[0];
+            const VertexId vb = triangles_[g].v[1];
+            const bool onA = orientationSign(a, b, vertices_[va]) == 0;
+            const bool onB = orientationSign(a, b, vertices_[vb]) == 0;
+            if (onA || onB) {
+                VertexId w = onA ? va : vb;
+                if (onA && onB) {
+                    // Along the hull edge: start at the endpoint met first, never at
+                    // one behind a finite source.
+                    const VertexId first = progress(va) <= progress(vb) ? va : vb;
+                    const VertexId second = (first == va) ? vb : va;
+                    w = (unboundedBack || progress(first) >= 0) ? first : second;
+                }
+                prev = NO_TRI;
+                return advanceFromVertex(w, g);
+            }
+            prev = g;  // entry boundary edge; don't step back out through it
+            const TriId inside = triangles_[g].nbr[2];
+            return (inside != NO_TRI && !isGhost(inside)) ? inside : NO_TRI;
         };
 
         // Pick the triangle to begin tracing the component reached at `start`,
@@ -1026,46 +1081,31 @@ struct Triangulation {
         };
 
         TriId t;
-        TriId prev = NO_TRI;
         if constexpr (unboundedBack) {
             // A line has no finite source: enter the hull at the ghost where the
-            // directed line a->b crosses in, then trace forward like a segment.
-            const TriId g = lineEntry();
+            // directed line a->b crosses in, then trace forward like a segment. With
+            // no source to locate, the descent starts at an arbitrary ghost.
+            const TriId g = lineEntry(firstGhost_);
             if (g == NO_TRI) {
                 return false;  // the line misses the triangulated region
             }
-            prev = g;  // entry boundary edge; don't step back out through it
-            t = triangles_[g].nbr[2];
-            if (!(t != NO_TRI && !isGhost(t))) {
-                return false;
-            }
+            t = enterThroughGhost(g);
         } else {
             t = locateId(a);
             if (t == NO_TRI) {
                 return false;  // empty triangulation
             }
             if (isGhost(t)) {
-                // Source outside the hull: walk the ghost ring to the entry edge.
-                // A ray, like a line, crosses the hull boundary twice, so it needs
-                // the directional entry (and must actually reach it); a segment's
-                // source seeds enterFromGhost near its own crossing.
-                TriId g;
-                if constexpr (unboundedFront) {  // a ray
-                    g = lineEntry();
-                    if (g != NO_TRI && !s.intersects(edgeSegment(Edge{g, 2}))) {
-                        g = NO_TRI;  // the entry is behind the source; the ray misses
-                    }
-                } else {  // a segment
-                    g = enterFromGhost(t);
-                }
-                if (g == NO_TRI) {
+                // Source outside the hull: the hull boundary is crossed twice, so it
+                // is the direction a->b that says which crossing is the way in — for
+                // a segment and a ray no less than for a line — and the query must
+                // then actually reach that edge to meet the region at all. The ghost
+                // the source landed in seeds the descent, keeping it O(arc).
+                const TriId g = lineEntry(t);
+                if (g == NO_TRI || !s.intersects(edgeSegment(Edge{g, 2}))) {
                     return false;  // s never meets the triangulated region
                 }
-                prev = g;  // entry boundary edge; don't step back out through it
-                t = triangles_[g].nbr[2];
-                if (!(t != NO_TRI && !isGhost(t))) {
-                    return false;
-                }
+                t = enterThroughGhost(g);
             } else {
                 t = enterAt(a, t);  // source inside the hull: start there
             }
@@ -1117,7 +1157,13 @@ struct Triangulation {
                 prev = t;
                 t = triangles_[t].nbr[exitK];
                 if (isGhost(t)) {
-                    break;  // left the convex hull; by convexity s cannot re-enter
+                    // Left the triangulated region; by convexity s cannot re-enter.
+                    // Under AllTriangles report the ghost we stepped into, so the
+                    // caller can tell this exit from a mere touch of the boundary.
+                    if constexpr (AllTriangles) {
+                        (void)f(t);
+                    }
+                    break;
                 }
                 continue;
             }
@@ -1142,6 +1188,7 @@ struct Triangulation {
         return stop;
     }
 
+  public:
     /**
      * @brief Returns the triangles met by @p s (a segment, (oriented) line, ray,
      *        or chain, in order, or a region query shape, in an unspecified
@@ -1349,7 +1396,8 @@ struct Triangulation {
         if (firstGhost_ == 0) return false;  // no real triangles
         const std::vector<TriId> seeds = seedTrianglesIntersecting(shape);
         if (seeds.empty()) return false;
-        return floodTrianglesIntersecting(shape, seeds, f);
+        return floodTriangleIdsIntersecting<false>(
+            shape, seeds, [&](TriId t) { return detail::invokeVisitor(f, triangleValue(t)); });
     }
 
     // The materialized form — trianglesIntersecting(shape) — and the
@@ -1432,6 +1480,292 @@ struct Triangulation {
             return std::nullopt;  // outside the region, or in a hull-fill triangle
         }
         return triangleValue(id);
+    }
+
+    // ---- predicates against the domain -----------------------------------
+
+    /**
+     * @brief True if the triangulated domain contains @p shape (A ⊇ B).
+     *
+     * The domain is the closed region the triangulation covers — the polygon for
+     * the polygon constructors, the convex hull otherwise — so this, and its
+     * companions @ref interiorContains, @ref intersects and
+     * @ref interiorsIntersect, answer exactly what the shape predicates of the
+     * same name would answer for that region as a `Polygon`, boundary and all: a
+     * shape running along a polygon edge, or ending on one, is contained. The work
+     * is done on the mesh, though, so the cost is proportional to the triangles
+     * @p shape meets rather than to the size of the domain's boundary.
+     *
+     * Every shape type is accepted. An unbounded one — a line, oriented line,
+     * ray, or half-plane — is never contained in the bounded domain; the empty
+     * shape always is.
+     *
+     * @param shape Query shape; it may use a different point type.
+     * @note Distinct from @ref has, which asks whether a triangle or segment is a
+     *       *cell* of the mesh, not whether the domain covers it geometrically.
+     */
+    template <PointConcept QueryPoint>
+    [[nodiscard]] bool contains(const QueryPoint& shape) const {
+        // The domain is closed, so containing a point and meeting it are the same
+        // question. Note that locate() would not answer it: for a point on the
+        // domain boundary the visibility walk may land on the out-of-domain side,
+        // and the point is contained all the same.
+        return intersects(shape);
+    }
+
+    /** @overload */
+    template <detail::SegmentOrOriented S>
+    [[nodiscard]] bool contains(const S& shape) const {
+        if (!contains(shape[0]) || !contains(shape[1])) {
+            return false;
+        }
+        // Both endpoints are in the domain, so the segment can only escape between
+        // them, and the walk sees every triangle it crosses on the way. It escapes
+        // iff it (a) enters the interior of an out-of-domain hull-fill triangle,
+        // (b) runs along an edge with no in-domain side — a diagonal of the fill
+        // region, which no interior is entered by — or (c) leaves the triangulated
+        // region altogether, which the walk reports as a step into a ghost. Merely
+        // touching a fill triangle (along a boundary edge, or at a boundary vertex
+        // whose fan the walk sweeps) is not an escape: the boundary belongs to the
+        // domain.
+        return !visitTriangleIdsIntersecting<true>(shape, [&](TriId t) {
+            if (isGhost(t)) {
+                return true;  // (c)
+            }
+            if (inDomain(t)) {
+                return false;
+            }
+            if (triangleValue(t).interiorsIntersect(shape)) {
+                return true;  // (a)
+            }
+            for (std::int8_t side = 0; side < 3; ++side) {
+                const Edge e{t, side};
+                if (!edgeInDomain(e) && shape.interiorsIntersect(edgeSegment(e))) {
+                    return true;  // (b)
+                }
+            }
+            return false;
+        });
+    }
+
+    /** @overload */
+    template <detail::ChainTraversal C>
+    [[nodiscard]] bool contains(const C& shape) const {
+        if (shape.empty()) {
+            return true;
+        }
+        if (shape.size() < 2) {
+            return contains(shape[0]);
+        }
+        return containsBoundary(shape.orientedEdgesView(), shape);
+    }
+
+    /** @overload */
+    template <detail::PolygonalRegion Q>
+    [[nodiscard]] bool contains(const Q& shape) const {
+        // A closed boundary inside the (simply connected) domain encloses nothing
+        // outside it — see detail::PolygonalRegion — so the edges decide.
+        return containsBoundary(shape.edges(), shape);
+    }
+
+    /** @overload */
+    template <DiskConcept D>
+    [[nodiscard]] bool contains(const D& shape) const {
+        // A disk has no edges to trace, so it is grown by the region flood fill
+        // instead. The domain is closed, so the disk lies in it iff its *interior*
+        // does, and the open disk escapes iff it reaches into the interior of an
+        // out-of-domain hull-fill triangle or crosses out through a boundary edge
+        // of the triangulated region (one whose far side is a ghost). Neither
+        // fires on a disk that only touches the domain boundary — an open disk on
+        // one side of a line never meets that line — so containment also demands
+        // that the open disk actually reach inside: a disk resting against the
+        // boundary from the outside, meeting the domain in a single point, escapes
+        // through no triangle and no edge, and is still not contained.
+        const std::vector<TriId> seeds = seedTrianglesIntersecting(shape);
+        if (seeds.empty()) {
+            return false;  // the disk misses the triangulated region entirely
+        }
+        bool reachesInside = false;
+        const bool escapes = floodTriangleIdsIntersecting<true>(shape, seeds, [&](TriId t) {
+            const TriangleType triangle = triangleValue(t);
+            if (triangle.interiorsIntersect(shape)) {
+                if (!inDomain(t)) {
+                    return true;  // reaches into the hull-fill region
+                }
+                reachesInside = true;
+            }
+            for (std::int8_t side = 0; side < 3; ++side) {
+                if (isGhost(triangles_[t].nbr[side]) &&
+                    shape.interiorsIntersect(edgeSegment(Edge{t, side}))) {
+                    return true;  // crosses out through the boundary of the region
+                }
+            }
+            return false;
+        });
+        // reachesInside is complete only when the fill ran to the end, which is
+        // exactly when nothing escaped.
+        return !escapes && reachesInside;
+    }
+
+    /** @overload @brief Always false: an unbounded shape cannot fit in the domain. */
+    template <class U>
+        requires detail::LineOrOriented<U> || RayConcept<U> || HalfplaneConcept<U>
+    [[nodiscard]] bool contains(const U&) const {
+        return false;
+    }
+
+    /** @overload @brief Always true: every region contains the empty shape. */
+    template <EmptyShapeConcept E>
+    [[nodiscard]] bool contains(const E&) const {
+        return true;
+    }
+
+    /** @overload */
+    [[nodiscard]] bool contains(const Shape<PointType>& shape) const {
+        return std::visit([this](const auto& s) { return this->contains(s); }, shape.variant());
+    }
+
+    /**
+     * @brief True if the triangulated domain meets @p shape (A ∩ B ≠ ∅).
+     *
+     * Closed intersection, as for @ref contains: a shape touching the domain only
+     * along its boundary meets it. This is precisely "some triangle of the mesh
+     * meets @p shape", which is what the traversals report, so it is the cheapest
+     * of the four predicates — the walk stops at the first triangle found.
+     *
+     * @param shape Query shape; it may use a different point type.
+     */
+    template <detail::TriangulationQuery Q>
+    [[nodiscard]] bool intersects(const Q& shape) const {
+        return visitTrianglesIntersecting(shape, [](const TriangleType&) { return true; });
+    }
+
+    /** @overload */
+    template <PolygonConcept Q>
+    [[nodiscard]] bool intersects(const Q& shape) const {
+        // A polygon is not a traversal query (it need not be convex), so it is
+        // taken edge by edge. If its boundary misses the domain entirely the two
+        // are either disjoint or the domain — which is connected — lies inside the
+        // polygon, and a single domain vertex settles which.
+        for (const auto& e : shape.edges()) {
+            if (e[0] != e[1] && intersects(e)) {
+                return true;
+            }
+        }
+        const TriId t = firstInDomainTriangle();
+        return t != NO_TRI && shape.contains(vertices_[triangles_[t].v[0]]);
+    }
+
+    /** @overload @brief Always false: nothing meets the empty shape. */
+    template <EmptyShapeConcept E>
+    [[nodiscard]] bool intersects(const E&) const {
+        return false;
+    }
+
+    /** @overload */
+    [[nodiscard]] bool intersects(const Shape<PointType>& shape) const {
+        return std::visit([this](const auto& s) { return this->intersects(s); }, shape.variant());
+    }
+
+    /**
+     * @brief True if the domain's interior contains @p shape (A∖∂A ⊇ B).
+     *
+     * The domain minus its boundary: @p shape must lie inside it without touching
+     * the polygon's edges (or, for a hull domain, the hull's). So it is
+     * @ref contains plus "meets no boundary edge of the domain" — an edge with a
+     * ghost or a hull-fill triangle on its far side. A shape lying along a polygon
+     * edge is contained but not interior-contained.
+     *
+     * @param shape Query shape; it may use a different point type.
+     */
+    template <detail::TriangulationQuery Q>
+    [[nodiscard]] bool interiorContains(const Q& shape) const {
+        return contains(shape) && !meetsDomainBoundary(shape);
+    }
+
+    /** @overload */
+    template <PolygonConcept Q>
+    [[nodiscard]] bool interiorContains(const Q& shape) const {
+        // As for contains(), the edges decide: a polygon lying in the domain can
+        // only touch ∂D along its own boundary. An interior point of the polygon
+        // touching ∂D would have points outside the domain arbitrarily close to it,
+        // yet a whole neighbourhood of it lies in the polygon, hence in the domain.
+        return containsBoundary<true>(shape.edges(), shape);
+    }
+
+    /** @overload @brief Always true: every interior contains the empty shape. */
+    template <EmptyShapeConcept E>
+    [[nodiscard]] bool interiorContains(const E&) const {
+        return true;
+    }
+
+    /** @overload */
+    [[nodiscard]] bool interiorContains(const Shape<PointType>& shape) const {
+        return std::visit([this](const auto& s) { return this->interiorContains(s); },
+                          shape.variant());
+    }
+
+    /**
+     * @brief True if the domain's interior meets @p shape's interior
+     *        (A∖∂A ∩ B∖∂B ≠ ∅).
+     *
+     * Contact along the boundary of either does not count: a segment lying on a
+     * polygon edge, or a triangle of the mesh sharing only an edge with @p shape,
+     * do not interior-intersect the domain.
+     *
+     * @param shape Query shape; it may use a different point type.
+     */
+    template <PointConcept QueryPoint>
+    [[nodiscard]] bool interiorsIntersect(const QueryPoint& shape) const {
+        return interiorContains(shape);  // a point's interior is the point itself
+    }
+
+    /** @overload */
+    template <detail::TriangulationQuery Q>
+        requires(!PointConcept<Q>)
+    [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
+        // The interior of the domain is the open triangles plus the relative
+        // interiors of the interior edges (those with an in-domain triangle on
+        // both sides) plus the interior vertices — and the vertices are redundant
+        // here: a shape of positive dimension whose interior reaches one of them
+        // also reaches, arbitrarily close by, an open triangle or an interior
+        // edge. (For a point it would not, which is why a point is its own case.)
+        return visitTrianglesIntersecting(shape, [&](const TriangleType& t) {
+            if (t.interiorsIntersect(shape)) {
+                return true;
+            }
+            return anyEdgeOf(t, [&](const SegmentType& e, Edge handle) {
+                return interiorEdge(handle) && e.interiorsIntersect(shape);
+            });
+        });
+    }
+
+    /** @overload */
+    template <PolygonConcept Q>
+    [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
+        // Edge by edge, as for the other polygon overloads. If no edge reaches the
+        // domain's interior, then the polygon's boundary misses it entirely, and
+        // the interiors meet iff the domain's interior lies inside the polygon —
+        // which, the domain's interior being connected, one triangle settles.
+        for (const auto& e : shape.edges()) {
+            if (e[0] != e[1] && interiorsIntersect(e)) {
+                return true;
+            }
+        }
+        const TriId t = firstInDomainTriangle();
+        return t != NO_TRI && shape.interiorsIntersect(triangleValue(t));
+    }
+
+    /** @overload @brief Always false: the empty shape has no interior. */
+    template <EmptyShapeConcept E>
+    [[nodiscard]] bool interiorsIntersect(const E&) const {
+        return false;
+    }
+
+    /** @overload */
+    [[nodiscard]] bool interiorsIntersect(const Shape<PointType>& shape) const {
+        return std::visit([this](const auto& s) { return this->interiorsIntersect(s); },
+                          shape.variant());
     }
 
     // ---- constrained edges ----------------------------------------------
@@ -1813,6 +2147,71 @@ struct Triangulation {
         return inDomain(e.tri) || inDomain(mirror(e).tri);
     }
 
+    // An edge of the domain's interior: an in-domain triangle on both sides, so a
+    // neighbourhood of its relative interior lies in the domain.
+    [[nodiscard]] bool interiorEdge(Edge e) const {
+        return inDomain(e.tri) && inDomain(mirror(e).tri);
+    }
+
+    // An edge of the domain's boundary (∂D): in-domain on exactly one side, the
+    // other being a ghost or a hull-fill triangle.
+    [[nodiscard]] bool boundaryEdge(Edge e) const { return edgeInDomain(e) && !interiorEdge(e); }
+
+    // Calls f(edge, handle) on the three edges of mesh triangle `t` until one
+    // returns true; returns whether one did.
+    template <class Fn>
+    [[nodiscard]] bool anyEdgeOf(const TriangleType& t, Fn f) const {
+        for (const auto& edge : t.edges()) {
+            const SegmentType seg(edge[0], edge[1]);
+            const auto se = segToEdge_.find(seg);
+            if (se != segToEdge_.end() && f(seg, se->second)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // True if `shape` touches the boundary of the domain. Sound for a shape known
+    // to lie in the domain, which is where interiorContains() uses it: every
+    // boundary edge such a shape meets belongs to an in-domain triangle it meets,
+    // and the traversal reports all of those.
+    template <detail::TriangulationQuery Q>
+    [[nodiscard]] bool meetsDomainBoundary(const Q& shape) const {
+        return visitTrianglesIntersecting(shape, [&](const TriangleType& t) {
+            return anyEdgeOf(t, [&](const SegmentType& e, Edge handle) {
+                return boundaryEdge(handle) && e.intersects(shape);
+            });
+        });
+    }
+
+    // contains() — or, with Interior, interiorContains() — for a shape given by
+    // its boundary edges: a chain, or a shape bounded by a closed polygonal chain.
+    // Every edge of it must be contained. Zero-length edges are skipped, so a flat
+    // rectangle (or a chain with a repeated vertex) is traced along the edges it
+    // does have; one whose edges are all degenerate has collapsed to a single
+    // point, which then decides.
+    template <bool Interior = false, class EdgeRange, class Q>
+    [[nodiscard]] bool containsBoundary(const EdgeRange& edges, const Q& shape) const {
+        const auto held = [&](const auto& piece) {
+            if constexpr (Interior) {
+                return interiorContains(piece);
+            } else {
+                return contains(piece);
+            }
+        };
+        bool traced = false;
+        for (const auto& e : edges) {
+            if (e[0] == e[1]) {
+                continue;
+            }
+            traced = true;
+            if (!held(e)) {
+                return false;
+            }
+        }
+        return traced || held(shape[0]);
+    }
+
     // The same edge seen from the triangle on its other side (an invalid Edge if
     // there is none). mirror(e).tri is the neighbor across e.
     [[nodiscard]] Edge mirror(Edge e) const {
@@ -2006,15 +2405,18 @@ struct Triangulation {
     }
 
     // Grows the set of triangles meeting `shape` outward from `seeds` by a flood
-    // fill over edge/vertex adjacency, emitting the in-domain ones to `f`. Every
-    // real (non-ghost) triangle meeting `shape` and reachable from a seed through
-    // other meeting triangles is visited; ghosts are walls. A per-triangle mark
-    // bit stands in for a visited set and is cleared on every exit path (normal,
-    // early-stop, or an exception from f), so the const query leaves the mesh
-    // pristine. Like the segment walk, it is not reentrant: f must not start
-    // another walk on the same Triangulation. Returns whether f stopped early.
-    template <class Q, class Fn>
-    bool floodTrianglesIntersecting(const Q& shape, const std::vector<TriId>& seeds, Fn f) const {
+    // fill over edge/vertex adjacency, emitting the in-domain ones to `f` (every
+    // real one under AllTriangles, as in the directed walk — what contains() needs
+    // to see the fill region a shape reaches into). `f` takes a TriId and returns
+    // bool. Every real (non-ghost) triangle meeting `shape` and reachable from a
+    // seed through other meeting triangles is visited; ghosts are walls. A
+    // per-triangle mark bit stands in for a visited set and is cleared on every
+    // exit path (normal, early-stop, or an exception from f), so the const query
+    // leaves the mesh pristine. Like the segment walk, it is not reentrant: f must
+    // not start another walk on the same Triangulation. Returns whether f stopped
+    // early.
+    template <bool AllTriangles, class Q, class Fn>
+    bool floodTriangleIdsIntersecting(const Q& shape, const std::vector<TriId>& seeds, Fn f) const {
         std::vector<TriId> marked;
         struct MarkClearer {
             const std::vector<Tri>& tris;
@@ -2043,7 +2445,7 @@ struct Triangulation {
         while (!stop && !stack.empty()) {
             const TriId t = stack.back();
             stack.pop_back();
-            if (inDomain(t) && detail::invokeVisitor(f, triangleValue(t))) {
+            if ((AllTriangles || inDomain(t)) && f(t)) {
                 stop = true;
                 break;
             }

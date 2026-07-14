@@ -95,6 +95,16 @@ bool isConforming(const Tri& tri, const std::vector<Point>& pts) {
     return true;
 }
 
+// Each predicate of the triangulated domain must answer exactly what the same
+// predicate of the polygon it triangulates answers for the same shape.
+template <class Tri, class Point, class Shape>
+void agreesWithPolygon(const Tri& tri, const pgl::Polygon<Point>& poly, const Shape& s) {
+    CHECK(tri.contains(s) == poly.contains(s));
+    CHECK(tri.intersects(s) == poly.intersects(s));
+    CHECK(tri.interiorContains(s) == poly.interiorContains(s));
+    CHECK(tri.interiorsIntersect(s) == poly.interiorsIntersect(s));
+}
+
 // True if some triangle is degenerate (zero area).
 template <class Tri>
 bool hasDegenerateTriangle(const Tri& tri) {
@@ -1423,6 +1433,257 @@ TEST_CASE("Constrained hull edges do not block hull growth of a point-set triang
         CHECK(totalTwiceArea(tri) == pgl::Convex<Point>(grown).twiceArea());
         CHECK(allCounterClockwise(tri));
     }
+}
+
+TEST_CASE("Traversal reports every triangle met, however the query meets the hull") {
+    using Point = pgl::Point<int>;
+    // Vertices sit on the hull boundary and mesh edges run along the axes, so these
+    // queries enter through hull *vertices*, run along mesh edges, and pass beyond
+    // their own defining points — the cases a walk steered "towards b" gets wrong.
+    const pgl::Polygon<Point> poly({P<Point>(0, 0), P<Point>(6, 0), P<Point>(6, 2),
+                                    P<Point>(2, 2), P<Point>(2, 4), P<Point>(6, 4),
+                                    P<Point>(6, 6), P<Point>(0, 6)});
+    pgl::Triangulation tri(poly);
+
+    // Brute force: the walk must report exactly the triangles the query intersects.
+    const auto reportsExactly = [&](const auto& query) {
+        auto walked = tri.trianglesIntersecting(query);
+        std::sort(walked.begin(), walked.end());
+        std::vector<pgl::Triangle<Point>> expected;
+        for (const auto& t : tri.triangles()) {
+            if (t.intersects(query)) {
+                expected.push_back(t);
+            }
+        }
+        std::sort(expected.begin(), expected.end());
+        return walked == expected;
+    };
+
+    // Entering the hull exactly at a hull vertex, not through an edge's interior.
+    CHECK(reportsExactly(pgl::Segment<Point>(P<Point>(4, 8), P<Point>(7, 5))));
+    CHECK(reportsExactly(pgl::Ray<Point>(P<Point>(8, 2), P<Point>(6, 2))));
+    // Running along a mesh edge, and along the hull boundary itself.
+    CHECK(reportsExactly(pgl::Line<Point>(P<Point>(2, -1), P<Point>(2, 0))));
+    CHECK(reportsExactly(pgl::Line<Point>(P<Point>(6, 0), P<Point>(6, 1))));
+    CHECK(reportsExactly(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(6, 0))));
+    // Continuing past the second defining point: forward is the direction a->b.
+    CHECK(reportsExactly(pgl::Line<Point>(P<Point>(-2, 6), P<Point>(2, 4))));
+    CHECK(reportsExactly(pgl::Ray<Point>(P<Point>(8, 2), P<Point>(3, 2))));
+    CHECK(reportsExactly(pgl::Ray<Point>(P<Point>(6, 4), P<Point>(2, 2))));
+    // Missing the hull entirely, and grazing a single hull vertex.
+    CHECK(reportsExactly(pgl::Segment<Point>(P<Point>(8, 8), P<Point>(9, 9))));
+    CHECK(reportsExactly(pgl::Line<Point>(P<Point>(6, 8), P<Point>(8, 6))));
+
+    // The walk is a const query: it must be deterministic (it caches a hint).
+    const pgl::Ray<Point> ray(P<Point>(8, 2), P<Point>(3, 2));
+    CHECK(tri.trianglesIntersecting(ray) == tri.trianglesIntersecting(ray));
+}
+
+TEST_CASE_TEMPLATE("Domain predicates agree with the polygon triangulated", Point,
+                   pgl::Point<int>, pgl::Point<pgl::Rational<long>>) {
+    // A "C": the notch x in [2,6], y in [2,4] is outside the polygon but inside
+    // its convex hull, so it is covered by out-of-domain hull-fill triangles —
+    // the triangles the domain predicates must treat as exterior.
+    const pgl::Polygon<Point> poly({P<Point>(0, 0), P<Point>(6, 0), P<Point>(6, 2),
+                                    P<Point>(2, 2), P<Point>(2, 4), P<Point>(6, 4),
+                                    P<Point>(6, 6), P<Point>(0, 6)});
+    pgl::Triangulation tri(poly);
+
+    // Exhaustive agreement over a grid reaching outside the hull: points,
+    // segments, and the rectangles they span.
+    for (int x1 = -1; x1 <= 7; ++x1) {
+        for (int y1 = -1; y1 <= 7; ++y1) {
+            const Point a = P<Point>(x1, y1);
+            agreesWithPolygon(tri, poly, a);
+            for (int x2 = -1; x2 <= 7; ++x2) {
+                for (int y2 = -1; y2 <= 7; ++y2) {
+                    const Point b = P<Point>(x2, y2);
+                    if (a == b) {
+                        continue;
+                    }
+                    agreesWithPolygon(tri, poly, pgl::Segment<Point>(a, b));
+                    if (a.x() != b.x() && a.y() != b.y()) {  // a flat rectangle is degenerate
+                        agreesWithPolygon(tri, poly, pgl::Rectangle<Point>(a, b));
+                    }
+                }
+            }
+        }
+    }
+
+    // The shapes taking three points, plus the unbounded ones, over a coarser grid.
+    for (int x1 = -1; x1 <= 7; x1 += 2) {
+        for (int y1 = -1; y1 <= 7; y1 += 2) {
+            for (int x2 = -1; x2 <= 7; x2 += 2) {
+                for (int y2 = -1; y2 <= 7; y2 += 2) {
+                    const Point a = P<Point>(x1, y1);
+                    const Point b = P<Point>(x2, y2);
+                    if (a == b) {
+                        continue;
+                    }
+                    agreesWithPolygon(tri, poly, pgl::OrientedSegment<Point>(a, b));
+                    agreesWithPolygon(tri, poly, pgl::Line<Point>(a, b));
+                    agreesWithPolygon(tri, poly, pgl::Ray<Point>(a, b));
+                    agreesWithPolygon(tri, poly, pgl::Halfplane<Point>(a, b));
+                    for (int x3 = -1; x3 <= 7; x3 += 2) {
+                        for (int y3 = -1; y3 <= 7; y3 += 2) {
+                            const Point c = P<Point>(x3, y3);
+                            if (pgl::orientationSign(a, b, c) == 0) {
+                                continue;  // degenerate triangle/disk/polygon
+                            }
+                            agreesWithPolygon(tri, poly, pgl::Triangle<Point>(a, b, c));
+                            agreesWithPolygon(tri, poly, pgl::Disk<Point>(a, b, c));
+                            agreesWithPolygon(tri, poly,
+                                              pgl::Convex<Point>(std::vector<Point>{a, b, c}));
+                            agreesWithPolygon(tri, poly,
+                                              pgl::Polygon<Point>(std::vector<Point>{a, b, c}));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Containment is closed: the domain boundary is contained, the fill is not") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    const pgl::Polygon<Point> poly({P<Point>(0, 0), P<Point>(6, 0), P<Point>(6, 2),
+                                    P<Point>(2, 2), P<Point>(2, 4), P<Point>(6, 4),
+                                    P<Point>(6, 6), P<Point>(0, 6)});
+    pgl::Triangulation tri(poly);
+
+    // On the boundary: contained, even though the walk sweeps the hull-fill
+    // triangles on the far side of these edges and the fans of their vertices.
+    CHECK(tri.contains(Seg(P<Point>(2, 2), P<Point>(6, 2))));  // a polygon edge
+    CHECK(tri.contains(Seg(P<Point>(3, 2), P<Point>(5, 2))));  // inside one
+    CHECK(tri.contains(Seg(P<Point>(2, 2), P<Point>(2, 4))));  // the notch's back wall
+    CHECK(tri.contains(Seg(P<Point>(0, 3), P<Point>(2, 2))));  // ends on a reflex vertex
+    CHECK(tri.contains(Seg(P<Point>(1, 1), P<Point>(1, 5))));  // strictly interior
+    // Through a reflex vertex and back inside: the fan there is half hull-fill.
+    CHECK(tri.contains(Seg(P<Point>(0, 4), P<Point>(2, 2))));
+
+    // Leaving the domain, in each of the ways the walk can see it happen.
+    CHECK_FALSE(tri.contains(Seg(P<Point>(1, 3), P<Point>(5, 3))));  // through the notch
+    CHECK_FALSE(tri.contains(Seg(P<Point>(2, 2), P<Point>(6, 4))));  // along a fill diagonal
+    CHECK_FALSE(tri.contains(Seg(P<Point>(6, 2), P<Point>(6, 4))));  // along the notch's mouth
+    CHECK_FALSE(tri.contains(Seg(P<Point>(1, 1), P<Point>(9, 1))));  // out through the hull
+    CHECK_FALSE(tri.contains(P<Point>(4, 3)));                       // in the notch
+    CHECK_FALSE(tri.contains(P<Point>(9, 9)));                       // outside the hull
+
+    // A triangle spanning the notch has all three vertices in the domain.
+    CHECK_FALSE(tri.contains(pgl::Triangle<Point>(P<Point>(2, 2), P<Point>(6, 2), P<Point>(6, 4))));
+
+    // Chains: contained iff every edge is.
+    CHECK(tri.contains(pgl::Polyline<Point>(
+        std::vector<Point>{P<Point>(1, 1), P<Point>(1, 5), P<Point>(2, 4)})));
+    CHECK_FALSE(tri.contains(pgl::Polyline<Point>(
+        std::vector<Point>{P<Point>(1, 1), P<Point>(1, 5), P<Point>(5, 3)})));
+}
+
+TEST_CASE("The domain predicates split boundary contact from interior contact") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    const pgl::Polygon<Point> poly({P<Point>(0, 0), P<Point>(6, 0), P<Point>(6, 2),
+                                    P<Point>(2, 2), P<Point>(2, 4), P<Point>(6, 4),
+                                    P<Point>(6, 6), P<Point>(0, 6)});
+    pgl::Triangulation tri(poly);
+
+    SUBCASE("a segment on a polygon edge is contained, but not by the interior") {
+        const Seg onEdge(P<Point>(2, 2), P<Point>(6, 2));
+        CHECK(tri.contains(onEdge));
+        CHECK(tri.intersects(onEdge));
+        CHECK_FALSE(tri.interiorContains(onEdge));    // it lies in the boundary
+        CHECK_FALSE(tri.interiorsIntersect(onEdge));  // and so does its interior
+    }
+
+    SUBCASE("a segment ending on the boundary keeps its interior inside") {
+        const Seg toEdge(P<Point>(1, 3), P<Point>(0, 3));
+        CHECK(tri.contains(toEdge));
+        CHECK(tri.intersects(toEdge));
+        CHECK_FALSE(tri.interiorContains(toEdge));  // the endpoint touches ∂D
+        CHECK(tri.interiorsIntersect(toEdge));      // its relative interior does not
+    }
+
+    SUBCASE("strictly inside satisfies all four") {
+        const Seg inside(P<Point>(1, 1), P<Point>(1, 5));
+        CHECK(tri.contains(inside));
+        CHECK(tri.intersects(inside));
+        CHECK(tri.interiorContains(inside));
+        CHECK(tri.interiorsIntersect(inside));
+    }
+
+    SUBCASE("vertices are in the domain but never in its interior") {
+        CHECK(tri.contains(P<Point>(2, 2)));  // the reflex vertex
+        CHECK(tri.intersects(P<Point>(2, 2)));
+        CHECK_FALSE(tri.interiorContains(P<Point>(2, 2)));
+        CHECK_FALSE(tri.interiorsIntersect(P<Point>(2, 2)));
+        CHECK(tri.interiorContains(P<Point>(1, 1)));  // strictly inside
+        CHECK(tri.interiorsIntersect(P<Point>(1, 1)));
+    }
+
+    SUBCASE("crossing the notch: met, but not contained") {
+        const Seg through(P<Point>(1, 3), P<Point>(5, 3));
+        CHECK_FALSE(tri.contains(through));
+        CHECK(tri.intersects(through));
+        CHECK(tri.interiorsIntersect(through));
+        CHECK_FALSE(tri.interiorContains(through));
+    }
+
+    SUBCASE("shapes that miss the domain entirely") {
+        const Seg away(P<Point>(7, 7), P<Point>(9, 9));
+        CHECK_FALSE(tri.intersects(away));
+        CHECK_FALSE(tri.interiorsIntersect(away));
+        CHECK_FALSE(tri.contains(away));
+        CHECK_FALSE(tri.interiorContains(away));
+        const Seg inTheNotch(P<Point>(3, 3), P<Point>(5, 3));  // inside the hull, outside the polygon
+        CHECK_FALSE(tri.intersects(inTheNotch));
+        CHECK_FALSE(tri.interiorsIntersect(inTheNotch));
+    }
+
+    SUBCASE("unbounded and empty shapes") {
+        const pgl::Line<Point> line(P<Point>(0, 1), P<Point>(1, 1));  // cuts the polygon
+        CHECK(tri.intersects(line));
+        CHECK(tri.interiorsIntersect(line));
+        CHECK_FALSE(tri.contains(line));
+        CHECK_FALSE(tri.interiorContains(line));
+
+        const pgl::Shape<Point> empty;
+        CHECK(tri.contains(empty));
+        CHECK(tri.interiorContains(empty));
+        CHECK_FALSE(tri.intersects(empty));
+        CHECK_FALSE(tri.interiorsIntersect(empty));
+    }
+}
+
+TEST_CASE("Containment on a hull domain, and of unbounded and empty shapes") {
+    using Point = pgl::Point<int>;
+    const std::vector<Point> pts = {P<Point>(0, 0), P<Point>(8, 0), P<Point>(8, 8),
+                                    P<Point>(0, 8), P<Point>(4, 3)};
+    pgl::Triangulation tri(pts);  // the domain is the convex hull: no fill triangles
+
+    CHECK(tri.contains(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(8, 8))));  // a diagonal
+    CHECK(tri.contains(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(8, 0))));  // a hull edge
+    CHECK(tri.contains(pgl::Segment<Point>(P<Point>(1, 1), P<Point>(7, 2))));
+    CHECK_FALSE(tri.contains(pgl::Segment<Point>(P<Point>(4, 4), P<Point>(9, 4))));  // out
+    CHECK(tri.contains(pgl::Rectangle<Point>(P<Point>(1, 1), P<Point>(7, 7))));
+    CHECK_FALSE(tri.contains(pgl::Rectangle<Point>(P<Point>(1, 1), P<Point>(9, 7))));
+
+    // Unbounded shapes never fit in a bounded domain; the empty shape always does.
+    CHECK_FALSE(tri.contains(pgl::Line<Point>(P<Point>(1, 1), P<Point>(2, 2))));
+    CHECK_FALSE(tri.contains(pgl::Ray<Point>(P<Point>(1, 1), P<Point>(2, 2))));
+    CHECK_FALSE(tri.contains(pgl::Halfplane<Point>(P<Point>(1, 1), P<Point>(2, 2))));
+    CHECK(tri.contains(pgl::Shape<Point>()));
+
+    // The variant dispatches to the same answers as the concrete shapes.
+    const pgl::Shape<Point> inside(pgl::Segment<Point>(P<Point>(1, 1), P<Point>(7, 2)));
+    const pgl::Shape<Point> outside(pgl::Segment<Point>(P<Point>(4, 4), P<Point>(9, 4)));
+    CHECK(tri.contains(inside));
+    CHECK_FALSE(tri.contains(outside));
+
+    // An empty triangulation contains nothing.
+    const pgl::Triangulation<pgl::Triangle<Point>> none;
+    CHECK_FALSE(none.contains(P<Point>(0, 0)));
+    CHECK_FALSE(none.contains(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(1, 1))));
 }
 
 TEST_CASE("Points-plus-segments constructor keeps segment labels") {
