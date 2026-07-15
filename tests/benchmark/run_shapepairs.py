@@ -172,7 +172,17 @@ def _cpp_accumulate(method: str) -> str:
                   "collinear", "parallel"}:
         return f"count += a.{method}(b) ? 1 : 0;"
     if method == "intersection":
-        return "count += a.template intersection<N>(b).has_value() ? 1 : 0;"
+        # intersection returns std::optional for most shape pairs but
+        # std::vector for the ones whose result can have several disjoint
+        # pieces (Polygon/Polyline/MonotoneChain vs a non-Point operand).
+        # Count a non-empty result the same way for both shapes. A generic
+        # lambda makes the argument dependent so `if constexpr` actually
+        # discards the branch that doesn't apply (a plain `if constexpr` in
+        # the non-template main() would still type-check both branches).
+        return ("count += [](const auto& r) {"
+                " if constexpr (requires { r.has_value(); }) return r.has_value() ? 1 : 0;"
+                " else return r.empty() ? 0 : 1;"
+                " }(a.template intersection<N>(b));")
     if method in {"squaredDistance", "distanceL1", "distanceLInf",
                   "squaredHausdorffDistance", "hausdorffDistanceL1",
                   "hausdorffDistanceLInf"}:

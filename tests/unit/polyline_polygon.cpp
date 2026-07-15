@@ -134,3 +134,30 @@ TEST_CASE("Polygon and Polyline distance") {
     CHECK(ushape.squaredDistance<Rational>(inNotch) == Rational(1));
     CHECK(inNotch.squaredDistance<Rational>(ushape) == Rational(1));
 }
+
+TEST_CASE("Polyline and Polygon intersection clips each edge and coalesces") {
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a contained polyline returns its own edges") {
+        const auto pieces = zig.intersection(square);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(3, 3)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(3, 3), Point(5, 1)));
+    }
+
+    SUBCASE("a single edge crossing the notch splits into two segments") {
+        // Horizontal line at y = 4 meets the U-shape in its two arms only.
+        const auto pieces = PLine({-1, 4, 7, 4}).intersection(ushape);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 4), Point(2, 4)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(4, 4), Point(6, 4)));
+    }
+
+    SUBCASE("a polyline missing the polygon has no intersection") {
+        CHECK(PLine({7, 7, 9, 9}).intersection(square).empty());
+    }
+}

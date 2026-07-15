@@ -944,3 +944,16 @@ TEST_CASE("Rational segment intersections return the expected shape") {
 
 
 
+
+TEST_CASE("Segment asPolyline yields the two endpoints in canonical order") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    const Segment s(Point(8, 1), Point(2, 3));   // constructor sorts to min <= max
+    const auto poly = s.asPolyline();
+    REQUIRE(poly.size() == 2);
+    CHECK(poly[0] == s.min());
+    CHECK(poly[1] == s.max());
+    CHECK(poly[0] == Point(2, 3));
+    CHECK(poly[1] == Point(8, 1));
+}

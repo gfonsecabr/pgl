@@ -1487,6 +1487,16 @@ struct Segment {
      */
     [[nodiscard]] constexpr std::array<OrientedSegment<PointType>, 1> orientedEdges() const;
 
+    /**
+     * @brief Returns the segment as a two-vertex polyline.
+     *
+     * The vertices are `min()` and `max()`, already in canonical polyline
+     * order. The segment's own label is not carried over.
+     *
+     * @return Polyline with the segment's two endpoints.
+     */
+    [[nodiscard]] constexpr Polyline<PointType> asPolyline() const;
+
     /** @brief Translates the segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Segment& operator+=(const OtherPoint& translation);

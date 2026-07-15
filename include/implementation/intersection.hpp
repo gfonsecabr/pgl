@@ -2970,4 +2970,61 @@ Polyline<PointType, LabelType>::intersection(const OtherPolyline& other) const {
     return coalescePieces<ResultNumber>(std::move(pieces));
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+Polyline<PointType, LabelType>::polygonIntersection(const OtherPolygon& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultSegment>;
+
+    std::vector<Piece> pieces;
+    if (empty()) {
+        return pieces;
+    }
+    if (size() == 1) {
+        if (other.contains((*this)[0])) {
+            pieces.emplace_back(ResultPoint((*this)[0]));
+        }
+        return pieces;
+    }
+    // Unlike the convex edgeFoldIntersection, a non-convex polygon can split a
+    // single edge into several disjoint pieces, so each edge yields a vector.
+    for (std::size_t i = 0; i + 1 < size(); ++i) {
+        const auto edgePieces =
+            this->template boundaryAt<false>(i).template intersection<ResultNumber>(other);
+        for (const auto& piece : edgePieces) {
+            // Re-wrap in this polyline's result types: the delegated
+            // intersection labels its points with the polygon's label type.
+            pieces.push_back(std::visit(
+                [](const auto& value) -> Piece {
+                    if constexpr (detail::is_point_v<std::remove_cvref_t<decltype(value)>>) {
+                        return Piece(ResultPoint(value));
+                    } else {
+                        return Piece(ResultSegment(value));
+                    }
+                },
+                piece));
+        }
+    }
+    return coalescePieces<ResultNumber>(std::move(pieces));
+}
+
+// Polygon outranks Polyline and MonotoneChain, so it owns these pairs; the
+// lower-ranked chains reach them by forwarding up. The polyline-vs-polygon clip
+// itself lives on Polyline (reusing its coalescing), so both overloads delegate
+// there -- a monotone chain first views itself as a polyline.
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto Polygon<PointType, LabelType>::intersection(const OtherPolyline& other) const {
+    return other.template polygonIntersection<ResultNumber>(*this);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto Polygon<PointType, LabelType>::intersection(const OtherChain& other) const {
+    return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
+}
+
 }  // namespace pgl

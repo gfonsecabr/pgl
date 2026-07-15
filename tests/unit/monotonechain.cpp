@@ -413,3 +413,16 @@ TEST_CASE("MonotoneChain get reduces the index modulo the vertex count") {
     CHECK(chain.get(-1) == Point(5, 1));
     CHECK(chain.get(-4) == Point(5, 1));
 }
+
+TEST_CASE("MonotoneChain asPolyline traverses the canonical vertices") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+
+    const Chain chain({4, 4, 0, 0, 8, 0});   // sorted to (0,0), (4,4), (8,0)
+    const auto poly = chain.asPolyline();
+    const auto verts = chain.vertices();
+    REQUIRE(poly.size() == verts.size());
+    for (std::size_t i = 0; i < verts.size(); ++i) {
+        CHECK(poly[i] == verts[i]);
+    }
+}
