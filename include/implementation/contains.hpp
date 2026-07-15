@@ -1353,10 +1353,57 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherTriangle& othe
     return true;
 }
 
+// A convex polygon's boundary is exactly two lex-monotone chains — its lower and
+// upper hull — so we can run the edgesCross fast path of contains(Polygon)
+// without building a BoundaryChains decomposition (or an asPolygon copy) of the
+// convex: just test this polygon's chains against those two known hull chains.
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other) const {
-    return contains(other.asPolygon());
+    using OtherPoint = typename OtherConvex::PointType;
+    if (other.size() == 0) {
+        return true;
+    }
+    if (!bbox().contains(other.bbox())) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+
+    if (!contains(other[0])) {
+        return false;
+    }
+
+    const MonotoneChain<OtherPoint> lower = other.lowerHull();
+    const MonotoneChain<OtherPoint> upper = other.upperHull();
+
+    bool boundaries_intersect = false;
+    BoundaryChains<Polygon> mine(*this);
+    while (!mine.exhausted()) {
+        const auto& chain = mine.produceNext();
+        for (const MonotoneChain<OtherPoint>* their : {&lower, &upper}) {
+            if (chain.intersects(*their)) {
+                boundaries_intersect = true;
+                if (chain.edgesCross(*their)) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    if (!boundaries_intersect) {
+        return true;
+    }
+
+    // The boundaries intersect without crossing, check everything quadratically
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!contains(Segment<OtherPoint>(other[i], other[(i + 1) % other.size()]))) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 template <class PointType, class LabelType>
