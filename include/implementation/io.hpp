@@ -306,4 +306,39 @@ std::ostream& operator<<(std::ostream& stream, const Polyline<PointType, LabelTy
     stream << "]";
     return stream;
 }
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+/**
+ * @brief Streams a HalfplaneIntersection as `HalfplaneIntersection[h1,h2,...]`.
+ *
+ * The empty region prints as `HalfplaneIntersection[empty]` and the whole
+ * plane as `HalfplaneIntersection[plane]`.
+ *
+ * @param stream Output stream.
+ * @param region Region to print.
+ * @return The same stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const HalfplaneIntersection<PointType, LabelType>& region) {
+    if constexpr (detail::has_label_v<LabelType>) {
+        stream << region.label() << ":";
+    }
+    stream << "HalfplaneIntersection[";
+    if (region.isEmpty()) {
+        stream << "empty";
+    } else if (region.isPlane()) {
+        stream << "plane";
+    } else {
+        for (std::size_t i = 0; i < region.size(); ++i) {
+            if (i > 0) {
+                stream << ",";
+            }
+            stream << region[i];
+        }
+    }
+    stream << "]";
+    return stream;
+}
 }  // namespace pgl

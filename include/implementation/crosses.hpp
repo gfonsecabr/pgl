@@ -971,4 +971,114 @@ constexpr bool Polygon<PointType, LabelType>::crosses(const OtherPolyline& other
     return separates(other) && other.separates(*this);
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+//
+// crosses(a, b) = a.separates(b) && b.separates(a). The reverse separations
+// are computed here directly (Phase 1 does not add HalfplaneIntersection
+// overloads to the lower-ranked shapes): a 1D shape separates the region
+// exactly when the region has points strictly on both sides of its supporting
+// line and the shape covers the region's whole chord on that line.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherPoint&) const {
+    // The region never separates a point, so the shapes never cross.
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherSegment& other) const {
+    if (!separates(other)) {
+        return false;
+    }
+    if (other.isDegenerate()) {
+        return false;  // a point never separates the region
+    }
+    // The segment separates the region when the region lies strictly on both
+    // sides of the supporting line and the region's chord on that line is
+    // bounded and covered by the segment.
+    const Halfplane<typename OtherSegment::PointType> along(other.min(), other.max());
+    const SupStatus supremum = supStatus(along);
+    if (supremum == SupStatus::below || supremum == SupStatus::on) {
+        return false;
+    }
+    const SupStatus infimum = supStatus(along.opposite());
+    if (infimum == SupStatus::below || infimum == SupStatus::on) {
+        return false;
+    }
+    const auto clip = clipLine(along);
+    if (clip.entry < 0 || clip.exit < 0) {
+        return false;  // an unbounded chord cannot be covered by a segment
+    }
+    // Chord within [0, 1]: the entry crossing at or after the segment start,
+    // the exit crossing at or before the segment end.
+    return constraintSide(static_cast<std::size_t>(clip.entry), other.min()) <= 0 &&
+           constraintSide(static_cast<std::size_t>(clip.exit), other.max()) <= 0;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+    return crosses(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherLine& other) const {
+    if (!separates(other)) {
+        return false;
+    }
+    // The line separates the region when the region has points strictly on
+    // both sides of it.
+    const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
+    const SupStatus supremum = supStatus(along);
+    if (supremum == SupStatus::below || supremum == SupStatus::on) {
+        return false;
+    }
+    const SupStatus infimum = supStatus(along.opposite());
+    return infimum != SupStatus::below && infimum != SupStatus::on;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+    return crosses(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherRay& other) const {
+    if (!separates(other)) {
+        return false;
+    }
+    // The ray separates the region when the region lies strictly on both
+    // sides of the supporting line and covers no part of the chord behind the
+    // source (the chord's forward end may be unbounded, like the ray's).
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    const SupStatus supremum = supStatus(along);
+    if (supremum == SupStatus::below || supremum == SupStatus::on) {
+        return false;
+    }
+    const SupStatus infimum = supStatus(along.opposite());
+    if (infimum == SupStatus::below || infimum == SupStatus::on) {
+        return false;
+    }
+    const auto clip = clipLine(along);
+    if (clip.entry < 0) {
+        return false;  // the chord extends behind the source without bound
+    }
+    return constraintSide(static_cast<std::size_t>(clip.entry), other.source()) <= 0;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherHalfplane&) const {
+    // Removing a closed half-plane from the (convex) region leaves a convex
+    // set, so the half-plane never separates the region and they never cross.
+    return false;
+}
+
 }  // namespace pgl

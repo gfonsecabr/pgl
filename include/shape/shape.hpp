@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shape/polygon.hpp"
+#include "shape/halfplaneintersection.hpp"
 
 /**
  * @file shape.hpp

@@ -3027,4 +3027,227 @@ constexpr auto Polygon<PointType, LabelType>::intersection(const OtherChain& oth
     return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                     Segment<Point<ResultNumber, typename PointType::LabelType>>,
+                                     Ray<Point<ResultNumber, typename PointType::LabelType>>,
+                                     Line<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherLine& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    if (isEmpty()) {
+        return {};
+    }
+    if (other.isDegenerate()) {
+        if (contains(other[0])) {
+            return ResultPoint(other[0]);
+        }
+        return {};
+    }
+    if (halfplanes_.empty()) {
+        return Line<ResultPoint>(ResultPoint(other[0]), ResultPoint(other[1]));
+    }
+    const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
+    const auto clip = clipLine(along);
+    if (clip.empty) {
+        return {};
+    }
+    const Line<typename OtherLine::PointType> supporting(other[0], other[1]);
+    const auto crossing = [&](std::ptrdiff_t idx) {
+        const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
+                              .template intersection<ResultNumber>(supporting);
+        assert(isec && isec->index() == 0);
+        return std::get<0>(*isec);
+    };
+    if (clip.entry < 0 && clip.exit < 0) {
+        return Line<ResultPoint>(ResultPoint(other[0]), ResultPoint(other[1]));
+    }
+    const ResultPoint source(other[0]);
+    const ResultPoint target(other[1]);
+    const ResultNumber dx = target.x() - source.x();
+    const ResultNumber dy = target.y() - source.y();
+    if (clip.entry < 0) {
+        const ResultPoint finish = crossing(clip.exit);
+        return Ray<ResultPoint>(finish, ResultPoint(finish.x() - dx, finish.y() - dy));
+    }
+    if (clip.exit < 0) {
+        const ResultPoint start = crossing(clip.entry);
+        return Ray<ResultPoint>(start, ResultPoint(start.x() + dx, start.y() + dy));
+    }
+    const auto det = detail::boundaryLinesDeterminant(
+        halfplanes_[static_cast<std::size_t>(clip.entry)],
+        halfplanes_[static_cast<std::size_t>(clip.exit)], along);
+    if (det == decltype(det){}) {
+        return crossing(clip.entry);
+    }
+    return Segment<ResultPoint>(crossing(clip.entry), crossing(clip.exit));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                     Segment<Point<ResultNumber, typename PointType::LabelType>>,
+                                     Ray<Point<ResultNumber, typename PointType::LabelType>>,
+                                     Line<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherOrientedLine& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherSegment& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    if (isEmpty()) {
+        return {};
+    }
+    if (other.isDegenerate()) {
+        if (contains(other.min())) {
+            return ResultPoint(other.min());
+        }
+        return {};
+    }
+    if (halfplanes_.empty()) {
+        return Segment<ResultPoint>(ResultPoint(other.min()), ResultPoint(other.max()));
+    }
+    const Halfplane<typename OtherSegment::PointType> along(other.min(), other.max());
+    const auto clip = clipLine(along);
+    if (clip.empty) {
+        return {};
+    }
+    const Line<typename OtherSegment::PointType> supporting(other.min(), other.max());
+    const auto crossing = [&](std::ptrdiff_t idx) {
+        const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
+                              .template intersection<ResultNumber>(supporting);
+        assert(isec && isec->index() == 0);
+        return std::get<0>(*isec);
+    };
+    // Clamp the clip interval to the segment's [0, 1] parameter window; the
+    // comparisons against the window edges are point-side tests.
+    const bool startsAtMin = clip.entry < 0 ||
+        constraintSide(static_cast<std::size_t>(clip.entry), other.min()) >= 0;
+    if (!startsAtMin && constraintSide(static_cast<std::size_t>(clip.entry), other.max()) < 0) {
+        return {};  // the region begins after the segment ends
+    }
+    const bool endsAtMax = clip.exit < 0 ||
+        constraintSide(static_cast<std::size_t>(clip.exit), other.max()) >= 0;
+    if (!endsAtMax && constraintSide(static_cast<std::size_t>(clip.exit), other.min()) < 0) {
+        return {};  // the region ends before the segment starts
+    }
+    if (startsAtMin && endsAtMax) {
+        return Segment<ResultPoint>(ResultPoint(other.min()), ResultPoint(other.max()));
+    }
+    if (startsAtMin) {
+        if (constraintSide(static_cast<std::size_t>(clip.exit), other.min()) == 0) {
+            return ResultPoint(other.min());
+        }
+        return Segment<ResultPoint>(ResultPoint(other.min()), crossing(clip.exit));
+    }
+    if (endsAtMax) {
+        if (constraintSide(static_cast<std::size_t>(clip.entry), other.max()) == 0) {
+            return ResultPoint(other.max());
+        }
+        return Segment<ResultPoint>(crossing(clip.entry), ResultPoint(other.max()));
+    }
+    const auto det = detail::boundaryLinesDeterminant(
+        halfplanes_[static_cast<std::size_t>(clip.entry)],
+        halfplanes_[static_cast<std::size_t>(clip.exit)], along);
+    if (det == decltype(det){}) {
+        return crossing(clip.entry);
+    }
+    return Segment<ResultPoint>(crossing(clip.entry), crossing(clip.exit));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                     Segment<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherOrientedSegment& other) const {
+    return intersection<ResultNumber>(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                     Segment<Point<ResultNumber, typename PointType::LabelType>>,
+                                     Ray<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRay& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    if (isEmpty()) {
+        return {};
+    }
+    if (halfplanes_.empty()) {
+        return Ray<ResultPoint>(ResultPoint(other.source()), ResultPoint(other.target()));
+    }
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    const auto clip = clipLine(along);
+    if (clip.empty) {
+        return {};
+    }
+    const Line<typename OtherRay::PointType> supporting(other.source(), other.target());
+    const auto crossing = [&](std::ptrdiff_t idx) {
+        const auto isec = halfplanes_[static_cast<std::size_t>(idx)].asLine()
+                              .template intersection<ResultNumber>(supporting);
+        assert(isec && isec->index() == 0);
+        return std::get<0>(*isec);
+    };
+    // Clamp the clip interval to the ray's [0, +inf) parameter window.
+    const bool startsAtSource = clip.entry < 0 ||
+        constraintSide(static_cast<std::size_t>(clip.entry), other.source()) >= 0;
+    if (clip.exit < 0) {
+        if (startsAtSource) {
+            return Ray<ResultPoint>(ResultPoint(other.source()), ResultPoint(other.target()));
+        }
+        const ResultPoint start = crossing(clip.entry);
+        const ResultPoint source(other.source());
+        const ResultPoint target(other.target());
+        return Ray<ResultPoint>(start, ResultPoint(start.x() + (target.x() - source.x()),
+                                                   start.y() + (target.y() - source.y())));
+    }
+    const auto exitSide = constraintSide(static_cast<std::size_t>(clip.exit), other.source());
+    if (exitSide < 0) {
+        return {};  // the region ends before the ray starts
+    }
+    if (startsAtSource) {
+        if (exitSide == 0) {
+            return ResultPoint(other.source());
+        }
+        return Segment<ResultPoint>(ResultPoint(other.source()), crossing(clip.exit));
+    }
+    const auto det = detail::boundaryLinesDeterminant(
+        halfplanes_[static_cast<std::size_t>(clip.entry)],
+        halfplanes_[static_cast<std::size_t>(clip.exit)], along);
+    if (det == decltype(det){}) {
+        return crossing(clip.entry);
+    }
+    return Segment<ResultPoint>(crossing(clip.entry), crossing(clip.exit));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+    // Half-plane intersections are closed under intersecting with one more
+    // half-plane, and no coordinate division is involved, so the result is
+    // exact whenever ResultNumber represents the inputs exactly.
+    HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>> result(*this);
+    result.insert(other);
+    return result;
+}
+
 }  // namespace pgl

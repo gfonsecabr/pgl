@@ -2288,4 +2288,78 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolyline& othe
     return true;
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherPoint& point) const {
+    return pointStatus(point) >= 0;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherSegment& other) const {
+    // The region is convex, so containing both endpoints contains the segment.
+    return contains(other[0]) && contains(other[1]);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
+    return contains(other[0]) && contains(other[1]);
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherLine& other) const {
+    // A half-plane contains a line only when its boundary is parallel to it,
+    // and the canonical form stores at most one half-plane per direction, so
+    // at most two constraints (one per orientation) can contain a line.
+    if (isEmpty() || size() > 2) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.contains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
+    return contains(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherRay& other) const {
+    // Containing the source and the ray's direction lying in the recession
+    // cone keeps the whole ray inside (the distance to each boundary line is
+    // affine along the ray and stays nonnegative).
+    if (isEmpty()) {
+        return false;
+    }
+    if (!contains(other.source())) {
+        return false;
+    }
+    const Halfplane<typename OtherRay::PointType> forward(other.source(), other.target());
+    return recessionContains(forward);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherHalfplane& other) const {
+    // Every stored constraint must contain the half-plane, which requires the
+    // same boundary direction; the canonical form therefore admits at most one
+    // stored constraint (or none: the whole plane).
+    if (isEmpty() || size() > 1) {
+        return false;
+    }
+    return halfplanes_.empty() || halfplanes_[0].contains(other);
+}
+
 }  // namespace pgl

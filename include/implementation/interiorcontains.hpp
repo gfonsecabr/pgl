@@ -689,7 +689,18 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherDisk
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
-    return other.isDegenerate() && interiorContains(other.source());
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // Mirrors contains(other): the boundaries must be parallel and face the
+    // same side, and then the whole parallel boundary line of `other` must lie
+    // strictly inside, which interiorContains(other.source()) tests exactly.
+    if (!asLine().parallel(other.asLine()) ||
+        dotSign(target() - source(), other.target() - other.source()) !=
+            std::partial_ordering::greater) {
+        return false;
+    }
+    return interiorContains(other.source());
 }
 
 template <class PointType, class LabelType>
@@ -1663,6 +1674,82 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherPolyli
         }
     }
     return true;
+}
+
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherPoint& point) const {
+    // A degenerate region has empty interior, and then no point tests
+    // strictly inside all constraints, so no special handling is needed.
+    return pointStatus(point) > 0;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
+    // The interior of the region is convex, so containing both endpoints
+    // contains the segment.
+    return interiorContains(other[0]) && interiorContains(other[1]);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
+    return interiorContains(other[0]) && interiorContains(other[1]);
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherLine& other) const {
+    // Only constraints parallel to the line can strictly contain it, and the
+    // canonical form stores at most one constraint per direction.
+    if (isEmpty() || size() > 2) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.interiorContains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
+    return interiorContains(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherRay& other) const {
+    // Starting strictly inside and pointing into the recession cone keeps the
+    // ray strictly inside: the distance to each boundary line is affine and
+    // nonincreasing distances would eventually leave the region, so along a
+    // recession direction each distance is nondecreasing.
+    if (isEmpty()) {
+        return false;
+    }
+    if (!interiorContains(other.source())) {
+        return false;
+    }
+    const Halfplane<typename OtherRay::PointType> forward(other.source(), other.target());
+    return recessionContains(forward);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
+    // As with contains: only a same-direction constraint can contain a
+    // half-plane, so at most one constraint may be stored.
+    if (isEmpty() || size() > 1) {
+        return false;
+    }
+    return halfplanes_.empty() || halfplanes_[0].interiorContains(other);
 }
 
 }  // namespace pgl

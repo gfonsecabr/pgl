@@ -292,6 +292,31 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for HalfplaneIntersection.
+     */
+    template <class PointType, class LabelType>
+    struct hash<pgl::HalfplaneIntersection<PointType, LabelType>> {
+        std::size_t operator()(const pgl::HalfplaneIntersection<PointType, LabelType>& region) const {
+            using Shape = pgl::HalfplaneIntersection<PointType, LabelType>;
+            if (region.hash_ != Shape::hashUnset_) {
+                return region.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
+            pgl::detail::hashCombine(seed, region.isEmpty());
+            for (const auto& halfplane : region) {
+                pgl::detail::hashCombine(seed, halfplane);
+            }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            region.hash_ = seed;
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for MonotoneChain.
      */
     template <class PointType, class LabelType, class Storage>

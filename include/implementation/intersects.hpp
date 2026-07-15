@@ -1714,4 +1714,101 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherPolyline& ot
     return false;
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherPoint& other) const {
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    if (other.isDegenerate()) {
+        return contains(other.min());
+    }
+    // Clip the supporting line and intersect the parameter interval with
+    // [0, 1]; the interval endpoints compare against the segment endpoints
+    // through plain point-side tests.
+    const Halfplane<typename OtherSegment::PointType> along(other.min(), other.max());
+    const auto clip = clipLine(along);
+    if (clip.empty) {
+        return false;
+    }
+    if (clip.entry >= 0 && constraintSide(static_cast<std::size_t>(clip.entry), other.max()) < 0) {
+        return false;  // the line enters the region only after the segment ends
+    }
+    if (clip.exit >= 0 && constraintSide(static_cast<std::size_t>(clip.exit), other.min()) < 0) {
+        return false;  // the line leaves the region before the segment starts
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
+    return !clipLine(along).empty;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    return intersects(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    const auto clip = clipLine(along);
+    if (clip.empty) {
+        return false;
+    }
+    // The interval must reach forward parameters: the line may not leave the
+    // region before the ray's source.
+    return clip.exit < 0 || constraintSide(static_cast<std::size_t>(clip.exit), other.source()) >= 0;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    // Nonempty intersection means the infimum of the half-plane's normal
+    // functional over the region does not exceed its boundary value.
+    return supStatus(other.opposite()) != SupStatus::below;
+}
+
 }  // namespace pgl

@@ -1970,4 +1970,107 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     return detail::chainInteriorsIntersect(other, *this);
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+//
+// The other shape's interior is its relative interior (a point is itself, a
+// segment is the open segment, ...), matching the conventions used by the
+// other shapes. The region's interior is its topological interior, which is
+// empty when the region is degenerate.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherPoint& other) const {
+    // A point's interior is the point itself, so this matches interiorContains.
+    return interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    if (other.isDegenerate()) {
+        return interiorContains(other.min());
+    }
+    // The open clip interval must overlap the open parameter window (0, 1).
+    const Halfplane<typename OtherSegment::PointType> along(other.min(), other.max());
+    const auto clip = clipLine(along);
+    if (clip.empty || clip.onParallelBoundary || !clipHasLength(clip, along)) {
+        return false;
+    }
+    if (clip.entry >= 0 && !(constraintSide(static_cast<std::size_t>(clip.entry), other.max()) > 0)) {
+        return false;
+    }
+    if (clip.exit >= 0 && !(constraintSide(static_cast<std::size_t>(clip.exit), other.min()) > 0)) {
+        return false;
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
+    const auto clip = clipLine(along);
+    return !clip.empty && !clip.onParallelBoundary && clipHasLength(clip, along);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+    return interiorsIntersect(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    // The open clip interval must overlap the open window (0, +inf).
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    const auto clip = clipLine(along);
+    if (clip.empty || clip.onParallelBoundary || !clipHasLength(clip, along)) {
+        return false;
+    }
+    return clip.exit < 0 || constraintSide(static_cast<std::size_t>(clip.exit), other.source()) > 0;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    // The infimum of the half-plane's normal functional must lie strictly
+    // below its boundary value; a full-dimensional region then has interior
+    // points arbitrarily close to any witness.
+    const SupStatus infimum = supStatus(other.opposite());
+    return infimum == SupStatus::unbounded || infimum == SupStatus::above;
+}
+
 }  // namespace pgl

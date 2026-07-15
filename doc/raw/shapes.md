@@ -38,6 +38,7 @@ The following shapes are supported by Pangolin:
 - [`Disk`](#disk) A circle with its interior.
 - [`Polygon`](#polygon) Simple polygon.
 - [`Convex`](#convex) Convex polygon.
+- [`HalfplaneIntersection`](#halfplane-intersection) Intersection of half-planes; convex but possibly unbounded or empty.
 
 All shapes are template classes with a parameter that is a `Point` type, with `pgl::Point<int>` as default:
 
@@ -529,4 +530,28 @@ If the convex polygon `c` has $n$ vertices, then:
 - `c.intersection(c2)` takes $O((n+m) log (n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 
 - Other methods:
+
+### Halfplane Intersection
+
+The class template `HalfplaneIntersection` represents the intersection of a finite set of closed half-planes: a convex region that, unlike `Convex`, may be unbounded (a wedge, a strip, a half-plane, or the whole plane) and may be empty. Its vertices are generally not representable in the coordinate type of the defining half-planes: integer half-planes routinely bound regions with rational vertices, so the constructive accessors take a result-type template parameter in the usual way (`k.vertex<pgl::Rational<int64_t>>(i)` is exact).
+
+The half-planes are stored sorted counterclockwise by boundary direction, with no redundant half-plane and at most one half-plane per direction. A default-constructed `HalfplaneIntersection` is the **whole plane** (the intersection of no half-planes) — the opposite convention of `Convex()`, which is the empty set. It can also be constructed from a range of half-planes, or from a `Halfplane`, `Rectangle`, `Triangle`, or `Convex`.
+
+A half-plane intersection `k` has methods such as:
+
+- `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant; when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed. Amortized $O(\log n)$ comparisons.
+- `k.isEmpty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
+- `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
+- `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
+- `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an integer result type the box is rounded outward so it always encloses the region.
+- `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
+- `k.intersection(h)`: Intersecting with a `Halfplane` returns another `HalfplaneIntersection`, so the type is closed under the operation and the result is exact (no coordinate divisions).
+
+If the region has $n$ half-planes, then:
+
+- `k.contains(p)`, `k.intersects(s)`, and the other predicates against points, segments, lines, rays, and half-planes take $O(\log n)$ time (`separates` against a half-plane takes $O(n)$).
+- `k.insert(h)` takes $O(\log n)$ amortized comparisons (plus vector element moves).
+- `k.isBounded()` and `k.vertexCount()` take $O(n)$ time.
+
+Equality compares the stored half-planes: for full-dimensional regions the non-redundant half-planes are a canonical function of the point set, so this is geometric equality; for lower-dimensional (degenerate) regions the representation is not unique and equality is representational.
 
