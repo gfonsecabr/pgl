@@ -347,3 +347,47 @@ std::vector<pgl::MonotoneChain<pgl::Point<Number>>> randomLargeMonotoneChains(in
     }
     return w;
 }
+
+// Open polylines: m random points linked in generation order. Unlike Polygon,
+// the sequence is not untangled, so the chain may self-intersect — Polyline only
+// canonicalizes its direction and keeps all m vertices.
+template <class Number>
+std::vector<pgl::Polyline<pgl::Point<Number>>> randomSmallPolylines(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Polyline = pgl::Polyline<Point>;
+    std::vector<Polyline> w;
+    std::set<Polyline> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polyline<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, largeRange);
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(base + randomPoint<Number>(rng, smallRange));
+        }
+        Polyline poly(points);
+        if (!poly.isDegenerate() && seen.insert(poly).second) {
+            w.push_back(poly);
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::Polyline<pgl::Point<Number>>> randomLargePolylines(int n, int m) {
+    using Point = pgl::Point<Number>;
+    using Polyline = pgl::Polyline<Point>;
+    std::vector<Polyline> w;
+    std::set<Polyline> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polyline<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, largeRange));
+        }
+        Polyline poly(points);
+        if (!poly.isDegenerate() && seen.insert(poly).second) {
+            w.push_back(poly);
+        }
+    }
+    return w;
+}

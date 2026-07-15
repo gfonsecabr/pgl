@@ -59,6 +59,7 @@ ALL_SHAPES = [
     "Disk",
     "Convex",
     "Polygon",
+    "Polyline",
     "MonotoneChain",
     # Same geometry as an existing shape, but stored as a more general type so the
     # cube exercises the storage type's code paths on that geometry.
@@ -148,6 +149,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Trishape<{alias}>({n});"
     if shape == "Polygon":
         return f"auto {var} = {prefix}Polygons<N>({n}, 32);"
+    if shape == "Polyline":
+        return f"auto {var} = {prefix}Polylines<N>({n}, 32);"
     if shape == "MonotoneChain":
         return f"auto {var} = {prefix}MonotoneChains<N>({n}, 32);"
     if shape == "TriangleAsPolygon":
