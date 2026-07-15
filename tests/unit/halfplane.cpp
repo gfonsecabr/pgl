@@ -297,16 +297,19 @@ TEST_CASE("Halfplane contains and interiorContains another half-plane") {
     // Left of (0,0)->(4,0) is the upper half-plane (interior y > 0, boundary y = 0).
     const Halfplane upper({0, 0}, {4, 0});
 
-    // A half-plane contains another half-plane only when the latter degenerates
-    // to a point (source == target); that point must lie in the closed half-plane.
-    CHECK(upper.contains(Halfplane({2, 3}, {2, 3})));         // degenerate point, strictly inside
-    CHECK(upper.contains(Halfplane({2, 0}, {2, 0})));         // degenerate point, on the boundary
-    CHECK_FALSE(upper.contains(Halfplane({2, -3}, {2, -3}))); // degenerate point, outside
-    CHECK_FALSE(upper.contains(upper));                       // a proper half-plane is never contained
+    // A half-plane contains another half-plane exactly when their boundaries are
+    // parallel and face the same interior side, with the other's boundary line
+    // on the closed side of this one. In particular a half-plane contains itself.
+    CHECK(upper.contains(upper));                             // self-containment
+    CHECK(upper.contains(Halfplane({7, 0}, {9, 0})));         // same set, different defining points
+    CHECK(upper.contains(Halfplane({0, 2}, {4, 2})));         // parallel, same side, y >= 2 nested in y >= 0
+    CHECK_FALSE(upper.contains(Halfplane({0, -2}, {4, -2}))); // parallel, same side, y >= -2 is a superset
+    CHECK_FALSE(upper.contains(upper.opposite()));            // same boundary line, opposite side
+    CHECK_FALSE(upper.contains(Halfplane({4, 2}, {0, 2})));   // parallel, opposite orientation (y <= 2)
+    CHECK_FALSE(upper.contains(Halfplane({0, 0}, {0, 4})));   // non-parallel boundary
 
-    // interiorContains additionally requires the degenerate point to be strictly inside.
-    CHECK(upper.interiorContains(Halfplane({2, 3}, {2, 3})));
-    CHECK_FALSE(upper.interiorContains(Halfplane({2, 0}, {2, 0})));  // on the boundary
+    // interiorContains additionally requires the strict interior; a proper
+    // half-plane's own boundary line never lies in another's interior.
     CHECK_FALSE(upper.interiorContains(upper));
 }
 
