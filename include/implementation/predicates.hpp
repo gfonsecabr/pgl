@@ -349,8 +349,16 @@ constexpr bool Line<PointType, LabelType>::operator==(const Line& other) const {
 
 template <class PointType, class LabelType>
 constexpr auto Line<PointType, LabelType>::operator<=>(const Line& other) const {
-    if (isVertical()) {
-        return detail::strongOrder(min().y(), max().y());
+    // Vertical lines have no dual point, so they sort before every
+    // non-vertical line and among themselves by their x-coordinate.
+    if (isVertical() || other.isVertical()) {
+        if (!other.isVertical()) {
+            return std::strong_ordering::less;
+        }
+        if (!isVertical()) {
+            return std::strong_ordering::greater;
+        }
+        return detail::strongOrder(min().x(), other.min().x());
     }
     using otherNumber = std::remove_cvref_t<decltype(other.min().x())>;
     using Coordinate = detail::promoted_number_t<std::common_type_t<NumberType, otherNumber>>;
@@ -478,8 +486,13 @@ constexpr bool OrientedLine<PointType, LabelType>::operator==(const OrientedLine
 
 template <class PointType, class LabelType>
 constexpr auto OrientedLine<PointType, LabelType>::operator<=>(const OrientedLine& other) const {
-    if (source() < target() && other.source() > other.target()) {
-        return std::strong_ordering::less;
+    // Order by orientation first (ascending before descending), then by the
+    // underlying line, so opposite orientations of the same line are ordered
+    // consistently from both sides.
+    const bool ascending = source() < target();
+    const bool otherAscending = other.source() < other.target();
+    if (ascending != otherAscending) {
+        return ascending ? std::strong_ordering::less : std::strong_ordering::greater;
     }
     return this->asLine() <=> other.asLine();
 }
