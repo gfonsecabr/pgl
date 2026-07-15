@@ -230,7 +230,7 @@ A line `l` has some additional methods such as:
 - [`l.isHorizontal()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a066e7201c620f1ce7311ca130b6bd672 "Returns whether the line is horizontal."): Returns `l[0].y() == l[1].y()`.
 - [`l.slope()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a65b09754cb121f239f3133a082fbdaeb "Returns the slope of the line."): Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
 - [`l.parallel(t)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a4fba0a6b1449af25c123a338628d8ae5 "Returns whether another line is parallel to this line."): Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- [`l.halfplaneAbove()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a68570dbd34b227416c066766c61249ef "Returns the half-plane geometrically above this line."): Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
+- [`l.halfplaneAbove()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a68570dbd34b227416c066766c61249ef "Returns the half-plane geometrically above this line."): Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, noticing that `l[0] < l[1]`.
 - [`l.halfplaneBelow()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#aecad497c330e3cfdeac70d0b54bebf3a "Returns the half-plane geometrically below this line."): Returns the half-plane containing `l` and not [`halfplaneAbove`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a68570dbd34b227416c066766c61249ef "Returns the half-plane geometrically above this line.").
 - [`l.dual()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#aa72029be2b77416b240bb2511a8e6e57 "Returns the dual point."): Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
 - [`l.polar()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html#a9a9a9d07c0d3aafcc6b273bc70dfbb0a "Returns the polar point."): Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
@@ -493,7 +493,7 @@ The predicates, distances, and [`intersection`](https://gfonsecabr.github.io/pgl
 
 ### Polygon
 
-The class template [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). ~~Internally, the polygon is stored as multiple x-monotone polylines for improved performance.~~
+The class template [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y).
 
 A polygon `P` has methods such as:
 
@@ -513,10 +513,10 @@ A convex polygon `c` has methods such as:
 
 - [`c.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a460c2cbe73f75e60d0153be2acb1662d "Checks if the convex polygon is degenerate (has zero area)."): Returns true if the convex polygon has null area.
 - [`c.centroid()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#ad4000c6649317b13e2695a209d9102e8 "Computes the centroid of the convex polygon."): Returns the centroid.
-- `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
-- `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
-- `c.upperHull()`: Returns the upper monotone polyline.
-- `c.lowerHull()`: Returns the lower monotone polyline.
+- [`c.insert(s)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a573355b49f7a15907cd3dec3ac3e8624 "Enlarges the convex polygon so that it contains the given point."): Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
+- [`c.insert(points)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a573355b49f7a15907cd3dec3ac3e8624 "Enlarges the convex polygon so that it contains the given point."): Enlarges the convex polygon in order to contain every point in the input range.
+- [`c.upperHull()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a34084131cdb827a1cf75bdc56e0018de "Returns the upper hull: the boundary chain running from the lexicographically smallest vertex to the lexicographically largest one, clockwise (above the polygon)."): Returns the upper monotone chain.
+- [`c.lowerHull()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a08a0bfcddc1960c1f8ca2f5906730fdf "Returns the lower hull: the boundary chain running from the lexicographically smallest vertex to the lexicographically largest one, counterclockwise (below the polygon)."): Returns the lower monotone chain.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Polygon) c` or [`c.asPolygon()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#ab08ccc569a03b8056db708b1f4e26e2f "Returns the convex polygon as a simple polygon."): Returns the polygon representation of the convex polygon.
