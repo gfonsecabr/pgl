@@ -417,6 +417,18 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Returns the chain as a polyline traversing its vertices in
+     * lexicographic order.
+     *
+     * The chain's vertices are already sorted lexicographically, which is the
+     * canonical polyline direction, so no renormalization is needed. The
+     * chain's own label is not carried over.
+     *
+     * @return Polyline through the chain's vertices.
+     */
+    [[nodiscard]] constexpr Polyline<PointType> asPolyline() const;
+
+    /**
      * @brief Returns the edges of the chain.
      *
      * A chain with n vertices has n - 1 edges (none for a degenerate chain);

@@ -1720,6 +1720,43 @@ struct Polygon {
     intersection(const OtherHalfplane& other) const;
 
     /**
+     * @brief Returns the intersection with an open polyline (A ∩ B), a sequence
+     * of points and segments.
+     *
+     * A polyline is 1-dimensional, so the intersection with this polygon's
+     * region is a set of points and segments. Polygon owns this pair (it
+     * outranks @ref Polyline); the computation is the polyline clipped against
+     * the polygon, delegated to @ref Polyline::polygonIntersection. The pieces
+     * carry the polyline's label, matching `polyline.intersection(polygon)`.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @tparam OtherPolyline Type of the polyline.
+     * @param other Polyline to intersect with.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto intersection(const OtherPolyline& other) const;
+
+    /**
+     * @brief Returns the intersection with a monotone chain (A ∩ B), a sequence
+     * of points and segments.
+     *
+     * Same contract as @ref intersection(const OtherPolyline&) const: Polygon
+     * outranks @ref MonotoneChain and owns the pair. The chain is viewed as a
+     * @ref Polyline (its lexicographic vertex order is a valid traversal) and
+     * clipped against the polygon.
+     *
+     * @tparam ResultNumber Number type of the returned coordinates.
+     * @tparam OtherChain Type of the monotone chain.
+     * @param other Monotone chain to intersect with.
+     * @return Vector of points and segments forming the intersection.
+     * @warning Divides coordinates after casting to ResultNumber.
+     */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto intersection(const OtherChain& other) const;
+
+    /**
      * @brief Returns the polygon rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).

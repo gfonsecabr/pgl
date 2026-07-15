@@ -141,3 +141,33 @@ TEST_CASE("MonotoneChain and Polygon distance") {
     const Chain overNotch({3, 3, 5, 3});
     CHECK(ell.squaredDistance<Rational>(overNotch) == Rational(1));
 }
+
+TEST_CASE("MonotoneChain and Polygon intersection routes through asPolyline") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    // A chain fully inside the left arm intersects the polygon in itself.
+    SUBCASE("a contained chain returns its own edge") {
+        const auto pieces = Chain({1, 1, 1, 5}).intersection(ell);
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(1, 5)));
+    }
+
+    // The edge (1,4)->(4,1) leaves the left arm, crosses the notch (outside),
+    // and re-enters the bottom arm, so the intersection is two segments.
+    SUBCASE("an edge crossing the notch splits into two segments") {
+        const auto pieces = Chain({1, 4, 4, 1}).intersection(ell);
+        REQUIRE(pieces.size() == 2);
+        REQUIRE(std::holds_alternative<Segment>(pieces[0]));
+        CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 4), Point(2, 3)));
+        REQUIRE(std::holds_alternative<Segment>(pieces[1]));
+        CHECK(std::get<Segment>(pieces[1]) == Segment(Point(3, 2), Point(4, 1)));
+    }
+
+    // A chain sitting in the notch misses the polygon entirely.
+    SUBCASE("a chain in the notch has no intersection") {
+        CHECK(Chain({3, 3, 5, 5}).intersection(ell).empty());
+    }
+}

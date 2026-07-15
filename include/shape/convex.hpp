@@ -205,7 +205,18 @@ struct Convex {
             }
         }
         else {
-            points_ = grahamScan(points);
+            // Compute the hull in the source point type so the orientation
+            // predicates stay exact, then convert the surviving vertices to
+            // PointType (a no-op move when the types already match).
+            auto hull = grahamScan(points);
+            if constexpr (std::is_same_v<std::remove_cvref_t<decltype(hull)>, std::vector<PointType>>) {
+                points_ = std::move(hull);
+            } else {
+                points_.reserve(hull.size());
+                for (const auto &p : hull) {
+                    points_.push_back(PointType(p));
+                }
+            }
         }
     }
 
@@ -2391,6 +2402,17 @@ struct Convex {
     template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherConvex& other) const;
+
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
+                  && requires(const OtherShape& o, const Convex& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
