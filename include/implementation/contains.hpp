@@ -851,7 +851,22 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherRectangle& o
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Halfplane<PointType, LabelType>::contains(const OtherHalfplane& other) const {
-    return other.isDegenerate() && contains(other.source());
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+
+    // Boundaries must be parallel AND face the same interior side; otherwise
+    // part of `other` always lies outside `*this`. `parallel` is orientation
+    // insensitive, so the dot-product sign disambiguates same vs opposite
+    // facing. Then `other` is the nested half-plane iff its boundary line lies
+    // on the closed side of `*this`, which contains(other.source()) tests
+    // exactly (one point stands in for the whole parallel line).
+    if (!asLine().parallel(other.asLine()) ||
+        dotSign(target() - source(), other.target() - other.source()) !=
+            std::partial_ordering::greater) {
+        return false;
+    }
+    return contains(other.source());
 }
 
 template <class PointType, class LabelType>
