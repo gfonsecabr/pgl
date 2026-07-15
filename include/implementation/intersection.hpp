@@ -661,6 +661,18 @@ Halfplane<PointType, LabelType>::intersection(const OtherRay& other) const {
     return std::get<ResultRay>(*supporting_intersection).template intersection<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+Halfplane<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+    // Exact and division-free: the region simply stores the two half-planes,
+    // discarding one when it is redundant and flagging emptiness when they
+    // contradict each other.
+    HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>> result(*this);
+    result.insert(other);
+    return result;
+}
+
 // -----------------------------------------------------------------------------
 // Rectangle
 

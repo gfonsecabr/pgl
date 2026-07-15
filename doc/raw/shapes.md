@@ -334,7 +334,7 @@ if (h1 == h2)
 // Output: ^-(1,2)--(3,4)-^ == ^-(1,2)--(2,3)-^
 ```
 
-Halfplane does not have an `intersection` method. The defining points may be accessed as in an oriented segment and may be changed directly.
+The defining points may be accessed as in an oriented segment and may be changed directly.
 
 A half-plane `h` has methods such as:
 
@@ -343,10 +343,12 @@ A half-plane `h` has methods such as:
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
 - `h.slope()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
+- `h.intersection(h2)`: Intersecting with another half-plane returns a [`HalfplaneIntersection`](#halfplane-intersection) — exact and division-free, whether the result is a wedge, a strip, a nested half-plane, a line, or the empty set.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
 - `(pgl::OrientedLine) l` or `l.asOrientedLine()`: Returns the oriented line bounding the half-plane.
+- `(pgl::HalfplaneIntersection) h` or `h.asHalfplaneIntersection()`: Returns the half-plane as a one-constraint half-plane intersection.
 
 - Other methods:
 

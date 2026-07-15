@@ -36,7 +36,7 @@ int main() {
 | --- | --- |
 | 0-dimensional | [`Point`](doc/shapes.md#point), [`EmptyShape`](doc/shapes.md#emptyshape) |
 | 1-dimensional | [`Segment`](doc/shapes.md#segment), [`OrientedSegment`](doc/shapes.md#oriented-segment), [`Line`](doc/shapes.md#line), [`OrientedLine`](doc/shapes.md#oriented-line), [`Ray`](doc/shapes.md#ray), [`MonotoneChain`](doc/shapes.md#monotone-chain), [`Polyline`](doc/shapes.md#polyline) |
-| 2-dimensional | [`Halfplane`](doc/shapes.md#half-plane), [`Triangle`](doc/shapes.md#triangle), [`Rectangle`](doc/shapes.md#rectangle), [`Disk`](doc/shapes.md#disk), [`Convex`](doc/shapes.md#convex), [`Polygon`](doc/shapes.md#polygon) |
+| 2-dimensional | [`Halfplane`](doc/shapes.md#half-plane), [`Triangle`](doc/shapes.md#triangle), [`Rectangle`](doc/shapes.md#rectangle), [`Disk`](doc/shapes.md#disk), [`Convex`](doc/shapes.md#convex), [`Polygon`](doc/shapes.md#polygon), [`HalfplaneIntersection`](doc/shapes.md#halfplane-intersection) |
 | Polymorphism | [`Shape`](doc/shapes.md#shape) |
 
 The following [predicates](doc/shape_methods.md#predicates) are implemented as methods of all shapes.

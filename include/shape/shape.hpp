@@ -624,7 +624,9 @@ struct Shape {
      * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
      * @throws std::logic_error when the result cannot be represented by a single
      *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
-     *   whose intersection is unsupported (anything against a `Disk`).
+     *   whose intersection is unsupported (anything against a `Disk`, and two
+     *   `Halfplane`s, whose intersection is a possibly unbounded
+     *   `HalfplaneIntersection`).
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>
@@ -1152,7 +1154,14 @@ struct Shape {
                       std::same_as<Right, EmptyShape<PointType>>) {
             return Shape<ResultPoint>{EmptyShape<ResultPoint>{}};
         } else if constexpr (requires { left.template intersection<ResultNumber>(right); }) {
-            return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
+            if constexpr (detail::is_halfplane_intersection_v<
+                              decltype(left.template intersection<ResultNumber>(right))>) {
+                // Two half-planes intersect in a HalfplaneIntersection, which
+                // is possibly unbounded and therefore not a Shape alternative.
+                throw std::logic_error("Shape::intersection is not defined for this shape pair");
+            } else {
+                return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
+            }
         } else {
             throw std::logic_error("Shape::intersection is not defined for this shape pair");
         }
