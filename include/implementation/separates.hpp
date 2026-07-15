@@ -3770,4 +3770,118 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolyline& oth
     return detail::separates1DSet(*this, other.edgesView());
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherPoint&) const {
+    // Removing anything from a single point leaves the point or nothing,
+    // never two components.
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherSegment& other) const {
+    // The region meets the segment in one closed sub-interval; the remainder
+    // is disconnected exactly when that interval is nonempty and touches
+    // neither endpoint.
+    return intersects(other) && !contains(other[0]) && !contains(other[1]);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
+    return separates(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherLine& other) const {
+    // The region meets the line in one closed interval; the remainder is
+    // disconnected exactly when the interval is nonempty and bounded on both
+    // sides (an unbounded interval swallows an end of the line, leaving a
+    // single ray, and a full-line interval leaves nothing).
+    if (isEmpty() || halfplanes_.empty()) {
+        return false;
+    }
+    const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
+    const auto clip = clipLine(along);
+    return !clip.empty && clip.entry >= 0 && clip.exit >= 0;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
+    return separates(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherRay& other) const {
+    // As for a line, but the interval additionally must not contain the
+    // source (which would leave a single piece ahead of it), and only the
+    // forward end has to be bounded.
+    if (isEmpty() || halfplanes_.empty() || contains(other.source())) {
+        return false;
+    }
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    const auto clip = clipLine(along);
+    if (clip.empty || clip.exit < 0) {
+        return false;
+    }
+    // The interval must reach into the ray: the line may not leave the region
+    // before the source.
+    return constraintSide(static_cast<std::size_t>(clip.exit), other.source()) >= 0;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherHalfplane& other) const {
+    // Removing the region disconnects the half-plane exactly when the
+    // region's closed contact set with the half-plane's extended boundary —
+    // the boundary line plus the half-plane's arc of ideal directions — has at
+    // least two connected components while the region also meets the
+    // half-plane's interior. A bounded region only ever contributes the
+    // boundary-line contact (one component), so only unbounded regions can
+    // separate a half-plane. Complexity: O(n).
+    if (isEmpty() || halfplanes_.empty() || halfplanes_.size() == 1) {
+        // The whole plane leaves nothing behind, and removing a single
+        // half-plane leaves an open half-plane, which is connected.
+        return false;
+    }
+    // The region must reach the half-plane's interior: with contact only on
+    // the boundary line, the remainder stays connected through the interior.
+    const SupStatus infimum = supStatus(other.opposite());
+    if (infimum == SupStatus::below || infimum == SupStatus::on) {
+        return false;
+    }
+    // Contact on the boundary line itself (one component when present,
+    // possibly extended to the ideal endpoints of the line).
+    const bool lineTouch = intersects(other.asLine());
+    const auto reversed = other.opposite();
+    int pieces = lineTouch ? 1 : 0;
+    // Ideal contact: recession directions of the region that stay weakly
+    // inside the half-plane. Each recession arc meets the half-plane's closed
+    // ideal half-circle in at most one sub-arc.
+    for (const auto& arc : recessionArcs()) {
+        // Does the arc reach the line's ideal endpoints or the open ideal arc
+        // strictly inside the half-plane?
+        const bool atLeft = detail::arcContainsDirection(arc.first, arc.second, reversed);
+        const bool atRight = detail::arcContainsDirection(arc.first, arc.second, other);
+        const bool strictlyInside = detail::directionCross(other, arc.first) > 0 ||
+                                    detail::directionCross(other, arc.second) > 0;
+        if (!(atLeft || atRight || strictlyInside)) {
+            continue;  // this recession arc never touches the half-plane's ideal boundary
+        }
+        if (lineTouch && (atLeft || atRight)) {
+            continue;  // joined to the boundary-line contact at an ideal line endpoint
+        }
+        ++pieces;
+    }
+    return pieces >= 2;
+}
+
 }  // namespace pgl

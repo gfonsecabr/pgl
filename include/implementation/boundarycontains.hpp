@@ -1217,4 +1217,94 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherPolyli
     return true;
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    // A degenerate region equals its own boundary, and every point of a
+    // degenerate region lies on some constraint boundary, so the status test
+    // covers that case with no special handling.
+    return pointStatus(point) == 0;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    // A segment on the boundary lies on a single constraint's boundary line
+    // (at most two stored constraints are parallel to it), inside the region.
+    // A degenerate region is its own boundary, and it always stores its
+    // carrier line's constraints, so the same test applies.
+    const Halfplane<typename OtherSegment::PointType> along(other.min(), other.max());
+    if (along.isDegenerate()) {
+        return boundaryContains(other.min());
+    }
+    for (const std::ptrdiff_t idx : {sameDirectionIndex(along), sameDirectionIndex(along.opposite())}) {
+        if (idx >= 0 && constraintSide(static_cast<std::size_t>(idx), other.min()) == 0 &&
+            constraintSide(static_cast<std::size_t>(idx), other.max()) == 0) {
+            return contains(other.min()) && contains(other.max());
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
+    return boundaryContains(Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
+    // A full line on the boundary must be a constraint's entire boundary
+    // line, and the region must contain it (so no other constraint clips it).
+    if (isEmpty() || !contains(other)) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (halfplane.boundaryContains(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
+    return boundaryContains(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
+    // The ray must lie inside the region and on some constraint's boundary
+    // line; a degenerate region containing the ray stores its carrier line's
+    // constraints, so the boundary-line scan below finds it there too.
+    if (isEmpty() || !contains(other)) {
+        return false;
+    }
+    const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
+    for (const std::ptrdiff_t idx : {sameDirectionIndex(along), sameDirectionIndex(along.opposite())}) {
+        if (idx >= 0 && halfplanes_[static_cast<std::size_t>(idx)].boundaryContains(other)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherHalfplane&) const {
+    // The boundary of the region is at most one-dimensional (and empty for
+    // the whole plane), so it never contains a two-dimensional half-plane.
+    return false;
+}
+
 }  // namespace pgl

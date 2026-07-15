@@ -490,4 +490,102 @@ constexpr Rectangle<Point<ResultNumber>> Polyline<PointType, LabelType>::fbox() 
     return bbox().template fbox<ResultNumber>();
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Rectangle<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::bbox() const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    if (isEmpty() || !isBounded()) {
+        throw std::logic_error("HalfplaneIntersection::bbox is only defined for a nonempty bounded region");
+    }
+    using C = detail::promoted_number_t<detail::promoted_number_t<NumberType>>;
+    struct Fraction {
+        C num;
+        C den;  // positive
+    };
+    // The extreme point in an outward normal direction a = (dy, -dx) sits
+    // where the stored boundary directions bracket the query direction
+    // (dx, dy) — the same bracketing as supStatus, but producing the extreme
+    // coordinate as an exact fraction. O(log n) per direction.
+    const auto extreme = [&](NumberType dx, NumberType dy, bool wantX) -> Fraction {
+        const HalfplaneType query(PointType(NumberType(0), NumberType(0)), PointType(dx, dy));
+        const std::size_t n = halfplanes_.size();
+        const std::size_t pos = linearUpperBound(query);
+        const std::size_t predIdx = (pos == 0 ? n : pos) - 1;
+        const auto& pred = halfplanes_[predIdx];
+        if (detail::directionEqual(pred, query)) {
+            // Attained along an axis-parallel edge, where the wanted
+            // coordinate is constant.
+            return {static_cast<C>(wantX ? pred.source().x() : pred.source().y()), C(1)};
+        }
+        const auto& succ = halfplanes_[pos == n ? 0 : pos];
+        // Vertex of the two boundary lines a_i · v = b_i.
+        const auto row = [](const HalfplaneType& h) {
+            const C sx = static_cast<C>(h.source().x());
+            const C sy = static_cast<C>(h.source().y());
+            const C tx = static_cast<C>(h.target().x());
+            const C ty = static_cast<C>(h.target().y());
+            struct Row { C ax, ay, b; };
+            return Row{ty - sy, sx - tx, sx * ty - sy * tx};
+        };
+        const auto r1 = row(pred);
+        const auto r2 = row(succ);
+        const C den = r1.ax * r2.ay - r1.ay * r2.ax;  // positive: bounded gaps are below pi
+        assert(den > C(0));
+        if (wantX) {
+            return {r1.b * r2.ay - r2.b * r1.ay, den};
+        }
+        return {r1.ax * r2.b - r2.ax * r1.b, den};
+    };
+    // Outward normals +x, -x, +y, -y correspond to boundary directions
+    // (0, 1), (0, -1), (-1, 0), (1, 0).
+    const Fraction xMax = extreme(NumberType(0), NumberType(1), true);
+    const Fraction xMin = extreme(NumberType(0), NumberType(-1), true);
+    const Fraction yMax = extreme(NumberType(-1), NumberType(0), false);
+    const Fraction yMin = extreme(NumberType(1), NumberType(0), false);
+    const auto convert = [](const Fraction& f, bool roundUp) -> ResultNumber {
+        if constexpr (std::is_floating_point_v<ResultNumber>) {
+            (void)roundUp;
+            return static_cast<ResultNumber>(f.num) / static_cast<ResultNumber>(f.den);
+        } else if constexpr (is_Rational_v<ResultNumber>) {
+            // Exact when the fraction fits the rational's storage type.
+            (void)roundUp;
+            return static_cast<ResultNumber>(f.num) / static_cast<ResultNumber>(f.den);
+        } else if constexpr (is_Rational_v<C> || std::is_floating_point_v<C>) {
+            // Exact (Rational) or approximate (floating) coordinates: divide
+            // in the working type and convert; no outward rounding applies.
+            (void)roundUp;
+            return static_cast<ResultNumber>(f.num / f.den);
+        } else {
+            // Integer coordinates and result: round outward so the box
+            // encloses the region.
+            C quotient = f.num / f.den;
+            const C remainder = f.num % f.den;
+            if (remainder != C(0)) {
+                if (roundUp && f.num > C(0)) {
+                    ++quotient;
+                }
+                if (!roundUp && f.num < C(0)) {
+                    --quotient;
+                }
+            }
+            return static_cast<ResultNumber>(quotient);
+        }
+    };
+    return Rectangle<ResultPoint>(ResultPoint(convert(xMin, false), convert(yMin, false)),
+                                  ResultPoint(convert(xMax, true), convert(yMax, true)));
+}
+
+template <class PointType, class LabelType>
+template <std::floating_point ResultNumber>
+constexpr Rectangle<Point<ResultNumber>> HalfplaneIntersection<PointType, LabelType>::fbox() const {
+    const auto box = bbox<ResultNumber>();
+    return Rectangle<Point<ResultNumber>>(Point<ResultNumber>(box.min().x(), box.min().y()),
+                                          Point<ResultNumber>(box.max().x(), box.max().y()));
+}
+
 }  // namespace pgl

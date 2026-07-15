@@ -98,6 +98,10 @@ struct Convex;
 template <class PointType, class Label = NoLabel>
 struct Polygon;
 
+/** @brief Intersection of closed half-planes; convex but possibly unbounded or empty. */
+template <class PointType, class Label = NoLabel>
+struct HalfplaneIntersection;
+
 /** @brief Weakly x-monotone polyline stored by lexicographically sorted vertices. */
 template <class PointType, class Label = NoLabel, class Storage = std::vector<PointType>>
 struct MonotoneChain;
@@ -173,6 +177,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Polyline<PointType, Label>> = 117;
 template <class PointType, class Label>
 inline constexpr int shapeRank<Polygon<PointType, Label>> = 120;
+template <class PointType, class Label>
+inline constexpr int shapeRank<HalfplaneIntersection<PointType, Label>> = 130;
 
 // Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
 // specialization of that shape. They back the public XxxConcept concepts below
@@ -227,6 +233,10 @@ template <class T> struct is_polygon : std::false_type {};
 template <class PointType, class Label> struct is_polygon<Polygon<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
 
+template <class T> struct is_halfplane_intersection : std::false_type {};
+template <class PointType, class Label> struct is_halfplane_intersection<HalfplaneIntersection<PointType, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_halfplane_intersection_v = is_halfplane_intersection<std::remove_cvref_t<T>>::value;
+
 template <class T> struct is_monotone_chain : std::false_type {};
 template <class PointType, class Label, class Storage> struct is_monotone_chain<MonotoneChain<PointType, Label, Storage>> : std::true_type {};
 template <class T> inline constexpr bool is_monotone_chain_v = is_monotone_chain<std::remove_cvref_t<T>>::value;
@@ -264,6 +274,7 @@ template <class T> concept RectangleConcept = detail::is_rectangle_v<T>;
 template <class T> concept TriangleConcept = detail::is_triangle_v<T>;
 template <class T> concept ConvexConcept = detail::is_convex_v<T>;
 template <class T> concept PolygonConcept = detail::is_polygon_v<T>;
+template <class T> concept HalfplaneIntersectionConcept = detail::is_halfplane_intersection_v<T>;
 template <class T> concept MonotoneChainConcept = detail::is_monotone_chain_v<T>;
 template <class T> concept PolylineConcept = detail::is_polyline_v<T>;
 template <class T> concept DiskConcept = detail::is_disk_v<T>;

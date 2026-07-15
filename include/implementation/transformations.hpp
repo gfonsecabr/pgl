@@ -2150,4 +2150,149 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
         shape.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection
+//
+// Translations and rotations preserve the sorted-by-direction invariant up to
+// a cyclic rotation, and axis scalings up to a reversal; canonicalizeSorted()
+// restores the canonical order in every mutating case. Feasibility and
+// non-redundancy are preserved by any bijective affine map, so no rebuild is
+// needed — but the truncating operations (integer division) are inexact and
+// may leave a representation that no longer matches the exact image.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr HalfplaneIntersection<PointType, LabelType>&
+HalfplaneIntersection<PointType, LabelType>::operator+=(const OtherPoint& translation) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane += translation;
+    }
+    resetCache();
+    return *this;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr HalfplaneIntersection<PointType, LabelType>&
+HalfplaneIntersection<PointType, LabelType>::operator-=(const OtherPoint& translation) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane -= translation;
+    }
+    resetCache();
+    return *this;
+}
+
+template <class PointType, class LabelType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
+constexpr HalfplaneIntersection<PointType, LabelType>&
+HalfplaneIntersection<PointType, LabelType>::operator*=(const Scalar& scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane *= scalar;
+    }
+    canonicalizeSorted();
+    return *this;
+}
+
+template <class PointType, class LabelType>
+template <class Scalar>
+    requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
+constexpr HalfplaneIntersection<PointType, LabelType>&
+HalfplaneIntersection<PointType, LabelType>::operator/=(const Scalar& scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane /= scalar;
+    }
+    canonicalizeSorted();
+    return *this;
+}
+
+template <class PointType, class LabelType>
+constexpr HalfplaneIntersection<PointType, LabelType>
+HalfplaneIntersection<PointType, LabelType>::rotated90(int k) const {
+    HalfplaneIntersection result(*this);
+    result.rotate90(k);
+    return result;
+}
+
+template <class PointType, class LabelType>
+constexpr void HalfplaneIntersection<PointType, LabelType>::rotate90(int k) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane.rotate90(k);
+    }
+    canonicalizeSorted();
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr HalfplaneIntersection<PointType, LabelType>
+HalfplaneIntersection<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
+    HalfplaneIntersection result(*this);
+    result.scaleUpX(scalar);
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void HalfplaneIntersection<PointType, LabelType>::scaleUpX(const OtherNumber scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane.scaleUpX(scalar);
+    }
+    canonicalizeSorted();
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr HalfplaneIntersection<PointType, LabelType>
+HalfplaneIntersection<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
+    HalfplaneIntersection result(*this);
+    result.scaleUpY(scalar);
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void HalfplaneIntersection<PointType, LabelType>::scaleUpY(const OtherNumber scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane.scaleUpY(scalar);
+    }
+    canonicalizeSorted();
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr HalfplaneIntersection<PointType, LabelType>
+HalfplaneIntersection<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
+    HalfplaneIntersection result(*this);
+    result.scaleDownX(scalar);
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void HalfplaneIntersection<PointType, LabelType>::scaleDownX(const OtherNumber scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane.scaleDownX(scalar);
+    }
+    canonicalizeSorted();
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr HalfplaneIntersection<PointType, LabelType>
+HalfplaneIntersection<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
+    HalfplaneIntersection result(*this);
+    result.scaleDownY(scalar);
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class OtherNumber>
+constexpr void HalfplaneIntersection<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
+    for (auto& halfplane : halfplanes_) {
+        halfplane.scaleDownY(scalar);
+    }
+    canonicalizeSorted();
+}
+
 }  // namespace pgl
