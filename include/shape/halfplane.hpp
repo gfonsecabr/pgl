@@ -332,6 +332,24 @@ struct Halfplane {
     }
 
     /**
+     * @brief Converts to the equivalent one-constraint half-plane intersection.
+     *
+     * @return Half-plane intersection whose single stored half-plane is this one.
+     */
+    [[nodiscard]] constexpr explicit operator HalfplaneIntersection<PointType>() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
+
+    /**
+     * @brief Returns the half-plane as a half-plane intersection.
+     *
+     * @return Half-plane intersection whose single stored half-plane is this one.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return static_cast<HalfplaneIntersection<PointType>>(*this);
+    }
+
+    /**
      * @brief Returns the half-plane rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
@@ -818,12 +836,20 @@ struct Halfplane {
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Ray<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRay& other) const;
 
-    // Intersecting two half-planes is intentionally unsupported. Deleting the
-    // overload makes such a call a compile error rather than letting it fall
-    // through to the reversing fallback below, which would recurse forever.
-    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
+    /**
+     * @brief Returns the intersection of the two half-planes as a half-plane
+     * intersection.
+     *
+     * The result type represents the intersection exactly (no coordinate
+     * divisions) whatever the configuration: a wedge, a strip, a nested or
+     * identical half-plane, a line, or the empty set (see
+     * @ref HalfplaneIntersection::isEmpty) — so no `std::optional` wrapper is
+     * needed. This concrete overload also keeps the pair away from the
+     * reversing fallback below, which would recurse forever.
+     */
     template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
-    constexpr auto intersection(const OtherHalfplane& other) const = delete;
+    [[nodiscard]] constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherHalfplane& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>

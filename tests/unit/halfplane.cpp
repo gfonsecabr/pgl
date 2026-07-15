@@ -353,3 +353,72 @@ TEST_CASE("Halfplane measures squared distance as zero inside or distance to its
         CHECK(diagonal.squaredDistance<Rational>(q) == Rational(9, 2));
     }
 }
+
+TEST_CASE("Halfplane converts to a one-constraint half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+
+    const Halfplane upper(0, 0, 1, 0);  // y >= 0
+    const auto region = upper.asHalfplaneIntersection();
+    CHECK(region.size() == 1);
+    CHECK(region[0] == upper);
+    CHECK(!region.isBounded());
+    CHECK(region.contains(Point(3, 1)));
+    CHECK(!region.contains(Point(3, -1)));
+    CHECK(static_cast<pgl::HalfplaneIntersection<Point>>(upper) == region);
+}
+
+TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersection") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+
+    const Halfplane upper(0, 0, 1, 0);   // y >= 0
+    const Halfplane right(0, 1, 0, 0);   // x >= 0
+
+    SUBCASE("two generic halfplanes give a wedge") {
+        const Region wedge = upper.intersection(right);
+        CHECK(wedge.size() == 2);
+        CHECK(!wedge.isBounded());
+        CHECK(wedge.vertexCount() == 1);
+        CHECK(wedge.contains(Point(1, 1)));
+        CHECK(!wedge.contains(Point(-1, 1)));
+        CHECK(wedge == Region({upper, right}));
+    }
+
+    SUBCASE("parallel same-side halfplanes keep the more restrictive one") {
+        const Halfplane higher(0, 1, 1, 1);  // y >= 1
+        CHECK(upper.intersection(higher) == higher.asHalfplaneIntersection());
+        CHECK(higher.intersection(upper) == higher.asHalfplaneIntersection());
+    }
+
+    SUBCASE("opposite halfplanes give a strip, a line, or the empty set") {
+        const Halfplane below1(1, 1, 0, 1);   // y <= 1
+        const Region strip = upper.intersection(below1);
+        CHECK(strip.size() == 2);
+        CHECK(strip.contains(Point(7, 0)));
+        CHECK(!strip.contains(Point(7, 2)));
+
+        const Region line = upper.intersection(upper.opposite());
+        CHECK(line.isDegenerate());
+        CHECK(line.contains(Point(5, 0)));
+        CHECK(!line.contains(Point(5, 1)));
+
+        const Halfplane belowMinus1(1, -1, 0, -1);  // y <= -1
+        CHECK(upper.intersection(belowMinus1).isEmpty());
+    }
+
+    SUBCASE("the result stays exact with a rational result type") {
+        using Rational = pgl::Rational<int64_t>;
+        const auto wedge = upper.intersection<Rational>(right);
+        CHECK(wedge.contains(pgl::Point<Rational>(Rational(1, 2), Rational(1, 3))));
+    }
+
+    SUBCASE("the Shape wrapper still reports the pair as unsupported") {
+        // A HalfplaneIntersection is possibly unbounded, so it is not a Shape
+        // alternative and the variant dispatch throws for two halfplanes.
+        const pgl::Shape<Point> a = upper;
+        const pgl::Shape<Point> b = right;
+        CHECK_THROWS_AS((void)a.intersection(b), std::logic_error);
+    }
+}
