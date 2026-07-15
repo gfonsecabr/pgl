@@ -1512,6 +1512,73 @@ struct Polyline {
     constexpr void scaleDownY(const OtherNumber scalar);
 
     /**
+     * @brief Tests whether @p oldEdge can be flipped to @p newEdge.
+     *
+     * A *flip* removes one edge and adds one edge so that the result is still a
+     * single open chain over the very same vertices (a Hamiltonian path move).
+     * Removing an edge splits the chain into two sub-paths `A` (holding the
+     * first vertex) and `B` (holding the last); the new edge rejoins them and
+     * therefore has to connect an endpoint of `A` to an endpoint of `B`. With
+     * `A = [p_0 .. p_i]` and `B = [p_{i+1} .. p_{n-1}]` the three non-trivial
+     * reconnections are:
+     * - add `(p_i, p_{n-1})` — reverses the suffix `B`;
+     * - add `(p_0, p_{i+1})` — reverses the prefix `A`;
+     * - add `(p_0, p_{n-1})` — reverses both.
+     *
+     * The flip is possible when @p oldEdge equals some edge of the polyline,
+     * @p newEdge is non-degenerate, and @p newEdge is one of the reconnections
+     * above (in particular @p newEdge differs from @p oldEdge — re-adding the
+     * removed edge is not a flip). Both edges are compared as unordered vertex
+     * pairs. In a self-intersecting polyline @p oldEdge may match several edges;
+     * the first (smallest-index) edge admitting @p newEdge as a valid
+     * reconnection is used.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam OldSegment Type of the removed edge.
+     * @tparam NewSegment Type of the added edge.
+     * @param oldEdge Edge to remove (an existing polyline edge).
+     * @param newEdge Edge to add in its place.
+     * @return `true` if the flip yields a path over the same vertices.
+     */
+    template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+    [[nodiscard]] constexpr bool flippable(const OldSegment& oldEdge, const NewSegment& newEdge) const;
+
+    /**
+     * @brief Returns the polyline with @p oldEdge flipped to @p newEdge.
+     *
+     * See @ref flippable for the exact semantics. The flip must be possible.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam OldSegment Type of the removed edge.
+     * @tparam NewSegment Type of the added edge.
+     * @param oldEdge Edge to remove (an existing polyline edge).
+     * @param newEdge Edge to add in its place.
+     * @return The flipped polyline (canonicalized by direction like any other).
+     * @pre `flippable(oldEdge, newEdge)`.
+     */
+    template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+    [[nodiscard]] constexpr Polyline flipped(const OldSegment& oldEdge, const NewSegment& newEdge) const;
+
+    /**
+     * @brief Flips @p oldEdge to @p newEdge in place.
+     *
+     * See @ref flippable for the exact semantics. The flip must be possible.
+     * The label is preserved.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam OldSegment Type of the removed edge.
+     * @tparam NewSegment Type of the added edge.
+     * @param oldEdge Edge to remove (an existing polyline edge).
+     * @param newEdge Edge to add in its place.
+     * @pre `flippable(oldEdge, newEdge)`.
+     */
+    template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+    constexpr void flip(const OldSegment& oldEdge, const NewSegment& newEdge);
+
+    /**
      * @brief Translates the polyline by the given point.
      *
      * Complexity: O(1).
@@ -1708,6 +1775,17 @@ struct Polyline {
         assert(index + 1 < size());
         return BoundaryType<Oriented>((*this)[index], (*this)[index + 1]);
     }
+
+    /**
+     * @brief Computes the vertex sequence resulting from flipping @p oldEdge to
+     * @p newEdge, or `std::nullopt` when the flip is not possible.
+     *
+     * Shared by @ref flippable, @ref flipped and @ref flip; see @ref flippable
+     * for the semantics. Vertices are returned with the translation applied.
+     */
+    template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+    constexpr std::optional<std::vector<PointType>> flipVertices(const OldSegment& oldEdge,
+                                                                 const NewSegment& newEdge) const;
 
     /**
      * @brief Tests whether the stored vertex sequence is in canonical
