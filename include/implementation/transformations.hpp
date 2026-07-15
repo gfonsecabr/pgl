@@ -1911,6 +1911,99 @@ constexpr void Polyline<PointType, LabelType>::scaleDownY(const OtherNumber scal
     label_ = std::move(saved);
 }
 
+template <class PointType, class LabelType>
+template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+constexpr std::optional<std::vector<PointType>>
+Polyline<PointType, LabelType>::flipVertices(const OldSegment& oldEdge,
+                                             const NewSegment& newEdge) const {
+    const std::size_t n = size();
+    if (n < 2) {
+        return std::nullopt;  // no edge to remove
+    }
+
+    const PointType o0 = oldEdge[0];
+    const PointType o1 = oldEdge[1];
+    const PointType m0 = newEdge[0];
+    const PointType m1 = newEdge[1];
+
+    // The added edge must be a real, distinct edge.
+    if (m0 == m1) {
+        return std::nullopt;  // degenerate added edge
+    }
+    const auto sameSet = [](const PointType& a, const PointType& b, const PointType& c,
+                            const PointType& d) {
+        return (a == c && b == d) || (a == d && b == c);
+    };
+    if (sameSet(o0, o1, m0, m1)) {
+        return std::nullopt;  // re-adding the removed edge is not a flip
+    }
+
+    const std::vector<PointType> v = vertices();
+    for (std::size_t i = 0; i + 1 < n; ++i) {
+        if (!sameSet(v[i], v[i + 1], o0, o1)) {
+            continue;  // oldEdge does not match this edge
+        }
+        // A = v[0 .. i] (holds the first vertex), B = v[i+1 .. n-1] (the last).
+        std::vector<PointType> out;
+        out.reserve(n);
+        if (sameSet(m0, m1, v[i], v[n - 1])) {  // add (p_i, p_{n-1}): reverse B
+            for (std::size_t k = 0; k <= i; ++k) {
+                out.push_back(v[k]);
+            }
+            for (std::size_t k = n; k-- > i + 1;) {
+                out.push_back(v[k]);
+            }
+            return out;
+        }
+        if (sameSet(m0, m1, v[0], v[i + 1])) {  // add (p_0, p_{i+1}): reverse A
+            for (std::size_t k = i + 1; k-- > 0;) {
+                out.push_back(v[k]);
+            }
+            for (std::size_t k = i + 1; k < n; ++k) {
+                out.push_back(v[k]);
+            }
+            return out;
+        }
+        if (sameSet(m0, m1, v[0], v[n - 1])) {  // add (p_0, p_{n-1}): reverse both
+            for (std::size_t k = i + 1; k-- > 0;) {
+                out.push_back(v[k]);
+            }
+            for (std::size_t k = n; k-- > i + 1;) {
+                out.push_back(v[k]);
+            }
+            return out;
+        }
+        // This edge matches oldEdge but newEdge is not a valid reconnection for
+        // it; a later duplicate of oldEdge might still admit newEdge.
+    }
+    return std::nullopt;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+constexpr bool Polyline<PointType, LabelType>::flippable(const OldSegment& oldEdge,
+                                                         const NewSegment& newEdge) const {
+    return flipVertices(oldEdge, newEdge).has_value();
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+constexpr Polyline<PointType, LabelType>
+Polyline<PointType, LabelType>::flipped(const OldSegment& oldEdge, const NewSegment& newEdge) const {
+    auto vertices = flipVertices(oldEdge, newEdge);
+    assert(vertices.has_value());
+    return Polyline<PointType, LabelType>(std::move(*vertices));
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OldSegment, SegmentConcept NewSegment>
+constexpr void Polyline<PointType, LabelType>::flip(const OldSegment& oldEdge,
+                                                    const NewSegment& newEdge) {
+    auto saved = label_;
+    *this = flipped(oldEdge, newEdge);
+    label_ = std::move(saved);
+}
+
 // ---------------------------------------------------------------------------
 // Disk
 

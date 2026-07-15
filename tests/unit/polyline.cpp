@@ -280,6 +280,54 @@ TEST_CASE("Polyline transformations preserve the traversal order") {
     }
 }
 
+// A flip removes one edge and adds one edge, keeping a single open path over
+// the same vertices (a Hamiltonian-path move).
+TEST_CASE("Polyline flip") {
+    using Point = pgl::Point<int>;
+    using Polyline = pgl::Polyline<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    // Distinct, non-collinear vertices p0..p4 so every edge is unambiguous.
+    const Point p0(0, 0), p1(1, 2), p2(2, 0), p3(3, 2), p4(4, 0);
+    const Polyline base({p0, p1, p2, p3, p4});
+    const Segment mid(p1, p2);  // interior edge e1, splits into A=[p0,p1], B=[p2,p3,p4]
+
+    SUBCASE("the three interior reconnections") {
+        // reverse the suffix B: add (p1, p4)
+        CHECK(base.flippable(mid, Segment(p1, p4)));
+        CHECK(base.flipped(mid, Segment(p1, p4)) == Polyline({p0, p1, p4, p3, p2}));
+        // reverse the prefix A: add (p0, p2)
+        CHECK(base.flippable(mid, Segment(p0, p2)));
+        CHECK(base.flipped(mid, Segment(p0, p2)) == Polyline({p1, p0, p2, p3, p4}));
+        // reverse both: add (p0, p4)
+        CHECK(base.flippable(mid, Segment(p0, p4)));
+        CHECK(base.flipped(mid, Segment(p0, p4)) == Polyline({p1, p0, p4, p3, p2}));
+    }
+
+    SUBCASE("flip is its own kind of undo") {
+        // Reversing the suffix twice restores the original path.
+        const auto once = base.flipped(mid, Segment(p1, p4));
+        CHECK(once.flipped(Segment(p1, p4), mid) == base);
+    }
+
+    SUBCASE("non-flippable requests") {
+        CHECK_FALSE(base.flippable(mid, mid));                    // re-adding the removed edge
+        CHECK_FALSE(base.flippable(mid, Segment(p0, p3)));        // not a valid reconnection
+        CHECK_FALSE(base.flippable(Segment(p0, p2), Segment(p1, p4)));  // oldEdge is not an edge
+    }
+
+    SUBCASE("in-place flip mutates and matches flipped") {
+        Polyline poly = base;
+        poly.flip(mid, Segment(p1, p4));
+        CHECK(poly == base.flipped(mid, Segment(p1, p4)));
+    }
+
+    SUBCASE("a two-vertex polyline has no flip") {
+        const Polyline two({p0, p4});
+        CHECK_FALSE(two.flippable(Segment(p0, p4), Segment(p0, p4)));
+    }
+}
+
 TEST_CASE("Polyline bounding box and diameter") {
     using Point = pgl::Point<int>;
     using Polyline = pgl::Polyline<Point>;
