@@ -228,7 +228,7 @@ A line `l` has some additional methods such as:
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
-- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
+- `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
 - `l.dual()`: Returns the point $(a,b)$ such that `l` is defined by $y = ax - b$. Undefined behavior for vertical lines.
 - `l.polar()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
@@ -491,7 +491,7 @@ The predicates, distances, and `intersection` are implemented against every shap
 
 ### Polygon
 
-The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). ~~Internally, the polygon is stored as multiple x-monotone polylines for improved performance.~~
+The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y).
 
 A polygon `P` has methods such as:
 
@@ -513,8 +513,8 @@ A convex polygon `c` has methods such as:
 - `c.centroid()`: Returns the centroid.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
-- `c.upperHull()`: Returns the upper monotone polyline.
-- `c.lowerHull()`: Returns the lower monotone polyline.
+- `c.upperHull()`: Returns the upper monotone chain.
+- `c.lowerHull()`: Returns the lower monotone chain.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Polygon) c` or `c.asPolygon()`: Returns the polygon representation of the convex polygon.
