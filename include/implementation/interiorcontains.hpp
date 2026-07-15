@@ -919,10 +919,43 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherTriang
     return true;
 }
 
+// A convex polygon's boundary is exactly two lex-monotone chains — its lower and
+// upper hull — so we can run the interiorContains(Polygon) criterion (one vertex
+// strictly inside and the boundaries fully disjoint) without building a
+// BoundaryChains decomposition (or an asPolygon copy) of the convex: just test
+// this polygon's chains against those two known hull chains for any shared point.
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
-    return interiorContains(other.asPolygon());
+    using OtherPoint = typename OtherConvex::PointType;
+    if (other.size() == 0) {
+        return true;
+    }
+    if (!bbox().interiorContains(other.bbox())) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return interiorContains(other[0]);
+    }
+
+    if (!interiorContains(other[0])) {
+        return false;
+    }
+
+    const MonotoneChain<OtherPoint> lower = other.lowerHull();
+    const MonotoneChain<OtherPoint> upper = other.upperHull();
+
+    BoundaryChains<Polygon> mine(*this);
+    while (!mine.exhausted()) {
+        const auto& chain = mine.produceNext();
+        for (const MonotoneChain<OtherPoint>* their : {&lower, &upper}) {
+            if (chain.intersects(*their)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 template <class PointType, class LabelType>
