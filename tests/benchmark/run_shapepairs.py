@@ -61,6 +61,7 @@ ALL_SHAPES = [
     "Polygon",
     "Polyline",
     "MonotoneChain",
+    "HalfplaneIntersection",
     # Same geometry as an existing shape, but stored as a more general type so the
     # cube exercises the storage type's code paths on that geometry.
     "TriangleAsPolygon",
@@ -153,6 +154,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Polylines<N>({n}, 32);"
     if shape == "MonotoneChain":
         return f"auto {var} = {prefix}MonotoneChains<N>({n}, 32);"
+    if shape == "HalfplaneIntersection":
+        return f"auto {var} = {prefix}HalfplaneIntersections<N>({n}, 1000);"
     if shape == "TriangleAsPolygon":
         return f"auto {var} = {prefix}TriangleAsPolygon<N>({n});"
     if shape == "TriangleAsConvex":
@@ -172,15 +175,18 @@ def _cpp_accumulate(method: str) -> str:
                   "collinear", "parallel"}:
         return f"count += a.{method}(b) ? 1 : 0;"
     if method == "intersection":
-        # intersection returns std::optional for most shape pairs but
+        # intersection returns std::optional for most shape pairs,
         # std::vector for the ones whose result can have several disjoint
-        # pieces (Polygon/Polyline/MonotoneChain vs a non-Point operand).
-        # Count a non-empty result the same way for both shapes. A generic
+        # pieces (Polygon/Polyline/MonotoneChain vs a non-Point operand), and a
+        # bare HalfplaneIntersection for the pairs closed under intersection
+        # (HalfplaneIntersection vs Rectangle/Triangle/Convex/Halfplane/region).
+        # Count a non-empty result the same way for all three. A generic
         # lambda makes the argument dependent so `if constexpr` actually
-        # discards the branch that doesn't apply (a plain `if constexpr` in
-        # the non-template main() would still type-check both branches).
+        # discards the branches that don't apply (a plain `if constexpr` in
+        # the non-template main() would still type-check every branch).
         return ("count += [](const auto& r) {"
                 " if constexpr (requires { r.has_value(); }) return r.has_value() ? 1 : 0;"
+                " else if constexpr (requires { r.isEmpty(); }) return r.isEmpty() ? 0 : 1;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
     if method in {"squaredDistance", "distanceL1", "distanceLInf",

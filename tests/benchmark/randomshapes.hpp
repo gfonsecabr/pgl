@@ -280,6 +280,35 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargeConvexAsPolygon(int n, 
     return w;
 }
 
+// Bounded half-plane intersections: generated as Convex, then adopted as the
+// intersection of that convex polygon's edge half-planes (via the Convex
+// converting constructor). The geometry — and thus the small/large scale and
+// the dedup seed — matches randomXxxConvexes exactly; only the representation
+// differs, so the cube exercises HalfplaneIntersection's rational-vertex code
+// paths on the same regions Convex is measured on. These regions are bounded,
+// so the shape's unbounded states are not covered here.
+template <class Number>
+std::vector<pgl::HalfplaneIntersection<pgl::Point<Number>>>
+randomSmallHalfplaneIntersections(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto cs = randomSmallConvexes<Number>(n, m);
+    std::vector<pgl::HalfplaneIntersection<Point>> w;
+    w.reserve(cs.size());
+    for (const auto& c : cs) w.emplace_back(c);
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::HalfplaneIntersection<pgl::Point<Number>>>
+randomLargeHalfplaneIntersections(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto cs = randomLargeConvexes<Number>(n, m);
+    std::vector<pgl::HalfplaneIntersection<Point>> w;
+    w.reserve(cs.size());
+    for (const auto& c : cs) w.emplace_back(c);
+    return w;
+}
+
 // Simple polygons, generated as Polygon, stored as the constrained Delaunay
 // triangulation of that polygon (via Polygon::triangulation()). Unlike the other
 // "as-other-type" generators this is not a re-storage of the same vertices but a
