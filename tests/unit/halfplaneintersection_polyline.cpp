@@ -8,9 +8,14 @@
 using Point = pgl::Point<int>;
 using Halfplane = pgl::Halfplane<Point>;
 using Region = pgl::HalfplaneIntersection<Point>;
-using Polyline = pgl::Polyline<Point>;
 
 namespace {
+// A file-scope `using Polyline = pgl::Polyline<Point>;` would collide with
+// the Win32 GDI `Polyline` function that <windows.h> injects into the global
+// namespace under MSVC (pulled in transitively by doctest.h). Keeping the
+// alias in this anonymous namespace shadows it instead of redefining it.
+using Polyline = pgl::Polyline<Point>;
+
 Region box6() {
     return Region({Halfplane(0, 0, 1, 0), Halfplane(6, 0, 6, 1),
                    Halfplane(6, 6, 5, 6), Halfplane(0, 6, 0, 5)});
