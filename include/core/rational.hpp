@@ -153,6 +153,20 @@ public:
     constexpr Rational(pgl::detail::extended_integral auto n) : num(n), den(1) {}
 
     /**
+     * @brief Construct from a numerator of the rational's own integer type
+     * (denominator 1), covering integer types not matched by the overloads
+     * above, such as BigInt. The constraint also keeps this constructor's
+     * implicit deduction guide out of class template argument deduction for
+     * arguments the other single-argument constructors handle: a bare
+     * `Rational(5.25)` must keep deducing `Rational<int64_t>`, not
+     * `Rational<double>`.
+     */
+    constexpr Rational(Int n)
+        requires(!pgl::detail::extended_integral<Int> && !std::floating_point<Int>
+                 && !RationalConcept<Int>)
+        : num(std::move(n)), den(1) {}
+
+    /**
      * @brief Construct from numerator and denominator.
      */
     constexpr Rational(Int n, Int d, bool normalized = false)
@@ -252,6 +266,16 @@ public:
     /// @brief Convert to int64_t
     explicit constexpr operator int64_t() const {
         return static_cast<int64_t>(num) / static_cast<int64_t>(den);
+    }
+
+    /// @brief Convert (truncating toward zero) to the numerator integer type,
+    /// for `Int` types not already covered by `operator int`/`operator int64_t`
+    /// above, such as BigInt. `den > 0` is an invariant, so the truncating
+    /// division `num / den` matches truncating the exact value regardless of
+    /// whether the fraction is stored reduced.
+    explicit constexpr operator Int() const
+        requires(!std::same_as<Int, int> && !std::same_as<Int, int64_t>) {
+        return num / den;
     }
 
     /// @brief Convert to another Rational

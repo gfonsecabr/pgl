@@ -11,7 +11,7 @@
 #include <limits>
 #include "pgl.hpp"
 
-TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, pgl::int128) {
+TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, pgl::int128, pgl::BigInt) {
     {
         pgl::Rational<Int> a(13);
         CHECK(a.numerator() == 13);
@@ -40,6 +40,39 @@ TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, pgl::int
         pgl::Rational<Int> a(-2,4);
         CHECK(a.numerator() == -1);
         CHECK(a.denominator() == 2);
+    }
+}
+
+TEST_CASE("Constructor from a BigInt numerator and truncating conversion back") {
+    {
+        // BigInt is not extended_integral, so this exercises the
+        // own-numerator-type constructor.
+        pgl::Rational<pgl::BigInt> a(pgl::BigInt(13));
+        CHECK(a.numerator() == 13);
+        CHECK(a.denominator() == 1);
+    }
+    {
+        // CTAD from a BigInt numerator deduces Rational<BigInt>.
+        pgl::Rational a(pgl::BigInt(-8));
+        static_assert(std::is_same_v<decltype(a), pgl::Rational<pgl::BigInt>>);
+        CHECK(a.numerator() == -8);
+        CHECK(a.denominator() == 1);
+    }
+    {
+        // Conversion to the numerator type truncates toward zero, matching
+        // the built-in operator int / operator int64_t conversions.
+        pgl::Rational<pgl::BigInt> a(pgl::BigInt(7), pgl::BigInt(2));
+        CHECK(static_cast<pgl::BigInt>(a) == 3);
+        pgl::Rational<pgl::BigInt> b(pgl::BigInt(-7), pgl::BigInt(2));
+        CHECK(static_cast<pgl::BigInt>(b) == -3);
+    }
+    {
+        // A bare floating-point argument must keep deducing the default
+        // Rational<int64_t>, not Rational<double>.
+        pgl::Rational c(5.25);
+        static_assert(std::is_same_v<decltype(c), pgl::Rational<int64_t>>);
+        CHECK(c.numerator() == 21);
+        CHECK(c.denominator() == 4);
     }
 }
 

@@ -180,8 +180,9 @@ pgl::Point<> p(isec);
   `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`
   — all bounded, convex shapes, so the directed distance in either direction
   is always attained at a vertex. Not defined for `Line`, `OrientedLine`,
-  `Ray`, or `Halfplane` (unbounded, so the Hausdorff distance to or from them
-  is generally infinite), nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
+  `Ray`, `Halfplane`, or `HalfplaneIntersection` (unbounded, or possibly
+  unbounded, so the Hausdorff distance to or from them is generally infinite),
+  nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
 
 - `distanceL1(Shape)` / `distanceLInf(Shape)`: Return the Manhattan (L1) or
   Chebyshev (LInf) distance to the given shape. Neither metric needs
@@ -193,7 +194,8 @@ pgl::Point<> p(isec);
   non-axis-aligned segment, ray, or line generally has a fractional exact
   distance). Defined for every pair among `Point`, `Segment`,
   `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`,
-  `Triangle`, `Convex`, `MonotoneChain`, and `Polygon`, plus `Disk`-`Point`: like `Disk`'s
+  `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and
+  `HalfplaneIntersection`, plus `Disk`-`Point`: like `Disk`'s
   other overloads this always returns `double`, since there is no closed
   form for the distance from a point to a circle under either metric and it
   is instead found with a numeric search. The remaining `Disk` pairs (`Disk`
