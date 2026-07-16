@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cmath>
 #include <optional>
+#include <type_traits>
 
 #include "implementation/transformations.hpp"
 
@@ -845,6 +847,107 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::pointInsideInterior
     // truncation rounded it onto a vertex, so scaling by 2 makes it exact
     // without changing the containment relation.
     return (shape * 2).interiorContains((*this * 2).pointInside());
+}
+
+
+// -----------------------------------------------------------------------------
+// HalfplaneIntersection
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::twiceArea() const {
+    if (empty_) {
+        return ResultNumber{};
+    }
+    if (!isBounded()) {
+        throw std::logic_error("HalfplaneIntersection::twiceArea requires a bounded region");
+    }
+    return static_cast<ResultNumber>(asConvex<ResultNumber>().twiceArea());
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::area() const {
+    if (empty_) {
+        return ResultNumber{};
+    }
+    if (!isBounded()) {
+        throw std::logic_error("HalfplaneIntersection::area requires a bounded region");
+    }
+    return asConvex<ResultNumber>().template area<ResultNumber>();
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> HalfplaneIntersection<PointType, LabelType>::centroid() const {
+    if (empty_) {
+        return Point<ResultNumber>();
+    }
+    if (!isBounded()) {
+        throw std::logic_error("HalfplaneIntersection::centroid requires a bounded region");
+    }
+    const auto c = asConvex<ResultNumber>().template centroid<ResultNumber>();
+    return Point<ResultNumber>(c.x(), c.y());
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> HalfplaneIntersection<PointType, LabelType>::pointInside() const {
+    if (empty_ || halfplanes_.empty()) {
+        return Point<ResultNumber>();  // the whole plane's representative is the origin
+    }
+    if (halfplanes_.size() == 1) {
+        return halfplanes_[0].template pointInside<ResultNumber>();
+    }
+    if (isBounded()) {
+        return asConvex<ResultNumber>().template pointInside<ResultNumber>();
+    }
+    // Unbounded: clip a box around a finite anchor point of the region, then
+    // take that bounded piece's interior representative. A vertex, or (for a
+    // slab) any point of the first boundary line, anchors the box on the
+    // region.
+    NumberType anchorX{};
+    NumberType anchorY{};
+    bool anchored = false;
+    for (std::size_t i = 0; i < size(); ++i) {
+        if (vertexExists(i)) {
+            const auto v = vertex<double>(i);
+            anchorX = static_cast<NumberType>(v.x() < 0 ? -std::floor(-v.x()) : std::floor(v.x()));
+            anchorY = static_cast<NumberType>(v.y() < 0 ? -std::floor(-v.y()) : std::floor(v.y()));
+            anchored = true;
+            break;
+        }
+    }
+    if (!anchored) {
+        anchorX = static_cast<NumberType>(halfplanes_[0].source().x());
+        anchorY = static_cast<NumberType>(halfplanes_[0].source().y());
+    }
+    const NumberType margin(4);
+    const PointType lo(anchorX - margin, anchorY - margin);
+    const PointType hi(anchorX + margin, anchorY + margin);
+    const PointType lohi(lo.x(), hi.y());
+    const PointType hilo(hi.x(), lo.y());
+    HalfplaneIntersection clipped(*this);
+    clipped.insert(HalfplaneType(lo, hilo));
+    clipped.insert(HalfplaneType(hilo, hi));
+    clipped.insert(HalfplaneType(hi, lohi));
+    clipped.insert(HalfplaneType(lohi, lo));
+    if (clipped.isEmpty()) {
+        // The anchor rounding missed the region; fall back to a boundary point.
+        return Point<ResultNumber>(static_cast<ResultNumber>(halfplanes_[0].source().x()),
+                                   static_cast<ResultNumber>(halfplanes_[0].source().y()));
+    }
+    return clipped.template asConvex<ResultNumber>().template pointInside<ResultNumber>();
+}
+
+template <class PointType, class LabelType>
+template <class OtherShape>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::pointInsideInteriorContainedIn(
+    const OtherShape& shape) const {
+    // Exact witness: rational unless the coordinates are already floating point
+    // (region_exact_number_t is not yet visible at this include position).
+    using Exact = std::conditional_t<std::is_floating_point_v<NumberType>, double, Rational<BigInt>>;
+    return shape.interiorContains(pointInside<Exact>());
 }
 
 }  // namespace pgl

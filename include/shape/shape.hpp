@@ -74,6 +74,9 @@ struct is_shape_alternative<PointType, Polyline<PointType>> : std::true_type {};
 template <class PointType>
 struct is_shape_alternative<PointType, Polygon<PointType>> : std::true_type {};
 
+template <class PointType, class Label>
+struct is_shape_alternative<PointType, HalfplaneIntersection<PointType, Label>> : std::true_type {};
+
 template <class PointType, class T>
 inline constexpr bool is_shape_alternative_v = is_shape_alternative<PointType, std::remove_cvref_t<T>>::value;
 
@@ -172,7 +175,8 @@ struct Shape {
         Convex<PointType>,
         MonotoneChain<PointType>,
         Polyline<PointType>,
-        Polygon<PointType>>;
+        Polygon<PointType>,
+        HalfplaneIntersection<PointType>>;
 
     /**
      * @brief Creates a point-valued default shape.
@@ -291,7 +295,8 @@ struct Shape {
      *
      * @throws std::logic_error if the wrapped alternative is unbounded and
      * therefore has no `bbox()` — the `EmptyShape`, `Line`, `OrientedLine`,
-     * `Ray`, and `Halfplane` alternatives.
+     * `Ray`, and `Halfplane` alternatives, and a `HalfplaneIntersection`
+     * whose own `bbox()` throws when the region is unbounded or empty.
      */
     [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
         return std::visit(
@@ -325,8 +330,8 @@ struct Shape {
      * Dispatches via `std::visit` to the alternative's `get(index)`. Only
      * defined for alternatives whose `get` yields a `PointType_` — i.e.,
      * every alternative except `Point` itself, whose `get` yields a
-     * coordinate. Throws `std::logic_error` if the wrapped value is a
-     * `Point`.
+     * coordinate, and `HalfplaneIntersection`, whose `get` yields a
+     * half-plane. Throws `std::logic_error` for those two alternatives.
      */
     [[nodiscard]] constexpr PointType_ get(std::ptrdiff_t index) const {
         return std::visit(
@@ -334,6 +339,8 @@ struct Shape {
                 using S = std::decay_t<decltype(value)>;
                 if constexpr (std::same_as<S, PointType_>) {
                     throw std::logic_error("Shape::get is not defined for the Point alternative");
+                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
+                    throw std::logic_error("Shape::get is not defined for the HalfplaneIntersection alternative");
                 } else {
                     return value.get(index);
                 }
@@ -347,8 +354,9 @@ struct Shape {
      * Dispatches via `std::visit` to the alternative's `operator[](index)`.
      * Only defined for alternatives whose `operator[]` yields a
      * `PointType_` — i.e., every alternative except `Point` itself, whose
-     * `operator[]` yields a coordinate. Throws `std::logic_error` if the
-     * wrapped value is a `Point`.
+     * `operator[]` yields a coordinate, and `HalfplaneIntersection`, whose
+     * `operator[]` yields a half-plane. Throws `std::logic_error` for those
+     * two alternatives.
      */
     [[nodiscard]] constexpr PointType_ operator[](std::size_t index) const {
         return std::visit(
@@ -356,6 +364,8 @@ struct Shape {
                 using S = std::decay_t<decltype(value)>;
                 if constexpr (std::same_as<S, PointType_>) {
                     throw std::logic_error("Shape::operator[] is not defined for the Point alternative");
+                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
+                    throw std::logic_error("Shape::operator[] is not defined for the HalfplaneIntersection alternative");
                 } else {
                     return value[index];
                 }
@@ -371,7 +381,8 @@ struct Shape {
      * argument type selects this overload for every alternative except `Point`
      * — whose `operator[]` yields a coordinate, handled by the
      * @ref index(const NumberType&) overload. Throws `std::logic_error` if the
-     * wrapped value is a `Point`.
+     * wrapped value is a `Point`, or a `HalfplaneIntersection`, whose elements
+     * are half-planes rather than points.
      */
     [[nodiscard]] constexpr std::ptrdiff_t index(const PointType_& point) const {
         return std::visit(
@@ -379,6 +390,8 @@ struct Shape {
                 using S = std::decay_t<decltype(value)>;
                 if constexpr (std::same_as<S, PointType_>) {
                     throw std::logic_error("Shape::index(Point) is not defined for the Point alternative");
+                } else if constexpr (detail::is_halfplane_intersection_v<S>) {
+                    throw std::logic_error("Shape::index(Point) is not defined for the HalfplaneIntersection alternative");
                 } else {
                     return value.index(point);
                 }
@@ -624,9 +637,12 @@ struct Shape {
      * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
      * @throws std::logic_error when the result cannot be represented by a single
      *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
-     *   whose intersection is unsupported (anything against a `Disk`, and two
-     *   `Halfplane`s, whose intersection is a possibly unbounded
-     *   `HalfplaneIntersection`).
+     *   whose intersection is unsupported (anything against a `Disk`, and a
+     *   `HalfplaneIntersection` against a `Polygon`, `MonotoneChain`, or
+     *   `Polyline`). Two `Halfplane`s, and a `HalfplaneIntersection` against a
+     *   `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another
+     *   `HalfplaneIntersection`, wrap their (possibly unbounded or empty)
+     *   `HalfplaneIntersection` result.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>
@@ -1154,14 +1170,7 @@ struct Shape {
                       std::same_as<Right, EmptyShape<PointType>>) {
             return Shape<ResultPoint>{EmptyShape<ResultPoint>{}};
         } else if constexpr (requires { left.template intersection<ResultNumber>(right); }) {
-            if constexpr (detail::is_halfplane_intersection_v<
-                              decltype(left.template intersection<ResultNumber>(right))>) {
-                // Two half-planes intersect in a HalfplaneIntersection, which
-                // is possibly unbounded and therefore not a Shape alternative.
-                throw std::logic_error("Shape::intersection is not defined for this shape pair");
-            } else {
-                return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
-            }
+            return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
         } else {
             throw std::logic_error("Shape::intersection is not defined for this shape pair");
         }

@@ -698,6 +698,149 @@ TEST_CASE("Shape wraps a Polyline") {
     CHECK(shapes.size() == 1);
 }
 
+TEST_CASE("Shape wraps a HalfplaneIntersection") {
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Region square{Rectangle({0, 0}, {6, 6})};
+    const Shape shape = square;
+    REQUIRE(shape.holdsAlternative<Region>());
+    CHECK(shape.getIf<Region>() != nullptr);
+    CHECK(*shape.getIf<Region>() == square);
+    CHECK(shape.size() == 4);  // stored half-planes
+    CHECK_FALSE(shape.isDegenerate());
+    CHECK(shape.bbox() == Rectangle({0, 0}, {6, 6}));
+
+    // The region's elements are half-planes, not points, so the point-valued
+    // element accessors are not defined for this alternative.
+    CHECK_THROWS_AS((void)shape.get(0), std::logic_error);
+    CHECK_THROWS_AS((void)shape[0], std::logic_error);
+    CHECK_THROWS_AS((void)shape.index(Point(0, 0)), std::logic_error);
+
+    // An unbounded region has no bbox; its own bbox() throws through the wrapper.
+    const Region upper{Halfplane({0, 0}, {1, 0})};
+    CHECK_THROWS_AS((void)Shape(upper).bbox(), std::logic_error);
+
+    std::ostringstream stream;
+    stream << shape;
+    CHECK(stream.str() ==
+          "HalfplaneIntersection[^-(0,0)--(6,0)-^,^-(6,0)--(6,6)-^,^-(6,6)--(0,6)-^,^-(0,6)--(0,0)-^]");
+
+    std::unordered_set<Shape> shapes;
+    shapes.insert(shape);
+    shapes.insert(Shape(Region{Rectangle({0, 0}, {6, 6})}));
+    shapes.insert(Shape(upper));
+    CHECK(shapes.size() == 2);
+
+    std::set<Shape> ordered;
+    ordered.insert(shape);
+    ordered.insert(Shape(upper));
+    CHECK(ordered.size() == 2);
+}
+
+TEST_CASE("Shape dispatches predicates, intersection, and distances through a HalfplaneIntersection") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Region square{Rectangle({0, 0}, {6, 6})};
+    const Shape shape = square;
+    const Shape crossing = Segment({-1, 3}, {7, 3});
+    const Shape miss = Segment({8, 0}, {9, 4});
+
+    CHECK(shape.contains(Shape(Point(2, 2))));
+    CHECK_FALSE(shape.contains(Shape(Point(7, 7))));
+    CHECK(shape.intersects(crossing));
+    CHECK(crossing.intersects(shape));
+    CHECK_FALSE(shape.intersects(miss));
+    CHECK(shape.boundaryContains(Shape(Point(0, 3))));
+    CHECK(shape.interiorContains(Shape(Point(3, 3))));
+    CHECK(shape.interiorsIntersect(crossing));
+    CHECK(shape.separates(crossing));
+    CHECK(shape.crosses(crossing));
+    CHECK(crossing.crosses(shape));
+
+    // The concrete region accepts the wrapper directly on every predicate.
+    CHECK(square.contains(Shape(Point(2, 2))));
+    CHECK(square.intersects(crossing));
+    CHECK_FALSE(square.boundaryContains(crossing));
+    CHECK_FALSE(square.interiorContains(miss));
+    CHECK(square.interiorsIntersect(crossing));
+    CHECK(square.separates(crossing));
+    CHECK(square.crosses(crossing));
+
+    // The self pair dispatches through the wrapper too.
+    const Shape plane = Region();
+    const Shape strip = Region({Halfplane({0, 0}, {1, 0}), Halfplane({1, 1}, {0, 1})});
+    CHECK(plane.contains(strip));
+    CHECK_FALSE(strip.contains(plane));
+    CHECK(strip.intersects(shape));
+    CHECK(strip.separates(plane));
+    CHECK_FALSE(plane.separates(strip));
+
+    // Two half-planes now intersect into a wrapped HalfplaneIntersection,
+    // which previously had no Shape representation and threw.
+    const Shape upper = Halfplane({0, 0}, {1, 0});
+    const Shape right = Halfplane({0, 1}, {0, 0});
+    const Shape wedge = upper.intersection(right);
+    REQUIRE(wedge.holdsAlternative<Region>());
+    CHECK_FALSE(Region(wedge).isBounded());
+    CHECK(wedge.contains(Shape(Point(3, 3))));
+
+    // Region-with-area intersections stay regions through the wrapper; the
+    // clip of the square with a half-plane keeps half the square.
+    const Shape clipped = shape.intersection(upper);
+    REQUIRE(clipped.holdsAlternative<Region>());
+    CHECK(Region(clipped) == square);
+    const Shape cell = strip.intersection(shape);
+    REQUIRE(cell.holdsAlternative<Region>());
+    CHECK(Region(cell).twiceArea<int>() == 12);  // 6 x 1
+
+    // One-dimensional results re-wrap as their own alternatives.
+    const Shape chord = shape.intersection(Shape(Segment({-1, 3}, {7, 3})));
+    REQUIRE(chord.holdsAlternative<Segment>());
+    CHECK(Segment(chord) == Segment({0, 3}, {6, 3}));
+
+    // Unsupported pairs still throw: a Disk, or a Polygon, against the region.
+    CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4}))), std::logic_error);
+
+    // Distances dispatch both ways, with the explicit ResultNumber probe.
+    const Shape farPoint = Point(20, 3);
+    CHECK(shape.squaredDistance<int>(farPoint) == 196);
+    CHECK(farPoint.squaredDistance<int>(shape) == 196);
+    CHECK(shape.distanceL1<int>(farPoint) == 14);
+    CHECK(shape.distanceLInf<int>(farPoint) == 14);
+    CHECK(square.distanceL1<int>(farPoint) == 14);   // concrete region, Shape argument
+    CHECK(square.distanceLInf<int>(farPoint) == 14);
+    CHECK(shape.squaredDistance<int>(strip) == 0);
+    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+    CHECK_THROWS_AS((void)shape.distanceL1<int>(Shape(Disk(Point(20, 3), 1))), std::logic_error);
+
+    // Transformations preserve the alternative.
+    Shape moved = shape;
+    moved += Point(1, 1);
+    REQUIRE(moved.holdsAlternative<Region>());
+    CHECK(Region(moved) == Region{Rectangle({1, 1}, {7, 7})});
+    CHECK((shape + Point(1, 1)) == moved);
+    CHECK((moved - Point(1, 1)) == shape);
+    CHECK((shape * 2).holdsAlternative<Region>());
+    CHECK(Region(shape * 2) == Region{Rectangle({0, 0}, {12, 12})});
+    CHECK(((shape * 2) / 2) == shape);
+    CHECK(shape.rotated90(2).holdsAlternative<Region>());
+    CHECK(Region(shape.rotated90(2)) == Region{Rectangle({-6, -6}, {0, 0})});
+    CHECK(shape.scaledUpX(2).holdsAlternative<Region>());
+    CHECK(Region(shape.scaledUpX(2)) == Region{Rectangle({0, 0}, {12, 6})});
+}
+
 TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     using Point = pgl::Point<int>;
     using Polyline = pgl::Polyline<Point>;

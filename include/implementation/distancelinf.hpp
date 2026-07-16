@@ -1325,4 +1325,73 @@ constexpr auto Polygon<PointType_, TLabel>::distanceLInf(const OtherPolyline& ot
     return this->template edgeMinDistanceLInf<ResultNumber>(other);
 }
 
+
+// -----------------------------------------------------------------------------
+// HalfplaneIntersection
+//
+// Minimum over the region's boundary edges of the edge-to-shape Chebyshev
+// distance, mirroring squaredDistance. Disk is excluded (the library defines
+// L1/LInf to a disk only from a point). Querying the empty region is undefined
+// behavior.
+
+namespace detail {
+
+template <class ResultNumber, class Region, class Other>
+constexpr ResultNumber regionEdgesDistanceLInf(const Region& region, const Other& other) {
+    ResultNumber best{};
+    bool has = false;
+    for (std::size_t i = 0; i < region.size(); ++i) {
+        const ResultNumber current = std::visit(
+            [&other](const auto& piece) {
+                return static_cast<ResultNumber>(piece.template distanceLInf<ResultNumber>(other));
+            },
+            region.template edge<ResultNumber>(i));
+        if (!has || current < best) {
+            best = current;
+            has = true;
+        }
+    }
+    return best;
+}
+
+}  // namespace detail
+
+#define PGL_HPI_DISTANCE_LINF(ConceptName, ArgType)                                            \
+    template <class PointType, class LabelType>                                                \
+    template <class ResultNumber, ConceptName ArgType>                                         \
+    constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceLInf(                   \
+        const ArgType& other) const {                                                          \
+        if (intersects(other)) {                                                                \
+            return ResultNumber{};                                                              \
+        }                                                                                       \
+        return detail::regionEdgesDistanceLInf<ResultNumber>(*this, other);                     \
+    }
+
+PGL_HPI_DISTANCE_LINF(PointConcept, OtherPoint)
+PGL_HPI_DISTANCE_LINF(SegmentConcept, OtherSegment)
+PGL_HPI_DISTANCE_LINF(OrientedSegmentConcept, OtherOrientedSegment)
+PGL_HPI_DISTANCE_LINF(LineConcept, OtherLine)
+PGL_HPI_DISTANCE_LINF(OrientedLineConcept, OtherOrientedLine)
+PGL_HPI_DISTANCE_LINF(RayConcept, OtherRay)
+PGL_HPI_DISTANCE_LINF(HalfplaneConcept, OtherHalfplane)
+PGL_HPI_DISTANCE_LINF(RectangleConcept, OtherRectangle)
+PGL_HPI_DISTANCE_LINF(TriangleConcept, OtherTriangle)
+PGL_HPI_DISTANCE_LINF(ConvexConcept, OtherConvex)
+PGL_HPI_DISTANCE_LINF(MonotoneChainConcept, OtherChain)
+PGL_HPI_DISTANCE_LINF(PolylineConcept, OtherPolyline)
+PGL_HPI_DISTANCE_LINF(PolygonConcept, OtherPolygon)
+
+#undef PGL_HPI_DISTANCE_LINF
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceLInf(const OtherRegion& other) const {
+    // Disjoint convex regions realize their distance on this region's
+    // boundary; each edge re-dispatches into the other region's own edge scan.
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return detail::regionEdgesDistanceLInf<ResultNumber>(*this, other);
+}
+
 }  // namespace pgl

@@ -3092,6 +3092,10 @@ bool separates1DSet(const Remover& remover, const TargetEdgeRange& targetEdges) 
             }
         } else if constexpr (is_segment_v<Remover>) {
             addRemoved(edge.template intersection<ExactNumber>(remover));
+        } else if constexpr (is_halfplane_intersection_v<Remover>) {
+            // A convex region meets each edge in one connected piece; its
+            // segment intersection reports the point or subsegment directly.
+            addRemoved(remover.template intersection<ExactNumber>(edge));
         } else if constexpr (is_polygon_v<Remover>) {
             // A (possibly reflex) polygon can bite several intervals out of
             // one edge; its segment intersection lists them all as pieces.
@@ -3882,6 +3886,519 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
         ++pieces;
     }
     return pieces >= 2;
+}
+
+// Forward area targets: removing the region from a bounded 2D shape B is
+// decided on the part of the region near B (B is bounded), so clip the region
+// to a box around B and defer to Convex::separates. A degenerate region
+// reduces to its carrier (a line through B still cuts it).
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherRectangle& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    if (isDegenerate()) {
+        return std::visit([&other](const auto& carrier) { return carrier.separates(other); },
+                          detail::degenerateRegionCarrier(*this));
+    }
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (!clipped.isBounded()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherTriangle& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    if (isDegenerate()) {
+        return std::visit([&other](const auto& carrier) { return carrier.separates(other); },
+                          detail::degenerateRegionCarrier(*this));
+    }
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (!clipped.isBounded()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherConvex& other) const {
+    if (isEmpty() || other.size() < 3) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    if (isDegenerate()) {
+        return std::visit([&other](const auto& carrier) { return carrier.separates(other); },
+                          detail::degenerateRegionCarrier(*this));
+    }
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (!clipped.isBounded()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (isEmpty() || other.isDegenerate()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    if (isDegenerate()) {
+        return std::visit([&other](const auto& carrier) { return carrier.separates(other); },
+                          detail::degenerateRegionCarrier(*this));
+    }
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (!clipped.isBounded()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    if (isEmpty() || other.size() < 3) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    if (isDegenerate()) {
+        return std::visit([&other](const auto& carrier) { return carrier.separates(other); },
+                          detail::degenerateRegionCarrier(*this));
+    }
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (!clipped.isBounded()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherChain& other) const {
+    // The chain is a one-dimensional arc; the convex region removes one
+    // connected piece from each edge, so the arc-component test applies with
+    // the region as the (convex) remover.
+    if (isEmpty()) {
+        return false;
+    }
+    return detail::separatesChain(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    if (isEmpty() || other.size() < 2) {
+        return false;
+    }
+    return detail::separates1DSet(*this, other.edgesView());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: removing a lower-ranked shape from the region.
+
+namespace detail {
+
+/**
+ * @brief Whether removing @p remover disconnects the convex region.
+ *
+ * The region is clipped to a box that encloses the bounded @p remover with a
+ * margin, so @p remover never reaches the box's own edges. Those box edges
+ * (here called "ideal") therefore always survive and stand in for the
+ * region's ends at infinity: consecutive ideal edges bridge the two real
+ * boundary edges they lie between, exactly reproducing the region's recession
+ * connectivity (a wedge's two edges bridge through their shared far arc; a
+ * slab's two ends stay separate because real edges lie between the ideal
+ * runs). Removing @p remover disconnects the region exactly when the region
+ * boundary minus @p remover then has at least two connected components —
+ * because for a convex region each surviving boundary arc anchors a distinct
+ * component of the remainder.
+ *
+ * Precondition: the region is full-dimensional (nonempty, non-degenerate) and
+ * unbounded (bounded regions delegate to Convex::separates).
+ */
+template <class Region, class Remover>
+bool boundedRemoverSeparatesRegion(const Region& region, const Remover& remover) {
+    using N = typename Region::NumberType;
+    using E = region_exact_number_t<N>;
+    using EPoint = Point<E, typename Region::PointType::LabelType>;
+    const auto bounds = remover.bbox();
+    const N margin(2);
+    const E boxLoX(N(bounds.min().x()) - margin);
+    const E boxLoY(N(bounds.min().y()) - margin);
+    const E boxHiX(N(bounds.max().x()) + margin);
+    const E boxHiY(N(bounds.max().y()) + margin);
+    const auto clipped = regionClippedToBox(region, bounds);
+    if (!clipped.isBounded()) {
+        return false;  // the remover's neighborhood misses the region
+    }
+    const auto poly = clipped.template asConvex<E>();
+    const std::size_t n = poly.size();
+    if (n < 3) {
+        return false;
+    }
+    // The boundary is walked as a cyclic sequence of pieces, each free
+    // (surviving the removal) or removed. Box (ideal) edges are always free.
+    std::vector<bool> free;
+    for (std::size_t i = 0; i < n; ++i) {
+        const EPoint u(poly[i]);
+        const EPoint v(poly[(i + 1) % n]);
+        const bool ideal =
+            (u.x() == boxLoX && v.x() == boxLoX) || (u.x() == boxHiX && v.x() == boxHiX) ||
+            (u.y() == boxLoY && v.y() == boxLoY) || (u.y() == boxHiY && v.y() == boxHiY);
+        if (ideal) {
+            free.push_back(true);
+            continue;
+        }
+        const Segment<EPoint> edge(u, v);
+        if constexpr (is_polygon_v<Remover>) {
+            // A reflex remover may bite several blocks out of one edge; list
+            // them by their parameter along u -> v and alternate free/removed.
+            const EPoint dir = v - u;
+            const E edgeLen = dir.x() * dir.x() + dir.y() * dir.y();
+            std::vector<std::pair<E, E>> blocks;
+            for (const auto& piece : remover.template intersection<E>(edge)) {
+                if (const auto* overlap = std::get_if<1>(&piece)) {
+                    const EPoint lo(overlap->min());
+                    const EPoint hi(overlap->max());
+                    E tLo = (lo - u).x() * dir.x() + (lo - u).y() * dir.y();
+                    E tHi = (hi - u).x() * dir.x() + (hi - u).y() * dir.y();
+                    if (tHi < tLo) {
+                        std::swap(tLo, tHi);
+                    }
+                    if (tLo < tHi) {
+                        blocks.emplace_back(tLo, tHi);
+                    }
+                }
+            }
+            std::sort(blocks.begin(), blocks.end());
+            E cursor{};
+            bool wroteAny = false;
+            for (const auto& block : blocks) {
+                if (cursor < block.first) {
+                    free.push_back(true);
+                }
+                free.push_back(false);
+                cursor = block.second;
+                wroteAny = true;
+            }
+            if (!wroteAny || cursor < edgeLen) {
+                free.push_back(true);
+            }
+        } else {
+            // A convex remover meets the edge in one connected block.
+            const bool uIn = remover.contains(u);
+            const bool vIn = remover.contains(v);
+            if (uIn && vIn) {
+                free.push_back(false);
+            } else if (uIn) {
+                free.push_back(false);
+                free.push_back(true);
+            } else if (vIn) {
+                free.push_back(true);
+                free.push_back(false);
+            } else if (remover.interiorsIntersect(edge)) {
+                free.push_back(true);
+                free.push_back(false);
+                free.push_back(true);
+            } else {
+                free.push_back(true);
+            }
+        }
+    }
+    const std::size_t m = free.size();
+    bool anyRemoved = false;
+    for (const bool f : free) {
+        anyRemoved = anyRemoved || !f;
+    }
+    if (!anyRemoved) {
+        return false;  // the whole boundary survives: one component
+    }
+    // Count maximal cyclic runs of free pieces: starting the scan at a removed
+    // piece keeps the runs from wrapping. Two runs means two components.
+    std::size_t start = 0;
+    while (free[start]) {
+        ++start;
+    }
+    int components = 0;
+    std::size_t i = 0;
+    while (i < m) {
+        if (!free[(start + i) % m]) {
+            ++i;
+            continue;
+        }
+        while (i < m && free[(start + i) % m]) {
+            ++i;
+        }
+        ++components;
+    }
+    return components >= 2;
+}
+
+// Removing a bounded shape from the region: empty region -> false; degenerate
+// region -> the remover cuts its carrier; full-dimensional region -> the
+// boundary-component test (bounded regions delegate to Convex::separates for
+// speed and reuse, which is the same predicate).
+template <class Shape2, class Region>
+bool boundedShapeSeparatesRegion(const Shape2& remover, const Region& region) {
+    if (region.isEmpty()) {
+        return false;
+    }
+    if (region.isDegenerate()) {
+        return std::visit([&remover](const auto& carrier) { return remover.separates(carrier); },
+                          degenerateRegionCarrier(region));
+    }
+    using E = region_exact_number_t<typename Region::NumberType>;
+    if (region.isBounded()) {
+        return remover.separates(region.template asConvex<E>());
+    }
+    return boundedRemoverSeparatesRegion(region, remover);
+}
+
+/**
+ * @brief Whether removing region @p remover disconnects region @p region,
+ * both full-dimensional (either may be unbounded).
+ *
+ * Both regions are clipped to one shared box that strictly encloses every
+ * point defining either region's boundary lines and every crossing between
+ * those lines (so in particular every vertex of either region). Outside such
+ * a box the two boundaries are disjoint fans of rays, so the box edges of the
+ * clipped picture connect the surviving pieces exactly as the ideal points at
+ * infinity connect the unbounded one — the same device as
+ * @ref boundedRemoverSeparatesRegion — and within the box the clipped remover
+ * coincides with the real one. The component count then reduces to
+ * `Convex::separates` on the two clipped polygons, computed entirely over the
+ * exact coordinate type so no result is ever narrowed back to the inputs'.
+ */
+template <class RemoverRegion, class Region>
+bool regionSeparatesRegion(const RemoverRegion& remover, const Region& region) {
+    using E = region_exact_number_t<typename RemoverRegion::NumberType>;
+    using EPoint = Point<E, typename RemoverRegion::PointType::LabelType>;
+    const HalfplaneIntersection<EPoint> removerExact(remover);
+    const HalfplaneIntersection<EPoint> regionExact(region);
+
+    bool started = false;
+    E loX{}, loY{}, hiX{}, hiY{};
+    const auto include = [&](const EPoint& point) {
+        if (!started) {
+            loX = hiX = point.x();
+            loY = hiY = point.y();
+            started = true;
+            return;
+        }
+        loX = std::min(loX, point.x());
+        loY = std::min(loY, point.y());
+        hiX = std::max(hiX, point.x());
+        hiY = std::max(hiY, point.y());
+    };
+
+    std::vector<Line<EPoint>> lines;
+    for (const auto& regionSide : {&removerExact, &regionExact}) {
+        for (const auto& halfplane : *regionSide) {
+            include(halfplane.source());
+            include(halfplane.target());
+            lines.push_back(halfplane.asLine());
+        }
+    }
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        for (std::size_t j = i + 1; j < lines.size(); ++j) {
+            const auto crossing = lines[i].template intersection<E>(lines[j]);
+            if (crossing && crossing->index() == 0) {
+                include(std::get<0>(*crossing));
+            }
+        }
+    }
+
+    // Both regions are full-dimensional and nonempty, so each stores at least
+    // one half-plane and the coordinate pool is nonempty.
+    const Rectangle<EPoint> bounds(EPoint(loX, loY), EPoint(hiX, hiY));
+    const auto removerPoly = regionClippedToBox(removerExact, bounds).template asConvex<E>();
+    const auto regionPoly = regionClippedToBox(regionExact, bounds).template asConvex<E>();
+    return removerPoly.separates(regionPoly);
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherRegion& other) const {
+    // A degenerate side reduces to its carrier shape; the full-dimensional
+    // pair takes the shared-box boundary-component count. Both are computed
+    // over the exact coordinate type, since exact carriers and boxes are
+    // generally not representable in the inputs' own coordinate type.
+    if (isEmpty() || other.isEmpty()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    using ERegion = HalfplaneIntersection<Point<E, typename PointType::LabelType>>;
+    if (isDegenerate()) {
+        const ERegion otherExact(other);
+        return std::visit(
+            [&otherExact](const auto& carrier) { return carrier.separates(otherExact); },
+            detail::degenerateRegionCarrier(*this));
+    }
+    if (other.isDegenerate()) {
+        const ERegion selfExact(*this);
+        return std::visit(
+            [&selfExact](const auto& carrier) { return selfExact.separates(carrier); },
+            detail::degenerateRegionCarrier(other));
+    }
+    return detail::regionSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->separates(value);
+        },
+        other.variant());
+}
+
+template <class Number, class Label>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Point<Number, Label>::separates(const OtherRegion& other) const {
+    // A point has empty interior; it can only sever a one-dimensional carrier.
+    if (other.isEmpty() || !other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::separates(const OtherRegion& other) const {
+    // A segment cannot disconnect a two-dimensional region; only a degenerate
+    // (one-dimensional) region can be cut, along its carrier.
+    if (other.isEmpty() || !other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asSegment().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return false;
+    }
+    if (other.isDegenerate()) {
+        return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                          detail::degenerateRegionCarrier(other));
+    }
+    // A full line severs a full-dimensional convex region exactly when the
+    // region has interior on both sides of it.
+    return detail::regionStrictlyOnBothSides(other, (*this)[0], (*this)[1]);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asLine().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::separates(const OtherRegion& other) const {
+    // A ray cannot disconnect a two-dimensional region (its free end lets any
+    // detour around it); only a one-dimensional carrier can be cut.
+    if (other.isEmpty() || !other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRegion& other) const {
+    // Removing a closed half-plane from any convex set leaves a convex set,
+    // which is connected; so a half-plane never disconnects the region.
+    (void)other;
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (isDegenerate()) {
+        return false;  // a degenerate rectangle is one-dimensional
+    }
+    return detail::boundedShapeSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return detail::boundedShapeSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::boundedShapeSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::boundedShapeSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRegion& other) const {
+    // A one-dimensional chain can only sever a one-dimensional carrier.
+    if (other.isEmpty() || !other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (other.isEmpty() || !other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::boundedShapeSeparatesRegion(*this, other);
 }
 
 }  // namespace pgl

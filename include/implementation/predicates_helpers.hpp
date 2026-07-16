@@ -200,6 +200,132 @@ constexpr bool separatesChain(const Remover& remover, const Chain& chain) {
     return active && !touched;
 }
 
+/**
+ * @name HalfplaneIntersection helpers
+ * Shared building blocks for predicates involving a half-plane intersection
+ * region. A region is convex but possibly unbounded and possibly degenerate
+ * (empty interior), so the helpers reduce those states to simpler shapes:
+ * a degenerate region to its carrier (point, segment, ray, or line), and an
+ * unbounded region — when only its part near a bounded target matters — to a
+ * bounded region clipped by an enclosing box.
+ */
+
+/**
+ * @brief Exact coordinate type for constructions on a half-plane intersection
+ * (vertices, edges, chords): rational over BigInt unless the input
+ * coordinates are floating point (mirroring detail::separates1DSet).
+ */
+template <class Number>
+using region_exact_number_t =
+    std::conditional_t<std::is_floating_point_v<Number>, double, Rational<BigInt>>;
+
+/**
+ * @brief Tests whether the region is contained in the half-plane.
+ *
+ * Uses the redundancy test of `insert` on a copy: the half-plane is discarded
+ * exactly when the region is already inside it. The empty region is inside
+ * every half-plane. Complexity: O(n) for the copy, O(log n) comparisons.
+ */
+template <class Region, HalfplaneConcept OtherHalfplane>
+constexpr bool regionInsideHalfplane(const Region& region, const OtherHalfplane& halfplane) {
+    std::remove_cvref_t<Region> copy(region);
+    return !copy.insert(halfplane);
+}
+
+/**
+ * @brief Tests whether the region is contained in the open interior of the
+ * half-plane.
+ */
+template <class Region, HalfplaneConcept OtherHalfplane>
+constexpr bool regionInsideHalfplaneInterior(const Region& region, const OtherHalfplane& halfplane) {
+    return regionInsideHalfplane(region, halfplane) && !region.intersects(halfplane.asLine());
+}
+
+/**
+ * @brief Tests whether the region has points strictly on both sides of the
+ * oriented line `first -> second`.
+ *
+ * True for the whole plane; false for the empty region.
+ */
+template <class Region, PointConcept FirstPoint, PointConcept SecondPoint>
+constexpr bool regionStrictlyOnBothSides(const Region& region, const FirstPoint& first, const SecondPoint& second) {
+    const Halfplane<std::remove_cvref_t<FirstPoint>> left(first, second);
+    return !regionInsideHalfplane(region, left) && !regionInsideHalfplane(region, left.opposite());
+}
+
+/**
+ * @brief The point set of a degenerate (empty-interior, nonempty) region as a
+ * typed shape with exact coordinates: a point, a segment, a ray, or a line.
+ *
+ * Precondition: `region.isDegenerate() && !region.isEmpty()`.
+ */
+template <class Region>
+constexpr auto degenerateRegionCarrier(const Region& region) {
+    using E = region_exact_number_t<typename Region::NumberType>;
+    using EPoint = Point<E, typename Region::PointType::LabelType>;
+    using Carrier = std::variant<EPoint, Segment<EPoint>, Ray<EPoint>, Line<EPoint>>;
+    if (region.isBounded()) {
+        // A point or a segment: the convex hull of the (partly coincident)
+        // implicit vertices.
+        const auto verts = region.template vertices<E>();
+        EPoint lo = verts[0];
+        EPoint hi = verts[0];
+        for (const auto& v : verts) {
+            if (v < lo) {
+                lo = v;
+            }
+            if (hi < v) {
+                hi = v;
+            }
+        }
+        if (lo == hi) {
+            return Carrier(lo);
+        }
+        return Carrier(Segment<EPoint>(lo, hi));
+    }
+    // An unbounded degenerate region is a ray or a line, and then some
+    // boundary edge equals the whole region.
+    for (std::size_t i = 0; i < region.size(); ++i) {
+        const auto e = region.template edge<E>(i);
+        if (const auto* ray = std::get_if<Ray<EPoint>>(&e)) {
+            return Carrier(*ray);
+        }
+        if (const auto* line = std::get_if<Line<EPoint>>(&e)) {
+            return Carrier(*line);
+        }
+    }
+    // Unreachable for a degenerate region; keep a deterministic fallback.
+    return Carrier(EPoint(region[0].source()));
+}
+
+/**
+ * @brief The region clipped to an axis-aligned box strictly containing the
+ * given bounding rectangle (inflated by a margin of two, which also absorbs
+ * the toward-zero cast into the region's coordinate type).
+ *
+ * Predicates against a bounded target shape only depend on the part of the
+ * region near the target, so they may be evaluated on the (bounded) clipped
+ * region instead; see the call sites for the connectivity argument.
+ */
+template <class Region, RectangleConcept BoundingRectangle>
+constexpr std::remove_cvref_t<Region> regionClippedToBox(const Region& region, const BoundingRectangle& bounds) {
+    using Result = std::remove_cvref_t<Region>;
+    using RegionPoint = typename Result::PointType;
+    using N = typename Result::NumberType;
+    using RegionHalfplane = typename Result::HalfplaneType;
+    const N margin(2);
+    const RegionPoint lo(N(bounds.min().x()) - margin, N(bounds.min().y()) - margin);
+    const RegionPoint hi(N(bounds.max().x()) + margin, N(bounds.max().y()) + margin);
+    const RegionPoint lohi(lo.x(), hi.y());
+    const RegionPoint hilo(hi.x(), lo.y());
+    Result result(region);
+    result.insert(RegionHalfplane(lo, hilo));
+    result.insert(RegionHalfplane(hilo, hi));
+    result.insert(RegionHalfplane(hi, lohi));
+    result.insert(RegionHalfplane(lohi, lo));
+    return result;
+}
+
 }  // namespace detail
 
 }  // namespace pgl

@@ -371,6 +371,66 @@ TEST_CASE("Canvas renders a MonotoneChain as an open polyline") {
     CHECK(svg.find("<title>MonotoneChain[(0,0),(2,4),(4,0)]</title>") != std::string::npos);
 }
 
+TEST_CASE("Canvas renders a HalfplaneIntersection clipped to the viewport") {
+    const std::string path = "build/tests/output/halfplaneintersection_canvas.svg";
+
+    using Point = pgl::Point<int>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+
+    // A bounded cell, an unbounded wedge, and a Shape-wrapped strip.
+    const Region cell{pgl::Rectangle<Point>({0, 0}, {6, 6})};
+    const Region wedge({Halfplane({10, 0}, {14, 0}), Halfplane({10, 4}, {10, 0})});
+    const pgl::Shape<Point> strip = Region({Halfplane({0, -8}, {1, -8}), Halfplane({1, -6}, {0, -6})});
+
+    pgl::Canvas canvas;
+    canvas << pgl::stroke("teal")
+           << pgl::fill("teal")
+           << pgl::fillOpacity("0.2")
+           << cell
+           << wedge
+           << strip;
+    canvas.writeSVG(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+    const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    // The region fills a clipped polygon and strokes only its real boundary
+    // edges as separate lines.
+    CHECK(svg.find("<polygon") != std::string::npos);
+    CHECK(svg.find("stroke=\"none\"") != std::string::npos);
+    CHECK(svg.find("<line") != std::string::npos);
+    CHECK(svg.find("<title>HalfplaneIntersection[^-(0,0)--(6,0)-^") != std::string::npos);
+    CHECK(svg.find("<title>HalfplaneIntersection[^-(10,0)--(14,0)-^") != std::string::npos);
+    CHECK(svg.find("^-(0,-8)--(1,-8)-^") != std::string::npos);
+    CHECK(svg.find("fill=\"teal\"") != std::string::npos);
+    CHECK(svg.find("fill-opacity=\"0.2\"") != std::string::npos);
+
+    // The empty region draws nothing.
+    pgl::Canvas emptyCanvas;
+    emptyCanvas << Region({Halfplane({0, 0}, {1, 0}), Halfplane({1, -1}, {0, -1})});
+    const std::string emptyPath = "build/tests/output/halfplaneintersection_empty_canvas.svg";
+    emptyCanvas.writeSVG(emptyPath);
+    std::ifstream emptyInput(emptyPath);
+    REQUIRE(emptyInput.good());
+    const std::string emptySVG((std::istreambuf_iterator<char>(emptyInput)), std::istreambuf_iterator<char>());
+    CHECK(emptySVG.find("<polygon") == std::string::npos);
+    CHECK(emptySVG.find("<line") == std::string::npos);
+
+    // PDF and Ipe exports accept the region as well.
+    canvas.writePDF("build/tests/output/halfplaneintersection_canvas.pdf");
+    canvas.writeIPE("build/tests/output/halfplaneintersection_canvas.ipe");
+    std::ifstream pdfInput("build/tests/output/halfplaneintersection_canvas.pdf", std::ios::binary);
+    REQUIRE(pdfInput.good());
+    const std::string pdf((std::istreambuf_iterator<char>(pdfInput)), std::istreambuf_iterator<char>());
+    CHECK(pdf.rfind("%PDF-", 0) == 0);
+    std::ifstream ipeInput("build/tests/output/halfplaneintersection_canvas.ipe");
+    REQUIRE(ipeInput.good());
+    const std::string ipe((std::istreambuf_iterator<char>(ipeInput)), std::istreambuf_iterator<char>());
+    CHECK(ipe.find("</ipe>") != std::string::npos);
+}
+
 TEST_CASE("Canvas renders a Polyline as an open polyline") {
     const std::string path = "build/tests/output/polyline_canvas.svg";
 

@@ -1,9 +1,69 @@
 # Plan: `pgl::HalfplaneIntersection` (shapeRank 130)
 
-> **Status:** Phase 1 implemented (core shape, insert/redundancy/emptiness,
-> predicates + intersection constructions vs Point/Segment/OrientedSegment/
-> Line/OrientedLine/Ray/Halfplane, bbox/fbox/asConvex, transformations, io,
-> hash, unit tests, docs). Phases 2–4 pending.
+> **Status:** Phases 1–3 implemented.
+> Phase 3 (this pass): `HalfplaneIntersection` added to the `Shape` variant
+> (`is_shape_alternative`, last alternative; `Shape::get/operator[]/index`
+> throw for it since its elements are half-planes; `intersectionOf` now wraps
+> `HalfplaneIntersection` results, so `Shape` supports Halfplane∩Halfplane and
+> region∩{Halfplane,Rectangle,Triangle,Convex,region}); the **self pair**
+> (region vs region) got explicit definitions for all seven predicates,
+> `intersection` (insert the other's constraints; empty forced via
+> contradictory constraints), and `squaredDistance`/`distanceL1`/`distanceLInf`
+> (edge scan re-dispatching into the other region). `separates(region)`
+> reduces degenerate sides to carriers (converting the other side to the exact
+> type first — `insert` narrows foreign halfplanes to the region's own
+> coordinate type, so no exact geometry may flow back into a narrower region)
+> and decides the full-dimensional pair with
+> `detail::regionSeparatesRegion` (separates.hpp): both regions clipped to one
+> shared exact box enclosing all defining points and pairwise boundary-line
+> crossings, then `Convex::separates` — box edges reproduce the ideal
+> connectivity as in `boundedRemoverSeparatesRegion`. Shape-argument overloads
+> (7 predicates via `std::visit`, distanceL1/LInf via symmetric re-dispatch,
+> `ResultNumber` leading per the overload-hazard rule) added on the region.
+> Free promoting `operator+/-/*//` added to the header (needed by
+> `Shape`'s free operators); `Transformation * region` branch added
+> (reflection swaps each half-plane's defining points; empty preserved).
+> Canvas: `operator<<`, bounds contribution (vertices + defining points),
+> and SVG/PDF/IPE branches that fill the region clipped to the viewport
+> (Sutherland–Hodgman over all constraints, refactored `clipPolygonToHalfplane`)
+> and stroke only real boundary edges (`regionBoundaryPieces`). Self-pair test
+> cases live in `halfplaneintersection.cpp` (test file names mention each
+> shape type only once); `shape.cpp`, `canvas.cpp`,
+> `transformation.cpp` extended; the outdated `halfplane.cpp` subcase asserting
+> the wrapper throw was updated to assert the wrap. Docs regenerated.
+> Phase 4 pending.
+
+> **Previous status:** Phases 1–2 implemented. Phase 1: core shape, insert/redundancy/
+> emptiness, predicates + intersection constructions vs Point/Segment/
+> OrientedSegment/Line/OrientedLine/Ray/Halfplane, bbox/fbox/asConvex,
+> transformations, io, hash, unit tests, docs.
+> Phase 2 (this pass): predicates (contains/boundaryContains/interiorContains/
+> intersects/interiorsIntersect/separates/crosses) both directions vs
+> Rectangle/Triangle/Convex/Disk/Polygon/MonotoneChain/Polyline, with the
+> reverse-direction asymmetric predicates (contains/boundaryContains/
+> interiorContains/separates) declared on all fourteen lower-ranked shape
+> headers; intersection constructions returning a HalfplaneIntersection for
+> Rectangle/Triangle/Convex (Halfplane already in Phase 1); squaredDistance for
+> all area pairs plus distanceL1/distanceLInf for all except Disk (the library
+> only defines L1/LInf to a disk from a point); measures (twiceArea/area/
+> centroid throwing when unbounded, plus pointInside/
+> pointInsideInteriorContainedIn). New per-pair unit tests
+> `halfplaneintersection_{rectangle,triangle,convex,disk,polygon,
+> monotonechain,polyline}.cpp` and `halfplaneintersection_measures.cpp`; whole
+> suite green under g++ and clang++.
+> Implementation notes: reverse `separates` against an unbounded region uses a
+> boundary-component count over the region clipped to a margin-padded box
+> (`detail::boundedRemoverSeparatesRegion` in separates.hpp), where the box
+> edges act as ideal connectors reproducing the recession connectivity; bounded
+> regions delegate to `Convex::separates`. Distance iterates the region's
+> boundary edges (`detail::regionEdges{SquaredDistance,DistanceL1,DistanceLInf}`
+> in the distance files), building edges in `ResultNumber` so an integer
+> `ResultNumber` truncates like `vertex<ResultNumber>` (request `Rational` for
+> exactness); the Disk squaredDistance overload calls `disk.squaredDistance(edge)`
+> directly because `Disk::squaredDistance` is not templated on `ResultNumber`.
+> Shared helpers (`region_exact_number_t`, `degenerateRegionCarrier`,
+> `regionClippedToBox`, `regionInsideHalfplane*`) live in
+> predicates_helpers.hpp. Phases 3–4 pending.
 > Implementation notes vs the plan: the `sideOfBoundaryIntersection` predicate
 > landed as `detail::vertexSide` / `detail::boundaryLinesDeterminant` in
 > `shape/halfplaneintersection.hpp` (not `orientation.hpp`); the clip primitive

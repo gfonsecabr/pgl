@@ -87,6 +87,30 @@ TEST_CASE("A Polygon re-normalizes after an orientation-reversing transform") {
     CHECK_FALSE(reflected.contains(Point<int>(2, 2)));
 }
 
+TEST_CASE("A HalfplaneIntersection re-normalizes after an orientation-reversing transform") {
+    using Halfplane = pgl::Halfplane<Point<int>>;
+    using Region = pgl::HalfplaneIntersection<Point<int>>;
+
+    // The wedge x >= 0 and y >= 0.
+    const Region wedge({Halfplane(0, 0, 1, 0), Halfplane(0, 1, 0, 0)});
+    REQUIRE(wedge.contains(Point<int>(2, 3)));
+
+    // Reflecting across the x axis maps the wedge to x >= 0 and y <= 0.
+    const auto reflected = Transformation<int>::reflectionX() * wedge;
+    CHECK(reflected.contains(Point<int>(2, -3)));
+    CHECK_FALSE(reflected.contains(Point<int>(2, 3)));
+    CHECK_FALSE(reflected.isBounded());
+    CHECK(reflected.vertexCount() == 1);
+
+    // A translation shifts the region; the empty region stays empty.
+    const auto shifted = Transformation<int>::translation(1, 1) * wedge;
+    CHECK(shifted.contains(Point<int>(1, 1)));
+    CHECK_FALSE(shifted.contains(Point<int>(0, 0)));
+    const Region emptyRegion({Halfplane(0, 0, 1, 0), Halfplane(1, -1, 0, -1)});
+    REQUIRE(emptyRegion.isEmpty());
+    CHECK((Transformation<int>::reflectionX() * emptyRegion).isEmpty());
+}
+
 TEST_CASE("The Shape wrapper forwards to the wrapped alternative") {
     const pgl::Segment<Point<int>> segment(Point<int>(0, 0), Point<int>(2, 2));
     const pgl::Shape<Point<int>> wrapped(segment);
