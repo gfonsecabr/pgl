@@ -155,16 +155,22 @@ public:
     /**
      * @brief Construct from a numerator of the rational's own integer type
      * (denominator 1), covering integer types not matched by the overloads
-     * above, such as BigInt. The constraint also keeps this constructor's
-     * implicit deduction guide out of class template argument deduction for
-     * arguments the other single-argument constructors handle: a bare
-     * `Rational(5.25)` must keep deducing `Rational<int64_t>`, not
-     * `Rational<double>`.
+     * above, such as BigInt.
+     *
+     * The parameter is templated on `std::same_as<Int>` rather than written as
+     * a plain `Rational(Int)` so that `Int` is *not* deducible from the
+     * argument, which keeps this constructor's synthesized implicit deduction
+     * guide from ever picking `Int` off the argument during CTAD. A plain
+     * `Rational(Int)` guide, constrained only by a `requires`-clause, is
+     * mishandled by clang 18: it fails to drop the guide for floating-point and
+     * so deduces `Rational<double>` for a bare `Rational(5.25)`. With `Int`
+     * non-deducible here, the intended CTAD is pinned by the explicit guides
+     * declared after the class instead. See @ref Rational deduction guides.
      */
-    constexpr Rational(Int n)
+    template <std::same_as<Int> T>
         requires(!pgl::detail::extended_integral<Int> && !std::floating_point<Int>
                  && !RationalConcept<Int>)
-        : num(std::move(n)), den(1) {}
+    constexpr Rational(T n) : num(std::move(n)), den(1) {}
 
     /**
      * @brief Construct from numerator and denominator.
@@ -651,6 +657,26 @@ public:
         return is;
     }
 };
+
+/**
+ * @name Rational deduction guides
+ *
+ * Explicit guides that pin class template argument deduction so it is
+ * consistent across compilers. The numerator constructor deliberately makes
+ * `Int` non-deducible (see its comment), so CTAD for a bare, non-built-in
+ * integer numerator such as `pgl::BigInt` is supplied here instead: as an
+ * *explicit* guide, its constraint is honored even by compilers (clang 18)
+ * that mishandle constraints on the guides synthesized from constrained
+ * constructors. Floating-point and built-in integer arguments are excluded so
+ * they continue to deduce the default `Rational<int64_t>` via the other
+ * constructors' guides.
+ * @{
+ */
+template <class T>
+    requires(!pgl::detail::extended_integral<T> && !std::floating_point<T>
+             && !RationalConcept<T>)
+Rational(T) -> Rational<T>;
+/** @} */
 
 
 
