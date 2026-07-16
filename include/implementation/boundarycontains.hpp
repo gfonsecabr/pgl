@@ -1307,4 +1307,331 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(con
     return false;
 }
 
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    // Only a degenerate rectangle — the segment between its corners — can lie
+    // on the at most one-dimensional boundary.
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return boundaryContains(Segment<typename OtherRectangle::PointType>(other.min(), other.max()));
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherTriangle&) const {
+    // A (non-degenerate) triangle is two-dimensional and the boundary of the
+    // region is at most one-dimensional.
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    // Only a degenerate disk — a single point — can lie on the boundary.
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return boundaryContains(other.center());
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
+    // Only the empty polygon and a degenerate one — a point or the segment
+    // between its extremes — can lie on the at most one-dimensional boundary.
+    if (other.size() == 0) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    return boundaryContains(Segment<typename OtherConvex::PointType>(other[0], other[other.size() - 1]));
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (!boundaryContains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (!boundaryContains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    // Only the empty polygon and a degenerate (zero-area) one — the union of
+    // its edges — can lie on the at most one-dimensional boundary.
+    if (other.size() == 0) {
+        return true;
+    }
+    if (other.size() == 1) {
+        return boundaryContains(other[0]);
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (!boundaryContains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    // The empty region lies on every boundary; a full-dimensional region
+    // never fits in the at most one-dimensional boundary; a degenerate region
+    // reduces to its carrier shape.
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return std::visit([this](const auto& carrier) { return this->boundaryContains(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->boundaryContains(value);
+        },
+        other.variant());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes' boundaries containing a
+// HalfplaneIntersection.
+//
+// The empty region is a subset of every boundary; a full-dimensional region
+// is never contained in an at most one-dimensional boundary; a degenerate
+// region reduces to its carrier shape.
+
+namespace detail {
+
+// Dispatches boundaryContains(carrier) over the degenerate region's carrier,
+// with per-alternative availability: a bounded shape's boundary never
+// contains a ray or a line, so those alternatives short-circuit to false
+// unless the shape declares the corresponding overload.
+template <class Shape2, class Region>
+constexpr bool boundaryContainsDegenerateRegion(const Shape2& shape, const Region& region) {
+    return std::visit(
+        [&shape](const auto& carrier) {
+            if constexpr (requires { shape.boundaryContains(carrier); }) {
+                return shape.boundaryContains(carrier);
+            } else {
+                (void)carrier;
+                return false;  // no overload: geometrically impossible containment
+            }
+        },
+        degenerateRegionCarrier(region));
+}
+
+}  // namespace detail
+
+template <class Number, class Label>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Point<Number, Label>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asSegment().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asLine().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    // The circle contains no straight piece of positive length, so only a
+    // point-carrier region can lie on it.
+    return std::visit(
+        [this](const auto& carrier) {
+            using Carrier = std::remove_cvref_t<decltype(carrier)>;
+            if constexpr (detail::is_point_v<Carrier>) {
+                return this->boundaryContains(carrier);
+            } else {
+                (void)carrier;
+                return false;
+            }
+        },
+        detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
 }  // namespace pgl

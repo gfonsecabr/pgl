@@ -2073,4 +2073,127 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
     return infimum == SupStatus::unbounded || infimum == SupStatus::above;
 }
 
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    // The open interiors meet exactly when the region intersected with the
+    // rectangle is full-dimensional.
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    return !intersection(other).isDegenerate();
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    if (isDegenerate()) {
+        return false;
+    }
+    return !intersection(other).isDegenerate();
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    return !intersection(other).isDegenerate();
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (clipped.isDegenerate()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().interiorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    // A chain is one-dimensional: its interior meets the region's interior
+    // exactly when some edge's relative interior enters the open region.
+    if (isDegenerate() || other.size() < 2) {
+        return false;
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (interiorsIntersect(edge)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
+    if (isDegenerate() || other.size() < 2) {
+        return false;
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (interiorsIntersect(edge)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
+    if (isDegenerate() || other.isDegenerate() || other.size() < 3) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    // Clip to the polygon's box, then defer to the polygon's own interior-
+    // intersection test against the resulting bounded convex region.
+    using E = detail::region_exact_number_t<NumberType>;
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (clipped.isDegenerate()) {
+        return false;
+    }
+    return other.interiorsIntersect(clipped.template asConvex<E>());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherRegion& other) const {
+    // The interiors are intersections of open half-planes, and a finite family
+    // of open half-planes has a common point exactly when the corresponding
+    // closed intersection is full-dimensional.
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    return !intersection(other).isDegenerate();
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: interiorsIntersect is symmetric, so the lower-ranked
+// shapes' generic rank-guarded forwarders dispatch these here — no per-shape
+// definitions are needed.
+
 }  // namespace pgl

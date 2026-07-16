@@ -2362,4 +2362,332 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Other
     return halfplanes_.empty() || halfplanes_[0].contains(other);
 }
 
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherRectangle& other) const {
+    // The region is convex, so containing the vertices contains the rectangle.
+    const auto vertices = other.vertices();
+    for (const auto& vertex : vertices) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherTriangle& other) const {
+    return contains(other.a()) && contains(other.b()) && contains(other.c());
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherDisk& other) const {
+    // The region contains the disk exactly when every stored constraint does.
+    if (isEmpty()) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.contains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherConvex& other) const {
+    // The region is convex, so containing the vertices contains the polygon.
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!contains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherChain& other) const {
+    // The region is convex, so containing the vertices contains the chain.
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!contains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    // The region is convex, so containing the vertices contains the polyline.
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!contains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherPolygon& other) const {
+    // The region is convex, so containing the vertices contains the polygon
+    // (its region is inside the vertices' convex hull).
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!contains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const OtherRegion& other) const {
+    // The region contains the other region exactly when every stored
+    // constraint does; the whole plane (no constraints) contains everything.
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (isEmpty()) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.contains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->contains(value);
+        },
+        other.variant());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes containing a HalfplaneIntersection.
+//
+// The empty region is a subset of every shape. A degenerate region reduces to
+// its carrier shape (point, segment, ray, or line, with exact coordinates); a
+// full-dimensional region can only be contained in two-dimensional shapes,
+// where it reduces to half-plane redundancy tests or, for a bounded region,
+// to its convex-polygon form.
+
+template <class Number, class Label>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Point<Number, Label>::contains(const OtherRegion& other) const {
+    // The region is inside the point exactly when it is inside all four
+    // axis-aligned half-planes through it.
+    const Point right(x() + Number(1), y());
+    const Point up(x(), y() + Number(1));
+    return detail::regionInsideHalfplane(other, Halfplane<Point>(*this, right)) &&
+           detail::regionInsideHalfplane(other, Halfplane<Point>(right, *this)) &&
+           detail::regionInsideHalfplane(other, Halfplane<Point>(*this, up)) &&
+           detail::regionInsideHalfplane(other, Halfplane<Point>(up, *this));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::contains(const OtherRegion& other) const {
+    // Inside the supporting line's slab and the two perpendicular clamps
+    // through the endpoints.
+    const auto a = min();
+    const auto b = max();
+    const auto dx = b.x() - a.x();
+    const auto dy = b.y() - a.y();
+    const PointType aClamp(a.x() + dy, a.y() - dx);
+    const PointType bClamp(b.x() - dy, b.y() + dx);
+    return detail::regionInsideHalfplane(other, Halfplane<PointType>(a, b)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(b, a)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(a, aClamp)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(b, bClamp));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::contains(const OtherRegion& other) const {
+    return asSegment().contains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::contains(const OtherRegion& other) const {
+    return detail::regionInsideHalfplane(other, Halfplane<PointType>((*this)[0], (*this)[1])) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>((*this)[1], (*this)[0]));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::contains(const OtherRegion& other) const {
+    return asLine().contains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::contains(const OtherRegion& other) const {
+    // Inside the supporting line's slab and the perpendicular clamp through
+    // the source.
+    const auto a = source();
+    const auto b = target();
+    const auto dx = b.x() - a.x();
+    const auto dy = b.y() - a.y();
+    const PointType clamp(a.x() + dy, a.y() - dx);
+    return detail::regionInsideHalfplane(other, Halfplane<PointType>(a, b)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(b, a)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(a, clamp));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::contains(const OtherRegion& other) const {
+    return detail::regionInsideHalfplane(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (min() == max()) {
+        return Point<typename PointType::NumberType>(min().x(), min().y()).contains(other);
+    }
+    if (isDegenerate()) {
+        return Segment<PointType>(min(), max()).contains(other);
+    }
+    const PointType lo(min());
+    const PointType hi(max());
+    const PointType lohi(lo.x(), hi.y());
+    const PointType hilo(hi.x(), lo.y());
+    return detail::regionInsideHalfplane(other, Halfplane<PointType>(lo, hilo)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(hilo, hi)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(hi, lohi)) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(lohi, lo));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::contains(const OtherRegion& other) const {
+    // Vertices are counterclockwise when non-degenerate, so each edge's
+    // half-plane has the interior on its left.
+    return detail::regionInsideHalfplane(other, Halfplane<PointType>(a(), b())) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(b(), c())) &&
+           detail::regionInsideHalfplane(other, Halfplane<PointType>(c(), a()));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isBounded()) {
+        return false;
+    }
+    // The disk is convex and the bounded region is the hull of its vertices.
+    using E = detail::region_exact_number_t<typename OtherRegion::NumberType>;
+    const auto vertices = other.template vertices<E>();
+    for (const auto& vertex : vertices) {
+        if (!contains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (size() == 0) {
+        return other.isEmpty();
+    }
+    if (size() == 1) {
+        return Point<typename PointType::NumberType>((*this)[0].x(), (*this)[0].y()).contains(other);
+    }
+    if (isDegenerate()) {
+        return Segment<PointType>((*this)[0], (*this)[size() - 1]).contains(other);
+    }
+    for (std::size_t i = 0; i < size(); ++i) {
+        if (!detail::regionInsideHalfplane(other, Halfplane<PointType>((*this)[i], get(static_cast<std::ptrdiff_t>(i) + 1)))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType, class Storage>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;  // a chain is one-dimensional
+    }
+    return std::visit(
+        [this](const auto& carrier) {
+            using Carrier = std::remove_cvref_t<decltype(carrier)>;
+            if constexpr (detail::is_point_v<Carrier> || detail::is_segment_v<Carrier>) {
+                return this->contains(carrier);
+            } else {
+                return false;  // a bounded chain never contains a ray or a line
+            }
+        },
+        detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;  // a polyline is one-dimensional
+    }
+    return std::visit(
+        [this](const auto& carrier) {
+            using Carrier = std::remove_cvref_t<decltype(carrier)>;
+            if constexpr (detail::is_point_v<Carrier> || detail::is_segment_v<Carrier>) {
+                return this->contains(carrier);
+            } else {
+                return false;  // a bounded polyline never contains a ray or a line
+            }
+        },
+        detail::degenerateRegionCarrier(other));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isBounded()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<typename OtherRegion::NumberType>;
+    if (other.isDegenerate()) {
+        return std::visit(
+            [this](const auto& carrier) {
+                using Carrier = std::remove_cvref_t<decltype(carrier)>;
+                if constexpr (detail::is_point_v<Carrier> || detail::is_segment_v<Carrier>) {
+                    return this->contains(carrier);
+                } else {
+                    return false;
+                }
+            },
+            detail::degenerateRegionCarrier(other));
+    }
+    return contains(other.template asConvex<E>());
+}
+
 }  // namespace pgl

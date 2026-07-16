@@ -599,6 +599,22 @@ struct Point {
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool separates(const OtherPolyline& other) const;
 
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template<HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
+
 
     /**
      * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).

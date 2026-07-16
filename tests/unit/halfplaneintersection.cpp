@@ -426,3 +426,256 @@ TEST_CASE("Cross-type conversion") {
     CHECK(wide.contains(pgl::Point<long long>(0, 0)));
     CHECK(!wide.contains(pgl::Point<long long>(1, 1)));
 }
+
+// ---------------------------------------------------------------------------
+// Self pair: region against region.
+
+namespace {
+Region plane() {
+    return Region();
+}
+Region emptyRegion() {
+    return Region({yGE0, Halfplane(1, -1, 0, -1)});  // y >= 0 and y <= -1
+}
+Region upper() {
+    return Region(yGE0);  // y >= 0
+}
+Region hslab(int lo, int hi) {
+    return Region({Halfplane(0, lo, 1, lo), Halfplane(1, hi, 0, hi)});  // lo <= y <= hi
+}
+Region vslab(int lo, int hi) {
+    return Region({Halfplane(lo, 1, lo, 0), Halfplane(hi, 0, hi, 1)});  // lo <= x <= hi
+}
+Region box(int lo, int hi) {
+    return Region(pgl::Rectangle<Point>({lo, lo}, {hi, hi}));
+}
+Region lineY(int y) {
+    return Region({Halfplane(0, y, 1, y), Halfplane(1, y, 0, y)});  // the line y == const
+}
+}  // namespace
+
+TEST_CASE("Region contains another region") {
+    CHECK(plane().contains(plane()));
+    CHECK(plane().contains(upper()));
+    CHECK(plane().contains(box(0, 6)));
+    CHECK(!upper().contains(plane()));
+    CHECK(upper().contains(hslab(0, 3)));
+    CHECK(upper().contains(quadrant()));
+    CHECK(!hslab(0, 3).contains(upper()));
+    CHECK(hslab(0, 5).contains(hslab(1, 3)));
+    CHECK(!hslab(1, 3).contains(hslab(0, 5)));
+    CHECK(upper().contains(box(0, 6)));
+    CHECK(!box(0, 6).contains(upper()));
+    CHECK(box(0, 6).contains(box(1, 5)));
+
+    // The empty region is contained everywhere and contains nothing else.
+    CHECK(emptyRegion().isEmpty());
+    CHECK(box(0, 6).contains(emptyRegion()));
+    CHECK(emptyRegion().contains(emptyRegion()));
+    CHECK(!emptyRegion().contains(box(0, 6)));
+    CHECK(!emptyRegion().contains(plane()));
+
+    // Degenerate regions are ordinary point sets.
+    CHECK(upper().contains(lineY(0)));
+    CHECK(upper().contains(lineY(2)));
+    CHECK(!upper().contains(lineY(-1)));
+    CHECK(lineY(0).contains(lineY(0)));
+    CHECK(!lineY(0).contains(lineY(1)));
+}
+
+TEST_CASE("Region interior contains another region") {
+    CHECK(plane().interiorContains(upper()));
+    CHECK(upper().interiorContains(hslab(1, 3)));
+    CHECK(!upper().interiorContains(hslab(0, 3)));  // touches the boundary y = 0
+    CHECK(!upper().interiorContains(lineY(0)));
+    CHECK(upper().interiorContains(lineY(1)));
+    CHECK(box(0, 6).interiorContains(box(1, 5)));
+    CHECK(!box(0, 6).interiorContains(box(0, 5)));
+
+    // A degenerate region has empty interior, so it only contains the empty region.
+    CHECK(lineY(0).interiorContains(emptyRegion()));
+    CHECK(!lineY(0).interiorContains(lineY(0)));
+
+    CHECK(upper().interiorContains(emptyRegion()));
+    CHECK(!emptyRegion().interiorContains(lineY(0)));
+}
+
+TEST_CASE("Region boundary contains another region") {
+    // The boundary of the upper half-plane region is the line y = 0.
+    CHECK(upper().boundaryContains(lineY(0)));
+    CHECK(!upper().boundaryContains(lineY(1)));
+    CHECK(!upper().boundaryContains(hslab(0, 1)));  // full-dimensional
+    CHECK(!upper().boundaryContains(upper()));
+    CHECK(upper().boundaryContains(emptyRegion()));
+
+    // A degenerate region is its own boundary.
+    CHECK(lineY(0).boundaryContains(lineY(0)));
+    CHECK(!lineY(0).boundaryContains(lineY(1)));
+
+    // The whole plane has empty boundary.
+    CHECK(!plane().boundaryContains(lineY(0)));
+    CHECK(plane().boundaryContains(emptyRegion()));
+}
+
+TEST_CASE("Region intersects another region") {
+    CHECK(plane().intersects(plane()));
+    CHECK(plane().intersects(upper()));
+    CHECK(hslab(0, 3).intersects(vslab(0, 3)));
+    CHECK(upper().intersects(quadrant()));
+    CHECK(box(0, 6).intersects(box(4, 9)));
+    CHECK(!box(0, 6).intersects(box(7, 9)));
+    CHECK(!hslab(0, 1).intersects(hslab(3, 4)));
+
+    // Boundary touch counts as intersecting.
+    CHECK(hslab(0, 1).intersects(hslab(1, 2)));
+    CHECK(upper().intersects(lineY(0)));
+
+    CHECK(!upper().intersects(emptyRegion()));
+    CHECK(!emptyRegion().intersects(emptyRegion()));
+    CHECK(!emptyRegion().intersects(plane()));
+}
+
+TEST_CASE("Region interiors intersect another region's") {
+    CHECK(plane().interiorsIntersect(upper()));
+    CHECK(hslab(0, 3).interiorsIntersect(vslab(0, 3)));
+    CHECK(box(0, 6).interiorsIntersect(box(4, 9)));
+
+    // Touching along a boundary line or point is not an interior meeting.
+    CHECK(!hslab(0, 1).interiorsIntersect(hslab(1, 2)));
+    CHECK(!box(0, 2).interiorsIntersect(box(2, 4)));
+
+    // Degenerate regions have empty interiors.
+    CHECK(!lineY(0).interiorsIntersect(upper()));
+    CHECK(!upper().interiorsIntersect(lineY(1)));
+    CHECK(!emptyRegion().interiorsIntersect(plane()));
+}
+
+TEST_CASE("Region intersection with another region stays a region") {
+    const Region cell = hslab(0, 3).intersection(vslab(0, 2));
+    CHECK(cell.isBounded());
+    CHECK(cell.twiceArea<long long>() == 12);  // 2 x 3
+
+    // Intersecting with the whole plane is the identity.
+    CHECK(plane().intersection(hslab(0, 3)) == hslab(0, 3));
+    CHECK(hslab(0, 3).intersection(plane()) == hslab(0, 3));
+
+    // Unbounded results stay representable.
+    const Region wedgeCut = upper().intersection(quadrant());
+    CHECK(wedgeCut == quadrant());
+    CHECK(!wedgeCut.isBounded());
+
+    // Disjoint and empty operands produce the canonical empty region.
+    CHECK(hslab(0, 1).intersection(hslab(3, 4)).isEmpty());
+    CHECK(upper().intersection(emptyRegion()).isEmpty());
+    CHECK(emptyRegion().intersection(upper()).isEmpty());
+    CHECK(hslab(0, 1).intersection(hslab(3, 4)) == emptyRegion());
+
+    // Exactness: the result type promotes on request.
+    const auto exact = hslab(0, 3).intersection<long long>(vslab(0, 2));
+    CHECK(exact.twiceArea<long long>() == 12);
+}
+
+TEST_CASE("Region separates another region") {
+    // Removing a slab from the plane leaves two half-planes.
+    CHECK(hslab(0, 1).separates(plane()));
+    CHECK(!plane().separates(hslab(0, 1)));
+
+    // Removing a half-plane always leaves a convex (connected) set.
+    CHECK(!upper().separates(plane()));
+    CHECK(!upper().separates(hslab(-3, 3)));
+
+    // Crossing slabs cut each other.
+    CHECK(hslab(0, 1).separates(vslab(0, 1)));
+    CHECK(vslab(0, 1).separates(hslab(0, 1)));
+
+    // A vertical slab cuts the upper half-plane in two.
+    CHECK(vslab(0, 1).separates(upper()));
+    CHECK(!upper().separates(vslab(0, 1)));
+
+    // A slab inside a wider parallel slab splits it.
+    CHECK(hslab(1, 2).separates(hslab(-5, 5)));
+    CHECK(!hslab(-5, 5).separates(hslab(1, 2)));
+
+    // A quadrant never splits the plane or a half-plane.
+    CHECK(!quadrant().separates(plane()));
+    CHECK(!quadrant().separates(upper()));
+
+    // A bounded region splits an unbounded one only when it blocks the full
+    // width: the box spanning the slab exactly cuts it, a taller slab or a
+    // half-plane flows around it.
+    CHECK(!box(0, 6).separates(upper()));
+    CHECK(box(0, 6).separates(hslab(0, 6)));
+    CHECK(!box(0, 6).separates(hslab(-7, 7)));
+
+    // An unbounded remover can split a bounded region.
+    CHECK(vslab(2, 4).separates(box(0, 6)));
+    CHECK(!vslab(2, 4).separates(box(2, 4)));
+
+    // Degenerate regions: a line region splits the plane and a crossing slab.
+    CHECK(lineY(0).separates(plane()));
+    CHECK(lineY(0).separates(vslab(0, 1)));
+    CHECK(!lineY(0).separates(upper()));  // leaves one open half-plane
+    CHECK(!upper().separates(lineY(1)));
+
+    CHECK(!emptyRegion().separates(plane()));
+    CHECK(!plane().separates(emptyRegion()));
+}
+
+TEST_CASE("Region crosses another region") {
+    CHECK(hslab(0, 1).crosses(vslab(0, 1)));
+    CHECK(vslab(0, 1).crosses(hslab(0, 1)));
+    CHECK(!hslab(0, 1).crosses(plane()));      // the plane does not separate the slab
+    CHECK(!hslab(1, 2).crosses(hslab(-5, 5)));
+    CHECK(!vslab(0, 1).crosses(upper()));
+    CHECK(box(0, 6).crosses(vslab(2, 4)));   // mutual full-width cuts
+    CHECK(!vslab(0, 6).crosses(box(2, 4)));  // the box is strictly inside the slab
+    CHECK(!emptyRegion().crosses(plane()));
+}
+
+TEST_CASE("Region distances to another region") {
+    using Rational = pgl::Rational<long long>;
+
+    // Parallel vertical half-planes: x <= -5 and x >= 7.
+    const Region left(Halfplane(-5, 0, -5, 1));
+    const Region right(Halfplane(7, 1, 7, 0));
+    CHECK(left.squaredDistance<int>(right) == 144);
+    CHECK(right.squaredDistance<int>(left) == 144);
+    CHECK(left.distanceL1<int>(right) == 12);
+    CHECK(left.distanceLInf<int>(right) == 12);
+
+    // Opposite quadrants: closest points (0, 0) and (-3, -4).
+    const Region q1 = quadrant();
+    const Region q3({Halfplane(0, -4, -1, -4), Halfplane(-3, -5, -3, -4)});  // y <= -4 and x <= -3
+    CHECK(q1.squaredDistance<int>(q3) == 25);
+    CHECK(q1.distanceL1<int>(q3) == 7);
+    CHECK(q1.distanceLInf<int>(q3) == 4);
+    CHECK(q1.squaredDistance<Rational>(q3) == Rational(25));
+
+    // Intersecting regions are at distance zero.
+    CHECK(hslab(0, 3).squaredDistance<int>(vslab(0, 3)) == 0);
+    CHECK(plane().squaredDistance<int>(upper()) == 0);
+    CHECK(hslab(0, 1).distanceL1<int>(hslab(1, 2)) == 0);  // boundary touch
+
+    // Disjoint parallel slabs: the gap between y <= 1 and y >= 3 sides.
+    CHECK(hslab(0, 1).squaredDistance<int>(hslab(3, 4)) == 4);
+    CHECK(hslab(0, 1).distanceL1<int>(hslab(3, 4)) == 2);
+    CHECK(hslab(0, 1).distanceLInf<int>(hslab(3, 4)) == 2);
+}
+
+TEST_CASE("Region self-pair works with rational coordinates") {
+    using RPoint = pgl::Point<pgl::Rational<long long>>;
+    using RHalfplane = pgl::Halfplane<RPoint>;
+    using RRegion = pgl::HalfplaneIntersection<RPoint>;
+
+    const RRegion a({RHalfplane(RPoint(0, 0), RPoint(1, 0))});   // y >= 0
+    const RRegion b({RHalfplane(RPoint(0, 1), RPoint(0, 0)),     // x >= 0
+                     RHalfplane(RPoint(2, 0), RPoint(2, 1))});   // x <= 2
+    CHECK(a.contains(a));
+    CHECK(a.intersects(b));
+    CHECK(b.separates(a));
+    CHECK(!a.separates(b));
+    const RRegion meet = a.intersection(b);
+    CHECK(!meet.isBounded());
+    CHECK(meet.contains(RPoint(1, 5)));
+    CHECK(!meet.contains(RPoint(1, -1)));
+}

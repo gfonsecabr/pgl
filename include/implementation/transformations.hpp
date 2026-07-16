@@ -2130,6 +2130,32 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
             pts.push_back(point(p));
         }
         return Polyline<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    } else if constexpr (HalfplaneIntersectionConcept<ShapeT>) {
+        // Each stored half-plane maps like the Halfplane branch above,
+        // swapping its defining points under a reflection; the non-trusted
+        // range constructor restores the sorted invariant. The sticky empty
+        // state is rebuilt from contradictory constraints, since the affine
+        // image of the empty set is empty.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        using ResultRegion = HalfplaneIntersection<ResultPoint, typename ShapeT::LabelType>;
+        using ResultHalfplane = typename ResultRegion::HalfplaneType;
+        if (shape.isEmpty()) {
+            ResultRegion result;
+            result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
+            result.insert(ResultHalfplane(ResultPoint(1, 1), ResultPoint(1, 0)));
+            return result;
+        }
+        const bool reflecting =
+            transformation.determinant() < decltype(transformation.determinant()){};
+        std::vector<ResultHalfplane> mapped;
+        mapped.reserve(shape.size());
+        for (const auto& halfplane : shape) {
+            const auto first = point(halfplane.source());
+            const auto second = point(halfplane.target());
+            mapped.push_back(reflecting ? ResultHalfplane(second, first)
+                                        : ResultHalfplane(first, second));
+        }
+        return ResultRegion(mapped);
     }
 }
 

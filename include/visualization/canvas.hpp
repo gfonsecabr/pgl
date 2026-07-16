@@ -477,6 +477,12 @@ class Canvas {
         return push(Polyline<Point<double>>(polyline), polyline);
     }
 
+    /** @brief Appends a half-plane intersection (clipped to the viewport, like a half-plane) using the current captured style. */
+    template <class PointType, class Label>
+    Canvas& operator<<(const HalfplaneIntersection<PointType, Label>& region) {
+        return push(HalfplaneIntersection<Point<double>>(region), region);
+    }
+
     /** @brief Appends nothing: the empty shape has no geometry to draw. */
     template <class PointType>
     Canvas& operator<<(const EmptyShape<PointType>&) {
@@ -566,6 +572,17 @@ class Canvas {
                     const double radius = value.radius();
                     b.include(center.x() - radius, center.y() - radius);
                     b.include(center.x() + radius, center.y() + radius);
+                } else if constexpr (std::same_as<V, HalfplaneIntersection<Point<double>>>) {
+                    // The region may be unbounded: focus on its vertices and,
+                    // like the Halfplane alternative, on the points defining
+                    // its boundary lines.
+                    for (const auto& vertexPoint : value.vertices()) {
+                        b.include(vertexPoint.x(), vertexPoint.y());
+                    }
+                    for (const auto& halfplane : value) {
+                        b.include(halfplane.source().x(), halfplane.source().y());
+                        b.include(halfplane.target().x(), halfplane.target().y());
+                    }
                 } else {
                     for (std::size_t i = 0; i < value.size(); ++i) {
                         b.include(value[i].x(), value[i].y());
@@ -1221,6 +1238,43 @@ class Canvas {
                         style.strokeAlpha) < 0) {
                     throwPDFError(pdf, "draw PDF halfplane boundary");
                 }
+            } else if constexpr (std::same_as<S, HalfplaneIntersection<PT>>) {
+                const auto polygon = clipRegionToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    std::vector<std::pair<float, float>> pdfPoints;
+                    pdfPoints.reserve(polygon.size());
+                    for (const auto& [worldX, worldY] : polygon) {
+                        pdfPoints.emplace_back(
+                            static_cast<float>(viewport.mapX(worldX)),
+                            pdfYFromSVG(viewport.mapY(worldY))
+                        );
+                    }
+                    addPath(
+                        pdf,
+                        page,
+                        pdfPoints,
+                        true,
+                        PDFStyle{pdfgen::PDF_TRANSPARENT, style.fill, 0.0f, style.pointRadius, style.fillAlpha, 1.0f},
+                        style.fill
+                    );
+                }
+
+                // Stroke only the region's real boundary edges: the viewport
+                // sides of the clipped polygon are not part of the boundary.
+                for (const auto& piece : regionBoundaryPieces(shape, viewport)) {
+                    if (pdfgen::pdf_add_line(
+                            pdf,
+                            page,
+                            static_cast<float>(piece.x1),
+                            pdfYFromSVG(piece.y1),
+                            static_cast<float>(piece.x2),
+                            pdfYFromSVG(piece.y2),
+                            style.strokeWidth,
+                            style.stroke,
+                            style.strokeAlpha) < 0) {
+                        throwPDFError(pdf, "draw PDF half-plane intersection boundary");
+                    }
+                }
             } else if constexpr (std::same_as<S, Rectangle<PT>>) {
                 const float x = static_cast<float>(viewport.mapX(shape.min().x()));
                 const float y = pdfYFromSVG(viewport.mapY(shape.min().y()));
@@ -1418,6 +1472,30 @@ class Canvas {
                     const auto& [vx1, vy1, vx2, vy2] = *visible;
                     out << "<line x1=\"" << vx1 << "\" y1=\"" << vy1
                         << "\" x2=\"" << vx2 << "\" y2=\"" << vy2 << "\""
+                        << styleAttributes(element.style) << ">"
+                        << titleTag << "</line>";
+                }
+                out << "</g>";
+            } else if constexpr (std::same_as<S, HalfplaneIntersection<PT>>) {
+                const auto polygon = clipRegionToViewport(shape, viewport, widthPixels_, heightPixels_);
+                const auto boundary = regionBoundaryPieces(shape, viewport);
+                if (polygon.empty() && boundary.empty()) return {};
+
+                out << "<g>";
+                if (!polygon.empty()) {
+                    out << "<polygon points=\"";
+                    for (std::size_t index = 0; index < polygon.size(); ++index) {
+                        if (index != 0) out << ' ';
+                        out << viewport.mapX(polygon[index].first) << ',' << viewport.mapY(polygon[index].second);
+                    }
+                    out << "\" stroke=\"none\"" << fillAttributes(element.style) << ">"
+                        << titleTag << "</polygon>";
+                }
+                // Stroke only the region's real boundary edges: the viewport
+                // sides of the clipped polygon are not part of the boundary.
+                for (const auto& piece : boundary) {
+                    out << "<line x1=\"" << piece.x1 << "\" y1=\"" << piece.y1
+                        << "\" x2=\"" << piece.x2 << "\" y2=\"" << piece.y2 << "\""
                         << styleAttributes(element.style) << ">"
                         << titleTag << "</line>";
                 }
@@ -1736,6 +1814,26 @@ class Canvas {
                         false,
                         ipeStrokeAttributes(style));
                 }
+            } else if constexpr (std::same_as<S, HalfplaneIntersection<PT>>) {
+                const auto polygon = clipRegionToViewport(shape, viewport, widthPixels_, heightPixels_);
+                if (!polygon.empty()) {
+                    std::vector<std::pair<double, double>> points;
+                    points.reserve(polygon.size());
+                    for (const auto& [worldX, worldY] : polygon) {
+                        points.emplace_back(viewport.mapX(worldX), pdfYFromSVG(viewport.mapY(worldY)));
+                    }
+                    appendIPEPath(out, points, true, ipeFillAttributes(style));
+                }
+
+                // Stroke only the region's real boundary edges: the viewport
+                // sides of the clipped polygon are not part of the boundary.
+                for (const auto& piece : regionBoundaryPieces(shape, viewport)) {
+                    appendIPEPath(
+                        out,
+                        {{piece.x1, pdfYFromSVG(piece.y1)}, {piece.x2, pdfYFromSVG(piece.y2)}},
+                        false,
+                        ipeStrokeAttributes(style));
+                }
             } else if constexpr (std::same_as<S, Rectangle<PT>>) {
                 const double minX = viewport.mapX(shape.min().x());
                 const double maxX = viewport.mapX(shape.max().x());
@@ -1937,18 +2035,24 @@ class Canvas {
         return ClippedSegment{startX, startY, endX, endY};
     }
 
-    static std::vector<std::pair<double, double>> clipHalfplaneToViewport(
-        const Halfplane<Point<double>>& halfplane,
+    // The viewport rectangle as a CCW polygon in world coordinates: the
+    // Sutherland–Hodgman seed for clipping half-planes and half-plane
+    // intersections to the visible area.
+    static std::vector<std::pair<double, double>> viewportPolygon(
         const Viewport& viewport,
         double widthPixels,
         double heightPixels) {
-        std::vector<std::pair<double, double>> polygon = {
+        return {
             {viewport.unmapX(0.0), viewport.unmapY(heightPixels)},
             {viewport.unmapX(widthPixels), viewport.unmapY(heightPixels)},
             {viewport.unmapX(widthPixels), viewport.unmapY(0.0)},
             {viewport.unmapX(0.0), viewport.unmapY(0.0)},
         };
+    }
 
+    static std::vector<std::pair<double, double>> clipPolygonToHalfplane(
+        const std::vector<std::pair<double, double>>& polygon,
+        const Halfplane<Point<double>>& halfplane) {
         const Point<double> first = halfplane.source();
         const Point<double> second = halfplane.target();
 
@@ -1997,6 +2101,80 @@ class Canvas {
         }
 
         return output;
+    }
+
+    static std::vector<std::pair<double, double>> clipHalfplaneToViewport(
+        const Halfplane<Point<double>>& halfplane,
+        const Viewport& viewport,
+        double widthPixels,
+        double heightPixels) {
+        return clipPolygonToHalfplane(viewportPolygon(viewport, widthPixels, heightPixels), halfplane);
+    }
+
+    // World-space polygon of the region clipped to the viewport rectangle:
+    // Sutherland–Hodgman against every stored half-plane in turn. Empty for
+    // the empty region (and for a region that misses the viewport); the whole
+    // plane keeps the full viewport rectangle.
+    static std::vector<std::pair<double, double>> clipRegionToViewport(
+        const HalfplaneIntersection<Point<double>>& region,
+        const Viewport& viewport,
+        double widthPixels,
+        double heightPixels) {
+        if (region.isEmpty()) {
+            return {};
+        }
+        std::vector<std::pair<double, double>> polygon = viewportPolygon(viewport, widthPixels, heightPixels);
+        for (const auto& halfplane : region) {
+            polygon = clipPolygonToHalfplane(polygon, halfplane);
+            if (polygon.empty()) {
+                break;
+            }
+        }
+        return polygon;
+    }
+
+    // The visible portions of the region's boundary edges, mapped to SVG
+    // pixel coordinates: segment edges map directly, ray and line edges are
+    // clipped to the pixel box like the Ray and Line alternatives.
+    std::vector<ClippedSegment> regionBoundaryPieces(
+        const HalfplaneIntersection<Point<double>>& region,
+        const Viewport& viewport) const {
+        std::vector<ClippedSegment> pieces;
+        if (region.isEmpty()) {
+            return pieces;
+        }
+        for (std::size_t index = 0; index < region.size(); ++index) {
+            std::visit(
+                [&](const auto& piece) {
+                    using P = std::decay_t<decltype(piece)>;
+                    if constexpr (std::same_as<P, Segment<Point<double>>>) {
+                        pieces.push_back(ClippedSegment{
+                            viewport.mapX(piece.min().x()),
+                            viewport.mapY(piece.min().y()),
+                            viewport.mapX(piece.max().x()),
+                            viewport.mapY(piece.max().y()),
+                        });
+                    } else if constexpr (std::same_as<P, Ray<Point<double>>>) {
+                        const auto visible = clipRayToBox(
+                            viewport.mapX(piece.source().x()), viewport.mapY(piece.source().y()),
+                            viewport.mapX(piece.target().x()), viewport.mapY(piece.target().y()),
+                            0.0, 0.0, widthPixels_, heightPixels_);
+                        if (visible) {
+                            pieces.push_back(*visible);
+                        }
+                    } else {
+                        const auto visible = clipInfiniteLineToBox(
+                            viewport.mapX(piece.min().x()), viewport.mapY(piece.min().y()),
+                            viewport.mapX(piece.max().x()), viewport.mapY(piece.max().y()),
+                            0.0, 0.0, widthPixels_, heightPixels_);
+                        if (visible) {
+                            pieces.push_back(*visible);
+                        }
+                    }
+                },
+                region.edge(index));
+        }
+        return pieces;
     }
 };
 

@@ -8,6 +8,7 @@
 #include <concepts>
 #include <sstream>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 
 // Polyline keeps the vertices in the given traversal order; the constructor

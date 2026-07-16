@@ -3262,4 +3262,74 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherHalfplane& 
     return result;
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRectangle& other) const {
+    // Intersecting with the rectangle's four edge half-planes stays closed and
+    // needs no division, so the result is exact whenever ResultNumber
+    // represents the inputs exactly.
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    HalfplaneIntersection<ResultPoint> result(*this);
+    for (const auto& halfplane : HalfplaneIntersection<ResultPoint>(other)) {
+        result.insert(halfplane);
+    }
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherTriangle& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    HalfplaneIntersection<ResultPoint> result(*this);
+    for (const auto& halfplane : HalfplaneIntersection<ResultPoint>(other)) {
+        result.insert(halfplane);
+    }
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherConvex& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultHalfplane = typename HalfplaneIntersection<ResultPoint>::HalfplaneType;
+    HalfplaneIntersection<ResultPoint> result(*this);
+    if (other.size() == 0) {
+        // The empty convex polygon is the empty set: force emptiness with two
+        // contradictory parallel constraints ({x <= 0} and {x >= 1}).
+        result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
+        result.insert(ResultHalfplane(ResultPoint(1, 1), ResultPoint(1, 0)));
+        return result;
+    }
+    for (const auto& halfplane : HalfplaneIntersection<ResultPoint>(other)) {
+        result.insert(halfplane);
+    }
+    return result;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRegion& other) const {
+    // Half-plane intersections are closed under intersection and no division
+    // is involved, so the result is exact whenever ResultNumber represents
+    // the inputs exactly.
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultHalfplane = typename HalfplaneIntersection<ResultPoint>::HalfplaneType;
+    HalfplaneIntersection<ResultPoint> result(*this);
+    if (other.isEmpty()) {
+        // Force emptiness with two contradictory parallel constraints
+        // ({x <= 0} and {x >= 1}).
+        result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
+        result.insert(ResultHalfplane(ResultPoint(1, 1), ResultPoint(1, 0)));
+        return result;
+    }
+    for (const auto& halfplane : other) {
+        result.insert(ResultHalfplane(halfplane));
+    }
+    return result;
+}
+
 }  // namespace pgl

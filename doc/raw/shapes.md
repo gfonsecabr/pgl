@@ -547,7 +547,7 @@ A half-plane intersection `k` has methods such as:
 - `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an integer result type the box is rounded outward so it always encloses the region.
 - `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
-- `k.intersection(h)`: Intersecting with a `Halfplane` returns another `HalfplaneIntersection`, so the type is closed under the operation and the result is exact (no coordinate divisions).
+- `k.intersection(h)`: Intersecting with a `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection` returns another `HalfplaneIntersection`, so the type is closed under these operations and the result is exact (no coordinate divisions).
 
 If the region has $n$ half-planes, then:
 
@@ -556,4 +556,6 @@ If the region has $n$ half-planes, then:
 - `k.isBounded()` and `k.vertexCount()` take $O(n)$ time.
 
 Equality compares the stored half-planes: for full-dimensional regions the non-redundant half-planes are a canonical function of the point set, so this is geometric equality; for lower-dimensional (degenerate) regions the representation is not unique and equality is representational.
+
+`HalfplaneIntersection` is an alternative of the polymorphic `Shape` class and can be drawn on a [canvas](canvas.md), which clips the region to the visible viewport and strokes only its real boundary edges. Note that `Shape::get`, `Shape::operator[]`, and `Shape::index` throw for this alternative, since its indexable elements are half-planes rather than points.
 

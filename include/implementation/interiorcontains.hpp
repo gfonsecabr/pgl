@@ -1752,4 +1752,320 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(con
     return halfplanes_.empty() || halfplanes_[0].interiorContains(other);
 }
 
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
+    // The interior of the region is convex, so containing the vertices
+    // contains the rectangle.
+    const auto vertices = other.vertices();
+    for (const auto& vertex : vertices) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
+    return interiorContains(other.a()) && interiorContains(other.b()) && interiorContains(other.c());
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    // The interior of the region is the intersection of the constraints'
+    // open interiors.
+    if (isEmpty()) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.interiorContains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    // The interior of the region is convex, so containing the vertices
+    // contains the polygon.
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (!interiorContains(other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    // The interior of the region is the intersection of the constraints' open
+    // half-planes, so it contains the other region exactly when every
+    // constraint's interior does. A degenerate region has two antiparallel
+    // constraints with disjoint interiors, so it correctly contains only the
+    // empty region.
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (isEmpty()) {
+        return false;
+    }
+    for (const auto& halfplane : halfplanes_) {
+        if (!halfplane.interiorContains(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorContains(value);
+        },
+        other.variant());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes' interiors containing a
+// HalfplaneIntersection.
+//
+// The empty region is a subset of every interior. A degenerate region reduces
+// to its carrier shape; a full-dimensional region can only be inside the
+// interior of a two-dimensional shape, where it reduces to strict half-plane
+// containment tests or the region's convex-polygon form.
+
+namespace detail {
+
+// Dispatches interiorContains(carrier) over the degenerate region's carrier,
+// treating alternatives without a matching overload as geometrically
+// impossible.
+template <class Shape2, class Region>
+constexpr bool interiorContainsDegenerateRegion(const Shape2& shape, const Region& region) {
+    return std::visit(
+        [&shape](const auto& carrier) {
+            if constexpr (requires { shape.interiorContains(carrier); }) {
+                return shape.interiorContains(carrier);
+            } else {
+                (void)carrier;
+                return false;
+            }
+        },
+        degenerateRegionCarrier(region));
+}
+
+}  // namespace detail
+
+template <class Number, class Label>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Point<Number, Label>::interiorContains(const OtherRegion& other) const {
+    // The interior of a point is the point itself.
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::interiorContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return asSegment().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    // The interior of a line is the line itself.
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return asLine().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::interiorContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return detail::regionInsideHalfplaneInterior(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (isDegenerate()) {
+        return false;  // a degenerate rectangle has empty interior
+    }
+    const PointType lo(min());
+    const PointType hi(max());
+    const PointType lohi(lo.x(), hi.y());
+    const PointType hilo(hi.x(), lo.y());
+    return detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(lo, hilo)) &&
+           detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(hilo, hi)) &&
+           detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(hi, lohi)) &&
+           detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(lohi, lo));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(a(), b())) &&
+           detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(b(), c())) &&
+           detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(c(), a()));
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isBounded() || isDegenerate()) {
+        return false;
+    }
+    // The open disk is convex and the bounded region is the hull of its
+    // vertices.
+    using E = detail::region_exact_number_t<typename OtherRegion::NumberType>;
+    const auto vertices = other.template vertices<E>();
+    for (const auto& vertex : vertices) {
+        if (!interiorContains(vertex)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (isDegenerate()) {
+        return false;  // a degenerate polygon has empty interior
+    }
+    for (std::size_t i = 0; i < size(); ++i) {
+        if (!detail::regionInsideHalfplaneInterior(
+                other, Halfplane<PointType>((*this)[i], get(static_cast<std::ptrdiff_t>(i) + 1)))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType, class Storage>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::interiorContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return detail::interiorContainsDegenerateRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isBounded()) {
+        return false;
+    }
+    using E = detail::region_exact_number_t<typename OtherRegion::NumberType>;
+    if (other.isDegenerate()) {
+        return std::visit(
+            [this](const auto& carrier) {
+                if constexpr (requires { this->interiorContains(carrier); }) {
+                    return this->interiorContains(carrier);
+                } else {
+                    (void)carrier;
+                    return false;
+                }
+            },
+            detail::degenerateRegionCarrier(other));
+    }
+    return interiorContains(other.template asConvex<E>());
+}
+
 }  // namespace pgl

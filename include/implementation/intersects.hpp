@@ -1811,4 +1811,129 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Oth
     return supStatus(other.opposite()) != SupStatus::below;
 }
 
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    // The intersection with a convex region is itself a half-plane
+    // intersection; the two shapes meet exactly when it is nonempty.
+    return !intersection(other).isEmpty();
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    return !intersection(other).isEmpty();
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherConvex& other) const {
+    if (other.size() == 0) {
+        return false;
+    }
+    return !intersection(other).isEmpty();
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    if (isEmpty()) {
+        return false;
+    }
+    if (halfplanes_.empty()) {
+        return true;
+    }
+    // The disk is bounded, so only the part of the region near it matters:
+    // clip to a box enclosing the disk and test the resulting bounded region.
+    using E = detail::region_exact_number_t<NumberType>;
+    const auto clipped = detail::regionClippedToBox(*this, other.bbox());
+    if (clipped.isEmpty()) {
+        return false;
+    }
+    return clipped.template asConvex<E>().intersects(other);
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherChain& other) const {
+    if (isEmpty() || other.size() == 0) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (intersects(edge)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherPolyline& other) const {
+    if (isEmpty() || other.size() == 0) {
+        return false;
+    }
+    if (other.size() == 1) {
+        return contains(other[0]);
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (intersects(edge)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherPolygon& other) const {
+    if (isEmpty() || other.size() == 0) {
+        return false;
+    }
+    // The shapes meet when the region reaches the polygon's boundary or holds
+    // an interior witness of the polygon (the region is fully inside it).
+    for (std::size_t i = 0; i < other.size(); ++i) {
+        if (contains(other[i])) {
+            return true;
+        }
+    }
+    for (const auto& edge : other.edgesView()) {
+        if (intersects(edge)) {
+            return true;
+        }
+    }
+    using E = detail::region_exact_number_t<NumberType>;
+    return other.contains(pointInside<E>());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherRegion& other) const {
+    // The intersection of two half-plane intersections is itself one; the
+    // regions meet exactly when it is nonempty.
+    if (isEmpty() || other.isEmpty()) {
+        return false;
+    }
+    return !intersection(other).isEmpty();
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: intersects is symmetric, so the lower-ranked shapes'
+// generic rank-guarded forwarders already dispatch these here — no per-shape
+// definitions are needed.
+
 }  // namespace pgl

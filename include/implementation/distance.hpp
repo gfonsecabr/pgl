@@ -1647,4 +1647,98 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPolyline&
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
+
+// -----------------------------------------------------------------------------
+// HalfplaneIntersection
+//
+// When the region and the other shape are disjoint, the closest point of the
+// convex region lies on its boundary, so the distance is the minimum over the
+// region's boundary edges (segments, rays, or lines) of the edge-to-shape
+// distance. Edges are built with an exact coordinate type; the caller's
+// ResultNumber governs only the final cast. Querying the empty region is
+// undefined behavior.
+
+namespace detail {
+
+template <class ResultNumber, class Region, class Other>
+constexpr ResultNumber regionEdgesSquaredDistance(const Region& region, const Other& other) {
+    ResultNumber best{};
+    bool has = false;
+    for (std::size_t i = 0; i < region.size(); ++i) {
+        const ResultNumber current = std::visit(
+            [&other](const auto& piece) {
+                return static_cast<ResultNumber>(piece.template squaredDistance<ResultNumber>(other));
+            },
+            region.template edge<ResultNumber>(i));
+        if (!has || current < best) {
+            best = current;
+            has = true;
+        }
+    }
+    return best;
+}
+
+}  // namespace detail
+
+#define PGL_HPI_SQUARED_DISTANCE(ConceptName, ArgType)                                        \
+    template <class PointType, class LabelType>                                                \
+    template <class ResultNumber, ConceptName ArgType>                                         \
+    constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredDistance(               \
+        const ArgType& other) const {                                                          \
+        if (intersects(other)) {                                                                \
+            return ResultNumber{};                                                              \
+        }                                                                                       \
+        return detail::regionEdgesSquaredDistance<ResultNumber>(*this, other);                  \
+    }
+
+PGL_HPI_SQUARED_DISTANCE(PointConcept, OtherPoint)
+PGL_HPI_SQUARED_DISTANCE(SegmentConcept, OtherSegment)
+PGL_HPI_SQUARED_DISTANCE(OrientedSegmentConcept, OtherOrientedSegment)
+PGL_HPI_SQUARED_DISTANCE(LineConcept, OtherLine)
+PGL_HPI_SQUARED_DISTANCE(OrientedLineConcept, OtherOrientedLine)
+PGL_HPI_SQUARED_DISTANCE(RayConcept, OtherRay)
+PGL_HPI_SQUARED_DISTANCE(HalfplaneConcept, OtherHalfplane)
+PGL_HPI_SQUARED_DISTANCE(RectangleConcept, OtherRectangle)
+PGL_HPI_SQUARED_DISTANCE(TriangleConcept, OtherTriangle)
+PGL_HPI_SQUARED_DISTANCE(ConvexConcept, OtherConvex)
+PGL_HPI_SQUARED_DISTANCE(MonotoneChainConcept, OtherChain)
+PGL_HPI_SQUARED_DISTANCE(PolylineConcept, OtherPolyline)
+PGL_HPI_SQUARED_DISTANCE(PolygonConcept, OtherPolygon)
+
+#undef PGL_HPI_SQUARED_DISTANCE
+
+template <class PointType, class LabelType>
+template <class ResultNumber, DiskConcept OtherDisk>
+double HalfplaneIntersection<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+    if (intersects(other)) {
+        return 0.0;
+    }
+    // Disk::squaredDistance is not templated on ResultNumber, so the edge's
+    // own forwarder does not match; call the disk directly on each edge.
+    using E = detail::region_exact_number_t<NumberType>;
+    double best = 0.0;
+    bool has = false;
+    for (std::size_t i = 0; i < size(); ++i) {
+        const double current = std::visit(
+            [&other](const auto& piece) { return other.squaredDistance(piece); },
+            this->template edge<E>(i));
+        if (!has || current < best) {
+            best = current;
+            has = true;
+        }
+    }
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherRegion>
+constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredDistance(const OtherRegion& other) const {
+    // Disjoint convex regions realize their distance on this region's
+    // boundary; each edge re-dispatches into the other region's own edge scan.
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return detail::regionEdgesSquaredDistance<ResultNumber>(*this, other);
+}
+
 }  // namespace pgl

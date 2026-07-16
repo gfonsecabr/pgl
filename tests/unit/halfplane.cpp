@@ -414,11 +414,13 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
         CHECK(wedge.contains(pgl::Point<Rational>(Rational(1, 2), Rational(1, 3))));
     }
 
-    SUBCASE("the Shape wrapper still reports the pair as unsupported") {
-        // A HalfplaneIntersection is possibly unbounded, so it is not a Shape
-        // alternative and the variant dispatch throws for two halfplanes.
+    SUBCASE("the Shape wrapper re-wraps the pair as a HalfplaneIntersection") {
+        // A HalfplaneIntersection is itself a Shape alternative, so the
+        // variant dispatch wraps the (possibly unbounded) result directly.
         const pgl::Shape<Point> a = upper;
         const pgl::Shape<Point> b = right;
-        CHECK_THROWS_AS((void)a.intersection(b), std::logic_error);
+        const pgl::Shape<Point> wedge = a.intersection(b);
+        REQUIRE(wedge.holdsAlternative<Region>());
+        CHECK(Region(wedge) == Region({upper, right}));
     }
 }
