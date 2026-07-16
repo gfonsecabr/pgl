@@ -6,10 +6,15 @@
 using Point = pgl::Point<int>;
 using Halfplane = pgl::Halfplane<Point>;
 using Region = pgl::HalfplaneIntersection<Point>;
-using Rectangle = pgl::Rectangle<Point>;
 using ERational = pgl::Rational<long long>;
 
 namespace {
+// A file-scope `using Rectangle = pgl::Rectangle<Point>;` would collide with
+// the Win32 GDI `Rectangle` function that <windows.h> injects into the
+// global namespace under MSVC (pulled in transitively by doctest.h). Keeping
+// the alias in this anonymous namespace shadows it instead of redefining it.
+using Rectangle = pgl::Rectangle<Point>;
+
 // Axis-aligned box [0,6] x [0,6].
 Region box6() {
     return Region({Halfplane(0, 0, 1, 0), Halfplane(6, 0, 6, 1),
