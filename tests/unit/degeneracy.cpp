@@ -10,6 +10,9 @@
 // isSegment/getIfSegment, and isUndefined. Every shape that can degenerate is
 // exactly one of point, segment, or undefined -- or none of them when it is
 // non-degenerate.
+//
+// The HalfplaneIntersection cases at the bottom cover the same family of
+// shape-recognition predicates for regions: point, segment, line, half-plane.
 
 TEST_CASE_TEMPLATE("Segments classify degeneracy", Point, pgl::Point<int>, pgl::Point<double>,
                    pgl::Point<pgl::Rational<int64_t>>) {
@@ -219,4 +222,160 @@ TEST_CASE_TEMPLATE("Disks classify degeneracy", Point, pgl::Point<int>, pgl::Poi
         CHECK_FALSE(d.isPoint());
         CHECK_FALSE(d.isUndefined());
     }
+}
+
+// ---------------------------------------------------------------------------
+// HalfplaneIntersection shape recognition
+
+TEST_CASE("HalfplaneIntersection recognizes the shape it describes") {
+    using Point = pgl::Point<int>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    // Exactly which of the four predicates should hold, in order.
+    const auto expect = [](const Region& r, bool point, bool segment, bool line, bool halfplane) {
+        CHECK(r.isPoint() == point);
+        CHECK(r.isSegment() == segment);
+        CHECK(r.isLine() == line);
+        CHECK(r.isHalfplane() == halfplane);
+        CHECK(r.getIfPoint().has_value() == point);
+        CHECK(r.getIfSegment().has_value() == segment);
+        CHECK(r.getIfLine().has_value() == line);
+        CHECK(r.getIfHalfplane().has_value() == halfplane);
+    };
+
+    SUBCASE("the whole plane is none of them") {
+        expect(Region{}, false, false, false, false);
+    }
+
+    SUBCASE("the empty region is none of them") {
+        Region r{Point(0, 0)};
+        r.insert(Halfplane(Point(1, 1), Point(1, 0)));  // x >= 1, misses the origin
+        REQUIRE(r.isEmpty());
+        expect(r, false, false, false, false);
+    }
+
+    SUBCASE("a single constraint is a half-plane") {
+        Region r;
+        const Halfplane h(Point(0, 0), Point(1, 0));
+        r.insert(h);
+        expect(r, false, false, false, true);
+        CHECK(*r.getIfHalfplane() == h);
+    }
+
+    SUBCASE("a redundant parallel constraint still leaves a half-plane") {
+        const Halfplane tight(Point(0, 0), Point(1, 0));    // y >= 0
+        const Halfplane loose(Point(0, -5), Point(1, -5));  // y >= -5
+
+        // Either insertion order must collapse to the tighter constraint alone.
+        Region tight_first;
+        tight_first.insert(tight);
+        tight_first.insert(loose);
+        CHECK(tight_first.size() == 1);
+        expect(tight_first, false, false, false, true);
+        CHECK(*tight_first.getIfHalfplane() == tight);
+
+        Region loose_first;
+        loose_first.insert(loose);
+        loose_first.insert(tight);
+        CHECK(loose_first.size() == 1);
+        expect(loose_first, false, false, false, true);
+        CHECK(*loose_first.getIfHalfplane() == tight);
+    }
+
+    SUBCASE("a slab and a wedge are none of them") {
+        Region slab;
+        slab.insert(Halfplane(Point(0, 0), Point(1, 0)));
+        slab.insert(Halfplane(Point(1, 5), Point(0, 5)));
+        REQUIRE_FALSE(slab.isDegenerate());
+        expect(slab, false, false, false, false);
+
+        Region wedge;
+        wedge.insert(Halfplane(Point(0, 0), Point(1, 0)));
+        wedge.insert(Halfplane(Point(0, 0), Point(0, -1)));
+        REQUIRE_FALSE(wedge.isDegenerate());
+        expect(wedge, false, false, false, false);
+    }
+
+    SUBCASE("two opposite constraints are a line") {
+        const Region r{pgl::Line<Point>(Point(0, 0), Point(3, 1))};
+        expect(r, false, false, true, false);
+        const auto line = r.getIfLine();
+        REQUIRE(line);
+        CHECK(line->contains(Point(0, 0)));
+        CHECK(line->contains(Point(3, 1)));
+    }
+
+    SUBCASE("a ray is degenerate but none of the four") {
+        Region r{pgl::Line<Point>(Point(0, 0), Point(1, 0))};
+        r.insert(Halfplane(Point(0, 0), Point(0, 1)));  // clamp to x >= 0
+        REQUIRE(r.isDegenerate());
+        REQUIRE_FALSE(r.isEmpty());
+        expect(r, false, false, false, false);
+    }
+
+    SUBCASE("a point slab is a point") {
+        const Region r{Point(3, 4)};
+        expect(r, true, false, false, false);
+        CHECK(*r.getIfPoint() == Point(3, 4));
+    }
+
+    SUBCASE("a point pinned by three constraints with no opposite pair") {
+        // x >= 0, y >= 0, x + y <= 0 meet only at the origin.
+        Region r;
+        r.insert(Halfplane(Point(0, 0), Point(0, 1)));
+        r.insert(Halfplane(Point(0, 0), Point(-1, 0)));
+        r.insert(Halfplane(Point(0, 0), Point(1, -1)));
+        REQUIRE(r.size() == 3);
+        expect(r, true, false, false, false);
+        CHECK(*r.getIfPoint() == Point(0, 0));
+    }
+
+    SUBCASE("a segment slab is a segment") {
+        const Region r{Segment(Point(0, 0), Point(4, 2))};
+        expect(r, false, true, false, false);
+        CHECK(*r.getIfSegment() == Segment(Point(0, 0), Point(4, 2)));
+    }
+}
+
+TEST_CASE("HalfplaneIntersection::isPoint is exact for non-representable coordinates") {
+    using Point = pgl::Point<int>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rational = pgl::Rational<int64_t>;
+
+    // The lines x + y = 1 and y = x meet only at (1/2, 1/2), which is not
+    // representable as a Point<int>. The predicate must still say "point".
+    Region r;
+    r.insert(Halfplane(Point(0, 1), Point(1, 0)));
+    r.insert(Halfplane(Point(1, 0), Point(0, 1)));
+    r.insert(Halfplane(Point(0, 0), Point(1, 1)));
+    r.insert(Halfplane(Point(1, 1), Point(0, 0)));
+
+    REQUIRE(r.isDegenerate());
+    CHECK(r.isPoint());
+    CHECK_FALSE(r.isSegment());
+    CHECK_FALSE(r.isLine());
+    CHECK_FALSE(r.isHalfplane());
+
+    const auto exact = r.getIfPoint<Rational>();
+    REQUIRE(exact);
+    CHECK(exact->x() == Rational(1, 2));
+    CHECK(exact->y() == Rational(1, 2));
+}
+
+TEST_CASE("HalfplaneIntersection recognition works with rational coordinates") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using Region = pgl::HalfplaneIntersection<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    const Point a(Rational(0), Rational(0));
+    const Point b(Rational(1, 3), Rational(1, 3));
+    const Region r{Segment(a, b)};
+
+    CHECK(r.isSegment());
+    CHECK_FALSE(r.isPoint());
+    CHECK(*r.getIfSegment<Rational>() == Segment(a, b));
 }

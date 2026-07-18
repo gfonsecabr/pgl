@@ -649,6 +649,99 @@ struct HalfplaneIntersection {
     }
 
     /**
+     * @brief Returns whether the region is exactly one closed half-plane.
+     *
+     * A region equal to a half-plane keeps exactly one stored constraint: a
+     * half-plane can only contain another one when their boundaries share a
+     * direction, and @ref insert replaces a same-direction constraint by the
+     * tighter one rather than storing both.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isHalfplane() const;
+
+    /**
+     * @brief Returns the half-plane the region equals, if it is one.
+     *
+     * Exact: the stored constraint is returned as-is, with no division.
+     *
+     * @return The half-plane if @ref isHalfplane, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<HalfplaneType> getIfHalfplane() const;
+
+    /**
+     * @brief Returns whether the region is exactly one line.
+     *
+     * A degenerate region is a point, a segment, a ray, or a line; of those
+     * only the line has no vertex, so no coordinate arithmetic is needed to
+     * recognize it.
+     *
+     * Complexity: O(n).
+     */
+    [[nodiscard]] constexpr bool isLine() const;
+
+    /**
+     * @brief Returns the line the region equals, if it is one.
+     *
+     * Exact: every stored constraint of a line region is bounded by that line,
+     * so its boundary is returned directly, with no division.
+     *
+     * @return The line if @ref isLine, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<Line<PointType>> getIfLine() const;
+
+    /**
+     * @brief Returns whether the region is a single point.
+     *
+     * Decided exactly, on rational coordinates when the region is integral, so
+     * a point whose coordinates are not representable in @ref NumberType is
+     * still recognized. A non-degenerate region is rejected in O(1).
+     *
+     * Complexity: O(n) exact-arithmetic vertex computations for a degenerate
+     * bounded region, O(n) otherwise.
+     */
+    [[nodiscard]] constexpr bool isPoint() const;
+
+    /**
+     * @brief Returns the point the region collapses to, if it is one.
+     *
+     * @tparam ResultNumber Coordinate type of the returned point (default:
+     * NumberType).
+     * @warning Divides coordinates after casting to ResultNumber, so the result
+     * is generally inexact for integer types; request `pgl::Rational`
+     * coordinates for the exact point. The @ref isPoint test itself is exact
+     * regardless.
+     *
+     * @return The point if @ref isPoint, `std::nullopt` otherwise.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+    getIfPoint() const;
+
+    /**
+     * @brief Returns whether the region is a segment of positive length.
+     *
+     * @copydetails isPoint() const
+     */
+    [[nodiscard]] constexpr bool isSegment() const;
+
+    /**
+     * @brief Returns the segment the region collapses to, if it is one.
+     *
+     * @tparam ResultNumber Coordinate type of the returned endpoints (default:
+     * NumberType).
+     * @warning Divides coordinates after casting to ResultNumber, so the
+     * endpoints are generally inexact for integer types -- rounding may even
+     * collapse them together; request `pgl::Rational` coordinates for the exact
+     * segment. The @ref isSegment test itself is exact regardless.
+     *
+     * @return The segment if @ref isSegment, `std::nullopt` otherwise.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::optional<Segment<Point<ResultNumber, typename PointType::LabelType>>>
+    getIfSegment() const;
+
+    /**
      * @brief Returns whether the region is bounded.
      *
      * The empty region is bounded; the region is otherwise bounded exactly
