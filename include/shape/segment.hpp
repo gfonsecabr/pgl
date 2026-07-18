@@ -291,6 +291,19 @@ struct Segment {
     }
 
     /**
+     * @brief Returns the segment as a (degenerate) half-plane intersection.
+     *
+     * The region is the segment's supporting-line slab clamped perpendicularly
+     * at each endpoint; it has empty interior. A zero-length segment produces
+     * the corresponding single-point region.
+     *
+     * @return Half-plane intersection whose point set is this segment.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
+
+    /**
      * @brief Returns the segment rotated by 90k degrees around the origin.
      *
      * Endpoints are re-normalized after rotation.

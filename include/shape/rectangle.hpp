@@ -533,6 +533,19 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the rectangle as a half-plane intersection.
+     *
+     * The region is the intersection of the four edge half-planes. A degenerate
+     * rectangle produces the corresponding degenerate region (a segment or a
+     * point).
+     *
+     * @return Half-plane intersection whose point set is this rectangle.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
+
+    /**
      * @brief Converts the rectangle to a simple polygon.
      *
      * The four corners already follow the canonical polygon order

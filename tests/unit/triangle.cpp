@@ -624,3 +624,19 @@ TEST_CASE("Triangle measures squared Hausdorff distance to every lower-ranked sh
     CHECK(tri.squaredHausdorffDistance(other) == 200);
     CHECK(other.squaredHausdorffDistance(tri) == 200);
 }
+
+TEST_CASE("Triangle converts to a half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Triangle t(Point(0, 0), Point(4, 0), Point(0, 4));
+    const auto region = t.asHalfplaneIntersection();
+    static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
+    CHECK(!region.isEmpty());
+    CHECK(!region.isDegenerate());
+    CHECK(region.isBounded());
+    CHECK(region.interiorContains(Point(1, 1)));
+    CHECK(region.contains(Point(4, 0)));   // vertex on the boundary
+    CHECK(!region.contains(Point(3, 3)));  // outside the hypotenuse
+    CHECK(region == pgl::HalfplaneIntersection<Point>(t));
+}

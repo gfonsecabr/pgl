@@ -411,6 +411,18 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the triangle as a half-plane intersection.
+     *
+     * The region is the intersection of the three edge half-planes. A
+     * degenerate (collinear) triangle is undefined behavior.
+     *
+     * @return Half-plane intersection whose point set is this triangle.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
+
+    /**
      * @brief Converts the triangle to a simple polygon.
      *
      * The three vertices already follow the canonical polygon order

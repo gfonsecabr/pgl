@@ -274,6 +274,17 @@ struct Line {
         return OrientedLine<PointType>(min(), max()).asOrientedSegmentFor(rect).asSegment();
     }
 
+    /**
+     * @brief Returns the line as a (degenerate) half-plane intersection.
+     *
+     * A line is the intersection of the two opposite closed half-planes bounded
+     * by it, so the region has empty interior.
+     *
+     * @return Half-plane intersection whose point set is this line.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
 
     /**
      * @brief Returns the dual point.

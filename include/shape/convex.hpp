@@ -514,6 +514,19 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the convex polygon as a half-plane intersection.
+     *
+     * The region is the intersection of the edge half-planes. An empty polygon
+     * produces the empty region; a degenerate one (a point or a segment)
+     * produces the corresponding degenerate region.
+     *
+     * @return Half-plane intersection whose point set is this convex polygon.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<PointType>(*this);
+    }
+
+    /**
      * @brief Returns the lower hull: the boundary chain running from the
      * lexicographically smallest vertex to the lexicographically largest one,
      * counterclockwise (below the polygon).
