@@ -378,6 +378,62 @@ struct Convex {
     constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the convex polygon collapses to a single point.
+     *
+     * The hull invariant keeps the vertices distinct, so this normally means a
+     * single stored vertex; coincident vertices of a `trusted` polygon are
+     * handled too.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the polygon covers exactly one point.
+     */
+    [[nodiscard]] constexpr bool isPoint() const;
+
+    /**
+     * @brief Returns the point the convex polygon collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The vertex if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const;
+
+    /**
+     * @brief Returns whether the convex polygon collapses to a non-degenerate
+     * segment.
+     *
+     * Holds when exactly two distinct vertices are stored.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the polygon is a segment of positive length.
+     */
+    [[nodiscard]] constexpr bool isSegment() const;
+
+    /**
+     * @brief Returns the segment the convex polygon collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The segment between the two vertices if @ref isSegment,
+     *         `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const;
+
+    /**
+     * @brief Returns whether the convex polygon is degenerate without
+     * collapsing to a point or to a segment.
+     *
+     * True only for the empty polygon, which has no defining point.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the polygon has no vertices.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Computes the bounding box of the convex polygon.
      *
      * The result is computed on the first call and cached in @ref bbox_; later

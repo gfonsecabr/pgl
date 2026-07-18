@@ -472,6 +472,60 @@ struct Rectangle {
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the rectangle collapses to a single point.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if width and height are both zero.
+     */
+    [[nodiscard]] constexpr bool isPoint() const;
+
+    /**
+     * @brief Returns the point the rectangle collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The corner if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const;
+
+    /**
+     * @brief Returns whether the rectangle collapses to a non-degenerate segment.
+     *
+     * True when exactly one of width and height is zero, so the rectangle is a
+     * horizontal or vertical segment.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the rectangle is a segment of positive length.
+     */
+    [[nodiscard]] constexpr bool isSegment() const;
+
+    /**
+     * @brief Returns the segment the rectangle collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The segment from @ref min to @ref max if @ref isSegment,
+     *         `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const;
+
+    /**
+     * @brief Returns whether the rectangle is degenerate without collapsing to
+     * a point or to a segment.
+     *
+     * A rectangle is never undefined: a degenerate one is always a point or a
+     * segment, so this always returns `false`. Provided for uniformity with the
+     * other shapes.
+     *
+     * Complexity: O(1).
+     *
+     * @return `false`.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Returns the bounding box of the rectangle.
      *
      * @return This rectangle.

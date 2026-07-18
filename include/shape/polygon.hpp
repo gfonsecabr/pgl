@@ -285,6 +285,76 @@ struct Polygon {
     }
 
     /**
+     * @brief Checks whether the polygon covers exactly one point.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     *
+     * @return `true` if the polygon has at least one vertex and all are equal.
+     */
+    [[nodiscard]] constexpr bool isPoint() const {
+        return detail::allPointsEqual(points_);
+    }
+
+    /**
+     * @brief Returns the point the polygon collapses to, if it does.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     *
+     * @return The common vertex if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const {
+        if (!isPoint()) {
+            return std::nullopt;
+        }
+        return points_.front();
+    }
+
+    /**
+     * @brief Checks whether the polygon covers exactly one segment of positive
+     * length.
+     *
+     * True when the vertices are collinear but not all equal. The boundary is a
+     * closed walk, so collinear vertices make it cover the single segment
+     * spanning them.
+     *
+     * Complexity: O(n), returning at the first non-collinear vertex.
+     */
+    [[nodiscard]] constexpr bool isSegment() const {
+        return detail::pointsSpanSegment(points_);
+    }
+
+    /**
+     * @brief Returns the segment the polygon collapses to, if it does.
+     *
+     * Complexity: O(n).
+     *
+     * @return The spanned segment if @ref isSegment, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const {
+        if (!isSegment()) {
+            return std::nullopt;
+        }
+        return detail::spannedSegment<BoundaryType<false>>(points_);
+    }
+
+    /**
+     * @brief Checks whether the polygon is degenerate without covering a point
+     * or a segment.
+     *
+     * Zero area does not imply collinear vertices: a self-overlapping boundary
+     * whose signed area cancels out (or one that retraces a non-straight path)
+     * is degenerate yet covers more than a segment. Such a polygon, and the
+     * empty one, are the undefined cases.
+     *
+     * Complexity: O(n).
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        // Ordered so the cheap point/segment scans reject the common cases
+        // before paying for the full area sum.
+        return !isPoint() && !isSegment() && isDegenerate();
+    }
+
+    /**
      * @brief Tests whether the polygon is simple (its boundary does not
      *        touch or cross itself).
      *
