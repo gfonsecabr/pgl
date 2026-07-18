@@ -1147,6 +1147,34 @@ constexpr std::optional<Line<PointType>> HalfplaneIntersection<PointType, LabelT
 }
 
 template <class PointType, class LabelType>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::isRay() const {
+    // The unbounded degenerate regions are the ray and the line, and only the
+    // ray has a vertex; the bounded ones (point, segment) are excluded by
+    // isBounded.
+    return !isEmpty() && isDegenerate() && !isBounded() && vertexCount() > 0;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr std::optional<Ray<Point<ResultNumber, typename PointType::LabelType>>>
+HalfplaneIntersection<PointType, LabelType>::getIfRay() const {
+    if (!isRay()) {
+        return std::nullopt;
+    }
+    // The region has empty interior, so the constraints bounded by its
+    // supporting line have the whole region as their edge. `edge` orients the
+    // ray by which end carries the vertex, so either of them answers.
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    for (std::size_t i = 0; i < size(); ++i) {
+        const auto e = this->template edge<ResultNumber>(i);
+        if (const auto* ray = std::get_if<Ray<ResultPoint>>(&e)) {
+            return *ray;
+        }
+    }
+    return std::nullopt;  // Unreachable for a ray region.
+}
+
+template <class PointType, class LabelType>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::isPoint() const {
     if (isEmpty() || !isDegenerate()) {
         return false;
