@@ -691,6 +691,33 @@ struct HalfplaneIntersection {
     [[nodiscard]] constexpr std::optional<Line<PointType>> getIfLine() const;
 
     /**
+     * @brief Returns whether the region is exactly one ray.
+     *
+     * Recognized without coordinate arithmetic: among the degenerate regions a
+     * point and a segment are bounded, and of the two unbounded ones only the
+     * ray has a vertex (its source).
+     *
+     * Complexity: O(n).
+     */
+    [[nodiscard]] constexpr bool isRay() const;
+
+    /**
+     * @brief Returns the ray the region equals, if it is one.
+     *
+     * @tparam ResultNumber Coordinate type of the returned ray (default:
+     * NumberType).
+     * @warning Divides coordinates after casting to ResultNumber, so the source
+     * is generally inexact for integer types; request `pgl::Rational`
+     * coordinates for the exact ray. The @ref isRay test itself is exact
+     * regardless.
+     *
+     * @return The ray if @ref isRay, `std::nullopt` otherwise.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr std::optional<Ray<Point<ResultNumber, typename PointType::LabelType>>>
+    getIfRay() const;
+
+    /**
      * @brief Returns whether the region is a single point.
      *
      * Decided exactly, on rational coordinates when the region is integral, so
