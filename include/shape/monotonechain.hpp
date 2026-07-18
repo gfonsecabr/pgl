@@ -39,6 +39,63 @@ template <class Storage, class PointType>
 concept ownsChainStorage = requires(Storage& s, const PointType& p) {
     s.push_back(p);
 };
+
+/**
+ * @brief True when every point of a non-empty range is the same point.
+ *
+ * Backs @ref MonotoneChain::isPoint and, further down the include chain,
+ * @ref Polyline::isPoint and @ref Polygon::isPoint. Stops at the first
+ * differing point, so a non-degenerate shape usually costs O(1).
+ *
+ * @return `false` for an empty range: a point needs a defining vertex.
+ */
+template <std::ranges::forward_range Range>
+constexpr bool allPointsEqual(const Range& points) {
+    auto first = std::ranges::begin(points);
+    const auto last = std::ranges::end(points);
+    if (first == last) {
+        return false;
+    }
+    return std::find_if(std::next(first), last,
+                        [&](const auto& p) { return p != *first; }) == last;
+}
+
+/**
+ * @brief True when the points of a range are collinear and not all equal, so
+ * they span a segment of positive length.
+ *
+ * Backs the `isSegment` predicates of @ref MonotoneChain, @ref Polyline and
+ * @ref Polygon. Stops at the first non-collinear point, so a shape with real
+ * area usually costs O(1).
+ */
+template <std::ranges::forward_range Range>
+constexpr bool pointsSpanSegment(const Range& points) {
+    const auto first = std::ranges::begin(points);
+    const auto last = std::ranges::end(points);
+    if (first == last) {
+        return false;
+    }
+    // Anchor the line on the first point and the first one differing from it.
+    const auto second = std::find_if(std::next(first), last,
+                                     [&](const auto& p) { return p != *first; });
+    if (second == last) {
+        return false;  // All equal: a point, not a segment.
+    }
+    return std::all_of(std::next(second), last,
+                       [&](const auto& p) { return collinear(*first, *second, p); });
+}
+
+/**
+ * @brief Returns the segment spanned by a range of collinear points.
+ *
+ * @pre `pointsSpanSegment(points)` holds, so the lexicographic extremes are the
+ *      endpoints of the spanned segment.
+ */
+template <class SegmentType, std::ranges::forward_range Range>
+constexpr SegmentType spannedSegment(const Range& points) {
+    const auto [low, high] = std::ranges::minmax_element(points);
+    return SegmentType(*low, *high);
+}
 }  // namespace detail
 
 MonotoneChain() -> MonotoneChain<Point<>, NoLabel>;
@@ -346,6 +403,76 @@ struct MonotoneChain {
      */
     constexpr bool isDegenerate() const {
         return points_.size() < 2;
+    }
+
+    /**
+     * @brief Checks whether the chain covers exactly one point.
+     *
+     * Unlike @ref isDegenerate, this is about the point set rather than the
+     * edge count: a chain repeating one vertex many times is a single point.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     *
+     * @return `true` if the chain has at least one vertex and all are equal.
+     */
+    [[nodiscard]] constexpr bool isPoint() const {
+        return detail::allPointsEqual(points_);
+    }
+
+    /**
+     * @brief Returns the point the chain collapses to, if it does.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     *
+     * @return The common vertex if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const {
+        if (!isPoint()) {
+            return std::nullopt;
+        }
+        return points_.front();
+    }
+
+    /**
+     * @brief Checks whether the chain covers exactly one segment of positive
+     * length.
+     *
+     * True when the vertices are collinear but not all equal. The chain is
+     * connected, so collinear vertices make its edges cover the single segment
+     * spanning them.
+     *
+     * Complexity: O(n), returning at the first non-collinear vertex.
+     */
+    [[nodiscard]] constexpr bool isSegment() const {
+        return detail::pointsSpanSegment(points_);
+    }
+
+    /**
+     * @brief Returns the segment the chain collapses to, if it does.
+     *
+     * Complexity: O(n).
+     *
+     * @return The spanned segment if @ref isSegment, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const {
+        if (!isSegment()) {
+            return std::nullopt;
+        }
+        return detail::spannedSegment<BoundaryType<false>>(points_);
+    }
+
+    /**
+     * @brief Checks whether the chain is degenerate without covering a point or
+     * a segment.
+     *
+     * True only for the empty chain, which has no defining vertex: a chain with
+     * a single vertex is a point, and any chain with an edge covers at least a
+     * segment.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return empty();
     }
 
     /**

@@ -141,6 +141,8 @@ A segment `s` has methods such as:
 - [`s.length()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#a8c2640b1515b891d3458b89e2bf852ac "Returns the Euclidean length."): Returns `s[0].distance(s[1])`.
 - [`s.squaredLength()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#ae7e06f6bf41a97e0b9a2e2af80eb442d "Returns the squared Euclidean length."): Returns `s[0].squaredDistance(s[1])`.
 - [`s.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#a2d653f0f6dfd0664e8afe91816e262c1 "Returns whether both endpoints coincide."): Returns `s.length() == 0`.
+- `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `s.isUndefined()`: Always `false`: a degenerate segment is always a point.
 - [`s.isVertical()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#ad93d1387983c7189e9e201382111c87c "Returns whether the segment is vertical."): Returns `s[0].x() == s[1].x()`.
 - [`s.isHorizontal()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#a6903b76ac4686b9335f6f116c53f322d "Returns whether the segment is horizontal."): Returns `s[0].y() == s[1].y()`.
 - [`s.containsEndpoint(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html#a90315b916a47d2356ff1793db49f9d63 "Returns whether the given point is one endpoint."): Returns `s[0] == p || s[1] == p`
@@ -183,6 +185,8 @@ An oriented segment `s` has all methods of the [`Segment`](https://gfonsecabr.gi
 - [`s.length()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a003b0ff77fdeaff80dfcd5591f884a8f "Returns the Euclidean length."): Returns `s[0].distance(s[1])`.
 - [`s.squaredLength()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a9314e8f0decc3ea85b2ec04a6bb845d8 "Returns the squared Euclidean length."): Returns `s[0].squaredDistance(s[1])`.
 - [`s.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a4dc0c036962ec7a1a9142296de15e64f "Returns whether both endpoints coincide."): Returns `s.length() == 0`.
+- `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `s.isUndefined()`: Always `false`: a degenerate segment is always a point.
 - [`s.isVertical()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a7193013018c0600c23b9719e9a631247 "Returns whether the segment is vertical."): Returns `s[0].x() == s[1].x()`.
 - [`s.isHorizontal()`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#ac8af96509cf5232e92b04a02cedcfa46 "Returns whether the segment is horizontal."): Returns `s[0].y() == s[1].y()`.
 - [`s.containsEndpoint(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html#a270cc8f80403c643fd94bc36e9ecff50 "Returns whether the given point is one endpoint."): Returns `s[0] == p || s[1] == p`
@@ -376,6 +380,9 @@ for(pgl::OrientedSegment s : t.orientedEdges()) std::cout << s << ' ';
 A triangle `t` has methods such as:
 
 - [`t.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html#ab159614e587f6dc4a75789f98fb7a848 "Tests whether the three vertices are collinear."): Returns true if there are equal vertices or all vertices are collinear.
+- `t.isPoint()` / `t.getIfPoint()`: Whether the triangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `t.isSegment()` / `t.getIfSegment()`: Whether the triangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `t.isUndefined()`: Always `false`: a degenerate triangle is always a point or a segment.
 - [`t.centroid()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html#af601a145a531947ed2b4475ab0102f78 "Returns the arithmetic centroid."): Returns the centroid.
 - [`t.circumcircle()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html#a0b9e50f4c10a634c4706884ff2894fb7 "Returns the circumcircle of the triangle."): Returns the circumcircle.
 - [`t.isRectangle()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html#a4cfb7d8fffa11293343c535bc4825e3f "Tests whether the triangle has a right angle."): Returns whether one angle is 90 degrees.
@@ -413,6 +420,9 @@ for(pgl::OrientedSegment s : r.orientedEdges()) std::cout << s << ' ';
 A rectangle `r` has methods such as:
 
 - [`r.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html#a380388f13b2cd9a5ad8f4f806e31be84 "Returns whether the rectangle has empty interior."): Returns true if the rectangle has null area.
+- `r.isPoint()` / `r.getIfPoint()`: Whether the rectangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `r.isSegment()` / `r.getIfSegment()`: Whether the rectangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `r.isUndefined()`: Always `false`: a degenerate rectangle is always a point or a segment.
 - [`r.centroid()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html#a553634d0d486ae85ec22c6a036855f0e "Returns the centroid of the rectangle."): Returns the centroid.
 - [`r.circumcircle()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html#a96f720c89b9116686118e6085374a7ab "Returns the circumcircle of the rectangle."): Returns the circumcircle.
 - [`r.insert(s)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html#a02c20ec22014c7dbd29d3b2489527b59 "Enlarges the rectangle so that it contains the given point."): Enlarges the rectangle in order to contain a finite shape `s`. The shape must expose [`bbox()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html#ae88798364c0bf20cd4d14c259fa33dcd "Returns the bounding box of the rectangle.").
@@ -439,6 +449,8 @@ std::cout << d2 << std::endl;
 Disk does not have the [`intersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#aa9af5f0f6a0a4d6d6139d6c3697a3abd "Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.") method and cannot be scaled on a single axis. A disk `d` has methods such as:
 
 - [`d.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a19e32c8b7656bfe02982c8a40ea0ff57 "Returns whether the three boundary points are collinear."): Returns true if the points are collinear or equal.
+- `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `d.isUndefined()`: True if the boundary points are collinear but not all equal, so no circle passes through them and the disk describes no region.
 - [`d.radius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a69765084e501902a81583032fdb7c816 "Returns the center in this disk's exact coordinate type."): Returns the radius length.
 - [`d.squaredRadius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a0027c4ab0d85b7ff3e5b0d5b42b1745f "Returns the squared radius in an explicitly chosen result type."): Returns the squared radius.
 - [`d.center()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a01f21dd5b971164474843df4ad71bfc1 "Returns the center (circumcenter of the three boundary points) in an explicitly chosen coordinate type."): Returns the center point.
@@ -456,6 +468,9 @@ A chain may be constructed from any container of points, which will be sorted au
 We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A chain `P` with $n$ vertices has methods such as:
 
 - [`P.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html#a7eb13f8c59d5d0798e3e15bfca4739a6 "Checks if the chain is degenerate (fewer than two vertices, so it has no edge)."): Returns true if the chain has fewer than two vertices, and hence no edge.
+- `P.isPoint()` / `P.getIfPoint()`: Whether the chain collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the chain collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True only for an empty chain, which has no vertex.
 - [`P.isStrictlyMonotone()`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html#ad6166871233a0625fdd3ce18f00b2f5c "Tests whether the chain is strictly x-monotone."): Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
 - [`P.insert(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html#a5cd1ec77da22ad3d957149d51e3d8a05 "Extends the chain to contain the given point as a vertex."): Extends the chain in order to contain another point `p` as a vertex.
 - [`P.insert(points)`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html#a5cd1ec77da22ad3d957149d51e3d8a05 "Extends the chain to contain the given point as a vertex."): Extends the chain in order to contain all the given points as vertices.
@@ -482,6 +497,9 @@ A polyline can be constructed from any container of points, or from a flat list 
 A polyline `P` with $n$ vertices has methods such as:
 
 - [`P.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html#a3c7ecb999d35c0430c7ec57468f9d9d1 "Checks if the polyline is degenerate (all vertices are equal, so it covers at most a single point)."): Returns true if all vertices are equal (in particular for an empty or single-vertex polyline).
+- `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True only for an empty polyline, which has no vertex.
 - [`P.isSimple()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html#a109775a30d3c17acb2b610e5139a17ee "Tests whether the polyline is simple (it does not touch or cross itself)."): Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types (and $O(n^2)$ for floating point).
 - [`P.length()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html#a9317b71453005525d3e6d20309478119 "Computes the Euclidean length of the polyline (the sum of its edge lengths)."), [`P.lengthL1()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html#aa07788cbfbca38496e4920d9a6cbc827 "Computes the Manhattan (L1) length of the polyline."), [`P.lengthLInf()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html#a6a8eb393f3ee27522fc9de7d3601475a "Computes the Chebyshev (LInf) length of the polyline."): Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
@@ -501,6 +519,9 @@ The class template [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Pol
 A polygon `P` has methods such as:
 
 - [`P.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#af1d297b10aee661458543c2f5fa00645 "Checks if the polygon is degenerate (has zero area)."): Returns true if the polygon has null area.
+- `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
 - [`P.isSimple()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a5e182cf106f6be5ed3fb49c07daf80c6 "Tests whether the polygon is simple (its boundary does not touch or cross itself)."): Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 - [`P.isConvex()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a4fd2d656a5e668f8679db56d2d7d5257 "Tests whether the polygon is convex."): Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - [`P.untangle()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#ab85503d835bc7afa41dedd1140caa1dc "Makes the polygon simple in place by uncrossing its boundary."): Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return [`P.isSimple()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a5e182cf106f6be5ed3fb49c07daf80c6 "Tests whether the polygon is simple (its boundary does not touch or cross itself).") holds. Worst-case complexity is high.
@@ -515,6 +536,9 @@ The class template [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Conv
 A convex polygon `c` has methods such as:
 
 - [`c.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a460c2cbe73f75e60d0153be2acb1662d "Checks if the convex polygon is degenerate (has zero area)."): Returns true if the convex polygon has null area.
+- `c.isPoint()` / `c.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `c.isSegment()` / `c.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `c.isUndefined()`: True only for an empty convex polygon, which has no vertex.
 - [`c.centroid()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#ad4000c6649317b13e2695a209d9102e8 "Computes the centroid of the convex polygon."): Returns the centroid.
 - [`c.insert(s)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a573355b49f7a15907cd3dec3ac3e8624 "Enlarges the convex polygon so that it contains the given point."): Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - [`c.insert(points)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html#a573355b49f7a15907cd3dec3ac3e8624 "Enlarges the convex polygon so that it contains the given point."): Enlarges the convex polygon in order to contain every point in the input range.

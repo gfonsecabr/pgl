@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <iterator>
 #include <numbers>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -345,6 +346,47 @@ struct Disk {
      */
     constexpr bool isDegenerate() const {
         return orientationSign(a(), b(), c()) == std::partial_ordering::equivalent;
+    }
+
+    /**
+     * @brief Returns whether the disk collapses to a single point.
+     *
+     * True when all three boundary points coincide, i.e. the disk has zero
+     * radius.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isPoint() const {
+        return a() == b() && b() == c();
+    }
+
+    /**
+     * @brief Returns the point the disk collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The common boundary point if @ref isPoint, `std::nullopt`
+     *         otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const {
+        if (!isPoint()) {
+            return std::nullopt;
+        }
+        return a();
+    }
+
+    /**
+     * @brief Returns whether the disk is degenerate without collapsing to a
+     * point.
+     *
+     * True when the boundary points are collinear but not all equal: no circle
+     * passes through them, so the disk describes no region. A disk never
+     * collapses to a segment, so this is the only undefined case.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return !isPoint() && isDegenerate();
     }
 
     /**

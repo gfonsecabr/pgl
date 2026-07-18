@@ -363,6 +363,41 @@ struct Segment {
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the segment collapses to a single point.
+     *
+     * Equivalent to @ref isDegenerate for a segment, which always has two
+     * defining points.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if both endpoints coincide.
+     */
+    [[nodiscard]] constexpr bool isPoint() const;
+
+    /**
+     * @brief Returns the point the segment collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The common endpoint if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const;
+
+    /**
+     * @brief Returns whether the segment is degenerate without collapsing to a
+     * point or to a segment.
+     *
+     * A segment is never undefined: its only degeneracy is collapsing to a
+     * point, so this always returns `false`. Provided for uniformity with the
+     * other shapes.
+     *
+     * Complexity: O(1).
+     *
+     * @return `false`.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Returns whether the segment is vertical.
      *
      * @return `true` if both endpoints share the same x-coordinate.

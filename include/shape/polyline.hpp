@@ -306,6 +306,73 @@ struct Polyline {
     }
 
     /**
+     * @brief Checks whether the polyline covers exactly one point.
+     *
+     * Same as @ref isDegenerate except for the empty polyline, which has no
+     * defining vertex and so is not a point.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     */
+    [[nodiscard]] constexpr bool isPoint() const {
+        return detail::allPointsEqual(points_);
+    }
+
+    /**
+     * @brief Returns the point the polyline collapses to, if it does.
+     *
+     * Complexity: O(n), returning at the first differing vertex.
+     *
+     * @return The common vertex if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const {
+        if (!isPoint()) {
+            return std::nullopt;
+        }
+        return points_.front();
+    }
+
+    /**
+     * @brief Checks whether the polyline covers exactly one segment of positive
+     * length.
+     *
+     * True when the vertices are collinear but not all equal. The polyline is
+     * connected, so collinear vertices make its edges cover the single segment
+     * spanning them, however many times they retrace it.
+     *
+     * Complexity: O(n), returning at the first non-collinear vertex.
+     */
+    [[nodiscard]] constexpr bool isSegment() const {
+        return detail::pointsSpanSegment(points_);
+    }
+
+    /**
+     * @brief Returns the segment the polyline collapses to, if it does.
+     *
+     * Complexity: O(n).
+     *
+     * @return The spanned segment if @ref isSegment, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const {
+        if (!isSegment()) {
+            return std::nullopt;
+        }
+        return detail::spannedSegment<BoundaryType<false>>(points_);
+    }
+
+    /**
+     * @brief Checks whether the polyline is degenerate without covering a point
+     * or a segment.
+     *
+     * True only for the empty polyline, which has no defining vertex: any other
+     * degenerate polyline has all vertices equal and is therefore a point.
+     *
+     * Complexity: O(1).
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return empty();
+    }
+
+    /**
      * @brief Tests whether the polyline is simple (it does not touch or cross
      * itself).
      *

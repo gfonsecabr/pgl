@@ -16,6 +16,7 @@
 #include <concepts>
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -314,6 +315,60 @@ struct Triangle {
      * @return `true` when @ref twiceArea is zero.
      */
     [[nodiscard]] constexpr bool isDegenerate() const;
+
+    /**
+     * @brief Returns whether the triangle collapses to a single point.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if all three vertices coincide.
+     */
+    [[nodiscard]] constexpr bool isPoint() const;
+
+    /**
+     * @brief Returns the point the triangle collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The common vertex if @ref isPoint, `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<PointType> getIfPoint() const;
+
+    /**
+     * @brief Returns whether the triangle collapses to a non-degenerate segment.
+     *
+     * True when the vertices are collinear but not all equal, so the triangle
+     * covers exactly the segment spanning them.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the triangle is a segment of positive length.
+     */
+    [[nodiscard]] constexpr bool isSegment() const;
+
+    /**
+     * @brief Returns the segment the triangle collapses to, if it does.
+     *
+     * Complexity: O(1).
+     *
+     * @return The segment spanning the collinear vertices if @ref isSegment,
+     *         `std::nullopt` otherwise.
+     */
+    [[nodiscard]] constexpr std::optional<BoundaryType<false>> getIfSegment() const;
+
+    /**
+     * @brief Returns whether the triangle is degenerate without collapsing to a
+     * point or to a segment.
+     *
+     * A triangle is never undefined: collinear vertices always span a point or
+     * a segment, so this always returns `false`. Provided for uniformity with
+     * the other shapes.
+     *
+     * Complexity: O(1).
+     *
+     * @return `false`.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
 
     /**
      * @brief Returns the axis-aligned bounding box of the vertices.

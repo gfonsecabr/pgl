@@ -56,6 +56,24 @@ constexpr bool Segment<PointType, LabelType>::isDegenerate() const {
 }
 
 template <class PointType, class LabelType>
+constexpr bool Segment<PointType, LabelType>::isPoint() const {
+    return min() == max();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<PointType> Segment<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    return min();
+}
+
+template <class PointType, class LabelType>
+constexpr bool Segment<PointType, LabelType>::isUndefined() const {
+    return false;
+}
+
+template <class PointType, class LabelType>
 constexpr bool Segment<PointType, LabelType>::isVertical() const {
     return min().x() == max().x();
 }
@@ -207,6 +225,39 @@ constexpr bool Triangle<PointType, LabelType>::isDegenerate() const {
 }
 
 template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isPoint() const {
+    return a() == b() && b() == c();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<PointType> Triangle<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    return a();
+}
+
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isSegment() const {
+    return isDegenerate() && !isPoint();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<typename Triangle<PointType, LabelType>::template BoundaryType<false>>
+Triangle<PointType, LabelType>::getIfSegment() const {
+    if (!isSegment()) {
+        return std::nullopt;
+    }
+    // The vertices are collinear, so the lexicographic extremes span them all.
+    return BoundaryType<false>(std::min({a(), b(), c()}), std::max({a(), b(), c()}));
+}
+
+template <class PointType, class LabelType>
+constexpr bool Triangle<PointType, LabelType>::isUndefined() const {
+    return false;
+}
+
+template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Triangle<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
     return a().contains(point) || b().contains(point) || c().contains(point);
@@ -221,6 +272,24 @@ constexpr bool Triangle<PointType, LabelType>::verticesContain(const OtherPoint&
 template <class PointType, class LabelType>
 constexpr bool OrientedSegment<PointType, LabelType>::isDegenerate() const {
     return source() == target();
+}
+
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::isPoint() const {
+    return source() == target();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<PointType> OrientedSegment<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    return source();
+}
+
+template <class PointType, class LabelType>
+constexpr bool OrientedSegment<PointType, LabelType>::isUndefined() const {
+    return false;
 }
 
 template <class PointType, class LabelType>
@@ -778,6 +847,38 @@ constexpr bool Rectangle<PointType, LabelType>::isDegenerate() const {
     return !(min().x() < max().x()) || !(min().y() < max().y());
 }
 
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::isPoint() const {
+    return min() == max();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<PointType> Rectangle<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    return min();
+}
+
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::isSegment() const {
+    return isDegenerate() && !isPoint();
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<typename Rectangle<PointType, LabelType>::template BoundaryType<false>>
+Rectangle<PointType, LabelType>::getIfSegment() const {
+    if (!isSegment()) {
+        return std::nullopt;
+    }
+    return BoundaryType<false>(min(), max());
+}
+
+template <class PointType, class LabelType>
+constexpr bool Rectangle<PointType, LabelType>::isUndefined() const {
+    return false;
+}
+
 
 template <class PointType, class LabelType>
 template <class Left, class Right>
@@ -847,6 +948,40 @@ constexpr bool Halfplane<PointType, LabelType>::verticesContain(const OtherPoint
 template <class PointType, class LabelType>
 constexpr bool Convex<PointType, LabelType>::isDegenerate() const {
     return size() < 3;
+}
+
+template <class PointType, class LabelType>
+constexpr bool Convex<PointType, LabelType>::isPoint() const {
+    // grahamScan drops duplicates, so size() == 2 implies distinct vertices;
+    // the equality test only matters for a `trusted` polygon built by hand.
+    return size() == 1 || (size() == 2 && (*this)[0] == (*this)[1]);
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<PointType> Convex<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    return (*this)[0];
+}
+
+template <class PointType, class LabelType>
+constexpr bool Convex<PointType, LabelType>::isSegment() const {
+    return size() == 2 && (*this)[0] != (*this)[1];
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<typename Convex<PointType, LabelType>::template BoundaryType<false>>
+Convex<PointType, LabelType>::getIfSegment() const {
+    if (!isSegment()) {
+        return std::nullopt;
+    }
+    return BoundaryType<false>((*this)[0], (*this)[1]);
+}
+
+template <class PointType, class LabelType>
+constexpr bool Convex<PointType, LabelType>::isUndefined() const {
+    return size() == 0;
 }
 
 template <class PointType, class LabelType>
