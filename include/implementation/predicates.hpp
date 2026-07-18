@@ -1107,4 +1107,87 @@ constexpr std::ptrdiff_t Convex<PointType, LabelType>::index(const PointType& po
     return -1;
 }
 
+/**
+ * @section predicates-halfplane-intersection HalfplaneIntersection
+ * Shape-recognition predicates: which lower- or full-dimensional shape the
+ * region actually is. Together with `isEmpty`, `isPlane` and the ray case,
+ * these cover every region a half-plane intersection can describe.
+ */
+
+template <class PointType, class LabelType>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::isHalfplane() const {
+    return !isEmpty() && size() == 1;
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<typename HalfplaneIntersection<PointType, LabelType>::HalfplaneType>
+HalfplaneIntersection<PointType, LabelType>::getIfHalfplane() const {
+    if (!isHalfplane()) {
+        return std::nullopt;
+    }
+    return (*this)[0];
+}
+
+template <class PointType, class LabelType>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::isLine() const {
+    // Among the degenerate regions only a line has no vertex: a point and a
+    // segment are bounded (so every consecutive pair turns), and a ray turns at
+    // its source.
+    return !isEmpty() && isDegenerate() && vertexCount() == 0;
+}
+
+template <class PointType, class LabelType>
+constexpr std::optional<Line<PointType>> HalfplaneIntersection<PointType, LabelType>::getIfLine() const {
+    if (!isLine()) {
+        return std::nullopt;
+    }
+    // Every stored constraint of a line region is bounded by that line: one
+    // whose boundary differed would cut it and leave a ray or less.
+    return (*this)[0].asLine();
+}
+
+template <class PointType, class LabelType>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::isPoint() const {
+    if (isEmpty() || !isDegenerate()) {
+        return false;
+    }
+    using ExactPoint = Point<detail::region_exact_number_t<NumberType>, typename PointType::LabelType>;
+    return std::holds_alternative<ExactPoint>(detail::degenerateRegionCarrier(*this));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
+HalfplaneIntersection<PointType, LabelType>::getIfPoint() const {
+    if (!isPoint()) {
+        return std::nullopt;
+    }
+    // Every vertex of a point region is that point.
+    return this->template vertices<ResultNumber>().front();
+}
+
+template <class PointType, class LabelType>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::isSegment() const {
+    if (isEmpty() || !isDegenerate()) {
+        return false;
+    }
+    using ExactPoint = Point<detail::region_exact_number_t<NumberType>, typename PointType::LabelType>;
+    return std::holds_alternative<Segment<ExactPoint>>(detail::degenerateRegionCarrier(*this));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr std::optional<Segment<Point<ResultNumber, typename PointType::LabelType>>>
+HalfplaneIntersection<PointType, LabelType>::getIfSegment() const {
+    if (!isSegment()) {
+        return std::nullopt;
+    }
+    // The vertices are the (partly coincident) endpoints; the segment spans the
+    // lexicographic extremes among them.
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    const auto verts = this->template vertices<ResultNumber>();
+    const auto [low, high] = std::ranges::minmax_element(verts);
+    return Segment<ResultPoint>(*low, *high);
+}
+
 }  // namespace pgl
