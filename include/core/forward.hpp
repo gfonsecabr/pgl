@@ -281,4 +281,42 @@ template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 template <class T> concept TransformationConcept = detail::is_transformation_v<T>;
 
+namespace detail {
+
+/**
+ * @brief Evaluates @p predicate on the carrier of a shape that has collapsed to
+ * a point or to a segment, and returns `false` when @p other has not collapsed.
+ *
+ * A shape satisfying `isPoint` or `isSegment` covers exactly the point set of
+ * that point or segment, so a predicate whose answer is a constant `false` for
+ * a full-dimensional argument must still answer correctly for such a carrier.
+ * Writing `return detail::reduceDegenerate(other, ...)` in place of
+ * `return false` restores that case while keeping the constant answer for
+ * arguments that cannot collapse (lines, rays, half-planes have no `getIf*`
+ * accessor) and for arguments that simply are not degenerate.
+ *
+ * The recursion this induces terminates: the carrier of a collapsed shape is a
+ * `Point` or a non-degenerate `Segment`, and neither reduces any further.
+ *
+ * @param other Shape that may have collapsed to a lower dimension.
+ * @param predicate Callable accepting the carrier point or segment.
+ * @return The predicate's value on the carrier, or `false` if there is none.
+ */
+template <class Other, class Predicate>
+constexpr bool reduceDegenerate(const Other& other, Predicate predicate) {
+    if constexpr (requires { other.getIfPoint(); }) {
+        if (const auto vertex = other.getIfPoint()) {
+            return predicate(*vertex);
+        }
+    }
+    if constexpr (requires { other.getIfSegment(); }) {
+        if (const auto carrier = other.getIfSegment()) {
+            return predicate(*carrier);
+        }
+    }
+    return false;
+}
+
+}  // namespace detail
+
 }  // namespace pgl

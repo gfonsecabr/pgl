@@ -344,11 +344,24 @@ struct HalfplaneIntersection {
     /**
      * @brief Creates the region of a triangle as three half-planes.
      *
-     * A degenerate (collinear) triangle is undefined behavior.
+     * A collinear triangle collapses to the segment spanning its vertices, and
+     * a triangle with three equal vertices to that point.
      */
     template <TriangleConcept OtherTriangle>
     constexpr explicit HalfplaneIntersection(const OtherTriangle& triangle) {
-        assert(!triangle.isDegenerate());
+        if (const auto vertex = triangle.getIfPoint()) {
+            // A single point: all three edges would be degenerate.
+            buildPointSlab(PointType(*vertex));
+            canonicalizeSorted();
+            return;
+        }
+        if (const auto carrier = triangle.getIfSegment()) {
+            // Collinear vertices: the edges span the carrier segment, and at
+            // least one of them would be degenerate.
+            buildSegmentSlab(PointType(carrier->min()), PointType(carrier->max()));
+            canonicalizeSorted();
+            return;
+        }
         // Triangle vertices are CCW when non-degenerate, so each edge's
         // half-plane has the interior on its left.
         for (std::size_t i = 0; i < 3; ++i) {

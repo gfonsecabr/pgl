@@ -664,7 +664,8 @@ constexpr bool Halfplane<PointType, LabelType>::interiorsIntersect(const OtherOr
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Halfplane<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
-    if (isDegenerate()) {
+    if (isDegenerate() || other.isPoint()) {
+        // A segment collapsed to a point is all boundary and has no interior.
         return false;
     }
     const auto first_side = orientationDeterminant(source(), target(), other.min());
@@ -676,7 +677,8 @@ constexpr bool Halfplane<PointType, LabelType>::interiorsIntersect(const OtherSe
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Halfplane<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
-    if (isDegenerate()) {
+    if (isDegenerate() || other.isPoint()) {
+        // A segment collapsed to a point is all boundary and has no interior.
         return false;
     }
     const auto first_side = orientationDeterminant(source(), target(), other.source());
@@ -903,6 +905,10 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherConve
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        // Either operand collapsed to a lower dimension has empty interior.
+        return false;
+    }
     // Interiors meet when a convex edge passes through the open disk, or the
     // disk lies inside the convex (a point strictly inside the disk is in the
     // convex's interior). The latter uses a disk-interior point as the witness:
@@ -1133,6 +1139,15 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConv
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPolygon& other) const {
+    // A polygon collapsed to a single point is all boundary, and its boundary
+    // has no lexicographic break for BoundaryChains to split on, so reduce it
+    // to that point first.
+    if (const auto vertex = getIfPoint()) {
+        return other.boundaryContains(*vertex);
+    }
+    if (const auto vertex = other.getIfPoint()) {
+        return boundaryContains(*vertex);
+    }
     // Produce both boundary decompositions in lockstep, testing each new chain
     // against every already-produced chain of the other polygon before building
     // the next, and stop at the first shared point. See BoundaryChains.
@@ -1162,6 +1177,11 @@ constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPol
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::boundariesStrongCross(const OtherPolygon& other) const {
+    // A polygon collapsed to a single point has no edges to cross with, and
+    // its boundary offers BoundaryChains no lexicographic break to split on.
+    if (isPoint() || other.isPoint()) {
+        return false;
+    }
     // Produce both boundary decompositions in lockstep, testing each new chain
     // against every already-produced chain of the other polygon before building
     // the next, and stop at the first shared point. See BoundaryChains.
@@ -1432,13 +1452,17 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay& ot
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        // A radius-zero disk is a point and has empty interior.
+        return false;
+    }
     return interiorsIntersect(other.asLine()) || pointInsideInteriorContainedIn(other);
 }
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isDegenerate()) {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
     // Interiors meet when a rectangle edge passes through the open disk, or the
@@ -1456,7 +1480,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectang
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
-    if (other.isDegenerate()) {
+    if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
     // Interiors meet when a triangle edge passes through the open disk, or the
@@ -1474,6 +1498,10 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherTriangl
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        // A radius-zero disk is a point and has empty interior.
+        return false;
+    }
     // Open disks overlap iff the centre distance is strictly less than the sum
     // of the radii, so externally tangent disks do not count. With
     // A = d^2 - r1^2 - r2^2 that is A < 0 or A^2 < 4 r1^2 r2^2 (the strict form
@@ -1504,6 +1532,10 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const Shape<OtherP
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        // Either operand collapsed to a lower dimension has empty interior.
+        return false;
+    }
     // The open interiors meet when a boundary edge passes through the open disk
     // (this also covers the polygon lying inside the disk, whose edges are then
     // inside it), or when the disk lies inside the polygon -- witnessed by a point

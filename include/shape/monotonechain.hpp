@@ -430,7 +430,7 @@ struct MonotoneChain {
         if (!isPoint()) {
             return std::nullopt;
         }
-        return points_.front();
+        return points_.front() + translation_;
     }
 
     /**
@@ -458,7 +458,7 @@ struct MonotoneChain {
         if (!isSegment()) {
             return std::nullopt;
         }
-        return detail::spannedSegment<BoundaryType<false>>(points_);
+        return detail::spannedSegment<BoundaryType<false>>(points_) + translation_;
     }
 
     /**
@@ -942,10 +942,16 @@ struct MonotoneChain {
     // point set, so it contains no positive-length or two-dimensional shape.
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
     [[nodiscard]] constexpr bool boundaryContains(const OtherLine&) const { return false; }
@@ -960,19 +966,34 @@ struct MonotoneChain {
     [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane&) const { return false; }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
-    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk&) const { return false; }
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const {
@@ -1046,16 +1067,28 @@ struct MonotoneChain {
     // unbounded or two-dimensional shape.
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
-    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle&) const { return false; }
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return interiorContains(carrier); });
+    }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
-    [[nodiscard]] constexpr bool interiorContains(const OtherConvex&) const { return false; }
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return interiorContains(carrier); });
+    }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
-    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon&) const { return false; }
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return interiorContains(carrier); });
+    }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<DiskConcept OtherDisk>
-    [[nodiscard]] constexpr bool interiorContains(const OtherDisk&) const { return false; }
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const {
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return interiorContains(carrier); });
+    }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool interiorContains(const OtherChain& other) const;

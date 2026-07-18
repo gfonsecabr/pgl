@@ -1022,6 +1022,17 @@ constexpr bool Disk<PointType, LabelType>::contains(const Shape<PointType>& othe
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Convex<PointType, LabelType>::contains(const OtherPoint& point) const {
+    if (isDegenerate()) {
+        // Fewer than three vertices: there is no lower/upper chain for
+        // edgesAtX to split, so test the carrier point or segment directly.
+        if (const auto vertex = getIfPoint()) {
+            return *vertex == point;
+        }
+        if (const auto carrier = getIfSegment()) {
+            return carrier->contains(point);
+        }
+        return false;  // no vertices at all
+    }
     if (!bbox().contains(point)) {
         return false;
     }
@@ -1417,6 +1428,16 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other
     }
     if (other.size() == 1) {
         return contains(other[0]);
+    }
+    // A polygon collapsed to a single point is exactly that point, and its
+    // boundary has no lexicographic break for BoundaryChains to split on.
+    if (const auto vertex = other.getIfPoint()) {
+        return contains(*vertex);
+    }
+    if (isPoint()) {
+        // `other` has two distinct vertices by the test above, so a single
+        // point cannot contain it.
+        return false;
     }
 
     if (!contains(other.get(0))) {
