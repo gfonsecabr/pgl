@@ -957,3 +957,28 @@ TEST_CASE("Segment asPolyline yields the two endpoints in canonical order") {
     CHECK(poly[0] == Point(2, 3));
     CHECK(poly[1] == Point(8, 1));
 }
+
+TEST_CASE("Segment converts to a degenerate segment half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    SUBCASE("a proper segment") {
+        const Segment s(Point(0, 0), Point(4, 0));
+        const auto region = s.asHalfplaneIntersection();
+        static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(0, 0)));
+        CHECK(region.contains(Point(2, 0)));
+        CHECK(region.contains(Point(4, 0)));
+        CHECK(!region.contains(Point(5, 0)));  // beyond the endpoint
+        CHECK(!region.contains(Point(2, 1)));  // off the supporting line
+    }
+
+    SUBCASE("a zero-length segment behaves like a point") {
+        const Segment s(Point(7, 7), Point(7, 7));
+        const auto region = s.asHalfplaneIntersection();
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(7, 7)));
+        CHECK(!region.contains(Point(8, 7)));
+    }
+}

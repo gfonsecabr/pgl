@@ -718,3 +718,52 @@ TEST_CASE("Rectangle ordering and hashing ignore input corner order and point la
     unordered_set.insert(second);
     CHECK(unordered_set.size() == 1);
 }
+
+TEST_CASE("Rectangle converts to a half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    SUBCASE("a full-dimensional rectangle") {
+        const Rectangle rect(Point(0, 0), Point(4, 2));
+        const auto region = rect.asHalfplaneIntersection();
+        static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
+        CHECK(!region.isEmpty());
+        CHECK(!region.isDegenerate());
+        CHECK(region.isBounded());
+        CHECK(region.interiorContains(Point(2, 1)));
+        CHECK(region.contains(Point(0, 0)));   // corner on the boundary
+        CHECK(!region.contains(Point(5, 1)));  // outside
+        CHECK(region == pgl::HalfplaneIntersection<Point>(rect));
+    }
+
+    SUBCASE("a zero-height rectangle collapses to a horizontal segment") {
+        const Rectangle rect(Point(0, 3), Point(4, 3));
+        const auto region = rect.asHalfplaneIntersection();
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(0, 3)));
+        CHECK(region.contains(Point(2, 3)));
+        CHECK(region.contains(Point(4, 3)));
+        CHECK(!region.contains(Point(5, 3)));  // beyond the corner
+        CHECK(!region.contains(Point(2, 4)));  // off the segment
+    }
+
+    SUBCASE("a zero-width rectangle collapses to a vertical segment") {
+        const Rectangle rect(Point(1, 0), Point(1, 5));
+        const auto region = rect.asHalfplaneIntersection();
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(1, 0)));
+        CHECK(region.contains(Point(1, 2)));
+        CHECK(region.contains(Point(1, 5)));
+        CHECK(!region.contains(Point(1, 6)));  // beyond the corner
+        CHECK(!region.contains(Point(2, 2)));  // off the segment
+    }
+
+    SUBCASE("a single-point rectangle collapses to a point") {
+        const Rectangle rect(Point(2, 2), Point(2, 2));
+        const auto region = rect.asHalfplaneIntersection();
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(2, 2)));
+        CHECK(!region.contains(Point(3, 2)));
+        CHECK(!region.contains(Point(2, 3)));
+    }
+}

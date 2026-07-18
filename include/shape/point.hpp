@@ -1111,6 +1111,18 @@ struct Point {
     constexpr void scaleDownY(const OtherNumber scalar);
 
     /**
+     * @brief Returns the point as a (degenerate) half-plane intersection.
+     *
+     * The region is an axis-aligned point slab (four half-planes) pinning this
+     * point; it has empty interior.
+     *
+     * @return Half-plane intersection whose point set is this point.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<Point<NumberType, LabelType>> asHalfplaneIntersection() const {
+        return HalfplaneIntersection<Point<NumberType, LabelType>>(*this);
+    }
+
+    /**
      * @brief Returns the dual Line.
      *
      * @tparam ResultNumber Coordinate type of the returned line.

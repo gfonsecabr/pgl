@@ -374,3 +374,19 @@ TEST_CASE("Line interiorContains another line") {
     CHECK_FALSE(axis.interiorContains(Line({0, 1}, {4, 1})));  // parallel but distinct
     CHECK_FALSE(axis.interiorContains(Line({0, 0}, {4, 4})));  // crossing but distinct
 }
+
+TEST_CASE("Line converts to a degenerate line half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Line = pgl::Line<Point>;
+
+    const Line l(Point(0, 0), Point(2, 2));
+    const auto region = l.asHalfplaneIntersection();
+    static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
+    CHECK(!region.isEmpty());
+    CHECK(region.isDegenerate());
+    CHECK(!region.isBounded());
+    CHECK(region.contains(Point(0, 0)));
+    CHECK(region.contains(Point(5, 5)));
+    CHECK(region.contains(Point(-3, -3)));
+    CHECK(!region.contains(Point(1, 0)));
+}

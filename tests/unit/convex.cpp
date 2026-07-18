@@ -1651,3 +1651,33 @@ TEST_CASE("Convex::upperHull and Convex::lowerHull split the boundary at its lex
         }
     }
 }
+
+TEST_CASE("Convex converts to a half-plane intersection") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+
+    SUBCASE("a full-dimensional polygon") {
+        const Convex c({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+        const auto region = c.asHalfplaneIntersection();
+        static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
+        CHECK(!region.isEmpty());
+        CHECK(region.isBounded());
+        CHECK(region.interiorContains(Point(2, 2)));
+        CHECK(!region.contains(Point(5, 5)));
+        CHECK(region == pgl::HalfplaneIntersection<Point>(c));
+    }
+
+    SUBCASE("a degenerate segment polygon") {
+        const Convex c({Point(0, 0), Point(2, 0), Point(4, 0)});
+        const auto region = c.asHalfplaneIntersection();
+        CHECK(region.isDegenerate());
+        CHECK(region.contains(Point(1, 0)));
+        CHECK(!region.contains(Point(1, 1)));
+    }
+
+    SUBCASE("an empty polygon") {
+        const Convex c;
+        const auto region = c.asHalfplaneIntersection();
+        CHECK(region.isEmpty());
+    }
+}

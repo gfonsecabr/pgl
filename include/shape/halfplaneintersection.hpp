@@ -218,6 +218,15 @@ HalfplaneIntersection(const T&) -> HalfplaneIntersection<typename T::PointType, 
 template <ConvexConcept C>
 HalfplaneIntersection(const C&) -> HalfplaneIntersection<typename C::PointType, NoLabel>;
 
+template <PointConcept P>
+HalfplaneIntersection(const P&) -> HalfplaneIntersection<Point<typename P::NumberType, typename P::LabelType>, NoLabel>;
+
+template <SegmentConcept S>
+HalfplaneIntersection(const S&) -> HalfplaneIntersection<typename S::PointType, NoLabel>;
+
+template <LineConcept L>
+HalfplaneIntersection(const L&) -> HalfplaneIntersection<typename L::PointType, NoLabel>;
+
 /**
  * @brief Intersection of a finite set of closed half-planes.
  *
@@ -301,11 +310,28 @@ struct HalfplaneIntersection {
 
     /**
      * @brief Creates the region of a rectangle as four half-planes.
+     *
+     * A degenerate rectangle produces the corresponding degenerate region: a
+     * zero-area rectangle collapses to the segment between its extreme corners,
+     * and a single-point rectangle to that point.
      */
     template <RectangleConcept OtherRectangle>
     constexpr explicit HalfplaneIntersection(const OtherRectangle& rectangle) {
         const PointType lo(rectangle.min());
         const PointType hi(rectangle.max());
+        if (lo == hi) {
+            // A single point: the four edges would all be degenerate.
+            buildPointSlab(lo);
+            canonicalizeSorted();
+            return;
+        }
+        if (lo.x() == hi.x() || lo.y() == hi.y()) {
+            // A zero-width or zero-height rectangle is the segment lo-hi; two of
+            // the four edges would be degenerate, so clamp to the segment.
+            buildSegmentSlab(lo, hi);
+            canonicalizeSorted();
+            return;
+        }
         const PointType lohi(lo.x(), hi.y());
         const PointType hilo(hi.x(), lo.y());
         // Directions 0, 90, 180, 270 degrees: already in sorted order.
@@ -313,7 +339,6 @@ struct HalfplaneIntersection {
         halfplanes_.push_back(HalfplaneType(hilo, hi));
         halfplanes_.push_back(HalfplaneType(hi, lohi));
         halfplanes_.push_back(HalfplaneType(lohi, lo));
-        degenerate_ = lo.x() == hi.x() || lo.y() == hi.y();
     }
 
     /**
@@ -350,27 +375,10 @@ struct HalfplaneIntersection {
             // polygon normalizes collinear input down to its two extremes.
             const PointType a(convex[0]);
             const PointType b(convex[n - 1]);
-            degenerate_ = true;
             if (a == b) {
-                // Axis-aligned point slab.
-                const PointType ax(a.x() + NumberType(1), a.y());
-                const PointType ay(a.x(), a.y() + NumberType(1));
-                halfplanes_.push_back(HalfplaneType(a, ax));
-                halfplanes_.push_back(HalfplaneType(ax, a));
-                halfplanes_.push_back(HalfplaneType(a, ay));
-                halfplanes_.push_back(HalfplaneType(ay, a));
+                buildPointSlab(a);
             } else {
-                // The segment a-b: the line slab plus a perpendicular clamp
-                // through each endpoint (rotating the direction by 90 degrees
-                // keeps integer coordinates).
-                const NumberType dx = b.x() - a.x();
-                const NumberType dy = b.y() - a.y();
-                const PointType aPerp(a.x() - dy, a.y() + dx);
-                const PointType bPerp(b.x() - dy, b.y() + dx);
-                halfplanes_.push_back(HalfplaneType(a, b));
-                halfplanes_.push_back(HalfplaneType(b, a));
-                halfplanes_.push_back(HalfplaneType(aPerp, a));
-                halfplanes_.push_back(HalfplaneType(b, bPerp));
+                buildSegmentSlab(a, b);
             }
             canonicalizeSorted();
             return;
@@ -378,6 +386,55 @@ struct HalfplaneIntersection {
         for (std::size_t i = 0; i < n; ++i) {
             halfplanes_.push_back(HalfplaneType(PointType(convex[i]), PointType(convex[(i + 1) % n])));
         }
+        canonicalizeSorted();
+    }
+
+    /**
+     * @brief Creates the degenerate region consisting of a single point.
+     *
+     * The region is an axis-aligned point slab (four half-planes); it has empty
+     * interior, so @ref isDegenerate is true.
+     */
+    template <PointConcept OtherPoint>
+    constexpr explicit HalfplaneIntersection(const OtherPoint& point) {
+        buildPointSlab(PointType(point));
+        canonicalizeSorted();
+    }
+
+    /**
+     * @brief Creates the degenerate region consisting of a segment.
+     *
+     * The region is the segment's supporting-line slab clamped perpendicularly
+     * at each endpoint; it has empty interior, so @ref isDegenerate is true. A
+     * zero-length segment produces the corresponding point region.
+     */
+    template <SegmentConcept OtherSegment>
+    constexpr explicit HalfplaneIntersection(const OtherSegment& segment) {
+        const PointType a(segment[0]);
+        const PointType b(segment[1]);
+        if (a == b) {
+            buildPointSlab(a);
+        } else {
+            buildSegmentSlab(a, b);
+        }
+        canonicalizeSorted();
+    }
+
+    /**
+     * @brief Creates the degenerate region consisting of a line.
+     *
+     * A line is the intersection of the two opposite closed half-planes bounded
+     * by it; the region has empty interior, so @ref isDegenerate is true. A
+     * degenerate (single-point) line is undefined behavior.
+     */
+    template <LineConcept OtherLine>
+    constexpr explicit HalfplaneIntersection(const OtherLine& line) {
+        const PointType a(line[0]);
+        const PointType b(line[1]);
+        assert(a != b);
+        halfplanes_.push_back(HalfplaneType(a, b));
+        halfplanes_.push_back(HalfplaneType(b, a));
+        degenerate_ = true;
         canonicalizeSorted();
     }
 
@@ -1749,6 +1806,34 @@ struct HalfplaneIntersection {
 
     constexpr std::size_t prevIndex(std::size_t i) const {
         return i == 0 ? halfplanes_.size() - 1 : i - 1;
+    }
+
+    // Appends the four half-planes of the axis-aligned slab pinning the single
+    // point p and marks the region degenerate. Assumes the region is empty.
+    constexpr void buildPointSlab(const PointType& p) {
+        const PointType px(p.x() + NumberType(1), p.y());
+        const PointType py(p.x(), p.y() + NumberType(1));
+        halfplanes_.push_back(HalfplaneType(p, px));
+        halfplanes_.push_back(HalfplaneType(px, p));
+        halfplanes_.push_back(HalfplaneType(p, py));
+        halfplanes_.push_back(HalfplaneType(py, p));
+        degenerate_ = true;
+    }
+
+    // Appends the four half-planes clamping to the segment a-b (a != b): the
+    // supporting-line slab plus a perpendicular clamp through each endpoint
+    // (rotating the direction by 90 degrees keeps integer coordinates). Marks
+    // the region degenerate. Assumes the region is empty.
+    constexpr void buildSegmentSlab(const PointType& a, const PointType& b) {
+        const NumberType dx = b.x() - a.x();
+        const NumberType dy = b.y() - a.y();
+        const PointType aPerp(a.x() - dy, a.y() + dx);
+        const PointType bPerp(b.x() - dy, b.y() + dx);
+        halfplanes_.push_back(HalfplaneType(a, b));
+        halfplanes_.push_back(HalfplaneType(b, a));
+        halfplanes_.push_back(HalfplaneType(aPerp, a));
+        halfplanes_.push_back(HalfplaneType(b, bPerp));
+        degenerate_ = true;
     }
 
     // Restores the sorted-by-pseudo-angle invariant after bulk construction or
