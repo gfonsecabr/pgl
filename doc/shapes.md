@@ -450,7 +450,7 @@ Disk does not have the [`intersection`](https://gfonsecabr.github.io/pgl/structp
 
 - [`d.isDegenerate()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a19e32c8b7656bfe02982c8a40ea0ff57 "Returns whether the three boundary points are collinear."): Returns true if the points are collinear or equal.
 - `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
-- `d.isUndefined()`: True if the boundary points are collinear but not all equal, so no circle passes through them and the disk describes no region.
+- `d.isUndefined()`: True if the boundary points are collinear but not all equal, so they do not determine a circle (three distinct collinear points have no circle through them; two distinct ones have infinitely many). A disk is never a segment, so this and `isPoint` cover every degenerate disk.
 - [`d.radius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a69765084e501902a81583032fdb7c816 "Returns the center in this disk's exact coordinate type."): Returns the radius length.
 - [`d.squaredRadius()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a0027c4ab0d85b7ff3e5b0d5b42b1745f "Returns the squared radius in an explicitly chosen result type."): Returns the squared radius.
 - [`d.center()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html#a01f21dd5b971164474843df4ad71bfc1 "Returns the center (circumcenter of the three boundary points) in an explicitly chosen coordinate type."): Returns the center point.
