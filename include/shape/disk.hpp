@@ -379,9 +379,11 @@ struct Disk {
      * @brief Returns whether the disk is degenerate without collapsing to a
      * point.
      *
-     * True when the boundary points are collinear but not all equal: no circle
-     * passes through them, so the disk describes no region. A disk never
-     * collapses to a segment, so this is the only undefined case.
+     * True when the boundary points are collinear but not all equal, so they do
+     * not determine a circle: three distinct collinear points have no circle
+     * through them, and two distinct ones (a repeated point) have infinitely
+     * many. A disk never collapses to a segment, so together with @ref isPoint
+     * this covers every degenerate disk.
      *
      * Complexity: O(1).
      */

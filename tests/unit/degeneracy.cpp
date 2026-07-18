@@ -198,8 +198,17 @@ TEST_CASE_TEMPLATE("Disks classify degeneracy", Point, pgl::Point<int>, pgl::Poi
         CHECK_FALSE(d.isUndefined());
     }
 
-    SUBCASE("collinear boundary points define no circle") {
+    SUBCASE("three distinct collinear boundary points determine no circle") {
         const Disk d(Point(0, 0), Point(1, 1), Point(2, 2));
+        CHECK(d.isUndefined());
+        CHECK_FALSE(d.isPoint());
+        CHECK_FALSE(d.getIfPoint().has_value());
+    }
+
+    SUBCASE("a repeated boundary point leaves the circle underdetermined") {
+        // Only two distinct points: collinear and not all equal, so undefined
+        // even though infinitely many circles pass through them.
+        const Disk d(Point(0, 0), Point(0, 0), Point(2, 2));
         CHECK(d.isUndefined());
         CHECK_FALSE(d.isPoint());
         CHECK_FALSE(d.getIfPoint().has_value());
