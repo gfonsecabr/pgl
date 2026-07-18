@@ -676,6 +676,11 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherConv
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center; it has no interior point for the
+        // witness test below to find.
+        return interiorContains(*center);
+    }
     // The closed disk lies in the open half-plane iff the boundary line does not
     // touch the closed disk at all (so the disk is strictly off the boundary) and
     // the disk is on the interior side (a point strictly inside the disk is in

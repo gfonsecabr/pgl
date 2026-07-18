@@ -469,7 +469,8 @@ struct Triangle {
      * @brief Returns the triangle as a half-plane intersection.
      *
      * The region is the intersection of the three edge half-planes. A
-     * degenerate (collinear) triangle is undefined behavior.
+     * degenerate triangle produces the corresponding degenerate region: the
+     * segment spanning collinear vertices, or the point they all share.
      *
      * @return Half-plane intersection whose point set is this triangle.
      */

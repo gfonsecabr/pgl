@@ -56,7 +56,16 @@ using Triangle = pgl::Triangle<Point>;
 ```
 
 There are many [predicates](shape_methods.md#predicates) and [other methods](shape_methods.md) supported by all shapes, such as `intersects`, `contains`, `squaredDistance`, `distanceL1`, translation, and scaling.
-Shapes may be degenerate, for example when some of their defining points are equal. The behavior of geometric operations on degenerate shapes is undefined. However, degenerate shapes may safely be constructed and are often constructed by the default constructor that sets all points to the origin.
+
+All shapes contain their boundaries (that is, they are closed in the topological sense). The boundary of a shape is the *manifold boundary*, that is:
+
+- A point has no boundary.
+- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary.
+- The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
+
+Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes. Some are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case. However, other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes. The `isUndefined` and `isDegenerate` methods distinguish between these two cases. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
+
+A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`.
 
 Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
 
@@ -70,11 +79,6 @@ if (r.intersects(s))
     std::cout << r << " intersects " << s << std::endl;
 ```
 
-All shapes contain their boundaries (that is, they are closed in the topological sense). The boundary of a shape is the *manifold boundary*, that is:
-
-- A point has no boundary.
-- The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary.
-- The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
 
 
 ### Point
@@ -139,6 +143,8 @@ A segment `s` has methods such as:
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
+- `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `s.isUndefined()`: Always `false`: a degenerate segment is always a point.
 - `s.isVertical()`: Returns `s[0].x() == s[1].x()`.
 - `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
@@ -181,6 +187,8 @@ An oriented segment `s` has all methods of the `Segment` class, with the only di
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
+- `s.isPoint()` / `s.getIfPoint()`: Whether the segment collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `s.isUndefined()`: Always `false`: a degenerate segment is always a point.
 - `s.isVertical()`: Returns `s[0].x() == s[1].x()`.
 - `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
@@ -374,6 +382,9 @@ for(pgl::OrientedSegment s : t.orientedEdges()) std::cout << s << ' ';
 A triangle `t` has methods such as:
 
 - `t.isDegenerate()`: Returns true if there are equal vertices or all vertices are collinear.
+- `t.isPoint()` / `t.getIfPoint()`: Whether the triangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `t.isSegment()` / `t.getIfSegment()`: Whether the triangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `t.isUndefined()`: Always `false`: a degenerate triangle is always a point or a segment.
 - `t.centroid()`: Returns the centroid.
 - `t.circumcircle()`: Returns the circumcircle.
 - `t.isRectangle()`: Returns whether one angle is 90 degrees.
@@ -411,6 +422,9 @@ for(pgl::OrientedSegment s : r.orientedEdges()) std::cout << s << ' ';
 A rectangle `r` has methods such as:
 
 - `r.isDegenerate()`: Returns true if the rectangle has null area.
+- `r.isPoint()` / `r.getIfPoint()`: Whether the rectangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `r.isSegment()` / `r.getIfSegment()`: Whether the rectangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `r.isUndefined()`: Always `false`: a degenerate rectangle is always a point or a segment.
 - `r.centroid()`: Returns the centroid.
 - `r.circumcircle()`: Returns the circumcircle.
 - `r.insert(s)`: Enlarges the rectangle in order to contain a finite shape `s`. The shape must expose `bbox()`.
@@ -437,6 +451,8 @@ std::cout << d2 << std::endl;
 Disk does not have the `intersection` method and cannot be scaled on a single axis. A disk `d` has methods such as:
 
 - `d.isDegenerate()`: Returns true if the points are collinear or equal.
+- `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `d.isUndefined()`: True if the boundary points are collinear but not all equal, so they do not determine a circle (three distinct collinear points have no circle through them; two distinct ones have infinitely many). A disk is never a segment, so this and `isPoint` cover every degenerate disk.
 - `d.radius()`: Returns the radius length.
 - `d.squaredRadius()`: Returns the squared radius.
 - `d.center()`: Returns the center point.
@@ -454,6 +470,9 @@ A chain may be constructed from any container of points, which will be sorted au
 We use the term above to refer to larger y coordinates and below to refer to smaller y coordinates. A chain `P` with $n$ vertices has methods such as:
 
 - `P.isDegenerate()`: Returns true if the chain has fewer than two vertices, and hence no edge.
+- `P.isPoint()` / `P.getIfPoint()`: Whether the chain collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the chain collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True only for an empty chain, which has no vertex.
 - `P.isStrictlyMonotone()`: Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
 - `P.insert(p)`: Extends the chain in order to contain another point `p` as a vertex.
 - `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
@@ -480,6 +499,9 @@ A polyline can be constructed from any container of points, or from a flat list 
 A polyline `P` with $n$ vertices has methods such as:
 
 - `P.isDegenerate()`: Returns true if all vertices are equal (in particular for an empty or single-vertex polyline).
+- `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True only for an empty polyline, which has no vertex.
 - `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types (and $O(n^2)$ for floating point).
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
@@ -499,6 +521,9 @@ The class template `Polygon` represents a simple polygon. It can be constructed 
 A polygon `P` has methods such as:
 
 - `P.isDegenerate()`: Returns true if the polygon has null area.
+- `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
@@ -513,6 +538,9 @@ The class template `Convex` represents a convex polygon. It can be constructed f
 A convex polygon `c` has methods such as:
 
 - `c.isDegenerate()`: Returns true if the convex polygon has null area.
+- `c.isPoint()` / `c.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `c.isSegment()` / `c.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `c.isUndefined()`: True only for an empty convex polygon, which has no vertex.
 - `c.centroid()`: Returns the centroid.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
@@ -543,6 +571,12 @@ A half-plane intersection `k` has methods such as:
 
 - `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant; when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed. Amortized $O(\log n)$ comparisons.
 - `k.isEmpty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
+- `k.isHalfplane()` / `k.getIfHalfplane()`: Whether the region is exactly one closed half-plane (a single stored constraint), and that half-plane. Exact, no division.
+- `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. A degenerate region is a point, segment, ray, or line, and only the line has no vertex, so this needs no coordinate arithmetic. Exact, no division.
+- `k.isPoint()` / `k.getIfPoint()`: Whether the region is a single point, and that point. The test is exact (it runs on rational coordinates for an integral region), so a point whose coordinates are not representable in `NumberType` is still recognized; `getIfPoint` divides, so request `pgl::Rational` coordinates for the exact point.
+- `k.isSegment()` / `k.getIfSegment()`: Whether the region is a segment of positive length, and that segment. Same exactness caveat as `isPoint` / `getIfPoint`.
+- `k.isRay()` / `k.getIfRay()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); `getIfRay` divides, so request `pgl::Rational` coordinates for the exact source.
+- Together with `isEmpty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
 - `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
 - `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an integer result type the box is rounded outward so it always encloses the region.

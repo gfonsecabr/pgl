@@ -1383,7 +1383,12 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherChain& ot
 template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber MonotoneChain<PointType, LabelType, Storage>::edgeMinSquaredDistance(const OtherShape& other) const {
-    assert(size() >= 2);
+    assert(size() >= 1);
+    if (size() == 1) {
+        // A chain collapsed to a single vertex has no edge to measure from;
+        // its distance is the distance from that vertex.
+        return (*this)[0].template squaredDistance<ResultNumber>(other);
+    }
     ResultNumber best = this->template boundaryAt<false>(0).template squaredDistance<ResultNumber>(other);
     for (std::size_t index = 1; index + 1 < size(); ++index) {
         const ResultNumber current =

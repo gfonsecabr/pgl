@@ -1164,6 +1164,11 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedLine& o
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (const auto center = getIfPoint()) {
+        // A radius-zero disk is its center; the in-circle formulation below
+        // needs three non-collinear boundary points to be meaningful.
+        return other.contains(*center);
+    }
     // The source in the closed disk settles it. Otherwise the ray meets the
     // closed disk exactly when its supporting line does (discriminant >= 0) and
     // the contact lies ahead of the source (the perpendicular foot has positive

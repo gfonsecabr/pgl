@@ -306,7 +306,7 @@ struct Polygon {
         if (!isPoint()) {
             return std::nullopt;
         }
-        return points_.front();
+        return points_.front() + translation_;
     }
 
     /**
@@ -334,7 +334,7 @@ struct Polygon {
         if (!isSegment()) {
             return std::nullopt;
         }
-        return detail::spannedSegment<BoundaryType<false>>(points_);
+        return detail::spannedSegment<BoundaryType<false>>(points_) + translation_;
     }
 
     /**
@@ -2157,11 +2157,20 @@ struct Polygon {
             // straddles index 0 ambiguously; record each run's first vertex and
             // direction. The run's last vertex is the next run's first.
             std::size_t start = 0;
+            bool broke = false;
             for (std::size_t j = 0; j < n_; ++j) {
                 if (ascends((j + n_ - 1) % n_) != ascends(j)) {
                     start = j;
+                    broke = true;
                     break;
                 }
+            }
+            if (!broke) {
+                // Every edge is level, so all vertices coincide: the boundary
+                // is a single point and decomposes into no monotone chain. A
+                // polygon with two or more distinct vertices always reverses
+                // direction somewhere, so this is the only way to get here.
+                return;
             }
             std::size_t i = start;
             do {

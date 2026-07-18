@@ -610,7 +610,9 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherSegment
         return boundaryContains(other.min());
     }
     if (isDegenerate()) {
-        return false;
+        // A hull with empty interior is entirely boundary, so boundary
+        // containment coincides with containment.
+        return contains(other);
     }
     for (const auto &edgePair : {edgesAtX(other.min().x()), edgesAtX(other.max().x())}) {
         if (!edgePair) {
