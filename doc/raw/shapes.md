@@ -63,9 +63,13 @@ All shapes contain their boundaries (that is, they are closed in the topological
 - The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary.
 - The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
 
+### Degeneracies
+
 Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes. Some are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case. However, other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes. The `isUndefined` and `isDegenerate` methods distinguish between these two cases. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
 A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`.
+
+### Polymorphism with `Shape`
 
 Shapes are grouped into a polymorphic class `Shape` that use `std::variant` for polymorphism.
 
@@ -79,6 +83,50 @@ if (r.intersects(s))
     std::cout << r << " intersects " << s << std::endl;
 ```
 
+Like every other shape, `Shape` is templated on a point type, `pgl::Shape<pgl::Point<int>>` by default. All alternatives share that same point type: a `Shape<Point<int>>` can hold a `Segment<Point<int>>` but not a `Segment<Point<double>>`.
+
+```C++
+pgl::Shape<pgl::Point<double>> e;   // holds EmptyShape
+e.empty();                          // true
+e = pgl::Disk<pgl::Point<double>>(...);
+e.empty();                          // false
+```
+
+A `Shape` is constructed or assigned from any supported alternative, and the stored value can be inspected or extracted again:
+
+```C++
+pgl::Shape s = pgl::Segment(1,4,2,9);
+s.holdsAlternative<pgl::Segment<>>();          // true
+if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
+    std::cout << *q << std::endl;              // nullptr if another alternative is stored
+auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
+```
+
+For anything not forwarded by `Shape` itself, `s.variant()` exposes the underlying `std::variant` so you can call `std::visit` directly.
+
+`Shape` is also constructible from a `std::variant` of shapes, or a `std::optional` of one — the return types of the typed [intersection](shape_methods.md#intersection) methods — which lets an ambiguous result be stored in a single object without unwrapping it by hand:
+
+```C++
+pgl::Shape i = a.intersection(b);   // point, segment or empty, uniformly
+```
+
+`Shape` forwards the common shape interface to the stored alternative by visitation:
+
+- Predicates: `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates`, `crosses`.
+- Constructions and measures: `intersection`, `squaredDistance`, `squaredHausdorffDistance`, `distanceL1`, `distanceLInf`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`, `bbox`.
+- Access: `size`, `get`, `operator[]`, `index`, `isDegenerate`, `empty`.
+- Transformations: `+=`, `-=`, `*=`, `/=` (and the corresponding free operators), `rotate90`/`rotated90`, and the axis scaling methods.
+
+Every one of these accepts either another `Shape` or a concrete shape, so the two styles can be mixed freely:
+
+```C++
+pgl::Shape r = pgl::Rectangle(1,4,2,9);
+r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
+```
+
+Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...).
+
+- Other methods:
 
 
 ### Point

@@ -65,9 +65,13 @@ All shapes contain their boundaries (that is, they are closed in the topological
 - The boundary of a 1-dimensional shape is the set of (at most two) extreme points of the curve. The boundary of a segment are its two vertices. The boundary of a ray is its one vertex. A line has no boundary.
 - The boundary of a 2-dimensional shape is defined in the usual way. The boundary of a triangle is its perimeter, the boundary of a halfplane is the line that defines it.
 
+### Degeneracies
+
 Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes. Some are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case. However, other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes. The `isUndefined` and `isDegenerate` methods distinguish between these two cases. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
 A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`.
+
+### Polymorphism with `Shape`
 
 Shapes are grouped into a polymorphic class [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") that use `std::variant` for polymorphism.
 
@@ -81,6 +85,50 @@ if (r.intersects(s))
     std::cout << r << " intersects " << s << std::endl;
 ```
 
+Like every other shape, [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") is templated on a point type, `pgl::Shape<pgl::Point<int>>` by default. All alternatives share that same point type: a `Shape<Point<int>>` can hold a `Segment<Point<int>>` but not a `Segment<Point<double>>`.
+
+```C++
+pgl::Shape<pgl::Point<double>> e;   // holds EmptyShape
+e.empty();                          // true
+e = pgl::Disk<pgl::Point<double>>(...);
+e.empty();                          // false
+```
+
+A [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") is constructed or assigned from any supported alternative, and the stored value can be inspected or extracted again:
+
+```C++
+pgl::Shape s = pgl::Segment(1,4,2,9);
+s.holdsAlternative<pgl::Segment<>>();          // true
+if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
+    std::cout << *q << std::endl;              // nullptr if another alternative is stored
+auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
+```
+
+For anything not forwarded by [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") itself, [`s.variant()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a011707caf4b6414c62dde02139091e22 "Returns the underlying variant.") exposes the underlying `std::variant` so you can call `std::visit` directly.
+
+[`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") is also constructible from a `std::variant` of shapes, or a `std::optional` of one — the return types of the typed [intersection](shape_methods.md#intersection) methods — which lets an ambiguous result be stored in a single object without unwrapping it by hand:
+
+```C++
+pgl::Shape i = a.intersection(b);   // point, segment or empty, uniformly
+```
+
+[`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") forwards the common shape interface to the stored alternative by visitation:
+
+- Predicates: [`contains`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#ac4fbaab9ab6db9d88da238435c618aa6 "Tests whether this shape contains the other shape (A ⊇ B)."), [`boundaryContains`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a581480fe1679e2a0bc885a7db6b42455 "Tests whether this shape's boundary contains the other shape (∂A ⊇ B)."), [`interiorContains`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#af108900bf793f9d786de8161c23483e4 "Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B)."), [`intersects`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a4bc0e8a150ed91dc80b004ff27d9541c "Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅)."), [`interiorsIntersect`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a3d8337c690337054e10240be983ff52f "Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅)."), [`separates`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a1be7b35844bfb42405214a7d577fa7da "Tests whether removing this shape disconnects the other shape (B∖A is disconnected)."), [`crosses`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#aa01dbb55e204e43ad76c5d5168b20614 "Tests whether the two shapes mutually separate each other (each disconnects the other).").
+- Constructions and measures: [`intersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#aacc63ebc14d8ca9d0cdd46338522ac1f "Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint."), [`squaredDistance`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a070b5b80f381d1bfaaeb722c6d3acb5e "Returns the squared Euclidean distance to the given shape."), [`squaredHausdorffDistance`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a7247811d50ebb47f79a98bf744a505f3 "Returns the squared Euclidean Hausdorff distance to the given shape."), [`distanceL1`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a2d13506022ebec9e577d62bb17ef00dd "Returns the Manhattan (L1) distance to the given shape."), [`distanceLInf`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a0b20994f7862dbf2bb34fbfeffe80bab "Returns the Chebyshev (LInf) distance to the given shape."), [`hausdorffDistanceL1`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#af3f2ddeb5f7dc2a8d1c4c8bd7f2aa235 "Returns the Manhattan (L1) Hausdorff distance to the given shape."), [`hausdorffDistanceLInf`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#ae36696adc6c5ef7de0ebbfa45f31eebf "Returns the Chebyshev (LInf) Hausdorff distance to the given shape."), [`bbox`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a64fd495bb6b221baa182824fdec9e033 "Returns the wrapped shape's axis-aligned bounding box.").
+- Access: [`size`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a7d17aa4945da51e7cfbdeda7e28c609c "Returns the number of indexable elements of the wrapped shape."), [`get`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a5e0555d9bd9f7936be176a35f4b919fe "Returns the i-th vertex (modulo size()) of the wrapped shape."), `operator[]`, [`index`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a5a4e81995a6b3a273d144732d64acda4 "Returns the smallest index i with (*this)[i] == point, or -1 if no vertex of the wrapped shape equals point."), [`isDegenerate`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a5823742ca01dec1e65ede40120be580b "Tests whether the wrapped shape is degenerate."), [`empty`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a8ace28c33ffba35d9eca2ed0b53726f3 "Tests whether the wrapper holds the empty shape.").
+- Transformations: `+=`, `-=`, `*=`, `/=` (and the corresponding free operators), [`rotate90`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#aea8961987f26cdf95c2499dbb1f3ddd2 "Rotates the wrapped shape by 90k degrees around the origin in place.")/[`rotated90`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a5207d3432c5f9c4751bfdedcff65694e "Returns the wrapped shape rotated by 90k degrees around the origin."), and the axis scaling methods.
+
+Every one of these accepts either another [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") or a concrete shape, so the two styles can be mixed freely:
+
+```C++
+pgl::Shape r = pgl::Rectangle(1,4,2,9);
+r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
+```
+
+Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, [`bbox`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a64fd495bb6b221baa182824fdec9e033 "Returns the wrapped shape's axis-aligned bounding box.") throws `std::logic_error` for unbounded alternatives ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.")...).
+
+- Other methods: [`getIf`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#af0513b7d5c62253c148b71ed0010e64a "Returns a pointer to the stored alternative when it matches T."), [`holdsAlternative`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a0e64dba5f075cd4292ff915436388951 "Tests whether the wrapper currently stores a given alternative."), [`scaleDownX`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a5f437ecdd3ea772d87c88c52746d9646 "Scales the wrapped shape's x-coordinates down in place."), [`scaleDownY`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a8c5457173f2cd5221aac46e709dd064b "Scales the wrapped shape's y-coordinates down in place."), [`scaleUpX`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a47b2832a2632007eb58132a80d638977 "Scales the wrapped shape's x-coordinates up in place."), [`scaleUpY`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#add9f8641d7b5b247594798ae2f0f61c8 "Scales the wrapped shape's y-coordinates up in place."), [`scaledDownX`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a00abdedf86d9e2a0a52e00afc759c431 "Returns the wrapped shape with its x-coordinates scaled down."), [`scaledDownY`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a93c19b9f1da6d68b7bbc8e35d05b18c6 "Returns the wrapped shape with its y-coordinates scaled down."), [`scaledUpX`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#ae447c735edc31a8766f909bfdc006639 "Returns the wrapped shape with its x-coordinates scaled up."), [`scaledUpY`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html#a170e534fcbf3994ede1620b0de06d31b "Returns the wrapped shape with its y-coordinates scaled up.").
 
 
 ### Point
