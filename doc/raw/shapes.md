@@ -559,8 +559,7 @@ The monotone structure speeds up several predicates and constructions:
 ### Polyline
 
 The class template `Polyline` represents a polyline, also called a polygonal chain, polygonal curve, polygonal path, or piecewise linear curve. Unlike `MonotoneChain`, the order of the vertices matter and the polyline is allowed to self-intersect. A polyline with $n$ vertices has $n-1$ edges and no closing edge. Its boundary is its two extreme vertices and its interior is everything else.
-
-A polyline can be constructed from any container of points, or from a flat list of coordinates. The only normalization is the direction: the constructor the smallest extreme at index 0. If the sequence is already in canonical direction, a second parameter true skips the check.
+A polyline can be constructed from any container of points, or from a flat list of coordinates.
 
 A polyline `P` with $n$ vertices has methods such as:
 
@@ -575,7 +574,6 @@ Since a self-intersecting polyline has no monotone structure to exploit, the pre
 
 `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, in the same form as `MonotoneChain`, for segments, lines, rays, halfplanes, rectangles, triangles, convex polygons, monotone chains, and other polylines. Pieces are maximal even though a self-intersecting polyline may report them out of traversal order: collinear touching overlaps are merged (also when they come from non-consecutive edges) and points covered by a reported segment are dropped. It takes $O(n)$ segment intersections against a single shape and $O(nm)$ against a chain or polyline with $m$ vertices, plus a coalescing step quadratic in the number of pieces.
 
-The predicates, distances, and `intersection` are implemented against every shape that supports them; membership in `Shape` is planned.
 
 - Other methods:
 
