@@ -459,6 +459,55 @@ struct Shape {
     }
 
     /**
+     * @name Per-alternative accessors
+     *
+     * Named shorthands for @ref holdsAlternative and @ref getIf, one family per
+     * stored alternative: `isPoint()` / `getIfPoint()`, `isSegment()` /
+     * `getIfSegment()`, and so on through every alternative of @ref Variant.
+     *
+     * These test *which alternative is stored*, not the geometry of the stored
+     * value. This differs from the same-named methods on the concrete shapes,
+     * where `isPoint()` asks whether the shape's point set is a single point:
+     * a `Shape` holding a `Triangle` whose vertices coincide reports
+     * `isTriangle()` and not `isPoint()`. Reach through with
+     * `getIfTriangle()->isPoint()` to ask the geometric question.
+     *
+     * `getIf...` returns a pointer into the stored variant, `nullptr` when
+     * another alternative is active. The `EmptyShape` alternative has no such
+     * pair; use @ref empty().
+     */
+    ///@{
+#define PGL_SHAPE_ALTERNATIVE(Name, Type)                        \
+    [[nodiscard]] constexpr bool is##Name() const {              \
+        return std::holds_alternative<Type>(value_);             \
+    }                                                            \
+    [[nodiscard]] constexpr const Type* getIf##Name() const {    \
+        return std::get_if<Type>(&value_);                       \
+    }                                                            \
+    [[nodiscard]] constexpr Type* getIf##Name() {                \
+        return std::get_if<Type>(&value_);                       \
+    }
+
+    PGL_SHAPE_ALTERNATIVE(Point, PointType)
+    PGL_SHAPE_ALTERNATIVE(Segment, Segment<PointType>)
+    PGL_SHAPE_ALTERNATIVE(OrientedSegment, OrientedSegment<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Line, Line<PointType>)
+    PGL_SHAPE_ALTERNATIVE(OrientedLine, OrientedLine<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Ray, Ray<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Halfplane, Halfplane<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Rectangle, Rectangle<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Triangle, Triangle<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Disk, Disk<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Convex, Convex<PointType>)
+    PGL_SHAPE_ALTERNATIVE(MonotoneChain, MonotoneChain<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Polyline, Polyline<PointType>)
+    PGL_SHAPE_ALTERNATIVE(Polygon, Polygon<PointType>)
+    PGL_SHAPE_ALTERNATIVE(HalfplaneIntersection, HalfplaneIntersection<PointType>)
+
+#undef PGL_SHAPE_ALTERNATIVE
+    ///@}
+
+    /**
      * @brief Converts to the currently stored alternative.
      *
      * Lets an unwrapped alternative be recovered directly, e.g.
