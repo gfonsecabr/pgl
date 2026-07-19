@@ -67,7 +67,7 @@ All shapes contain their boundaries (that is, they are closed in the topological
 
 Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes. Some are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case. However, other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes. The `isUndefined` and `isDegenerate` methods distinguish between these two cases. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
-A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`.
+A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. (The one exception to this reading is the polymorphic `Shape`, whose `isPoint` / `getIfPoint` family tests the stored alternative rather than the geometry — see [Polymorphism with `Shape`](#polymorphism-with-shape).)
 
 ### Polymorphism with `Shape`
 
@@ -102,6 +102,24 @@ if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
 auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
 ```
 
+Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, and `isHalfplaneIntersection`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
+
+```C++
+pgl::Shape s = pgl::Segment(1,4,2,9);
+s.isSegment();                                 // same as s.holdsAlternative<pgl::Segment<>>()
+if (const pgl::Segment<> *q = s.getIfSegment())
+    std::cout << *q << std::endl;
+```
+
+Note that on `Shape` these test **which alternative is stored**, not the geometry of the stored value. This is a different question from the same-named methods on the concrete shapes, where `isPoint()` asks whether the shape's point set is a single point ([Degeneracies](#degeneracies)). A `Shape` holding a triangle whose three vertices coincide reports `isTriangle()`, not `isPoint()`; reach through to ask the geometric question:
+
+```C++
+pgl::Shape c = pgl::Triangle(2,2,2,2,2,2);     // collapsed to a point
+c.isTriangle();                                // true
+c.isPoint();                                   // false: the Point alternative is not stored
+c.getIfTriangle()->isPoint();                  // true: the triangle covers a single point
+```
+
 For anything not forwarded by `Shape` itself, `s.variant()` exposes the underlying `std::variant` so you can call `std::visit` directly.
 
 `Shape` is also constructible from a `std::variant` of shapes, or a `std::optional` of one — the return types of the typed [intersection](shape_methods.md#intersection) methods — which lets an ambiguous result be stored in a single object without unwrapping it by hand:
@@ -114,7 +132,7 @@ pgl::Shape i = a.intersection(b);   // point, segment or empty, uniformly
 
 - Predicates: `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates`, `crosses`.
 - Constructions and measures: `intersection`, `squaredDistance`, `squaredHausdorffDistance`, `distanceL1`, `distanceLInf`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`, `bbox`.
-- Access: `size`, `get`, `operator[]`, `index`, `isDegenerate`, `empty`.
+- Access: `size`, `get`, `operator[]`, `index`, `isDegenerate`, `empty`, and the per-alternative `is...` / `getIf...` accessors above.
 - Transformations: `+=`, `-=`, `*=`, `/=` (and the corresponding free operators), `rotate90`/`rotated90`, and the axis scaling methods.
 
 Every one of these accepts either another `Shape` or a concrete shape, so the two styles can be mixed freely:

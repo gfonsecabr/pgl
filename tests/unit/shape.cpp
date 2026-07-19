@@ -891,3 +891,59 @@ TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     CHECK(moved.rotated90(2).holdsAlternative<Polyline>());
     CHECK(moved.scaledUpX(2).holdsAlternative<Polyline>());
 }
+
+TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // Each accessor recognizes exactly its own alternative.
+    const Shape point = Point(3, 7);
+    CHECK(point.isPoint());
+    CHECK(point.getIfPoint() != nullptr);
+    CHECK(*point.getIfPoint() == Point(3, 7));
+    CHECK_FALSE(point.isSegment());
+    CHECK(point.getIfSegment() == nullptr);
+
+    const Shape segment = Segment({1, 2}, {3, 4});
+    CHECK(segment.isSegment());
+    CHECK(*segment.getIfSegment() == Segment({1, 2}, {3, 4}));
+    CHECK_FALSE(segment.isOrientedSegment());
+    CHECK_FALSE(segment.isPoint());
+
+    // The default (EmptyShape) state answers false to all of them.
+    const Shape empty;
+    CHECK_FALSE(empty.isPoint());
+    CHECK_FALSE(empty.isSegment());
+    CHECK_FALSE(empty.isPolygon());
+    CHECK(empty.getIfPoint() == nullptr);
+
+    // The accessors agree with holdsAlternative/getIf on every alternative.
+    CHECK(Shape(pgl::OrientedSegment<Point>({1, 2}, {3, 4})).isOrientedSegment());
+    CHECK(Shape(pgl::Line<Point>({0, 0}, {1, 1})).isLine());
+    CHECK(Shape(pgl::OrientedLine<Point>({0, 0}, {1, 1})).isOrientedLine());
+    CHECK(Shape(pgl::Ray<Point>({0, 0}, {1, 1})).isRay());
+    CHECK(Shape(pgl::Halfplane<Point>({0, 0}, {1, 1})).isHalfplane());
+    CHECK(Shape(pgl::Rectangle<Point>({0, 0}, {4, 4})).isRectangle());
+    CHECK(Shape(Triangle({0, 0}, {4, 0}, {0, 4})).isTriangle());
+    CHECK(Shape(pgl::Disk<Point>({0, 0}, {4, 0}, {0, 4})).isDisk());
+    CHECK(Shape(pgl::Convex<Point>({{0, 0}, {4, 0}, {0, 4}})).isConvex());
+    CHECK(Shape(pgl::MonotoneChain<Point>({{0, 0}, {1, 1}, {2, 0}})).isMonotoneChain());
+    CHECK(Shape(pgl::Polyline<Point>({{0, 0}, {1, 1}, {2, 0}})).isPolyline());
+    CHECK(Shape(pgl::Polygon<Point>({{0, 0}, {4, 0}, {0, 4}})).isPolygon());
+    CHECK(Shape(pgl::HalfplaneIntersection<Point>(pgl::Rectangle<Point>({0, 0}, {4, 4})))
+              .isHalfplaneIntersection());
+
+    // The test is on the stored alternative, not on the geometry: a triangle
+    // collapsed to a point is still the Triangle alternative.
+    const Shape collapsed = Triangle({2, 2}, {2, 2}, {2, 2});
+    CHECK(collapsed.isTriangle());
+    CHECK_FALSE(collapsed.isPoint());
+    CHECK(collapsed.getIfTriangle()->isPoint());
+
+    // The mutable overload hands out a writable pointer into the variant.
+    Shape mutablePoint = Point(3, 7);
+    *mutablePoint.getIfPoint() = Point(8, 9);
+    CHECK(mutablePoint == Shape(Point(8, 9)));
+}
