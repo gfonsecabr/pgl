@@ -11,9 +11,9 @@
 #include <variant>
 #include <vector>
 
-// Polyline keeps the vertices in the given traversal order; the constructor
-// only canonicalizes the direction, reversing the sequence when the reversed
-// sequence is lexicographically smaller.
+// Polyline keeps the vertices exactly in the given traversal order, including
+// the direction; equality and hashing are what ignore the direction, reading
+// the vertices in canonical order instead.
 TEST_CASE("Polyline construction preserves the traversal order") {
     using Point = pgl::Point<int>;
     using Polyline = pgl::Polyline<Point>;
@@ -26,10 +26,10 @@ TEST_CASE("Polyline construction preserves the traversal order") {
         CHECK(zig[2] == Point(1, 0));
     }
 
-    SUBCASE("input is reversed when the last vertex is lexicographically smaller") {
+    SUBCASE("the direction is kept even when the reversal is smaller") {
         const Polyline given({Point(4, 0), Point(2, 2), Point(0, 0)});
-        CHECK(given[0] == Point(0, 0));
-        CHECK(given[2] == Point(4, 0));
+        CHECK(given[0] == Point(4, 0));
+        CHECK(given[2] == Point(0, 0));
     }
 
     SUBCASE("a polyline equals its reversal") {
@@ -43,7 +43,9 @@ TEST_CASE("Polyline construction preserves the traversal order") {
         const Polyline a({Point(0, 0), Point(1, 3), Point(2, 0), Point(1, 5), Point(0, 0)});
         const Polyline b({Point(0, 0), Point(1, 5), Point(2, 0), Point(1, 3), Point(0, 0)});
         CHECK(a == b);
-        CHECK(a[1] == Point(1, 3));  // the lexicographically smaller direction is stored
+        CHECK(a[1] == Point(1, 3));  // each keeps its own direction
+        CHECK(b[1] == Point(1, 5));
+        CHECK(std::hash<Polyline>{}(a) == std::hash<Polyline>{}(b));
     }
 
     SUBCASE("repeated vertices are kept") {
@@ -57,10 +59,12 @@ TEST_CASE("Polyline construction preserves the traversal order") {
         CHECK(poly[1] == Point(5, 5));
     }
 
-    SUBCASE("trusted input is stored as given") {
-        const std::vector<Point> pts{Point(0, 0), Point(5, 5), Point(1, 0)};
-        const Polyline poly(pts, true);
-        CHECK(poly == Polyline(pts));
+    SUBCASE("a reversed polyline hashes like the original") {
+        const Polyline forward({Point(0, 0), Point(5, 5), Point(1, 0)});
+        const Polyline backward({Point(1, 0), Point(5, 5), Point(0, 0)});
+        CHECK(forward[0] == Point(0, 0));
+        CHECK(backward[0] == Point(1, 0));
+        CHECK(std::hash<Polyline>{}(forward) == std::hash<Polyline>{}(backward));
     }
 
     SUBCASE("class template argument deduction") {
@@ -116,6 +120,126 @@ TEST_CASE("Polyline vertex access") {
         REQUIRE(oriented.size() == edges.size());
         CHECK(oriented[1].source() == poly[1]);
         CHECK(oriented[1].target() == poly[2]);
+    }
+}
+
+TEST_CASE("Polyline vertex modification") {
+    using Point = pgl::Point<int>;
+    using Polyline = pgl::Polyline<Point>;
+
+    SUBCASE("set replaces the vertex at the index") {
+        Polyline poly({0, 0, 5, 5, 1, 0});
+        poly.set(1, Point(2, 7));
+        CHECK(poly[1] == Point(2, 7));
+        CHECK(poly == Polyline({Point(0, 0), Point(2, 7), Point(1, 0)}));
+        CHECK(poly.size() == 3);
+    }
+
+    SUBCASE("set uses absolute coordinates on a translated polyline") {
+        Polyline poly({0, 0, 5, 5, 1, 0});
+        poly += Point(10, 20);
+        REQUIRE(poly[0] == Point(10, 20));
+        poly.set(0, Point(0, 0));
+        CHECK(poly[0] == Point(0, 0));
+        CHECK(poly[1] == Point(15, 25));  // the other vertices keep the translation
+    }
+
+    SUBCASE("set invalidates the cached bbox and hash") {
+        Polyline poly({0, 0, 5, 5, 1, 0});
+        const auto hashBefore = std::hash<Polyline>{}(poly);
+        REQUIRE(poly.bbox() == pgl::Rectangle(Point(0, 0), Point(5, 5)));
+        poly.set(1, Point(20, 30));
+        CHECK(poly.bbox() == pgl::Rectangle(Point(0, 0), Point(20, 30)));
+        CHECK(std::hash<Polyline>{}(poly) != hashBefore);
+    }
+
+    SUBCASE("set keeps the traversal direction") {
+        Polyline poly({Point(4, 0), Point(2, 2), Point(0, 0)});
+        poly.set(0, Point(9, 9));
+        CHECK(poly[0] == Point(9, 9));
+        CHECK(poly[2] == Point(0, 0));
+    }
+}
+
+TEST_CASE("Polyline insertion") {
+    using Point = pgl::Point<int>;
+    using Polyline = pgl::Polyline<Point>;
+
+    SUBCASE("insert places the point at the given index") {
+        Polyline poly({0, 0, 4, 0});
+        poly.insert(1, Point(2, 3));
+        CHECK(poly == Polyline({Point(0, 0), Point(2, 3), Point(4, 0)}));
+        CHECK(poly.size() == 3);
+        CHECK(poly.edges().size() == 2);
+    }
+
+    SUBCASE("insert at 0 and at size are the two ends") {
+        Polyline poly({2, 2});
+        poly.insert(0, Point(1, 1));
+        poly.insert(poly.size(), Point(3, 3));
+        CHECK(poly[0] == Point(1, 1));
+        CHECK(poly[1] == Point(2, 2));
+        CHECK(poly[2] == Point(3, 3));
+    }
+
+    SUBCASE("insert accepts a container of points, keeping its order") {
+        Polyline poly({0, 0, 9, 9});
+        const std::vector<Point> middle{Point(3, 1), Point(6, 2)};
+        poly.insert(1, middle);
+        CHECK(poly == Polyline({Point(0, 0), Point(3, 1), Point(6, 2), Point(9, 9)}));
+    }
+
+    SUBCASE("insert of an empty range changes nothing") {
+        Polyline poly({0, 0, 1, 1});
+        poly.insert(1, std::vector<Point>{});
+        CHECK(poly == Polyline({0, 0, 1, 1}));
+    }
+
+    SUBCASE("insert honors a pending translation") {
+        Polyline poly({0, 0, 4, 0});
+        poly += Point(10, 10);
+        poly.insert(1, Point(12, 13));
+        CHECK(poly[0] == Point(10, 10));
+        CHECK(poly[1] == Point(12, 13));
+        CHECK(poly[2] == Point(14, 10));
+    }
+
+    SUBCASE("a polyline can be fed its own vertices") {
+        Polyline poly({0, 0, 1, 1});
+        poly.insert(poly.size(), poly.vertices());
+        CHECK(poly.size() == 4);
+        CHECK(poly[2] == Point(0, 0));
+        CHECK(poly[3] == Point(1, 1));
+    }
+
+    SUBCASE("pushBack appends a point") {
+        Polyline poly({0, 0});
+        poly.pushBack(Point(1, 0));
+        poly.pushBack(Point(1, 1));
+        CHECK(poly == Polyline({Point(0, 0), Point(1, 0), Point(1, 1)}));
+    }
+
+    SUBCASE("pushBack appends a range") {
+        Polyline poly({0, 0});
+        poly.pushBack(std::vector<Point>{Point(1, 0), Point(2, 0)});
+        CHECK(poly == Polyline({Point(0, 0), Point(1, 0), Point(2, 0)}));
+    }
+
+    SUBCASE("building a polyline from empty by pushBack") {
+        Polyline poly;
+        poly.pushBack(Point(0, 0));
+        CHECK(poly.size() == 1);
+        CHECK(poly.isPoint());
+        poly.pushBack(Point(3, 4));
+        CHECK(poly.size() == 2);
+        CHECK(poly.bbox() == pgl::Rectangle(Point(0, 0), Point(3, 4)));
+    }
+
+    SUBCASE("insertion invalidates the cached bbox") {
+        Polyline poly({0, 0, 1, 1});
+        REQUIRE(poly.bbox() == pgl::Rectangle(Point(0, 0), Point(1, 1)));
+        poly.pushBack(Point(5, -2));
+        CHECK(poly.bbox() == pgl::Rectangle(Point(0, -2), Point(5, 1)));
     }
 }
 
@@ -258,8 +382,9 @@ TEST_CASE("Polyline transformations preserve the traversal order") {
         CHECK(rotated == Polyline({Point(0, 0), Point(-5, 5), Point(0, 1)}));
     }
 
-    SUBCASE("scaling by a negative factor keeps the canonical direction") {
+    SUBCASE("scaling by a negative factor keeps the traversal direction") {
         const auto scaled = base * -2;
+        CHECK(scaled[0] == Point(0, 0));
         CHECK(scaled == Polyline({Point(0, 0), Point(-10, -10), Point(-2, 0)}));
         CHECK(scaled / -2 == base);
     }

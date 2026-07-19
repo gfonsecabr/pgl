@@ -29,17 +29,9 @@ template <std::ranges::input_range Range>
 requires detail::is_point_v<std::ranges::range_value_t<Range>>
 Polyline(Range&&) -> Polyline<std::remove_cvref_t<std::ranges::range_value_t<Range>>, NoLabel>;
 
-template <std::ranges::input_range Range>
-requires detail::is_point_v<std::ranges::range_value_t<Range>>
-Polyline(Range&&, bool) -> Polyline<std::remove_cvref_t<std::ranges::range_value_t<Range>>, NoLabel>;
-
 template <class Number>
 requires (!detail::is_point_v<Number>)
 Polyline(std::initializer_list<Number>) -> Polyline<Point<Number>, NoLabel>;
-
-template <class Number>
-requires (!detail::is_point_v<Number>)
-Polyline(std::initializer_list<Number>, bool) -> Polyline<Point<Number>, NoLabel>;
 
 
 /**
@@ -53,12 +45,13 @@ Polyline(std::initializer_list<Number>, bool) -> Polyline<Point<Number>, NoLabel
  * the order they were given in, so the chain may bend backwards, revisit
  * points, and self-intersect; @ref isSimple reports whether it does not.
  *
- * The constructor normalizes the sequence only by direction: a polyline
- * traversed backwards is the same set of points, so the stored sequence is
- * whichever of the input and its reversal is lexicographically smaller. This
- * makes `operator==`/`operator<=>` a translation-consistent geometric
- * equality with `Polyline({a, b, c}) == Polyline({c, b, a})`. No vertex is
- * reordered or removed: repeated vertices are kept as given. A repeated
+ * The constructor stores the sequence exactly as given: no vertex is
+ * reordered or removed, and the traversal direction is kept, so a polyline
+ * built backwards iterates backwards. A polyline traversed backwards is still
+ * the same set of points, so `operator==`/`operator<=>` and `std::hash` read
+ * the vertices in a canonical direction instead of the stored one, giving
+ * `Polyline({a, b, c}) == Polyline({c, b, a})` without ever flipping the
+ * stored sequence. Repeated vertices are kept as given. A repeated
  * *consecutive* vertex produces a zero-length edge; like other degenerate
  * inputs in the library, such a polyline is outside the contract of the
  * geometric predicates (@ref isSimple reports `false` for it, and
@@ -96,40 +89,31 @@ struct Polyline {
     /**
      * @brief Creates a polyline from a range of points.
      *
-     * The points are linked in the given order. Unless @p trusted is set, the
-     * sequence is canonicalized by direction: it is reversed when the reversed
-     * sequence is lexicographically smaller. Nothing else is changed — no
-     * sorting, no deduplication.
+     * The points are linked and stored in the given order: nothing is changed —
+     * no sorting, no deduplication, no reversal.
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of vertices in traversal order.
-     * @param trusted Set to true if the sequence is already canonical.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType>
-    constexpr explicit Polyline(Range&& points, bool trusted = false) {
+    constexpr explicit Polyline(Range&& points) {
         for (const auto& p : points) {
             points_.push_back(p);
         }
-        if (!trusted) {
-            normalize();
-        }
-        assert(isCanonical());
     }
 
     /**
      * @brief Creates a polyline from a flat list of coordinates.
      *
      * The values are consumed in pairs `(x0, y0, x1, y1, …)`, each pair forming
-     * one vertex, so the list must hold an even number of values. Unless
-     * @p trusted is set, the sequence is canonicalized by direction (see the
-     * range constructor).
+     * one vertex, so the list must hold an even number of values. The vertices
+     * are stored in the given order (see the range constructor).
      *
      * @param coords Interleaved x/y coordinates of the vertices in traversal order.
-     * @param trusted Set to true if the sequence is already canonical.
      */
-    constexpr explicit Polyline(std::initializer_list<NumberType> coords, bool trusted = false) {
+    constexpr explicit Polyline(std::initializer_list<NumberType> coords) {
         assert(coords.size() % 2 == 0);
         points_.reserve(coords.size() / 2);
         for (auto it = coords.begin(); it != coords.end(); ) {
@@ -137,17 +121,12 @@ struct Polyline {
             NumberType y = *it++;
             points_.emplace_back(x, y);
         }
-        if (!trusted) {
-            normalize();
-        }
-        assert(isCanonical());
     }
 
     /**
      * @brief Converts a polyline with compatible vertex type.
      *
-     * The source is already canonical; a translation or a non-narrowing type
-     * conversion preserves that, so no renormalization is needed.
+     * The traversal order of the source is preserved.
      *
      * @tparam OtherPointType Source vertex type.
      * @param other Source polyline.
@@ -198,6 +177,29 @@ struct Polyline {
     }
 
     /**
+     * @brief Replaces the vertex at the given index.
+     *
+     * The stored vertices are kept relative to a lazy translation, so the
+     * given absolute position has that translation subtracted before it is
+     * stored; the rest of the polyline is untouched. Drops the cached bounding
+     * box and hash.
+     *
+     * Complexity: O(1).
+     *
+     * @tparam OtherPoint Type of the new vertex.
+     * @param index The index of the vertex to replace.
+     * @param point The new vertex position.
+     */
+    template <PointConcept OtherPoint>
+    constexpr void set(std::size_t index, const OtherPoint& point) {
+        assert(index < size());
+        PointType stored(point);
+        stored -= translation_;
+        points_[index] = stored;
+        resetCache();
+    }
+
+    /**
      * @brief Returns the smallest index `i` with `(*this)[i] == point`, or
      * `-1` if `point` is not a vertex.
      *
@@ -214,6 +216,92 @@ struct Polyline {
             }
         }
         return -1;
+    }
+
+    /**
+     * @brief Inserts a vertex at the given index, shifting the later vertices
+     * back.
+     *
+     * The vertex becomes `(*this)[index]`; passing @ref size() appends. The
+     * two edges that met at the old `index` are replaced by three, so the
+     * polyline may stop being simple.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam OtherPoint Type of the inserted point.
+     * @param index Position the new vertex takes, in `[0, size()]`.
+     * @param point Vertex to insert.
+     */
+    template <PointConcept OtherPoint>
+    constexpr void insert(std::size_t index, const OtherPoint& point) {
+        assert(index <= size());
+        PointType stored(point);
+        stored -= translation_;
+        points_.insert(points_.begin() + static_cast<std::ptrdiff_t>(index), stored);
+        resetCache();
+    }
+
+    /**
+     * @brief Inserts a range of vertices at the given index, shifting the later
+     * vertices back.
+     *
+     * The range keeps its order: its first point becomes `(*this)[index]`.
+     * Passing @ref size() appends. The points are collected before the
+     * insertion, so a range that reads from this polyline (e.g. its own
+     * @ref vertices) is safe.
+     *
+     * Complexity: O(n + m) for n vertices and m inserted points.
+     *
+     * @tparam Range Input range whose elements can be converted to @ref PointType.
+     * @param index Position the first new vertex takes, in `[0, size()]`.
+     * @param points Vertices to insert, in traversal order.
+     */
+    template <std::ranges::input_range Range>
+        requires (!detail::is_point_v<std::remove_cvref_t<Range>>) &&
+                 std::convertible_to<std::ranges::range_value_t<Range>, PointType>
+    constexpr void insert(std::size_t index, Range&& points) {
+        assert(index <= size());
+        std::vector<PointType> incoming;
+        for (const auto& p : points) {
+            PointType stored(p);
+            stored -= translation_;
+            incoming.push_back(stored);
+        }
+        points_.insert(points_.begin() + static_cast<std::ptrdiff_t>(index), incoming.begin(),
+                       incoming.end());
+        resetCache();
+    }
+
+    /**
+     * @brief Appends a vertex, extending the polyline by one edge.
+     *
+     * Same as `insert(size(), point)`.
+     *
+     * Complexity: amortized O(1).
+     *
+     * @tparam OtherPoint Type of the appended point.
+     * @param point Vertex to append.
+     */
+    template <PointConcept OtherPoint>
+    constexpr void pushBack(const OtherPoint& point) {
+        insert(size(), point);
+    }
+
+    /**
+     * @brief Appends a range of vertices in order.
+     *
+     * Same as `insert(size(), points)`.
+     *
+     * Complexity: O(m) for m appended points.
+     *
+     * @tparam Range Input range whose elements can be converted to @ref PointType.
+     * @param points Vertices to append, in traversal order.
+     */
+    template <std::ranges::input_range Range>
+        requires (!detail::is_point_v<std::remove_cvref_t<Range>>) &&
+                 std::convertible_to<std::ranges::range_value_t<Range>, PointType>
+    constexpr void pushBack(Range&& points) {
+        insert(size(), std::forward<Range>(points));
     }
 
     /**
@@ -246,13 +334,22 @@ struct Polyline {
 
     /**
      * @brief Compares two polylines by their canonical vertex sequences.
+     *
+     * The stored direction is irrelevant: each side is read through @ref
+     * canonicalAt, so the order is the one induced by the lexicographically
+     * smaller of each sequence and its reversal.
+     *
+     * Complexity: O(n) for n vertices.
      */
     constexpr auto operator<=>(const Polyline& other) const {
         if (auto cmp = size() <=> other.size(); cmp != 0) {
             return cmp;
         }
+        const bool reversed = !storedIsCanonical();
+        const bool otherReversed = !other.storedIsCanonical();
         for (std::size_t i = 0; i < size(); ++i) {
-            if (auto cmp = (*this)[i] <=> other[i]; cmp != 0) {
+            if (auto cmp = canonicalAt(i, reversed) <=> other.canonicalAt(i, otherReversed);
+                cmp != 0) {
                 return cmp;
             }
         }
@@ -261,15 +358,20 @@ struct Polyline {
 
     /**
      * @brief Checks equality of two polylines.
-     * @return True if both polylines have the same vertices in the same order
-     *         (up to the direction canonicalization of the constructor).
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return True if both polylines have the same vertices in the same order,
+     *         up to the traversal direction: a polyline equals its reversal.
      */
     constexpr bool operator==(const Polyline& other) const {
         if (size() != other.size()) {
             return false;
         }
+        const bool reversed = !storedIsCanonical();
+        const bool otherReversed = !other.storedIsCanonical();
         for (std::size_t i = 0; i < size(); ++i) {
-            if ((*this)[i] != other[i]) {
+            if (canonicalAt(i, reversed) != other.canonicalAt(i, otherReversed)) {
                 return false;
             }
         }
@@ -1580,8 +1682,8 @@ struct Polyline {
     /**
      * @brief Returns the polyline rotated by 90k degrees around the origin.
      *
-     * The vertex sequence is preserved (rotation is a rigid motion); only the
-     * direction canonicalization may flip it.
+     * The vertex sequence, including its direction, is preserved (rotation is
+     * a rigid motion).
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
      * @return Rotated polyline.
@@ -1671,7 +1773,7 @@ struct Polyline {
      * @tparam NewSegment Type of the added edge.
      * @param oldEdge Edge to remove (an existing polyline edge).
      * @param newEdge Edge to add in its place.
-     * @return The flipped polyline (canonicalized by direction like any other).
+     * @return The flipped polyline.
      * @pre `flippable(oldEdge, newEdge)`.
      */
     template <SegmentConcept OldSegment, SegmentConcept NewSegment>
@@ -1730,9 +1832,9 @@ struct Polyline {
     /**
      * @brief Scales the polyline by the given scalar.
      *
-     * Complexity: O(n) for n vertices. Scaling by a negative factor reverses
-     * the lexicographic order of the extremes, so the polyline is
-     * renormalized (possibly reversed) to stay canonical.
+     * Complexity: O(n) for n vertices. The traversal order is preserved, even
+     * for a negative factor, which merely reverses the lexicographic order of
+     * the extremes.
      */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
@@ -1741,7 +1843,6 @@ struct Polyline {
             vertex *= scalar;
         }
         translation_ *= scalar;
-        normalize();
         resetCache();
         return *this;
     }
@@ -1749,7 +1850,8 @@ struct Polyline {
     /**
      * @brief Divides the polyline by the given scalar.
      *
-     * Complexity: O(n) for n vertices; renormalizes like @ref operator*=.
+     * Complexity: O(n) for n vertices; preserves the traversal order like
+     * @ref operator*=.
      */
     template <class Scalar>
         requires(!detail::is_point_v<Scalar> && !TransformationConcept<Scalar>)
@@ -1758,7 +1860,6 @@ struct Polyline {
             vertex /= scalar;
         }
         translation_ /= scalar;
-        normalize();
         resetCache();
         return *this;
     }
@@ -1906,8 +2007,15 @@ struct Polyline {
     /**
      * @brief Tests whether the stored vertex sequence is in canonical
      * direction: not lexicographically larger than its reversal.
+     *
+     * The stored sequence keeps the user's traversal order, so this is not an
+     * invariant but a question asked on demand by the direction-agnostic
+     * comparators and by std::hash, which read the vertices through
+     * @ref canonicalAt.
+     *
+     * Complexity: O(n) for n vertices.
      */
-    constexpr bool isCanonical() const {
+    constexpr bool storedIsCanonical() const {
         if (points_.size() < 2) {
             return true;
         }
@@ -1924,14 +2032,14 @@ struct Polyline {
     }
 
     /**
-     * @brief Brings the stored vertices to canonical form: the sequence is
-     * reversed when its reversal is lexicographically smaller. The traversal
-     * order is otherwise untouched.
+     * @brief Reads vertex @p index in canonical direction.
+     *
+     * @param index Index in the canonical sequence.
+     * @param reversed `!storedIsCanonical()`, computed once by the caller so a
+     *        full comparison stays linear.
      */
-    constexpr void normalize() {
-        if (!isCanonical()) {
-            std::reverse(points_.begin(), points_.end());
-        }
+    constexpr PointType canonicalAt(std::size_t index, bool reversed) const {
+        return (*this)[reversed ? size() - 1 - index : index];
     }
 
     class Iterator {
@@ -2018,16 +2126,15 @@ struct Polyline {
 template <class TPoint, class TLabel>
 constexpr Polyline<typename Segment<TPoint, TLabel>::PointType>
 Segment<TPoint, TLabel>::asPolyline() const {
-    // min() <= max() is already the canonical polyline direction.
-    return Polyline<PointType>(vertices(), true);
+    // The polyline traverses the segment from min() to max().
+    return Polyline<PointType>(vertices());
 }
 
 template <class PointType_, class TLabel, class Storage>
 constexpr Polyline<typename MonotoneChain<PointType_, TLabel, Storage>::PointType>
 MonotoneChain<PointType_, TLabel, Storage>::asPolyline() const {
-    // The vertices are sorted lexicographically, which is the canonical
-    // polyline direction, so the traversal needs no renormalization.
-    return Polyline<PointType>(vertices(), true);
+    // The polyline traverses the chain in its lexicographic vertex order.
+    return Polyline<PointType>(vertices());
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
