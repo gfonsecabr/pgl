@@ -405,6 +405,41 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the kernel: the set of points that see the whole polygon.
+     *
+     * A point `p` of the polygon belongs to the kernel when the segment `pq`
+     * stays inside the polygon for every point `q` of it. For a simple polygon
+     * the kernel is exactly the intersection of the closed half-planes bounded
+     * by the edge lines and lying on the interior side, hence convex — that
+     * intersection is what is returned.
+     *
+     * The answer is only meaningful for a simple polygon (@ref isSimple); as
+     * elsewhere in the library, a self-intersecting boundary is outside the
+     * contract. Degenerate polygons are handled: one collapsed to a point or a
+     * segment is its own kernel. An undefined polygon (@ref isUndefined, which
+     * includes the vertexless one) yields `std::nullopt`.
+     *
+     * Complexity: O(n log n) for n vertices.
+     *
+     * @return The kernel, or `std::nullopt` when it is empty (the polygon is
+     *         not star-shaped).
+     */
+    [[nodiscard]] constexpr std::optional<HalfplaneIntersection<PointType>> getStarShapedKernel() const;
+
+    /**
+     * @brief Tests whether the polygon is star-shaped.
+     *
+     * True when some point of the polygon sees all of it, i.e. when the kernel
+     * (@ref getStarShapedKernel) is non-empty. Every convex polygon is
+     * star-shaped; the converse does not hold.
+     *
+     * Complexity: O(n log n) for n vertices.
+     */
+    [[nodiscard]] constexpr bool isStarShaped() const {
+        return getStarShapedKernel().has_value();
+    }
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The farthest pair of vertices of a simple polygon lies on its convex

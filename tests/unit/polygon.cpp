@@ -979,3 +979,79 @@ TEST_CASE("Polygon pointInside is interior for convex and non-convex polygons") 
         check(Poly({0, 0, 8, 1, 9, 9, 5, 4, 6, 8}));                    // arrowhead notch
     }
 }
+
+// Polygon::getStarShapedKernel intersects the interior half-planes of the
+// edges, so the kernel is convex and possibly unbounded-free (it is always
+// contained in the polygon). isStarShaped just asks whether it is non-empty.
+TEST_CASE("Polygon star-shaped kernel") {
+    using Point = pgl::Point<int>;
+    using Poly = pgl::Polygon<Point>;
+
+    SUBCASE("convex polygons are star-shaped and are their own kernel") {
+        const Poly square({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(square.isStarShaped());
+        const auto kernel = square.getStarShapedKernel();
+        REQUIRE(kernel.has_value());
+        CHECK(kernel->contains(Point(2, 2)));
+        CHECK(kernel->contains(Point(0, 0)));
+        CHECK_FALSE(kernel->contains(Point(5, 5)));
+        CHECK_FALSE(kernel->isDegenerate());
+    }
+
+    SUBCASE("non-convex star-shaped polygon has a strictly smaller kernel") {
+        // L-shape covering [0,4]x[0,2] and [0,2]x[0,4]; kernel is [0,2]x[0,2].
+        const Poly ell({0, 0, 4, 0, 4, 2, 2, 2, 2, 4, 0, 4});
+        CHECK(ell.isStarShaped());
+        const auto kernel = ell.getStarShapedKernel();
+        REQUIRE(kernel.has_value());
+        CHECK(kernel->contains(Point(1, 1)));
+        CHECK(kernel->contains(Point(2, 2)));
+        CHECK_FALSE(kernel->contains(Point(3, 1)));  // in the polygon, sees no (1,3)
+        CHECK_FALSE(kernel->contains(Point(1, 3)));
+    }
+
+    SUBCASE("plus shape: kernel is the central square") {
+        const Poly plus({1, 0, 2, 0, 2, 1, 3, 1, 3, 2, 2, 2,
+                         2, 3, 1, 3, 1, 2, 0, 2, 0, 1, 1, 1});
+        const auto kernel = plus.getStarShapedKernel();
+        REQUIRE(kernel.has_value());
+        CHECK(kernel->contains(Point(1, 1)));
+        CHECK(kernel->contains(Point(2, 2)));
+        CHECK_FALSE(kernel->contains(Point(0, 1)));
+    }
+
+    SUBCASE("comb is not star-shaped") {
+        const Poly comb({0, 0, 6, 0, 6, 4, 5, 4, 5, 1, 4, 1,
+                         4, 4, 3, 4, 3, 1, 2, 1, 2, 4, 0, 4});
+        REQUIRE(comb.isSimple());
+        CHECK_FALSE(comb.isStarShaped());
+        CHECK_FALSE(comb.getStarShapedKernel().has_value());
+    }
+
+    SUBCASE("degenerate polygons are their own kernel") {
+        const Poly point({2, 2, 2, 2, 2, 2});
+        CHECK(point.isStarShaped());
+        REQUIRE(point.getStarShapedKernel().has_value());
+        CHECK(point.getStarShapedKernel()->contains(Point(2, 2)));
+        CHECK_FALSE(point.getStarShapedKernel()->contains(Point(2, 3)));
+
+        const Poly segment({0, 0, 3, 3, 1, 1});
+        CHECK(segment.isStarShaped());
+        REQUIRE(segment.getStarShapedKernel().has_value());
+        CHECK(segment.getStarShapedKernel()->contains(Point(1, 1)));
+        CHECK_FALSE(segment.getStarShapedKernel()->contains(Point(2, 1)));
+    }
+
+    SUBCASE("undefined polygons have no kernel") {
+        CHECK_FALSE(Poly({}).isStarShaped());
+        CHECK_FALSE(Poly({}).getStarShapedKernel().has_value());
+    }
+
+    SUBCASE("repeated and collinear vertices do not disturb the kernel") {
+        const Poly square({0, 0, 2, 0, 4, 0, 4, 4, 4, 4, 0, 4});
+        const auto kernel = square.getStarShapedKernel();
+        REQUIRE(kernel.has_value());
+        CHECK(kernel->contains(Point(2, 2)));
+        CHECK_FALSE(kernel->contains(Point(5, 2)));
+    }
+}

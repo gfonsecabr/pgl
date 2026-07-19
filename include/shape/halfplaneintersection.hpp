@@ -2260,6 +2260,45 @@ struct HalfplaneIntersection {
 };
 
 /**
+ * @copydoc Polygon::getStarShapedKernel
+ *
+ * Defined here because the result type must be complete: the polygon's
+ * vertices are canonically counterclockwise, so the interior lies to the left
+ * of every boundary edge and the kernel is built by inserting the half-plane
+ * of each edge in turn. Repeated consecutive vertices contribute no edge line
+ * and are skipped; collinear ones give a redundant constraint that @ref
+ * HalfplaneIntersection::insert discards.
+ */
+template <class PointType_, class TLabel>
+constexpr std::optional<HalfplaneIntersection<PointType_>>
+Polygon<PointType_, TLabel>::getStarShapedKernel() const {
+    using RegionType = HalfplaneIntersection<PointType>;
+    if (const auto vertex = getIfPoint()) {
+        return RegionType(*vertex);
+    }
+    if (const auto carrier = getIfSegment()) {
+        return RegionType(*carrier);
+    }
+    if (isUndefined()) {
+        return std::nullopt;
+    }
+    RegionType kernel;
+    const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+    for (std::ptrdiff_t i = 0; i < n; ++i) {
+        const PointType source = get(i);
+        const PointType target = get(i + 1);
+        if (source == target) {
+            continue;
+        }
+        kernel.insert(Halfplane<PointType>(source, target));
+        if (kernel.isEmpty()) {
+            return std::nullopt;
+        }
+    }
+    return kernel;
+}
+
+/**
  * @brief Translates a region by a point.
  *
  * The coordinate type follows the translation, mirroring the other shapes'
