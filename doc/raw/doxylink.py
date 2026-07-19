@@ -17,7 +17,11 @@ Resolution is *context-aware* and *fail-closed*:
 
   * The current class context comes from the nearest section heading whose text
     names a class (`### Segment` -> pgl::Segment, `### Oriented Segment` ->
-    pgl::OrientedSegment, `### Shape Tree` -> pgl::ShapeTree, ...). Method names
+    pgl::OrientedSegment, `### Shape Tree` -> pgl::ShapeTree, ...). A heading
+    whose full text names no class still sets the context when it mentions one
+    in backticks (`### Polymorphism with `Shape`` -> pgl::Shape), so a prose
+    heading can name its class without being reduced to the bare class name.
+    Method names
     collide heavily across classes (`contains` lives on 15 classes), so the
     receiver token (`s`, `l`, `t`) is ignored -- only the heading decides.
   * A mention is linked only when its method name resolves to exactly one member
@@ -82,6 +86,24 @@ PLACEHOLDER_RE = re.compile(r"^(\s*[-*]\s*Other methods:?)\s*$")
 
 def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def heading_class(text, class_by_norm):
+    """Return the class a heading puts us in context of, or None.
+
+    The whole heading text wins when it names a class (`### Shape Tree`), so
+    existing headings keep resolving as before. Otherwise a class named in
+    backticks decides (`### Polymorphism with `Shape``), which lets a prose
+    heading carry a context; the first such mention that resolves wins.
+    """
+    cls = class_by_norm.get(norm(text))
+    if cls is not None:
+        return cls
+    for span in re.findall(r"`([^`]+)`", text):
+        cls = class_by_norm.get(norm(span))
+        if cls is not None:
+            return cls
+    return None
 
 
 def load_tag(path):
@@ -298,7 +320,7 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
         h = HEADING_RE.match(line)
         if h:
             section += 1
-            cls = class_by_norm.get(norm(h.group(2)))
+            cls = heading_class(h.group(2), class_by_norm)
             if cls is not None:
                 context = cls
             out_lines.append(line)
