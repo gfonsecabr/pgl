@@ -1444,4 +1444,40 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherO
     return this->template edgeMinDistanceLInf<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
 }  // namespace pgl

@@ -1796,4 +1796,40 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const Oth
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
 }  // namespace pgl

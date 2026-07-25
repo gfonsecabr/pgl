@@ -2760,4 +2760,30 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherOrien
     return contains(other.asSegment());
 }
 
+// The region is bounded, so it swallows an unbounded operand only when that
+// operand has collapsed to a point.
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherLine& other) const {
+    return other.isDegenerate() && contains(other.min());
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherRay& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && contains(other.source());
+}
+
 }  // namespace pgl

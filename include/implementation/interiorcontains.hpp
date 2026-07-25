@@ -2118,4 +2118,29 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
     return interiorContains(other.asSegment());
 }
 
+// Unbounded operands again: only a degenerate one fits inside a bounded region.
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherLine& other) const {
+    return other.isDegenerate() && interiorContains(other.min());
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherRay& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && interiorContains(other.source());
+}
+
 }  // namespace pgl
