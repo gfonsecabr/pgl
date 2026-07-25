@@ -445,6 +445,11 @@ constexpr bool Line<PointType, LabelType>::isDegenerate() const {
 }
 
 template <class PointType, class LabelType>
+constexpr bool Line<PointType, LabelType>::isUndefined() const {
+    return isDegenerate();
+}
+
+template <class PointType, class LabelType>
 constexpr bool Line<PointType, LabelType>::isVertical() const {
     return min().x() == max().x();
 }
@@ -569,6 +574,11 @@ constexpr auto OrientedLine<PointType, LabelType>::operator<=>(const OrientedLin
 template <class PointType, class LabelType>
 constexpr bool OrientedLine<PointType, LabelType>::isDegenerate() const {
     return source() == target();
+}
+
+template <class PointType, class LabelType>
+constexpr bool OrientedLine<PointType, LabelType>::isUndefined() const {
+    return isDegenerate();
 }
 
 template <class PointType, class LabelType>
@@ -708,6 +718,11 @@ constexpr auto Ray<PointType, LabelType>::operator<=>(const Ray& other) const {
 template <class PointType, class LabelType>
 constexpr bool Ray<PointType, LabelType>::isDegenerate() const {
     return source() == target();
+}
+
+template <class PointType, class LabelType>
+constexpr bool Ray<PointType, LabelType>::isUndefined() const {
+    return isDegenerate();
 }
 
 template <class PointType, class LabelType>
@@ -923,6 +938,11 @@ constexpr auto Halfplane<PointType, LabelType>::operator<=>(const Halfplane& oth
 template <class PointType, class LabelType>
 constexpr bool Halfplane<PointType, LabelType>::isDegenerate() const {
     return source() == target();
+}
+
+template <class PointType, class LabelType>
+constexpr bool Halfplane<PointType, LabelType>::isUndefined() const {
+    return isDegenerate();
 }
 
 template <class PointType, class LabelType>

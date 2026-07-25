@@ -404,6 +404,20 @@ struct Halfplane {
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the half-plane is degenerate without collapsing to
+     * a point or to a segment.
+     *
+     * When the boundary degenerates to a point it has no direction, so the side
+     * it bounds is not determined and the half-plane has no reasonable
+     * interpretation: every degenerate half-plane is undefined.
+     *
+     * Complexity: O(1).
+     *
+     * @return @ref isDegenerate.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Returns whether the boundary line is vertical.
      *
      * @return `true` if both defining points share the same x-coordinate.

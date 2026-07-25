@@ -405,6 +405,19 @@ struct Ray {
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the ray is degenerate without collapsing to a
+     * point or to a segment.
+     *
+     * A ray whose source and target coincide has no direction and no reasonable
+     * interpretation, so every degenerate ray is undefined.
+     *
+     * Complexity: O(1).
+     *
+     * @return @ref isDegenerate.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Returns whether the ray is vertical.
      *
      * @return `true` if the defining points have the same x-coordinate.

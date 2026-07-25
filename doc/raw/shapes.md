@@ -299,6 +299,7 @@ The defining points may be accessed as in a segment and may not be changed direc
 A line `l` has some additional methods such as:
 
 - `l.isDegenerate()`: Returns `l[0] == l[1]`.
+- `l.isUndefined()`: Returns `l.isDegenerate()`: a line through two equal points has no direction and no reasonable interpretation.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
@@ -333,6 +334,7 @@ The defining points may be accessed as in an oriented segment and may be changed
 An oriented line `l` has methods such as:
 
 - `l.isDegenerate()`: Returns `l[0] == l[1]`.
+- `l.isUndefined()`: Returns `l.isDegenerate()`: a line through two equal points has no direction and no reasonable interpretation.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the oriented line with source and target interchanged.
@@ -372,6 +374,7 @@ The defining points may be accessed as in an oriented segment and may be changed
 A ray `l` has methods such as:
 
 - `l.isDegenerate()`: Returns `l[0] == l[1]`.
+- `l.isUndefined()`: Returns `l.isDegenerate()`: a ray whose source and target coincide has no direction and no reasonable interpretation.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the ray with source and target interchanged.
@@ -413,6 +416,7 @@ The defining points may be accessed as in an oriented segment and may be changed
 A half-plane `h` has methods such as:
 
 - `h.isDegenerate()`: Returns `h[0] == h[1]`.
+- `h.isUndefined()`: Returns `h.isDegenerate()`: when the boundary collapses to a point it has no direction, so the side it bounds is undetermined.
 - `h.isVertical()`: Returns `h[0].x() == h[1].x()`.
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
@@ -633,8 +637,9 @@ The half-planes are stored sorted counterclockwise by boundary direction, with n
 
 A half-plane intersection `k` has methods such as:
 
-- `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant; when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed. Amortized $O(\log n)$ comparisons.
+- `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant or undefined (a degenerate half-plane bounds no side, so it carries no constraint); when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed. Amortized $O(\log n)$ comparisons.
 - `k.isEmpty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
+- `k.isUndefined()`: Always `false`: `insert` ignores undefined half-planes, so every region — empty, degenerate, or full-dimensional — is well defined.
 - `k.isHalfplane()` / `k.getIfHalfplane()`: Whether the region is exactly one closed half-plane (a single stored constraint), and that half-plane. Exact, no division.
 - `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. A degenerate region is a point, segment, ray, or line, and only the line has no vertex, so this needs no coordinate arithmetic. Exact, no division.
 - `k.isPoint()` / `k.getIfPoint()`: Whether the region is a single point, and that point. The test is exact (it runs on rational coordinates for an integral region), so a point whose coordinates are not representable in `NumberType` is still recognized; `getIfPoint` divides, so request `pgl::Rational` coordinates for the exact point.

@@ -501,11 +501,14 @@ struct HalfplaneIntersection {
      * switches to the sticky empty state. Otherwise the half-plane is stored
      * and any stored half-planes it makes redundant are removed.
      *
+     * An undefined (degenerate) half-plane bounds no side of the plane, so it
+     * carries no constraint and is ignored, leaving the region unchanged.
+     *
      * Complexity: O(log n) comparisons amortized, plus O(n) vector element
      * moves in the worst case.
      *
      * @return `true` if the region changed, `false` if the half-plane was
-     * discarded as redundant.
+     * discarded as redundant or undefined.
      */
     template <HalfplaneConcept OtherHalfplane>
     constexpr bool insert(const OtherHalfplane& other) {
@@ -513,7 +516,9 @@ struct HalfplaneIntersection {
             return false;
         }
         const HalfplaneType h(PointType(other.source()), PointType(other.target()));
-        assert(!h.isDegenerate());
+        if (h.isUndefined()) {
+            return false;
+        }
         if (halfplanes_.empty()) {
             halfplanes_.push_back(h);
             resetCache();
@@ -659,6 +664,20 @@ struct HalfplaneIntersection {
      */
     constexpr bool isDegenerate() const {
         return empty_ || degenerate_;
+    }
+
+    /**
+     * @brief Returns whether the region is undefined.
+     *
+     * A region is never undefined: @ref insert ignores undefined half-planes,
+     * so every representable region — including the empty set and the
+     * lower-dimensional ones — has a well-defined interpretation. Provided for
+     * uniformity with the other shapes.
+     *
+     * @return `false`.
+     */
+    constexpr bool isUndefined() const {
+        return false;
     }
 
     /**
