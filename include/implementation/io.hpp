@@ -264,6 +264,29 @@ std::ostream& operator<<(std::ostream& stream, const Polygon<PointType, LabelTyp
 }
 
 // -----------------------------------------------------------------------------
+// PolygonWithHoles
+/**
+ * @brief Streams a region as `PolygonWithHoles[outer,holes...]`.
+ *
+ * The outer boundary and every hole print as ordinary polygons, so the holes
+ * are distinguished by position rather than by orientation — matching the
+ * storage, which keeps every ring counterclockwise.
+ *
+ * @param stream Output stream.
+ * @param region Region to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const PolygonWithHoles<PointType, LabelType>& region) {
+    stream << "PolygonWithHoles[" << region.outer();
+    for (const auto& hole : region.holes()) {
+        stream << "," << hole;
+    }
+    stream << "]";
+    return stream;
+}
+
+// -----------------------------------------------------------------------------
 // MonotoneChain
 /**
  * @brief Streams a MonotoneChain as `MonotoneChain[(P1),(P2),(P3),...]`.

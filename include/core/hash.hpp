@@ -292,6 +292,34 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for PolygonWithHoles.
+     *
+     * The holes are stored in canonical order, so hashing them in sequence is
+     * independent of the order they were supplied in — as equality requires.
+     */
+    template <class PointType, class LabelType>
+    struct hash<pgl::PolygonWithHoles<PointType, LabelType>> {
+        std::size_t operator()(const pgl::PolygonWithHoles<PointType, LabelType>& region) const {
+            using Shape = pgl::PolygonWithHoles<PointType, LabelType>;
+            if (region.hash_ != Shape::hashUnset_) {
+                return region.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
+            pgl::detail::hashCombine(seed, region.outer());
+            for (const auto& hole : region.holes()) {
+                pgl::detail::hashCombine(seed, hole);
+            }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            region.hash_ = seed;
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for HalfplaneIntersection.
      */
     template <class PointType, class LabelType>

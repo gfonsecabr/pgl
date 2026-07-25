@@ -2711,4 +2711,24 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherRegion& other)
     return contains(other.template asConvex<E>());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherPoint& point) const {
+    if (!outer_.contains(point)) {
+        return false;
+    }
+    // A hole removes only its interior, so a point on a hole boundary stays in
+    // the region; only a strictly interior one is carved out.
+    for (const auto& hole : holes_) {
+        if (hole.interiorContains(point)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace pgl
