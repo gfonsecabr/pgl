@@ -1500,6 +1500,23 @@ struct Triangle {
         return other.template squaredHausdorffDistance<ResultNumber>(*this);
     }
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Triangle<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates all vertices by a point in place. */
     template<PointConcept OtherPoint>
     constexpr Triangle& operator+=(const OtherPoint& translation);
@@ -1641,14 +1658,6 @@ struct Triangle {
     std::array<PointType, 3> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-/** @brief Returns a translated copy of a triangle. */
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation);
-
-/** @brief Returns a translated copy of a triangle with the translation on the left. */
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType, LabelType>& triangle);
 
 /** @brief Returns a copy of a triangle translated by the opposite point. */
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>

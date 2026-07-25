@@ -1246,6 +1246,23 @@ struct Line {
     }
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Line<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates both defining points in place.
      *
      * @tparam OtherNumber Coordinate type of the translation point.
@@ -1329,32 +1346,6 @@ struct Line {
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-/**
- * @brief Translates a line by a point.
- *
- * @tparam PointType Defining point type of the line.
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @param line Line to translate.
- * @param translation Translation vector.
- * @return Translated line.
- */
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
-
-/**
- * @brief Translates a line by a point written on the left.
- *
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @tparam PointType Defining point type of the line.
- * @param translation Translation vector.
- * @param line Line to translate.
- * @return Translated line.
- */
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType, LabelType>& line);
 
 /**
  * @brief Translates a line by the opposite of a point.

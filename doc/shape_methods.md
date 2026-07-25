@@ -63,6 +63,9 @@ pgl::Segment s = {p, q},    //  s = (2,3)--(4,5)
              t2 = s - p;    // t2 = (0,0)--(2,2)
 ```
 
+Adding a point is the special case of adding two shapes, which is their
+[Minkowski sum](#minkowski-sum).
+
 In-place translations use `+=` and `-=`.
 Scaling around the origin uses the operator `*` or `*=` with a scalar.
 
@@ -140,6 +143,47 @@ pgl::Shape isec(s.intersection(t));
 pgl::Point<> p(isec);
 // p = (3,3)
 ```
+
+### Minkowski Sum
+
+The Minkowski sum of two shapes is the set of all sums of a point of the first
+and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is
+written `a.minkowskiSum(b)`, or `a + b`.
+
+```c++
+pgl::Segment s = {0,0,2,0}, t = {0,0,0,3};
+pgl::Convex box = s + t;
+// box = Convex[(0,0),(2,0),(2,3),(0,3)]
+```
+
+Adding a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") is a translation, so it returns the other operand's own type
+and is defined for every shape — that is the reading `shape + point` has always
+had. Two bounded convex shapes ([`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label."), [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label."),
+[`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.")) sum to a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), computed in linear time by
+merging the two boundaries' edge directions. Two rectangles are the one
+non-trivial pair closed under the sum and give back a [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.").
+
+```c++
+pgl::Triangle t = {0,0,3,0,0,3};
+pgl::Convex hexagon = t + pgl::Triangle(0,0,-1,0,0,-1);   // 6 vertices
+pgl::Rectangle r = pgl::Rectangle(1,2,4,6) + pgl::Rectangle(-1,0,2,1);
+// r = (0,2)--(6,7)
+```
+
+Every vertex of the result is a sum of two input vertices, so the construction
+is exact: integer coordinates in, integer coordinates out. A result that drops
+below two dimensions is reported the usual way, through the returned [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."):
+summing two parallel segments gives a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") satisfying `isSegment()`. The
+empty shape absorbs, and an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") operand gives an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.").
+
+Other pairs are a compile error rather than an approximation. [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") sums to a
+rounded shape, a non-convex [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") can sum to a region with holes, and an
+unbounded operand ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) sums to
+an unbounded region; none of those is representable today. Since
+$\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
+who wants the convex approximation can ask for it explicitly by summing the
+hulls. On the polymorphic [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") the operand pair is only known at run time, so
+an unsupported pair throws `std::logic_error` instead.
 
 ### Other Methods for Shapes
 

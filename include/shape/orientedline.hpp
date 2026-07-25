@@ -1229,6 +1229,23 @@ struct OrientedLine {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<OrientedLine<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the oriented line by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedLine& operator+=(const OtherPoint& translation);
@@ -1274,12 +1291,6 @@ struct OrientedLine {
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType, LabelType>& line);
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation);

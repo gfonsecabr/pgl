@@ -1867,6 +1867,23 @@ struct MonotoneChain {
         requires detail::ownsChainStorage<Storage, PointType>;
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<MonotoneChain<PointType_, TLabel, Storage>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates the chain by the given point.
      *
      * Complexity: O(1).
@@ -2203,22 +2220,6 @@ struct MonotoneChain {
  */
 template <class PointType = Point<>, class Label = NoLabel>
 using MonotoneChainView = MonotoneChain<PointType, Label, std::span<const PointType>>;
-
-template <class PointType, class LabelType, class Storage, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const MonotoneChain<PointType, LabelType, Storage>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return translation + chain;
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType, class Storage>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const MonotoneChain<PointType, LabelType, Storage>& chain) {
-    using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    MonotoneChain<ResultPointType, LabelType> result(chain);
-    result += translation;
-    if constexpr (detail::has_label_v<LabelType>) {
-        result.label() = LabelType{};
-    }
-    return result;
-}
 
 template <class PointType, class LabelType, class Storage, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const MonotoneChain<PointType, LabelType, Storage>& chain, const Point<TranslationNumber, TranslationLabel>& translation) {

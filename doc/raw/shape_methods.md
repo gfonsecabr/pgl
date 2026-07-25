@@ -61,6 +61,9 @@ pgl::Segment s = {p, q},    //  s = (2,3)--(4,5)
              t2 = s - p;    // t2 = (0,0)--(2,2)
 ```
 
+Adding a point is the special case of adding two shapes, which is their
+[Minkowski sum](#minkowski-sum).
+
 In-place translations use `+=` and `-=`.
 Scaling around the origin uses the operator `*` or `*=` with a scalar.
 
@@ -138,6 +141,47 @@ pgl::Shape isec(s.intersection(t));
 pgl::Point<> p(isec);
 // p = (3,3)
 ```
+
+### Minkowski Sum
+
+The Minkowski sum of two shapes is the set of all sums of a point of the first
+and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is
+written `a.minkowskiSum(b)`, or `a + b`.
+
+```c++
+pgl::Segment s = {0,0,2,0}, t = {0,0,0,3};
+pgl::Convex box = s + t;
+// box = Convex[(0,0),(2,0),(2,3),(0,3)]
+```
+
+Adding a `Point` is a translation, so it returns the other operand's own type
+and is defined for every shape — that is the reading `shape + point` has always
+had. Two bounded convex shapes (`Point`, `Segment`, `OrientedSegment`,
+`Rectangle`, `Triangle`, `Convex`) sum to a `Convex`, computed in linear time by
+merging the two boundaries' edge directions. Two rectangles are the one
+non-trivial pair closed under the sum and give back a `Rectangle`.
+
+```c++
+pgl::Triangle t = {0,0,3,0,0,3};
+pgl::Convex hexagon = t + pgl::Triangle(0,0,-1,0,0,-1);   // 6 vertices
+pgl::Rectangle r = pgl::Rectangle(1,2,4,6) + pgl::Rectangle(-1,0,2,1);
+// r = (0,2)--(6,7)
+```
+
+Every vertex of the result is a sum of two input vertices, so the construction
+is exact: integer coordinates in, integer coordinates out. A result that drops
+below two dimensions is reported the usual way, through the returned `Convex`:
+summing two parallel segments gives a `Convex` satisfying `isSegment()`. The
+empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
+
+Other pairs are a compile error rather than an approximation. `Disk` sums to a
+rounded shape, a non-convex `Polygon` can sum to a region with holes, and an
+unbounded operand (`Line`, `Ray`, `Halfplane`, `HalfplaneIntersection`) sums to
+an unbounded region; none of those is representable today. Since
+$\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
+who wants the convex approximation can ask for it explicitly by summing the
+hulls. On the polymorphic `Shape` the operand pair is only known at run time, so
+an unsupported pair throws `std::logic_error` instead.
 
 ### Other Methods for Shapes
 

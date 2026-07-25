@@ -124,13 +124,7 @@ constexpr void Point<Number, Label>::scaleDownY(const OtherNumber scalar) {
     coords_[1] /= static_cast<Number>(scalar);
 }
 
-template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel>
-constexpr auto operator+(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right) {
-    using ResultNumber = std::common_type_t<LeftNumber, RightNumber>;
-    return Point<ResultNumber, LeftLabel>(
-        static_cast<ResultNumber>(left.x()) + static_cast<ResultNumber>(right.x()),
-        static_cast<ResultNumber>(left.y()) + static_cast<ResultNumber>(right.y()));
-}
+// operator+ is the Minkowski sum; see implementation/minkowski.hpp.
 
 template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel>
 constexpr auto operator-(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right) {
@@ -201,18 +195,6 @@ constexpr Segment<PointType, LabelType>& Segment<PointType, LabelType>::operator
     points_[1] /= scalar;
     if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
     return *this;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Segment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = segment.min() + translation;
-    const auto second = segment.max() + translation;
-    return Segment<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Segment<PointType, LabelType>& segment) {
-    return segment + translation;
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
@@ -350,18 +332,6 @@ constexpr OrientedSegment<PointType, LabelType>& OrientedSegment<PointType, Labe
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedSegment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = segment.source() + translation;
-    const auto second = segment.target() + translation;
-    return OrientedSegment<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedSegment<PointType, LabelType>& segment) {
-    return segment + translation;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const OrientedSegment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = segment.source() - translation;
     const auto second = segment.target() - translation;
@@ -490,18 +460,6 @@ constexpr Line<PointType, LabelType>& Line<PointType, LabelType>::operator/=(con
     points_[1] /= scalar;
     if (points_[1] < points_[0]) std::swap(points_[0], points_[1]);
     return *this;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Line<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = line.min() + translation;
-    const auto second = line.max() + translation;
-    return Line<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Line<PointType, LabelType>& line) {
-    return line + translation;
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
@@ -654,18 +612,6 @@ constexpr OrientedLine<PointType, LabelType>& OrientedLine<PointType, LabelType>
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = line.source() + translation;
-    const auto second = line.target() + translation;
-    return OrientedLine<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedLine<PointType, LabelType>& line) {
-    return line + translation;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const OrientedLine<PointType, LabelType>& line, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = line.source() - translation;
     const auto second = line.target() - translation;
@@ -815,18 +761,6 @@ constexpr Ray<PointType, LabelType>& Ray<PointType, LabelType>::operator/=(const
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = ray.source() + translation;
-    const auto second = ray.target() + translation;
-    return Ray<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Ray<PointType, LabelType>& ray) {
-    return ray + translation;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const Ray<PointType, LabelType>& ray, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = ray.source() - translation;
     const auto second = ray.target() - translation;
@@ -960,18 +894,6 @@ constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::oper
     *this = *this / scalar;
     label_ = std::move(saved);
     return *this;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = rectangle.min() + translation;
-    const auto second = rectangle.max() + translation;
-    return Rectangle<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Rectangle<PointType, LabelType>& rectangle) {
-    return rectangle + translation;
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
@@ -1117,19 +1039,6 @@ constexpr Triangle<PointType, LabelType>& Triangle<PointType, LabelType>::operat
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = triangle.a() + translation;
-    const auto second = triangle.b() + translation;
-    const auto third = triangle.c() + translation;
-    return Triangle<std::decay_t<decltype(first)>, LabelType>(first, second, third);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Triangle<PointType, LabelType>& triangle) {
-    return triangle + translation;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const Triangle<PointType, LabelType>& triangle, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = triangle.a() - translation;
     const auto second = triangle.b() - translation;
@@ -1264,18 +1173,6 @@ constexpr Halfplane<PointType, LabelType>& Halfplane<PointType, LabelType>::oper
     points_[0] /= scalar;
     points_[1] /= scalar;
     return *this;
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation) {
-    const auto first = halfplane.source() + translation;
-    const auto second = halfplane.target() + translation;
-    return Halfplane<std::decay_t<decltype(first)>, LabelType>(first, second);
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType, LabelType>& halfplane) {
-    return halfplane + translation;
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>

@@ -281,6 +281,49 @@ template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 template <class T> concept TransformationConcept = detail::is_transformation_v<T>;
 
+/**
+ * @brief Bounded convex primitives.
+ *
+ * These are exactly the shapes whose Minkowski sum with each other is again a
+ * bounded convex polygon with vertices at sums of input vertices, so the sum
+ * stays inside the shape vocabulary and inside exact integer arithmetic.
+ */
+template <class T>
+concept BoundedConvexConcept =
+    PointConcept<T> || SegmentConcept<T> || OrientedSegmentConcept<T> ||
+    RectangleConcept<T> || TriangleConcept<T> || ConvexConcept<T>;
+
+/**
+ * @brief Shape pairs whose Minkowski sum Pangolin can represent.
+ *
+ * The sum `A ⊕ B` is supported when
+ * - either operand is the empty shape (which absorbs), or
+ * - either operand is a `Point`, so the sum is a translation of the other and
+ *   every shape kind is closed under it, or
+ * - both operands are bounded convex (@ref BoundedConvexConcept).
+ *
+ * A runtime-polymorphic @ref Shape on either side is always accepted; the pair
+ * of stored alternatives is only checked when the sum is evaluated.
+ *
+ * Unbounded convex operands (`Halfplane`, `Line`, `Ray`,
+ * `HalfplaneIntersection`), curved ones (`Disk`) and non-convex ones
+ * (`Polygon`, `Polyline`, `MonotoneChain`) are excluded beyond translation:
+ * their sums are either not representable by any shape (a rounded polygon, a
+ * polygon with holes) or not exact in the operands' coordinate type.
+ *
+ * This concept is the only place that decides which pairs are allowed, so it is
+ * where a later widening starts — a non-convex sum once a shape can hold a
+ * polygon with holes, or an unbounded one over `HalfplaneIntersection`.
+ */
+template <class A, class B>
+concept MinkowskiSummableConcept =
+    (ShapeConcept<A> || detail::shapeRank<std::remove_cvref_t<A>> >= 0) &&
+    (ShapeConcept<B> || detail::shapeRank<std::remove_cvref_t<B>> >= 0) &&
+    (ShapeConcept<A> || ShapeConcept<B> ||
+     EmptyShapeConcept<A> || EmptyShapeConcept<B> ||
+     PointConcept<A> || PointConcept<B> ||
+     (BoundedConvexConcept<A> && BoundedConvexConcept<B>));
+
 namespace detail {
 
 /**

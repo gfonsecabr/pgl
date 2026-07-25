@@ -39,7 +39,8 @@ SHAPE_ORDER = ["Point", "Segment", "OrientedSegment", "Line", "OrientedLine",
 SIZE_ORDER = ["small", "large", "n/a"]
 METHOD_ORDER = ["contains", "interiorContains", "boundaryContains",
                 "intersects", "interiorsIntersect", "separates", "crosses",
-                "collinear", "parallel", "intersection", "squaredDistance"]
+                "collinear", "parallel", "intersection", "minkowskiSum",
+                "squaredDistance"]
 TYPE_ORDER = ["int", "int128", "double", "BigInt", "Rational",
               "RationalBigInt", "ERational"]
 

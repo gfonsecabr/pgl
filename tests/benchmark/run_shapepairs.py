@@ -25,7 +25,7 @@ Options:
                        at least one operand is a focus shape (its row AND column).
                        Focus shapes are added to --shapes automatically.
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
-    --methods M,...    Methods to include (default: all 17)
+    --methods M,...    Methods to include (default: all 18)
     --types   T,...    Number types (default: all 5)
     --output  FILE     JSON output path (default: build/tests/benchmark/benchmarks.json)
     --build-dir DIR    Build root  (default: build/tests/benchmark)
@@ -102,6 +102,7 @@ ALL_METHODS = [
     "collinear",
     "parallel",
     "intersection",
+    "minkowskiSum",
     "squaredDistance",
     "distanceL1",
     "distanceLInf",
@@ -189,6 +190,27 @@ def _cpp_accumulate(method: str) -> str:
                 " else if constexpr (requires { r.isEmpty(); }) return r.isEmpty() ? 0 : 1;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
+    if method == "minkowskiSum":
+        # Only bounded convex pairs (and anything summed with a Point) have a
+        # Minkowski sum, so most of the cube fails to compile here and is
+        # recorded as unsupported, exactly like collinear or parallel.
+        #
+        # The aggregate mixes the element count, which is what disagrees when a
+        # type builds a different hull, with the sign of one coordinate of the
+        # result. The coordinate is what keeps the benchmark honest: for the
+        # fixed-size results (a translation returns the operand's own type)
+        # size() is a compile-time constant, and on its own it lets the compiler
+        # delete the whole construction as dead code. As with `intersection`, a
+        # generic lambda makes the argument dependent so `if constexpr` really
+        # discards the branch that does not apply.
+        return ("count += [](const auto& s) {"
+                " const auto element = s.get(0);"
+                " const auto vertex = [](const auto& e) {"
+                "   if constexpr (requires { e.source(); }) return e.source();"
+                "   else return e; }(element);"
+                " const typename std::remove_cvref_t<decltype(vertex)>::NumberType zero{};"
+                " return (long long)s.size() + ((vertex.x() < zero) ? 1 : 0);"
+                " }(a.minkowskiSum(b));")
     if method in {"squaredDistance", "distanceL1", "distanceLInf",
                   "squaredHausdorffDistance", "hausdorffDistanceL1",
                   "hausdorffDistanceLInf"}:

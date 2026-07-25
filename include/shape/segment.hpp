@@ -1600,6 +1600,23 @@ struct Segment {
      */
     [[nodiscard]] constexpr Polyline<PointType> asPolyline() const;
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Segment<TPoint, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Segment& operator+=(const OtherPoint& translation);
@@ -1635,34 +1652,6 @@ struct Segment {
     std::array<PointType,2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-/**
- * @brief Translates a segment by a point.
- *
- * @tparam Number Coordinate type of the segment endpoints.
- * @tparam Label Label type of the segment endpoints.
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @param segment Segment to translate.
- * @param translation Translation vector.
- * @return Translated segment.
- */
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Segment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
-
-/**
- * @brief Translates a segment by a point written on the left.
- *
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @tparam Number Coordinate type of the segment endpoints.
- * @tparam Label Label type of the segment endpoints.
- * @param translation Translation vector.
- * @param segment Segment to translate.
- * @return Translated segment.
- */
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Segment<PointType, LabelType>& segment);
 
 /**
  * @brief Translates a segment by the opposite of a point.
