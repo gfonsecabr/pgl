@@ -1636,4 +1636,22 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRegion
     return detail::boundaryContainsDegenerateRegion(*this, other);
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    if (outer_.boundaryContains(point)) {
+        return true;
+    }
+    for (const auto& hole : holes_) {
+        if (hole.boundaryContains(point)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace pgl
