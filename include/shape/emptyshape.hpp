@@ -62,6 +62,18 @@ struct EmptyShape {
     }
 
     /**
+     * @brief The empty shape is never undefined.
+     *
+     * The empty shape is not degenerate, so this always returns `false`.
+     * Provided for uniformity with the other shapes.
+     *
+     * @return `false`.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return false;
+    }
+
+    /**
      * @brief Always throws: the empty shape has no vertices.
      */
     [[nodiscard]] PointType get(std::ptrdiff_t) const {

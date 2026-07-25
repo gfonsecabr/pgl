@@ -379,6 +379,19 @@ struct Line {
     [[nodiscard]] constexpr bool isDegenerate() const;
 
     /**
+     * @brief Returns whether the line is degenerate without collapsing to a
+     * point or to a segment.
+     *
+     * A line through two equal points has no direction and no reasonable
+     * interpretation, so every degenerate line is undefined.
+     *
+     * Complexity: O(1).
+     *
+     * @return @ref isDegenerate.
+     */
+    [[nodiscard]] constexpr bool isUndefined() const;
+
+    /**
      * @brief Returns whether the line is vertical.
      *
      * @return `true` if both defining points have the same x-coordinate.
