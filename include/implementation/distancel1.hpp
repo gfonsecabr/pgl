@@ -1406,4 +1406,54 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceL1(const Oth
     return detail::regionEdgesDistanceL1<ResultNumber>(*this, other);
 }
 
+
+// -----------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// See distance.hpp: a shape the closed region misses is nearest to a point of
+// ∂A, so one scan over the edges of every ring answers all three metrics.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber PolygonWithHoles<PointType, LabelType>::edgeMinDistanceL1(const OtherShape& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        const ResultNumber current = edge.template distanceL1<ResultNumber>(other);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+        return false;
+    });
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
 }  // namespace pgl

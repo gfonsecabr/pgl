@@ -1394,4 +1394,54 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceLInf(const O
     return detail::regionEdgesDistanceLInf<ResultNumber>(*this, other);
 }
 
+
+// -----------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// See distance.hpp: a shape the closed region misses is nearest to a point of
+// ∂A, so one scan over the edges of every ring answers all three metrics.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber PolygonWithHoles<PointType, LabelType>::edgeMinDistanceLInf(const OtherShape& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        const ResultNumber current = edge.template distanceLInf<ResultNumber>(other);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+        return false;
+    });
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
 }  // namespace pgl

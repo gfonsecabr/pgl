@@ -2224,6 +2224,107 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
 
 
 // ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // The split points: the segment endpoints, then every ring vertex on the
+    // segment. Every other contact between the segment and ∂A is a transversal
+    // crossing — a non-collinear pair meets in at most one point, which is a
+    // crossing unless it is an endpoint of one of them, and a collinear overlap
+    // begins and ends at such a point.
+    using C = std::common_type_t<NumberType, typename OtherSegment::NumberType>;
+    using V = Point<C>;
+    std::vector<V> contacts{static_cast<V>(other.min()), static_cast<V>(other.max())};
+    const std::size_t firstRingVertex = contacts.size();
+    for (const auto& vertex : outer_) {
+        if (other.contains(vertex)) {
+            contacts.push_back(static_cast<V>(vertex));
+        }
+    }
+    for (const auto& hole : holes_) {
+        for (const auto& vertex : hole) {
+            if (other.contains(vertex)) {
+                contacts.push_back(static_cast<V>(vertex));
+            }
+        }
+    }
+    // A transversal crossing of a ring edge normally settles it: the segment
+    // passes from one open side of the edge to the other, and one of those sides
+    // is region interior — inside the outer ring for an outer edge, outside the
+    // hole for a hole edge.
+    //
+    // The exception is a crossing where the region pinches shut, i.e. where two
+    // rings meet, because there both sides of the crossing are outside the
+    // region interior. That happens in two ways, and neither needs the crossing
+    // point itself:
+    //
+    //  - the rings touch at an isolated point, which has to be a vertex of one
+    //    of them (meeting anywhere else would make their edges cross or
+    //    overlap), so it is already among the split points collected above;
+    //  - the rings run along one another, so the crossed edge is covered twice.
+    //    A second crossed edge collinear with the first meets the segment at the
+    //    same point — both crossing points are `line(edge) ∩ line(segment)` —
+    //    so collinearity among the crossed edges detects exactly this.
+    //
+    // Skipping a pinched crossing is safe and needs no split point of its own:
+    // the region is locally one-dimensional there, so the piece carrying it
+    // stays outside the region interior on both sides and its midpoint says so.
+    std::vector<EdgeType> crossed;
+    anyBoundaryEdge([&](const auto& edge) {
+        if (edge.crosses(other)) {
+            crossed.push_back(edge);
+        }
+        return false;
+    });
+    for (std::size_t i = 0; i < crossed.size(); ++i) {
+        bool pinched = false;
+        for (std::size_t v = firstRingVertex; v < contacts.size() && !pinched; ++v) {
+            pinched = crossed[i].contains(contacts[v]);
+        }
+        for (std::size_t j = 0; j < crossed.size() && !pinched; ++j) {
+            pinched = j != i && crossed[i].collinear(crossed[j]);
+        }
+        if (!pinched) {
+            return true;
+        }
+    }
+    // Every remaining contact is a split point, so the open pieces between
+    // consecutive split points each lie wholly inside or wholly outside the
+    // region and their midpoints classify them. Doubling the region keeps the
+    // midpoint test exact and division-free: (p+q)/2 is interior to A iff (p+q)
+    // is interior to 2A.
+    const auto base = other.min();
+    const auto dir = other.max() - other.min();
+    const auto along = [&](const V& p) {
+        return (p.x() - base.x()) * dir.x() + (p.y() - base.y()) * dir.y();
+    };
+    std::sort(contacts.begin(), contacts.end(),
+              [&](const V& p, const V& q) { return along(p) < along(q); });
+    const auto doubled = (*this) * NumberType(2);
+    for (std::size_t i = 1; i < contacts.size(); ++i) {
+        if (contacts[i - 1] == contacts[i]) {
+            continue;
+        }
+        if (doubled.interiorContains(contacts[i - 1] + contacts[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(other.asSegment());
+}
+
+
+// ---------------------------------------------------------------------------
 // Reverse direction: interiorsIntersect is symmetric, so the lower-ranked
 // shapes' generic rank-guarded forwarders dispatch these here — no per-shape
 // definitions are needed.
