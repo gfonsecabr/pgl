@@ -1562,6 +1562,23 @@ struct OrientedSegment {
     template <class OtherShape>
     [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const;
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<OrientedSegment<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the oriented segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedSegment& operator+=(const OtherPoint& translation);
@@ -1584,34 +1601,6 @@ struct OrientedSegment {
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-/**
- * @brief Translates an oriented segment by a point.
- *
- * @tparam Number Coordinate type of the segment endpoints.
- * @tparam Label Label type of the segment endpoints.
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @param segment Oriented segment to translate.
- * @param translation Translation vector.
- * @return Translated oriented segment.
- */
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const OrientedSegment<PointType, LabelType>& segment, const Point<TranslationNumber, TranslationLabel>& translation);
-
-/**
- * @brief Translates an oriented segment by a point written on the left.
- *
- * @tparam TranslationNumber Coordinate type of the translation point.
- * @tparam TranslationLabel Label type of the translation point.
- * @tparam Number Coordinate type of the segment endpoints.
- * @tparam Label Label type of the segment endpoints.
- * @param translation Translation vector.
- * @param segment Oriented segment to translate.
- * @return Translated oriented segment.
- */
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const OrientedSegment<PointType, LabelType>& segment);
 
 /**
  * @brief Translates an oriented segment by the opposite of a point.

@@ -163,6 +163,23 @@ struct EmptyShape {
     }
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<EmptyShape<PointType_>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates the empty shape in place; a no-op.
      *
      * The empty set has no points to move, so translation leaves it unchanged.
@@ -260,30 +277,6 @@ struct EmptyShape {
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber) {}
 };
-
-/**
- * @brief Translates the empty shape by a point; a no-op.
- *
- * The empty set has no points to move, so it is returned unchanged, over the
- * promoted point type to mirror the coordinate promotion of the other shapes'
- * translation.
- *
- * @return The empty shape over the promoted point type.
- */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const EmptyShape<PointType>&,
-                         const Point<TranslationNumber, TranslationLabel>&) {
-    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() +
-                                              std::declval<const Point<TranslationNumber, TranslationLabel>&>())>;
-    return EmptyShape<ResultPoint>{};
-}
-
-/** @copydoc operator+(const EmptyShape<PointType>&, const Point<TranslationNumber, TranslationLabel>&) */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation,
-                         const EmptyShape<PointType>& empty) {
-    return empty + translation;
-}
 
 /**
  * @brief Translates the empty shape by a negated point; a no-op.

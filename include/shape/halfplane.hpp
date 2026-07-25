@@ -1100,6 +1100,23 @@ struct Halfplane {
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber slope() const;
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Halfplane<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the half-plane by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Halfplane& operator+=(const OtherPoint& translation);
@@ -1141,12 +1158,6 @@ struct Halfplane {
     std::array<PointType, 2> points_{};
     [[no_unique_address]] mutable LabelType label_{};
 };
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Halfplane<PointType, LabelType>& halfplane);
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const Halfplane<PointType, LabelType>& halfplane, const Point<TranslationNumber, TranslationLabel>& translation);

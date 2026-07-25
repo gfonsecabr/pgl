@@ -1797,6 +1797,23 @@ struct Polyline {
     constexpr void flip(const OldSegment& oldEdge, const NewSegment& newEdge);
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Polyline<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates the polyline by the given point.
      *
      * Complexity: O(1).
@@ -2135,22 +2152,6 @@ constexpr Polyline<typename MonotoneChain<PointType_, TLabel, Storage>::PointTyp
 MonotoneChain<PointType_, TLabel, Storage>::asPolyline() const {
     // The polyline traverses the chain in its lexicographic vertex order.
     return Polyline<PointType>(vertices());
-}
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Polyline<PointType, LabelType>& polyline, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return translation + polyline;
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Polyline<PointType, LabelType>& polyline) {
-    using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    Polyline<ResultPointType, LabelType> result(polyline);
-    result += translation;
-    if constexpr (detail::has_label_v<LabelType>) {
-        result.label() = LabelType{};
-    }
-    return result;
 }
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>

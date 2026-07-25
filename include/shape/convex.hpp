@@ -2561,6 +2561,23 @@ struct Convex {
     template <class OtherNumber>
     constexpr void scaleDownY(const OtherNumber scalar);
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Convex<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the convex polygon by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Convex& operator+=(const OtherPoint& translation);
@@ -2785,22 +2802,6 @@ struct Convex {
         }
     };
 }; // class Convex
-
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Convex<PointType, LabelType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {
-    return translation + convex;
-}
-
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Convex<PointType, LabelType>& convex) {
-    using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    Convex<ResultPointType, LabelType> result(convex);
-    result += translation;
-    if constexpr (detail::has_label_v<LabelType>) {
-        result.label() = LabelType{};
-    }
-    return result;
-}
 
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const Convex<PointType, LabelType>& convex, const Point<TranslationNumber, TranslationLabel>& translation) {

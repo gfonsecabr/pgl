@@ -41,7 +41,7 @@ It refuses to run with uncommitted changes to tracked files, so every
 measurement maps to a real commit (the dashboard's x-axis is the commit date).
 Override the compiler/flags as usual: `CXX=g++ CXXFLAGS="-std=c++23 -O3" …`.
 
-> The full cube is ~256 shape-size pairs × 11 methods × 5 number types — many
+> The full cube is ~256 shape-size pairs × 18 methods × 5 number types — many
 > thousands of programs to compile. Compilation is parallelised across all cores
 > by default; narrow it with `--shapes/--sizes/--methods/--types` while iterating,
 > or override with `--jobs N`.

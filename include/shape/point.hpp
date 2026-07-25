@@ -967,6 +967,23 @@ struct Point {
     }
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Point<TNumber, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates a point by another point in place.
      *
      * @tparam OtherNumber Coordinate type of the other point.
@@ -1145,20 +1162,6 @@ struct Point {
     std::array<NumberType,2> coords_{};
     [[no_unique_address]] mutable LabelType label_{};
 }; // struct Point
-
-/**
- * @brief Translates a point by another point.
- *
- * @tparam LeftNumber Coordinate type of the left operand.
- * @tparam LeftLabel Label type of the left operand.
- * @tparam RightNumber Coordinate type of the right operand.
- * @tparam RightLabel Label type of the right operand.
- * @param left Point to translate.
- * @param right Translation vector.
- * @return Translated point.
- */
-template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel>
-[[nodiscard]] constexpr auto operator+(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right);
 
 /**
  * @brief Translates a point by the opposite of another point.

@@ -47,6 +47,7 @@
 #include "shape/shape.hpp"
 #include "implementation/io.hpp"
 #include "implementation/transformations.hpp"
+#include "implementation/minkowski.hpp"
 #include "implementation/measures.hpp"
 #include "implementation/bounding.hpp"
 #include "implementation/duality.hpp"

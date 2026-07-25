@@ -938,6 +938,23 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Shape<PointType>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates the stored shape in place.
      *
      * Visits the active alternative and translates it by @p translation; the
@@ -1345,35 +1362,6 @@ Shape(const std::variant<T, Ts...>&) -> Shape<detail::shape_point_type_t<T>>;
 
 template <class T, class... Ts>
 Shape(const std::optional<std::variant<T, Ts...>>&) -> Shape<detail::shape_point_type_t<T>>;
-
-/**
- * @brief Translates a shape by a point.
- *
- * Visits the stored alternative and translates it, re-wrapping the result. The
- * coordinate type is promoted to match the translation, mirroring the per-shape
- * translation operators.
- *
- * @param shape Shape to translate.
- * @param translation Translation vector.
- * @return Translated shape over the promoted point type.
- */
-template <class PointType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Shape<PointType>& shape,
-                         const Point<TranslationNumber, TranslationLabel>& translation) {
-    using ResultPoint = std::decay_t<decltype(std::declval<const PointType&>() + translation)>;
-    return std::visit(
-        [&translation](const auto& alternative) {
-            return Shape<ResultPoint>(alternative + translation);
-        },
-        shape.variant());
-}
-
-/** @copydoc operator+(const Shape<PointType>&, const Point<TranslationNumber, TranslationLabel>&) */
-template <class TranslationNumber, class TranslationLabel, class PointType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation,
-                         const Shape<PointType>& shape) {
-    return shape + translation;
-}
 
 /**
  * @brief Translates a shape by a negated point.

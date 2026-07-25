@@ -1031,6 +1031,23 @@ struct HalfplaneIntersection {
     template <std::floating_point ResultNumber = double>
     constexpr Rectangle<Point<ResultNumber>> fbox() const;
 
+    /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<HalfplaneIntersection<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
     /** @brief Translates the region by the given point in place. */
     template <PointConcept OtherPoint>
     constexpr HalfplaneIntersection& operator+=(const OtherPoint& translation);
@@ -2315,31 +2332,6 @@ Polygon<PointType_, TLabel>::getStarShapedKernel() const {
         }
     }
     return kernel;
-}
-
-/**
- * @brief Translates a region by a point.
- *
- * The coordinate type follows the translation, mirroring the other shapes'
- * free translation operators.
- */
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const HalfplaneIntersection<PointType, LabelType>& region,
-                         const Point<TranslationNumber, TranslationLabel>& translation) {
-    return translation + region;
-}
-
-/** @copydoc operator+(const HalfplaneIntersection<PointType, LabelType>&, const Point<TranslationNumber, TranslationLabel>&) */
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation,
-                         const HalfplaneIntersection<PointType, LabelType>& region) {
-    using ResultPointType = Point<TranslationNumber, typename PointType::LabelType>;
-    HalfplaneIntersection<ResultPointType, LabelType> result(region);
-    result += translation;
-    if constexpr (detail::has_label_v<LabelType>) {
-        result.label() = LabelType{};
-    }
-    return result;
 }
 
 /**

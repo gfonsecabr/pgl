@@ -1305,6 +1305,23 @@ struct Disk {
     constexpr void rotate90(int k = 1);
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
+     * `Point` is a translation, so it returns this shape's own type; two
+     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
+     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
+     * Minkowski sum is defined for.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Disk<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Translates the disk by @p translation in place.
      * @return Reference to this disk.
      */
@@ -1465,21 +1482,8 @@ struct Disk {
 };
 
 /// @brief Returns a copy of @p disk translated by @p translation.
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const Disk<PointType, LabelType>& disk, const Point<TranslationNumber, TranslationLabel>& translation) {
-    auto result = disk;
-    result += translation;
-    if constexpr (detail::has_label_v<LabelType>) {
-        result.label() = LabelType{};
-    }
-    return result;
-}
 
 /// @brief Returns a copy of @p disk translated by @p translation.
-template <class TranslationNumber, class TranslationLabel, class PointType, class LabelType>
-constexpr auto operator+(const Point<TranslationNumber, TranslationLabel>& translation, const Disk<PointType, LabelType>& disk) {
-    return disk + translation;
-}
 
 /// @brief Returns a copy of @p disk translated by `-translation`.
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
