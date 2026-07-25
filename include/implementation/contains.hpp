@@ -2731,4 +2731,33 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherPoint
     return true;
 }
 
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherSegment& other) const {
+    // A segment collapsed to a point has no relative interior for the hole test
+    // below to see, so it goes through the point path.
+    if (other.isDegenerate()) {
+        return contains(other.min());
+    }
+    if (!outer_.contains(other)) {
+        return false;
+    }
+    // A hole removes only its interior. A segment that reaches the open hole at
+    // all reaches it along its own relative interior — the hole interior is
+    // open, so a contact at an endpoint drags the neighbouring segment points in
+    // with it — which is exactly what interiorsIntersect detects.
+    for (const auto& hole : holes_) {
+        if (hole.interiorsIntersect(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherOrientedSegment& other) const {
+    return contains(other.asSegment());
+}
+
 }  // namespace pgl

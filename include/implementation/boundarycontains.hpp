@@ -1654,4 +1654,23 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Ot
     return false;
 }
 
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
+    if (other.isDegenerate()) {
+        return boundaryContains(other.min());
+    }
+    // ∂A = A ∖ A°, so a segment lies on the boundary exactly when the region
+    // contains it while its relative interior never reaches the region
+    // interior. Testing it this way rather than edge by edge also accepts a
+    // segment covered jointly by several collinear ring edges.
+    return contains(other) && !interiorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
+    return boundaryContains(other.asSegment());
+}
+
 }  // namespace pgl

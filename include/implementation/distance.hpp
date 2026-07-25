@@ -1746,4 +1746,54 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredDistance(cons
     return detail::regionEdgesSquaredDistance<ResultNumber>(*this, other);
 }
 
+
+// -----------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// The region is closed, so a shape it misses is nearest to a point of ∂A — the
+// edges of the outer ring and of every hole. One scan serves every operand.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber PolygonWithHoles<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        const ResultNumber current = edge.template squaredDistance<ResultNumber>(other);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+        return false;
+    });
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
 }  // namespace pgl

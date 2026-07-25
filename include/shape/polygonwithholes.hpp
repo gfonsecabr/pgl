@@ -528,6 +528,145 @@ struct PolygonWithHoles {
     }
 
     // -------------------------------------------------------------------------
+    // Predicates against a segment
+    //
+    // Rewritings of A = outer \ ⋃ hole°, using the fact that a segment is
+    // connected and that every point of every ring boundary belongs to A:
+    //   contains(S)         S ⊆ outer, and no hole interior meets S
+    //   interiorContains(S) S ⊆ outer°, and no hole meets S at all
+    //   intersects(S)       S meets a ring boundary, or an endpoint decides
+    //   boundaryContains(S) S ⊆ A with no piece reaching the interior
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The segment is in the region when the outer polygon contains it and it
+     * never enters a hole interior; running along a hole boundary is allowed.
+     *
+     * Complexity: O(n·k) for a region of n vertices and k holes.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;
+
+    /** @copydoc contains(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
+     *
+     * The region interior excludes every ring, so the segment must stay strictly
+     * inside the outer polygon and miss every hole entirely — touching a hole
+     * boundary already leaves the interior.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
+
+    /** @copydoc interiorContains(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * True when the segment lies in the region without any part of it reaching
+     * the region interior, which is exactly lying on the union of the rings —
+     * a segment running from an outer edge onto a collinear hole edge included.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const;
+
+    /** @copydoc boundaryContains(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Complexity: O(n) segment-segment tests over the total vertex count.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherSegment& other) const;
+
+    /** @copydoc intersects(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedSegment& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * The open segment must reach the open region: crossing a bridge between two
+     * holes counts, running along a ring does not, and neither does passing
+     * through a point where two rings touch — the region pinches shut there.
+     *
+     * Complexity: O(n + c²) for a total vertex count of n, where c is the number
+     * of boundary crossings the segment makes (typically a small constant).
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherSegment& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherSegment&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
+
+    // -------------------------------------------------------------------------
+    // Distances
+    //
+    // The region is closed, so whenever it misses the other shape the nearest
+    // pair is realized on ∂A — the minimum over the edges of every ring.
+
+    /**
+     * @brief Computes the squared Euclidean distance to the other shape.
+     *
+     * Zero when the shapes intersect; otherwise the smallest squared distance
+     * between them, which the region attains on one of its ring edges.
+     *
+     * Complexity: O(n) edge queries over the total vertex count.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type, e.g. `squaredDistance<double>(point)`, for an
+     *          accurate value.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+
+    // -------------------------------------------------------------------------
     // The empty set is a subset of every shape, so its containment relations
     // are true and its intersection relations are false.
 
@@ -630,6 +769,48 @@ struct PolygonWithHoles {
     }
 
   private:
+    /**
+     * @brief Invokes @p predicate on every boundary edge — the outer ring first,
+     *        then each hole — and stops at the first `true`.
+     *
+     * The edges are materialized lazily by @ref Polygon::edgesView, so a
+     * predicate loop over ∂A allocates nothing.
+     */
+    template <class EdgePredicate>
+    constexpr bool anyBoundaryEdge(EdgePredicate&& predicate) const {
+        for (const auto& edge : outer_.edgesView()) {
+            if (predicate(edge)) {
+                return true;
+            }
+        }
+        for (const auto& hole : holes_) {
+            for (const auto& edge : hole.edgesView()) {
+                if (predicate(edge)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @brief Smallest squared distance from a boundary edge to a disjoint shape.
+     *
+     * Used when the region does not intersect @p other and its closest point
+     * therefore lies on ∂A. Requires the edge segment to support
+     * `squaredDistance(OtherShape)` (directly or via the shape's forwarder).
+     */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinSquaredDistance(const OtherShape& other) const;
+
+    /** @copydoc edgeMinSquaredDistance */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinDistanceL1(const OtherShape& other) const;
+
+    /** @copydoc edgeMinSquaredDistance */
+    template <class ResultNumber, class OtherShape>
+    constexpr ResultNumber edgeMinDistanceLInf(const OtherShape& other) const;
+
     PolygonType outer_{};
     std::vector<PolygonType> holes_{};
     [[no_unique_address]] mutable LabelType label_{};

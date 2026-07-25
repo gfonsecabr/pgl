@@ -2093,4 +2093,29 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
     return true;
 }
 
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherSegment& other) const {
+    if (other.isDegenerate()) {
+        return interiorContains(other.min());
+    }
+    if (!outer_.interiorContains(other)) {
+        return false;
+    }
+    // Unlike contains, no part of a hole survives here — the hole boundary is
+    // region boundary — so any contact at all disqualifies the segment.
+    for (const auto& hole : holes_) {
+        if (hole.intersects(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
+    return interiorContains(other.asSegment());
+}
+
 }  // namespace pgl

@@ -1937,6 +1937,37 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Sha
 
 
 // ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (!outer_.intersects(other)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    // Every point of every ring belongs to the region: holes remove only their
+    // interiors, and a hole interior never reaches the outer boundary. So a
+    // segment touching any ring edge already meets the region.
+    if (anyBoundaryEdge([&other](const auto& edge) { return edge.intersects(other); })) {
+        return true;
+    }
+    // The segment misses ∂A altogether, so — being connected — it lies wholly
+    // in the open region or wholly outside the closed one, and either endpoint
+    // says which.
+    return contains(other.min());
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(other.asSegment());
+}
+
+
+// ---------------------------------------------------------------------------
 // Reverse direction: intersects is symmetric, so the lower-ranked shapes'
 // generic rank-guarded forwarders already dispatch these here — no per-shape
 // definitions are needed.
