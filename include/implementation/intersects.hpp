@@ -1966,6 +1966,44 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherOri
     return intersects(other.asSegment());
 }
 
+// An unbounded connected operand that reaches the bounded outer polygon has to
+// leave it again, so it meets ∂outer — and every point of ∂outer is in the
+// region, hole interiors never reaching it. The holes therefore cost nothing
+// here; only a collapsed operand, which is a point that a hole can swallow,
+// needs the region's own point test.
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.min());
+    }
+    return outer_.intersects(other);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    return intersects(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.source());
+    }
+    return outer_.intersects(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.source());
+    }
+    return outer_.intersects(other);
+}
+
 
 // ---------------------------------------------------------------------------
 // Reverse direction: intersects is symmetric, so the lower-ranked shapes'

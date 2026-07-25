@@ -610,6 +610,136 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedSegment& other) const;
 
     // -------------------------------------------------------------------------
+    // Predicates against a line, an oriented line, a ray, and a half-plane
+    //
+    // All four operands are unbounded, which decides two of the five relations
+    // outright:
+    //   contains/interiorContains/boundaryContains  only a degenerate operand
+    //   intersects(B)                               outer.intersects(B)
+    //
+    // The second line needs no hole bookkeeping: an unbounded connected shape
+    // that reaches the bounded outer polygon has to leave it again, so it meets
+    // ∂outer, and every point of ∂outer belongs to the region because hole
+    // interiors never reach it.
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The region is bounded and a line is not, so only a degenerate line — a
+     * single point — can be contained.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool contains(const OtherLine& other) const;
+
+    /** @copydoc contains(const OtherLine&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool contains(const OtherOrientedLine& other) const;
+
+    /** @copydoc contains(const OtherLine&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool contains(const OtherRay& other) const;
+
+    /** @copydoc contains(const OtherLine&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool contains(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
+     *
+     * Unbounded, so again only a degenerate operand qualifies.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherLine& other) const;
+
+    /** @copydoc interiorContains(const OtherLine&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorContains(const OtherOrientedLine& other) const;
+
+    /** @copydoc interiorContains(const OtherLine&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRay& other) const;
+
+    /** @copydoc interiorContains(const OtherLine&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorContains(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * The boundary is bounded too, so only a degenerate operand qualifies.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherLine& other) const;
+
+    /** @copydoc boundaryContains(const OtherLine&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedLine& other) const;
+
+    /** @copydoc boundaryContains(const OtherLine&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRay& other) const;
+
+    /** @copydoc boundaryContains(const OtherLine&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Complexity: O(n) over the total vertex count.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool intersects(const OtherLine& other) const;
+
+    /** @copydoc intersects(const OtherLine&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool intersects(const OtherOrientedLine& other) const;
+
+    /** @copydoc intersects(const OtherLine&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool intersects(const OtherRay& other) const;
+
+    /** @copydoc intersects(const OtherLine&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool intersects(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * The line has to reach the open region: crossing a hole, running along a
+     * ring, and passing through a point where two rings touch all fail, and a
+     * line swallowed by a hole that touches the outer ring twice fails as well.
+     *
+     * Complexity: O(n + c²) for a total vertex count of n, where c is the number
+     * of boundary crossings the line makes.
+     */
+    template <LineConcept OtherLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherLine& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherLine&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherOrientedLine& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherLine&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherRay& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * The open half-plane has to reach the open region. Unlike @ref Polygon,
+     * where a vertex strictly inside the half-plane settles it, a ring vertex
+     * here can be a place where the region is only one-dimensional (the tip of
+     * a slit); such a vertex carries no region interior with it and does not
+     * count. See @ref isSolidVertex.
+     *
+     * Complexity: O(n) when the region has no ring contacts, O(n³) in the worst
+     * case, for a total vertex count of n.
+     */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
+
+    // -------------------------------------------------------------------------
     // Distances
     //
     // The region is closed, so whenever it misses the other shape the nearest
@@ -643,6 +773,22 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
 
@@ -655,6 +801,22 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
 
@@ -665,6 +827,22 @@ struct PolygonWithHoles {
     /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRay& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
 
     // -------------------------------------------------------------------------
     // The empty set is a subset of every shape, so its containment relations
@@ -792,6 +970,48 @@ struct PolygonWithHoles {
         }
         return false;
     }
+
+    /**
+     * @brief Shared core of @ref interiorsIntersect against a segment, a ray,
+     *        and a line.
+     *
+     * The three differ only in which points of the operand itself are split
+     * points — both endpoints for a segment, the source for a ray, none for a
+     * line — and in how the operand is parametrized. Everything after that is
+     * common: collect the ring vertices on the operand, take any unpinched
+     * boundary crossing as an answer, and classify the pieces between
+     * consecutive split points by their midpoints.
+     *
+     * @param other The operand.
+     * @param contacts The operand's own split points; ring vertices are added.
+     * @param base A point of the operand, the origin of the parametrization.
+     * @param direction The operand's direction vector.
+     */
+    template <class OtherLinear, class ContactNumber>
+    constexpr bool linearInteriorsIntersect(const OtherLinear& other,
+                                            std::vector<Point<ContactNumber>> contacts,
+                                            const Point<ContactNumber>& base,
+                                            const Point<ContactNumber>& direction) const;
+
+    /**
+     * @brief Tests whether the region is two-dimensional at one of its vertices.
+     *
+     * True when the vertex is in the closure of the region interior, i.e. when
+     * some region interior sits in every neighbourhood of it. This is what the
+     * whole boundary looks like as long as the rings stay apart, and it fails
+     * only where they touch: at the tip of a slit, and at a point where holes
+     * close over the outer boundary, the region is locally one-dimensional.
+     *
+     * The test walks the boundary edges through the vertex, and for each one
+     * looks at the stretch reaching from the vertex to the nearest ring vertex
+     * beyond it. That stretch is covered by one ring edge or by two: one means
+     * region interior on exactly one side of it, hence a two-dimensional
+     * vertex; two means the region pinches shut along it. Multiplicity is read
+     * off the doubled edges at the doubled midpoint, which keeps it exact and
+     * division-free. A region without holes skips all of it: a lone simple ring
+     * has region interior along all of itself.
+     */
+    constexpr bool isSolidVertex(const PointType& vertex) const;
 
     /**
      * @brief Smallest squared distance from a boundary edge to a disjoint shape.
