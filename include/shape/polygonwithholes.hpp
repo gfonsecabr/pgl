@@ -450,6 +450,61 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr Point<ResultNumber> verticesCentroid() const;
 
     /**
+     * @brief Returns a point strictly inside the region.
+     *
+     * The point is in the region's interior, so it is inside the outer boundary
+     * and outside every hole. @ref Polygon finds one in O(n) from an ear of its
+     * lexicographically smallest vertex; that argument does not survive holes —
+     * an ear can be occupied by one, and a diagonal interrupted by one — so this
+     * triangulates and takes a point inside the first triangle of the domain.
+     *
+     * Complexity: O(n log n) over the total vertex count.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @return A point guaranteed to be inside the region.
+     * @warning Divides coordinates by 4 (see @ref Triangle::pointInside), so it
+     *          is inexact for integer coordinates not divisible by it. Undefined
+     *          for a region with no area.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] Point<ResultNumber> pointInside() const;
+
+    /**
+     * @brief Tests whether some point in this shape's relative interior lies in
+     *        the strict interior of @p shape.
+     *
+     * Uses @ref pointInside as the witness. When integer truncation rounds that
+     * witness onto or outside the boundary, this shape and @p shape are scaled
+     * so the witness is exact, leaving the containment relation unchanged.
+     */
+    template <class OtherShape>
+    [[nodiscard]] bool pointInsideInteriorContainedIn(const OtherShape& shape) const;
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this region.
+     *
+     * Equivalent to `Triangulation(*this)`. Every ring becomes constrained
+     * edges and the hole interiors are left out of the domain, so the in-domain
+     * triangles cover exactly the part of the region that has area (a slit,
+     * having none, carries no triangle). The region must satisfy @ref isValid.
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the region.
+     */
+    auto triangulation() const;
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this region with
+     *        the given interior constraint segments.
+     *
+     * Equivalent to `Triangulation(*this, segments)`.
+     *
+     * @tparam SegmentRange Range whose elements are segments.
+     * @param segments Constraint edges, assumed to lie in the region.
+     */
+    template <class SegmentRange>
+    auto triangulation(const SegmentRange& segments) const;
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The holes lie inside the outer boundary, so they cannot contribute a

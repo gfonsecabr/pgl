@@ -1686,6 +1686,243 @@ TEST_CASE("Containment on a hull domain, and of unbounded and empty shapes") {
     CHECK_FALSE(none.contains(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(1, 1))));
 }
 
+// ---------------------------------------------------------------------------
+// Regions with holes. The domain is the part of the region that has area, so
+// the in-domain triangles tile it exactly: their areas sum to the region's, no
+// triangle escapes it, and no hole is covered.
+
+// Every ring goes in as constrained edges and the hole interiors are carved out,
+// so the triangles tile the region exactly.
+template <class Region>
+static void tilesTheRegion(const Region& region) {
+    using Q = pgl::Rational<long long>;
+    REQUIRE(region.isValid());
+    const auto tri = region.triangulation();
+    typename Region::NumberType twice = 0;
+    for (const auto& t : tri.triangles()) {
+        CHECK_FALSE(t.isDegenerate());
+        twice += t.twiceArea();
+        for (const auto& edge : t.edges()) {
+            CHECK(region.contains(edge));
+        }
+        CHECK(region.interiorContains(t.template pointInside<Q>()));
+    }
+    CHECK(twice == region.twiceArea());
+}
+
+TEST_CASE("A region with holes triangulates to its material only") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
+
+    SUBCASE("an annulus") {
+        const Region region(outer, std::vector{Polygon({2, 2, 6, 2, 6, 6, 2, 6})});
+        const auto tri = region.triangulation();
+        CHECK(tri.numTriangles() == 8);  // one quad ring, two triangles per side
+        CHECK_FALSE(tri.contains(P<Point>(4, 4)));   // the hole is not in the domain
+        CHECK(tri.contains(P<Point>(1, 1)));         // the material is
+        CHECK(tri.contains(P<Point>(2, 2)));         // and so is the hole's boundary
+        tilesTheRegion(region);
+    }
+
+    SUBCASE("two holes") {
+        tilesTheRegion(Region(outer, std::vector{Polygon({1, 1, 3, 1, 3, 3, 1, 3}),
+                                                 Polygon({5, 5, 7, 5, 7, 7, 5, 7})}));
+    }
+
+    SUBCASE("a hole touching the outer ring at one point") {
+        tilesTheRegion(Region(outer, std::vector{Polygon({4, 0, 6, 2, 2, 2})}));
+    }
+
+    SUBCASE("two holes meeting at a corner") {
+        tilesTheRegion(Region(outer, std::vector{Polygon({1, 1, 4, 1, 4, 4, 1, 4}),
+                                                 Polygon({4, 4, 7, 4, 7, 7, 4, 7})}));
+    }
+
+    SUBCASE("holes sharing a whole edge") {
+        tilesTheRegion(Region(outer, std::vector{Polygon({1, 1, 4, 1, 4, 7, 1, 7}),
+                                                 Polygon({4, 1, 7, 1, 7, 7, 4, 7})}));
+    }
+
+    SUBCASE("a nonconvex outer ring") {
+        tilesTheRegion(Region(Polygon({0, 0, 8, 0, 8, 8, 4, 4, 0, 8}),
+                              std::vector{Polygon({1, 1, 3, 1, 3, 3, 1, 3})}));
+    }
+
+    SUBCASE("extra interior points and constraint segments") {
+        const Region region(outer, std::vector{Polygon({2, 2, 6, 2, 6, 6, 2, 6})});
+        const std::vector<Point> points = {P<Point>(1, 4)};
+        const std::vector<pgl::Segment<Point>> segments = {
+            pgl::Segment<Point>(P<Point>(7, 1), P<Point>(7, 7))};
+        const pgl::Triangulation withPoints(region, points);
+        const pgl::Triangulation withSegments(region, segments);
+        const pgl::Triangulation withBoth(region, points, segments);
+        CHECK(withPoints.numVertices() == 9);
+        CHECK(withSegments.isConstrained(segments[0]));
+        CHECK(withBoth.numVertices() == 11);
+        CHECK(withBoth.isConstrained(segments[0]));
+    }
+}
+
+// A slit — a hole ring running along another ring — belongs to the region but
+// has no area, so it carries no triangle: the domain is the closure of the
+// region's interior rather than the region itself.
+TEST_CASE("Slits belong to the region but not to the triangulated domain") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
+
+    SUBCASE("a hole sharing two edges leaves an L") {
+        const Region region(outer, std::vector{Polygon({0, 0, 4, 0, 4, 4, 0, 4})});
+        const auto tri = region.triangulation();
+        tilesTheRegion(region);
+        CHECK(tri.numTriangles() == 4);
+        CHECK_FALSE(tri.contains(P<Point>(2, 2)));  // inside the hole
+        CHECK(tri.contains(P<Point>(4, 4)));        // the hole's free corner
+        CHECK(tri.contains(P<Point>(6, 6)));        // the material
+        // The slit is in the region, but no triangle covers it.
+        CHECK(region.contains(P<Point>(2, 0)));
+        CHECK_FALSE(tri.contains(P<Point>(2, 0)));
+    }
+
+    SUBCASE("a hole spanning the region splits it in two") {
+        const Region region(outer, std::vector{Polygon({0, 3, 8, 3, 8, 5, 0, 5})});
+        const auto tri = region.triangulation();
+        tilesTheRegion(region);
+        CHECK(tri.contains(P<Point>(4, 1)));
+        CHECK(tri.contains(P<Point>(4, 7)));
+        CHECK_FALSE(tri.contains(P<Point>(4, 4)));
+        CHECK(region.contains(P<Point>(0, 4)));      // a whisker of the region
+        CHECK_FALSE(tri.contains(P<Point>(0, 4)));   // with no area to triangulate
+    }
+}
+
+TEST_CASE("Domain predicates on a region agree with the region itself") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    // No slit anywhere, so the region equals the closure of its interior and the
+    // two must answer identically. The hole touches the outer ring at (4,0),
+    // which keeps the pinch cases in the sweep.
+    const Region region(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                        std::vector{Polygon({4, 0, 5, 3, 2, 3})});
+    const auto tri = region.triangulation();
+
+    for (int x1 = -1; x1 <= 7; ++x1) {
+        for (int y1 = -1; y1 <= 7; ++y1) {
+            const Point a = P<Point>(x1, y1);
+            CHECK(tri.contains(a) == region.contains(a));
+            CHECK(tri.intersects(a) == region.intersects(a));
+            CHECK(tri.interiorContains(a) == region.interiorContains(a));
+            for (int x2 = -1; x2 <= 7; ++x2) {
+                for (int y2 = -1; y2 <= 7; ++y2) {
+                    const Point b = P<Point>(x2, y2);
+                    if (a == b) {
+                        continue;
+                    }
+                    const pgl::Segment<Point> s(a, b);
+                    CHECK(tri.contains(s) == region.contains(s));
+                    CHECK(tri.intersects(s) == region.intersects(s));
+                    CHECK(tri.interiorContains(s) == region.interiorContains(s));
+                    CHECK(tri.interiorsIntersect(s) == region.interiorsIntersect(s));
+                }
+            }
+        }
+    }
+
+    // The unbounded operands, over a coarser grid.
+    for (int x1 = -1; x1 <= 7; x1 += 2) {
+        for (int y1 = -1; y1 <= 7; y1 += 2) {
+            for (int x2 = -1; x2 <= 7; x2 += 2) {
+                for (int y2 = -1; y2 <= 7; y2 += 2) {
+                    const Point a = P<Point>(x1, y1);
+                    const Point b = P<Point>(x2, y2);
+                    if (a == b) {
+                        continue;
+                    }
+                    for (const auto& shape : {pgl::Line<Point>(a, b)}) {
+                        CHECK(tri.intersects(shape) == region.intersects(shape));
+                        CHECK(tri.interiorsIntersect(shape) == region.interiorsIntersect(shape));
+                    }
+                    const pgl::Ray<Point> ray(a, b);
+                    CHECK(tri.intersects(ray) == region.intersects(ray));
+                    CHECK(tri.interiorsIntersect(ray) == region.interiorsIntersect(ray));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("A boundary inside a holed domain can still enclose a hole") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    // The reduction "a closed boundary inside the domain encloses nothing
+    // outside it" needs a simply connected domain; a region is not one, and the
+    // hole witnesses are what restore the answer.
+    const Region region(Polygon({0, 0, 10, 0, 10, 10, 0, 10}),
+                        std::vector{Polygon({4, 4, 6, 4, 6, 6, 4, 6})});
+    const auto tri = region.triangulation();
+
+    const pgl::Rectangle<Point> around(P<Point>(1, 1), P<Point>(9, 9));
+    CHECK(tri.intersects(around));
+    CHECK_FALSE(tri.contains(around));  // its edges are in the material, the hole is not
+
+    const pgl::Rectangle<Point> clear(P<Point>(1, 1), P<Point>(3, 3));
+    CHECK(tri.contains(clear));
+
+    const pgl::Triangle<Point> overHole(P<Point>(1, 1), P<Point>(9, 1), P<Point>(5, 9));
+    CHECK_FALSE(tri.contains(overHole));
+
+    const pgl::Polygon<Point> ring({1, 1, 9, 1, 9, 9, 1, 9});
+    CHECK_FALSE(tri.contains(ring));
+
+    // A polygon threading around the hole keeps clear of it and is contained.
+    const pgl::Polygon<Point> beside({1, 1, 3, 1, 3, 9, 1, 9});
+    CHECK(tri.contains(beside));
+}
+
+TEST_CASE("A hole can split the domain, and every query must see both pieces") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    // A band hole leaves a bottom slab [0,12]x[0,4] and a top slab [0,12]x[8,12].
+    // The queries below have their whole boundary inside the hole or outside the
+    // square, so no edge of theirs meets the domain and the answer comes from the
+    // fallback — which used to consult whichever triangle came first, and so
+    // spoke for one slab only.
+    const Region split(Polygon({0, 0, 12, 0, 12, 12, 0, 12}),
+                       std::vector{Polygon({0, 4, 12, 4, 12, 8, 0, 8})});
+    const auto tri = split.triangulation();
+
+    const pgl::Rectangle<Point> overTop(P<Point>(-2, 7), P<Point>(14, 14));
+    const pgl::Rectangle<Point> overBottom(P<Point>(-2, -2), P<Point>(14, 5));
+    for (const auto& shape : {overTop, overBottom}) {
+        CHECK(tri.intersects(shape));
+        CHECK(tri.interiorsIntersect(shape));
+        CHECK_FALSE(tri.contains(shape));  // the domain does not hold the query
+    }
+
+    const pgl::Polygon<Point> polygonOverTop({-2, 7, 14, 7, 14, 14, -2, 14});
+    CHECK(tri.intersects(polygonOverTop));
+    CHECK(tri.interiorsIntersect(polygonOverTop));
+
+    const pgl::Triangle<Point> triangleOverTop(P<Point>(-30, 7), P<Point>(40, 7), P<Point>(5, 60));
+    CHECK(tri.intersects(triangleOverTop));
+    CHECK(tri.interiorsIntersect(triangleOverTop));
+
+    // A query lying strictly inside the hole meets neither slab.
+    const pgl::Rectangle<Point> inTheHole(P<Point>(2, 5), P<Point>(10, 7));
+    CHECK_FALSE(tri.intersects(inTheHole));
+    CHECK_FALSE(tri.interiorsIntersect(inTheHole));
+
+    // Containment the other way round still works: a shape inside one slab is
+    // held by the domain.
+    CHECK(tri.contains(pgl::Rectangle<Point>(P<Point>(1, 1), P<Point>(11, 3))));
+}
+
 TEST_CASE("Points-plus-segments constructor keeps segment labels") {
     using Point = pgl::Point<int>;
     using LabeledSegment = pgl::Segment<Point, std::string>;

@@ -280,6 +280,50 @@ TEST_CASE("PolygonWithHoles streaming") {
           "PolygonWithHoles[Polygon[(0,0),(10,0),(10,10),(0,10)],Polygon[(2,2),(4,2),(4,4),(2,4)]]");
 }
 
+TEST_CASE("PolygonWithHoles pointInside") {
+    using Q = pgl::Rational<long long>;
+
+    SUBCASE("an annulus") {
+        const Region region(outerSquare(), std::vector{smallHole()});
+        CHECK(region.interiorContains(region.pointInside<Q>()));
+    }
+
+    SUBCASE("a hole covering the ear of the lex-min vertex") {
+        // Polygon's O(n) route starts at the lexicographically smallest vertex
+        // and would look for a point in the triangle it spans with its
+        // neighbours; here a hole occupies it, so the witness has to come from
+        // elsewhere.
+        const Polygon hole({0, 1, 8, 1, 8, 9, 0, 9});
+        const Region region(Polygon({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{hole});
+        REQUIRE(region.isValid());
+        CHECK(region.interiorContains(region.pointInside<Q>()));
+    }
+
+    SUBCASE("a region split in two by a hole") {
+        const Polygon band({0, 4, 10, 4, 10, 6, 0, 6});
+        const Region region(Polygon({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{band});
+        REQUIRE(region.isValid());
+        const auto witness = region.pointInside<Q>();
+        CHECK(region.interiorContains(witness));
+    }
+
+    SUBCASE("a slit region: the witness avoids the whiskers") {
+        const Polygon hole({0, 0, 4, 0, 4, 4, 0, 4});
+        const Region region(Polygon({0, 0, 8, 0, 8, 8, 0, 8}), std::vector{hole});
+        const auto witness = region.pointInside<Q>();
+        CHECK(region.contains(witness));
+        CHECK(region.interiorContains(witness));
+        CHECK_FALSE(region.boundaryContains(witness));
+    }
+
+    SUBCASE("pointInsideInteriorContainedIn") {
+        const Region region(outerSquare(), std::vector{smallHole()});
+        CHECK(region.pointInsideInteriorContainedIn(outerSquare()));
+        CHECK_FALSE(region.pointInsideInteriorContainedIn(smallHole()));
+        CHECK_FALSE(region.pointInsideInteriorContainedIn(Polygon({20, 20, 22, 20, 22, 22, 20, 22})));
+    }
+}
+
 TEST_CASE("PolygonWithHoles over exact and converted coordinate types") {
     SUBCASE("rational coordinates") {
         using RPoint = pgl::Point<pgl::Rational<long long>>;

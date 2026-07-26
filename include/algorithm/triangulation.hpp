@@ -469,6 +469,70 @@ struct Triangulation {
         constructConstrained(poly, points, segments);
     }
 
+    /**
+     * @brief Builds the constrained Delaunay triangulation of a region with
+     *        holes, optionally with extra interior points and constraint
+     *        segments.
+     *
+     * Every ring — the outer boundary and each hole — goes in as constrained
+     * edges, and the out-of-domain flood is seeded both from outside the convex
+     * hull and from inside each hole. The domain is then exactly the part of the
+     * region that has area: @ref triangles, @ref numTriangles and @ref locate
+     * see the material between the rings and nothing else.
+     *
+     * A region may hold pieces with no area at all — a hole sharing an edge with
+     * another ring leaves a slit, and the region contains it without any
+     * neighbourhood of it being in the region. Slits carry no triangle, so the
+     * triangulated domain is the closure of the region's interior rather than
+     * the region itself. Areas are unaffected, a slit having none.
+     *
+     * @param region Region to triangulate.
+     * @pre @p region satisfies @ref PolygonWithHoles::isValid, and any extra
+     *      points and segments lie in it (neither is checked).
+     */
+    explicit Triangulation(const PolygonWithHoles<PointType>& region) {
+        constructConstrained(region.outer(), std::array<PointType, 0>{},
+                             std::array<SegmentType, 0>{}, region.holes());
+    }
+
+    /**
+     * @overload
+     * @brief Adds the interior @p points as extra triangulation vertices.
+     * @param points Extra vertices to insert; assumed to lie in @p region.
+     */
+    template <class PointRange>
+        requires PointConcept<typename PointRange::value_type>
+    Triangulation(const PolygonWithHoles<PointType>& region, const PointRange& points) {
+        constructConstrained(region.outer(), points, std::array<SegmentType, 0>{}, region.holes());
+    }
+
+    /**
+     * @overload
+     * @brief Adds the interior @p segments as constrained edges and vertices.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie in @p region.
+     */
+    template <class SegmentRange>
+        requires SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const PolygonWithHoles<PointType>& region, const SegmentRange& segments) {
+        constructConstrained(region.outer(), std::array<PointType, 0>{}, segments, region.holes());
+    }
+
+    /**
+     * @overload
+     * @brief Adds both interior @p points and constraint @p segments.
+     * @param points Extra vertices to insert; assumed to lie in @p region.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie in @p region.
+     */
+    template <class PointRange, class SegmentRange>
+        requires PointConcept<typename PointRange::value_type> &&
+                 SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const PolygonWithHoles<PointType>& region, const PointRange& points,
+                  const SegmentRange& segments) {
+        constructConstrained(region.outer(), points, segments, region.holes());
+    }
+
     // ---- sizes -----------------------------------------------------------
 
     /** @brief Number of real vertices (excludes the ghost vertex). */
@@ -1563,9 +1627,23 @@ struct Triangulation {
     /** @overload */
     template <detail::PolygonalRegion Q>
     [[nodiscard]] bool contains(const Q& shape) const {
-        // A closed boundary inside the (simply connected) domain encloses nothing
-        // outside it — see detail::PolygonalRegion — so the edges decide.
-        return containsBoundary(shape.edges(), shape);
+        // A closed boundary inside the domain encloses nothing outside it — see
+        // detail::PolygonalRegion — so the edges decide, as long as the domain is
+        // simply connected.
+        if (!containsBoundary(shape.edges(), shape)) {
+            return false;
+        }
+        // A region domain is not simply connected, and the one thing its holes
+        // let a contained boundary enclose is a hole. The shape's boundary is
+        // inside the domain, hence clear of every hole interior, so each hole is
+        // wholly inside the shape or wholly outside it and one witness triangle
+        // per hole settles it.
+        for (const TriangleType& witness : holeWitnesses_) {
+            if (shape.contains(witness)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @overload */
@@ -1644,16 +1722,16 @@ struct Triangulation {
     template <PolygonConcept Q>
     [[nodiscard]] bool intersects(const Q& shape) const {
         // A polygon is not a traversal query (it need not be convex), so it is
-        // taken edge by edge. If its boundary misses the domain entirely the two
-        // are either disjoint or the domain — which is connected — lies inside the
-        // polygon, and a single domain vertex settles which.
+        // taken edge by edge. If its boundary misses the domain entirely then
+        // each connected piece of the domain is either inside the polygon or
+        // disjoint from it, and one vertex of each settles which.
         for (const auto& e : shape.edges()) {
             if (e[0] != e[1] && intersects(e)) {
                 return true;
             }
         }
-        const TriId t = firstInDomainTriangle();
-        return t != NO_TRI && shape.contains(vertices_[triangles_[t].v[0]]);
+        return anyDomainComponent(
+            [&](TriId t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
     }
 
     /** @overload @brief Always false: nothing meets the empty shape. */
@@ -1745,15 +1823,15 @@ struct Triangulation {
     [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
         // Edge by edge, as for the other polygon overloads. If no edge reaches the
         // domain's interior, then the polygon's boundary misses it entirely, and
-        // the interiors meet iff the domain's interior lies inside the polygon —
-        // which, the domain's interior being connected, one triangle settles.
+        // the interiors meet iff some connected piece of the domain lies inside
+        // the polygon — one triangle of each piece settles it.
         for (const auto& e : shape.edges()) {
             if (e[0] != e[1] && interiorsIntersect(e)) {
                 return true;
             }
         }
-        const TriId t = firstInDomainTriangle();
-        return t != NO_TRI && shape.interiorsIntersect(triangleValue(t));
+        return anyDomainComponent(
+            [&](TriId t) { return shape.interiorsIntersect(triangleValue(t)); });
     }
 
     /** @overload @brief Always false: the empty shape has no interior. */
@@ -2105,6 +2183,10 @@ struct Triangulation {
                                        // then the real vertices; inserts append
     std::vector<Tri> triangles_;       // real triangles [0,firstGhost_), then ghost triangles
     std::unordered_map<SegmentType, Edge> segToEdge_;  // outside edge -> internal handle
+    // One triangle inside each hole of a region domain, empty otherwise. A
+    // closed boundary drawn inside such a domain can enclose a hole, which the
+    // boundary alone never reveals, so the region queries consult these.
+    std::vector<TriangleType> holeWitnesses_;
     static constexpr VertexId GHOST = 0;  // index of the ghost vertex
     TriId firstGhost_ = 0;             // first ghost triangle index
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
@@ -2210,6 +2292,67 @@ struct Triangulation {
             }
         }
         return traced || held(shape[0]);
+    }
+
+    // Rewrites a ring's vertex loop so that consecutive entries span an
+    // unobstructed edge: rings are allowed to touch, and where they do a vertex
+    // of one lands in the relative interior of an edge of the other, which
+    // insertConstraint cannot force through. Every such vertex is spliced into
+    // the loop, in order along the edge carrying it.
+    //
+    // Only vertices of the *other* rings can obstruct an edge — a ring is simple,
+    // so a vertex of its own inside one of its edges would be a self-crossing —
+    // but scanning all of @p candidates is simpler and costs the same test.
+    std::vector<VertexId> expandRing(const std::vector<VertexId>& ring,
+                                     const std::vector<VertexId>& candidates) const {
+        std::vector<VertexId> expanded;
+        expanded.reserve(ring.size());
+        std::vector<VertexId> onEdge;
+        for (std::size_t i = 0; i < ring.size(); ++i) {
+            const VertexId a = ring[i];
+            const VertexId b = ring[(i + 1) % ring.size()];
+            expanded.push_back(a);
+            const SegmentType edge(vertices_[a], vertices_[b]);
+            onEdge.clear();
+            for (const VertexId v : candidates) {
+                if (v != a && v != b && edge.contains(vertices_[v])) {
+                    onEdge.push_back(v);
+                }
+            }
+            if (onEdge.empty()) {
+                continue;
+            }
+            // The obstructing vertices are collinear with the edge, so ordering
+            // them lexicographically orders them along it, forward or backward.
+            std::sort(onEdge.begin(), onEdge.end(),
+                      [this](VertexId p, VertexId q) { return vertices_[p] < vertices_[q]; });
+            if (vertices_[b] < vertices_[a]) {
+                std::reverse(onEdge.begin(), onEdge.end());
+            }
+            expanded.insert(expanded.end(), onEdge.begin(), onEdge.end());
+        }
+        return expanded;
+    }
+
+    // The triangle lying to the left of the directed edge a -> b, or NO_TRI when
+    // that edge is not in the triangulation. Triangle vertices are stored
+    // counterclockwise and side s spans v[s+1] -> v[s+2], so the triangle
+    // carrying the edge in that direction is the one on its left.
+    [[nodiscard]] TriId triangleLeftOf(VertexId a, VertexId b) const {
+        const auto it = segToEdge_.find(SegmentType(vertices_[a], vertices_[b]));
+        if (it == segToEdge_.end()) {
+            return NO_TRI;
+        }
+        for (const Edge e : {it->second, mirror(it->second)}) {
+            if (e.tri == NO_TRI) {
+                continue;
+            }
+            const auto& v = triangles_[e.tri].v;
+            if (v[(e.side + 1) % 3] == a && v[(e.side + 2) % 3] == b) {
+                return e.tri;
+            }
+        }
+        return NO_TRI;
     }
 
     // The same edge seen from the triangle on its other side (an invalid Edge if
@@ -2333,6 +2476,52 @@ struct Triangulation {
         return NO_TRI;
     }
 
+    // Calls f(TriId) once per connected component of the domain, stopping at the
+    // first true. This is what a query falls back on when the shape's boundary
+    // misses the domain entirely: every component then lies wholly inside the
+    // shape or wholly outside it, and one triangle of each settles which.
+    //
+    // Only a region's domain can come apart — a hole spanning it leaves two
+    // slabs, and two holes meeting at a point pinch it likewise — so a domain
+    // without holes keeps answering from its first triangle at O(1). Components
+    // are the edge-connected classes of in-domain triangles: sharing an edge
+    // puts the open edge in the domain's interior and joins them, sharing only a
+    // vertex does not.
+    template <class Fn>
+    bool anyDomainComponent(Fn&& f) const {
+        const TriId first = firstInDomainTriangle();
+        if (first == NO_TRI) {
+            return false;
+        }
+        if (holeWitnesses_.empty()) {
+            return f(first);
+        }
+        std::vector<char> seen(triangles_.size(), 0);
+        std::vector<TriId> stack;
+        for (TriId t = 0; t < firstGhost_; ++t) {
+            if (!inDomain(t) || seen[t]) {
+                continue;
+            }
+            if (f(t)) {
+                return true;
+            }
+            seen[t] = 1;
+            stack.push_back(t);
+            while (!stack.empty()) {
+                const TriId cur = stack.back();
+                stack.pop_back();
+                for (int s = 0; s < 3; ++s) {
+                    const TriId nb = triangles_[cur].nbr[s];
+                    if (nb != NO_TRI && !seen[nb] && inDomain(nb)) {
+                        seen[nb] = 1;
+                        stack.push_back(nb);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     // Finds one or more triangles meeting `shape` to seed the region flood fill,
     // by navigation rather than a full scan. Returns an empty vector when `shape`
     // does not meet the triangulated region at all. (Helper for the
@@ -2391,14 +2580,17 @@ struct Triangulation {
                     break;
                 }
             }
-            // No edge met the domain: either the whole (connected) domain lies
-            // inside `shape` or the two are disjoint — one vertex decides.
-            // (vertices_[1] is the first real vertex; index 0 is the ghost.)
-            if (seeds.empty() && numVertices() > 0 && shape.contains(vertices_[1])) {
-                const TriId t = firstInDomainTriangle();
-                if (t != NO_TRI) {
-                    seeds.push_back(t);
-                }
+            // No edge met the domain: each connected piece of it is either
+            // inside `shape` or disjoint from it, and one vertex of each decides.
+            // Every piece inside gets a seed — a hole can split the domain, and
+            // the flood does not cross from one piece to another.
+            if (seeds.empty() && numVertices() > 0) {
+                anyDomainComponent([&](TriId t) {
+                    if (shape.contains(vertices_[triangles_[t].v[0]])) {
+                        seeds.push_back(t);
+                    }
+                    return false;  // every component, not just the first
+                });
             }
         }
         return seeds;
@@ -2924,7 +3116,11 @@ struct Triangulation {
     // Flood-fills from the ghost (outside) across non-constrained edges, marking
     // every real triangle reachable without crossing the polygon boundary as
     // out-of-domain (the hull-fill triangles between polygon and convex hull).
-    void markOutOfDomain() {
+    //
+    // A region with holes seeds the same flood once more per hole, from a
+    // triangle inside it: hole interiors are fenced off from the outside by the
+    // outer boundary, so nothing else would reach them.
+    void markOutOfDomain(const std::vector<TriId>& holeSeeds = {}) {
         std::vector<char> seen(triangles_.size(), 0);
         std::vector<TriId> stack;
         for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
@@ -2932,6 +3128,15 @@ struct Triangulation {
             stack.push_back(g);
         }
         std::size_t marked = 0;
+        for (const TriId seed : holeSeeds) {
+            if (seed == NO_TRI || seen[seed]) {
+                continue;  // two rings bounding the same triangle: seeded already
+            }
+            seen[seed] = 1;
+            triangles_[seed].outOfDomain = 1;
+            ++marked;
+            stack.push_back(seed);
+        }
         while (!stack.empty()) {
             const TriId t = stack.back();
             stack.pop_back();
@@ -2963,11 +3168,17 @@ struct Triangulation {
     // @p constraintSegments are assumed to lie inside @p poly (not checked).
     template <class PointRange, class SegmentRange>
     void constructConstrained(const Polygon<PointType>& poly, const PointRange& extraPoints,
-                              const SegmentRange& constraintSegments) {
+                              const SegmentRange& constraintSegments,
+                              const std::vector<Polygon<PointType>>& holes = {}) {
         std::unordered_map<PointType, VertexId> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         for (std::size_t i = 0; i < poly.size(); ++i) {
             idOfPoint(poly[i]);
+        }
+        for (const auto& hole : holes) {
+            for (std::size_t i = 0; i < hole.size(); ++i) {
+                idOfPoint(hole[i]);
+            }
         }
         for (const auto& p : extraPoints) {
             idOfPoint(PointType(p));
@@ -2996,10 +3207,41 @@ struct Triangulation {
             loop.push_back(vid.at(poly[i]));
         }
 
-        // Constrain the polygon boundary and every interior segment, restore the
-        // constrained Delaunay property, then carve away the exterior.
+        std::vector<std::vector<VertexId>> holeLoops;
+        holeLoops.reserve(holes.size());
+        for (const auto& hole : holes) {
+            std::vector<VertexId> ring;
+            ring.reserve(hole.size());
+            for (std::size_t i = 0; i < hole.size(); ++i) {
+                ring.push_back(vid.at(hole[i]));
+            }
+            holeLoops.push_back(std::move(ring));
+        }
+
+        // Where rings touch, one ring's vertex can sit inside another ring's
+        // edge; splice those in so every constrained edge is unobstructed. Only
+        // a region can produce them, so a lone polygon skips the scan.
+        if (!holes.empty()) {
+            std::vector<VertexId> ringVertices = loop;
+            for (const auto& ring : holeLoops) {
+                ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
+            }
+            loop = expandRing(loop, ringVertices);
+            for (auto& ring : holeLoops) {
+                ring = expandRing(ring, ringVertices);
+            }
+        }
+
+        // Constrain the polygon boundary, every hole ring, and every interior
+        // segment, restore the constrained Delaunay property, then carve away
+        // the exterior and the hole interiors.
         for (std::size_t i = 0; i < loop.size(); ++i) {
             insertConstraint(loop[i], loop[(i + 1) % loop.size()]);
+        }
+        for (const auto& ring : holeLoops) {
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                insertConstraint(ring[i], ring[(i + 1) % ring.size()]);
+            }
         }
         for (const auto& s : constraintSegments) {
             const VertexId a = vid.at(PointType(s[0]));
@@ -3009,7 +3251,22 @@ struct Triangulation {
             }
         }
         restoreConstrainedDelaunay();
-        markOutOfDomain();
+
+        // One seed per hole, taken from a directed ring edge: a hole ring is
+        // counterclockwise, so the triangle on the left of any of its edges lies
+        // inside it. Recorded as a triangle value too — that is what tells a
+        // region query later whether it has swallowed a hole, and unlike a
+        // triangle id it survives the edits that follow.
+        std::vector<TriId> holeSeeds;
+        holeSeeds.reserve(holeLoops.size());
+        for (const auto& ring : holeLoops) {
+            const TriId seed = triangleLeftOf(ring[0], ring[1 % ring.size()]);
+            if (seed != NO_TRI && !isGhost(seed)) {
+                holeSeeds.push_back(seed);
+                holeWitnesses_.push_back(triangleValue(seed));
+            }
+        }
+        markOutOfDomain(holeSeeds);
 
         // Carry each constraint segment's label onto its edge record. Constrained
         // edges are never flipped, so they are still in segToEdge_ (keyed by
@@ -3731,6 +3988,28 @@ Triangulation(const Polygon<PolyPoint>&, const PointRange&, const SegmentRange&)
     -> Triangulation<Triangle<PolyPoint>,
                      Segment<PolyPoint, typename SegmentRange::value_type::LabelType>>;
 
+// Region guides, mirroring the polygon ones above.
+template <class RegionPoint>
+Triangulation(const PolygonWithHoles<RegionPoint>&) -> Triangulation<Triangle<RegionPoint>>;
+
+template <class RegionPoint, class PointRange>
+    requires PointConcept<typename PointRange::value_type>
+Triangulation(const PolygonWithHoles<RegionPoint>&, const PointRange&)
+    -> Triangulation<Triangle<RegionPoint>>;
+
+template <class RegionPoint, class SegmentRange>
+    requires SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const PolygonWithHoles<RegionPoint>&, const SegmentRange&)
+    -> Triangulation<Triangle<RegionPoint>,
+                     Segment<RegionPoint, typename SegmentRange::value_type::LabelType>>;
+
+template <class RegionPoint, class PointRange, class SegmentRange>
+    requires PointConcept<typename PointRange::value_type> &&
+             SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const PolygonWithHoles<RegionPoint>&, const PointRange&, const SegmentRange&)
+    -> Triangulation<Triangle<RegionPoint>,
+                     Segment<RegionPoint, typename SegmentRange::value_type::LabelType>>;
+
 // Out-of-line: Polygon::triangulation is declared in shape/polygon.hpp (which
 // precedes this header in the layering) but can only be defined once
 // Triangulation and its deduction guides are visible.
@@ -3743,6 +4022,55 @@ template <class PointType_, class TLabel>
 template <class SegmentRange>
 auto Polygon<PointType_, TLabel>::triangulation(const SegmentRange& segments) const {
     return Triangulation(*this, segments);
+}
+
+// Out-of-line for the same reason: declared in shape/polygonwithholes.hpp.
+template <class PointType_, class TLabel>
+auto PolygonWithHoles<PointType_, TLabel>::triangulation() const {
+    return Triangulation(*this);
+}
+
+template <class PointType_, class TLabel>
+template <class SegmentRange>
+auto PolygonWithHoles<PointType_, TLabel>::triangulation(const SegmentRange& segments) const {
+    return Triangulation(*this, segments);
+}
+
+// pointInside also lives here rather than in measures.hpp, since a region that
+// is not simply connected has no counterpart of Polygon's ear argument: an ear
+// of the outer ring can be occupied by a hole, and a diagonal between two outer
+// vertices can be interrupted by one. The triangulated domain is exactly the
+// part of the region with area, so any of its triangles supplies a witness,
+// and each triangle is inside the region by construction.
+template <class PointType_, class TLabel>
+template <class ResultNumber>
+Point<ResultNumber> PolygonWithHoles<PointType_, TLabel>::pointInside() const {
+    if (isDegenerate()) {
+        // No interior to point at (UB per the library contract); fall back to a
+        // representative point rather than triangulating nothing.
+        return verticesCentroid<ResultNumber>();
+    }
+    const auto mesh = triangulation();
+    for (const auto& triangle : mesh.triangles()) {
+        if (!triangle.isDegenerate()) {
+            return triangle.template pointInside<ResultNumber>();
+        }
+    }
+    return verticesCentroid<ResultNumber>();
+}
+
+template <class PointType_, class TLabel>
+template <class OtherShape>
+bool PolygonWithHoles<PointType_, TLabel>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
+    const auto witness = pointInside();
+    if (interiorContains(witness)) {
+        return shape.interiorContains(witness);
+    }
+    // pointInside() divides by 4 (Triangle::pointInside), so integer truncation
+    // can round it onto the boundary; scaling by 4 makes it exact without
+    // changing containment. Scaling is a similarity, so the scaled region's
+    // triangulation is the scaled triangulation and the witness scales with it.
+    return (shape * 4).interiorContains((*this * 4).pointInside());
 }
 
 }  // namespace pgl
