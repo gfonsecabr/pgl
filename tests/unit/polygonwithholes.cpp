@@ -186,6 +186,26 @@ TEST_CASE("PolygonWithHoles isValid") {
         CHECK(Region(outerSquare(), std::vector{touching}).isValid());
     }
 
+    // The contract is interior disjointness and nothing more: ring boundaries
+    // may meet however they like, including along whole stretches of edge. The
+    // region pinches shut where they do, which the predicates account for.
+    SUBCASE("a hole sharing a whole edge with the outer boundary is valid") {
+        const Polygon slit({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(Region(outerSquare(), std::vector{slit}).isValid());
+    }
+
+    SUBCASE("holes sharing a whole edge are valid") {
+        const Polygon left({2, 2, 5, 2, 5, 8, 2, 8});
+        const Polygon right({5, 2, 8, 2, 8, 8, 5, 8});
+        CHECK(Region(outerSquare(), std::vector{left, right}).isValid());
+    }
+
+    SUBCASE("a hole spanning the square from edge to edge is valid") {
+        // Splits the region in two and leaves a whisker on either side.
+        const Polygon band({0, 4, 10, 4, 10, 6, 0, 6});
+        CHECK(Region(outerSquare(), std::vector{band}).isValid());
+    }
+
     SUBCASE("overlapping holes are invalid") {
         const Polygon left({2, 2, 5, 2, 5, 5, 2, 5});
         const Polygon right({4, 4, 7, 4, 7, 7, 4, 7});
