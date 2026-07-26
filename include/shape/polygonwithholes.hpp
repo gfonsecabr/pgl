@@ -68,10 +68,17 @@ PolygonWithHoles(OuterPolygon&&, HoleRange&&, bool) -> PolygonWithHoles<typename
  * **Preconditions.** As with @ref Polygon, whose constructor does not check
  * simplicity, structural validity is a documented precondition rather than an
  * enforced invariant: every ring must be simple, each hole must lie inside the
- * outer polygon, and hole interiors must be pairwise disjoint and disjoint from
- * the outer boundary. Holes touching one another or the outer boundary at
- * isolated points are permitted. @ref isValid checks all of this on demand in
- * O((n + k) log(n + k)); the constructor only canonicalizes.
+ * outer polygon, and hole interiors must be pairwise disjoint.
+ *
+ * The contract is about *interiors* only. Ring boundaries are free to meet in
+ * any way — at isolated points, or along shared stretches of edge, whether
+ * between two holes or between a hole and the outer boundary. Where they do,
+ * the region pinches shut and is locally one-dimensional there, which every
+ * predicate accounts for. What is rejected is a hole overlapping another hole,
+ * a hole escaping the outer polygon, and any self-intersecting ring.
+ *
+ * @ref isValid checks all of this on demand in O((n + k) log(n + k)); the
+ * constructor only canonicalizes.
  *
  * @tparam PointType_ The vertex point type.
  * @tparam TLabel Optional label payload.
@@ -381,8 +388,9 @@ struct PolygonWithHoles {
      * @brief Tests the structural contract: every ring simple, every hole
      *        inside the outer boundary, hole interiors pairwise disjoint.
      *
-     * Holes are allowed to touch one another and the outer boundary at isolated
-     * points; what is rejected is overlapping interiors, a hole escaping the
+     * Ring boundaries may meet one another however they like — at isolated
+     * points or along shared stretches of edge; only interiors are constrained.
+     * What is rejected is one hole overlapping another, a hole escaping the
      * outer boundary, and any self-intersecting ring.
      *
      * This is a precondition of every other operation, checked on demand rather
