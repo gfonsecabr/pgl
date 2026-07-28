@@ -1025,6 +1025,18 @@ struct Disk {
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
 
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The cell engine that settles the other region pairs wants both boundaries
+     * as triangulation constraints, which a circle cannot be. What replaces it
+     * is the disk's convexity: it meets every cell of the region in one piece,
+     * so the components of `A ∖ D` are counted over the surviving vertices of
+     * the region's domain triangles and slits. See implementation/separates.hpp.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
+
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<PointConcept OtherPoint>
