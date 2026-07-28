@@ -1199,6 +1199,17 @@ struct PolygonWithHoles {
     template <PolylineConcept OtherPolyline>
     [[nodiscard]] bool separates(const OtherPolyline& other) const;
 
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The disk is the one operand the cell engine cannot take — a circle is no
+     * triangulation constraint — so this decomposes the plane by the region's
+     * rings alone and leans on the disk's convexity, which leaves it meeting
+     * each cell in a single connected piece. See implementation/separates.hpp.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] bool separates(const OtherDisk& other) const;
+
     /** @copydoc separates(const OtherPoint&) const */
     template <HalfplaneIntersectionConcept OtherIntersection>
     [[nodiscard]] bool separates(const OtherIntersection& other) const;
@@ -1258,6 +1269,10 @@ struct PolygonWithHoles {
     /** @copydoc crosses(const OtherPoint&) const */
     template <PolylineConcept OtherPolyline>
     [[nodiscard]] bool crosses(const OtherPolyline& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] bool crosses(const OtherDisk& other) const;
 
     /** @copydoc crosses(const OtherPoint&) const */
     template <HalfplaneIntersectionConcept OtherIntersection>

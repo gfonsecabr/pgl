@@ -15,6 +15,7 @@ using Halfplane = pgl::Halfplane<Point>;
 using Rectangle = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
+using Disk = pgl::Disk<Point>;
 using Polygon = pgl::Polygon<Point>;
 using Chain = pgl::MonotoneChain<Point>;
 using Polyline = pgl::Polyline<Point>;
@@ -373,6 +374,107 @@ TEST_CASE("PolygonWithHoles vs MonotoneChain and Polyline") {
     }
 }
 
+TEST_CASE("PolygonWithHoles vs Disk") {
+    const Region region = annulus();
+
+    SUBCASE("a disk swallowing the hole strands its interior") {
+        // What is left of the disk is the part beyond the outer ring and the
+        // hole interior in the middle: two pieces.
+        const Disk over(Point(4, 4), 5);
+        CHECK(region.separates(over));
+        // The inscribed disk stays inside the outer ring, so the hole is all
+        // that is left of it -- one piece.
+        const Disk inscribed(Point(4, 4), 4);
+        CHECK_FALSE(region.separates(inscribed));
+    }
+
+    SUBCASE("the disk cuts back when it eats the middle of every wall") {
+        const Disk inscribed(Point(4, 4), 4);
+        CHECK(inscribed.separates(region));  // the four corners are left
+        CHECK_FALSE(region.crosses(inscribed));
+
+        const Disk over(Point(4, 4), 5);
+        CHECK(over.separates(region));
+        CHECK(region.crosses(over));
+        CHECK(over.crosses(region));
+    }
+
+    SUBCASE("one bite leaves the annulus whole") {
+        // The disk spans the left wall, touching both rings, but the material
+        // still runs around the far side of the hole.
+        const Disk bite(Point(1, 4), 1);
+        CHECK_FALSE(bite.separates(region));
+        CHECK_FALSE(region.separates(bite));  // the disk lies in the material
+    }
+
+    SUBCASE("a disk inside a hole is one piece of the complement") {
+        const Disk inHole(Point(4, 4), 1);
+        CHECK_FALSE(region.separates(inHole));
+        CHECK_FALSE(inHole.separates(region));
+    }
+
+    SUBCASE("a slit cuts a disk although it carries no area") {
+        // The two holes meet along x = 4, and that segment is region material
+        // with nothing beside it. A disk inside the holes meets the region in
+        // that segment alone, which splits it into two half-disks.
+        const Region region2 = slit();
+        const Disk onSlit(Point(4, 4), 1);
+        CHECK(region2.separates(onSlit));
+        CHECK_FALSE(onSlit.separates(region2));  // the frame still joins it up
+        CHECK_FALSE(region2.crosses(onSlit));
+    }
+
+    SUBCASE("a pinch point cuts a disk into two quadrants") {
+        // The holes meet at (4,4) only, so a disk around it keeps just that
+        // point of the region -- and the two hole interiors it covers meet
+        // nowhere else.
+        const Region region2 = pointTouch();
+        CHECK(region2.separates(Disk(Point(4, 4), 1)));
+        CHECK_FALSE(region2.separates(Disk(Point(3, 3), 1)));  // inside one hole
+    }
+
+    SUBCASE("a slit holds the region together where the material is cut") {
+        // The hole reaches the left wall, so the region is two slabs, a column
+        // of material on the right, and the slit the hole's left edge shares
+        // with the outer ring. The disk severs the column, and the slit -- which
+        // carries no area and so no triangle of the domain -- is what keeps the
+        // slabs joined.
+        const Region curtain(box(0, 0, 8, 8), std::vector{box(0, 2, 7, 6)});
+        REQUIRE(curtain.isValid());
+        const Disk cut(Point(8, 4), 1);
+        CHECK_FALSE(cut.separates(curtain));
+        // Take the slit away as well -- a band across everything -- and the
+        // same two slabs do come apart.
+        CHECK(Rectangle(Point(-1, 3), Point(9, 5)).separates(curtain));
+    }
+
+    SUBCASE("the band's two slits both have to go") {
+        const Region band = bandSplit();
+        // A disk over the left slit alone leaves the right one carrying the
+        // region.
+        CHECK_FALSE(Disk(Point(0, 4), 1).separates(band));
+        // One big enough to swallow both also eats through the slabs.
+        CHECK(Disk(Point(4, 4), 5).separates(band));
+    }
+
+    SUBCASE("a degenerate disk cuts nothing, either way") {
+        const Disk radiusZero(Point(4, 4), 0);
+        CHECK_FALSE(region.separates(radiusZero));
+        CHECK_FALSE(radiusZero.separates(region));
+        const Disk undefined(Point(0, 0), Point(1, 1), Point(2, 2));
+        REQUIRE(undefined.isUndefined());
+        CHECK_FALSE(region.separates(undefined));
+        CHECK_FALSE(undefined.separates(region));
+    }
+
+    SUBCASE("a region without holes answers exactly as its outer polygon") {
+        const Region plain(box(0, 0, 8, 8));
+        const Disk disk(Point(0, 4), 3);
+        CHECK(plain.separates(disk) == plain.outer().separates(disk));
+        CHECK(disk.separates(plain) == disk.separates(plain.outer()));
+    }
+}
+
 TEST_CASE("PolygonWithHoles separates: the empty shape") {
     const Region region = annulus();
     const pgl::EmptyShape<Point> nothing;
@@ -403,4 +505,12 @@ TEST_CASE("PolygonWithHoles separates: exact rational coordinates") {
     CHECK(half.separates(region));
     CHECK_FALSE(region.separates(half));
     CHECK(region.contains(half));
+
+    // A disk over the hole and past the outer ring, in the same exact type:
+    // the hole interior is stranded, and the four corners of the square
+    // survive the removal.
+    const pgl::Disk<EPoint> disk(EPoint(pgl::ERational(4), pgl::ERational(4)), pgl::ERational(5));
+    CHECK(region.separates(disk));
+    CHECK(disk.separates(region));
+    CHECK(region.crosses(disk));
 }

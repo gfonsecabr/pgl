@@ -4805,6 +4805,317 @@ bool convexAndRegionSeparate(const ConvexOperand& convex, const Region& region) 
     return run(clipped.template asConvex<ExactNumber>().asPolygon());
 }
 
+// ---------------------------------------------------------------------------
+// The disk pair.
+//
+// A circle is not polygonal, so the cell engine does not take it: its
+// decomposition wants both boundaries as triangulation constraints, and a
+// circle is neither a constraint nor a source of rational crossings. What
+// replaces it in each direction is the one property a disk has that a polygon
+// does not — convexity — and each direction uses it differently. Neither ever
+// constructs a circle crossing: every test below is a predicate on the disk,
+// exact in the operands' own arithmetic.
+
+/**
+ * @brief Whether `disk ∖ region` has at least two connected components.
+ *
+ * The arrangement of the region's rings inside a box holding both shapes cuts
+ * the plane into cells — open triangles, open edges and vertices — on each of
+ * which membership in the region is constant, so the complement of the region
+ * is exactly the union of the cells outside it. The disk meets each such cell
+ * in a convex, hence connected, set, and two of those pieces are joined
+ * exactly when one cell is a face of the other and both are met: `c ∪ f` is
+ * convex for a face `f` of `c`, so the disk meets that union in one piece too,
+ * while cells unrelated by incidence are disjoint and touch nowhere else. A
+ * union-find over the incidences therefore counts the components of `D ∖ A`
+ * with nothing assumed about the region — slits and pinch points are cells in
+ * their own right, and the disconnected region interior never comes up.
+ */
+template <class Region, class OtherDisk>
+bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
+    using ExactNumber = Exact1DNumber<typename Region::NumberType, typename OtherDisk::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+
+    std::vector<ExactSegment> cuts;
+    appendCutSegments<ExactPoint>(region, cuts);
+    if (cuts.empty()) {
+        return false;  // an empty region removes nothing
+    }
+
+    // A box strictly containing both shapes. Holding the whole disk is what
+    // keeps every piece of `D ∖ A` inside the arrangement, and keeping the disk
+    // off the box boundary is what leaves every vertex it reaches with a
+    // complete star of triangles for the union-find to walk.
+    const auto regionBox = region.bbox();
+    const auto diskBox = disk.bbox();
+    const ExactNumber margin(1);
+    const ExactNumber loX =
+        std::min(ExactNumber(regionBox.min().x()), ExactNumber(diskBox.min().x())) - margin;
+    const ExactNumber loY =
+        std::min(ExactNumber(regionBox.min().y()), ExactNumber(diskBox.min().y())) - margin;
+    const ExactNumber hiX =
+        std::max(ExactNumber(regionBox.max().x()), ExactNumber(diskBox.max().x())) + margin;
+    const ExactNumber hiY =
+        std::max(ExactNumber(regionBox.max().y()), ExactNumber(diskBox.max().y())) + margin;
+    const Polygon<ExactPoint> box(std::vector<ExactPoint>{
+        ExactPoint(loX, loY), ExactPoint(hiX, loY), ExactPoint(hiX, hiY), ExactPoint(loX, hiY)});
+    const auto mesh = box.triangulation(arrangedCutSegments(cuts, std::vector<ExactPoint>{}));
+
+    // The disk in the arrangement's own arithmetic, so every test below is a
+    // like-typed exact predicate.
+    const Disk<ExactPoint> exactDisk(disk);
+
+    std::vector<std::size_t> parent;
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto unite = [&](std::size_t a, std::size_t b) {
+        parent[findRoot(a)] = findRoot(b);
+    };
+    constexpr std::size_t dropped = std::numeric_limits<std::size_t>::max();
+    const auto cellOf = [&](bool kept) {
+        if (!kept) {
+            return dropped;
+        }
+        parent.push_back(parent.size());
+        return parent.size() - 1;
+    };
+
+    std::map<ExactSegment, std::size_t> edgeCells;
+    std::map<ExactPoint, std::size_t> vertexCells;
+    const auto vertexCell = [&](const ExactPoint& vertex) {
+        const auto [it, inserted] = vertexCells.try_emplace(vertex, dropped);
+        if (inserted) {
+            it->second = cellOf(exactDisk.contains(vertex) && !region.contains(vertex));
+        }
+        return it->second;
+    };
+    const auto edgeCell = [&](const ExactSegment& edge) {
+        const auto [it, inserted] = edgeCells.try_emplace(edge, dropped);
+        if (inserted) {
+            // The disk reaches the open edge either through its own interior or
+            // by touching it at a single point, and that point is interior to
+            // the edge exactly when neither endpoint carries it. Membership in
+            // the region is constant along the open edge, so its midpoint
+            // decides it — an edge along a slit is region material, not
+            // complement.
+            const ExactPoint mid((edge.min().x() + edge.max().x()) / ExactNumber(2),
+                                 (edge.min().y() + edge.max().y()) / ExactNumber(2));
+            const bool met = exactDisk.interiorsIntersect(edge) ||
+                             (exactDisk.intersects(edge) && !exactDisk.contains(edge.min()) &&
+                              !exactDisk.contains(edge.max()));
+            it->second = cellOf(met && !region.contains(mid));
+        }
+        return it->second;
+    };
+
+    for (const auto& triangle : mesh.triangles()) {
+        const std::size_t face =
+            cellOf(exactDisk.interiorsIntersect(triangle) &&
+                   !region.contains(triangle.template pointInside<ExactNumber>()));
+        for (int k = 0; k < 3; ++k) {
+            const ExactSegment edge(triangle.get(k), triangle.get(k + 1));
+            const std::size_t side = edgeCell(edge);
+            const std::size_t corner = vertexCell(ExactPoint(triangle.get(k)));
+            if (face != dropped && side != dropped) {
+                unite(face, side);
+            }
+            if (face != dropped && corner != dropped) {
+                unite(face, corner);
+            }
+            if (side != dropped && corner != dropped) {
+                unite(side, corner);
+            }
+            const std::size_t next = vertexCell(ExactPoint(triangle.get(k + 1)));
+            if (side != dropped && next != dropped) {
+                unite(side, next);
+            }
+        }
+    }
+
+    std::size_t components = 0;
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        if (findRoot(i) == i && ++components >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief The doubly covered stretches of a region's boundary.
+ *
+ * These are the slits: region material with no area on either side, which the
+ * domain triangulation therefore does not reach. Coverage along a boundary
+ * edge changes only at ring vertices, so splitting every edge at the vertices
+ * lying on it makes coverage constant on each piece, and a piece is covered by
+ * an edge exactly when that edge holds both of its endpoints. A valid region
+ * never covers a stretch three times, so two means pinched shut.
+ */
+template <class Region>
+std::vector<Segment<typename Region::PointType>> regionSlits(const Region& region) {
+    using RegionPoint = typename Region::PointType;
+    using RegionSegment = Segment<RegionPoint>;
+
+    const auto edges = region.edges();
+    std::vector<RegionPoint> vertices = region.vertices();
+    std::sort(vertices.begin(), vertices.end());
+    vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+
+    std::vector<RegionSegment> slits;
+    std::vector<RegionPoint> cuts;
+    for (const auto& edge : edges) {
+        cuts.clear();
+        cuts.push_back(edge.min());
+        cuts.push_back(edge.max());
+        for (const auto& vertex : vertices) {
+            if (edge.contains(vertex)) {
+                cuts.push_back(vertex);
+            }
+        }
+        // Every cut lies on the edge, so the lexicographic point order is the
+        // linear order along it.
+        std::sort(cuts.begin(), cuts.end());
+        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+        for (std::size_t k = 0; k + 1 < cuts.size(); ++k) {
+            const RegionSegment piece(cuts[k], cuts[k + 1]);
+            int covers = 0;
+            for (const auto& cover : edges) {
+                if (cover.contains(piece.min()) && cover.contains(piece.max()) && ++covers == 2) {
+                    slits.push_back(piece);
+                    break;
+                }
+            }
+        }
+    }
+    std::sort(slits.begin(), slits.end());
+    slits.erase(std::unique(slits.begin(), slits.end()), slits.end());
+    return slits;
+}
+
+/**
+ * @brief Whether `region ∖ disk` has at least two connected components.
+ *
+ * The region is the union of its domain triangles, which tile `closure(A°)`,
+ * and its slits, which carry the rest of it. Every component of one of those
+ * cells minus a *convex* remover holds a vertex of the cell: the disk meets a
+ * segment in a single subsegment, so what survives of an edge hangs from its
+ * endpoints, and every component of a convex cell minus the disk reaches the
+ * cell's boundary. Counting components is therefore a union-find over the
+ * surviving vertices:
+ *
+ * - within a triangle, the components of `T ∖ D` are the maximal runs of
+ *   `∂T ∖ D` — the disk bites a convex `T` apart exactly at its contacts with
+ *   `∂T` — so one walk of the boundary joins the vertices an uninterrupted run
+ *   holds, the wrap-around included;
+ * - a slit joins its two endpoints exactly when the disk misses it altogether;
+ * - two cells sharing a vertex share its node, which is what carries the
+ *   region across a pinch point and along a slit into the material at its tip.
+ *   Neither has a counterpart in a simple polygon, whose triangles all meet
+ *   edge to edge.
+ */
+template <class OtherDisk, class Region>
+bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
+    using RegionPoint = typename Region::PointType;
+    using RegionSegment = Segment<RegionPoint>;
+
+    std::vector<std::size_t> parent;
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto unite = [&](std::size_t a, std::size_t b) {
+        parent[findRoot(a)] = findRoot(b);
+    };
+
+    // One node per vertex the disk leaves behind; a vertex it swallows carries
+    // nothing to connect, and is never handed to @c nodeOf.
+    constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
+    std::map<RegionPoint, std::size_t> nodes;
+    const auto nodeOf = [&](const RegionPoint& vertex) {
+        const auto [it, inserted] = nodes.try_emplace(vertex, 0);
+        if (inserted) {
+            it->second = parent.size();
+            parent.push_back(parent.size());
+        }
+        return it->second;
+    };
+
+    // Layering: Triangulation lives in algorithm/triangulation.hpp, which
+    // pgl.hpp includes after this header. Reach it only through the dependent
+    // call region.triangulation(), never by naming the class here.
+    for (const auto& triangle : region.triangulation().triangles()) {
+        const bool eaten[3] = {disk.contains(triangle[0]), disk.contains(triangle[1]),
+                               disk.contains(triangle[2])};
+        std::size_t first = none;
+        std::size_t last = none;
+        bool gapBeforeFirst = false;
+        bool gap = false;  // a contact with the disk since the last vertex kept
+        const auto keep = [&](const RegionPoint& vertex) {
+            const std::size_t node = nodeOf(vertex);
+            if (last == none) {
+                first = node;
+                gapBeforeFirst = gap;
+            } else if (!gap) {
+                unite(last, node);
+            }
+            last = node;
+            gap = false;
+        };
+        for (int i = 0; i < 3; ++i) {
+            const auto& from = triangle.get(i);
+            const auto& to = triangle.get(i + 1);
+            if (eaten[i] && eaten[(i + 1) % 3]) {  // the disk is convex: the edge is gone
+                gap = true;
+            } else if (eaten[i]) {                 // the walk leaves the disk mid-edge
+                gap = true;
+                keep(to);
+            } else if (eaten[(i + 1) % 3]) {       // the walk enters the disk mid-edge
+                keep(from);
+                gap = true;
+            } else if (disk.intersects(RegionSegment(from, to))) {  // a contact inside the edge
+                keep(from);
+                gap = true;
+                keep(to);
+            } else {                               // the edge is clear of the disk
+                keep(from);
+                keep(to);
+            }
+        }
+        if (first != none && !gap && !gapBeforeFirst) {
+            unite(last, first);
+        }
+    }
+
+    for (const auto& slit : regionSlits(region)) {
+        // Whatever the disk takes out of a slit, what is left hangs from an
+        // endpoint — it meets the segment in a single subsegment — so each end
+        // it spares is a piece of its own, and the two stay joined only when it
+        // misses the slit altogether.
+        const std::size_t low = disk.contains(slit.min()) ? none : nodeOf(slit.min());
+        const std::size_t high = disk.contains(slit.max()) ? none : nodeOf(slit.max());
+        if (low != none && high != none && !disk.intersects(slit)) {
+            unite(low, high);
+        }
+    }
+
+    std::size_t components = 0;
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        if (findRoot(i) == i && ++components >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace detail
 
 /**
@@ -4940,6 +5251,18 @@ bool PolygonWithHoles<PointType, LabelType>::separates(const OtherPolyline& othe
         return outer_.separates(other);
     }
     return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherDisk& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isDegenerate()) {
+        return false;  // a disk of radius zero is a point, and an undefined one has no circle
+    }
+    return detail::regionSeparatesDisk(*this, other);
 }
 
 template <class PointType, class LabelType>
@@ -5083,6 +5406,20 @@ bool Polyline<PointType, LabelType>::separates(const OtherRegion& other) const {
         return separates(other.outer());
     }
     return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Disk<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isDegenerate()) {
+        // A disk of radius zero is a point, which never cuts a region (see
+        // Point::separates above); an undefined disk determines no circle.
+        return false;
+    }
+    return detail::diskSeparatesRegion(*this, other);
 }
 
 template <class PointType, class LabelType>

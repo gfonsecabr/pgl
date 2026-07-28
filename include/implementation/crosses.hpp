@@ -1176,6 +1176,12 @@ bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherPolyline& other)
 }
 
 template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherDisk& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherIntersection>
 bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherIntersection& other) const {
     return separates(other) && other.separates(*this);
