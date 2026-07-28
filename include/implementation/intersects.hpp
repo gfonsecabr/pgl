@@ -850,6 +850,13 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherDisk& other) 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (const auto point = getIfPoint()) {
+        // A radius-zero disk is its centre; the in-circle formulation below
+        // needs three non-collinear boundary points to be meaningful, and on
+        // three equal ones every determinant vanishes and both of its tests
+        // come out true.
+        return other.contains(*point);
+    }
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -1129,6 +1136,11 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedSegment
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (const auto point = getIfPoint()) {
+        // A radius-zero disk is its centre, which the in-circle formulation
+        // below cannot see (see intersects(Segment)).
+        return other.contains(*point);
+    }
     // A line has no endpoints, so there is no containment shortcut: it meets the
     // closed disk exactly when the centre lies within one radius of the line,
     // i.e. when the power quadratic along the line has real roots (discriminant
@@ -2076,10 +2088,8 @@ template <class PointType, class LabelType>
 template <DiskConcept OtherDisk>
 constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherDisk& other) const {
     if (other.isDegenerate()) {
-        // Radius zero, or undefined; either way a() is the answer, and routing
-        // it explicitly keeps a defined radius-zero disk clear of
-        // Disk::intersects(Segment), whose division-free power test degenerates
-        // to 0 ≥ 0 — i.e. to `true` — once the defining points are collinear.
+        // Radius zero, or undefined; either way a() carries the answer, and the
+        // point overload is cheaper than the scan below.
         return intersects(other.a());
     }
     if (!other.intersects(outer_)) {
