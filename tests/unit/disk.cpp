@@ -426,3 +426,77 @@ TEST_CASE("Halfplane::interiorContains(Disk) is exact for three-point integer di
     CHECK(h.interiorContains(d) == false);
 }
 
+
+TEST_CASE("A disk of radius zero answers as the point it covers") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Line = pgl::Line<Point>;
+    using Ray = pgl::Ray<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    // The one degenerate disk the library defines: three equal boundary points,
+    // covering exactly a(). Every predicate here reached the in-circle
+    // formulation before, where three equal points make every determinant
+    // vanish and the tests come out true whatever they are asked.
+    const Disk zero(Point(5, 5), 0);
+    REQUIRE(zero.isPoint());
+    REQUIRE(zero.isDegenerate());
+    REQUIRE(!zero.isUndefined());
+
+    SUBCASE("against a segment") {
+        CHECK(!zero.intersects(Segment(Point(100, 100), Point(200, 200))));
+        CHECK(zero.intersects(Segment(Point(0, 0), Point(10, 10))));   // through (5,5)
+        CHECK(zero.intersects(Segment(Point(5, 5), Point(9, 1))));     // from (5,5)
+        CHECK(!zero.intersects(Segment(Point(0, 1), Point(10, 11))));  // parallel, misses
+    }
+
+    SUBCASE("against a line, a ray, and a half-plane") {
+        CHECK(!zero.intersects(Line(Point(0, 100), Point(1, 100))));
+        CHECK(zero.intersects(Line(Point(0, 0), Point(1, 1))));
+        CHECK(!zero.intersects(Ray(Point(0, 0), Point(-1, -1))));
+        CHECK(zero.intersects(Ray(Point(0, 0), Point(1, 1))));
+        CHECK(zero.intersects(Halfplane(Point(0, 0), Point(1, 0))));    // y >= 0
+        CHECK(!zero.intersects(Halfplane(Point(1, 0), Point(0, 0))));   // y <= 0
+    }
+
+    SUBCASE("against shapes bounded by edges") {
+        CHECK(zero.intersects(Rectangle(Point(0, 0), Point(10, 10))));
+        CHECK(!zero.intersects(Rectangle(Point(20, 20), Point(30, 30))));
+        const pgl::Polygon<Point> square({0, 0, 10, 0, 10, 10, 0, 10});
+        const pgl::Polygon<Point> faraway({20, 20, 30, 20, 30, 30, 20, 30});
+        CHECK(square.intersects(zero));
+        CHECK(!faraway.intersects(zero));
+        CHECK(!faraway.contains(zero));
+    }
+
+    SUBCASE("a collapsed shape is entirely boundary") {
+        // doc/raw/shapes.md: boundaryContains coincides with contains on a
+        // shape that has dropped below its natural dimension.
+        CHECK(zero.contains(Point(5, 5)));
+        CHECK(zero.boundaryContains(Point(5, 5)));
+        CHECK(!zero.boundaryContains(Point(5, 6)));
+        CHECK(!zero.interiorContains(Point(5, 5)));
+        CHECK(!zero.boundaryContains(Segment(Point(0, 0), Point(10, 10))));
+        CHECK(zero.boundaryContains(Segment(Point(5, 5), Point(5, 5))));
+        CHECK(!zero.boundaryContains(Line(Point(0, 0), Point(1, 1))));
+        CHECK(!zero.boundaryContains(Rectangle(Point(0, 0), Point(10, 10))));
+        CHECK(zero.boundaryContains(Rectangle(Point(5, 5), Point(5, 5))));
+    }
+
+    SUBCASE("distances measure from the point") {
+        CHECK(zero.squaredDistance(Point(5, 8)) == doctest::Approx(9.0));
+        CHECK(zero.squaredDistance(Segment(Point(8, 0), Point(8, 10))) == doctest::Approx(9.0));
+        CHECK(zero.squaredDistance(Segment(Point(0, 0), Point(10, 10))) == doctest::Approx(0.0));
+    }
+
+    SUBCASE("a disk with area is unaffected") {
+        const Disk d(Point(5, 5), 2);
+        CHECK(!d.intersects(Segment(Point(100, 100), Point(200, 200))));
+        CHECK(d.intersects(Segment(Point(0, 5), Point(10, 5))));
+        CHECK(d.boundaryContains(Point(7, 5)));
+        CHECK(!d.boundaryContains(Point(5, 5)));
+        CHECK(d.interiorContains(Point(5, 5)));
+    }
+}

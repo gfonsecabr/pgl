@@ -1050,7 +1050,9 @@ struct PolygonWithHoles {
      * A degenerate disk goes to the point overload with @ref Disk::a: that is
      * exactly the disk when its radius is zero, and a disk whose defining points
      * are collinear but not all equal is undefined (it determines no circle), so
-     * any terminating answer meets the contract.
+     * any terminating answer meets the contract. The region cannot leave this to
+     * the outer polygon — a point of a hole interior is inside the outer polygon
+     * and outside the region.
      */
     template <DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
