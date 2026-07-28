@@ -963,6 +963,168 @@ struct PolygonWithHoles {
     [[nodiscard]] bool interiorsIntersect(const OtherRegion& other) const;
 
     // -------------------------------------------------------------------------
+    // Predicates against a polygonal chain: a monotone chain and a polyline.
+    //
+    // Both are one-dimensional and are exactly the union of their edges, so the
+    // four set-level relations are settled edge by edge with no hole bookkeeping
+    // of their own — the segment overloads already carry it. Only
+    // interiorsIntersect needs the chain's own convention: its relative interior
+    // is the chain minus its two extreme points, i.e. the open edges together
+    // with the vertices between them.
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The chain is exactly the union of its edges, so it is in the region when
+     * every edge is; an empty chain is contained trivially.
+     *
+     * Complexity: O(n·m) for a region of n vertices and a chain of m.
+     */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool contains(const OtherChain& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool contains(const OtherPolyline& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorContains(const OtherChain& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolyline& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool intersects(const OtherChain& other) const;
+
+    /** @copydoc contains(const OtherChain&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool intersects(const OtherPolyline& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * The chain's relative interior is the chain minus its two extreme points,
+     * so it reaches the open region when an open edge does or when a vertex
+     * between two edges lies strictly inside it. The region interior is open and
+     * two-dimensional, which is what lets the shared chain helper answer this:
+     * an open edge point that has to be discarded — an extreme the chain passes
+     * through again — is surrounded by edge points that do not.
+     */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherChain& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherChain&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherPolyline& other) const;
+
+    // -------------------------------------------------------------------------
+    // Predicates against a disk
+    //
+    // A disk is closed, bounded, connected, and — unless it has degenerated —
+    // the closure of its own interior. That last property is what the area
+    // operands of §3 could not assume, and having it back brings the direct
+    // per-hole rewriting of A = outer ∖ ⋃ hole° with it:
+    //   contains(D)         outer contains D, and no hole interior meets D
+    //   interiorContains(D) outer° contains D, and no hole meets D at all
+    // The disk has no edges, though, so interiorsIntersect has no boundary scan
+    // to fall back on and goes to the triangulated domain directly.
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The disk is in the region when the outer polygon contains it and it never
+     * enters a hole interior; a disk tangent to a hole from outside is contained,
+     * one that swallows a hole is not.
+     *
+     * A degenerate disk goes to the point overload with @ref Disk::a: that is
+     * exactly the disk when its radius is zero, and a disk whose defining points
+     * are collinear but not all equal is undefined (it determines no circle), so
+     * any terminating answer meets the contract.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool contains(const OtherDisk& other) const;
+
+    /** @copydoc contains(const OtherDisk&) const */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool interiorContains(const OtherDisk& other) const;
+
+    /** @copydoc contains(const OtherDisk&) const */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const;
+
+    /** @copydoc contains(const OtherDisk&) const */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] constexpr bool intersects(const OtherDisk& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * A disk contributes no edges to scan, so once the cheap witness test fails
+     * this triangulates: the domain triangles tile closure(A°), and the open
+     * disk meets A° exactly when it meets one of their interiors.
+     *
+     * Complexity: O(n log n) for a region of n vertices.
+     */
+    template <DiskConcept OtherDisk>
+    [[nodiscard]] bool interiorsIntersect(const OtherDisk& other) const;
+
+    // -------------------------------------------------------------------------
+    // Predicates against a half-plane intersection
+    //
+    // The operand is convex and closed but need not be bounded, which splits the
+    // work in two. The three containment relations want a bounded operand — the
+    // region is bounded — and a bounded, non-degenerate half-plane intersection
+    // is a convex polygon, so they hand it to the area path as one. A degenerate
+    // one is a point, a segment, a ray, or a line, and goes to the overload for
+    // that carrier. intersects and interiorsIntersect keep the unbounded case:
+    // the first by the ring-contact argument the other operands use, the second
+    // by clipping the operand to the region's bounding box first, which changes
+    // no answer because the region interior lies strictly inside that box.
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * Only a bounded operand can lie in the bounded region; the empty region is
+     * contained by convention, matching the other shapes.
+     */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr bool contains(const OtherIntersection& other) const;
+
+    /** @copydoc contains(const OtherIntersection&) const */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr bool interiorContains(const OtherIntersection& other) const;
+
+    /** @copydoc contains(const OtherIntersection&) const */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherIntersection& other) const;
+
+    /** @copydoc contains(const OtherIntersection&) const */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr bool intersects(const OtherIntersection& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * The operand is clipped to the region's bounding box, which leaves the
+     * answer alone — A° is an open subset of that box and therefore misses its
+     * boundary — and turns an unbounded operand into a convex polygon the area
+     * path already handles.
+     */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] bool interiorsIntersect(const OtherIntersection& other) const;
+
+    // -------------------------------------------------------------------------
     // Distances
     //
     // The region is closed, so whenever it misses the other shape the nearest
@@ -1032,6 +1194,28 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto squaredDistance(const OtherRegion& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherChain& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPolyline& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherIntersection& other) const;
+
+    /**
+     * @brief Computes the squared Euclidean distance to a disk.
+     *
+     * Always returns `double`, like every other distance to a @ref Disk: the
+     * nearest point of a disjoint disk is on its circle, so the exact value is
+     * generally irrational.
+     */
+    template <class ResultNumber = NumberType, DiskConcept OtherDisk>
+    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
 
@@ -1080,6 +1264,18 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto distanceL1(const OtherRegion& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceL1(const OtherChain& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPolyline& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr auto distanceL1(const OtherIntersection& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
 
@@ -1126,6 +1322,18 @@ struct PolygonWithHoles {
     /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
     [[nodiscard]] constexpr auto distanceLInf(const OtherRegion& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherChain& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPolyline& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherIntersection& other) const;
 
     // -------------------------------------------------------------------------
     // The empty set is a subset of every shape, so its containment relations
@@ -1336,6 +1544,40 @@ struct PolygonWithHoles {
     /** @copydoc areaContains */
     template <class OtherArea>
     bool areaInteriorsIntersect(const OtherArea& other) const;
+
+    /**
+     * @brief Shared core of the four set-level predicates against a polygonal
+     *        chain — a monotone chain or a polyline.
+     *
+     * A chain is the union of its edges, so each relation holds for the chain
+     * exactly when it holds for every edge (for @ref intersects, for some edge).
+     * @p relation is called with each edge in turn and its results combined by
+     * @p all: `true` to require every edge, `false` to accept any.
+     */
+    template <class OtherChain, class EdgeRelation>
+    constexpr bool chainRelation(const OtherChain& other, bool all, EdgeRelation&& relation) const;
+
+    /**
+     * @brief The operand as a convex polygon, for the predicates that need a
+     *        bounded, non-degenerate half-plane intersection as an area operand.
+     *
+     * Its vertices are intersections of constraint lines and therefore rational,
+     * so the conversion picks a coordinate type exact enough to hold them.
+     */
+    template <class OtherIntersection>
+    static constexpr auto asConvexOperand(const OtherIntersection& other);
+
+    /**
+     * @brief Applies @p relation to the shape a degenerate half-plane
+     *        intersection has collapsed to.
+     *
+     * The carrier is a point, a segment, a ray or a line, and the region has an
+     * overload for each; the two unbounded ones answer the containment
+     * predicates false by themselves, so the visit needs no case analysis.
+     */
+    template <class OtherIntersection, class Relation>
+    constexpr bool degenerateIntersectionRelation(const OtherIntersection& other,
+                                                  Relation&& relation) const;
 
     /**
      * @brief Smallest squared distance from a boundary edge to a disjoint shape.

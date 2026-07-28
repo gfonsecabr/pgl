@@ -2863,4 +2863,105 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherRegio
     return areaContains(other);
 }
 
+// A chain — monotone or not — is exactly the union of its edges, so every
+// set-level relation between it and the region is the conjunction (or, for
+// intersects, the disjunction) of the same relation over the edges. The segment
+// overloads carry all the hole bookkeeping already. A chain covering a single
+// point becomes a degenerate segment, which those overloads route to the point
+// path themselves.
+template <class PointType, class LabelType>
+template <class OtherChain, class EdgeRelation>
+constexpr bool PolygonWithHoles<PointType, LabelType>::chainRelation(const OtherChain& other,
+                                                                     bool all,
+                                                                     EdgeRelation&& relation) const {
+    using ChainSegment = Segment<typename OtherChain::PointType>;
+    if (other.empty()) {
+        // The empty set is contained in everything and meets nothing.
+        return all;
+    }
+    if (other.size() == 1) {
+        return relation(ChainSegment(other[0], other[0]));
+    }
+    for (std::size_t i = 0; i + 1 < other.size(); ++i) {
+        const bool holds = relation(ChainSegment(other[i], other[i + 1]));
+        if (holds != all) {
+            return holds;  // an edge that fails a conjunction, or carries a disjunction
+        }
+    }
+    return all;
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherChain& other) const {
+    return chainRelation(other, true, [this](const auto& edge) { return this->contains(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherPolyline& other) const {
+    return chainRelation(other, true, [this](const auto& edge) { return this->contains(edge); });
+}
+
+// A non-degenerate disk is the closure of its own interior, which is exactly
+// what the area operands could not be relied on to be (§3): a disk reaching a
+// hole interior at all reaches it with interior of its own, so the per-hole
+// rewriting of A = outer ∖ ⋃ hole° applies directly and no edge scan is needed.
+//
+// A degenerate disk is either a disk of radius zero, which is the point a(), or
+// undefined — three collinear points determine no circle. Reading it as a() is
+// exact in the first case and an arbitrary but terminating answer in the second,
+// which is all the contract asks for.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.a());
+    }
+    if (!outer_.contains(other)) {
+        return false;
+    }
+    for (const auto& hole : holes_) {
+        if (hole.interiorsIntersect(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <class OtherIntersection>
+constexpr auto PolygonWithHoles<PointType, LabelType>::asConvexOperand(const OtherIntersection& other) {
+    using E = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    return other.template asConvex<E>();
+}
+
+template <class PointType, class LabelType>
+template <class OtherIntersection, class Relation>
+constexpr bool PolygonWithHoles<PointType, LabelType>::degenerateIntersectionRelation(
+    const OtherIntersection& other, Relation&& relation) const {
+    return std::visit([&relation](const auto& carrier) { return relation(carrier); },
+                      detail::degenerateRegionCarrier(other));
+}
+
+// A bounded half-plane intersection with area is a convex polygon and goes to
+// the area path; a degenerate one is a point, a segment, a ray or a line, and
+// goes to the overload for that carrier — which, for the two unbounded ones,
+// answers false because the region is bounded.
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (other.isDegenerate()) {
+        return degenerateIntersectionRelation(
+            other, [this](const auto& carrier) { return this->contains(carrier); });
+    }
+    if (!other.isBounded()) {
+        return false;
+    }
+    return areaContains(asConvexOperand(other));
+}
+
 }  // namespace pgl

@@ -1525,4 +1525,34 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherR
     return this->template edgeMinDistanceLInf<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherIntersection& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceLInf<ResultNumber>(other);
+}
+
+// No Disk overload: the library defines the L1 and LInf distances to a disk
+// only from a point.
+
 }  // namespace pgl
