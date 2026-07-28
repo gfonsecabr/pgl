@@ -46,7 +46,15 @@ TEST_CASE("Region separates a polyline") {
     CHECK(k.separates(through));
     const PolylineShape inside(std::vector<Point>{{1, 3}, {3, 3}, {5, 3}});
     CHECK(!k.separates(inside));
-    CHECK(!through.separates(k));
+    // The other direction: that same polyline is a crosscut of the box, so it
+    // does disconnect the region — as it does the equivalent Polygon.
+    CHECK(through.separates(k));
+    CHECK(k.crosses(through));
+    // A polyline that stops inside leaves a slit, which keeps the region in
+    // one piece.
+    const PolylineShape slit(std::vector<Point>{{-2, 3}, {3, 3}});
+    CHECK(!slit.separates(k));
+    CHECK(!inside.separates(k));
 }
 
 TEST_CASE("Distance to a polyline") {
