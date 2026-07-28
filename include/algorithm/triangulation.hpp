@@ -4024,6 +4024,13 @@ auto Polygon<PointType_, TLabel>::triangulation(const SegmentRange& segments) co
     return Triangulation(*this, segments);
 }
 
+template <class PointType_, class TLabel>
+template <class PointRange, class SegmentRange>
+auto Polygon<PointType_, TLabel>::triangulation(const PointRange& points,
+                                                const SegmentRange& segments) const {
+    return Triangulation(*this, points, segments);
+}
+
 // Out-of-line for the same reason: declared in shape/polygonwithholes.hpp.
 template <class PointType_, class TLabel>
 auto PolygonWithHoles<PointType_, TLabel>::triangulation() const {

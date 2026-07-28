@@ -1127,6 +1127,143 @@ struct PolygonWithHoles {
     [[nodiscard]] bool interiorsIntersect(const OtherIntersection& other) const;
 
     // -------------------------------------------------------------------------
+    // Cut predicates
+    //
+    // `A.separates(B)` asks whether `B ∖ A` is disconnected, and
+    // `A.crosses(B)` whether each shape separates the other. Both are collected
+    // here rather than split per operand family because a region settles every
+    // one of them the same way — the cell engine of implementation/
+    // separates.hpp, which assumes nothing about either operand — while a
+    // region without holes forwards to its outer polygon throughout.
+    //
+    // A region is connected however its rings meet — its complement is a
+    // disjoint union of simply connected open sets, which encloses nothing —
+    // so `B ∖ A` comes apart only when the removal genuinely severs it. What
+    // does change against the simply connected operands is what suffices to
+    // sever: a region is cut by a single point at a pinch, or by a segment run
+    // from one hole to another, neither of which can cut a polygon.
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool separates(const OtherPoint& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] bool separates(const OtherSegment& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] bool separates(const OtherOrientedSegment& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <LineConcept OtherLine>
+    [[nodiscard]] bool separates(const OtherLine& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] bool separates(const OtherOrientedLine& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool separates(const OtherRay& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool separates(const OtherHalfplane& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool separates(const OtherRectangle& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool separates(const OtherTriangle& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool separates(const OtherConvex& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] bool separates(const OtherPolygon& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] bool separates(const OtherChain& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] bool separates(const OtherPolyline& other) const;
+
+    /** @copydoc separates(const OtherPoint&) const */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] bool separates(const OtherIntersection& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool crosses(const OtherPoint& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] bool crosses(const OtherSegment& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] bool crosses(const OtherOrientedSegment& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <LineConcept OtherLine>
+    [[nodiscard]] bool crosses(const OtherLine& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] bool crosses(const OtherOrientedLine& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <RayConcept OtherRay>
+    [[nodiscard]] bool crosses(const OtherRay& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] bool crosses(const OtherHalfplane& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool crosses(const OtherRectangle& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool crosses(const OtherTriangle& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool crosses(const OtherConvex& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] bool crosses(const OtherPolygon& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool crosses(const OtherRegion& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <MonotoneChainConcept OtherChain>
+    [[nodiscard]] bool crosses(const OtherChain& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <PolylineConcept OtherPolyline>
+    [[nodiscard]] bool crosses(const OtherPolyline& other) const;
+
+    /** @copydoc crosses(const OtherPoint&) const */
+    template <HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] bool crosses(const OtherIntersection& other) const;
+
+    // -------------------------------------------------------------------------
     // Distances
     //
     // The region is closed, so whenever it misses the other shape the nearest
@@ -1368,6 +1505,18 @@ struct PolygonWithHoles {
     /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
         return false;
     }
 

@@ -4401,4 +4401,673 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherRegion& other
     return detail::boundedShapeSeparatesRegion(*this, other);
 }
 
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// Every cut predicate a region takes part in — in either direction — is the
+// same question: does `target ∖ remover` have at least two connected
+// components? For a region neither operand's shape can be leaned on the way
+// the polygon overloads above lean on theirs. A region's interior is not
+// simply connected, so a crosscut of its boundary is not a cut; that interior
+// need not even be connected — a band hole leaves two slabs — so a
+// boundary-arc tally does not see all of its pieces; and the region carries
+// pinch points and slits (decision (b) of the design), so it is not a surface
+// and no Euler-characteristic count applies to it either.
+//
+// What survives all of that is the plainest reading of the question. Both
+// operands are polygonal, so the arrangement of their boundaries cuts the
+// plane into cells — open triangles, open edges and vertices — on each of
+// which membership in *both* operands is constant, and `target ∖ remover` is
+// exactly the union of the kept cells. Two kept cells are adjacent in the
+// remainder exactly when one is a face of the other (a cell's closure meets
+// another kept cell only along shared faces, and `c ∪ f` is connected for a
+// face `f` of `c`), so a union-find over the incidences counts the components
+// with nothing assumed about either shape. Vertices and edges are cells in
+// their own right, which is what keeps slits — region material with no area
+// beside it — and pinch points from being lost.
+//
+// The construction is a constrained Delaunay triangulation of a box holding
+// both operands, with every boundary edge of both, split at their crossings,
+// as a constraint. Coordinates are exact rationals, since the crossings are.
+// A region without holes *is* its outer polygon, and forwards to it: that
+// keeps the tested polygon implementations in charge of everything they
+// already settle, and leaves the engine for the cases only a region reaches.
+
+namespace detail {
+
+/**
+ * @brief Appends the cut segments of an operand: segments whose union carries
+ * every point at which membership in the operand can change.
+ *
+ * That is the operand's boundary when it has area, and the operand itself when
+ * it does not. A point-like operand contributes no segment; see
+ * @ref appendCutPoints.
+ */
+template <class ExactPoint, class Shape>
+void appendCutSegments(const Shape& shape, std::vector<Segment<ExactPoint>>& out) {
+    const auto add = [&out](const auto& edge) {
+        const ExactPoint lo(edge.min());
+        const ExactPoint hi(edge.max());
+        if (lo != hi) {
+            out.emplace_back(lo, hi);
+        }
+    };
+    if constexpr (is_point_v<Shape>) {
+        (void)shape;
+        (void)add;
+    } else if constexpr (is_segment_v<Shape>) {
+        add(shape);
+    } else if constexpr (is_polygon_with_holes_v<Shape>) {
+        for (const auto& edge : shape.edges()) {
+            add(edge);
+        }
+    } else {
+        for (const auto& edge : shape.edgesView()) {
+            add(edge);
+        }
+    }
+}
+
+/** @brief Appends the cut points of an operand that has no cut segment at all. */
+template <class ExactPoint, class Shape>
+void appendCutPoints(const Shape& shape, std::vector<ExactPoint>& out) {
+    if constexpr (is_point_v<Shape>) {
+        out.emplace_back(shape);
+    } else if constexpr (is_segment_v<Shape>) {
+        if (shape.min() == shape.max()) {
+            out.emplace_back(shape.min());
+        }
+    } else if constexpr (is_monotone_chain_v<Shape> || is_polyline_v<Shape>) {
+        if (shape.size() == 1) {
+            out.emplace_back(shape[0]);
+        }
+    } else {
+        (void)shape;
+        (void)out;
+    }
+}
+
+/**
+ * @brief The cut segments split at every crossing, overlap end and cut point,
+ * so that they meet each other and the cut points only at shared endpoints.
+ *
+ * This is what makes them usable as triangulation constraints: no constraint
+ * is left with a vertex in its relative interior.
+ */
+template <class ExactPoint>
+std::vector<Segment<ExactPoint>> arrangedCutSegments(const std::vector<Segment<ExactPoint>>& segments,
+                                                     const std::vector<ExactPoint>& points) {
+    using ExactNumber = typename ExactPoint::NumberType;
+    std::vector<Segment<ExactPoint>> result;
+    std::vector<ExactPoint> cuts;
+    for (std::size_t i = 0; i < segments.size(); ++i) {
+        cuts.clear();
+        cuts.push_back(segments[i].min());
+        cuts.push_back(segments[i].max());
+        for (std::size_t j = 0; j < segments.size(); ++j) {
+            if (j == i) {
+                continue;
+            }
+            const auto piece = segments[i].template intersection<ExactNumber>(segments[j]);
+            if (!piece) {
+                continue;
+            }
+            if (const auto* point = std::get_if<0>(&*piece)) {
+                cuts.push_back(ExactPoint(*point));
+            } else {
+                const auto& overlap = std::get<1>(*piece);
+                cuts.push_back(ExactPoint(overlap.min()));
+                cuts.push_back(ExactPoint(overlap.max()));
+            }
+        }
+        for (const auto& point : points) {
+            if (segments[i].contains(point)) {
+                cuts.push_back(point);
+            }
+        }
+        // Every cut lies on segment i, so the lexicographic point order is the
+        // linear order along it.
+        std::sort(cuts.begin(), cuts.end());
+        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+        for (std::size_t k = 0; k + 1 < cuts.size(); ++k) {
+            result.emplace_back(cuts[k], cuts[k + 1]);
+        }
+    }
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
+/**
+ * @brief Whether `target ∖ remover` has at least two connected components.
+ *
+ * Both operands must be bounded and polygonal (a point, a segment, a chain, a
+ * polygon or a region — unbounded operands are clipped by the callers) and
+ * neither may be self-overlapping. Nothing else is asked of them: the cell
+ * decomposition described above is exact for any such pair, in either role.
+ *
+ * Complexity is dominated by the constrained triangulation over the
+ * arrangement of both boundaries: O(m²) segment intersections for m boundary
+ * edges, then O(k log k) for the k arrangement edges, with exact rational
+ * arithmetic throughout.
+ */
+template <class Target, class Remover>
+bool cellSeparates(const Target& target, const Remover& remover) {
+    using ExactNumber = Exact1DNumber<typename Target::NumberType, typename Remover::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+
+    // Every operand the engine is called with is connected — a region included,
+    // see @ref regionsAreConnected — so a remover that misses the target
+    // removes nothing that matters.
+    if (!target.bbox().intersects(remover.bbox())) {
+        return false;
+    }
+
+    std::vector<ExactSegment> cuts;
+    std::vector<ExactPoint> cutPoints;
+    appendCutSegments<ExactPoint>(target, cuts);
+    appendCutSegments<ExactPoint>(remover, cuts);
+    appendCutPoints<ExactPoint>(target, cutPoints);
+    appendCutPoints<ExactPoint>(remover, cutPoints);
+    if (cuts.empty()) {
+        return false;  // a target with no extent holds at most one component
+    }
+
+    // A box strictly containing both operands, so its own edges never coincide
+    // with a boundary and every cell inside it is decided by the operands.
+    ExactNumber loX = cuts.front().min().x();
+    ExactNumber loY = cuts.front().min().y();
+    ExactNumber hiX = loX;
+    ExactNumber hiY = loY;
+    const auto include = [&](const ExactPoint& point) {
+        loX = std::min(loX, point.x());
+        loY = std::min(loY, point.y());
+        hiX = std::max(hiX, point.x());
+        hiY = std::max(hiY, point.y());
+    };
+    for (const auto& cut : cuts) {
+        include(cut.min());
+        include(cut.max());
+    }
+    for (const auto& point : cutPoints) {
+        include(point);
+    }
+    const ExactNumber margin(1);
+    const Polygon<ExactPoint> box(std::vector<ExactPoint>{
+        ExactPoint(loX - margin, loY - margin), ExactPoint(hiX + margin, loY - margin),
+        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)});
+    const auto mesh = box.triangulation(cutPoints, arrangedCutSegments(cuts, cutPoints));
+
+    // One union-find node per kept cell. A cell is kept when its relative
+    // interior lies in target ∖ remover, which one witness point decides.
+    std::vector<std::size_t> parent;
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    const auto unite = [&](std::size_t a, std::size_t b) {
+        parent[findRoot(a)] = findRoot(b);
+    };
+    constexpr std::size_t dropped = std::numeric_limits<std::size_t>::max();
+    const auto cellOf = [&](const ExactPoint& witness) {
+        if (!target.contains(witness) || remover.contains(witness)) {
+            return dropped;
+        }
+        parent.push_back(parent.size());
+        return parent.size() - 1;
+    };
+
+    std::map<ExactSegment, std::size_t> edgeCells;
+    std::map<ExactPoint, std::size_t> vertexCells;
+    const auto vertexCell = [&](const ExactPoint& vertex) {
+        const auto [it, inserted] = vertexCells.try_emplace(vertex, dropped);
+        if (inserted) {
+            it->second = cellOf(vertex);
+        }
+        return it->second;
+    };
+    const auto edgeCell = [&](const ExactSegment& edge) {
+        const auto [it, inserted] = edgeCells.try_emplace(edge, dropped);
+        if (inserted) {
+            it->second = cellOf(ExactPoint((edge.min().x() + edge.max().x()) / ExactNumber(2),
+                                           (edge.min().y() + edge.max().y()) / ExactNumber(2)));
+        }
+        return it->second;
+    };
+
+    for (const auto& triangle : mesh.triangles()) {
+        const std::size_t face = cellOf(triangle.template pointInside<ExactNumber>());
+        for (int k = 0; k < 3; ++k) {
+            const ExactSegment edge(triangle.get(k), triangle.get(k + 1));
+            const std::size_t side = edgeCell(edge);
+            const std::size_t corner = vertexCell(ExactPoint(triangle.get(k)));
+            if (face != dropped && side != dropped) {
+                unite(face, side);
+            }
+            if (face != dropped && corner != dropped) {
+                unite(face, corner);
+            }
+            if (side != dropped && corner != dropped) {
+                unite(side, corner);
+            }
+            const std::size_t next = vertexCell(ExactPoint(triangle.get(k + 1)));
+            if (side != dropped && next != dropped) {
+                unite(side, next);
+            }
+        }
+    }
+
+    std::size_t components = 0;
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        if (findRoot(i) == i && ++components >= 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @anchor regionsAreConnected
+ * @brief A region is always connected, however its rings meet.
+ *
+ * Its complement is the exterior of the outer ring together with the hole
+ * interiors — pairwise disjoint open sets, since a shared boundary point
+ * belongs to the region, not to either interior. A closed curve in that
+ * complement therefore lies in a single one of them, and each is simply
+ * connected, so the curve bounds a disk inside it and traps no region point.
+ * With nothing enclosed, no part of the region is cut off from the rest.
+ *
+ * Two things follow for the predicates below: `B ∖ A` is disconnected exactly
+ * when the removal genuinely severs `B` (never because `B` came apart on its
+ * own), and a remover whose bounding box misses the target's answers false.
+ */
+
+/**
+ * @brief An unbounded convex operand may be replaced by its clip to any box
+ * that holds the whole region: the nearest-point projection onto the clip is a
+ * retraction fixing it and mapping the rest of the operand into the box
+ * boundary, which the region does not reach. It therefore carries
+ * `operand ∖ region` onto `clip ∖ region` continuously while the inclusion
+ * goes the other way, so the two have the same components — and likewise for
+ * the region when it is the operand's target, where only the part of the
+ * operand near the region can remove anything at all.
+ *
+ * @{
+ */
+
+/** @brief The line, oriented line or ray clipped to a box holding the region. */
+template <class ExactPoint, class Linear, class Region>
+std::optional<Segment<ExactPoint>> clipLinearToRegion(const Linear& linear, const Region& region) {
+    using ExactNumber = typename ExactPoint::NumberType;
+    const auto bounds = region.bbox();
+    const ExactNumber margin(1);
+    const Rectangle<ExactPoint> box(
+        ExactPoint(ExactNumber(bounds.min().x()) - margin, ExactNumber(bounds.min().y()) - margin),
+        ExactPoint(ExactNumber(bounds.max().x()) + margin, ExactNumber(bounds.max().y()) + margin));
+    const auto piece = box.template intersection<ExactNumber>(linear);
+    if (!piece) {
+        return std::nullopt;
+    }
+    const auto* overlap = std::get_if<1>(&*piece);
+    if (!overlap) {
+        return std::nullopt;  // a single corner touch stays clear of the region
+    }
+    return *overlap;
+}
+
+/** @} */
+
+/**
+ * @brief Whether `target ∖ remover` is disconnected for a linear operand and a
+ * region, the template parameter saying which of the two is the target.
+ */
+template <bool LinearIsTarget, class Linear, class Region>
+bool linearAndRegionSeparate(const Linear& linear, const Region& region) {
+    using ExactNumber = Exact1DNumber<typename Linear::NumberType, typename Region::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    const auto clip = clipLinearToRegion<ExactPoint>(linear, region);
+    if (!clip) {
+        return false;  // the operand stays clear of the region, which is connected
+    }
+    if constexpr (LinearIsTarget) {
+        return cellSeparates(*clip, region);
+    } else {
+        return cellSeparates(region, *clip);
+    }
+}
+
+/**
+ * @brief Whether `target ∖ remover` is disconnected for a convex region
+ * operand (a half-plane or a half-plane intersection) and a region, the
+ * template parameter saying which of the two is the target.
+ */
+template <bool ConvexIsTarget, class ConvexOperand, class Region>
+bool convexAndRegionSeparate(const ConvexOperand& convex, const Region& region) {
+    using ExactNumber = Exact1DNumber<typename ConvexOperand::NumberType, typename Region::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    HalfplaneIntersection<ExactPoint> clipped(convex);
+    if (!clipped.isBounded()) {
+        clipped = regionClippedToBox(clipped, region.bbox());
+    }
+    const auto run = [&region](const auto& operand) {
+        if constexpr (ConvexIsTarget) {
+            return cellSeparates(operand, region);
+        } else {
+            return cellSeparates(region, operand);
+        }
+    };
+    if (clipped.isEmpty()) {
+        return false;  // the operand stays clear of the region, which is connected
+    }
+    if (clipped.isDegenerate()) {
+        return std::visit(
+            [&run](const auto& carrier) {
+                using Carrier = std::remove_cvref_t<decltype(carrier)>;
+                if constexpr (is_point_v<Carrier> || is_segment_v<Carrier>) {
+                    return run(carrier);
+                } else {
+                    return false;  // a bounded region carries no ray or line
+                }
+            },
+            degenerateRegionCarrier(clipped));
+    }
+    return run(clipped.template asConvex<ExactNumber>().asPolygon());
+}
+
+}  // namespace detail
+
+/**
+ * @section predicates-polygonwithholes PolygonWithHoles
+ * Region-vs-shape cut predicates. A region without holes forwards to its outer
+ * polygon; everything else goes to the cell engine above.
+ */
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherPoint&) const {
+    return false;  // removing anything from a point leaves at most one piece
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherSegment& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isDegenerate()) {
+        return false;
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
+    return separates(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherLine& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isDegenerate()) {
+        return false;
+    }
+    return detail::linearAndRegionSeparate<true>(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
+    return separates(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherRay& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isDegenerate()) {
+        return false;
+    }
+    return detail::linearAndRegionSeparate<true>(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherHalfplane& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isUndefined()) {
+        return false;
+    }
+    return detail::convexAndRegionSeparate<true>(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherRectangle& other) const {
+    return separates(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherTriangle& other) const {
+    return separates(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherConvex& other) const {
+    return separates(other.asPolygon());
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherPolygon& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (other.isDegenerate()) {
+        return false;
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (other.isDegenerate()) {
+        return false;
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherChain& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherPolyline& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherIntersection& other) const {
+    if (!hasHoles()) {
+        return outer_.separates(other);
+    }
+    return detail::convexAndRegionSeparate<true>(other, *this);
+}
+
+// ---------------------------------------------------------------------------
+// Reverse direction: removing a lower-ranked shape from the region.
+//
+// Every one of these is a real computation: a region is cut by shapes that
+// cannot cut a simply connected target — a single point at a pinch, or a
+// segment run from one hole to another — and no operand can be dismissed for
+// its shape alone the way a half-plane can be dismissed against a convex
+// region.
+
+template <class Number, class Label>
+template <PolygonWithHolesConcept OtherRegion>
+bool Point<Number, Label>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    // No single point cuts a region, however pinched. By the same duality as
+    // @ref regionsAreConnected, the components of `A ∖ {p}` are counted by the
+    // first cohomology of `(S² ∖ A) ∪ {p}`; each complement component is a
+    // Jordan domain, so adding one of its boundary points keeps it simply
+    // connected, and the union is then a wedge of simply connected spaces at
+    // p. It is trivial, so what is left of the region is one piece — a pinch
+    // point always has some other way around it, along the ring boundaries
+    // that meet there.
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Segment<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isDegenerate()) {
+        return min().separates(other);
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool OrientedSegment<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asSegment().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Line<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::linearAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool OrientedLine<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asLine().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Ray<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::linearAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Halfplane<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isUndefined()) {
+        return false;
+    }
+    return detail::convexAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Rectangle<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Triangle<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Convex<PointType, LabelType>::separates(const OtherRegion& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Polygon<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isDegenerate()) {
+        return false;
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PolygonWithHolesConcept OtherRegion>
+bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool Polyline<PointType, LabelType>::separates(const OtherRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherHoledRegion>
+bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherHoledRegion& other) const {
+    if (!other.hasHoles()) {
+        return separates(other.outer());
+    }
+    if (isEmpty()) {
+        return false;  // nothing is removed from a connected region
+    }
+    return detail::convexAndRegionSeparate<false>(*this, other);
+}
+
 }  // namespace pgl

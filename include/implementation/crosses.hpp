@@ -1142,4 +1142,103 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const Shape<
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// crosses(a, b) = a.separates(b) && b.separates(a), with both directions
+// defined in separates.hpp: unlike the half-plane intersection, whose reverse
+// separations against the 1D shapes are spelled out here, a region needs the
+// same engine either way round.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherPoint&) const {
+    return false;  // a region never separates a point
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherSegment& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherRay& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherRectangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherTriangle& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherConvex& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherPolygon& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherRegion& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherChain& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherPolyline& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherIntersection& other) const {
+    return separates(other) && other.separates(*this);
+}
+
 }  // namespace pgl
