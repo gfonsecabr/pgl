@@ -675,6 +675,21 @@ struct Polygon {
     auto triangulation(const SegmentRange& segments) const;
 
     /**
+     * @brief Builds the constrained Delaunay triangulation of this polygon with
+     *        the given interior vertices and constraint segments.
+     *
+     * Equivalent to `Triangulation(*this, points, segments)`. The polygon must
+     * be simple (non-self-intersecting) and non-degenerate, and the points and
+     * segments are assumed to lie inside it (not checked).
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the polygon,
+     *         with every point present as a vertex and every segment as a
+     *         constrained edge.
+     */
+    template <class PointRange, class SegmentRange>
+    auto triangulation(const PointRange& points, const SegmentRange& segments) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary
@@ -1094,6 +1109,16 @@ struct Polygon {
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
 
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PolylineConcept OtherPolyline>

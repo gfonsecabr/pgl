@@ -1070,6 +1070,16 @@ struct OrientedSegment {
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
 
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
+
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool separates(const OtherDisk& other) const;
