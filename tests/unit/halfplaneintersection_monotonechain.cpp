@@ -42,8 +42,15 @@ TEST_CASE("Region separates a monotone chain") {
     // A chain fully inside the region is not cut.
     const MonotoneChain inside(std::vector<Point>{{1, 3}, {3, 3}, {5, 3}});
     CHECK(!k.separates(inside));
-    // The chain, being one-dimensional, never disconnects the area region.
-    CHECK(!through.separates(k));
+    // The other direction: that same chain is a crosscut of the box, so it
+    // does disconnect the region — as it does the equivalent Polygon.
+    CHECK(through.separates(k));
+    CHECK(k.crosses(through));
+    // A chain that stops inside leaves a slit, which keeps the region in one
+    // piece.
+    const MonotoneChain slit(std::vector<Point>{{-2, 3}, {3, 3}});
+    CHECK(!slit.separates(k));
+    CHECK(!inside.separates(k));
 }
 
 TEST_CASE("Distance to a monotone chain") {

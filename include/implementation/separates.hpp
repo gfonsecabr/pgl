@@ -4281,13 +4281,23 @@ constexpr bool Point<Number, Label>::separates(const OtherRegion& other) const {
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherRegion& other) const {
-    // A segment cannot disconnect a two-dimensional region; only a degenerate
-    // (one-dimensional) region can be cut, along its carrier.
-    if (other.isEmpty() || !other.isDegenerate()) {
+    if (other.isEmpty()) {
         return false;
     }
-    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
-                      detail::degenerateRegionCarrier(other));
+    if (other.isDegenerate()) {
+        // A one-dimensional region is cut along its carrier.
+        return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                          detail::degenerateRegionCarrier(other));
+    }
+    // The same chord criterion as Segment::separates(Convex), which holds for
+    // every convex region, bounded or not. Meeting the interior forces the
+    // region to have interior strictly on both sides of the supporting line,
+    // so the region's chord on that line is the line's interior trace; both
+    // endpoints staying out of the interior then forces the segment to cover
+    // that whole chord (a segment ending midway leaves a slit, not a split),
+    // and a covered chord is necessarily bounded.
+    return !isDegenerate() && !other.interiorContains(min()) &&
+           !other.interiorContains(max()) && other.interiorsIntersect(*this);
 }
 
 template <class PointType, class LabelType>
@@ -4320,13 +4330,19 @@ constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRegion& 
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Ray<PointType, LabelType>::separates(const OtherRegion& other) const {
-    // A ray cannot disconnect a two-dimensional region (its free end lets any
-    // detour around it); only a one-dimensional carrier can be cut.
-    if (other.isEmpty() || !other.isDegenerate()) {
+    if (other.isEmpty()) {
         return false;
     }
-    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
-                      detail::degenerateRegionCarrier(other));
+    if (other.isDegenerate()) {
+        return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                          detail::degenerateRegionCarrier(other));
+    }
+    // The same chord criterion as Ray::separates(Convex) with the far end at
+    // infinity: only the source can leave the chord uncovered, since a source
+    // outside the region sits before the whole chord and a source on the
+    // boundary sits at its near end. An interior source leaves a slit.
+    return !isDegenerate() && !other.interiorContains(source()) &&
+           other.interiorsIntersect(*this);
 }
 
 template <class PointType, class LabelType>
@@ -4374,22 +4390,33 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherRegion& other)
 template <class PointType, class LabelType, class Storage>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRegion& other) const {
-    // A one-dimensional chain can only sever a one-dimensional carrier.
-    if (other.isEmpty() || !other.isDegenerate()) {
+    if (other.isEmpty()) {
         return false;
     }
-    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
-                      detail::degenerateRegionCarrier(other));
+    if (other.isDegenerate()) {
+        return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                          detail::degenerateRegionCarrier(other));
+    }
+    // The region is convex, so the crosscut scan applies as it does for a
+    // Convex target; the bbox guards used there are skipped because an
+    // unbounded region has no bounding box. An x-monotone chain never closes
+    // a loop, so no sealed pocket escapes the scan.
+    return separatesTwoDimensional(other);
 }
 
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Polyline<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (other.isEmpty() || !other.isDegenerate()) {
+    if (other.isEmpty() || size() < 2) {
         return false;
     }
-    return std::visit([this](const auto& carrier) { return this->separates(carrier); },
-                      detail::degenerateRegionCarrier(other));
+    if (other.isDegenerate()) {
+        return std::visit([this](const auto& carrier) { return this->separates(carrier); },
+                          detail::degenerateRegionCarrier(other));
+    }
+    // The region is convex, so the same cycle criterion as for a Convex
+    // target applies; it is predicate-based and never asks for a bounding box.
+    return detail::polylineSeparatesConvexRegion(*this, other);
 }
 
 template <class PointType, class LabelType>
