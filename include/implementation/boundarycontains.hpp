@@ -1747,4 +1747,44 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Ot
     return areaBoundaryContains(other);
 }
 
+// A chain is the union of its edges, so it lies on ∂A exactly when every edge
+// does (see @ref chainRelation).
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->boundaryContains(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->boundaryContains(edge); });
+}
+
+// ∂A is a finite union of segments, so it holds no disk with any area; a
+// degenerate disk is the point a() (radius zero) or undefined.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return boundaryContains(other.a());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;  // it has area, and ∂A has none
+    }
+    return degenerateIntersectionRelation(
+        other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
+}
+
 }  // namespace pgl

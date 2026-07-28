@@ -2211,4 +2211,56 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
     return areaInteriorContains(other);
 }
 
+// A chain is the union of its edges, so the open region holds it exactly when
+// it holds every edge (see @ref chainRelation).
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherChain& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->interiorContains(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherPolyline& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->interiorContains(edge); });
+}
+
+// A° = outer° ∖ ⋃ hole, with the holes removed closed. That is an identity
+// between point sets, so — unlike contains — it asks nothing of the operand and
+// applies to the disk as it stands.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        return interiorContains(other.a());  // radius zero, or undefined
+    }
+    if (!outer_.interiorContains(other)) {
+        return false;
+    }
+    for (const auto& hole : holes_) {
+        if (other.intersects(hole)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (other.isDegenerate()) {
+        return degenerateIntersectionRelation(
+            other, [this](const auto& carrier) { return this->interiorContains(carrier); });
+    }
+    if (!other.isBounded()) {
+        return false;
+    }
+    return areaInteriorContains(asConvexOperand(other));
+}
+
 }  // namespace pgl

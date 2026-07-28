@@ -2567,6 +2567,70 @@ bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRegio
     return areaInteriorsIntersect(other);
 }
 
+// The chain's relative interior is its open edges together with the vertices
+// between them, and the region's interior is open and two-dimensional — which is
+// all the shared chain helper needs. (An open-edge point that has to be
+// discarded, because a self-intersecting polyline passes through one of its own
+// extremes there, is surrounded by edge points that do not; an open subset of
+// the edge cannot consist of those two points alone.)
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
+}
+
+// The disk brings no edges to scan, so the fast path the area operands use —
+// an edge of the operand whose relative interior reaches A° — has no analogue
+// here, and the triangulated domain does the work. It answers completely: the
+// domain triangles tile closure(A°) and their interiors lie in A°, so A° ∩ D°
+// is nonempty exactly when some triangle interior meets the open disk.
+//
+// Two cheap tests come first. A disk missing the closed region misses its
+// interior too, and that is an O(n) edge scan; and a disk whose own interior
+// witness falls in A° settles it outright, which is what a query that actually
+// overlaps the region usually does.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return other.interiorsIntersect(outer_);
+    }
+    if (!intersects(other)) {
+        return false;
+    }
+    if (other.pointInsideInteriorContainedIn(*this)) {
+        return true;
+    }
+    return triangulation().visitTriangles(
+        [&other](const auto& triangle) { return other.interiorsIntersect(triangle); });
+}
+
+// Clipping the operand to the region's bounding box loses nothing: A° is an open
+// subset of that box, so it stays clear of the box boundary, and the clip is
+// inflated past the box anyway. What it gains is a bounded operand — a convex
+// polygon — which the area path handles.
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherIntersection& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return false;
+    }
+    return areaInteriorsIntersect(asConvexOperand(clipped));
+}
+
 
 // ---------------------------------------------------------------------------
 // Reverse direction: interiorsIntersect is symmetric, so the lower-ranked

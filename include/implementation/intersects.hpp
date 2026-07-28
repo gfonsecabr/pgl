@@ -2054,6 +2054,68 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherReg
     return areaIntersects(other);
 }
 
+// A chain is the union of its edges, so it meets the region exactly when some
+// edge does (see @ref chainRelation).
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherChain& other) const {
+    return chainRelation(other, false, [this](const auto& edge) { return this->intersects(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherPolyline& other) const {
+    return chainRelation(other, false, [this](const auto& edge) { return this->intersects(edge); });
+}
+
+// The disk follows the area operands exactly: every point of every ring belongs
+// to the region, so touching a ring settles it, and a disk missing ∂A altogether
+// is — being connected — wholly in A° or wholly outside A, which any one of its
+// own points reports.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        // Radius zero, or undefined; either way a() is the answer, and routing
+        // it explicitly keeps a defined radius-zero disk clear of
+        // Disk::intersects(Segment), whose division-free power test degenerates
+        // to 0 ≥ 0 — i.e. to `true` — once the defining points are collinear.
+        return intersects(other.a());
+    }
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return other.intersects(edge); })) {
+        return true;
+    }
+    return contains(other.a());
+}
+
+// Same argument once more, and it survives an unbounded operand: a half-plane
+// intersection is connected, so one that misses ∂A lies wholly in A° — which a
+// bounded region rules out for anything unbounded — or wholly outside A.
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return false;
+    }
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return other.intersects(edge); })) {
+        return true;
+    }
+    using E = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    return contains(other.template pointInside<E>());
+}
+
 
 // ---------------------------------------------------------------------------
 // Reverse direction: intersects is symmetric, so the lower-ranked shapes'

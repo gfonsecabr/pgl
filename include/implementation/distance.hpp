@@ -1880,4 +1880,51 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const Oth
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// The operand may be unbounded, which changes nothing: the region is bounded and
+// closed, so a disjoint pair still realizes its distance on ∂A, and each ring
+// edge hands the query on to the other region's own edge scan.
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherIntersection& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// The nearest point of a disjoint disk lies on its circle, so the gap is the
+// distance to its center less its radius — generally irrational, hence the fixed
+// double result that every other distance to a Disk returns.
+template <class PointType, class LabelType>
+template <class ResultNumber, DiskConcept OtherDisk>
+double PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        // A degenerate disk has no centre or radius to measure from: it is the
+        // point a() when its radius is zero, and undefined otherwise.
+        return this->template squaredDistance<double>(other.a());
+    }
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(other, *this);
+}
+
 }  // namespace pgl
