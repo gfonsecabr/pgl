@@ -2004,6 +2004,56 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherHal
     return outer_.intersects(other);
 }
 
+// The bounded operands with area follow the segment overload exactly: every
+// point of every ring belongs to the region, so touching a ring settles it, and
+// an operand missing ∂A altogether is — being connected — wholly in A° or
+// wholly outside A, which one of its own vertices reports.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaIntersects(const OtherArea& other) const {
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return edge.intersects(other); })) {
+        return true;
+    }
+    const auto edges = other.edges();
+    return !edges.empty() && contains(edges.front().min());
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherConvex& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherPolygon& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRegion& other) const {
+    return areaIntersects(other);
+}
+
 
 // ---------------------------------------------------------------------------
 // Reverse direction: intersects is symmetric, so the lower-ranked shapes'

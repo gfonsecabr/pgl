@@ -2468,6 +2468,105 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::isSolidVertex(const Point
     return solid;
 }
 
+// The area operands are where the region's shape finally costs something. For a
+// simple polygon the textbook argument is "if neither boundary reaches the
+// other's interior, one interior witness point decides", and it works because a
+// simple polygon's interior is connected. A region's is not: a hole spanning it
+// leaves two slabs, and a witness in one says nothing about the other. The
+// counterexample is small — take `[0,4]² ∖ ((0,4)×(1,2))`, whose interior is two
+// slabs, against the rectangle `[0,4]×[0,2]`. Every edge of the rectangle lies
+// on ∂A, every ring vertex of the region lies on ∂(rectangle), and the
+// rectangle's own centre falls on the hole's boundary — yet the lower slab is
+// inside the rectangle and the interiors do meet.
+//
+// So the fallback is the triangulated domain, which is where the region already
+// keeps its answer to "what part of me has area". Its triangles tile
+// closure(A°), so A° ∩ B° ≠ ∅ exactly when some triangle's interior meets B°:
+// a non-empty open intersection has positive area, the triangles cover it, and
+// a triangle carrying positive area of it has interior in it.
+//
+// That test alone is complete. The edge scan before it is a fast path — an edge
+// of B whose relative interior reaches A° settles the question without
+// triangulating anything, and it is what answers a query that actually overlaps
+// the region.
+//
+// The fast path costs one assumption, though: an edge reaching A° only implies
+// that B° does when B has interior beside that edge, i.e. when B is the closure
+// of its own interior. Every operand here is — except another region, which may
+// carry a slit, a stretch of boundary with the region pinched shut against it.
+// Two regions sharing a slit line would both report a hit with no interior
+// anywhere near it, so region against region skips the scan and compares the
+// two triangulated domains directly.
+template <class PointType, class LabelType>
+template <class OtherArea>
+bool PolygonWithHoles<PointType, LabelType>::areaInteriorsIntersect(const OtherArea& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (!bbox().interiorsIntersect(other.bbox())) {
+        return false;
+    }
+    if constexpr (PolygonWithHolesConcept<OtherArea>) {
+        // A region without holes is its outer polygon, and that is regular, so
+        // reducing either side to it brings the cheaper path back — and with it
+        // one triangulation instead of two.
+        if (!other.hasHoles()) {
+            return areaInteriorsIntersect(other.outer());
+        }
+        if (holes_.empty()) {
+            return other.interiorsIntersect(outer_);
+        }
+        const auto mine = triangulation();
+        const auto theirs = other.triangulation();
+        return mine.visitTriangles([&theirs](const auto& t) {
+            return theirs.visitTriangles([&t](const auto& u) { return t.interiorsIntersect(u); });
+        });
+    } else {
+        // Without holes the region is its outer polygon and the simply connected
+        // argument applies unchanged.
+        if (holes_.empty()) {
+            return other.interiorsIntersect(outer_);
+        }
+        for (const auto& edge : other.edges()) {
+            if (interiorsIntersect(edge)) {
+                return true;
+            }
+        }
+        return triangulation().visitTriangles(
+            [&other](const auto& triangle) { return other.interiorsIntersect(triangle); });
+    }
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRegion& other) const {
+    return areaInteriorsIntersect(other);
+}
+
 
 // ---------------------------------------------------------------------------
 // Reverse direction: interiorsIntersect is symmetric, so the lower-ranked

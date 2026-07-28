@@ -803,6 +803,166 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr bool interiorsIntersect(const OtherHalfplane& other) const;
 
     // -------------------------------------------------------------------------
+    // Predicates against a bounded shape with area: a rectangle, a triangle, a
+    // convex polygon, a simple polygon, and another region with holes.
+    //
+    // All five are closed, connected, and — when they have any area — the
+    // closure of their own interior, which is what lets the rewritings of
+    // A = outer ∖ ⋃ hole° stay in terms of the operand itself:
+    //   contains(B)         B ⊆ outer, and no hole interior meets B
+    //   interiorContains(B) B ⊆ outer°, and no hole meets B at all
+    //   boundaryContains(B) only a B without area, edge by edge
+    //   intersects(B)       B meets a ring, or one point of B decides
+    //   interiorsIntersect(B) an edge of B reaches A°, or a domain triangle
+    //                       of A meets B°
+    //
+    // The last one is the only one that cannot be read off the rings: A° is
+    // neither simply connected nor even connected, so the witness arguments the
+    // simply connected shapes use do not carry over. See @ref
+    // areaInteriorsIntersect.
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The shape is in the region when the outer boundary contains it and it
+     * never enters a hole interior; touching or running along a hole boundary is
+     * allowed, and so is enclosing a hole from outside — that hole's boundary is
+     * part of the region, but its interior is not, so a shape that swallows one
+     * is *not* contained.
+     *
+     * Complexity: O(n·m) for a region of n vertices and an operand of m.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool contains(const OtherRectangle& other) const;
+
+    /** @copydoc contains(const OtherRectangle&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool contains(const OtherTriangle& other) const;
+
+    /** @copydoc contains(const OtherRectangle&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool contains(const OtherConvex& other) const;
+
+    /** @copydoc contains(const OtherRectangle&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool contains(const OtherPolygon& other) const;
+
+    /** @copydoc contains(const OtherRectangle&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
+     *
+     * The region interior is the open outer polygon with every *closed* hole
+     * removed, so the shape must stay strictly inside the outer boundary and
+     * miss every hole outright — touching a hole boundary already leaves the
+     * interior.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const;
+
+    /** @copydoc interiorContains(const OtherRectangle&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool interiorContains(const OtherTriangle& other) const;
+
+    /** @copydoc interiorContains(const OtherRectangle&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const;
+
+    /** @copydoc interiorContains(const OtherRectangle&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool interiorContains(const OtherPolygon& other) const;
+
+    /** @copydoc interiorContains(const OtherRectangle&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * The boundary is a finite union of segments and therefore has no area, so
+     * only an operand that has collapsed can lie on it. A collapsed operand is
+     * exactly the union of its edges, which the segment overload settles.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const;
+
+    /** @copydoc boundaryContains(const OtherRectangle&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const;
+
+    /** @copydoc boundaryContains(const OtherRectangle&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const;
+
+    /** @copydoc boundaryContains(const OtherRectangle&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const;
+
+    /** @copydoc boundaryContains(const OtherRectangle&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Complexity: O(n·m) for a region of n vertices and an operand of m.
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr bool intersects(const OtherRectangle& other) const;
+
+    /** @copydoc intersects(const OtherRectangle&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr bool intersects(const OtherTriangle& other) const;
+
+    /** @copydoc intersects(const OtherRectangle&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr bool intersects(const OtherConvex& other) const;
+
+    /** @copydoc intersects(const OtherRectangle&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr bool intersects(const OtherPolygon& other) const;
+
+    /** @copydoc intersects(const OtherRectangle&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool intersects(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * Enclosing a hole does not count, and neither does meeting the region only
+     * where two rings touch. When the operand's boundary misses the open region
+     * entirely this triangulates, because the open region may come apart into
+     * several pieces and no single witness point speaks for all of them.
+     *
+     * Complexity, for a region of n vertices and an operand of m: O(n·m) when an
+     * edge of the operand settles it, and O(n log n + n·m) for the triangulated
+     * fallback. Against another region with holes there is no edge shortcut —
+     * a region need not have interior beside its own boundary — and both domains
+     * are triangulated and compared triangle by triangle, O(n log n + m log m +
+     * n·m).
+     */
+    template <RectangleConcept OtherRectangle>
+    [[nodiscard]] bool interiorsIntersect(const OtherRectangle& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherRectangle&) const */
+    template <TriangleConcept OtherTriangle>
+    [[nodiscard]] bool interiorsIntersect(const OtherTriangle& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherRectangle&) const */
+    template <ConvexConcept OtherConvex>
+    [[nodiscard]] bool interiorsIntersect(const OtherConvex& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherRectangle&) const */
+    template <PolygonConcept OtherPolygon>
+    [[nodiscard]] bool interiorsIntersect(const OtherPolygon& other) const;
+
+    /** @copydoc interiorsIntersect(const OtherRectangle&) const */
+    template <PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool interiorsIntersect(const OtherRegion& other) const;
+
+    // -------------------------------------------------------------------------
     // Distances
     //
     // The region is closed, so whenever it misses the other shape the nearest
@@ -852,6 +1012,26 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherPolygon& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRegion& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
 
@@ -880,6 +1060,26 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherTriangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceL1(const OtherConvex& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto distanceL1(const OtherPolygon& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRegion& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
 
@@ -906,6 +1106,26 @@ struct PolygonWithHoles {
     /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherTriangle& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherConvex& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherPolygon& other) const;
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRegion& other) const;
 
     // -------------------------------------------------------------------------
     // The empty set is a subset of every shape, so its containment relations
@@ -1075,6 +1295,47 @@ struct PolygonWithHoles {
      * has region interior along all of itself.
      */
     constexpr bool isSolidVertex(const PointType& vertex) const;
+
+    /**
+     * @brief Tests whether the open outer polygon alone contains a bounded shape.
+     *
+     * The open outer polygon has a closed, connected, unbounded complement, so a
+     * bounded shape lies strictly inside it exactly when its boundary does —
+     * which is what @ref Polygon::interiorContains already answers directly for
+     * every operand it knows about. A region with holes is not one of those
+     * (that direction is a later phase), so its boundary is handed over edge by
+     * edge instead.
+     */
+    template <class OtherArea>
+    constexpr bool outerInteriorContains(const OtherArea& other) const;
+
+    /**
+     * @brief Shared core of the five predicates against a bounded shape with
+     *        area — a rectangle, a triangle, a convex polygon, a simple
+     *        polygon, or another region with holes.
+     *
+     * The operand is closed and connected in every case, and when it has area
+     * it is the closure of its own interior; those are the only properties the
+     * rewritings below use, which is why one implementation serves all five.
+     */
+    template <class OtherArea>
+    constexpr bool areaContains(const OtherArea& other) const;
+
+    /** @copydoc areaContains */
+    template <class OtherArea>
+    constexpr bool areaInteriorContains(const OtherArea& other) const;
+
+    /** @copydoc areaContains */
+    template <class OtherArea>
+    constexpr bool areaBoundaryContains(const OtherArea& other) const;
+
+    /** @copydoc areaContains */
+    template <class OtherArea>
+    constexpr bool areaIntersects(const OtherArea& other) const;
+
+    /** @copydoc areaContains */
+    template <class OtherArea>
+    bool areaInteriorsIntersect(const OtherArea& other) const;
 
     /**
      * @brief Smallest squared distance from a boundary edge to a disjoint shape.

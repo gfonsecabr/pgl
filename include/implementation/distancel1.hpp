@@ -1492,4 +1492,49 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherHal
     return this->template edgeMinDistanceL1<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherPolygon& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherRegion& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
 }  // namespace pgl

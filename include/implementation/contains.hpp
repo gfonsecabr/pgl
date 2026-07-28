@@ -2786,4 +2786,81 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherHalfp
     return other.isDegenerate() && contains(other.source());
 }
 
+// Containment of a bounded operand splits cleanly in two along the operand's
+// own boundary.
+//
+// Everything the boundary can reach is settled edge by edge, and that is more
+// than it looks. Leaving the outer polygon is caught even when no edge does:
+// a simple polygon leaves a connected unbounded complement, so a path from an
+// escaped point of the operand to infinity stays outside the outer polygon and
+// has to cross the operand's boundary on its way out.
+//
+// What the edges cannot reach is a hole swallowed whole. Its boundary belongs
+// to the region, its interior does not, so an operand closing over one holds
+// points the region lacks while every one of its edges still lies in the
+// region. That is the second test — and once the edge scan has passed, the
+// hole's interior misses ∂B, so it lies wholly inside the operand or wholly
+// outside it and one witness point of the hole decides.
+//
+// A collapsed operand is exactly the union of its edges and has no interior to
+// swallow anything with, so the first half alone answers it.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaContains(const OtherArea& other) const {
+    // Without holes the region is exactly its outer polygon, which answers
+    // directly — and for a convex or a simple-polygon operand it has a
+    // boundary-chain fast path the edge scan below does not. Polygon::contains
+    // has no overload for a region operand (that direction is a later phase), so
+    // that one keeps going edge by edge.
+    if constexpr (!PolygonWithHolesConcept<OtherArea>) {
+        if (holes_.empty()) {
+            return outer_.contains(other);
+        }
+    }
+    for (const auto& edge : other.edges()) {
+        if (!contains(edge)) {
+            return false;
+        }
+    }
+    if (other.isDegenerate()) {
+        return true;
+    }
+    for (const auto& hole : holes_) {
+        if (hole.pointInsideInteriorContainedIn(other)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherRectangle& other) const {
+    return areaContains(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherTriangle& other) const {
+    return areaContains(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherConvex& other) const {
+    return areaContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherPolygon& other) const {
+    return areaContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const OtherRegion& other) const {
+    return areaContains(other);
+}
+
 }  // namespace pgl
