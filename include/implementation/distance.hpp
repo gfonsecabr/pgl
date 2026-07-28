@@ -1832,4 +1832,52 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const Oth
     return this->template edgeMinSquaredDistance<ResultNumber>(other);
 }
 
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPolygon& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// Against another region the scan over this region's ring edges is still
+// enough: the other region's own ring edges are what its edge-to-shape distance
+// minimizes over, so the pair is measured boundary against boundary either way.
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRegion& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
 }  // namespace pgl

@@ -1699,4 +1699,52 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Ot
     return other.isDegenerate() && boundaryContains(other.source());
 }
 
+// ∂A is a finite union of segments and so has no area, which rules out any
+// operand that has some. A collapsed operand is exactly the union of its edges,
+// so the segment overload settles it one edge at a time — and that overload
+// already accepts an edge covered jointly by several collinear ring edges.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaBoundaryContains(const OtherArea& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    for (const auto& edge : other.edges()) {
+        if (!boundaryContains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return areaBoundaryContains(other);
+}
+
 }  // namespace pgl

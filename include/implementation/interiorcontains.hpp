@@ -2143,4 +2143,72 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
     return other.isDegenerate() && interiorContains(other.source());
 }
 
+// Same argument as outerContains, applied to the open outer polygon: its
+// complement — the outer boundary together with the exterior — is closed,
+// connected and unbounded, so a bounded shape whose boundary is strictly inside
+// is strictly inside.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::outerInteriorContains(const OtherArea& other) const {
+    if constexpr (PolygonWithHolesConcept<OtherArea>) {
+        for (const auto& edge : other.edges()) {
+            if (!outer_.interiorContains(edge)) {
+                return false;
+            }
+        }
+        return true;
+    } else {
+        return outer_.interiorContains(other);
+    }
+}
+
+// A° = outer° ∖ ⋃ hole, with the *closed* holes removed: a point of outer° off
+// every closed hole has a ball around it inside outer° and clear of the finitely
+// many closed holes, so it is interior to the region, and conversely a hole
+// boundary point is region boundary. That identity is about point sets, so
+// unlike contains it needs no case for a collapsed operand.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaInteriorContains(const OtherArea& other) const {
+    if (!outerInteriorContains(other)) {
+        return false;
+    }
+    for (const auto& hole : holes_) {
+        if (other.intersects(hole)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherRectangle& other) const {
+    return areaInteriorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherTriangle& other) const {
+    return areaInteriorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherConvex& other) const {
+    return areaInteriorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherPolygon& other) const {
+    return areaInteriorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return areaInteriorContains(other);
+}
+
 }  // namespace pgl

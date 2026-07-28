@@ -1430,6 +1430,30 @@ struct Polygon {
         return other.crosses(*this);
     }
 
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersects` defined only once, on the higher-ranked shape.
+     */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
+    }
+
+    /**
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `interiorsIntersect` defined only once, on the higher-ranked shape.
+     */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
+    }
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
@@ -1511,6 +1535,21 @@ struct Polygon {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPolygon& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
      * Zero when the polygon's closed region intersects the disk; otherwise the
@@ -1568,6 +1607,21 @@ struct Polygon {
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template distanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
      * Distance is symmetric, so this just calls @p other's own `distanceL1`,
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
@@ -1620,6 +1674,21 @@ struct Polygon {
     /** @copydoc distanceLInf(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template distanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
