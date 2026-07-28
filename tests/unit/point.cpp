@@ -419,3 +419,41 @@ TEST_CASE("Point converts to a degenerate point half-plane intersection") {
     CHECK(!region.contains(Point(3, 5)));
     CHECK(!region.contains(Point(4, 4)));
 }
+
+TEST_CASE("Point treats -0.0 and +0.0 as the same coordinate") {
+    using Point = pgl::Point<double>;
+
+    // std::strong_order, which backs the point order, implements the IEEE
+    // totalOrder predicate and puts -0.0 strictly below +0.0. They are the same
+    // number, and a -0.0 coordinate is easy to produce — dividing a zero
+    // numerator by a negative determinant does it — so telling the two points
+    // apart would break every predicate that reasons from the point order.
+    const Point plus(0.0, 5.0);
+    const Point minus(-0.0, 5.0);
+
+    CHECK(plus == minus);
+    CHECK(!(plus < minus));
+    CHECK(!(minus < plus));
+    CHECK((plus <=> minus) == std::strong_ordering::equal);
+    CHECK(std::hash<Point>{}(plus) == std::hash<Point>{}(minus));
+
+    const std::set<Point> ordered{plus, minus};
+    CHECK(ordered.size() == 1);
+    const std::unordered_set<Point> hashed{plus, minus};
+    CHECK(hashed.size() == 1);
+
+    // The lexicographic reasoning behind containsCollinear is what broke: a ray
+    // going up from (-0,10) must not contain a point below its source.
+    const pgl::Ray<Point> up(Point(-0.0, 10.0), Point(-0.0, 11.0));
+    CHECK(!up.contains(Point(0.0, 0.0)));
+    CHECK(up.contains(Point(0.0, 12.0)));
+    CHECK(up.squaredDistance<double>(pgl::Segment<Point>(Point(0, 0), Point(0, 8))) ==
+          doctest::Approx(4.0));
+
+    // Values that are not equal keep the total order they had, NaNs included.
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    CHECK(pgl::detail::strongOrder(nan, nan) == std::strong_ordering::equal);
+    CHECK(pgl::detail::strongOrder(nan, 1.0) != std::strong_ordering::equal);
+    CHECK(pgl::detail::strongOrder(1.0, 2.0) == std::strong_ordering::less);
+    CHECK(pgl::detail::strongOrder(2, 1) == std::strong_ordering::greater);
+}
