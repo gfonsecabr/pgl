@@ -211,10 +211,24 @@ concept extended_integral =
  * number types without a conforming `operator<=>` (e.g. Boost.Multiprecision,
  * used as the int128 fallback) participate in the geometry comparison
  * operators that need a strong total order.
+ *
+ * Numerically equal values compare equal first, which matters for exactly one
+ * pair: std::strong_order implements the IEEE totalOrder predicate, and that
+ * puts -0.0 strictly below +0.0. They are the same number, so leaving them
+ * apart would make two geometrically identical points compare unequal — and a
+ * -0.0 coordinate is easy to produce, e.g. by dividing a zero numerator by a
+ * negative determinant. Everything else keeps the total order it had: NaNs are
+ * never equal to anything, so they still reach std::strong_order and stay
+ * ordered among themselves.
  */
 template <class A, class B>
 constexpr std::strong_ordering strongOrder(const A& a, const B& b) {
     if constexpr (requires { std::strong_order(a, b); }) {
+        if constexpr (std::is_floating_point_v<A> || std::is_floating_point_v<B>) {
+            if (a == b) {
+                return std::strong_ordering::equal;
+            }
+        }
         return std::strong_order(a, b);
     } else {
         if (a < b) return std::strong_ordering::less;

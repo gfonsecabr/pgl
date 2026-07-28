@@ -95,13 +95,18 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: unbounded operands") {
         const Intersection h(rightOf(12));
         CHECK(!region.intersects(h));
         CHECK(!region.interiorsIntersect(h));
-        // An exact result type on purpose: the region measures a disjoint
-        // operand from its own ring edges, and each edge hands the query to
-        // HalfplaneIntersection, which builds its boundary edges in the
-        // requested coordinate type.
+        // The region measures a disjoint operand from its own ring edges, and
+        // each edge hands the query to HalfplaneIntersection, which builds its
+        // boundary edges in the requested coordinate type — so a floating-point
+        // request has to come out the same as an exact one. It did not, until
+        // Point stopped telling -0.0 and +0.0 apart: a vertex of this operand
+        // lands on x = -0.0.
         CHECK(region.squaredDistance<ERational>(h) == ERational(4));
         CHECK(region.distanceL1<ERational>(h) == ERational(2));
         CHECK(region.distanceLInf<ERational>(h) == ERational(2));
+        CHECK(region.squaredDistance<double>(h) == doctest::Approx(4.0));
+        CHECK(region.distanceL1<double>(h) == doctest::Approx(2.0));
+        CHECK(region.distanceLInf<double>(h) == doctest::Approx(2.0));
     }
 
     SUBCASE("a quadrant reaching into the region") {
