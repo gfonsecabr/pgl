@@ -318,10 +318,21 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(!summable<pgl::Disk<>, pgl::Disk<>>);
     static_assert(!summable<pgl::Disk<>, pgl::Triangle<>>);
 
-    // Non-convex operands: the sum may have holes.
-    static_assert(!summable<pgl::Polygon<>, pgl::Triangle<>>);
+    // Non-convex operands with no area to fill: still no sum at all.
     static_assert(!summable<pgl::Polyline<>, pgl::Segment<>>);
     static_assert(!summable<pgl::MonotoneChain<>, pgl::Segment<>>);
+
+    // A non-convex *area* operand is the exception, and it is not a widening of
+    // this concept: its sum can enclose a hole, so it is a set of regions rather
+    // than one shape and lives in a separate overload set on `Polygon` and
+    // `PolygonWithHoles` (see polygonwithholes_minkowski.cpp). `summable` sees
+    // it because it asks only whether the call compiles.
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Polygon<>, pgl::Triangle<>>);
+    static_assert(summable<pgl::Polygon<>, pgl::Triangle<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum(
+                           std::declval<const pgl::Triangle<>&>())),
+                       std::vector<pgl::PolygonWithHoles<Point>>>);
 
     // Translation stays available for all of them.
     static_assert(summable<pgl::Halfplane<>, Point>);
@@ -329,8 +340,10 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(summable<pgl::Polygon<>, Point>);
     static_assert(summable<Point, pgl::Polygon<>>);
 
-    // operator+ is constrained the same way, so it does not turn an
-    // unsupported pair into a hard error somewhere inside the sum.
+    // operator+ is constrained by the concept, not by the overload set, so it
+    // does not turn an unsupported pair into a hard error somewhere inside the
+    // sum -- and it stays out of the region-valued case, whose result no single
+    // shape can hold.
     static_assert(!addable<pgl::Polygon<>, pgl::Triangle<>>);
     static_assert(!addable<pgl::Segment<>, int>);
     static_assert(addable<pgl::Segment<>, pgl::Triangle<>>);

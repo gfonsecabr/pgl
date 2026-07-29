@@ -67,6 +67,7 @@
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"
 #include "algorithm/booleans.hpp"
+#include "algorithm/minkowskisum.hpp"
 
 // -----------------------------------------------------------------------------
 // Exact convenience aliases

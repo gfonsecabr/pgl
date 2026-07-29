@@ -322,9 +322,13 @@ concept BoundedConvexConcept =
  * their sums are either not representable by any shape (a rounded polygon, a
  * polygon with holes) or not exact in the operands' coordinate type.
  *
- * This concept is the only place that decides which pairs are allowed, so it is
- * where a later widening starts — a non-convex sum once a shape can hold a
- * polygon with holes, or an unbounded one over `HalfplaneIntersection`.
+ * This concept is the only place that decides which pairs give back a **single
+ * shape**, so it is where a later widening starts — an unbounded sum over
+ * `HalfplaneIntersection`, say. The non-convex case is not a widening of it: a
+ * sum that can enclose a hole is not one shape but a set of regions, so
+ * `Polygon::minkowskiSum` and `PolygonWithHoles::minkowskiSum` carry it as an
+ * overload set of their own, over exactly the pairs this concept rejects. See
+ * `algorithm/minkowskisum.hpp`.
  */
 template <class A, class B>
 concept MinkowskiSummableConcept =
