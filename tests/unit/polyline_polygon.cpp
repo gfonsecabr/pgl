@@ -53,9 +53,15 @@ TEST_CASE("Polygon and Polyline containment and intersection") {
     }
 
     SUBCASE("a polygon on a polyline must be degenerate") {
-        // A "flat" polygon cannot be built without degeneracy, so only the
-        // trivial containment direction is checked here.
         CHECK_FALSE(zig.contains(square));
+        // Tracing the whole boundary is not enough: a polygon is the filled
+        // region, and the polyline holds none of what is inside the trace.
+        const PLine rim({0, 0, 6, 0, 6, 6, 0, 6, 0, 0});
+        CHECK(rim.contains(PLine({0, 0, 6, 0, 6, 6, 0, 6, 0, 0})));
+        CHECK_FALSE(rim.contains(square));
+        // A polygon with no area is exactly its edges, and those it does hold.
+        const PGon flat(std::vector<Point>{Point(0, 0), Point(3, 0), Point(6, 0)});
+        CHECK(rim.contains(flat));
     }
 }
 
