@@ -50,9 +50,15 @@ These functions use the same predicate conventions documented in
 
 ### Polyominoes
 
-- `polyominoes<T>(size)` returns one `Polygon<Point<T>>` per free polyomino of `size` cells (counted up to translation, rotation, and reflection). Each polygon traces the polyomino boundary with small non-negative integer coordinates and is normalized like any other `Polygon`. Polyominoes that enclose a hole (possible from seven cells onward) are omitted, since their boundary is not a simple polygon. `T` defaults to `int`.
+- `polyominoes<T>(size)` returns one `Polygon<Point<T>>` per free polyomino of `size` cells (counted up to translation, rotation, and reflection). Each polygon traces the polyomino boundary with small non-negative integer coordinates and is normalized like any other `Polygon`. Polyominoes that enclose a hole (possible from seven cells onward) are omitted, since their boundary is not a simple polygon; `polyominoRegions` below keeps them. `T` defaults to `int`.
 
 - `polyominoes<T>(n1, n2)` returns the free polyominoes of every size in `[n1, n2]`, smallest first.
 
 - `polyominoesUpTo<T>(n)` returns the free polyominoes of every size from `1` to `n`, smallest first.
+
+- `polyominoRegions<T>(size)` returns one `PolygonWithHoles<Point<T>>` per free polyomino of `size` cells, omitting **none** of them: a region represents an enclosed hole, so the counts are the full free-polyomino sequence (108 at size seven, where `polyominoes` returns 107, and 369 at size eight against 363). Each region has small non-negative integer coordinates, canonical rings, and area equal to the cell count.
+
+  A hole may touch the outer boundary at a single point — two diagonally opposite cells pinch the hole shut against the outside, as in the smallest holed polyomino — which `PolygonWithHoles::isValid` accepts. Such a point is in the region but has no region interior around it.
+
+- `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two `polyominoes` range overloads.
 
