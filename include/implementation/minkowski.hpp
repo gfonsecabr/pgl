@@ -28,11 +28,17 @@
  * integers out.
  *
  * @ref pgl::detail::minkowskiSumOf is the single dispatcher, and
- * @ref pgl::MinkowskiSummableConcept the single gate: widening the set of
- * supported pairs — a non-convex sum once a polygon-with-holes shape can hold
- * the result, or an unbounded one over @ref pgl::HalfplaneIntersection — means
- * relaxing that concept and adding one branch to the dispatcher. Nothing else
- * here, and no shape header, encodes which pairs are allowed.
+ * @ref pgl::MinkowskiSummableConcept the single gate: widening the set of pairs
+ * whose sum is one shape — an unbounded one over
+ * @ref pgl::HalfplaneIntersection, say — means relaxing that concept and adding
+ * one branch to the dispatcher. Nothing else here, and no shape header, encodes
+ * which pairs are allowed.
+ *
+ * The **non-convex** sums are not here, and are not a widening of that concept:
+ * a sum that can enclose a hole is a set of regions rather than a shape, so it
+ * needs a triangulation and the boolean engine and lives in
+ * `algorithm/minkowskisum.hpp`, as an overload set on @ref pgl::Polygon and
+ * @ref pgl::PolygonWithHoles over exactly the pairs this file turns away.
  */
 
 #include <algorithm>
@@ -204,8 +210,13 @@ constexpr int minkowskiDirectionOrder(const PointType& u, const PointType& v) {
     using Number = typename PointType::NumberType;
     const Number zero{};
 
-    const auto half = [zero](const PointType& direction) {
-        return (direction.y() < zero || (direction.y() == zero && direction.x() < zero)) ? 1 : 0;
+    // Its own `zero` rather than a capture of the one above: for an integral
+    // Number that one is a constant expression, so clang reports capturing it as
+    // unnecessary, while a Rational one genuinely cannot be used uncaptured.
+    const auto half = [](const PointType& direction) {
+        const Number origin{};
+        return (direction.y() < origin || (direction.y() == origin && direction.x() < origin)) ? 1
+                                                                                               : 0;
     };
 
     const int halfU = half(u);

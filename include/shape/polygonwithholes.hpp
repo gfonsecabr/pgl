@@ -666,6 +666,46 @@ struct PolygonWithHoles {
     symmetricDifference(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
+     * and returned as a set of regions with pairwise disjoint interiors. See
+     * @ref Polygon::minkowskiSum for the full contract.
+     *
+     * A region operand needs one thing a polygon does not: its **slits** sweep
+     * out area just as its triangles do, so they join the convex decomposition
+     * the sum is built from. Its holes need no special handling at all — they
+     * are simply where the decomposition has no piece.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRegion& other) const;
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The holes lie inside the outer boundary, so they cannot contribute a

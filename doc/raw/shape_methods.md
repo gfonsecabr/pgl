@@ -254,15 +254,60 @@ below two dimensions is reported the usual way, through the returned `Convex`:
 summing two parallel segments gives a `Convex` satisfying `isSegment()`. The
 empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 
-Other pairs are a compile error rather than an approximation. `Disk` sums to a
-rounded shape and an unbounded operand (`Line`, `Ray`, `Halfplane`,
-`HalfplaneIntersection`) sums to an unbounded region, neither of which is
-representable today; a non-convex `Polygon` can sum to a region with holes,
-which `PolygonWithHoles` can now express but the sum does not yet compute. Since
-$\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
-who wants the convex approximation can ask for it explicitly by summing the
-hulls. On the polymorphic `Shape` the operand pair is only known at run time, so
-an unsupported pair throws `std::logic_error` instead.
+#### Non-convex operands
+
+A non-convex operand is where the sum needs a region: sliding a shape around the
+inside of a `C` sweeps out material that closes over a hole neither operand has.
+`Polygon` and `PolygonWithHoles` therefore carry a second `minkowskiSum`, against
+`Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`, returning a
+`std::vector<PolygonWithHoles>` like the boolean operations above.
+
+```c++
+// The square annulus, cut open through its right wall over y in [3,5].
+pgl::Polygon<> c = {0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8};
+auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
+// plugged.size() == 1; its outer ring is (0,0)--(10,10) and it has one hole,
+// (4,4)--(6,6) — the cavity, stranded once the two-unit cut is closed.
+```
+
+The two overload sets never overlap: the pairs whose sum fits in a single shape
+are exactly the pairs listed above, and these take the rest. The result is a
+*set* of regions because $A \oplus B$ is connected whenever both operands are, so
+it is one region unless its boundary pinches shut — which no single region may
+do. Like the boolean operations it is **regularized**, so a flat operand's sum
+keeps only what has area, and it takes the same `ResultNumber` parameter. Every
+vertex of every convex piece sum is a sum of two input vertices, so those are
+exact; only where two of them cross can a vertex land off the lattice, and that
+arrangement is built over exact rationals and converted once at the end.
+
+That last point is worth more attention here than it gets in the boolean
+operations, because it bites sooner. There the crossings that land off the
+lattice are crossings of the *operands'* boundaries, which rectilinear integer
+input never has; here they are crossings between two piece sums, which two
+perfectly ordinary integer operands can produce on their own:
+
+```c++
+pgl::Polygon<> u = {0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6};   // a U
+u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // notch tip truncated
+u.minkowskiSum<pgl::ERational>(pgl::Triangle(-2,-1, 2,0, 0,2)); // tip at (16/5, 34/5)
+```
+
+Both operands are convex-edged and integral, and the answer still is not. Ask for
+an exact `ResultNumber` unless you know the sum lands on the lattice.
+
+A region operand needs nothing special for its holes — they are simply where the
+decomposition has no piece — but its **slits** do sweep out area, so they are part
+of the decomposition too.
+
+The remaining pairs are a compile error rather than an approximation: `Disk` sums
+to a rounded shape, and an unbounded operand (`Line`, `Ray`, `Halfplane`,
+`HalfplaneIntersection`) to an unbounded region, neither of which is
+representable. Since $\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus
+\mathrm{hull}(B)$, a caller who wants the convex approximation can ask for it
+explicitly by summing the hulls. On the polymorphic `Shape` the operand pair is
+only known at run time, so an unsupported pair throws `std::logic_error`
+instead — and so does a pair whose sum is a set of regions, which no single
+`Shape` alternative can hold.
 
 ### Other Methods for Shapes
 

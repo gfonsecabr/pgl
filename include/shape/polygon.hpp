@@ -835,6 +835,63 @@ struct Polygon {
     symmetricDifference(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
+     * and returned as a set of regions with pairwise disjoint interiors. A
+     * non-convex operand is what makes that necessary: sliding a shape around
+     * the inside of a `U` sweeps out a region whose boundary closes over a hole,
+     * and no other shape in the library can say so. This is the gap
+     * @ref PolygonWithHoles was proposed to close.
+     *
+     * The sum of two connected shapes is connected, so the answer is a single
+     * region unless its boundary pinches shut — which a region may not do, since
+     * its outer ring may not touch itself.
+     *
+     * Distinguish this from
+     * @ref minkowskiSum(const OtherShape&) const, which sums a *bounded convex*
+     * operand and returns a single `Convex` (or a `Rectangle`, or a translation
+     * of this polygon by a `Point`). The two never overlap: the pairs that fit
+     * in one shape are exactly the pairs @ref MinkowskiSummableConcept accepts,
+     * and this overload set takes the rest.
+     *
+     * Complexity: one convex merge per pair of triangles of the two operands'
+     * triangulations, then a constrained triangulation over the arrangement of
+     * all of them.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     * @note Every vertex of every piece sum is a sum of two input vertices, so
+     *       the pieces are exact; only their union can put a vertex at a
+     *       crossing, and that arrangement is built over exact rationals and
+     *       converted to @p ResultNumber only at the end.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRegion& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary

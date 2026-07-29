@@ -48,6 +48,7 @@
 #include <cstddef>
 #include <limits>
 #include <map>
+#include <ranges>
 #include <set>
 #include <utility>
 #include <vector>
@@ -129,35 +130,36 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
 }
 
 /**
- * @brief The regularized boolean operation @p keepCell selects, as a set of
- *        regions.
+ * @brief The union of the cells of an arrangement that @p keepWitness selects,
+ *        as a set of regions.
  *
- * @p keepCell is called as `keepCell(inA, inB)` with the membership of one
- * witness point per cell of the arrangement, and says whether that cell belongs
- * to the result: `inA && !inB` is the difference, `inA || inB` the union,
- * `inA && inB` the intersection and `inA != inB` the symmetric difference. The
- * witness lies strictly inside its cell and hence on neither boundary, so the
- * closed containments it is built from answer the open question, and the result
- * is the regularized operation on the interiors.
+ * @p cuts must carry every point at which membership in the result can change —
+ * the boundaries of all the operands involved, whatever they are. The
+ * arrangement of those segments cuts the plane into triangles on each of which
+ * membership is constant, so @p keepWitness is called once per cell, on a point
+ * strictly inside it, and says whether the cell belongs to the result. Being
+ * strictly inside, the witness is on no boundary, which is why closed
+ * containments answer the open question and the result comes out regularized.
  *
- * Both operands must be bounded and polygonal, and neither may be
- * self-overlapping; nothing else is asked of them, so either may be a polygon,
- * a convex shape, a rectangle, a triangle or a region with holes.
+ * Nothing here counts its operands: the whole engine sees only the cut segments
+ * and the per-cell answer, so a boolean operation on two shapes
+ * (@ref regularizedBoolean) and a union of arbitrarily many
+ * (@ref regularizedUnionOf, which is what the Minkowski sum needs) are the same
+ * call with a different classifier.
  *
  * The returned regions have pairwise disjoint interiors and their union is the
  * result. They are *not* nested: an island stranded inside a hole of the result
  * comes back as a region of its own, which is what a flat list of regions can
  * say (see decision (c): this library has no `PolygonSet`).
  *
- * Complexity: O(m²) segment intersections for m boundary edges, then a
- * constrained triangulation over the arrangement and one O(n) point location
+ * Complexity: O(m²) segment intersections for m cut segments, then a
+ * constrained triangulation over the arrangement and one @p keepWitness call
  * per cell.
  */
-template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, const ShapeB& b,
-                                                              KeepCell keepCell) {
-    using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
-    using ExactPoint = Point<ExactNumber>;
+template <class ResultPoint, class ExactPoint, class KeepWitness>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
+    const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
+    using ExactNumber = typename ExactPoint::NumberType;
     using ExactSegment = Segment<ExactPoint>;
     using ExactPolygon = Polygon<ExactPoint>;
     using ResultPolygon = Polygon<ResultPoint>;
@@ -165,17 +167,13 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
     constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
 
     std::vector<PolygonWithHoles<ResultPoint>> result;
-
-    std::vector<ExactSegment> cuts;
-    appendCutSegments<ExactPoint>(a, cuts);
-    appendCutSegments<ExactPoint>(b, cuts);
     if (cuts.empty()) {
-        return result;  // neither operand has an edge, so neither has area
+        return result;  // no operand has an edge, so none has area
     }
 
-    // A box strictly containing both operands, so no cell of the arrangement
+    // A box strictly containing every operand, so no cell of the arrangement
     // straddles its boundary and the surviving cells are decided entirely by
-    // the two operands.
+    // the operands.
     ExactNumber loX = cuts.front().min().x();
     ExactNumber loY = cuts.front().min().y();
     ExactNumber hiX = loX;
@@ -207,7 +205,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
             leftOf.emplace(Dart(ExactPoint(triangle.get(k)), ExactPoint(triangle.get(k + 1))), i);
         }
         const ExactPoint witness = triangle.template pointInside<ExactNumber>();
-        keep[i] = static_cast<char>(keepCell(a.contains(witness), b.contains(witness)));
+        keep[i] = static_cast<char>(keepWitness(witness));
     }
 
     // The triangle across a directed edge is the one carrying the reverse dart.
@@ -340,6 +338,60 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
     }
     std::sort(result.begin(), result.end());
     return result;
+}
+
+/**
+ * @brief The regularized boolean operation @p keepCell selects, as a set of
+ *        regions.
+ *
+ * @p keepCell is called as `keepCell(inA, inB)` with the membership of one
+ * witness point per cell of the arrangement of both boundaries, and says
+ * whether that cell belongs to the result: `inA && !inB` is the difference,
+ * `inA || inB` the union, `inA && inB` the intersection and `inA != inB` the
+ * symmetric difference.
+ *
+ * Both operands must be bounded and polygonal, and neither may be
+ * self-overlapping; nothing else is asked of them, so either may be a polygon,
+ * a convex shape, a rectangle, a triangle or a region with holes.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, const ShapeB& b,
+                                                              KeepCell keepCell) {
+    using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+
+    std::vector<Segment<ExactPoint>> cuts;
+    appendCutSegments<ExactPoint>(a, cuts);
+    appendCutSegments<ExactPoint>(b, cuts);
+    return regularizedCells<ResultPoint>(cuts, [&a, &b, &keepCell](const ExactPoint& witness) {
+        return keepCell(a.contains(witness), b.contains(witness));
+    });
+}
+
+/**
+ * @brief The regularized union of arbitrarily many shapes, as a set of regions.
+ *
+ * One arrangement over all their boundaries settles the whole union, where
+ * folding @ref regularizedUnion over the range would build one per step and
+ * re-triangulate everything accumulated so far. That is what makes it the right
+ * back end for a construction whose natural form is a union of many pieces —
+ * the Minkowski sum of two non-convex shapes is one.
+ */
+template <class ResultPoint, class ShapeRange>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& shapes) {
+    using ShapeType = std::ranges::range_value_t<ShapeRange>;
+    using ShapeNumber = typename ShapeType::NumberType;
+    using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
+    using ExactPoint = Point<ExactNumber>;
+
+    std::vector<Segment<ExactPoint>> cuts;
+    for (const ShapeType& shape : shapes) {
+        appendCutSegments<ExactPoint>(shape, cuts);
+    }
+    return regularizedCells<ResultPoint>(cuts, [&shapes](const ExactPoint& witness) {
+        return std::ranges::any_of(shapes,
+                                   [&witness](const ShapeType& s) { return s.contains(witness); });
+    });
 }
 
 /** @brief The regularized difference `closure(A° ∖ B)`, as a set of regions. */
