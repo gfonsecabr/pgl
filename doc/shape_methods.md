@@ -144,12 +144,26 @@ pgl::Point<> p(isec);
 // p = (3,3)
 ```
 
-### Difference
+[`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") carries a second `intersection` alongside this one, returning
+regions rather than polygons, because it is the one shape whose intersections
+can have holes. See [Boolean Operations](#boolean-operations).
 
-`a.difference(b)` returns the part of `a` that `b` does not cover, as a
-`std::vector<PolygonWithHoles>`. It is defined on [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and
+### Boolean Operations
+
+The four boolean set operations on shapes with area all return a
+`std::vector<PolygonWithHoles>`:
+
+| call | result |
+|---|---|
+| `a.difference(b)` | $A \setminus B$, the part of `a` that `b` does not cover |
+| `a.unionWith(b)` | $A \cup B$, the part either covers |
+| `a.symmetricDifference(b)` | $A \mathbin{\triangle} B$, the part exactly one covers |
+| `a.intersection(b)` | $A \cap B$, the part both cover — on [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") only, see below |
+
+`difference`, `unionWith` and `symmetricDifference` are defined on [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and
 [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), against [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")
-and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the bounded shapes with area.
+and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the bounded shapes with area. The union is a keyword in C++,
+hence `unionWith`.
 
 ```c++
 pgl::Polygon<> square = {0,0, 10,0, 10,10, 0,10};
@@ -158,30 +172,57 @@ auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
 // and whose single hole is the rectangle
 ```
 
-This is the construction [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") exists for: removing a shape from
-the middle of another one leaves a hole, and no other shape can say so. The
-intersection is the case that does *not* need one — every shape in the library
-is closed with a connected complement, so a closed curve in `A ∩ B` bounds a
-disk in each operand and hence in the intersection, which therefore has no hole.
-That is why `intersection` returns plain polygons and loses nothing by it.
+This is the family [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") exists for: removing a shape from the
+middle of another one leaves a hole, and no other shape can say so. A union
+creates one out of nothing just as readily — a `U` united with the bar that caps
+it encloses a hole neither operand has — and a symmetric difference, being the
+union of two differences, inherits holes from both.
 
-The result is the **regularized** difference $\mathrm{closure}(A^\circ
-\setminus B)$: the part of `a` with area that survives, with lower-dimensional
-leftovers dropped — a stretch of `∂a` that `b` touches without covering, an
-isolated contact point, and a slit of `a`, which has no area to begin with.
-Without that, the answer would not be a set of regions at all.
+Every one of them returns the **regularized** result, the closure of the
+operation applied to the *interiors*: $\mathrm{closure}(A^\circ \setminus B)$,
+$\mathrm{closure}(A^\circ \cup B^\circ)$, and so on. Lower-dimensional leftovers
+are dropped — a stretch of boundary the operands share without either covering
+it, an isolated contact point, and a slit, which has no area to begin with.
+Without that, the answer would not be a set of regions at all. It also means
+material with no area never *joins* anything: two shapes meeting at a single
+point come back as two pieces, since a region may not have a self-touching outer
+ring.
 
-The pieces have pairwise disjoint interiors and their union is the difference.
-They are **not** nested: an island of `a` stranded inside a hole of the result
-comes back as a piece of its own, since this library has no `PolygonSet`. Two
-pieces may meet at a point — a region may not have a self-touching outer ring,
-so what pinches shut is reported as two regions.
+The pieces have pairwise disjoint interiors and their union is the result. They
+are **not** nested: an island stranded inside a hole of the result comes back as
+a piece of its own, since this library has no `PolygonSet`.
 
-The boundaries can cross at non-integral points, so `difference` takes the
-usual `ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The
-arrangement itself is always built over exact rationals and converted only at
-the end, so an integral result type is exact whenever the crossings are
-integral — a rectilinear difference of rectilinear input needs nothing special.
+The boundaries can cross at non-integral points, so all four take the usual
+`ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The arrangement
+itself is always built over exact rationals and converted only at the end, so an
+integral result type is exact whenever the crossings are integral — a
+rectilinear operation on rectilinear input needs nothing special.
+
+#### Why `intersection` is different
+
+`intersection` appears twice in the library, and the two are not the same
+method. The general one, described [above](#intersection), is defined for every
+pair of shapes and returns polygons, polylines and points through an
+`std::optional` and an `std::variant`. The region-valued one described here
+exists **only on [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.")**.
+
+That is not an oversight. No component of the intersection of two *polygons* can
+have a hole: a closed curve inside a closed set with a connected complement
+bounds a disk inside it, so a curve in $A \cap B$ bounds a disk in each operand
+and hence in the intersection. Every shape in the library has a connected
+complement — except a region with holes, whose hole interiors are components of
+their own. So `Polygon::intersection` loses nothing by returning plain polygons,
+and a region's intersection genuinely needs a region:
+
+```c++
+pgl::PolygonWithHoles<> annulus(square, {pgl::Polygon<>{4,4, 8,4, 8,8, 4,8}});
+auto pieces = annulus.intersection(pgl::Rectangle(-5,-5, 20,20));
+// pieces.size() == 1, and pieces[0] == annulus — hole and all
+```
+
+One further difference is worth knowing: `Polygon::intersection` computes in the
+result type, so an integral one truncates every crossing, while the region
+operations above never do.
 
 ### Minkowski Sum
 

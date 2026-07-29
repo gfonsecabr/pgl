@@ -744,6 +744,97 @@ struct Polygon {
     difference(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * The result is `closure(A° ∪ B°)`, as a set of regions with pairwise
+     * disjoint interiors. It needs @ref PolygonWithHoles for the same reason the
+     * difference does: two shapes that wrap round between them enclose a hole
+     * neither of them has, as a `U` united with the bar that caps it.
+     *
+     * Operands meeting only along a stretch of boundary or at a single point
+     * fuse only where they have area in common to fuse through — an isolated
+     * contact point comes back as two pieces meeting there, since a region may
+     * not have a self-touching outer ring. Disjoint operands come back as two
+     * pieces.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to unite with.
+     * @return The pieces of the union, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. So an integral
+     *       result type is exact whenever the boundaries cross at integral
+     *       points, and truncates only where they genuinely do not.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B).
+     *
+     * The result is `closure((A° ∖ B) ∪ (B° ∖ A))`, as a set of regions with
+     * pairwise disjoint interiors: the part covered by exactly one of the two
+     * operands. It is the union of the two differences, and inherits holes from
+     * both.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The other shape.
+     * @return The pieces of the symmetric difference, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherRegion& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary

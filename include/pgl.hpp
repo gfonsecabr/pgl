@@ -66,7 +66,7 @@
 #include "algorithm/sortpoints.hpp"
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"
-#include "algorithm/difference.hpp"
+#include "algorithm/booleans.hpp"
 
 // -----------------------------------------------------------------------------
 // Exact convenience aliases
