@@ -142,6 +142,45 @@ pgl::Point<> p(isec);
 // p = (3,3)
 ```
 
+### Difference
+
+`a.difference(b)` returns the part of `a` that `b` does not cover, as a
+`std::vector<PolygonWithHoles>`. It is defined on `Polygon` and
+`PolygonWithHoles`, against `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle`
+and `Rectangle` — the bounded shapes with area.
+
+```c++
+pgl::Polygon<> square = {0,0, 10,0, 10,10, 0,10};
+auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
+// pieces.size() == 1, one region whose outer ring is the square
+// and whose single hole is the rectangle
+```
+
+This is the construction `PolygonWithHoles` exists for: removing a shape from
+the middle of another one leaves a hole, and no other shape can say so. The
+intersection is the case that does *not* need one — every shape in the library
+is closed with a connected complement, so a closed curve in `A ∩ B` bounds a
+disk in each operand and hence in the intersection, which therefore has no hole.
+That is why `intersection` returns plain polygons and loses nothing by it.
+
+The result is the **regularized** difference $\mathrm{closure}(A^\circ
+\setminus B)$: the part of `a` with area that survives, with lower-dimensional
+leftovers dropped — a stretch of `∂a` that `b` touches without covering, an
+isolated contact point, and a slit of `a`, which has no area to begin with.
+Without that, the answer would not be a set of regions at all.
+
+The pieces have pairwise disjoint interiors and their union is the difference.
+They are **not** nested: an island of `a` stranded inside a hole of the result
+comes back as a piece of its own, since this library has no `PolygonSet`. Two
+pieces may meet at a point — a region may not have a self-touching outer ring,
+so what pinches shut is reported as two regions.
+
+The boundaries can cross at non-integral points, so `difference` takes the
+usual `ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The
+arrangement itself is always built over exact rationals and converted only at
+the end, so an integral result type is exact whenever the crossings are
+integral — a rectilinear difference of rectilinear input needs nothing special.
+
 ### Minkowski Sum
 
 The Minkowski sum of two shapes is the set of all sums of a point of the first
@@ -175,9 +214,10 @@ summing two parallel segments gives a `Convex` satisfying `isSegment()`. The
 empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 
 Other pairs are a compile error rather than an approximation. `Disk` sums to a
-rounded shape, a non-convex `Polygon` can sum to a region with holes, and an
-unbounded operand (`Line`, `Ray`, `Halfplane`, `HalfplaneIntersection`) sums to
-an unbounded region; none of those is representable today. Since
+rounded shape and an unbounded operand (`Line`, `Ray`, `Halfplane`,
+`HalfplaneIntersection`) sums to an unbounded region, neither of which is
+representable today; a non-convex `Polygon` can sum to a region with holes,
+which `PolygonWithHoles` can now express but the sum does not yet compute. Since
 $\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
 who wants the convex approximation can ask for it explicitly by summing the
 hulls. On the polymorphic `Shape` the operand pair is only known at run time, so

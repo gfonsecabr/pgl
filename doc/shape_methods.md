@@ -144,6 +144,45 @@ pgl::Point<> p(isec);
 // p = (3,3)
 ```
 
+### Difference
+
+`a.difference(b)` returns the part of `a` that `b` does not cover, as a
+`std::vector<PolygonWithHoles>`. It is defined on [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and
+[`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), against [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")
+and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the bounded shapes with area.
+
+```c++
+pgl::Polygon<> square = {0,0, 10,0, 10,10, 0,10};
+auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
+// pieces.size() == 1, one region whose outer ring is the square
+// and whose single hole is the rectangle
+```
+
+This is the construction [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") exists for: removing a shape from
+the middle of another one leaves a hole, and no other shape can say so. The
+intersection is the case that does *not* need one — every shape in the library
+is closed with a connected complement, so a closed curve in `A ∩ B` bounds a
+disk in each operand and hence in the intersection, which therefore has no hole.
+That is why `intersection` returns plain polygons and loses nothing by it.
+
+The result is the **regularized** difference $\mathrm{closure}(A^\circ
+\setminus B)$: the part of `a` with area that survives, with lower-dimensional
+leftovers dropped — a stretch of `∂a` that `b` touches without covering, an
+isolated contact point, and a slit of `a`, which has no area to begin with.
+Without that, the answer would not be a set of regions at all.
+
+The pieces have pairwise disjoint interiors and their union is the difference.
+They are **not** nested: an island of `a` stranded inside a hole of the result
+comes back as a piece of its own, since this library has no `PolygonSet`. Two
+pieces may meet at a point — a region may not have a self-touching outer ring,
+so what pinches shut is reported as two regions.
+
+The boundaries can cross at non-integral points, so `difference` takes the
+usual `ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The
+arrangement itself is always built over exact rationals and converted only at
+the end, so an integral result type is exact whenever the crossings are
+integral — a rectilinear difference of rectilinear input needs nothing special.
+
 ### Minkowski Sum
 
 The Minkowski sum of two shapes is the set of all sums of a point of the first
@@ -177,9 +216,10 @@ summing two parallel segments gives a [`Convex`](https://gfonsecabr.github.io/pg
 empty shape absorbs, and an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") operand gives an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.").
 
 Other pairs are a compile error rather than an approximation. [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") sums to a
-rounded shape, a non-convex [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") can sum to a region with holes, and an
-unbounded operand ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) sums to
-an unbounded region; none of those is representable today. Since
+rounded shape and an unbounded operand ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."),
+[`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) sums to an unbounded region, neither of which is
+representable today; a non-convex [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") can sum to a region with holes,
+which [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") can now express but the sum does not yet compute. Since
 $\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
 who wants the convex approximation can ask for it explicitly by summing the
 hulls. On the polymorphic [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") the operand pair is only known at run time, so

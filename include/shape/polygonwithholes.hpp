@@ -505,6 +505,43 @@ struct PolygonWithHoles {
     auto triangulation(const SegmentRange& segments) const;
 
     /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * The result is `closure(A° ∖ B)`: the part of this region with area that
+     * survives the removal, as a set of regions with pairwise disjoint
+     * interiors whose union is the difference. Lower-dimensional leftovers are
+     * dropped, so a slit of this region — which has no area — never reaches the
+     * result. See @ref Polygon::difference for the full contract.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to remove.
+     * @return The pieces of the difference, in canonical order.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRegion& other) const;
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The holes lie inside the outer boundary, so they cannot contribute a

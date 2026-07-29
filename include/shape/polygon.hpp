@@ -690,6 +690,60 @@ struct Polygon {
     auto triangulation(const PointRange& points, const SegmentRange& segments) const;
 
     /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * The result is `closure(A° ∖ B)`: the part of this polygon with area that
+     * survives the removal, as a set of regions with pairwise disjoint
+     * interiors whose union is the difference. Lower-dimensional leftovers — a
+     * stretch of the boundary that @p other touches without covering, an
+     * isolated contact point — are dropped, which is the usual convention for
+     * boolean operations on solids and what makes the result a set of regions.
+     *
+     * This is the construction @ref PolygonWithHoles exists for: removing a
+     * polygon from the middle of another one leaves a hole, which no other
+     * shape in the library can express. Unlike
+     * @ref intersection(const OtherPolygon&) const, which never needs one, this
+     * is where the nesting matters.
+     *
+     * The pieces are not nested: an island of this polygon stranded inside a
+     * hole of the result comes back as a region of its own.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to remove.
+     * @return The pieces of the difference, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. So an integral
+     *       result type is exact whenever the boundaries cross at integral
+     *       points, and truncates only where they genuinely do not.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRegion& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary
