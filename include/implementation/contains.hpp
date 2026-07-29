@@ -1755,11 +1755,13 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const Othe
 template <class PointType, class LabelType, class Storage>
 template<PolygonConcept OtherPolygon>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::contains(const OtherPolygon& other) const {
-    // A polygon lies on the 1-dimensional chain exactly when all of its edges
-    // do; its interior is then empty, so the edge fold decides containment for
-    // degenerate and non-degenerate polygons alike (a bent chain may pass
-    // through every vertex without containing the edges, so a vertex fold
-    // would not be enough).
+    // A polygon with area is never on the 1-dimensional chain. Without area it
+    // is exactly the union of its edges, so the edge fold decides -- and it has
+    // to be the edges: a bent chain may pass through every vertex without
+    // containing the edges between them, so a vertex fold would not be enough.
+    if (!other.isDegenerate()) {
+        return false;
+    }
     if (other.size() == 0) {
         return true;
     }
@@ -2084,9 +2086,13 @@ constexpr bool Polyline<PointType, LabelType>::contains(const OtherConvex& other
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polyline<PointType, LabelType>::contains(const OtherPolygon& other) const {
-    // A polygon lies on the 1-dimensional polyline exactly when all of its
-    // edges do; its interior is then empty, so the edge fold decides
-    // containment for degenerate and non-degenerate polygons alike.
+    // A polygon with area is never on the 1-dimensional polyline, however much
+    // of its boundary is: a polyline tracing the whole boundary still misses
+    // everything inside it. Without area the polygon is exactly the union of
+    // its edges, and the fold decides.
+    if (!other.isDegenerate()) {
+        return false;
+    }
     if (other.size() == 0) {
         return true;
     }
