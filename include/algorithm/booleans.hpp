@@ -3,31 +3,45 @@
 #include "algorithm/triangulation.hpp"
 
 /**
- * @file difference.hpp
- * @brief Regularized set difference of two closed polygonal regions.
+ * @file booleans.hpp
+ * @brief Regularized boolean operations on closed polygonal regions.
  *
- * `A ∖ B` is the first boolean operation in the library, and the first
- * construction whose result genuinely needs @ref PolygonWithHoles: removing a
+ * The four operations — difference `A ∖ B`, union `A ∪ B`, intersection
+ * `A ∩ B` and symmetric difference `A △ B` — are one algorithm run with four
+ * per-cell tests. The difference came first, and it is the one whose result
+ * genuinely needs @ref PolygonWithHoles for the simplest of inputs: removing a
  * polygon from the middle of another one leaves a region with a hole, which no
- * other shape can express. `A ∩ B` never needs it — the intersection of two
- * closed sets with connected complements has a connected complement of its own,
- * so it can carry no hole (see @ref Polygon::intersection(const OtherPolygon&)).
+ * other shape can express.
  *
- * What is computed is the **regularized** difference `closure(A° ∖ B)`: the
- * part of `A` with area that survives the removal, with lower-dimensional
- * leftovers (a stretch of `∂A` that `B` touches without covering, an isolated
- * contact point) dropped. That is what makes the result a set of regions rather
- * than a set of regions plus loose edges, and it is the usual convention for
- * boolean operations on solids.
+ * The other three need a region too, though it takes a holed operand to see it:
+ *
+ * - a **union** closes a hole into being whenever the operands wrap round
+ *   between them, as a `U` united with the bar that caps it;
+ * - an **intersection** keeps the holes of a holed operand, so it needs a
+ *   region whenever one of its operands is one. That does not contradict
+ *   @ref Polygon::intersection(const OtherPolygon&) const returning plain
+ *   polygons: the argument that no component of `A ∩ B` has a hole assumes both
+ *   operands have a **connected complement**, which every shape in the library
+ *   satisfies *except* a region with holes;
+ * - a **symmetric difference** is the union of two differences, and inherits
+ *   holes from both.
+ *
+ * What is computed is the **regularized** result, `closure` of the operation on
+ * the open interiors: `closure(A° ∖ B)`, `closure(A° ∪ B°)`, `closure(A° ∩ B°)`
+ * and `closure((A° ∖ B) ∪ (B° ∖ A))`. Lower-dimensional leftovers — a stretch
+ * of boundary the operands share without either covering it, an isolated
+ * contact point, a slit — have nowhere to go in a set of regions and are
+ * dropped. That is the usual convention for boolean operations on solids.
  *
  * The engine is the cell decomposition of @ref detail::cellSeparates seen from
  * the other side: the arrangement of both boundaries cuts the plane into
  * triangles on which membership in `A` and in `B` is constant, one witness
  * point per triangle decides whether it survives, and the boundary of the union
- * of the surviving triangles is read off the mesh. Everything is exact — the
- * arrangement is built over rationals — and the result is converted to the
- * requested coordinate type only at the very end, so an integral answer comes
- * back integral however the intermediate crossings looked.
+ * of the surviving triangles is read off the mesh. Only the per-cell test tells
+ * the four operations apart. Everything is exact — the arrangement is built
+ * over rationals — and the result is converted to the requested coordinate type
+ * only at the very end, so an integral answer comes back integral however the
+ * intermediate crossings looked.
  */
 
 #include <algorithm>
@@ -115,23 +129,33 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
 }
 
 /**
- * @brief The regularized difference `closure(A° ∖ B)`, as a set of regions.
+ * @brief The regularized boolean operation @p keepCell selects, as a set of
+ *        regions.
+ *
+ * @p keepCell is called as `keepCell(inA, inB)` with the membership of one
+ * witness point per cell of the arrangement, and says whether that cell belongs
+ * to the result: `inA && !inB` is the difference, `inA || inB` the union,
+ * `inA && inB` the intersection and `inA != inB` the symmetric difference. The
+ * witness lies strictly inside its cell and hence on neither boundary, so the
+ * closed containments it is built from answer the open question, and the result
+ * is the regularized operation on the interiors.
  *
  * Both operands must be bounded and polygonal, and neither may be
  * self-overlapping; nothing else is asked of them, so either may be a polygon,
  * a convex shape, a rectangle, a triangle or a region with holes.
  *
  * The returned regions have pairwise disjoint interiors and their union is the
- * difference. They are *not* nested: an island of `A` stranded inside a hole of
- * the result comes back as a region of its own, which is what a flat list of
- * regions can say (see decision (c): this library has no `PolygonSet`).
+ * result. They are *not* nested: an island stranded inside a hole of the result
+ * comes back as a region of its own, which is what a flat list of regions can
+ * say (see decision (c): this library has no `PolygonSet`).
  *
  * Complexity: O(m²) segment intersections for m boundary edges, then a
  * constrained triangulation over the arrangement and one O(n) point location
  * per cell.
  */
-template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a, const ShapeB& b) {
+template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, const ShapeB& b,
+                                                              KeepCell keepCell) {
     using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
     using ExactPoint = Point<ExactNumber>;
     using ExactSegment = Segment<ExactPoint>;
@@ -171,8 +195,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a
     const auto mesh = box.triangulation(arrangedCutSegments(cuts, std::vector<ExactPoint>{}));
     const auto triangles = mesh.triangles();
 
-    // Each cell is in the difference or out of it as a whole: its interior meets
-    // no boundary edge of either operand, so one witness point settles it. The
+    // Each cell is in the result or out of it as a whole: its interior meets no
+    // boundary edge of either operand, so one witness point settles it. The
     // witness is strictly inside its triangle, hence on neither boundary, which
     // is why the closed containments answer the open question here.
     std::vector<char> keep(triangles.size(), 0);
@@ -183,7 +207,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a
             leftOf.emplace(Dart(ExactPoint(triangle.get(k)), ExactPoint(triangle.get(k + 1))), i);
         }
         const ExactPoint witness = triangle.template pointInside<ExactNumber>();
-        keep[i] = static_cast<char>(a.contains(witness) && !b.contains(witness));
+        keep[i] = static_cast<char>(keepCell(a.contains(witness), b.contains(witness)));
     }
 
     // The triangle across a directed edge is the one carrying the reverse dart.
@@ -192,10 +216,10 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a
         return it == leftOf.end() ? none : it->second;
     };
 
-    // Kept cells sharing an edge are one piece of the difference. Cells meeting
-    // at a single vertex are not: the difference pinches shut there, and the two
-    // sides have to come back as two regions, since neither a polygon nor a
-    // region may have a self-touching outer ring.
+    // Kept cells sharing an edge are one piece of the result. Cells meeting at a
+    // single vertex are not: the result pinches shut there, and the two sides
+    // have to come back as two regions, since neither a polygon nor a region may
+    // have a self-touching outer ring.
     std::vector<std::size_t> parent(triangles.size());
     for (std::size_t i = 0; i < parent.size(); ++i) {
         parent[i] = i;
@@ -318,11 +342,39 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a
     return result;
 }
 
+/** @brief The regularized difference `closure(A° ∖ B)`, as a set of regions. */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a, const ShapeB& b) {
+    return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA && !inB; });
+}
+
+/** @brief The regularized union `closure(A° ∪ B°)`, as a set of regions. */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedUnion(const ShapeA& a, const ShapeB& b) {
+    return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA || inB; });
+}
+
+/** @brief The regularized intersection `closure(A° ∩ B°)`, as a set of regions. */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedIntersection(const ShapeA& a, const ShapeB& b) {
+    return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA && inB; });
+}
+
+/**
+ * @brief The regularized symmetric difference `closure((A° ∖ B) ∪ (B° ∖ A))`,
+ *        as a set of regions.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedSymmetricDifference(const ShapeA& a,
+                                                                          const ShapeB& b) {
+    return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA != inB; });
+}
+
 }  // namespace detail
 
-// Out-of-line: difference is declared in shape/polygon.hpp and
-// shape/polygonwithholes.hpp, which precede this header in the layering, but it
-// can only be defined once Triangulation is visible.
+// Out-of-line: the boolean operations are declared in shape/polygon.hpp and
+// shape/polygonwithholes.hpp, which precede this header in the layering, but
+// they can only be defined once Triangulation is visible.
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
@@ -396,6 +448,181 @@ std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherRegion& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
+    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
+    return this->template unionWith<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
+    return this->template unionWith<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
+    return this->template unionWith<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
+    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
+    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
+    return this->template unionWith<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
+    return this->template unionWith<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
+    return this->template unionWith<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
+    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::symmetricDifference(const OtherPolygon& other) const {
+    return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::symmetricDifference(const OtherConvex& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+Polygon<PointType_, TLabel>::symmetricDifference(const OtherRegion& other) const {
+    return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherPolygon& other) const {
+    return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherConvex& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
+    return this->template symmetricDifference<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherRegion& other) const {
+    return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPolygon& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherConvex& other) const {
+    return this->template intersection<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherTriangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRectangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRegion& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 }  // namespace pgl
