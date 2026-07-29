@@ -326,6 +326,34 @@ constexpr std::remove_cvref_t<Region> regionClippedToBox(const Region& region, c
     return result;
 }
 
+/**
+ * @brief Folds a predicate over every boundary edge of a holed region, outer
+ * ring first, stopping at the first edge that fails.
+ *
+ * The union of these edges is `∂A`, and when the region has no area it is all
+ * of `A`: a closed set of zero measure has empty interior, so `A ⊆ ∂A`, and
+ * every ring lies in `A` to begin with. That identity is what the
+ * reverse-direction containment predicates need — a target that is at most
+ * one-dimensional (a boundary, a chain) can hold a region only when the region
+ * has no area, and then edge by edge is exact.
+ */
+template <class HoledRegion, class EdgePredicate>
+constexpr bool everyHoledRegionEdge(const HoledRegion& region, EdgePredicate&& predicate) {
+    for (const auto& edge : region.outer().edgesView()) {
+        if (!predicate(edge)) {
+            return false;
+        }
+    }
+    for (const auto& hole : region.holes()) {
+        for (const auto& edge : hole.edgesView()) {
+            if (!predicate(edge)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 }  // namespace detail
 
 }  // namespace pgl

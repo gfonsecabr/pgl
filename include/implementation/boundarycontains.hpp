@@ -1835,4 +1835,125 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Ot
         other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
 }
 
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes' boundaries containing a
+// PolygonWithHoles.
+//
+// One rewriting settles every shape here, because it asks nothing of the
+// shape at all. A boundary is at most one-dimensional, so it can hold the
+// region only when the region has no area — and a region with no area is
+// exactly the union of its ring edges (detail::everyHoledRegionEdge). So the
+// question is edge by edge, and each edge goes to the shape's own
+// boundaryContains(Segment).
+//
+// Note what this does *not* do: forward to the outer polygon. The outer
+// polygon of a zero-area region need not be zero-area itself — a hole may
+// cover it entirely, leaving the ring as the whole region — and a boundary
+// that holds the ring does not hold the polygon the ring bounds.
+
+namespace detail {
+
+// ∂shape ⊇ region, for any shape offering boundaryContains(Segment).
+template <class Shape2, class HoledRegion>
+constexpr bool boundaryContainsHoledRegion(const Shape2& shape, const HoledRegion& region) {
+    if (!region.isDegenerate()) {
+        return false;  // the region has area; the boundary has none
+    }
+    return everyHoledRegionEdge(
+        region, [&shape](const auto& edge) { return shape.boundaryContains(edge); });
+}
+
+}  // namespace detail
+
+template <class Number, class Label>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Point<Number, Label>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asSegment().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asLine().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherHoledRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherHoledRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
 }  // namespace pgl
