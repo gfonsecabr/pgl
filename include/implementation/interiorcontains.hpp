@@ -2263,4 +2263,123 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
     return areaInteriorContains(asConvexOperand(other));
 }
 
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes' interiors containing a
+// PolygonWithHoles.
+//
+// The argument of the forward block in contains.hpp carries over verbatim with
+// B replaced by B°, so again every shape but a Polyline answers the region as
+// it answers the region's outer polygon:
+//
+//   B° ⊇ A  ⟺  B° ⊇ outer.
+//
+// A ⊆ outer gives (⇐). For (⇒), A ⊇ ∂outer; a zero-area outer polygon *is*
+// ∂outer and carries no hole, so the two questions coincide; and otherwise
+// ∂outer is a Jordan curve, which an at most one-dimensional interior cannot
+// hold (both sides false) and a two-dimensional one holds together with
+// everything inside it, since the complement of B° is closed and connected for
+// every shape here.
+//
+// A Polyline is the exception for the same reason as there — it can close a
+// loop — and takes the same zero-area rewriting, edge by edge against its own
+// relative interior.
+
+template <class Number, class Label>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Point<Number, Label>::interiorContains(const OtherRegion& other) const {
+    // The interior of a point is the point itself.
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return asSegment().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    // The interior of a line is the line itself.
+    return contains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return asLine().interiorContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+// The exception; see the note above.
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (!other.isDegenerate()) {
+        return false;  // the region has area; the polyline has none
+    }
+    return detail::everyHoledRegionEdge(
+        other, [this](const auto& edge) { return this->interiorContains(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    return interiorContains(other.outer());
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherHoledRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorContains(const OtherHoledRegion& other) const {
+    return interiorContains(other.outer());
+}
+
 }  // namespace pgl
