@@ -70,6 +70,18 @@ static Polyline vChain() {
     return Polyline({Point(0, 0), Point(4, 6), Point(8, 0)});
 }
 
+// A U opening upward, as an area operand: the square [0,6]² with the notch
+// (2,4)×(2,6] cut out. The same fixture `polygonwithholes_minkowski.cpp` uses.
+static Polygon uShapePolygon() {
+    return Polygon({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6), Point(4, 2), Point(2, 2),
+                    Point(2, 6), Point(0, 6)});
+}
+
+// An L, as an area operand.
+static Polygon lShapePolygon() {
+    return Polygon({Point(0, 0), Point(6, 0), Point(6, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
+}
+
 // The boundary of the square [0,8]², traced once and closed: the first vertex
 // repeats as the last, which a polyline is free to do (it is then not simple).
 static Polyline closedChain() {
@@ -310,6 +322,53 @@ TEST_CASE("minkowskiSum: a single-edge chain answers as the convex merge does") 
     CHECK(straight[0].outer() == Segment(Point(0, 0), Point(5, 0)).minkowskiSum(t).asPolygon());
 }
 
+TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cavities") {
+    // The one non-convex operand a chain takes. A polygon that spells the same
+    // point set as a convex operand has to sum alike, whichever type carries it.
+    const Polyline chain = lChain();
+    CHECK(chain.minkowskiSum(box(0, 0, 1, 1)) ==
+          chain.minkowskiSum(Rectangle(Point(0, 0), Point(1, 1))));
+    CHECK(chain.minkowskiSum(Polygon({Point(0, 0), Point(2, 0), Point(0, 2)})) ==
+          chain.minkowskiSum(Triangle(Point(0, 0), Point(2, 0), Point(0, 2))));
+
+    // Written the other way round it is the same call: `Polygon` carries the
+    // mirror overload, so neither spelling is the privileged one.
+    CHECK(box(0, 0, 1, 1).minkowskiSum(chain) == chain.minkowskiSum(box(0, 0, 1, 1)));
+    CHECK(uShapePolygon().minkowskiSum(chain) == chain.minkowskiSum(uShapePolygon()));
+    CHECK(uShapePolygon().minkowskiSum<pgl::ERational>(chain) ==
+          chain.minkowskiSum<pgl::ERational>(uShapePolygon()));
+
+    // A chain with no bend is a segment, so a polygon swept along one must give
+    // what the polygon receiver already gives for the degenerate rectangle that
+    // covers the same segment -- code that predates the chain operand entirely.
+    const Polyline vertical({Point(0, 0), Point(0, 3)});
+    CHECK(uShapePolygon().minkowskiSum(vertical) ==
+          uShapePolygon().minkowskiSum(Rectangle(Point(0, 0), Point(0, 3))));
+
+    // Both operands non-convex: the chain's turns and the polygon's notch each
+    // reach around the other, and the answer still has one hole -- what the U
+    // sweeping the square's boundary cannot reach at the centre.
+    const auto both = closedChain().minkowskiSum(uShapePolygon());
+    REQUIRE(both.size() == 1);
+    CHECK(both[0].outer() == box(0, 0, 14, 14));
+    REQUIRE(both[0].holeCount() == 1);
+    CHECK(both[0].hole(0) == box(6, 6, 8, 8));
+    CHECK(both[0].twiceArea() == 2 * (196 - 4));
+
+    // A polygon with no area is a segment again: parallel to a straight chain the
+    // sum keeps nothing, across it the sweep is a parallelogram.
+    const Polygon flat({Point(0, 0), Point(4, 0)});
+    REQUIRE(flat.isDegenerate());
+    CHECK(Polyline({Point(0, 0), Point(3, 0)}).minkowskiSum(flat).empty());
+    const auto crossed = vertical.minkowskiSum(flat);
+    REQUIRE(crossed.size() == 1);
+    CHECK(crossed[0].outer() == box(0, 0, 4, 3));
+
+    // The empty polygon absorbs from either side.
+    CHECK(chain.minkowskiSum(Polygon()).empty());
+    CHECK(Polygon().minkowskiSum(chain).empty());
+}
+
 TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
     // The strong oracle: `p ∈ A ⊕ B ⟺ A ∩ (p − B) ≠ ∅`, answered by the library's
     // own `intersects` on a reflected, translated copy of `B`.
@@ -356,6 +415,19 @@ TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
     }
     checkAgainstDefinition(crossing, triangles[2], -4, 12);
     checkAgainstDefinition(doubled, triangles[2], -4, 12);
+
+    // The polygon summand, where both operands may be concave: the oracle is the
+    // only check that settles the interaction of the two concavities without
+    // reasoning about which piece sum covers what.
+    for (const Polygon& b : {box(0, 0, 2, 2), uShapePolygon(), lShapePolygon()}) {
+        for (const Polyline& a : {lChain(), uChain(), vChain()}) {
+            checkAgainstDefinition(a, b, -4, 16);
+        }
+        checkAgainstDefinition(closedChain(), b, -4, 18);
+        checkAgainstDefinition(crossing, b, -4, 16);
+    }
+    checkAgainstDefinition(openChain(1), uShapePolygon(), -4, 18);
+    checkAgainstDefinition(doubled, lShapePolygon(), -4, 16);
 }
 
 TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
@@ -406,6 +478,11 @@ TEST_CASE("minkowskiSum: shear invariance carries the answers off the axes") {
             CHECK(sheared(a, k).template minkowskiSum<pgl::ERational>(sheared(square, k)) ==
                   sheared(a.template minkowskiSum<pgl::ERational>(square), k));
         }
+
+        // The same for the polygon summand, whose notch the shear slants too.
+        const Polygon u = uShapePolygon();
+        CHECK(sheared(vChain(), k).template minkowskiSum<pgl::ERational>(sheared(u, k)) ==
+              sheared(vChain().template minkowskiSum<pgl::ERational>(u), k));
     }
 }
 
@@ -502,10 +579,10 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
 }
 
 TEST_CASE("minkowskiSum: the pairs a chain accepts") {
-    // The receiver has no area, so the operands are exactly the bounded shapes
-    // that have some. `MinkowskiSummableConcept` still rejects every one of those
-    // pairs -- it gates the sums that fit in a single shape -- and a `Point`
-    // operand still goes through it, giving back a translated `Polyline`.
+    // The receiver has no area, so the operands are exactly the shapes that have
+    // some. `MinkowskiSummableConcept` still rejects every one of those pairs --
+    // it gates the sums that fit in a single shape -- and a `Point` operand still
+    // goes through it, giving back a translated `Polyline`.
     static_assert(std::is_same_v<decltype(std::declval<const Polyline&>().minkowskiSum(
                                     std::declval<const Rectangle&>())),
                                 std::vector<Region>>);
@@ -515,21 +592,34 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(std::is_same_v<decltype(std::declval<const Polyline&>().minkowskiSum(
                                     std::declval<const Convex&>())),
                                 std::vector<Region>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Polyline&>().minkowskiSum(
+                                    std::declval<const Polygon&>())),
+                                std::vector<Region>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Polygon&>().minkowskiSum(
+                                    std::declval<const Polyline&>())),
+                                std::vector<Region>>);
     static_assert(std::is_same_v<decltype(std::declval<const Polyline&>()
                                               .minkowskiSum<pgl::ERational>(
                                                   std::declval<const Convex&>())),
                                 std::vector<pgl::PolygonWithHoles<EPoint>>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Polygon&>()
+                                              .minkowskiSum<pgl::ERational>(
+                                                  std::declval<const Polyline&>())),
+                                std::vector<pgl::PolygonWithHoles<EPoint>>>);
     static_assert(std::is_same_v<decltype(std::declval<const Polyline&>().minkowskiSum(
                                     std::declval<const Point&>())),
                                 Polyline>);
+    static_assert(!pgl::MinkowskiSummableConcept<Polyline, Polygon>);
 
     // Two operands without area between them have no sum at all, in any type: a
-    // second chain, a segment, a polygon whose sum with a chain no overload
-    // claims. `operator+` stays out of the region-valued case entirely.
+    // second chain, a segment. A `PolygonWithHoles` summand *would* sum with a
+    // chain -- the construction is the polygon one -- but no overload claims the
+    // pair, so it is a compile error rather than an answer. `operator+` stays out
+    // of the region-valued case entirely.
     static_assert(!summable<Polyline, Polyline>);
     static_assert(!summable<Polyline, Segment>);
-    static_assert(!summable<Polyline, Polygon>);
     static_assert(!summable<Polyline, Region>);
+    static_assert(!summable<Region, Polyline>);
     static_assert(!addable<Polyline, Rectangle>);
     static_assert(addable<Polyline, Point>);
 }

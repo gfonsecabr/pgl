@@ -1867,11 +1867,11 @@ struct Polyline {
      * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
      * sums a `Point` — a translation, giving back a `Polyline` — and nothing
      * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
-     * every other pair. The operands here are the bounded convex shapes that have
-     * area to sweep, and only those: summing two chains gives a set with no area
-     * for the regularization to keep, and a @ref Polygon or @ref PolygonWithHoles
-     * summand — whose sum with a chain a region would hold perfectly well — has no
-     * overload on either side and is a compile error.
+     * every other pair. The operands here are the shapes that have area for the
+     * chain to sweep: the three bounded convex ones and @ref Polygon. Summing two
+     * chains has no area for the regularization to keep and is a compile error, as
+     * is a @ref PolygonWithHoles summand, whose sum with a chain a region would
+     * hold perfectly well but which no overload claims.
      *
      * Complexity: one convex merge per edge of the polyline, then a constrained
      * triangulation over the arrangement of all of them.
@@ -1897,6 +1897,23 @@ struct Polyline {
     template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     minkowskiSum(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The one non-convex summand a chain takes: a `Polygon` reaches around the
+     * chain as readily as the chain bends around it, so here either operand's
+     * concavity can strand a cavity, where with a convex summand only the chain's
+     * turns can. It is decomposed the way the region-valued sums decompose it —
+     * the triangles of its triangulated domain, or its edges when it has no area —
+     * while the chain contributes its edges.
+     *
+     * Complexity: one convex merge per pair of chain edge and operand triangle,
+     * then a constrained triangulation over the arrangement of all of them.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolygon& other) const;
 
     /**
      * @brief Translates the polyline by the given point.
