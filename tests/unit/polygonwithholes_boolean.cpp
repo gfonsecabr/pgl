@@ -360,6 +360,46 @@ TEST_CASE("boolean operations accept every bounded shape with area") {
     CHECK(polygon.symmetricDifference(region) == Region(polygon).symmetricDifference(region));
 }
 
+TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region side") {
+    // The operations are symmetric, but only `Polygon` and `PolygonWithHoles`
+    // implement them. A shape of lower `shapeRank` -- a convex polygon, a
+    // triangle, a rectangle -- takes them by forwarding to the other operand,
+    // exactly as `intersection` does, so that writing the pair in either order
+    // is the same call.
+    const Region region = fixtures::annulus();
+    const Polygon polygon = box(2, 2, 10, 10);
+    const Convex convex(std::vector<Point>{Point(2, 2), Point(10, 2), Point(10, 10),
+                                           Point(2, 10)});
+    const Triangle triangle(Point(2, 2), Point(10, 2), Point(10, 10));
+    const Rectangle rectangle(Point(2, 2), Point(10, 10));
+
+    CHECK(convex.unionWith(polygon) == polygon.unionWith(convex));
+    CHECK(triangle.unionWith(polygon) == polygon.unionWith(triangle));
+    CHECK(rectangle.unionWith(polygon) == polygon.unionWith(rectangle));
+    CHECK(convex.unionWith(region) == region.unionWith(convex));
+    CHECK(triangle.unionWith(region) == region.unionWith(triangle));
+    CHECK(rectangle.unionWith(region) == region.unionWith(rectangle));
+
+    CHECK(convex.symmetricDifference(polygon) == polygon.symmetricDifference(convex));
+    CHECK(triangle.symmetricDifference(polygon) == polygon.symmetricDifference(triangle));
+    CHECK(rectangle.symmetricDifference(region) == region.symmetricDifference(rectangle));
+    CHECK(triangle.symmetricDifference(region) == region.symmetricDifference(triangle));
+
+    // `intersection` is the one whose two receivers answer differently:
+    // `Polygon::intersection` returns components, `PolygonWithHoles` returns
+    // regions. The region side owns the mixed pair, so a polygon receiver
+    // forwards to it and gets regions back rather than components.
+    CHECK(polygon.intersection(region) == region.intersection(polygon));
+    CHECK(triangle.intersection(region) == region.intersection(triangle));
+    static_assert(std::is_same_v<decltype(polygon.intersection(region)),
+                                 decltype(region.intersection(polygon))>);
+
+    // The requested result type travels through the forwarder untouched.
+    CHECK(triangle.unionWith<pgl::ERational>(region) == region.unionWith<pgl::ERational>(triangle));
+    static_assert(std::is_same_v<decltype(triangle.unionWith<pgl::ERational>(region)),
+                                 std::vector<ERegion>>);
+}
+
 TEST_CASE("boolean operations: exact instantiation over ERational operands") {
     const ERegion region(EPolygon({EPoint(0, 0), EPoint(12, 0), EPoint(12, 12), EPoint(0, 12)}),
                          std::vector<EPolygon>{EPolygon({EPoint(4, 4), EPoint(8, 4), EPoint(8, 8),

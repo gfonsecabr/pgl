@@ -165,6 +165,14 @@ The four boolean set operations on shapes with area all return a
 and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the bounded shapes with area. The union is a keyword in C++,
 hence `unionWith`.
 
+Three of the four are symmetric in their operands, and may be written in either
+order. A [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") receiver takes `unionWith`,
+`symmetricDifference` and `intersection` by forwarding them to the other
+operand, so `triangle.unionWith(polygon)` and `polygon.unionWith(triangle)` are
+the same call — each unordered pair is implemented once, on the shape that can
+represent the answer. `difference` is not symmetric and forwards nowhere: it
+stays on the two receivers above.
+
 ```c++
 pgl::Polygon<> square = {0,0, 10,0, 10,10, 0,10};
 auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
@@ -220,6 +228,11 @@ auto pieces = annulus.intersection(pgl::Rectangle(-5,-5, 20,20));
 // pieces.size() == 1, and pieces[0] == annulus — hole and all
 ```
 
+Which of the two answers a call is decided by the operands, not by the receiver:
+a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") operand pulls in the region-valued one whichever side it is
+written on, so `polygon.intersection(region)` forwards to
+`region.intersection(polygon)` and gives back regions rather than components.
+
 One further difference is worth knowing: `Polygon::intersection` computes in the
 result type, so an integral one truncates every crossing, while the region
 operations above never do.
@@ -274,7 +287,11 @@ auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
 ```
 
 The two overload sets never overlap: the pairs whose sum fits in a single shape
-are exactly the pairs listed above, and these take the rest. The result is a
+are exactly the pairs listed above, and these take the rest. Which one answers is
+again a question about the pair and not about the receiver — a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."),
+[`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") written on the left of a non-convex operand forwards to
+it, so `rectangle.minkowskiSum(polygon)` is `polygon.minkowskiSum(rectangle)`,
+while `rectangle.minkowskiSum(triangle)` is still the single-shape sum. The result is a
 *set* of regions because $A \oplus B$ is connected whenever both operands are, so
 it is one region unless its boundary pinches shut — which no single region may
 do. Like the boolean operations it is **regularized**, so a flat operand's sum

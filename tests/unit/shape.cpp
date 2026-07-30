@@ -1005,16 +1005,17 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
     REQUIRE(half.holdsAlternative<Region>());
     CHECK(Region(half).twiceArea() == 2 * (18 - 2));  // the lower half, minus half the hole
 
-    // The rank forwarders answer the same pair the other way round.
+    // The rank forwarders answer the same pair the other way round. A Polygon
+    // on the left forwards too, even though its own Polygon-valued
+    // intersection would otherwise have answered a lower-ranked operand.
     CHECK(Shape(Rectangle({0, 0}, {6, 3})).intersection(shape) == half);
     CHECK(Shape(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {6, 0}, {6, 3}, {0, 3}}))
               .intersection(shape) == half);
+    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection(shape) == half);
 
     // An intersection that comes apart has no single-Shape answer; neither has
-    // a pair with no overload — a Disk, or a Polygon on the left, whose own
-    // Polygon-valued intersection leaves no forwarder to reach the region's.
+    // a pair with no overload at all, such as a Disk.
     CHECK_THROWS_AS((void)shape.intersection(Shape(Rectangle({-1, 2}, {7, 4}))), std::logic_error);
-    CHECK_THROWS_AS((void)Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection(shape), std::logic_error);
     CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
