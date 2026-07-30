@@ -432,6 +432,35 @@ TEST_CASE("minkowskiSum: every operand type, on both receivers") {
     CHECK(both[0].holeCount() == 0);
 }
 
+TEST_CASE("minkowskiSum: a bounded convex receiver forwards to the region side") {
+    // Only `Polygon` and `PolygonWithHoles` carry the region-valued sum, so a
+    // convex operand written on the left forwards to them, as `intersection`
+    // does. The shape-valued sum is untouched by that: where
+    // `MinkowskiSummableConcept` accepts the pair, it still answers with a
+    // single shape.
+    const Polygon u = uShape();
+    const Region a = annulus();
+    const Rectangle rectangle(Point(0, 0), Point(2, 2));
+    const Triangle triangle(Point(0, 0), Point(2, 0), Point(0, 2));
+    const Convex convex(std::vector<Point>{Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
+
+    CHECK(rectangle.minkowskiSum(u) == u.minkowskiSum(rectangle));
+    CHECK(triangle.minkowskiSum(u) == u.minkowskiSum(triangle));
+    CHECK(convex.minkowskiSum(u) == u.minkowskiSum(convex));
+    CHECK(rectangle.minkowskiSum(a) == a.minkowskiSum(rectangle));
+    CHECK(triangle.minkowskiSum(a) == a.minkowskiSum(triangle));
+    CHECK(convex.minkowskiSum(a) == a.minkowskiSum(convex));
+
+    CHECK(triangle.minkowskiSum<pgl::ERational>(u) == u.minkowskiSum<pgl::ERational>(triangle));
+
+    // Two bounded convex operands still sum to one shape, not to a set of
+    // regions, and a point operand is still a translation.
+    static_assert(std::is_same_v<decltype(triangle.minkowskiSum(rectangle)), Convex>);
+    static_assert(std::is_same_v<decltype(rectangle.minkowskiSum(rectangle)), Rectangle>);
+    static_assert(std::is_same_v<decltype(convex.minkowskiSum(triangle)), Convex>);
+    static_assert(std::is_same_v<decltype(triangle.minkowskiSum(Point(1, 1))), Triangle>);
+}
+
 TEST_CASE("minkowskiSum: exact over rational coordinates") {
     const ERegion a(EPolygon({EPoint(0, 0), EPoint(8, 0), EPoint(8, 8), EPoint(0, 8)}),
                     std::vector<EPolygon>{

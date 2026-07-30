@@ -2127,6 +2127,25 @@ struct Polygon {
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRectangle& other) const;
 
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersection` defined only once, on the higher-ranked shape. The
+     * result is then the higher-ranked shape's: intersecting with a
+     * @ref PolygonWithHoles gives regions, not the component vector the
+     * polygon-polygon overload returns.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
