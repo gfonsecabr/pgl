@@ -260,7 +260,8 @@ A non-convex operand is where the sum needs a region: sliding a shape around the
 inside of a `C` sweeps out material that closes over a hole neither operand has.
 `Polygon` and `PolygonWithHoles` therefore carry a second `minkowskiSum`, against
 `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`, returning a
-`std::vector<PolygonWithHoles>` like the boolean operations above.
+`std::vector<PolygonWithHoles>` like the boolean operations above; so does
+`Polyline`, whose own operands are below.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
@@ -298,6 +299,29 @@ an exact `ResultNumber` unless you know the sum lands on the lattice.
 A region operand needs nothing special for its holes — they are simply where the
 decomposition has no piece — but its **slits** do sweep out area, so they are part
 of the decomposition too.
+
+A `Polyline` carries the same second `minkowskiSum`, against `Triangle`,
+`Rectangle` and `Convex` — the operands that have area to sweep. The chain has
+none of its own, and the sum still needs a region: dragging a shape along a chain
+that comes back on itself closes the swept material over a hole, and a closed
+chain is the plainest example there is.
+
+```c++
+pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
+auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
+// frame.size() == 1; its outer ring is (0,0)--(9,9) and it has one hole,
+// (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
+```
+
+Those three are the whole list. Two chains have no area between them, so
+`polyline + polyline` is no pair at all; a `Polygon` or `PolygonWithHoles` summand
+would sum with a chain perfectly well, but neither side carries the overload, so
+`polyline.minkowskiSum(polygon)` is a compile error too. So is a `MonotoneChain`
+receiver — `asPolyline()` converts one when its sum is wanted. What the
+regularization drops is also more visible here than on a receiver with area: a
+summand without any leaves nothing at all, so
+`polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
+as the translated chain, which is what the single-shape `polyline + point` is for.
 
 The remaining pairs are a compile error rather than an approximation: `Disk` sums
 to a rounded shape, and an unbounded operand (`Line`, `Ray`, `Halfplane`,

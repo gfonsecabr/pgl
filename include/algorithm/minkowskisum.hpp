@@ -39,6 +39,14 @@
  *   interior, and so is a sum with one — and drops the lower-dimensional parts
  *   otherwise, exactly as the boolean operations do.
  *
+ * A @ref pgl::Polyline receiver is the same construction with the same two
+ * consequences, and it is here for the same reason: a chain has no area, but
+ * dragging a shape that has some along one sweeps out material that closes over
+ * a hole as readily as a `C` does — a closed chain is the plainest example there
+ * is. It takes only the three operands that have area to sweep (`Triangle`,
+ * `Rectangle`, `Convex`), since two chains sum to something the regularization
+ * empties; being its own boundary, its decomposition is its edges.
+ *
  * Exactness follows the same rule as `booleans.hpp`: every vertex of every
  * convex piece sum is a sum of two input vertices, so the pieces are exact in
  * the operands' promoted coordinate type; only the union of them can put a
@@ -73,6 +81,12 @@ namespace detail {
  *
  * Missing either of those would silently shrink the sum, since a slit sweeps
  * out area as readily as a triangle does.
+ *
+ * A @ref Polyline is the first case by construction — it never has area — so its
+ * edges are its decomposition, one convex piece each. Its vertex *set* is not:
+ * the hull of the vertices is the answer only for a convex operand, and a chain
+ * that bends is not one. A polyline of a single vertex has no edge and is that
+ * vertex, which is the one shape whose decomposition is a lone point.
  */
 template <class Shape>
 std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape& shape) {
@@ -108,6 +122,16 @@ std::vector<Convex<typename Shape::PointType>> minkowskiConvexPieces(const Shape
             for (const auto& slit : regionSlits(shape)) {
                 addEdge(slit);
             }
+        }
+    } else if constexpr (is_polyline_v<Shape>) {
+        // A chain of one vertex covers that vertex and has no edge to say so
+        // with; every other chain is exactly the union of its edges, zero-length
+        // ones included (the Graham scan prunes those to a point).
+        if (shape.size() == 1) {
+            add({shape[0]});
+        }
+        for (const auto& edge : shape.edgesView()) {
+            add({edge.min(), edge.max()});
         }
     } else {
         std::vector<ShapePoint> vertices;
@@ -165,8 +189,9 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
 
 // -----------------------------------------------------------------------------
 // Out-of-line: the region-valued Minkowski sums are declared in
-// shape/polygon.hpp and shape/polygonwithholes.hpp, which precede this header in
-// the layering, but they can only be defined once Triangulation is visible.
+// shape/polyline.hpp, shape/polygon.hpp and shape/polygonwithholes.hpp, which
+// precede this header in the layering, but they can only be defined once
+// Triangulation is visible.
 
 #define PGL_DEFINE_REGION_MINKOWSKI_SUM(RECEIVER, CONCEPT, OPERAND)                        \
     template <class PointType_, class TLabel>                                              \
@@ -188,6 +213,12 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, ConvexConcept, OtherConvex)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, TriangleConcept, OtherTriangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, RectangleConcept, OtherRectangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonWithHolesConcept, OtherRegion)
+
+// A Polyline has no area, so it takes only the operands that have some: summing
+// it with another chain would give a set the regularization empties.
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, ConvexConcept, OtherConvex)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, TriangleConcept, OtherTriangle)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, RectangleConcept, OtherRectangle)
 
 #undef PGL_DEFINE_REGION_MINKOWSKI_SUM
 

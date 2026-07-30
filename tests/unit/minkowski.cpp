@@ -318,14 +318,18 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(!summable<pgl::Disk<>, pgl::Disk<>>);
     static_assert(!summable<pgl::Disk<>, pgl::Triangle<>>);
 
-    // Non-convex operands with no area to fill: still no sum at all.
+    // Two operands with no area between them: nothing fills, so there is no sum
+    // at all -- neither one shape nor a region.
     static_assert(!summable<pgl::Polyline<>, pgl::Segment<>>);
+    static_assert(!summable<pgl::Polyline<>, pgl::Polyline<>>);
     static_assert(!summable<pgl::MonotoneChain<>, pgl::Segment<>>);
+    static_assert(!summable<pgl::MonotoneChain<>, pgl::Triangle<>>);
 
-    // A non-convex *area* operand is the exception, and it is not a widening of
-    // this concept: its sum can enclose a hole, so it is a set of regions rather
-    // than one shape and lives in a separate overload set on `Polygon` and
-    // `PolygonWithHoles` (see polygonwithholes_minkowski.cpp). `summable` sees
+    // A non-convex operand summed with one that *has* area is the exception, and
+    // it is not a widening of this concept: the sum can enclose a hole, so it is
+    // a set of regions rather than one shape and lives in a separate overload set
+    // on `Polygon`, `PolygonWithHoles` and `Polyline` (see
+    // polygonwithholes_minkowski.cpp and polyline_minkowski.cpp). `summable` sees
     // it because it asks only whether the call compiles.
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polygon<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polygon<>, pgl::Triangle<>>);
@@ -333,6 +337,18 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
         std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum(
                            std::declval<const pgl::Triangle<>&>())),
                        std::vector<pgl::PolygonWithHoles<Point>>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Polyline<>, pgl::Triangle<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::Triangle<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::Rectangle<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::Convex<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum(
+                           std::declval<const pgl::Rectangle<>&>())),
+                       std::vector<pgl::PolygonWithHoles<Point>>>);
+    // The polyline itself is not an area operand, so it is not admitted where one
+    // is: a polygon summand has no overload to answer with.
+    static_assert(!summable<pgl::Polyline<>, pgl::Polygon<>>);
+    static_assert(!summable<pgl::Polygon<>, pgl::Polyline<>>);
 
     // Translation stays available for all of them.
     static_assert(summable<pgl::Halfplane<>, Point>);
@@ -345,6 +361,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     // sum -- and it stays out of the region-valued case, whose result no single
     // shape can hold.
     static_assert(!addable<pgl::Polygon<>, pgl::Triangle<>>);
+    static_assert(!addable<pgl::Polyline<>, pgl::Rectangle<>>);
     static_assert(!addable<pgl::Segment<>, int>);
     static_assert(addable<pgl::Segment<>, pgl::Triangle<>>);
     static_assert(addable<pgl::Polygon<>, Point>);

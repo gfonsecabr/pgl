@@ -1848,6 +1848,57 @@ struct Polyline {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
+     * and returned as a set of regions with pairwise disjoint interiors. A
+     * polyline has no area of its own, but sweeping a shape with area along it
+     * does: the chain is one-dimensional and may bend back on itself, so the
+     * swept material can close over a hole — a closed chain is the plainest
+     * example, and an open one whose ends come within the summand's reach of each
+     * other does it too — and no other shape in the library can say so.
+     *
+     * The sum of two connected shapes is connected, and a polyline is connected,
+     * so the answer is a single region unless its boundary pinches shut — which a
+     * region may not do, since its outer ring may not touch itself. It is empty
+     * only when an operand is empty or the sum has no area at all (a summand
+     * collapsed to a point or to a segment parallel to a straight polyline).
+     *
+     * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
+     * sums a `Point` — a translation, giving back a `Polyline` — and nothing
+     * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
+     * every other pair. The operands here are the bounded convex shapes that have
+     * area to sweep, and only those: summing two chains gives a set with no area
+     * for the regularization to keep, and a @ref Polygon or @ref PolygonWithHoles
+     * summand — whose sum with a chain a region would hold perfectly well — has no
+     * overload on either side and is a compile error.
+     *
+     * Complexity: one convex merge per edge of the polyline, then a constrained
+     * triangulation over the arrangement of all of them.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     * @note Every vertex of every piece sum is a sum of two input vertices, so
+     *       the pieces are exact; only their union can put a vertex at a
+     *       crossing, and that arrangement is built over exact rationals and
+     *       converted to @p ResultNumber only at the end.
+     */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /**
      * @brief Translates the polyline by the given point.
      *
      * Complexity: O(1).
