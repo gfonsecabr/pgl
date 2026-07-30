@@ -43,9 +43,9 @@
  * consequences, and it is here for the same reason: a chain has no area, but
  * dragging a shape that has some along one sweeps out material that closes over
  * a hole as readily as a `C` does — a closed chain is the plainest example there
- * is. It takes only the three operands that have area to sweep (`Triangle`,
- * `Rectangle`, `Convex`), since two chains sum to something the regularization
- * empties; being its own boundary, its decomposition is its edges.
+ * is. It takes the four operands that have area to sweep (`Triangle`,
+ * `Rectangle`, `Convex`, `Polygon`), since two chains sum to something the
+ * regularization empties; being its own boundary, its decomposition is its edges.
  *
  * Exactness follows the same rule as `booleans.hpp`: every vertex of every
  * convex piece sum is a sum of two input vertices, so the pieces are exact in
@@ -219,6 +219,13 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonWithHolesConcept, Other
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, ConvexConcept, OtherConvex)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, TriangleConcept, OtherTriangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, RectangleConcept, OtherRectangle)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonConcept, OtherPolygon)
+
+// The chain-polygon pair, mirrored so that neither spelling is the privileged
+// one, exactly as `Polygon` and `PolygonWithHoles` mirror theirs. The two calls
+// build the same piece sums and take the same union, so they agree by
+// construction rather than by a forwarding hop.
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, PolylineConcept, OtherPolyline)
 
 #undef PGL_DEFINE_REGION_MINKOWSKI_SUM
 

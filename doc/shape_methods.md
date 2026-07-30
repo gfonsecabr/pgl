@@ -320,10 +320,10 @@ decomposition has no piece — but its **slits** do sweep out area, so they are 
 of the decomposition too.
 
 A [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") carries the same second `minkowskiSum`, against [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices."),
-[`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") and [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") — the operands that have area to sweep. The chain has
-none of its own, and the sum still needs a region: dragging a shape along a chain
-that comes back on itself closes the swept material over a hole, and a closed
-chain is the plainest example there is.
+[`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") and [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") — the operands that have area to sweep. The
+chain has none of its own, and the sum still needs a region: dragging a shape
+along a chain that comes back on itself closes the swept material over a hole, and
+a closed chain is the plainest example there is.
 
 ```c++
 pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
@@ -332,13 +332,22 @@ auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
 // (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
 ```
 
-Those three are the whole list. Two chains have no area between them, so
-`polyline + polyline` is no pair at all; a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") or [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") summand
-would sum with a chain perfectly well, but neither side carries the overload, so
-`polyline.minkowskiSum(polygon)` is a compile error too. So is a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.")
-receiver — `asPolyline()` converts one when its sum is wanted. What the
-regularization drops is also more visible here than on a receiver with area: a
-summand without any leaves nothing at all, so
+The [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") operand is the one where *both* sides may be concave, so either
+one's concavity can strand a cavity; it is written in either order, since [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.")
+carries the mirror overload and `polygon.minkowskiSum(polyline)` is the same call:
+
+```c++
+pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});   // a U
+auto swept = square.minkowskiSum(u);            // == u.minkowskiSum(square)
+// swept.size() == 1; outer ring (0,0)--(14,14), one hole, (6,6)--(8,8)
+```
+
+Those four are the whole list. Two chains have no area between them, so
+`polyline + polyline` is no pair at all; a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") summand would sum
+with a chain perfectly well, but no overload claims that pair, so it is a compile
+error. So is a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") receiver — `asPolyline()` converts one when its sum
+is wanted. What the regularization drops is also more visible here than on a
+receiver with area: a summand without any leaves nothing at all, so
 `polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
 as the translated chain, which is what the single-shape `polyline + point` is for.
 

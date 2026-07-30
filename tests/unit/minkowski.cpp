@@ -345,10 +345,13 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
         std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum(
                            std::declval<const pgl::Rectangle<>&>())),
                        std::vector<pgl::PolygonWithHoles<Point>>>);
-    // The polyline itself is not an area operand, so it is not admitted where one
-    // is: a polygon summand has no overload to answer with.
-    static_assert(!summable<pgl::Polyline<>, pgl::Polygon<>>);
-    static_assert(!summable<pgl::Polygon<>, pgl::Polyline<>>);
+    // A polygon summand has area to sweep, so it is admitted too -- from either
+    // side, since `Polygon` carries the mirror overload. A region summand does not
+    // yet: the pair is a compile error rather than an answer.
+    static_assert(summable<pgl::Polyline<>, pgl::Polygon<>>);
+    static_assert(summable<pgl::Polygon<>, pgl::Polyline<>>);
+    static_assert(!summable<pgl::Polyline<>, pgl::PolygonWithHoles<>>);
+    static_assert(!summable<pgl::PolygonWithHoles<>, pgl::Polyline<>>);
 
     // Translation stays available for all of them.
     static_assert(summable<pgl::Halfplane<>, Point>);
