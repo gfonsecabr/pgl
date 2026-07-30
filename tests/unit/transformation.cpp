@@ -87,6 +87,40 @@ TEST_CASE("A Polygon re-normalizes after an orientation-reversing transform") {
     CHECK_FALSE(reflected.contains(Point<int>(2, 2)));
 }
 
+TEST_CASE("A PolygonWithHoles maps every ring and re-normalizes") {
+    using Polygon = pgl::Polygon<Point<int>>;
+    using Region = pgl::PolygonWithHoles<Point<int>>;
+
+    const Region annulus(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                         std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
+
+    // A unimodular shear keeps every area and every ring, so the region keeps
+    // its hole and its measure.
+    const Transformation<int> shear(1, 0, 1, 1, 0, 0);
+    const auto sheared = shear * annulus;
+    CHECK(sheared.holeCount() == 1);
+    CHECK(sheared.twiceArea() == annulus.twiceArea());
+    CHECK(sheared.isValid());
+    CHECK(sheared.contains(Point<int>(1, 2)));    // the image of (1,1)
+    CHECK_FALSE(sheared.contains(Point<int>(3, 6)));  // the image of (3,3), in the hole
+
+    // An orientation-reversing map reflects both rings; each ring's own
+    // constructor rewinds it, and the region re-sorts its holes.
+    const auto reflected = Transformation<int>::reflectionX() * annulus;
+    CHECK(reflected.holeCount() == 1);
+    CHECK(reflected.isValid());
+    CHECK(reflected.contains(Point<int>(1, -1)));
+    CHECK_FALSE(reflected.contains(Point<int>(3, -3)));
+    CHECK((Transformation<int>::reflectionX() * reflected) == annulus);
+
+    // A singular map collapses the region onto a line, where no ring keeps its
+    // area and the holes are dropped.
+    const auto collapsed = Transformation<int>::scaling(1, 0) * annulus;
+    CHECK(collapsed.holeCount() == 0);
+    CHECK(collapsed.twiceArea() == 0);
+    CHECK(collapsed.isDegenerate());
+}
+
 TEST_CASE("A HalfplaneIntersection re-normalizes after an orientation-reversing transform") {
     using Halfplane = pgl::Halfplane<Point<int>>;
     using Region = pgl::HalfplaneIntersection<Point<int>>;

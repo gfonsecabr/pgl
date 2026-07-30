@@ -447,3 +447,92 @@ TEST_CASE("Canvas renders a Polyline as an open polyline") {
     CHECK(svg.find("<polygon") == std::string::npos);   // never closed or filled
     CHECK(svg.find("<title>Polyline[(0,0),(4,4),(4,0),(0,4)]</title>") != std::string::npos);
 }
+
+TEST_CASE("Canvas renders a PolygonWithHoles as one even-odd path per ring") {
+    const std::string path = "build/tests/output/polygonwithholes_canvas.svg";
+
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const Region annulus(Polygon({0, 0, 8, 0, 8, 8, 0, 8}),
+                         std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4}),
+                                              Polygon({5, 5, 7, 5, 7, 7, 5, 7})});
+    const Region plain(Polygon({12, 0, 16, 0, 16, 4, 12, 4}));
+
+    pgl::Canvas canvas;
+    canvas << pgl::stroke("navy")
+           << pgl::fill("skyblue")
+           << pgl::fillOpacity("0.4")
+           << annulus
+           << pgl::Shape<Point>(plain);
+    canvas.writeSVG(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+    const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    // One <path> per region, with the holes as extra closed subpaths and the
+    // even-odd rule that punches them out.
+    CHECK(svg.find("fill-rule=\"evenodd\"") != std::string::npos);
+    CHECK(svg.find("<polygon") == std::string::npos);
+    CHECK(svg.find("fill=\"skyblue\"") != std::string::npos);
+    CHECK(svg.find("<title>PolygonWithHoles[Polygon[(0,0),(8,0),(8,8),(0,8)],"
+                   "Polygon[(2,2),(4,2),(4,4),(2,4)],Polygon[(5,5),(7,5),(7,7),(5,7)]]</title>") !=
+          std::string::npos);
+    CHECK(svg.find("<title>PolygonWithHoles[Polygon[(12,0),(16,0),(16,4),(12,4)]]</title>") !=
+          std::string::npos);
+
+    // Three rings on the annulus and one on the hole-free region: four
+    // subpaths, each opened by an M and closed by a Z.
+    const auto count = [&svg](const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = svg.find(needle); at != std::string::npos; at = svg.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+    CHECK(count("M ") == 4);
+    CHECK(count(" Z") == 4);
+
+    // A hole winds against the outer ring, so the two rules agree: the hole's
+    // first vertex (2,4) in world coordinates trails its predecessor (2,2) in
+    // the stored ring but leads it here.
+    const std::size_t firstPath = svg.find("<path d=\"");
+    REQUIRE(firstPath != std::string::npos);
+    const std::string first = svg.substr(firstPath, svg.find("</path>", firstPath) - firstPath);
+    CHECK(first.find("M ") < first.find(" Z"));
+    CHECK(first.find("fill-rule") != std::string::npos);
+
+    // The empty region draws nothing at all.
+    pgl::Canvas emptyCanvas;
+    emptyCanvas << pgl::Point<int>(0, 0) << Region();
+    const std::string emptyPath = "build/tests/output/polygonwithholes_empty_canvas.svg";
+    emptyCanvas.writeSVG(emptyPath);
+    std::ifstream emptyInput(emptyPath);
+    REQUIRE(emptyInput.good());
+    const std::string emptySVG((std::istreambuf_iterator<char>(emptyInput)), std::istreambuf_iterator<char>());
+    CHECK(emptySVG.find("<path") == std::string::npos);
+
+    // PDF and Ipe take the region too, one subpath per ring in both.
+    canvas.writePDF("build/tests/output/polygonwithholes_canvas.pdf");
+    canvas.writeIPE("build/tests/output/polygonwithholes_canvas.ipe");
+    std::ifstream pdfInput("build/tests/output/polygonwithholes_canvas.pdf", std::ios::binary);
+    REQUIRE(pdfInput.good());
+    const std::string pdf((std::istreambuf_iterator<char>(pdfInput)), std::istreambuf_iterator<char>());
+    CHECK(pdf.rfind("%PDF-", 0) == 0);
+    std::ifstream ipeInput("build/tests/output/polygonwithholes_canvas.ipe");
+    REQUIRE(ipeInput.good());
+    const std::string ipe((std::istreambuf_iterator<char>(ipeInput)), std::istreambuf_iterator<char>());
+    CHECK(ipe.find("</ipe>") != std::string::npos);
+
+    // The annulus is one Ipe path holding three "m" subpath openers.
+    const std::size_t ipePath = ipe.find("<path");
+    REQUIRE(ipePath != std::string::npos);
+    const std::string ipeFirst = ipe.substr(ipePath, ipe.find("</path>", ipePath) - ipePath);
+    std::size_t movers = 0;
+    for (std::size_t at = ipeFirst.find(" m\n"); at != std::string::npos; at = ipeFirst.find(" m\n", at + 1)) {
+        ++movers;
+    }
+    CHECK(movers == 3);
+}
