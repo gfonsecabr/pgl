@@ -37,8 +37,9 @@
  * The **non-convex** sums are not here, and are not a widening of that concept:
  * a sum that can enclose a hole is a set of regions rather than a shape, so it
  * needs a triangulation and the boolean engine and lives in
- * `algorithm/minkowskisum.hpp`, as an overload set on @ref pgl::Polygon and
- * @ref pgl::PolygonWithHoles over exactly the pairs this file turns away.
+ * `algorithm/minkowskisum.hpp`, as an overload set on @ref pgl::Polygon,
+ * @ref pgl::PolygonWithHoles and @ref pgl::Polyline over exactly the pairs this
+ * file turns away.
  */
 
 #include <algorithm>
@@ -406,6 +407,7 @@ PGL_DEFINE_MINKOWSKI_SUM(Disk)
 PGL_DEFINE_MINKOWSKI_SUM(Convex)
 PGL_DEFINE_MINKOWSKI_SUM(Polygon)
 PGL_DEFINE_MINKOWSKI_SUM(Polyline)
+PGL_DEFINE_MINKOWSKI_SUM(PolygonWithHoles)
 PGL_DEFINE_MINKOWSKI_SUM(HalfplaneIntersection)
 
 #undef PGL_DEFINE_MINKOWSKI_SUM
