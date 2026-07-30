@@ -172,7 +172,7 @@ represent the answer. `difference` is not symmetric and forwards nowhere: it
 stays on the two receivers above.
 
 ```c++
-pgl::Polygon<> square = {0,0, 10,0, 10,10, 0,10};
+pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
 auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
 // pieces.size() == 1, one region whose outer ring is the square
 // and whose single hole is the rectangle
@@ -221,7 +221,8 @@ their own. So `Polygon::intersection` loses nothing by returning plain polygons,
 and a region's intersection genuinely needs a region:
 
 ```c++
-pgl::PolygonWithHoles<> annulus(square, {pgl::Polygon<>{4,4, 8,4, 8,8, 4,8}});
+pgl::Polygon<> hole({4,4, 8,4, 8,8, 4,8});
+pgl::PolygonWithHoles<> annulus(square, std::vector{hole});
 auto pieces = annulus.intersection(pgl::Rectangle(-5,-5, 20,20));
 // pieces.size() == 1, and pieces[0] == annulus — hole and all
 ```
@@ -278,7 +279,7 @@ inside of a `C` sweeps out material that closes over a hole neither operand has.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
-pgl::Polygon<> c = {0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8};
+pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
 auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
 // plugged.size() == 1; its outer ring is (0,0)--(10,10) and it has one hole,
 // (4,4)--(6,6) — the cavity, stranded once the two-unit cut is closed.
@@ -305,7 +306,7 @@ input never has; here they are crossings between two piece sums, which two
 perfectly ordinary integer operands can produce on their own:
 
 ```c++
-pgl::Polygon<> u = {0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6};   // a U
+pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});    // a U
 u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // notch tip truncated
 u.minkowskiSum<pgl::ERational>(pgl::Triangle(-2,-1, 2,0, 0,2)); // tip at (16/5, 34/5)
 ```
