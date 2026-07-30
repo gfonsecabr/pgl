@@ -706,6 +706,18 @@ struct PolygonWithHoles {
     minkowskiSum(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * A `Polyline` summand has no area, but this region sweeps along it all the
+     * same, so the sum is a region like every other one here. This is the mirror
+     * of @ref Polyline::minkowskiSum(const OtherRegion&) const and gives the same
+     * answer: which operand is written first never decides which sum answers.
+     */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolyline& other) const;
+
+    /**
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a `Point`

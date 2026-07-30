@@ -318,11 +318,12 @@ A region operand needs nothing special for its holes — they are simply where t
 decomposition has no piece — but its **slits** do sweep out area, so they are part
 of the decomposition too.
 
-A `Polyline` carries the same second `minkowskiSum`, against `Triangle`,
-`Rectangle`, `Convex` and `Polygon` — the operands that have area to sweep. The
-chain has none of its own, and the sum still needs a region: dragging a shape
-along a chain that comes back on itself closes the swept material over a hole, and
-a closed chain is the plainest example there is.
+A `Polyline` carries the same second `minkowskiSum`, against the same five
+operands — `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`,
+every bounded shape with area to sweep. The chain has none of its own, and the sum
+still needs a region: dragging a shape along a chain that comes back on itself
+closes the swept material over a hole, and a closed chain is the plainest example
+there is.
 
 ```c++
 pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
@@ -331,9 +332,9 @@ auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
 // (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
 ```
 
-The `Polygon` operand is the one where *both* sides may be concave, so either
-one's concavity can strand a cavity; it is written in either order, since `Polygon`
-carries the mirror overload and `polygon.minkowskiSum(polyline)` is the same call:
+The two non-convex operands are where *both* sides may be concave, so either one's
+concavity can strand a cavity; either order spells the same call, since `Polygon`
+and `PolygonWithHoles` carry the mirror overload:
 
 ```c++
 pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});   // a U
@@ -341,14 +342,19 @@ auto swept = square.minkowskiSum(u);            // == u.minkowskiSum(square)
 // swept.size() == 1; outer ring (0,0)--(14,14), one hole, (6,6)--(8,8)
 ```
 
-Those four are the whole list. Two chains have no area between them, so
-`polyline + polyline` is no pair at all; a `PolygonWithHoles` summand would sum
-with a chain perfectly well, but no overload claims that pair, so it is a compile
-error. So is a `MonotoneChain` receiver — `asPolyline()` converts one when its sum
-is wanted. What the regularization drops is also more visible here than on a
-receiver with area: a summand without any leaves nothing at all, so
+A region operand behaves here as it does on the receivers above — its holes are
+where its decomposition has no piece, and its slits sweep out area along the chain
+like anything else. That is where the regularization becomes visible, because a
+chain can drag a slit *along its own direction*: the sweep is then a segment, part
+of $A \oplus B$ that no region may keep, so the answer is smaller than the point
+set. The same contract shows up more plainly still in a summand with no area at
+all, which leaves nothing to keep:
 `polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
 as the translated chain, which is what the single-shape `polyline + point` is for.
+
+Those five are the whole list. Two chains have no area between them, so `polyline +
+polyline` is no pair at all, and neither is a `MonotoneChain` receiver —
+`asPolyline()` converts one when its sum is wanted.
 
 The remaining pairs are a compile error rather than an approximation: `Disk` sums
 to a rounded shape, and an unbounded operand (`Line`, `Ray`, `Halfplane`,
