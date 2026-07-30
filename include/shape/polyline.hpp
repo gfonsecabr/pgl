@@ -1867,11 +1867,10 @@ struct Polyline {
      * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
      * sums a `Point` — a translation, giving back a `Polyline` — and nothing
      * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
-     * every other pair. The operands here are the shapes that have area for the
-     * chain to sweep: the three bounded convex ones and @ref Polygon. Summing two
-     * chains has no area for the regularization to keep and is a compile error, as
-     * is a @ref PolygonWithHoles summand, whose sum with a chain a region would
-     * hold perfectly well but which no overload claims.
+     * every other pair. The operands here are every bounded shape that has area
+     * for the chain to sweep — the three convex ones, @ref Polygon and
+     * @ref PolygonWithHoles — and nothing else: summing two chains has no area for
+     * the regularization to keep, so that pair is a compile error.
      *
      * Complexity: one convex merge per edge of the polyline, then a constrained
      * triangulation over the arrangement of all of them.
@@ -1914,6 +1913,28 @@ struct Polyline {
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     minkowskiSum(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * A region summand brings what it brings to every sum: its holes need no
+     * handling, being simply where its decomposition has no piece, while its
+     * **slits** do — a stretch of boundary two of its rings share carries no area
+     * beside it and yet sweeps out area along the chain exactly as a triangle
+     * does, so it joins the decomposition.
+     *
+     * The one case worth knowing is a slit the chain drags *along the slit's own
+     * direction*: that sweep is a segment, so the regularization drops it and the
+     * answer is strictly smaller than `A ⊕ B`. It is the same rule that makes a
+     * summand with no area at all come back empty, and it is reachable here from a
+     * perfectly ordinary rectilinear region and chain.
+     *
+     * Complexity: one convex merge per pair of chain edge and operand piece, then
+     * a constrained triangulation over the arrangement of all of them.
+     */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRegion& other) const;
 
     /**
      * @brief Translates the polyline by the given point.

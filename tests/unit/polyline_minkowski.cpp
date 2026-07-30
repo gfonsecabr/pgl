@@ -82,6 +82,25 @@ static Polygon lShapePolygon() {
     return Polygon({Point(0, 0), Point(6, 0), Point(6, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
 }
 
+// The square annulus, as a region: the one operand with a hole of its own.
+static Region annulusRegion() {
+    return Region(box(0, 0, 8, 8), std::vector<Polygon>{box(2, 2, 6, 6)});
+}
+
+// `[0,8]² ∖ (0,4)²` written as a region whose hole shares two edges with the outer
+// ring. Those two shared stretches are slits -- region material with no area
+// beside it -- and they sweep out area along a chain like anything else.
+static Region slitRegion() {
+    return Region(box(0, 0, 8, 8), std::vector<Polygon>{box(0, 0, 4, 4)});
+}
+
+// The same point set as `slitRegion()` minus its slits: the closure of its
+// interior, which has exactly the triangles the region's domain has and none of
+// the slits. What the two sums differ by is what the slits sweep.
+static Polygon slitFreeL() {
+    return Polygon({Point(4, 0), Point(8, 0), Point(8, 8), Point(0, 8), Point(0, 4), Point(4, 4)});
+}
+
 // The boundary of the square [0,8]², traced once and closed: the first vertex
 // repeats as the last, which a polyline is free to do (it is then not simple).
 static Polyline closedChain() {
@@ -369,6 +388,81 @@ TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cav
     CHECK(Polygon().minkowskiSum(chain).empty());
 }
 
+TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") {
+    const Region a = annulusRegion();
+    const Polyline unitChain({Point(0, 0), Point(1, 0)});
+
+    // A chain of one horizontal unit covers exactly what the degenerate rectangle
+    // `(0,0)--(1,0)` covers, so the answer must be the one the region receiver
+    // already gives for that rectangle -- code that predates the chain operand.
+    // The cavity is eroded from the left only, as it is there.
+    const auto slid = a.minkowskiSum(unitChain);
+    REQUIRE(slid.size() == 1);
+    CHECK(slid[0].outer() == box(0, 0, 9, 8));
+    REQUIRE(slid[0].holeCount() == 1);
+    CHECK(slid[0].hole(0) == box(3, 2, 6, 6));
+    CHECK(slid == a.minkowskiSum(Rectangle(Point(0, 0), Point(1, 0))));
+
+    // Either order, and the same in an exact result type.
+    CHECK(unitChain.minkowskiSum(a) == slid);
+    CHECK(a.minkowskiSum<pgl::ERational>(unitChain) ==
+          unitChain.minkowskiSum<pgl::ERational>(a));
+
+    // A closed unit chain erodes the cavity from all four sides at once.
+    const auto framed =
+        a.minkowskiSum(Polyline({Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1), Point(0, 0)}));
+    REQUIRE(framed.size() == 1);
+    CHECK(framed[0].outer() == box(0, 0, 9, 9));
+    REQUIRE(framed[0].holeCount() == 1);
+    CHECK(framed[0].hole(0) == box(3, 3, 6, 6));
+
+    // A chain long enough to reach across the cavity closes it entirely.
+    const auto closed = a.minkowskiSum(Polyline({Point(0, 0), Point(4, 0), Point(4, 4)}));
+    REQUIRE(closed.size() == 1);
+    CHECK(closed[0].holeCount() == 0);
+
+    // The slits. Dragged along a diagonal chain, the two stretches the hole shares
+    // with the outer ring sweep out two parallelograms at the notch's corner, and
+    // those turn the notch into a genuine hole. The slit-free polygon covering the
+    // same area has neither the extra material nor the hole, so this is what a
+    // decomposition stopping at the triangulated domain would get wrong.
+    const Polyline diagonal({Point(0, 0), Point(1, 1)});
+    const auto swept = slitRegion().minkowskiSum(diagonal);
+    REQUIRE(swept.size() == 1);
+    REQUIRE(swept[0].holeCount() == 1);
+    CHECK(swept[0].hole(0) == box(1, 1, 4, 4));
+    CHECK(swept[0].twiceArea() == 142);
+
+    const auto withoutSlits = slitFreeL().minkowskiSum(diagonal);
+    REQUIRE(withoutSlits.size() == 1);
+    CHECK(withoutSlits[0].holeCount() == 0);
+    CHECK(withoutSlits[0].twiceArea() == 128);
+    // The two points the slits alone reach.
+    for (const Point& p : {Point(1, 0), Point(0, 1)}) {
+        INFO("slit-swept point " << p);
+        CHECK(swept[0].contains(p));
+        CHECK_FALSE(withoutSlits[0].contains(p));
+    }
+
+    // A slit whose direction the chain shares sweeps out nothing, and the
+    // regularization drops it: the vertical slit `(0,0)--(0,4)` dragged along a
+    // vertical chain is a segment, a genuine part of the point set that no region
+    // may keep. So (0,2) is in `A ⊕ B` and not in the answer -- the same contract
+    // that makes a point summand come back empty.
+    const auto vertical = slitRegion().minkowskiSum(Polyline({Point(0, 0), Point(0, 1)}));
+    REQUIRE(vertical.size() == 1);
+    CHECK(vertical[0].holeCount() == 0);
+    CHECK(vertical[0].twiceArea() == 120);
+    CHECK(inSumByDefinition(Polyline({Point(0, 0), Point(0, 1)}), slitRegion(), Point(0, 2)));
+    CHECK_FALSE(inResult(vertical, Point(0, 2)));
+    // The horizontal slit is across that chain, so its own sweep survives.
+    CHECK(inResult(vertical, Point(2, 0)));
+
+    // The empty region absorbs from either side.
+    CHECK(unitChain.minkowskiSum(Region()).empty());
+    CHECK(Region().minkowskiSum(unitChain).empty());
+}
+
 TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
     // The strong oracle: `p ∈ A ⊕ B ⟺ A ∩ (p − B) ≠ ∅`, answered by the library's
     // own `intersects` on a reflected, translated copy of `B`.
@@ -428,6 +522,24 @@ TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
     }
     checkAgainstDefinition(openChain(1), uShapePolygon(), -4, 18);
     checkAgainstDefinition(doubled, lShapePolygon(), -4, 16);
+
+    // The region summand. The annulus is the closure of its own interior, so the
+    // sum is regular closed whatever the chain is and the oracle settles every
+    // point of it, cavity included.
+    for (const Polyline& a : {lChain(), vChain(), closedChain(), crossing}) {
+        checkAgainstDefinition(a, annulusRegion(), -4, 18);
+    }
+
+    // The slitted region needs the chain chosen with care, and the reason is the
+    // contract rather than the engine: a slit dragged along an edge of its own
+    // direction sweeps out a segment, which is in `A ⊕ B` and which no region may
+    // keep, so the regularized answer is smaller than the point set the oracle
+    // computes. Give every chain edge a direction neither slit has and the two
+    // agree again -- both slits then sweep out area, and nothing is dropped.
+    for (const Polyline& a : {vChain(), Polyline({Point(0, 0), Point(1, 1)}),
+                              Polyline({Point(0, 0), Point(3, 2), Point(6, -1)})}) {
+        checkAgainstDefinition(a, slitRegion(), -4, 16);
+    }
 }
 
 TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
@@ -598,6 +710,12 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(std::is_same_v<decltype(std::declval<const Polygon&>().minkowskiSum(
                                     std::declval<const Polyline&>())),
                                 std::vector<Region>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Polyline&>().minkowskiSum(
+                                    std::declval<const Region&>())),
+                                std::vector<Region>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Region&>().minkowskiSum(
+                                    std::declval<const Polyline&>())),
+                                std::vector<Region>>);
     static_assert(std::is_same_v<decltype(std::declval<const Polyline&>()
                                               .minkowskiSum<pgl::ERational>(
                                                   std::declval<const Convex&>())),
@@ -611,15 +729,14 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
                                 Polyline>);
     static_assert(!pgl::MinkowskiSummableConcept<Polyline, Polygon>);
 
-    // Two operands without area between them have no sum at all, in any type: a
-    // second chain, a segment. A `PolygonWithHoles` summand *would* sum with a
-    // chain -- the construction is the polygon one -- but no overload claims the
-    // pair, so it is a compile error rather than an answer. `operator+` stays out
-    // of the region-valued case entirely.
+    // Every bounded shape with area is now an operand, from either side, so what
+    // is left out is what has no area to sweep: a second chain, a segment, a
+    // monotone chain (which `asPolyline()` converts when its sum is wanted).
+    // `operator+` stays out of the region-valued case entirely.
     static_assert(!summable<Polyline, Polyline>);
     static_assert(!summable<Polyline, Segment>);
-    static_assert(!summable<Polyline, Region>);
-    static_assert(!summable<Region, Polyline>);
+    static_assert(!summable<Polyline, pgl::MonotoneChain<Point>>);
+    static_assert(!summable<pgl::MonotoneChain<Point>, Polyline>);
     static_assert(!addable<Polyline, Rectangle>);
     static_assert(addable<Polyline, Point>);
 }
