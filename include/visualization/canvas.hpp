@@ -465,6 +465,12 @@ class Canvas {
         return push(Polygon<Point<double>>(polygon), polygon);
     }
 
+    /** @brief Appends a polygon with holes (one subpath per ring) using the current captured style. */
+    template <class PointType, class Label>
+    Canvas& operator<<(const PolygonWithHoles<PointType, Label>& region) {
+        return push(PolygonWithHoles<Point<double>>(region), region);
+    }
+
     /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const MonotoneChain<PointType, Label>& chain) {
@@ -582,6 +588,12 @@ class Canvas {
                     for (const auto& halfplane : value) {
                         b.include(halfplane.source().x(), halfplane.source().y());
                         b.include(halfplane.target().x(), halfplane.target().y());
+                    }
+                } else if constexpr (std::same_as<V, PolygonWithHoles<Point<double>>>) {
+                    // Every hole lies inside the outer ring, so the outer ring
+                    // alone bounds the region.
+                    for (const auto& vertex : value.outer()) {
+                        b.include(vertex.x(), vertex.y());
                     }
                 } else {
                     for (std::size_t i = 0; i < value.size(); ++i) {
@@ -1011,6 +1023,47 @@ class Canvas {
         return operations;
     }
 
+    // The rings of a region, mapped to output coordinates by `map`, with every
+    // hole reversed so that it winds against the outer ring. Opposite windings
+    // make the filled area come out as the region itself under the even-odd and
+    // the nonzero-winding rule alike, which is what lets the three backends
+    // share this list: SVG asks for even-odd explicitly, while PDF and Ipe take
+    // whatever their default is.
+    template <class MapPoint>
+    static auto regionRings(const PolygonWithHoles<Point<double>>& region, MapPoint map) {
+        using Mapped = std::decay_t<decltype(map(std::declval<const Point<double>&>()))>;
+        std::vector<std::vector<Mapped>> rings;
+        const auto append = [&rings, &map](const Polygon<Point<double>>& ring, bool reversed) {
+            if (ring.size() == 0) return;
+            std::vector<Mapped> points;
+            points.reserve(ring.size());
+            for (const auto& vertex : ring) {
+                points.push_back(map(vertex));
+            }
+            if (reversed) std::reverse(points.begin(), points.end());
+            rings.push_back(std::move(points));
+        };
+
+        rings.reserve(region.holeCount() + 1);
+        append(region.outer(), false);
+        for (const auto& hole : region.holes()) {
+            append(hole, true);
+        }
+        return rings;
+    }
+
+    // One `m … l … h` run per ring, so that a single filled path carries the
+    // whole region.
+    static std::vector<pdfgen::pdf_path_operation> polygonPathOperations(
+        const std::vector<std::vector<std::pair<float, float>>>& rings) {
+        std::vector<pdfgen::pdf_path_operation> operations;
+        for (const auto& ring : rings) {
+            const auto ringOperations = polygonPathOperations(ring, true);
+            operations.insert(operations.end(), ringOperations.begin(), ringOperations.end());
+        }
+        return operations;
+    }
+
     static std::uint32_t arrowColor(const PDFStyle& style) {
         return pdfgen::PDF_IS_TRANSPARENT(style.stroke) ? style.fill : style.stroke;
     }
@@ -1087,6 +1140,30 @@ class Canvas {
                 style.strokeWidth,
                 style.stroke,
                 fillColour,
+                style.fillAlpha,
+                style.strokeAlpha) < 0) {
+            throwPDFError(pdf, "draw PDF path");
+        }
+    }
+
+    /** @brief Draws several closed subpaths as one filled and stroked path. */
+    void addPath(
+        pdfgen::pdf_doc* pdf,
+        pdfgen::pdf_object* page,
+        const std::vector<std::vector<std::pair<float, float>>>& rings,
+        const PDFStyle& style) const {
+        const auto operations = polygonPathOperations(rings);
+        if (operations.empty()) {
+            return;
+        }
+        if (pdfgen::pdf_add_custom_path(
+                pdf,
+                page,
+                operations.data(),
+                static_cast<int>(operations.size()),
+                style.strokeWidth,
+                style.stroke,
+                style.fill,
                 style.fillAlpha,
                 style.strokeAlpha) < 0) {
             throwPDFError(pdf, "draw PDF path");
@@ -1312,6 +1389,12 @@ class Canvas {
                     points.push_back(mapPDFPoint(vertex, viewport));
                 }
                 addPath(pdf, page, points, true, style);
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+                addPath(
+                    pdf,
+                    page,
+                    regionRings(shape, [&](const PT& vertex) { return mapPDFPoint(vertex, viewport); }),
+                    style);
             } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return;
                 if (shape.size() == 1) {
@@ -1540,6 +1623,31 @@ class Canvas {
                 out << "\""
                     << styleAttributes(element.style) << ">"
                     << titleTag << "</polygon>";
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+                // A <path> with one closed subpath per ring: the holes are the
+                // odd-crossing part of it, so the fill rule has to be even-odd
+                // rather than the SVG default.
+                const auto rings = regionRings(
+                    shape,
+                    [&](const PT& vertex) {
+                        return std::pair<double, double>(viewport.mapX(vertex.x()), viewport.mapY(vertex.y()));
+                    });
+                if (rings.empty()) return {};
+
+                out << "<path d=\"";
+                bool firstRing = true;
+                for (const auto& ring : rings) {
+                    if (!firstRing) out << ' ';
+                    firstRing = false;
+                    out << 'M';
+                    for (const auto& [x, y] : ring) {
+                        out << ' ' << x << ',' << y;
+                    }
+                    out << " Z";
+                }
+                out << "\" fill-rule=\"evenodd\""
+                    << styleAttributes(element.style) << ">"
+                    << titleTag << "</path>";
             } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return {};
                 if (shape.size() == 1) {
@@ -1656,6 +1764,23 @@ class Canvas {
             out << points[index].first << ' ' << points[index].second << " l\n";
         }
         if (closePath) out << "h\n";
+        out << "</path>\n";
+    }
+
+    /** @brief Writes several closed subpaths as one Ipe path. */
+    static void appendIPEPath(
+        std::ostringstream& out,
+        const std::vector<std::vector<std::pair<double, double>>>& rings,
+        const std::string& attributes) {
+        if (rings.empty() || attributes.empty()) return;
+        out << "<path" << attributes << ">\n";
+        for (const auto& ring : rings) {
+            out << ring[0].first << ' ' << ring[0].second << " m\n";
+            for (std::size_t index = 1; index < ring.size(); ++index) {
+                out << ring[index].first << ' ' << ring[index].second << " l\n";
+            }
+            out << "h\n";
+        }
         out << "</path>\n";
     }
 
@@ -1854,6 +1979,11 @@ class Canvas {
                     points.push_back(mapIPEPoint(vertex, viewport));
                 }
                 appendIPEPath(out, points, true, attrs);
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+                appendIPEPath(
+                    out,
+                    regionRings(shape, [&](const PT& vertex) { return mapIPEPoint(vertex, viewport); }),
+                    attrs);
             } else if constexpr (std::same_as<S, MonotoneChain<PT>> || std::same_as<S, Polyline<PT>>) {
                 if (shape.size() == 0) return;
                 if (shape.size() == 1) {

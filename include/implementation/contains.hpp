@@ -3099,4 +3099,18 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Other
     return contains(other.outer());
 }
 
+// ---------------------------------------------------------------------------
+// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
+// alternative has a per-shape overload above, so no fallback is needed.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->contains(value);
+        },
+        other.variant());
+}
+
 }  // namespace pgl

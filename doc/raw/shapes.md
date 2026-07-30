@@ -102,7 +102,7 @@ if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
 auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
 ```
 
-Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, and `isHalfplaneIntersection`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
+Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, and `isPolygonWithHoles`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
 
 ```C++
 pgl::Shape s = pgl::Segment(1,4,2,9);
@@ -142,7 +142,7 @@ pgl::Shape r = pgl::Rectangle(1,4,2,9);
 r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
 ```
 
-Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...).
+Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...). The element accessors throw for the same reason: `size`, `get`, `operator[]` and `index` need one indexable sequence of points, which the `Point` alternative (whose elements are coordinates), the `HalfplaneIntersection` alternative (whose elements are half-planes) and the `PolygonWithHoles` alternative (whose vertices are spread over its rings) do not have. Reach through with `getIf...` and use the concrete shape's own accessors.
 
 - Other methods:
 

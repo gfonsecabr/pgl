@@ -148,6 +148,8 @@ constexpr auto minkowskiTranslated(const ShapeT& shape,
                 return translate(MonotoneChain<ResultPoint, Label>(shape));
             } else if constexpr (is_polyline_v<ShapeT>) {
                 return translate(Polyline<ResultPoint, Label>(shape));
+            } else if constexpr (is_polygon_with_holes_v<ShapeT>) {
+                return translate(PolygonWithHoles<ResultPoint, Label>(shape));
             } else {
                 static_assert(is_halfplane_intersection_v<ShapeT>,
                               "minkowskiTranslated has no branch for this shape kind: every "

@@ -270,6 +270,47 @@ TEST_CASE("PolygonWithHoles transformations") {
         CHECK(turned.isValid());
         CHECK(turned.rotated90(3) == region);
     }
+
+    SUBCASE("axis scaling stretches one axis and scales the area linearly") {
+        const Region wide = region.scaledUpX(3);
+        CHECK(wide.twiceArea() == region.twiceArea() * 3);
+        CHECK(wide.holeCount() == 1);
+        CHECK(wide.isValid());
+        CHECK(wide.outer() == outerSquare().scaledUpX(3));
+        CHECK(wide.hole(0) == smallHole().scaledUpX(3));
+        CHECK(wide.scaledDownX(3) == region);
+
+        const Region tall = region.scaledUpY(3);
+        CHECK(tall.twiceArea() == region.twiceArea() * 3);
+        CHECK(tall.scaledDownY(3) == region);
+        CHECK(tall == region.rotated90(1).scaledUpX(3).rotated90(-1));
+
+        // The in-place forms agree with the accessors.
+        Region mutated = region;
+        mutated.scaleUpX(3);
+        CHECK(mutated == wide);
+        mutated.scaleDownX(3);
+        CHECK(mutated == region);
+        mutated.scaleUpY(3);
+        CHECK(mutated == tall);
+        mutated.scaleDownY(3);
+        CHECK(mutated == region);
+    }
+
+    SUBCASE("a negative axis factor reflects and stays canonical") {
+        const Region flipped = region.scaledUpX(-1);
+        CHECK(flipped.twiceArea() == region.twiceArea());
+        CHECK(flipped.holeCount() == 1);
+        CHECK(flipped.isValid());
+        CHECK(flipped.scaledUpX(-1) == region);
+    }
+
+    SUBCASE("a zero axis factor collapses the region and drops its holes") {
+        const Region flat = region.scaledUpX(0);
+        CHECK(flat.twiceArea() == 0);
+        CHECK(flat.holeCount() == 0);
+        CHECK(flat.isDegenerate());
+    }
 }
 
 TEST_CASE("PolygonWithHoles streaming") {

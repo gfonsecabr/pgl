@@ -1737,6 +1737,56 @@ struct PolygonWithHoles {
     }
 
     // -------------------------------------------------------------------------
+    // Runtime Shape argument: visit the wrapped alternative and re-dispatch to
+    // the matching per-shape overload (defined in the implementation layer).
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool contains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorContains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool intersects(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool separates(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] constexpr bool crosses(const Shape<OtherPoint>& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape, using
+     * symmetry to re-dispatch through the wrapper's own `distanceL1`.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Chebyshev (L∞) distance to the given shape, using
+     * symmetry to re-dispatch through the wrapper's own `distanceLInf`.
+     */
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    // -------------------------------------------------------------------------
     // Transformations
 
     /** @brief Translates the region in place. */
@@ -1804,7 +1854,89 @@ struct PolygonWithHoles {
         label_ = std::move(saved);
     }
 
+    /**
+     * @brief Returns the region with its x-coordinates multiplied by @p scalar.
+     *
+     * A negative factor reflects the rings, which reverses their orientation and
+     * can change their relative order, so the result is re-canonicalized exactly
+     * as @ref operator*= does. A zero factor collapses the region onto the
+     * y-axis, dropping every ring that loses its area.
+     */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr PolygonWithHoles scaledUpX(const OtherNumber scalar) const {
+        return scaledRings([scalar](const PolygonType& ring) { return ring.scaledUpX(scalar); });
+    }
+
+    /** @brief Scales the region's x-coordinates up in place. */
+    template <class OtherNumber>
+    constexpr void scaleUpX(const OtherNumber scalar) {
+        auto saved = label_;
+        *this = scaledUpX(scalar);
+        label_ = std::move(saved);
+    }
+
+    /** @copydoc scaledUpX */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr PolygonWithHoles scaledUpY(const OtherNumber scalar) const {
+        return scaledRings([scalar](const PolygonType& ring) { return ring.scaledUpY(scalar); });
+    }
+
+    /** @brief Scales the region's y-coordinates up in place. */
+    template <class OtherNumber>
+    constexpr void scaleUpY(const OtherNumber scalar) {
+        auto saved = label_;
+        *this = scaledUpY(scalar);
+        label_ = std::move(saved);
+    }
+
+    /** @copydoc scaledUpX */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr PolygonWithHoles scaledDownX(const OtherNumber scalar) const {
+        return scaledRings([scalar](const PolygonType& ring) { return ring.scaledDownX(scalar); });
+    }
+
+    /** @brief Scales the region's x-coordinates down in place. */
+    template <class OtherNumber>
+    constexpr void scaleDownX(const OtherNumber scalar) {
+        auto saved = label_;
+        *this = scaledDownX(scalar);
+        label_ = std::move(saved);
+    }
+
+    /** @copydoc scaledUpX */
+    template <class OtherNumber>
+    [[nodiscard]] constexpr PolygonWithHoles scaledDownY(const OtherNumber scalar) const {
+        return scaledRings([scalar](const PolygonType& ring) { return ring.scaledDownY(scalar); });
+    }
+
+    /** @brief Scales the region's y-coordinates down in place. */
+    template <class OtherNumber>
+    constexpr void scaleDownY(const OtherNumber scalar) {
+        auto saved = label_;
+        *this = scaledDownY(scalar);
+        label_ = std::move(saved);
+    }
+
   private:
+    /**
+     * @brief Applies a ring-to-ring transformation to the outer polygon and every
+     *        hole, then re-canonicalizes.
+     *
+     * Shared by the four axis-scaling accessors, which differ only in which
+     * @ref Polygon scaling they ask each ring for.
+     */
+    template <class RingTransform>
+    constexpr PolygonWithHoles scaledRings(RingTransform&& transform) const {
+        PolygonWithHoles result;
+        result.outer_ = transform(outer_);
+        result.holes_.reserve(holes_.size());
+        for (const auto& hole : holes_) {
+            result.holes_.push_back(transform(hole));
+        }
+        result.normalize();
+        return result;
+    }
+
     /**
      * @brief Invokes @p predicate on every boundary edge — the outer ring first,
      *        then each hole — and stops at the first `true`.
