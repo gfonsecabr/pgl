@@ -706,6 +706,24 @@ struct PolygonWithHoles {
     minkowskiSum(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
+     *
+     * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a `Point`
+     * is a translation, so it gives back a region rather than the set of them
+     * the overloads above return, over the promoted coordinate type — this is
+     * the reading `region + point` has always had. A region is not convex, so
+     * @ref MinkowskiSummableConcept admits nothing else here: every operand with
+     * area is one of the region-valued overloads above.
+     *
+     * @tparam OtherShape Type of the other shape.
+     * @param other Shape to sum with.
+     * @return The Minkowski sum, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<PolygonWithHoles<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
      * @brief Returns a segment realizing the diameter (the farthest vertex pair).
      *
      * The holes lie inside the outer boundary, so they cannot contribute a
@@ -2129,14 +2147,12 @@ struct PolygonWithHoles {
     }
 };
 
-template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
-constexpr auto operator+(const PolygonWithHoles<PointType, LabelType>& region,
-                         const Point<TranslationNumber, TranslationLabel>& translation) {
-    PolygonWithHoles<PointType, LabelType> result(region);
-    result += translation;
-    return result;
-}
+// `region + point` is the translating Minkowski sum, spelled by the generic
+// operator+ in implementation/minkowski.hpp like every other shape's: writing a
+// second one here would shadow it and, holding the region's own point type,
+// would silently truncate a translation that does not fit it.
 
+/** @brief Returns a copy of a region translated by the opposite point. */
 template <class PointType, class LabelType, class TranslationNumber, class TranslationLabel>
 constexpr auto operator-(const PolygonWithHoles<PointType, LabelType>& region,
                          const Point<TranslationNumber, TranslationLabel>& translation) {

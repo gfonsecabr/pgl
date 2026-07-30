@@ -249,6 +249,31 @@ TEST_CASE("PolygonWithHoles transformations") {
         CHECK((moved - Point(5, -3)) == region);
     }
 
+    SUBCASE("translation is the Minkowski sum with a point, spelled either way") {
+        // A point operand is the one summand that gives back a region rather
+        // than the set of them the area operands return.
+        const auto sum = region.minkowskiSum(Point(5, -3));
+        static_assert(std::is_same_v<decltype(sum), const Region>);
+        CHECK(sum == region + Point(5, -3));
+        CHECK(sum == Point(5, -3).minkowskiSum(region));
+
+        // The empty shape absorbs here as everywhere.
+        CHECK(pgl::detail::is_empty_shape_v<decltype(region.minkowskiSum(pgl::EmptyShape<Point>{}))>);
+    }
+
+    SUBCASE("translation promotes the coordinate type instead of truncating") {
+        // The library never downgrades a construction silently: a translation
+        // the region's own integral coordinates cannot hold promotes the
+        // result, exactly as `Polygon + Point` does.
+        const pgl::EPoint half(pgl::ERational(1, 2), pgl::ERational(1, 2));
+        const auto moved = region + half;
+        static_assert(std::is_same_v<typename decltype(moved)::NumberType, pgl::ERational>);
+        CHECK(moved.outer().vertices()[0] == pgl::EPoint(outerSquare().vertices()[0].x() + pgl::ERational(1, 2),
+                                                         outerSquare().vertices()[0].y() + pgl::ERational(1, 2)));
+        CHECK(moved.holeCount() == region.holeCount());
+        CHECK(moved == region.minkowskiSum(half));
+    }
+
     SUBCASE("scaling up scales the area quadratically") {
         const auto scaled = region * 3;
         CHECK(scaled.twiceArea() == region.twiceArea() * 9);
