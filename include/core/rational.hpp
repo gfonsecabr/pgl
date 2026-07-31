@@ -22,6 +22,7 @@
 #include <utility>
 #include <concepts>
 #include <cassert>
+#include <cstddef>
 
 
 
@@ -100,25 +101,75 @@ private:
     }
 
     /**
+     * @brief How many heap limbs a deferred fraction may reach, once it is off
+     * the inline store, before @ref reductionUrgent stops tolerating it.
+     *
+     * Only a chain that keeps compounding — an accumulation, an iteration —
+     * grows a fraction without bound, and this is what caps it. A single
+     * geometric predicate does not: the widest of them, the in-circle
+     * determinant, is degree four in its coordinates, so over the fractions an
+     * arrangement produces its intermediates stay well inside this bound and
+     * never pay a heap gcd. Eight limbs is a little under 500 bits.
+     */
+    static constexpr std::size_t heapReductionLimbs = 8;
+
+    /**
      * @brief Whether leaving (n, d) unreduced before the next multiply or
-     * cross-addition would risk overflowing a fixed-width Int, or spilling a
-     * BigInt out of its inline int128 storage onto the heap. This is the trigger
-     * that forces an otherwise-deferred normalization. In both cases the bound is
-     * half the available width, so the impending product of two operands still
-     * fits.
+     * cross-addition would cost more than reducing it now. This is the trigger
+     * that forces an otherwise-deferred normalization.
+     *
+     * For a fixed-width Int the cost is overflow, and the bound is half the
+     * available width, so the impending product of two operands still fits. For
+     * a BigInt nothing overflows and the bound follows what the gcd costs at
+     * that size instead; see below.
      */
     static constexpr bool reductionUrgent(const Int& n, const Int& d) {
         if constexpr (requires { n.fitsInt64(); }) {
-            // BigInt: the inline store is a single int128. Mirror the fixed-width
-            // rule below and reduce at half that width, so the next multiply or
-            // cross-addition of two operands stays inline rather than spilling to
-            // the heap limb path. Testing fitsInt128() here would only react after
-            // the value had already grown onto the heap.
-            return !n.fitsInt64() || !d.fitsInt64();
+            // BigInt, and the answer turns on what the gcd itself will cost.
+            //
+            // While both parts are inline (a single int128), BigInt divides on
+            // its native fast path, so the gcd is a handful of machine
+            // divisions. Reduce at half that width, exactly as the fixed-width
+            // rule below does, and the impending multiply or cross-addition
+            // stays inline too.
+            //
+            // Once a part has spilled onto the heap that bargain is off: every
+            // step of the gcd becomes a multi-limb long division, which costs
+            // far more than carrying the extra limbs through the one multiply
+            // the reduction was meant to shrink — and @ref operandParts throws
+            // the reduced form away with its locals, so the same value pays
+            // again at every use. Past that point reduce only to stop unbounded
+            // growth, not to save width.
+            if (n.fitsInt128() && d.fitsInt128()) {
+                return !n.fitsInt64() || !d.fitsInt64();
+            }
+            return !n.fitsLimbs(heapReductionLimbs) || !d.fitsLimbs(heapReductionLimbs);
         } else {
             constexpr int half = pgl::detail::numeric_limits<Int>::digits / 2 - 1;
             const Int limit = Int(1) << half;
             return pgl::detail::abs(n) >= limit || d >= limit;
+        }
+    }
+
+    /**
+     * @brief Whether comparing (n, d) has to reduce it first.
+     *
+     * A comparison only cross-multiplies and stores nothing, so the reduction
+     * buys exactly one thing: keeping the widened product from overflowing.
+     * An arbitrary-precision Int has nothing to overflow, and there the
+     * reduction is a bad trade — a gcd is a chain of divisions, against the
+     * single multiplication of two values a few limbs wide that it saves, and
+     * since @ref operandParts writes the reduced form only into the caller's
+     * locals, the same value pays for it again at every comparison. Profiling
+     * the non-convex Minkowski sum, whose arrangement compares
+     * `Rational<BigInt>` coordinates by the million, put 60% of the entire run
+     * inside that gcd.
+     */
+    static constexpr bool comparisonNeedsReduction(const Int& n, const Int& d) {
+        if constexpr (requires { n.fitsInt64(); }) {
+            return false;
+        } else {
+            return reductionUrgent(n, d);
         }
     }
 
@@ -501,8 +552,8 @@ public:
         // type (both denominators are positive, so the sign is preserved, and
         // compareValues yields the equal case). Reduce first only when an operand
         // is large enough that the widened product could itself overflow.
-        if ((!normalized_ && reductionUrgent(num, den)) ||
-            (!r.normalized_ && reductionUrgent(r.num, r.den))) {
+        if ((!normalized_ && comparisonNeedsReduction(num, den)) ||
+            (!r.normalized_ && comparisonNeedsReduction(r.num, r.den))) {
             Int an, ad, bn, bd;
             operandParts(an, ad);
             r.operandParts(bn, bd);
@@ -538,8 +589,8 @@ public:
         using Wide = pgl::detail::promoted_number_t<Int>;
         // Deferred fractions are equal iff their cross products match; reduce
         // first only when an operand could overflow the widened product.
-        if ((!normalized_ && reductionUrgent(num, den)) ||
-            (!r.normalized_ && reductionUrgent(r.num, r.den))) {
+        if ((!normalized_ && comparisonNeedsReduction(num, den)) ||
+            (!r.normalized_ && comparisonNeedsReduction(r.num, r.den))) {
             Int an, ad, bn, bd;
             operandParts(an, ad);
             r.operandParts(bn, bd);

@@ -243,10 +243,10 @@ def _cpp_accumulate(method: str) -> str:
         # Deliberately no branch for the vector-of-regions result of the
         # non-convex sum, even though the boolean operations above digest that
         # shape of result fine. The sum of two 32-gons — the cube's polygon size
-        # — measures 95 s on its own, growing from 0.5 s at 8 vertices and 3 s
-        # at 12, and a pair of the six-holed regions does not finish in 18 min.
-        # A cell of that cannot fit the run timeout at any sample size, so
-        # enabling it would only replace a fast compile error with a slow
+        # — measures 7 s on its own, growing from 28 ms at 8 vertices and 170 ms
+        # at 12, and a pair of the six-holed regions takes 254 s. A cell is
+        # 10,000 pairs, so that cannot fit the run timeout at any sample size,
+        # and enabling it would only replace a fast compile error with a slow
         # timeout.
         #
         # The aggregate mixes the element count, which is what disagrees when a
