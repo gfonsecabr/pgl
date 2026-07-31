@@ -500,6 +500,16 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the triangle as a hole-free region.
+     *
+     * @return PolygonWithHoles whose outer boundary is the triangle and which
+     *         has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(asPolygon());
+    }
+
+    /**
      * @brief Returns the triangle rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).

@@ -461,9 +461,10 @@ A triangle `t` has methods such as:
 - `t.isObtuse()`: Returns whether one angle is greater than 90 degrees.
 - `t.isIsosceles()`: Returns whether two sides have the same length.
 
-It knows how to convert itself with an explicit cast to:
+It knows how to convert itself to:
 - `(pgl::Polygon) t` or `t.asPolygon()`: Returns the polygon representation of the triangle.
 - `(pgl::Convex) t` or `t.asConvex()`: Returns the convex polygon representation of the triangle.
+- `t.asPolygonWithHoles()`: Returns the triangle as a hole-free `PolygonWithHoles` region.
 
 - Other methods:
 
@@ -500,9 +501,10 @@ A rectangle `r` has methods such as:
 - `r.insert(s)`: Enlarges the rectangle in order to contain a finite shape `s`. The shape must expose `bbox()`.
 - `r.insert(points)`: Enlarges the rectangle in order to contain every point in the input range.
 
-It knows how to convert itself with an explicit cast to:
+It knows how to convert itself to:
 - `(pgl::Polygon) r` or `r.asPolygon()`: Returns the polygon representation of the rectangle.
 - `(pgl::Convex) r` or `r.asConvex()`: Returns the convex polygon representation of the rectangle.
+- `r.asPolygonWithHoles()`: Returns the rectangle as a hole-free `PolygonWithHoles` region.
 
 - Other methods:
 
@@ -594,6 +596,7 @@ A polygon `P` has methods such as:
 - `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
+- `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
 - `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
 
 - Other methods:
@@ -615,8 +618,9 @@ A convex polygon `c` has methods such as:
 - `c.upperHull()`: Returns the upper monotone chain.
 - `c.lowerHull()`: Returns the lower monotone chain.
 
-It knows how to convert itself with an explicit cast to:
+It knows how to convert itself to:
 - `(pgl::Polygon) c` or `c.asPolygon()`: Returns the polygon representation of the convex polygon.
+- `c.asPolygonWithHoles()`: Returns the convex polygon as a hole-free `PolygonWithHoles` region.
 
 If the convex polygon `c` has $n$ vertices, then:
 

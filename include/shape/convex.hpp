@@ -570,6 +570,16 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the convex polygon as a hole-free region.
+     *
+     * @return PolygonWithHoles whose outer boundary is the convex polygon and
+     *         which has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(asPolygon());
+    }
+
+    /**
      * @brief Returns the convex polygon as a half-plane intersection.
      *
      * The region is the intersection of the edge half-planes. An empty polygon
