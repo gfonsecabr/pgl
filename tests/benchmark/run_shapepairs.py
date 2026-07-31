@@ -18,7 +18,7 @@ Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
 
 Options:
-    --shapes  S,...    Shapes to include (default: all 9, plus Point as shape B).
+    --shapes  S,...    Shapes to include (default: all 19, plus Point as shape B).
                        Point only appears as the second operand and is
                        size-agnostic (one variant, ignoring --sizes).
     --focus   S,...    Run these shapes against everything: keep only pairs where
@@ -59,6 +59,7 @@ ALL_SHAPES = [
     "Disk",
     "Convex",
     "Polygon",
+    "PolygonWithHoles",
     "Polyline",
     "MonotoneChain",
     "HalfplaneIntersection",
@@ -67,6 +68,7 @@ ALL_SHAPES = [
     "TriangleAsPolygon",
     "TriangleAsConvex",
     "ConvexAsPolygon",
+    "PolygonAsPWH",
     # Same geometry as Polygon, held as its constrained Delaunay triangulation, so
     # a predicate scanning the polygon can be compared against the same predicate
     # walking its mesh. Building the mesh is setup; only the queries are timed.
@@ -134,6 +136,8 @@ def _cpp_shape_type(shape: str) -> str:
         return "pgl::Polygon<pgl::Point<N>>"
     if shape == "TriangleAsConvex":
         return "pgl::Convex<pgl::Point<N>>"
+    if shape == "PolygonAsPWH":
+        return "pgl::PolygonWithHoles<pgl::Point<N>>"
     if shape == "PolygonAsTriangulation":
         return "pgl::Triangulation<pgl::Triangle<pgl::Point<N>>>"
     return f"pgl::{shape}<pgl::Point<N>>"
@@ -151,6 +155,9 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}Trishape<{alias}>({n});"
     if shape == "Polygon":
         return f"auto {var} = {prefix}Polygons<N>({n}, 32);"
+    if shape == "PolygonWithHoles":
+        # A 32-gon punched with 6 holes of 6 vertices each.
+        return f"auto {var} = {prefix}PolygonsWithHoles<N>({n}, 32, 6, 6);"
     if shape == "Polyline":
         return f"auto {var} = {prefix}Polylines<N>({n}, 32);"
     if shape == "MonotoneChain":
@@ -163,6 +170,8 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
         return f"auto {var} = {prefix}TriangleAsConvex<N>({n});"
     if shape == "ConvexAsPolygon":
         return f"auto {var} = {prefix}ConvexAsPolygon<N>({n}, 1000);"
+    if shape == "PolygonAsPWH":
+        return f"auto {var} = {prefix}PolygonAsPWH<N>({n}, 32);"
     if shape == "PolygonAsTriangulation":
         return f"auto {var} = {prefix}PolygonAsTriangulation<N>({n}, 32);"
     return f"auto {var} = {prefix}Convexes<N>({n}, 1000);"

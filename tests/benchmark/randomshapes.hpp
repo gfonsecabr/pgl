@@ -1,6 +1,7 @@
 #pragma once
 #include "pgl.hpp"
 
+#include <algorithm>
 #include <set>
 #include <vector>
 
@@ -211,6 +212,121 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) 
     return w;
 }
 
+// Holes for a simple polygon: each candidate is holeVertices random points
+// drawn from a disk a fifth of the polygon's own span wide, centred anywhere in
+// the polygon's own disk and untangled into a simple ring — so a hole is
+// usually non-convex (about 90% of them are). A candidate is kept when it lies
+// inside the polygon and its interior misses every hole kept so far, which is
+// exactly the PolygonWithHoles precondition, established by construction rather
+// than checked afterwards. Boundary contact is allowed, as the shape allows it.
+//
+// A fifth of the span is the largest hole that still fits on the first few
+// tries: it takes about a tenth of the polygon's area away, so queries really
+// do run into the holes, while barely any polygon has to be discarded below.
+//
+// Returns fewer than holeCount holes when the attempt budget runs out; a thin
+// or spiky polygon may simply have no room for them, and the caller then throws
+// the polygon away rather than looping forever.
+template <class Number>
+std::vector<pgl::Polygon<pgl::Point<Number>>>
+randomHoles(const pgl::Polygon<pgl::Point<Number>>& outer, const pgl::Point<Number>& base,
+            int range, Rng& rng, int holeCount, int holeVertices, int budget) {
+    using Point = pgl::Point<Number>;
+    using Polygon = pgl::Polygon<Point>;
+    std::vector<Polygon> holes;
+    for (int attempt = 0; attempt < budget && static_cast<int>(holes.size()) < holeCount; ++attempt) {
+        const auto center = base + randomPoint<Number>(rng, range);
+        std::vector<Point> points;
+        for (int i = 0; i < holeVertices; ++i) {
+            points.push_back(center + randomPoint<Number>(rng, range / 5));
+        }
+        Polygon hole(points, true);  // trusted: untangle renormalizes at the end
+        hole.untangle();
+        if (hole.isDegenerate() || !outer.contains(hole)) {
+            continue;
+        }
+        const bool overlaps = std::any_of(holes.begin(), holes.end(),
+                                          [&](const Polygon& kept) {
+                                              return hole.interiorsIntersect(kept);
+                                          });
+        if (!overlaps) {
+            holes.push_back(hole);
+        }
+    }
+    return holes;
+}
+
+// Simple polygons with holes: a polygon generated exactly as randomXxxPolygons
+// does, then punched with holeCount holes of holeVertices vertices each. The
+// outer ring keeps at most m vertices and every hole at most holeVertices, so a
+// region has at most m + holeCount * holeVertices vertices in total. Polygons
+// with no room for all the holes are discarded, so every region really has
+// holeCount of them.
+template <class Number>
+std::vector<pgl::PolygonWithHoles<pgl::Point<Number>>>
+randomSmallPolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
+    using Point = pgl::Point<Number>;
+    using Polygon = pgl::Polygon<Point>;
+    using PolygonWithHoles = pgl::PolygonWithHoles<Point>;
+    std::vector<PolygonWithHoles> w;
+    std::set<PolygonWithHoles> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::PolygonWithHoles<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, largeRange);
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(base + randomPoint<Number>(rng, smallRange));
+        }
+        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
+        poly.untangle();
+        if (poly.isDegenerate()) {
+            continue;
+        }
+        const auto holes = randomHoles<Number>(poly, base, smallRange, rng,
+                                               holeCount, holeVertices, 100 * holeCount);
+        if (static_cast<int>(holes.size()) < holeCount) {
+            continue;
+        }
+        PolygonWithHoles region(poly, holes);
+        if (seen.insert(region).second) {
+            w.push_back(region);
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::PolygonWithHoles<pgl::Point<Number>>>
+randomLargePolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
+    using Point = pgl::Point<Number>;
+    using Polygon = pgl::Polygon<Point>;
+    using PolygonWithHoles = pgl::PolygonWithHoles<Point>;
+    std::vector<PolygonWithHoles> w;
+    std::set<PolygonWithHoles> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::PolygonWithHoles<Point>>)};
+    while (static_cast<int>(w.size()) < n) {
+        std::vector<Point> points;
+        for (int i = 0; i < m; ++i) {
+            points.push_back(randomPoint<Number>(rng, largeRange));
+        }
+        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
+        poly.untangle();
+        if (poly.isDegenerate()) {
+            continue;
+        }
+        const auto holes = randomHoles<Number>(poly, Point(0, 0), largeRange, rng,
+                                               holeCount, holeVertices, 100 * holeCount);
+        if (static_cast<int>(holes.size()) < holeCount) {
+            continue;
+        }
+        PolygonWithHoles region(poly, holes);
+        if (seen.insert(region).second) {
+            w.push_back(region);
+        }
+    }
+    return w;
+}
+
 // "As-other-type" generators: build shapes with one shape's generator, then
 // store the equivalent representation of a more general storage type. This lets
 // the shape-pair cube measure, e.g., Polygon's code paths when the polygon is
@@ -306,6 +422,30 @@ randomLargeHalfplaneIntersections(int n, int m) {
     std::vector<pgl::HalfplaneIntersection<Point>> w;
     w.reserve(cs.size());
     for (const auto& c : cs) w.emplace_back(c);
+    return w;
+}
+
+// Simple polygons, generated as Polygon, stored as a hole-free PolygonWithHoles
+// (via Polygon::asPolygonWithHoles). The region is exactly the one Polygon is
+// measured on, so the cube shows what the holed shape's code paths cost when
+// there is no hole to account for.
+template <class Number>
+std::vector<pgl::PolygonWithHoles<pgl::Point<Number>>> randomSmallPolygonAsPWH(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto polys = randomSmallPolygons<Number>(n, m);
+    std::vector<pgl::PolygonWithHoles<Point>> w;
+    w.reserve(polys.size());
+    for (const auto& poly : polys) w.push_back(poly.asPolygonWithHoles());
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::PolygonWithHoles<pgl::Point<Number>>> randomLargePolygonAsPWH(int n, int m) {
+    using Point = pgl::Point<Number>;
+    auto polys = randomLargePolygons<Number>(n, m);
+    std::vector<pgl::PolygonWithHoles<Point>> w;
+    w.reserve(polys.size());
+    for (const auto& poly : polys) w.push_back(poly.asPolygonWithHoles());
     return w;
 }
 
