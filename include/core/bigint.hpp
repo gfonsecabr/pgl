@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cmath>
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -561,6 +562,13 @@ public:
     bool fitsInt64() const {
         return limbs_.empty() && small_ < (pgl::int128(1) << 63);
     }
+
+    /// @brief Whether the magnitude occupies at most @p limbs heap limbs.
+    ///
+    /// A value in the inline int128 store occupies none, so `fitsLimbs(0)` is
+    /// @ref fitsInt128. Used by Rational to bound how large a deferred fraction
+    /// may grow before reduction is worth its gcd.
+    bool fitsLimbs(std::size_t limbs) const { return limbs_.size() <= limbs; }
 
     /// @brief Sign of the value: -1, 0, or 1.
     int sign() const {
