@@ -25,7 +25,7 @@ Options:
                        at least one operand is a focus shape (its row AND column).
                        Focus shapes are added to --shapes automatically.
     --sizes   S,...    Size variants: small, large, or both (default: small,large)
-    --methods M,...    Methods to include (default: all 18)
+    --methods M,...    Methods to include (default: all 21)
     --types   T,...    Number types (default: all 5)
     --output  FILE     JSON output path (default: build/tests/benchmark/benchmarks.json)
     --build-dir DIR    Build root  (default: build/tests/benchmark)
@@ -104,6 +104,9 @@ ALL_METHODS = [
     "collinear",
     "parallel",
     "intersection",
+    "unionWith",
+    "difference",
+    "symmetricDifference",
     "minkowskiSum",
     "squaredDistance",
     "distanceL1",
@@ -118,6 +121,20 @@ GROUND_TRUTH_TYPE = "ERational"
 
 # Number of random shapes generated per type per benchmark
 N_SHAPES = 100
+
+# The regularized boolean operations build a whole arrangement per call — 2 to
+# 5 ms for a pair of 32-gons, against nanoseconds for a predicate — so a full
+# 100×100 cell would take the best part of a minute. They run on a smaller
+# sample instead. The generators are deterministic, so this is the first
+# N_CONSTRUCTION_SHAPES of the same shapes every other method sees.
+N_CONSTRUCTION_SHAPES = 20
+_CONSTRUCTION_METHODS = {"unionWith", "difference", "symmetricDifference"}
+
+
+def _n_shapes_for(method: str) -> int:
+    """How many random shapes per operand a method is measured on."""
+    return N_CONSTRUCTION_SHAPES if method in _CONSTRUCTION_METHODS else N_SHAPES
+
 
 # Shape-kind categories (drives which randomXxx helper is called)
 _BISHAPES  = {"Segment", "OrientedSegment", "Line", "OrientedLine", "Rectangle"}
@@ -143,9 +160,8 @@ def _cpp_shape_type(shape: str) -> str:
     return f"pgl::{shape}<pgl::Point<N>>"
 
 
-def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str) -> str:
-    """C++ statement that fills 'var' with N_SHAPES random shapes of kind 'shape'."""
-    n = N_SHAPES
+def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str, n: int) -> str:
+    """C++ statement that fills 'var' with n random shapes of kind 'shape'."""
     if shape == "Point":
         return f"auto {var} = randomPoints<N>({n});"
     prefix = "randomSmall" if size == "small" else "randomLarge"
@@ -199,10 +215,39 @@ def _cpp_accumulate(method: str) -> str:
                 " else if constexpr (requires { r.isEmpty(); }) return r.isEmpty() ? 0 : 1;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
+    if method in {"unionWith", "difference", "symmetricDifference"}:
+        # The regularized boolean operations. Each returns the pieces of the
+        # result as regions, and only Polygon and PolygonWithHoles define them —
+        # the lower-ranked shapes just forward to the higher-ranked operand, and
+        # `difference` is not symmetric, so it has no forwarders at all and only
+        # appears with a polygon or a region as operand A.
+        #
+        # Counting non-empty results the way `intersection` does would be
+        # useless here: A ∪ B is never empty, so the aggregate would be the same
+        # constant for every type. The piece count plus the total vertex count
+        # is a real digest of the arrangement instead — it disagrees as soon as
+        # a type merges or splits a piece differently, or rounds a crossing onto
+        # a different vertex — and it has to materialize the whole result, so
+        # the compiler cannot delete the construction.
+        return ("count += [](const auto& pieces) {"
+                " long long n = (long long)pieces.size();"
+                " for (const auto& piece : pieces) n += (long long)piece.vertexCount();"
+                " return n;"
+                f" }}(a.template {method}<N>(b));")
     if method == "minkowskiSum":
-        # Only bounded convex pairs (and anything summed with a Point) have a
-        # Minkowski sum, so most of the cube fails to compile here and is
-        # recorded as unsupported, exactly like collinear or parallel.
+        # Only the pairs whose sum is a single shape are measured: bounded convex
+        # operands, and anything summed with a Point, which is a translation.
+        # The rest of the cube fails to compile here and is recorded as
+        # unsupported, exactly like collinear or parallel.
+        #
+        # Deliberately no branch for the vector-of-regions result of the
+        # non-convex sum, even though the boolean operations above digest that
+        # shape of result fine. The sum of two 32-gons — the cube's polygon size
+        # — measures 95 s on its own, growing from 0.5 s at 8 vertices and 3 s
+        # at 12, and a pair of the six-holed regions does not finish in 18 min.
+        # A cell of that cannot fit the run timeout at any sample size, so
+        # enabling it would only replace a fast compile error with a slow
+        # timeout.
         #
         # The aggregate mixes the element count, which is what disagrees when a
         # type builds a different hull, with the sign of one coordinate of the
@@ -234,8 +279,9 @@ def generate_source(
     method: str, cpp_type: str,
 ) -> str:
     """Return a complete, self-contained C++ benchmark source."""
-    make1 = _cpp_make_shapes_for(shape1, size1, "S1", "shapes1")
-    make2 = _cpp_make_shapes_for(shape2, size2, "S2", "shapes2")
+    n = _n_shapes_for(method)
+    make1 = _cpp_make_shapes_for(shape1, size1, "S1", "shapes1", n)
+    make2 = _cpp_make_shapes_for(shape2, size2, "S2", "shapes2", n)
     accum = _cpp_accumulate(method)
 
     lines = [
@@ -592,6 +638,9 @@ def main() -> None:
             "repetitions":  args.repetitions,
             "n_shapes":     N_SHAPES,
             "n_pairs":      N_SHAPES * N_SHAPES,
+            # The constructive boolean methods run on a smaller sample; see
+            # _n_shapes_for. Only these methods depart from n_shapes above.
+            "n_shapes_by_method": {m: _n_shapes_for(m) for m in methods},
             "shapes_a":     shapes1,
             "shapes_b":     shapes2,
             "focus":        focus or None,
