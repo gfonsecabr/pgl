@@ -58,6 +58,7 @@ const _AS_TYPE = {
   TriangleAsPolygon: { source: "Triangle", stored: "Polygon" },
   TriangleAsConvex:  { source: "Triangle", stored: "Convex" },
   ConvexAsPolygon:   { source: "Convex",   stored: "Polygon" },
+  PolygonAsPWH:      { source: "Polygon",  stored: "hole-free PolygonWithHoles" },
   // Not a re-storage of the same vertices but a different structure over the same
   // region: the polygon's constrained Delaunay triangulation, built as setup so
   // only the queries against the mesh are timed.
@@ -69,6 +70,10 @@ const _AS_TYPE = {
 // the randomSmall/LargeXxx generators in randomshapes.hpp.
 const _SAMPLED = {
   Polygon:       { m: 32, build: "untangled into a simple polygon (at most 32 vertices)" },
+  PolygonWithHoles: { m: 32, build: "untangled into a simple polygon (at most 32 vertices), " +
+                                    "then punched with 6 holes of 6 points each, themselves " +
+                                    "untangled (usually non-convex) and drawn from a fifth of " +
+                                    "the polygon's span, taking about a tenth of its area away" },
   MonotoneChain: { m: 32, build: "sorted lexicographically with duplicates dropped (at most 32 vertices)" },
   Convex:        { m: 1000, build: "reduced to their convex hull (~34 vertices on average)" },
 };
