@@ -621,6 +621,16 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the rectangle as a hole-free region.
+     *
+     * @return PolygonWithHoles whose outer boundary is the rectangle and which
+     *         has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(asPolygon());
+    }
+
+    /**
      * @brief Returns whether a point is one of the rectangle vertices.
      *
      * @tparam OtherPoint Type of the point.

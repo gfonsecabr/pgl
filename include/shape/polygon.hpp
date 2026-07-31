@@ -568,6 +568,19 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the polygon as a hole-free region.
+     *
+     * The boundary is already canonical, and a region without holes needs no
+     * further normalization.
+     *
+     * @return PolygonWithHoles whose outer boundary is this polygon and which
+     *         has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(*this);
+    }
+
+    /**
      * @brief Computes the area-weighted centroid of the polygon.
      * @tparam ResultNumber The number type for the result.
      * @warning Uses division by 3 and the area, so the result may be inexact even for floating-point types.

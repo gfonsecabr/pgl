@@ -424,3 +424,38 @@ TEST_CASE("PolygonWithHoles: the symmetric predicates answer the same either way
     const Segment s(Point(1, 5), Point(9, 5));
     CHECK(s.intersects(region) == region.intersects(s));
 }
+
+// Every shape that converts to a Polygon also converts straight to a region:
+// the same boundary, no holes. The polygon overload is the identity on the
+// outer ring, and the three convex shapes agree with their own asPolygon.
+TEST_CASE("asPolygonWithHoles gives the hole-free region of each area shape") {
+    const Rectangle r(Point(0, 0), Point(4, 3));
+    const Triangle t(Point(0, 0), Point(6, 0), Point(0, 5));
+    const Convex c({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+    const Polygon p({0, 0, 6, 0, 6, 6, 3, 3, 0, 6});
+
+    for (const Region& region : {r.asPolygonWithHoles(), t.asPolygonWithHoles(),
+                                 c.asPolygonWithHoles(), p.asPolygonWithHoles()}) {
+        CHECK(region.holeCount() == 0);
+        CHECK(region.isValid());
+    }
+
+    CHECK(r.asPolygonWithHoles().outer() == r.asPolygon());
+    CHECK(t.asPolygonWithHoles().outer() == t.asPolygon());
+    CHECK(c.asPolygonWithHoles().outer() == c.asPolygon());
+    CHECK(p.asPolygonWithHoles().outer() == p);
+
+    // The region is the same point set as the shape it came from.
+    CHECK(p.asPolygonWithHoles().area() == p.area());
+    CHECK(t.asPolygonWithHoles().area() == t.area());
+    CHECK(r.asPolygonWithHoles().contains(Point(2, 1)));
+    CHECK(!r.asPolygonWithHoles().contains(Point(5, 1)));
+    CHECK(p.asPolygonWithHoles().contains(p));
+    CHECK(p.contains(p.asPolygonWithHoles()));
+
+    // A region built this way is an ordinary operand for the region API.
+    const Region annular = annulus();
+    const Rectangle big(Point(-1, -1), Point(11, 11));
+    CHECK(big.asPolygonWithHoles().contains(annular));
+    CHECK(annular.intersects(c.asPolygonWithHoles()));
+}
