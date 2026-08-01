@@ -375,6 +375,55 @@ constexpr bool reduceDegenerate(const Other& other, Predicate predicate) {
     return false;
 }
 
+/**
+ * @brief The @ref reduceDegenerate variant for an argument that answers
+ * `isDegenerate` more cheaply than it answers `getIfPoint` and `getIfSegment`.
+ *
+ * Both carriers exist only for a degenerate argument, so a shape whose
+ * degeneracy test is cheaper than the two probes -- `Rectangle`, two coordinate
+ * comparisons, and `Convex`, a vertex count -- settles the common
+ * non-degenerate case in one test instead of re-deriving overlapping facts in
+ * each probe.
+ *
+ * Reserved for exactly those shapes. `Polygon` and the chains answer
+ * `isDegenerate` with an exact area sum over every vertex, far dearer than the
+ * probes they would replace, and a shape that cannot collapse to a segment
+ * probes only once already.
+ *
+ * @param other Shape that may have collapsed to a point or to a segment.
+ * @param predicate Callable accepting the carrier point or segment.
+ * @return The predicate's value on the carrier, or `false` if there is none.
+ */
+template <class Other, class Predicate>
+constexpr bool reduceDegenerateGuarded(const Other& other, Predicate predicate) {
+    return other.isDegenerate() && reduceDegenerate(other, predicate);
+}
+
+/**
+ * @brief The @ref reduceDegenerate variant for a predicate that only a
+ * point-collapsed argument can satisfy.
+ *
+ * When the answer is a constant `false` for every argument of positive
+ * diameter -- as it is for a predicate about a boundary that is a finite point
+ * set -- the segment carrier of @ref reduceDegenerate would be tested only to
+ * be rejected. Skipping it matters: `getIfSegment` costs a collinearity scan,
+ * one exact orientation determinant per vertex, whereas `getIfPoint` costs an
+ * equality test that a shape with area fails on its second vertex.
+ *
+ * @param other Shape that may have collapsed to a point.
+ * @param predicate Callable accepting the carrier point.
+ * @return The predicate's value on the carrier point, or `false` if there is none.
+ */
+template <class Other, class Predicate>
+constexpr bool reduceDegenerateToPoint(const Other& other, Predicate predicate) {
+    if constexpr (requires { other.getIfPoint(); }) {
+        if (const auto vertex = other.getIfPoint()) {
+            return predicate(*vertex);
+        }
+    }
+    return false;
+}
+
 }  // namespace detail
 
 }  // namespace pgl

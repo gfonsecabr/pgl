@@ -689,6 +689,57 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Removes the vertex at the given index (in lexicographic order).
+     *
+     * The index-taking counterpart of @ref erase(const PointType&), skipping
+     * the search when the position is already known — e.g. the index returned
+     * by @ref index or @ref indexAtX. Rerouting works the same way: the erased
+     * vertex's neighbours become adjacent, and the chain stays canonical.
+     *
+     * Complexity: O(n) vector shift for n vertices; O(1) when erasing the last
+     * vertex.
+     *
+     * @param index The index of the vertex to remove; must be less than
+     *        @ref size().
+     */
+    constexpr void erase(std::size_t index)
+        requires detail::ownsChainStorage<Storage, PointType>
+    {
+        assert(index < size());
+        points_.erase(points_.begin() + static_cast<std::ptrdiff_t>(index));
+        resetCache();
+    }
+
+    /**
+     * @brief Removes the given point from the chain's vertices.
+     *
+     * Nothing happens when the point is not a vertex. Removing an interior
+     * vertex *reroutes* the chain, linking the erased vertex's two neighbours
+     * by a single edge; removing an extreme vertex shortens the chain (the
+     * vertices are a point set, §constructor). The result stays canonical, so
+     * the chain remains weakly x-monotone.
+     *
+     * Complexity: O(log n) comparisons plus O(n) vector shift; O(1) shift when
+     * erasing the last vertex.
+     *
+     * @param point The vertex to remove.
+     * @return `true` when a vertex was erased, `false` when @p point is not a
+     *         vertex of the chain.
+     */
+    constexpr bool erase(const PointType& point)
+        requires detail::ownsChainStorage<Storage, PointType>
+    {
+        const PointType query = point - translation_;
+        const auto it = std::lower_bound(points_.begin(), points_.end(), query);
+        if (it == points_.end() || *it != query) {
+            return false;
+        }
+        points_.erase(it);
+        resetCache();
+        return true;
+    }
+
+    /**
      * @brief Locates the vertex or edge of the chain at a given x-coordinate.
      *
      * Returns the smallest index `i` such that `(*this)[i].x() == x`, or, when
@@ -943,14 +994,14 @@ struct MonotoneChain {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
@@ -967,32 +1018,32 @@ struct MonotoneChain {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
@@ -1068,13 +1119,13 @@ struct MonotoneChain {
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const {
-        return detail::reduceDegenerate(
+        return detail::reduceDegenerateGuarded(
             other, [this](const auto& carrier) { return interiorContains(carrier); });
     }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
+        return detail::reduceDegenerateGuarded(
             other, [this](const auto& carrier) { return interiorContains(carrier); });
     }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */

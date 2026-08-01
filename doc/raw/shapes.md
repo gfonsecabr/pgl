@@ -38,6 +38,7 @@ The following shapes are supported by Pangolin:
 - [`Disk`](#disk) A circle with its interior.
 - [`Polygon`](#polygon) Simple polygon.
 - [`Convex`](#convex) Convex polygon.
+- [`PolygonWithHoles`](#polygon-with-holes) Simple polygon minus a set of disjoint polygonal holes.
 - [`HalfplaneIntersection`](#halfplane-intersection) Intersection of half-planes; convex but possibly unbounded or empty.
 
 All shapes are template classes with a parameter that is a `Point` type, with `pgl::Point<int>` as default:
@@ -548,6 +549,7 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.isStrictlyMonotone()`: Returns true if no two vertices share an x-coordinate, so the chain is the graph of a function of x. Takes $O(n)$ time.
 - `P.insert(p)`: Extends the chain in order to contain another point `p` as a vertex.
 - `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
+- `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex (found in $O(\log n)$ comparisons, since the vertices are sorted) and the second requiring `i` to be smaller than `P.size()`. Erasing an interior vertex reroutes the chain through a single edge between its neighbors, and erasing an extreme vertex shortens the chain.
 - `P.indexAtX(x)`: Returns an `std::optional<size_t>` that is engaged if the chain contains a point of x-coordinate `x`. The returned value is the smallest index `i` such that `P[i].x() == x`, or the unique `i` with `P[i].x() < x < P[i+1].x()`. Takes $O(\log n)$ time.
 - `P.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. **Warning:** interpolation divides, so request a floating-point or `Rational` result type for an accurate value.
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
@@ -632,6 +634,65 @@ If the convex polygon `c` has $n$ vertices, then:
 - `c.intersection(c2)` takes $O((n+m) log (n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 
 - Other methods:
+
+### Polygon with Holes
+
+The class template `PolygonWithHoles` represents a polygon that has a set of disjoint polygonal holes. Let $P$ be the outer polygon and $H_i^\circ$ be the interior of the hole $H_i$. The polygon with holes $A$ is a closed region defined as the outer polygon minus the **interiors** of the holes:
+
+$$A = P \setminus \bigcup_i H_i^\circ.$$
+
+For all $i$, the hole $H_i$ must satisfy $H_i \subseteq P$. Every pair of distinct holes must be interior disjoint, but their boundaries may intersect.
+
+The boundary of $A$ is the union of the boundary of $P$ and the boundary of every hole $H_i$. Notice that $A$ is connected but its interior may not be.
+
+The outer boundary and every hole are ordinary [`Polygon`](#polygon) values, each in `Polygon`'s own canonical form (counterclockwise, lexicographically smallest vertex first) — holes are *not* stored reversed. Equality, ordering and hashing do not depend on the order the holes were given in.
+
+```C++
+pgl::Polygon<> outer({0,0, 10,0, 10,10, 0,10});
+pgl::Polygon<> hole({4,4, 6,4, 6,6, 4,6});
+pgl::PolygonWithHoles<> region(outer, std::vector{hole});
+std::cout << region << std::endl;
+// Output: PolygonWithHoles[Polygon[(0,0),(10,0),(10,10),(0,10)],Polygon[(4,4),(6,4),(6,6),(4,6)]]
+std::cout << region.area() << ' ' << region.holeCount() << ' ' << region.vertexCount();
+// Output: 96 1 8
+```
+
+As with [`Polygon`](#polygon), whose constructor does not check simplicity, structural validity is a documented precondition rather than an enforced invariant: every polygon must be simple, each hole must lie inside the outer polygon — closed containment, so a hole may touch the outer ring but never pokes out through it — and hole interiors must be pairwise disjoint. The method `isValid` checks the whole contract on demand.
+
+A region `A` with $n$ vertices in total and $k$ holes has methods such as:
+
+- `A.outer()`: Returns the outer boundary polygon.
+- `A.holeCount()` / `A.hasHoles()` / `A.hole(i)` / `A.holes()`: The holes, in canonical (sorted) order. Iterating a region iterates its holes.
+- `A.addHole(h)`: Adds a hole, keeping the canonical order. A zero-area ring removes nothing and is ignored.
+- `A.eraseHole(i)` / `A.eraseHole(h)`: Fills a hole back in, by its index in the canonical order or by the polygon itself, the second returning whether it found one to erase (in $O(\log k)$ comparisons, since the holes are sorted).
+- `A.vertexCount()`: Returns the total number of vertices over all rings. Deliberately not named `size`: unlike a polygon's, it counts the outer boundary *and* every hole, and a name shared with a shape whose meaning differs would be a trap in generic code. For the same reason a region has no `operator[]`.
+- `A.vertices()` / `A.edges()`: The vertices and the boundary edges of every ring, outer boundary first.
+- `A.orientedEdges()`: The boundary edges directed so the region lies to the left: the outer ring counterclockwise as stored, the hole rings **reversed**, i.e. clockwise.
+- `A.isEmpty()`: Returns true if the region has no outer boundary at all.
+- `A.isDegenerate()`: Returns true if the region has null area.
+- `A.isPoint()` / `A.isSegment()`: Whether the region covers exactly one point, or exactly one segment of positive length. Zero-area holes are dropped at construction, so both are decided by the outer boundary alone.
+- `A.isUndefined()`: True if the region is degenerate without covering a point or a segment, which includes the empty region.
+- `A.isSimple()`: Returns true if every ring is simple. This is a per-ring check only and says nothing about how the rings sit relative to one another. Takes $O(n \log n)$ time.
+- `A.isValid()`: Tests the whole structural contract above. Takes $O(n \log n)$ time, plus one containment test per hole and one interior-overlap test per bounding-box-overlapping hole pair.
+- `A.twiceArea()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
+- `A.area()`: Returns the area. Divides by 2.
+- `A.centroid()`: Returns the area-weighted centroid, the holes entering with negative weight. When the net area is zero the region has no area-weighted centroid and the centroid of the vertex set is returned instead.
+- `A.verticesCentroid()`: Returns the centroid of the vertex set over all rings.
+- `A.pointInside()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. Divides coordinates by 4, and is undefined for a region with no area.
+- `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
+- `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
+- `A.difference(B)`, `A.unionWith(B)`, `A.symmetricDifference(B)` and `A.minkowskiSum(B)` return a `std::vector<PolygonWithHoles>`, as does `A.intersection(B)` — the one shape whose intersections can keep holes, and hence the one that carries a region-valued `intersection` next to the general one. See [Boolean Operations](shape_methods.md#boolean-operations) and [Minkowski Sum](shape_methods.md#minkowski-sum).
+
+Against a region of $n$ vertices and an operand of $m$:
+
+- The predicates against a point take $O(n)$ time, and those against a segment, a line, a ray, or a half-plane take $O(n)$ time as well (`interiorsIntersect` adds $O(c^2)$ for the $c$ boundary crossings the operand makes, and against a half-plane it is $O(n)$ when no rings touch and $O(n^3)$ in the worst case).
+- The predicates against a bounded shape with area take $O(n \cdot m)$ time, and `interiorsIntersect` takes $O(n \log n + n \cdot m)$ when it falls back on the triangulated domain — against another region, where there is no boundary shortcut, $O(n \log n + m \log m + n \cdot m)$.
+- The distances take $O(n)$ edge queries: the region is closed, so whenever it misses the other shape the nearest pair is realized on one of its ring edges.
+
+- Other methods:
+
+`PolygonWithHoles` is an alternative of the polymorphic [`Shape`](#polymorphism-with-shape) class and can be drawn on a [canvas](canvas.md), which strokes one closed subpath per ring. Note that `Shape::size`, `Shape::get`, `Shape::operator[]` and `Shape::index` throw for this alternative, since its vertices are spread over its rings rather than forming one indexable sequence.
+
 
 ### Halfplane Intersection
 

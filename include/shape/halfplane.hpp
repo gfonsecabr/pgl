@@ -469,7 +469,7 @@ struct Halfplane {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
+        return detail::reduceDegenerateGuarded(
             other, [this](const auto& carrier) { return boundaryContains(carrier); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
