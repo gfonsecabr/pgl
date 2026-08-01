@@ -3358,6 +3358,17 @@ bool separatesPolylineSet(const Remover& remover, const PolylineType& target) {
         // Removing anything from at most one point cannot disconnect it.
         return false;
     }
+    // A polyline is connected, so a remover that misses it removes nothing that
+    // matters — the same shortcut @ref cellSeparates takes, and worth more here,
+    // because the arrangement below is of the *target* alone and so is rebuilt
+    // in full for every remover it is asked about. Only bounded removers can be
+    // ruled out this way: a line, a ray and a half-plane have no bounding box,
+    // which is exactly why they have no `bbox()` to call.
+    if constexpr (requires { remover.bbox(); }) {
+        if (!remover.bbox().intersects(target.bbox())) {
+            return false;
+        }
+    }
     using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
                                       typename Remover::NumberType>;
     using ExactPoint = Point<ExactNumber>;
@@ -3432,6 +3443,14 @@ template <class PolylineType, class Region>
 bool polylineSeparatesConvexRegion(const PolylineType& polyline, const Region& other) {
     if (polyline.size() < 2) {
         return false;
+    }
+    // Both operands are connected, so shapes that miss each other neither cut
+    // nor are cut — as in @ref cellSeparates. A half-plane operand has no
+    // bounding box to test, and no `bbox()` to call.
+    if constexpr (requires { other.bbox(); }) {
+        if (!polyline.bbox().intersects(other.bbox())) {
+            return false;
+        }
     }
     using ExactNumber = Exact1DNumber<typename PolylineType::NumberType,
                                       typename Region::NumberType>;
@@ -4837,6 +4856,13 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
     using ExactPoint = Point<ExactNumber>;
     using ExactSegment = Segment<ExactPoint>;
 
+    // A disk is connected, so a region that misses it removes nothing that
+    // matters — the same shortcut @ref cellSeparates takes, and worth as much
+    // here, since everything below is one arrangement and one triangulation.
+    if (!region.bbox().intersects(disk.bbox())) {
+        return false;
+    }
+
     std::vector<ExactSegment> cuts;
     appendCutSegments<ExactPoint>(region, cuts);
     if (cuts.empty()) {
@@ -5023,6 +5049,13 @@ template <class OtherDisk, class Region>
 bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
     using RegionPoint = typename Region::PointType;
     using RegionSegment = Segment<RegionPoint>;
+
+    // A region is connected (@ref regionsAreConnected), so a disk that misses
+    // it removes nothing that matters, and the triangulation below is not worth
+    // building. The same shortcut @ref cellSeparates takes.
+    if (!disk.bbox().intersects(region.bbox())) {
+        return false;
+    }
 
     std::vector<std::size_t> parent;
     const auto findRoot = [&parent](std::size_t x) {
