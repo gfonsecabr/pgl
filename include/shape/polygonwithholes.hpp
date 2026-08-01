@@ -230,6 +230,42 @@ struct PolygonWithHoles {
     }
 
     /**
+     * @brief Erases the hole at the given index.
+     *
+     * Filling a hole in is the one edit that needs no revalidation: the holes
+     * that remain still lie inside the outer boundary with interiors still
+     * pairwise disjoint, and erasing preserves both their sorted order and the
+     * absence of zero-area rings, so nothing is renormalized.
+     *
+     * @param index The index of the hole, in canonical (sorted) order.
+     */
+    constexpr void eraseHole(std::size_t index) {
+        assert(index < holes_.size());
+        holes_.erase(holes_.begin() + static_cast<std::ptrdiff_t>(index));
+        resetCache();
+    }
+
+    /**
+     * @brief Erases the hole equal to the given polygon, if the region has one.
+     *
+     * The holes are sorted, so this finds it by binary search: O(log k)
+     * comparisons for k holes, plus the element moves the erase itself costs.
+     *
+     * @param hole The hole to erase.
+     * @return `true` when a hole was erased, `false` when the region has no
+     *         hole equal to @p hole.
+     */
+    constexpr bool eraseHole(const PolygonType& hole) {
+        const auto position = std::lower_bound(holes_.begin(), holes_.end(), hole);
+        if (position == holes_.end() || !(*position == hole)) {
+            return false;
+        }
+        holes_.erase(position);
+        resetCache();
+        return true;
+    }
+
+    /**
      * @brief Returns the total number of vertices over all rings.
      *
      * Deliberately not named `size()`: unlike @ref Polygon::size this counts

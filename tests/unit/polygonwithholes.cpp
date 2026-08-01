@@ -66,6 +66,63 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
         region.addHole(Polygon({1, 1, 1, 1, 1, 1}));
         CHECK(region.holeCount() == 2);
     }
+
+    SUBCASE("eraseHole by index takes the canonical order") {
+        Region region(outerSquare(), std::vector{otherHole(), smallHole()});
+        REQUIRE(region.hole(0) == smallHole());
+        region.eraseHole(0);
+        CHECK(region.holeCount() == 1);
+        CHECK(region.hole(0) == otherHole());
+        CHECK(region.twiceArea() == 200 - 8);
+        region.eraseHole(0);
+        CHECK(!region.hasHoles());
+        CHECK(region.twiceArea() == 200);
+    }
+
+    SUBCASE("eraseHole by polygon reports whether it erased") {
+        Region region(outerSquare(), std::vector{smallHole(), otherHole()});
+        CHECK(region.eraseHole(otherHole()));
+        CHECK(region.holeCount() == 1);
+        CHECK(region.hole(0) == smallHole());
+
+        // Erasing it again, and erasing a polygon that is no hole of this
+        // region, both fail and leave the region alone.
+        CHECK(!region.eraseHole(otherHole()));
+        CHECK(!region.eraseHole(Polygon({1, 1, 2, 1, 2, 2, 1, 2})));
+        CHECK(region.holeCount() == 1);
+        CHECK(region.twiceArea() == 192);
+    }
+
+    SUBCASE("erasing every hole gives back the hole-free region") {
+        const Region hollow(outerSquare(), std::vector{smallHole(), otherHole()});
+        Region region = hollow;
+        CHECK(region.eraseHole(smallHole()));
+        region.eraseHole(0);
+        CHECK(region == Region(outerSquare()));
+        CHECK(region.isValid());
+
+        // add then erase round-trips, memoized hash included.
+        region.addHole(smallHole());
+        region.addHole(otherHole());
+        CHECK(region == hollow);
+        CHECK(std::hash<Region>{}(region) == std::hash<Region>{}(hollow));
+        CHECK(region.eraseHole(smallHole()));
+        CHECK(region.eraseHole(otherHole()));
+        CHECK(region == Region(outerSquare()));
+        CHECK(std::hash<Region>{}(region) == std::hash<Region>{}(Region(outerSquare())));
+    }
+
+    SUBCASE("a region stays valid after an erase") {
+        // Two holes that touch along an edge: erasing one leaves the other.
+        const Polygon left({2, 2, 5, 2, 5, 5, 2, 5});
+        const Polygon right({5, 2, 8, 2, 8, 5, 5, 5});
+        Region region(outerSquare(), std::vector{left, right});
+        REQUIRE(region.isValid());
+        CHECK(region.eraseHole(left));
+        CHECK(region.isValid());
+        CHECK(region.holeCount() == 1);
+        CHECK(region.hole(0) == right);
+    }
 }
 
 TEST_CASE("PolygonWithHoles value semantics do not depend on hole order") {
