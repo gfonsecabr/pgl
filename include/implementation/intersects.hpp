@@ -850,6 +850,13 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherDisk& other) 
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (const auto point = getIfPoint()) {
+        // A radius-zero disk is its centre; the in-circle formulation below
+        // needs three non-collinear boundary points to be meaningful, and on
+        // three equal ones every determinant vanishes and both of its tests
+        // come out true.
+        return other.contains(*point);
+    }
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -1129,6 +1136,11 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherOrientedSegment
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (const auto point = getIfPoint()) {
+        // A radius-zero disk is its centre, which the in-circle formulation
+        // below cannot see (see intersects(Segment)).
+        return other.contains(*point);
+    }
     // A line has no endpoints, so there is no containment shortcut: it meets the
     // closed disk exactly when the centre lies within one radius of the line,
     // i.e. when the power quadratic along the line has real roots (discriminant
@@ -1937,8 +1949,201 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Sha
 
 
 // ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (!outer_.intersects(other)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    // Every point of every ring belongs to the region: holes remove only their
+    // interiors, and a hole interior never reaches the outer boundary. So a
+    // segment touching any ring edge already meets the region.
+    if (anyBoundaryEdge([&other](const auto& edge) { return edge.intersects(other); })) {
+        return true;
+    }
+    // The segment misses ∂A altogether, so — being connected — it lies wholly
+    // in the open region or wholly outside the closed one, and either endpoint
+    // says which.
+    return contains(other.min());
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    return intersects(other.asSegment());
+}
+
+// An unbounded connected operand that reaches the bounded outer polygon has to
+// leave it again, so it meets ∂outer — and every point of ∂outer is in the
+// region, hole interiors never reaching it. The holes therefore cost nothing
+// here; only a collapsed operand, which is a point that a hole can swallow,
+// needs the region's own point test.
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.min());
+    }
+    return outer_.intersects(other);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    return intersects(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.source());
+    }
+    return outer_.intersects(other);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    if (other.isDegenerate()) {
+        return contains(other.source());
+    }
+    return outer_.intersects(other);
+}
+
+// The bounded operands with area follow the segment overload exactly: every
+// point of every ring belongs to the region, so touching a ring settles it, and
+// an operand missing ∂A altogether is — being connected — wholly in A° or
+// wholly outside A, which one of its own vertices reports.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaIntersects(const OtherArea& other) const {
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return edge.intersects(other); })) {
+        return true;
+    }
+    const auto edges = other.edges();
+    return !edges.empty() && contains(edges.front().min());
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherTriangle& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherConvex& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherPolygon& other) const {
+    return areaIntersects(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRegion& other) const {
+    return areaIntersects(other);
+}
+
+// A chain is the union of its edges, so it meets the region exactly when some
+// edge does (see @ref chainRelation).
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherChain& other) const {
+    return chainRelation(other, false, [this](const auto& edge) { return this->intersects(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherPolyline& other) const {
+    return chainRelation(other, false, [this](const auto& edge) { return this->intersects(edge); });
+}
+
+// The disk follows the area operands exactly: every point of every ring belongs
+// to the region, so touching a ring settles it, and a disk missing ∂A altogether
+// is — being connected — wholly in A° or wholly outside A, which any one of its
+// own points reports.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        // Radius zero, or undefined; either way a() carries the answer, and the
+        // point overload is cheaper than the scan below.
+        return intersects(other.a());
+    }
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return other.intersects(edge); })) {
+        return true;
+    }
+    return contains(other.a());
+}
+
+// Same argument once more, and it survives an unbounded operand: a half-plane
+// intersection is connected, so one that misses ∂A lies wholly in A° — which a
+// bounded region rules out for anything unbounded — or wholly outside A.
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return false;
+    }
+    if (!other.intersects(outer_)) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return true;
+    }
+    if (anyBoundaryEdge([&other](const auto& edge) { return other.intersects(edge); })) {
+        return true;
+    }
+    using E = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    return contains(other.template pointInside<E>());
+}
+
+
+// ---------------------------------------------------------------------------
 // Reverse direction: intersects is symmetric, so the lower-ranked shapes'
 // generic rank-guarded forwarders already dispatch these here — no per-shape
 // definitions are needed.
+
+// ---------------------------------------------------------------------------
+// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
+// alternative has a per-shape overload above, so no fallback is needed.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->intersects(value);
+        },
+        other.variant());
+}
 
 }  // namespace pgl

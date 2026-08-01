@@ -568,6 +568,19 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the polygon as a hole-free region.
+     *
+     * The boundary is already canonical, and a region without holes needs no
+     * further normalization.
+     *
+     * @return PolygonWithHoles whose outer boundary is this polygon and which
+     *         has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(*this);
+    }
+
+    /**
      * @brief Computes the area-weighted centroid of the polygon.
      * @tparam ResultNumber The number type for the result.
      * @warning Uses division by 3 and the area, so the result may be inexact even for floating-point types.
@@ -673,6 +686,236 @@ struct Polygon {
      */
     template <class SegmentRange>
     auto triangulation(const SegmentRange& segments) const;
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this polygon with
+     *        the given interior vertices and constraint segments.
+     *
+     * Equivalent to `Triangulation(*this, points, segments)`. The polygon must
+     * be simple (non-self-intersecting) and non-degenerate, and the points and
+     * segments are assumed to lie inside it (not checked).
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the polygon,
+     *         with every point present as a vertex and every segment as a
+     *         constrained edge.
+     */
+    template <class PointRange, class SegmentRange>
+    auto triangulation(const PointRange& points, const SegmentRange& segments) const;
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * The result is `closure(A° ∖ B)`: the part of this polygon with area that
+     * survives the removal, as a set of regions with pairwise disjoint
+     * interiors whose union is the difference. Lower-dimensional leftovers — a
+     * stretch of the boundary that @p other touches without covering, an
+     * isolated contact point — are dropped, which is the usual convention for
+     * boolean operations on solids and what makes the result a set of regions.
+     *
+     * This is the construction @ref PolygonWithHoles exists for: removing a
+     * polygon from the middle of another one leaves a hole, which no other
+     * shape in the library can express. Unlike
+     * @ref intersection(const OtherPolygon&) const, which never needs one, this
+     * is where the nesting matters.
+     *
+     * The pieces are not nested: an island of this polygon stranded inside a
+     * hole of the result comes back as a region of its own.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to remove.
+     * @return The pieces of the difference, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. So an integral
+     *       result type is exact whenever the boundaries cross at integral
+     *       points, and truncates only where they genuinely do not.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    difference(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * The result is `closure(A° ∪ B°)`, as a set of regions with pairwise
+     * disjoint interiors. It needs @ref PolygonWithHoles for the same reason the
+     * difference does: two shapes that wrap round between them enclose a hole
+     * neither of them has, as a `U` united with the bar that caps it.
+     *
+     * Operands meeting only along a stretch of boundary or at a single point
+     * fuse only where they have area in common to fuse through — an isolated
+     * contact point comes back as two pieces meeting there, since a region may
+     * not have a self-touching outer ring. Disjoint operands come back as two
+     * pieces.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to unite with.
+     * @return The pieces of the union, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. So an integral
+     *       result type is exact whenever the boundaries cross at integral
+     *       points, and truncates only where they genuinely do not.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized union of the two shapes (A ∪ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    unionWith(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B).
+     *
+     * The result is `closure((A° ∖ B) ∪ (B° ∖ A))`, as a set of regions with
+     * pairwise disjoint interiors: the part covered by exactly one of the two
+     * operands. It is the union of the two differences, and inherits holes from
+     * both.
+     *
+     * Complexity: O(m²) for m boundary edges, then a constrained triangulation
+     * over the arrangement of both boundaries.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The other shape.
+     * @return The pieces of the symmetric difference, in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    symmetricDifference(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
+     * and returned as a set of regions with pairwise disjoint interiors. A
+     * non-convex operand is what makes that necessary: sliding a shape around
+     * the inside of a `U` sweeps out a region whose boundary closes over a hole,
+     * and no other shape in the library can say so. This is the gap
+     * @ref PolygonWithHoles was proposed to close.
+     *
+     * The sum of two connected shapes is connected, so the answer is a single
+     * region unless its boundary pinches shut — which a region may not do, since
+     * its outer ring may not touch itself.
+     *
+     * Distinguish this from
+     * @ref minkowskiSum(const OtherShape&) const, which sums a *bounded convex*
+     * operand and returns a single `Convex` (or a `Rectangle`, or a translation
+     * of this polygon by a `Point`). The two never overlap: the pairs that fit
+     * in one shape are exactly the pairs @ref MinkowskiSummableConcept accepts,
+     * and this overload set takes the rest.
+     *
+     * Complexity: one convex merge per pair of triangles of the two operands'
+     * triangulations, then a constrained triangulation over the arrangement of
+     * all of them.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     * @note Every vertex of every piece sum is a sum of two input vertices, so
+     *       the pieces are exact; only their union can put a vertex at a
+     *       crossing, and that arrangement is built over exact rationals and
+     *       converted to @p ResultNumber only at the end.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolygon& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * A `Polyline` summand has no area, but it sweeps this polygon along itself
+     * all the same, so the sum is a region like every other one here. This is the
+     * mirror of @ref Polyline::minkowskiSum(const OtherPolygon&) const and gives
+     * the same answer: which operand is written first never decides which sum
+     * answers.
+     */
+    template <class ResultNumber = NumberType, PolylineConcept OtherPolyline>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolyline& other) const;
 
     /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
@@ -1095,6 +1338,39 @@ struct Polygon {
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
 
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A region is contained exactly when its outer polygon is: the region holds
+     * the whole outer ring whatever its holes do, and this shape has a
+     * connected complement. See implementation/contains.hpp.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * A boundary has no area, so it holds only a region with no area — which is
+     * exactly the union of that region's ring edges.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool crosses(const OtherPolyline& other) const;
@@ -1430,6 +1706,30 @@ struct Polygon {
         return other.crosses(*this);
     }
 
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersects` defined only once, on the higher-ranked shape.
+     */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
+    }
+
+    /**
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `interiorsIntersect` defined only once, on the higher-ranked shape.
+     */
+    template<typename OtherShape>
+        requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
+    }
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
@@ -1511,6 +1811,21 @@ struct Polygon {
     [[nodiscard]] constexpr auto squaredDistance(const OtherPolygon& other) const;
 
     /**
+     * @brief Returns the squared Euclidean distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `squaredDistance` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template squaredDistance<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
      * Zero when the polygon's closed region intersects the disk; otherwise the
@@ -1568,6 +1883,21 @@ struct Polygon {
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceL1` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template distanceL1<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape.
+     *
      * Distance is symmetric, so this just calls @p other's own `distanceL1`,
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
@@ -1620,6 +1950,21 @@ struct Polygon {
     /** @copydoc distanceLInf(const OtherPoint&) const */
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the Chebyshev (LInf) distance to the given shape.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `distanceLInf` defined only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template distanceLInf<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
@@ -1807,6 +2152,25 @@ struct Polygon {
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Polyline<Point<ResultNumber, typename PointType::LabelType>>, Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersection` defined only once, on the higher-ranked shape. The
+     * result is then the higher-ranked shape's: intersecting with a
+     * @ref PolygonWithHoles gives regions, not the component vector the
+     * polygon-polygon overload returns.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Polygon>)
+                  && requires(const OtherShape& o, const Polygon& self) {
+                         o.template intersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>

@@ -299,6 +299,72 @@ TEST_CASE("MonotoneChain insert") {
     }
 }
 
+TEST_CASE("MonotoneChain erase") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+
+    SUBCASE("erasing an interior vertex reroutes the chain") {
+        Chain chain({0, 0, 5, 3, 10, 0});
+        CHECK(chain.erase(Point(5, 3)));
+        REQUIRE(chain.size() == 2);
+        CHECK(chain[0] == Point(0, 0));
+        CHECK(chain[1] == Point(10, 0));
+        CHECK(chain.yAtX(5) == 0);
+    }
+
+    SUBCASE("erasing an extreme vertex shortens the chain") {
+        Chain chain({0, 0, 5, 3, 10, 0});
+        CHECK(chain.erase(Point(0, 0)));
+        CHECK(chain[0] == Point(5, 3));
+        CHECK(chain.erase(Point(10, 0)));
+        REQUIRE(chain.size() == 1);
+        CHECK(chain[0] == Point(5, 3));
+        CHECK(chain.erase(Point(5, 3)));
+        CHECK(chain.empty());
+        CHECK(!chain.erase(Point(5, 3)));
+    }
+
+    SUBCASE("erasing a non-vertex leaves the chain unchanged") {
+        Chain chain({0, 0, 5, 3, 10, 0});
+        CHECK(!chain.erase(Point(5, 0)));  // On the x-extent, not a vertex.
+        CHECK(!chain.erase(Point(7, 7)));
+        CHECK(chain == Chain({0, 0, 5, 3, 10, 0}));
+    }
+
+    SUBCASE("erase invalidates the cached bounding box") {
+        Chain chain({0, 0, 5, 7, 10, 0});
+        CHECK(chain.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(10, 7)));
+        CHECK(chain.erase(Point(5, 7)));
+        CHECK(chain.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(10, 0)));
+    }
+
+    SUBCASE("erase by index takes the lexicographic order") {
+        Chain chain({0, 0, 5, 3, 10, 0});
+        chain.erase(1);
+        REQUIRE(chain.size() == 2);
+        CHECK(chain[0] == Point(0, 0));
+        CHECK(chain[1] == Point(10, 0));
+        chain.erase(chain.size() - 1);
+        REQUIRE(chain.size() == 1);
+        CHECK(chain[0] == Point(0, 0));
+    }
+
+    SUBCASE("erase by index pairs with the locating queries") {
+        Chain chain = Chain({0, 0, 5, 3, 10, 0}) + Point(100, 100);
+        chain.erase(static_cast<std::size_t>(chain.index(Point(105, 103))));
+        CHECK(chain == Chain({100, 100, 110, 100}));
+    }
+
+    SUBCASE("erase respects an active translation") {
+        Chain chain = Chain({0, 0, 5, 3, 10, 0}) + Point(100, 100);
+        CHECK(!chain.erase(Point(5, 3)));
+        CHECK(chain.erase(Point(105, 103)));
+        REQUIRE(chain.size() == 2);
+        CHECK(chain[0] == Point(100, 100));
+        CHECK(chain[1] == Point(110, 100));
+    }
+}
+
 TEST_CASE("MonotoneChain equality, ordering, and hashing") {
     using Point = pgl::Point<int>;
     using Chain = pgl::MonotoneChain<Point>;

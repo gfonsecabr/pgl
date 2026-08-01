@@ -1406,4 +1406,165 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::distanceL1(const Oth
     return detail::regionEdgesDistanceL1<ResultNumber>(*this, other);
 }
 
+
+// -----------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// See distance.hpp: a shape the closed region misses is nearest to a point of
+// ∂A, so one scan over the edges of every ring answers all three metrics.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber PolygonWithHoles<PointType, LabelType>::edgeMinDistanceL1(const OtherShape& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        const ResultNumber current = edge.template distanceL1<ResultNumber>(other);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+        return false;
+    });
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherPolygon& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherRegion& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherIntersection& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinDistanceL1<ResultNumber>(other);
+}
+
+// No Disk overload: the library defines the L1 and LInf distances to a disk
+// only from a point.
+
 }  // namespace pgl

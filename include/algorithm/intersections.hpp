@@ -814,6 +814,46 @@ bool Polygon<PointType_, LabelType>::isSimple() const {
     return true;
 }
 
+template <class PointType_, class LabelType>
+template <class Rational>
+bool PolygonWithHoles<PointType_, LabelType>::isValid() const {
+    // The empty region carries no boundary, so it can carry no hole either.
+    if (isEmpty()) {
+        return holes_.empty();
+    }
+    // Every ring simple on its own. This is also what rules out a zero-length
+    // edge or a repeated vertex on any ring.
+    if (!isSimple<Rational>()) {
+        return false;
+    }
+    // Each hole inside the outer boundary. Polygon::contains is closed
+    // containment, so a hole whose boundary touches or runs along the outer ring
+    // passes, while one poking out — or one merely crossing it — fails. Closed
+    // containment also gets the interior condition for free: a hole interior
+    // reaching ∂outer would carry points beyond it, and the hole would not be
+    // contained.
+    for (const auto& hole : holes_) {
+        if (!outer_.contains(hole)) {
+            return false;
+        }
+    }
+    // Hole interiors pairwise disjoint — the whole of the contract between two
+    // holes. Boundaries meeting at points or along shared edges is allowed,
+    // which is exactly what interiorsIntersect lets through; overlapping and
+    // nested holes are not. The bounding boxes prefilter the quadratic scan.
+    for (std::size_t i = 0; i < holes_.size(); ++i) {
+        for (std::size_t j = i + 1; j < holes_.size(); ++j) {
+            if (!holes_[i].bbox().intersects(holes_[j].bbox())) {
+                continue;
+            }
+            if (holes_[i].interiorsIntersect(holes_[j])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 template <class PointType_, class TLabel>
 template <class Rational>
 bool Polyline<PointType_, TLabel>::isSimple() const {

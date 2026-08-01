@@ -774,14 +774,14 @@ struct Polyline {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
@@ -798,32 +798,32 @@ struct Polyline {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
@@ -906,13 +906,13 @@ struct Polyline {
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool interiorContains(const OtherRectangle& other) const {
-        return detail::reduceDegenerate(
+        return detail::reduceDegenerateGuarded(
             other, [this](const auto& carrier) { return interiorContains(carrier); });
     }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool interiorContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
+        return detail::reduceDegenerateGuarded(
             other, [this](const auto& carrier) { return interiorContains(carrier); });
     }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
@@ -1217,6 +1217,40 @@ struct Polyline {
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * The polyline is the one shape whose complement can come apart, so it does
+     * not answer a region by that region's outer polygon: having no area
+     * itself, it holds only a region with no area, and then edge by edge. See
+     * implementation/contains.hpp.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * A boundary has no area, so it holds only a region with no area — which is
+     * exactly the union of that region's ring edges.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template <class EmptyPoint>
     [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
@@ -1812,6 +1846,95 @@ struct Polyline {
     template <class OtherShape>
         requires MinkowskiSummableConcept<Polyline<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
+     * and returned as a set of regions with pairwise disjoint interiors. A
+     * polyline has no area of its own, but sweeping a shape with area along it
+     * does: the chain is one-dimensional and may bend back on itself, so the
+     * swept material can close over a hole — a closed chain is the plainest
+     * example, and an open one whose ends come within the summand's reach of each
+     * other does it too — and no other shape in the library can say so.
+     *
+     * The sum of two connected shapes is connected, and a polyline is connected,
+     * so the answer is a single region unless its boundary pinches shut — which a
+     * region may not do, since its outer ring may not touch itself. It is empty
+     * only when an operand is empty or the sum has no area at all (a summand
+     * collapsed to a point or to a segment parallel to a straight polyline).
+     *
+     * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
+     * sums a `Point` — a translation, giving back a `Polyline` — and nothing
+     * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
+     * every other pair. The operands here are every bounded shape that has area
+     * for the chain to sweep — the three convex ones, @ref Polygon and
+     * @ref PolygonWithHoles — and nothing else: summing two chains has no area for
+     * the regularization to keep, so that pair is a compile error.
+     *
+     * Complexity: one convex merge per edge of the polyline, then a constrained
+     * triangulation over the arrangement of all of them.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     * @note Every vertex of every piece sum is a sum of two input vertices, so
+     *       the pieces are exact; only their union can put a vertex at a
+     *       crossing, and that arrangement is built over exact rationals and
+     *       converted to @p ResultNumber only at the end.
+     */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The one non-convex summand a chain takes: a `Polygon` reaches around the
+     * chain as readily as the chain bends around it, so here either operand's
+     * concavity can strand a cavity, where with a convex summand only the chain's
+     * turns can. It is decomposed the way the region-valued sums decompose it —
+     * the triangles of its triangulated domain, or its edges when it has no area —
+     * while the chain contributes its edges.
+     *
+     * Complexity: one convex merge per pair of chain edge and operand triangle,
+     * then a constrained triangulation over the arrangement of all of them.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * A region summand brings what it brings to every sum: its holes need no
+     * handling, being simply where its decomposition has no piece, while its
+     * **slits** do — a stretch of boundary two of its rings share carries no area
+     * beside it and yet sweeps out area along the chain exactly as a triangle
+     * does, so it joins the decomposition.
+     *
+     * The one case worth knowing is a slit the chain drags *along the slit's own
+     * direction*: that sweep is a segment, so the regularization drops it and the
+     * answer is strictly smaller than `A ⊕ B`. It is the same rule that makes a
+     * summand with no area at all come back empty, and it is reachable here from a
+     * perfectly ordinary rectilinear region and chain.
+     *
+     * Complexity: one convex merge per pair of chain edge and operand piece, then
+     * a constrained triangulation over the arrangement of all of them.
+     */
+    template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherRegion& other) const;
 
     /**
      * @brief Translates the polyline by the given point.

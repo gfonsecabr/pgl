@@ -1466,6 +1466,39 @@ struct HalfplaneIntersection {
     template <HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
 
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A region is contained exactly when its outer polygon is: the region holds
+     * the whole outer ring whatever its holes do, and this shape has a
+     * connected complement. See implementation/contains.hpp.
+     */
+    template <PolygonWithHolesConcept OtherHoledRegion>
+    [[nodiscard]] constexpr bool contains(const OtherHoledRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * A boundary has no area, so it holds only a region with no area — which is
+     * exactly the union of that region's ring edges.
+     */
+    template <PolygonWithHolesConcept OtherHoledRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherHoledRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <PolygonWithHolesConcept OtherHoledRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherHoledRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template <PolygonWithHolesConcept OtherHoledRegion>
+    [[nodiscard]] bool separates(const OtherHoledRegion& other) const;
+
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <PointConcept OtherPoint>
     [[nodiscard]] constexpr bool crosses(const OtherPoint& other) const;
@@ -1525,6 +1558,46 @@ struct HalfplaneIntersection {
     /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
     template <HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool crosses(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersects` defined only once, on the higher-ranked shape.
+     */
+    template <typename OtherShape>
+        requires (!PointConcept<OtherShape> &&
+                  detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
+    }
+
+    /**
+     * @brief Tests whether the interiors of the two shapes intersect ((A∖∂A) ∩ (B∖∂B) ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `interiorsIntersect` defined only once, on the higher-ranked shape.
+     */
+    template <typename OtherShape>
+        requires (!PointConcept<OtherShape> &&
+                  detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
+    }
+
+    /**
+     * @brief Tests whether the two shapes mutually separate each other (each disconnects the other).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `crosses` defined only once, on the higher-ranked shape.
+     */
+    template <typename OtherShape>
+        requires (!PointConcept<OtherShape> &&
+                  detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection> &&
+                  requires(const OtherShape& o, const HalfplaneIntersection& self) { o.crosses(self); })
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return other.crosses(*this);
+    }
 
     // The empty set is a subset of every shape and disjoint from all of them.
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
@@ -1890,6 +1963,39 @@ struct HalfplaneIntersection {
      */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    // Distances to a higher-ranked shape, forwarded so that each unordered pair
+    // needs its implementation only once, on that shape.
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>) &&
+                  requires(const OtherShape& o, const HalfplaneIntersection& self) {
+                      o.template squaredDistance<ResultNumber>(self);
+                  })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
+    /** @copydoc distanceL1(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>) &&
+                  requires(const OtherShape& o, const HalfplaneIntersection& self) {
+                      o.template distanceL1<ResultNumber>(self);
+                  })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /** @copydoc distanceLInf(const OtherPoint&) const */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>) &&
+                  requires(const OtherShape& o, const HalfplaneIntersection& self) {
+                      o.template distanceLInf<ResultNumber>(self);
+                  })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 

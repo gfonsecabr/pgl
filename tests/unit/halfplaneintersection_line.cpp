@@ -196,6 +196,31 @@ TEST_CASE("Ray separates and crosses") {
     CHECK(!k.crosses(Ray(Point(1, 1), Point(3, 3))));
 }
 
+TEST_CASE("Ray separates the region") {
+    const Region k = unitSquare();
+    // A ray running clear through a full-dimensional region cuts it, exactly
+    // as it cuts the same square expressed as a Polygon.
+    const Ray through(Point(-1, -1), Point(2, 2));
+    CHECK(through.separates(k));
+    CHECK(through.separates(pgl::Rectangle<Point>(Point(0, 0), Point(1, 1)).asPolygon()));
+    // A source strictly inside leaves a slit reaching out to infinity.
+    CHECK(!Ray(Point(1, 1), Point(3, 3)).separates(k));
+    // Riding a boundary edge never reaches the interior.
+    CHECK(!Ray(Point(-1, 0), Point(2, 0)).separates(k));
+    CHECK(!Ray(Point(2, 2), Point(3, 3)).separates(k));  // points away
+
+    // Unbounded regions: unlike a segment, a ray can cut a half-plane, since
+    // its far end escapes to infinity inside the region.
+    const Region half(yGE0);
+    CHECK(Ray(Point(0, -1), Point(0, 1)).separates(half));
+    CHECK(Ray(Point(0, 0), Point(0, 1)).separates(half));   // source on the boundary
+    CHECK(!Ray(Point(0, 5), Point(0, 6)).separates(half));  // source inside
+    CHECK(!Ray(Point(0, 0), Point(1, 0)).separates(half));  // rides the boundary
+
+    // crosses is exactly the two separations.
+    CHECK(k.crosses(through) == (k.separates(through) && through.separates(k)));
+}
+
 TEST_CASE("Ray intersection constructions") {
     SUBCASE("segment through a bounded region") {
         const auto isec = unitSquare().intersection<Q>(Ray(Point(-1, -1), Point(2, 2)));

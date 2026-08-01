@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shape/halfplaneintersection.hpp"
+#include "shape/polygonwithholes.hpp"
 
 /**
  * @file shape.hpp
@@ -76,6 +76,9 @@ struct is_shape_alternative<PointType, Polygon<PointType>> : std::true_type {};
 
 template <class PointType, class Label>
 struct is_shape_alternative<PointType, HalfplaneIntersection<PointType, Label>> : std::true_type {};
+
+template <class PointType, class Label>
+struct is_shape_alternative<PointType, PolygonWithHoles<PointType, Label>> : std::true_type {};
 
 template <class PointType, class T>
 inline constexpr bool is_shape_alternative_v = is_shape_alternative<PointType, std::remove_cvref_t<T>>::value;
@@ -176,7 +179,8 @@ struct Shape {
         MonotoneChain<PointType>,
         Polyline<PointType>,
         Polygon<PointType>,
-        HalfplaneIntersection<PointType>>;
+        HalfplaneIntersection<PointType>,
+        PolygonWithHoles<PointType>>;
 
     /**
      * @brief Creates a point-valued default shape.
@@ -315,11 +319,20 @@ struct Shape {
      *
      * Dispatches to the alternative's `size()` so the result matches the
      * valid range of its `operator[]`.
+     *
+     * @throws std::logic_error for the `PolygonWithHoles` alternative, which has
+     * no single indexable sequence: its vertices are spread over the outer ring
+     * and the holes. Reach through with `getIfPolygonWithHoles()` and use
+     * `vertexCount()`, `outer()`, or `holes()`.
      */
     [[nodiscard]] constexpr std::size_t size() const {
         return std::visit(
             [](const auto& value) -> std::size_t {
-                return value.size();
+                if constexpr (detail::is_polygon_with_holes_v<std::decay_t<decltype(value)>>) {
+                    throw std::logic_error("Shape::size is not defined for the PolygonWithHoles alternative");
+                } else {
+                    return value.size();
+                }
             },
             value_);
     }
@@ -330,8 +343,9 @@ struct Shape {
      * Dispatches via `std::visit` to the alternative's `get(index)`. Only
      * defined for alternatives whose `get` yields a `PointType_` — i.e.,
      * every alternative except `Point` itself, whose `get` yields a
-     * coordinate, and `HalfplaneIntersection`, whose `get` yields a
-     * half-plane. Throws `std::logic_error` for those two alternatives.
+     * coordinate, `HalfplaneIntersection`, whose `get` yields a
+     * half-plane, and `PolygonWithHoles`, which has no single indexable
+     * vertex sequence. Throws `std::logic_error` for those three alternatives.
      */
     [[nodiscard]] constexpr PointType_ get(std::ptrdiff_t index) const {
         return std::visit(
@@ -341,6 +355,8 @@ struct Shape {
                     throw std::logic_error("Shape::get is not defined for the Point alternative");
                 } else if constexpr (detail::is_halfplane_intersection_v<S>) {
                     throw std::logic_error("Shape::get is not defined for the HalfplaneIntersection alternative");
+                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
+                    throw std::logic_error("Shape::get is not defined for the PolygonWithHoles alternative");
                 } else {
                     return value.get(index);
                 }
@@ -354,9 +370,10 @@ struct Shape {
      * Dispatches via `std::visit` to the alternative's `operator[](index)`.
      * Only defined for alternatives whose `operator[]` yields a
      * `PointType_` — i.e., every alternative except `Point` itself, whose
-     * `operator[]` yields a coordinate, and `HalfplaneIntersection`, whose
-     * `operator[]` yields a half-plane. Throws `std::logic_error` for those
-     * two alternatives.
+     * `operator[]` yields a coordinate, `HalfplaneIntersection`, whose
+     * `operator[]` yields a half-plane, and `PolygonWithHoles`, which has no
+     * single indexable vertex sequence. Throws `std::logic_error` for those
+     * three alternatives.
      */
     [[nodiscard]] constexpr PointType_ operator[](std::size_t index) const {
         return std::visit(
@@ -366,6 +383,8 @@ struct Shape {
                     throw std::logic_error("Shape::operator[] is not defined for the Point alternative");
                 } else if constexpr (detail::is_halfplane_intersection_v<S>) {
                     throw std::logic_error("Shape::operator[] is not defined for the HalfplaneIntersection alternative");
+                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
+                    throw std::logic_error("Shape::operator[] is not defined for the PolygonWithHoles alternative");
                 } else {
                     return value[index];
                 }
@@ -381,8 +400,9 @@ struct Shape {
      * argument type selects this overload for every alternative except `Point`
      * — whose `operator[]` yields a coordinate, handled by the
      * @ref index(const NumberType&) overload. Throws `std::logic_error` if the
-     * wrapped value is a `Point`, or a `HalfplaneIntersection`, whose elements
-     * are half-planes rather than points.
+     * wrapped value is a `Point`, a `HalfplaneIntersection`, whose elements
+     * are half-planes rather than points, or a `PolygonWithHoles`, which has no
+     * single indexable vertex sequence.
      */
     [[nodiscard]] constexpr std::ptrdiff_t index(const PointType_& point) const {
         return std::visit(
@@ -392,6 +412,8 @@ struct Shape {
                     throw std::logic_error("Shape::index(Point) is not defined for the Point alternative");
                 } else if constexpr (detail::is_halfplane_intersection_v<S>) {
                     throw std::logic_error("Shape::index(Point) is not defined for the HalfplaneIntersection alternative");
+                } else if constexpr (detail::is_polygon_with_holes_v<S>) {
+                    throw std::logic_error("Shape::index(Point) is not defined for the PolygonWithHoles alternative");
                 } else {
                     return value.index(point);
                 }
@@ -503,6 +525,7 @@ struct Shape {
     PGL_SHAPE_ALTERNATIVE(Polyline, Polyline<PointType>)
     PGL_SHAPE_ALTERNATIVE(Polygon, Polygon<PointType>)
     PGL_SHAPE_ALTERNATIVE(HalfplaneIntersection, HalfplaneIntersection<PointType>)
+    PGL_SHAPE_ALTERNATIVE(PolygonWithHoles, PolygonWithHoles<PointType>)
 
 #undef PGL_SHAPE_ALTERNATIVE
     ///@}
@@ -691,7 +714,13 @@ struct Shape {
      *   `Polyline`). Two `Halfplane`s, and a `HalfplaneIntersection` against a
      *   `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another
      *   `HalfplaneIntersection`, wrap their (possibly unbounded or empty)
-     *   `HalfplaneIntersection` result.
+     *   `HalfplaneIntersection` result. A `PolygonWithHoles` against a
+     *   `Rectangle`, `Triangle`, `Convex`, `Polygon`, or another
+     *   `PolygonWithHoles` wraps the single component of its regularized
+     *   `PolygonWithHoles` result, and throws when that intersection comes apart
+     *   into several pieces. That pair answers in either order except with a
+     *   `Polygon` on the left, whose own `Polygon`-valued `intersection` leaves
+     *   no rank forwarder to reach the region's.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>

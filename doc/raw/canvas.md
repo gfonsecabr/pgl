@@ -148,3 +148,7 @@ Canvas fitting is automatic:
   of a base drawing by switching style right before inserting the highlighted
   object.
 - In SVG, the shape's output string will be shown when you hover over the shape in a browser.
+- A `PolygonWithHoles` is drawn as a single path with one closed subpath per
+  ring, so its holes are punched out of the fill rather than painted over: SVG
+  asks for `fill-rule="evenodd"`, and the PDF and Ipe backends get the same
+  result from winding each hole against the outer ring.

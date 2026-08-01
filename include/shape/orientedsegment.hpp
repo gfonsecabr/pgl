@@ -553,14 +553,14 @@ struct OrientedSegment {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
@@ -577,32 +577,32 @@ struct OrientedSegment {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
 
     /**
@@ -1023,8 +1023,8 @@ struct OrientedSegment {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
@@ -1042,8 +1042,8 @@ struct OrientedSegment {
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const {
-        return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+        return detail::reduceDegenerateToPoint(
+            other, [this](const auto& vertex) { return boundaryContains(vertex); });
     }
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
@@ -1069,6 +1069,39 @@ struct OrientedSegment {
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A region is contained exactly when its outer polygon is: the region holds
+     * the whole outer ring whatever its holes do, and this shape has a
+     * connected complement. See implementation/contains.hpp.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * A boundary has no area, so it holds only a region with no area — which is
+     * exactly the union of that region's ring edges.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<DiskConcept OtherDisk>

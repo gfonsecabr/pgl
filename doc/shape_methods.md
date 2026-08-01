@@ -144,6 +144,100 @@ pgl::Point<> p(isec);
 // p = (3,3)
 ```
 
+[`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") carries a second `intersection` alongside this one, returning
+regions rather than polygons, because it is the one shape whose intersections
+can have holes. See [Boolean Operations](#boolean-operations).
+
+### Boolean Operations
+
+The four boolean set operations on shapes with area all return a
+`std::vector<PolygonWithHoles>`:
+
+| call | result |
+|---|---|
+| `a.difference(b)` | $A \setminus B$, the part of `a` that `b` does not cover |
+| `a.unionWith(b)` | $A \cup B$, the part either covers |
+| `a.symmetricDifference(b)` | $A \mathbin{\triangle} B$, the part exactly one covers |
+| `a.intersection(b)` | $A \cap B$, the part both cover — on [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") only, see below |
+
+`difference`, `unionWith` and `symmetricDifference` are defined on [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and
+[`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), against [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")
+and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the bounded shapes with area. The union is a keyword in C++,
+hence `unionWith`.
+
+Three of the four are symmetric in their operands, and may be written in either
+order. A [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") receiver takes `unionWith`,
+`symmetricDifference` and `intersection` by forwarding them to the other
+operand, so `triangle.unionWith(polygon)` and `polygon.unionWith(triangle)` are
+the same call — each unordered pair is implemented once, on the shape that can
+represent the answer. `difference` is not symmetric and forwards nowhere: it
+stays on the two receivers above.
+
+```c++
+pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
+auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
+// pieces.size() == 1, one region whose outer ring is the square
+// and whose single hole is the rectangle
+```
+
+This is the family [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") exists for: removing a shape from the
+middle of another one leaves a hole, and no other shape can say so. A union
+creates one out of nothing just as readily — a `U` united with the bar that caps
+it encloses a hole neither operand has — and a symmetric difference, being the
+union of two differences, inherits holes from both.
+
+Every one of them returns the **regularized** result, the closure of the
+operation applied to the *interiors*: $\mathrm{closure}(A^\circ \setminus B)$,
+$\mathrm{closure}(A^\circ \cup B^\circ)$, and so on. Lower-dimensional leftovers
+are dropped — a stretch of boundary the operands share without either covering
+it, an isolated contact point, and a slit, which has no area to begin with.
+Without that, the answer would not be a set of regions at all. It also means
+material with no area never *joins* anything: two shapes meeting at a single
+point come back as two pieces, since a region may not have a self-touching outer
+ring.
+
+The pieces have pairwise disjoint interiors and their union is the result. They
+are **not** nested: an island stranded inside a hole of the result comes back as
+a piece of its own, since this library has no `PolygonSet`.
+
+The boundaries can cross at non-integral points, so all four take the usual
+`ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The arrangement
+itself is always built over exact rationals and converted only at the end, so an
+integral result type is exact whenever the crossings are integral — a
+rectilinear operation on rectilinear input needs nothing special.
+
+#### Why `intersection` is different
+
+`intersection` appears twice in the library, and the two are not the same
+method. The general one, described [above](#intersection), is defined for every
+pair of shapes and returns polygons, polylines and points through an
+`std::optional` and an `std::variant`. The region-valued one described here
+exists **only on [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.")**.
+
+That is not an oversight. No component of the intersection of two *polygons* can
+have a hole: a closed curve inside a closed set with a connected complement
+bounds a disk inside it, so a curve in $A \cap B$ bounds a disk in each operand
+and hence in the intersection. Every shape in the library has a connected
+complement — except a region with holes, whose hole interiors are components of
+their own. So `Polygon::intersection` loses nothing by returning plain polygons,
+and a region's intersection genuinely needs a region:
+
+```c++
+pgl::Polygon<> hole({4,4, 8,4, 8,8, 4,8});
+pgl::PolygonWithHoles<> annulus(square, std::vector{hole});
+auto pieces = annulus.intersection(pgl::Rectangle(-5,-5, 20,20));
+// pieces.size() == 1, and pieces[0] == annulus — hole and all
+```
+
+Which of the two answers a call is decided by the operands, not by the receiver:
+a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") operand pulls in the region-valued one whichever side it is
+written on, so `polygon.intersection(region)` forwards to
+`region.intersection(polygon)` and gives back regions rather than components.
+
+One further difference is worth knowing: `Polygon::intersection` computes in the
+result type, so an integral one truncates every crossing, while the region
+operations above never do.
+
 ### Minkowski Sum
 
 The Minkowski sum of two shapes is the set of all sums of a point of the first
@@ -176,14 +270,103 @@ below two dimensions is reported the usual way, through the returned [`Convex`](
 summing two parallel segments gives a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") satisfying `isSegment()`. The
 empty shape absorbs, and an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") operand gives an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.").
 
-Other pairs are a compile error rather than an approximation. [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") sums to a
-rounded shape, a non-convex [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") can sum to a region with holes, and an
-unbounded operand ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) sums to
-an unbounded region; none of those is representable today. Since
-$\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus \mathrm{hull}(B)$, a caller
-who wants the convex approximation can ask for it explicitly by summing the
-hulls. On the polymorphic [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") the operand pair is only known at run time, so
-an unsupported pair throws `std::logic_error` instead.
+#### Non-convex operands
+
+A non-convex operand is where the sum needs a region: sliding a shape around the
+inside of a `C` sweeps out material that closes over a hole neither operand has.
+[`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") therefore carry a second `minkowskiSum`, against
+[`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."), returning a
+`std::vector<PolygonWithHoles>` like the boolean operations above; so does
+[`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect."), whose own operands are below.
+
+```c++
+// The square annulus, cut open through its right wall over y in [3,5].
+pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
+auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
+// plugged.size() == 1; its outer ring is (0,0)--(10,10) and it has one hole,
+// (4,4)--(6,6) — the cavity, stranded once the two-unit cut is closed.
+```
+
+The two overload sets never overlap: the pairs whose sum fits in a single shape
+are exactly the pairs listed above, and these take the rest. Which one answers is
+again a question about the pair and not about the receiver — a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."),
+[`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") written on the left of a non-convex operand forwards to
+it, so `rectangle.minkowskiSum(polygon)` is `polygon.minkowskiSum(rectangle)`,
+while `rectangle.minkowskiSum(triangle)` is still the single-shape sum. The result is a
+*set* of regions because $A \oplus B$ is connected whenever both operands are, so
+it is one region unless its boundary pinches shut — which no single region may
+do. Like the boolean operations it is **regularized**, so a flat operand's sum
+keeps only what has area, and it takes the same `ResultNumber` parameter. Every
+vertex of every convex piece sum is a sum of two input vertices, so those are
+exact; only where two of them cross can a vertex land off the lattice, and that
+arrangement is built over exact rationals and converted once at the end.
+
+That last point is worth more attention here than it gets in the boolean
+operations, because it bites sooner. There the crossings that land off the
+lattice are crossings of the *operands'* boundaries, which rectilinear integer
+input never has; here they are crossings between two piece sums, which two
+perfectly ordinary integer operands can produce on their own:
+
+```c++
+pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});    // a U
+u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // notch tip truncated
+u.minkowskiSum<pgl::ERational>(pgl::Triangle(-2,-1, 2,0, 0,2)); // tip at (16/5, 34/5)
+```
+
+Both operands are convex-edged and integral, and the answer still is not. Ask for
+an exact `ResultNumber` unless you know the sum lands on the lattice.
+
+A region operand needs nothing special for its holes — they are simply where the
+decomposition has no piece — but its **slits** do sweep out area, so they are part
+of the decomposition too.
+
+A [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") carries the same second `minkowskiSum`, against the same five
+operands — [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."),
+every bounded shape with area to sweep. The chain has none of its own, and the sum
+still needs a region: dragging a shape along a chain that comes back on itself
+closes the swept material over a hole, and a closed chain is the plainest example
+there is.
+
+```c++
+pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
+auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
+// frame.size() == 1; its outer ring is (0,0)--(9,9) and it has one hole,
+// (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
+```
+
+The two non-convex operands are where *both* sides may be concave, so either one's
+concavity can strand a cavity; either order spells the same call, since [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.")
+and [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") carry the mirror overload:
+
+```c++
+pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});   // a U
+auto swept = square.minkowskiSum(u);            // == u.minkowskiSum(square)
+// swept.size() == 1; outer ring (0,0)--(14,14), one hole, (6,6)--(8,8)
+```
+
+A region operand behaves here as it does on the receivers above — its holes are
+where its decomposition has no piece, and its slits sweep out area along the chain
+like anything else. That is where the regularization becomes visible, because a
+chain can drag a slit *along its own direction*: the sweep is then a segment, part
+of $A \oplus B$ that no region may keep, so the answer is smaller than the point
+set. The same contract shows up more plainly still in a summand with no area at
+all, which leaves nothing to keep:
+`polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
+as the translated chain, which is what the single-shape `polyline + point` is for.
+
+Those five are the whole list. Two chains have no area between them, so `polyline +
+polyline` is no pair at all, and neither is a `MonotoneChain` receiver —
+`asPolyline()` converts one when its sum is wanted.
+
+The remaining pairs are a compile error rather than an approximation: [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") sums
+to a rounded shape, and an unbounded operand ([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."),
+[`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) to an unbounded region, neither of which is
+representable. Since $\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus
+\mathrm{hull}(B)$, a caller who wants the convex approximation can ask for it
+explicitly by summing the hulls. On the polymorphic [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") the operand pair is
+only known at run time, so an unsupported pair throws `std::logic_error`
+instead — and so does a pair whose sum is a set of regions, which no single
+[`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "Runtime variant wrapper over the supported primitive shapes.") alternative can hold.
 
 ### Other Methods for Shapes
 

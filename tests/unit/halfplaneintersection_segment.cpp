@@ -112,6 +112,42 @@ TEST_CASE("Segment separates and crosses") {
     CHECK(!wedge.crosses(Segment(Point(-1, 5), Point(3, 1))));
 }
 
+TEST_CASE("Segment separates the region") {
+    const Region k = unitSquare();
+    // A segment spanning a full-dimensional region cuts it, exactly as it cuts
+    // the same square expressed as a Polygon or a Convex.
+    const Segment across(Point(-1, -1), Point(2, 2));
+    CHECK(across.separates(k));
+    CHECK(across.separates(pgl::Rectangle<Point>(Point(0, 0), Point(1, 1)).asPolygon()));
+    // Ending on the far corner still covers the whole chord.
+    CHECK(Segment(Point(-1, -1), Point(1, 1)).separates(k));
+    // Stopping at the near corner never reaches the interior. (The slit case,
+    // where a segment stops strictly inside, is checked on `band` below —
+    // the unit square holds no interior lattice point.)
+    CHECK(!Segment(Point(-1, -1), Point(0, 0)).separates(k));
+    // Riding a boundary edge never reaches the interior.
+    CHECK(!Segment(Point(-1, 0), Point(2, 0)).separates(k));
+    CHECK(!Segment(Point(2, 0), Point(3, 0)).separates(k));
+
+    // Unbounded regions: a bounded segment cannot span a half-plane, but it
+    // can span a strip.
+    const Region half(yGE0);
+    CHECK(!Segment(Point(0, -1), Point(0, 5)).separates(half));
+    const Region band({yGE0, Halfplane(1, 4, 0, 4)});  // 0 <= y <= 4
+    CHECK(Segment(Point(0, -1), Point(0, 5)).separates(band));
+    CHECK(Segment(Point(0, 0), Point(0, 4)).separates(band));   // the exact chord
+    CHECK(!Segment(Point(0, -1), Point(0, 3)).separates(band));  // stops inside
+    // The wedge's chord on x + y = 4 is bounded and covered.
+    CHECK(Segment(Point(-1, 5), Point(5, -1)).separates(quadrant()));
+    CHECK(!Segment(Point(-1, 5), Point(3, 1)).separates(quadrant()));
+
+    // crosses is exactly the two separations, in both directions.
+    CHECK(k.crosses(across) == (k.separates(across) && across.separates(k)));
+    // A degenerate region is cut along its carrier.
+    const Region slit({yGE0, Halfplane(1, 0, 0, 0)});
+    CHECK(Segment(Point(-1, -1), Point(1, 1)).separates(slit));
+}
+
 TEST_CASE("Segment intersection constructions") {
     const Region k = unitSquare();
 

@@ -2224,8 +2224,431 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
 
 
 // ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <class OtherLinear, class ContactNumber>
+constexpr bool PolygonWithHoles<PointType, LabelType>::linearInteriorsIntersect(
+    const OtherLinear& other,
+    std::vector<Point<ContactNumber>> contacts,
+    const Point<ContactNumber>& base,
+    const Point<ContactNumber>& direction) const {
+    // The split points: the operand's own ends, already in `contacts`, then
+    // every ring vertex on the operand. Every other contact between the operand
+    // and ∂A is a transversal crossing — a non-collinear pair meets in at most
+    // one point, which is a crossing unless it is an endpoint of one of them,
+    // and a collinear overlap begins and ends at such a point.
+    using V = Point<ContactNumber>;
+    const std::size_t firstRingVertex = contacts.size();
+    for (const auto& vertex : outer_) {
+        if (other.contains(vertex)) {
+            contacts.push_back(static_cast<V>(vertex));
+        }
+    }
+    for (const auto& hole : holes_) {
+        for (const auto& vertex : hole) {
+            if (other.contains(vertex)) {
+                contacts.push_back(static_cast<V>(vertex));
+            }
+        }
+    }
+    // A transversal crossing of a ring edge normally settles it: the operand
+    // passes from one open side of the edge to the other, and one of those sides
+    // is region interior — inside the outer ring for an outer edge, outside the
+    // hole for a hole edge.
+    //
+    // The exception is a crossing where the region pinches shut, i.e. where two
+    // rings meet, because there both sides of the crossing are outside the
+    // region interior. That happens in two ways, and neither needs the crossing
+    // point itself:
+    //
+    //  - the rings touch at an isolated point, which has to be a vertex of one
+    //    of them (meeting anywhere else would make their edges cross or
+    //    overlap), so it is already among the split points collected above;
+    //  - the rings run along one another, so the crossed edge is covered twice.
+    //    A second crossed edge collinear with the first meets the operand at the
+    //    same point — both crossing points are `line(edge) ∩ line(operand)` —
+    //    so collinearity among the crossed edges detects exactly this.
+    //
+    // Skipping a pinched crossing is safe and needs no split point of its own:
+    // the region is locally one-dimensional there, so the piece carrying it
+    // stays outside the region interior on both sides and its midpoint says so.
+    std::vector<EdgeType> crossed;
+    anyBoundaryEdge([&](const auto& edge) {
+        if (edge.crosses(other)) {
+            crossed.push_back(edge);
+        }
+        return false;
+    });
+    for (std::size_t i = 0; i < crossed.size(); ++i) {
+        bool pinched = false;
+        for (std::size_t v = firstRingVertex; v < contacts.size() && !pinched; ++v) {
+            pinched = crossed[i].contains(contacts[v]);
+        }
+        for (std::size_t j = 0; j < crossed.size() && !pinched; ++j) {
+            pinched = j != i && crossed[i].collinear(crossed[j]);
+        }
+        if (!pinched) {
+            return true;
+        }
+    }
+    // Every remaining contact is a split point, so the open pieces between
+    // consecutive split points each lie wholly inside or wholly outside the
+    // region and their midpoints classify them. Doubling the region keeps the
+    // midpoint test exact and division-free: (p+q)/2 is interior to A iff (p+q)
+    // is interior to 2A. The unbounded pieces past the extreme split points need
+    // no test: the region is bounded, and a piece that escapes it for good is
+    // one whose far end left through an unpinched crossing, already answered
+    // above.
+    const auto along = [&](const V& p) {
+        return (p.x() - base.x()) * direction.x() + (p.y() - base.y()) * direction.y();
+    };
+    std::sort(contacts.begin(), contacts.end(),
+              [&](const V& p, const V& q) { return along(p) < along(q); });
+    const auto doubled = (*this) * NumberType(2);
+    for (std::size_t i = 1; i < contacts.size(); ++i) {
+        if (contacts[i - 1] == contacts[i]) {
+            continue;
+        }
+        if (doubled.interiorContains(contacts[i - 1] + contacts[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // Both endpoints bound the segment, so both are split points.
+    using C = std::common_type_t<NumberType, typename OtherSegment::NumberType>;
+    using V = Point<C>;
+    const V begin = static_cast<V>(other.min());
+    const V end = static_cast<V>(other.max());
+    return linearInteriorsIntersect(other, std::vector<V>{begin, end}, begin, end - begin);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
+    return interiorsIntersect(other.asSegment());
+}
+
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // A line ends nowhere, so it contributes no split point of its own; the ring
+    // vertices on it are the whole list. Unlike @ref Polygon, a straddle of the
+    // line is not enough: a hole touching the outer ring at two points can hold
+    // the entire chord between them, and then the line misses the region
+    // interior even though vertices lie on both sides of it.
+    using C = std::common_type_t<NumberType, typename OtherLine::NumberType>;
+    using V = Point<C>;
+    const V begin = static_cast<V>(other.min());
+    const V end = static_cast<V>(other.max());
+    return linearInteriorsIntersect(other, std::vector<V>{}, begin, end - begin);
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
+    return interiorsIntersect(other.asLine());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // The source is where the ray begins, hence a split point; the far end runs
+    // out of the bounded region for good.
+    using C = std::common_type_t<NumberType, typename OtherRay::NumberType>;
+    using V = Point<C>;
+    const V source = static_cast<V>(other.source());
+    const V target = static_cast<V>(other.target());
+    return linearInteriorsIntersect(other, std::vector<V>{source}, source, target - source);
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    // The open half-plane meets the open region exactly when some vertex of some
+    // ring is both strictly inside the half-plane and two-dimensional for the
+    // region (@ref isSolidVertex).
+    //
+    // (⇐) is immediate: the half-plane is open, so it holds a neighbourhood of
+    // that vertex, and a two-dimensional vertex has region interior in every one
+    // of its neighbourhoods.
+    //
+    // (⇒) Take a connected piece W of A° ∩ H°. Its boundary runs along ∂A and
+    // along the half-plane's edge line, and the stretches along ∂A are covered
+    // once — a doubly covered stretch has the region pinched shut against it and
+    // no interior beside it. Those stretches cannot all lie on the edge line, or
+    // W would be bounded by a line alone and hence unbounded, which it is not.
+    // So one of them has a point strictly inside the half-plane, and since the
+    // covering multiplicity along a ring edge only changes at ring vertices, the
+    // singly covered stretch containing it extends to a ring vertex; the farther
+    // of its two ends is strictly inside the half-plane too, and is a
+    // two-dimensional vertex because a singly covered stretch reaches it.
+    for (const auto& vertex : outer_) {
+        if (other.interiorContains(vertex) && isSolidVertex(vertex)) {
+            return true;
+        }
+    }
+    for (const auto& hole : holes_) {
+        for (const auto& vertex : hole) {
+            if (other.interiorContains(vertex) && isSolidVertex(vertex)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+constexpr bool PolygonWithHoles<PointType, LabelType>::isSolidVertex(const PointType& vertex) const {
+    if (holes_.empty()) {
+        return true;  // a lone simple ring has interior along all of itself
+    }
+    bool solid = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        if (!edge.contains(vertex)) {
+            return false;
+        }
+        for (const auto& endpoint : {edge.min(), edge.max()}) {
+            if (endpoint == vertex) {
+                continue;  // the stretch on this side of the vertex is empty
+            }
+            // Shrink the stretch to the nearest ring vertex beyond `vertex`: the
+            // covering multiplicity is constant between consecutive ring
+            // vertices, since ring edges begin and end at them and never cross.
+            PointType beyond = endpoint;
+            const auto shrink = [&](const PointType& candidate) {
+                if (candidate != vertex && EdgeType(vertex, beyond).contains(candidate)) {
+                    beyond = candidate;
+                }
+            };
+            for (const auto& candidate : outer_) {
+                shrink(candidate);
+            }
+            for (const auto& hole : holes_) {
+                for (const auto& candidate : hole) {
+                    shrink(candidate);
+                }
+            }
+            // Count the ring edges covering the stretch, reading multiplicity at
+            // its midpoint. Doubling both keeps that exact: m is on an edge iff
+            // 2m is on the doubled edge.
+            const PointType doubledMidpoint = vertex + beyond;
+            std::size_t covers = 0;
+            anyBoundaryEdge([&](const auto& candidate) {
+                if (EdgeType(candidate.min() + candidate.min(), candidate.max() + candidate.max())
+                        .contains(doubledMidpoint)) {
+                    ++covers;
+                }
+                return false;
+            });
+            if (covers == 1) {
+                solid = true;
+                return true;
+            }
+        }
+        return false;
+    });
+    return solid;
+}
+
+// The area operands are where the region's shape finally costs something. For a
+// simple polygon the textbook argument is "if neither boundary reaches the
+// other's interior, one interior witness point decides", and it works because a
+// simple polygon's interior is connected. A region's is not: a hole spanning it
+// leaves two slabs, and a witness in one says nothing about the other. The
+// counterexample is small — take `[0,4]² ∖ ((0,4)×(1,2))`, whose interior is two
+// slabs, against the rectangle `[0,4]×[0,2]`. Every edge of the rectangle lies
+// on ∂A, every ring vertex of the region lies on ∂(rectangle), and the
+// rectangle's own centre falls on the hole's boundary — yet the lower slab is
+// inside the rectangle and the interiors do meet.
+//
+// So the fallback is the triangulated domain, which is where the region already
+// keeps its answer to "what part of me has area". Its triangles tile
+// closure(A°), so A° ∩ B° ≠ ∅ exactly when some triangle's interior meets B°:
+// a non-empty open intersection has positive area, the triangles cover it, and
+// a triangle carrying positive area of it has interior in it.
+//
+// That test alone is complete. The edge scan before it is a fast path — an edge
+// of B whose relative interior reaches A° settles the question without
+// triangulating anything, and it is what answers a query that actually overlaps
+// the region.
+//
+// The fast path costs one assumption, though: an edge reaching A° only implies
+// that B° does when B has interior beside that edge, i.e. when B is the closure
+// of its own interior. Every operand here is — except another region, which may
+// carry a slit, a stretch of boundary with the region pinched shut against it.
+// Two regions sharing a slit line would both report a hit with no interior
+// anywhere near it, so region against region skips the scan and compares the
+// two triangulated domains directly.
+template <class PointType, class LabelType>
+template <class OtherArea>
+bool PolygonWithHoles<PointType, LabelType>::areaInteriorsIntersect(const OtherArea& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (!bbox().interiorsIntersect(other.bbox())) {
+        return false;
+    }
+    if constexpr (PolygonWithHolesConcept<OtherArea>) {
+        // A region without holes is its outer polygon, and that is regular, so
+        // reducing either side to it brings the cheaper path back — and with it
+        // one triangulation instead of two.
+        if (!other.hasHoles()) {
+            return areaInteriorsIntersect(other.outer());
+        }
+        if (holes_.empty()) {
+            return other.interiorsIntersect(outer_);
+        }
+        const auto mine = triangulation();
+        const auto theirs = other.triangulation();
+        return mine.visitTriangles([&theirs](const auto& t) {
+            return theirs.visitTriangles([&t](const auto& u) { return t.interiorsIntersect(u); });
+        });
+    } else {
+        // Without holes the region is its outer polygon and the simply connected
+        // argument applies unchanged.
+        if (holes_.empty()) {
+            return other.interiorsIntersect(outer_);
+        }
+        for (const auto& edge : other.edges()) {
+            if (interiorsIntersect(edge)) {
+                return true;
+            }
+        }
+        return triangulation().visitTriangles(
+            [&other](const auto& triangle) { return other.interiorsIntersect(triangle); });
+    }
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherTriangle& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherConvex& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherPolygon& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRegion& other) const {
+    return areaInteriorsIntersect(other);
+}
+
+// The chain's relative interior is its open edges together with the vertices
+// between them, and the region's interior is open and two-dimensional — which is
+// all the shared chain helper needs. (An open-edge point that has to be
+// discarded, because a self-intersecting polyline passes through one of its own
+// extremes there, is surrounded by edge points that do not; an open subset of
+// the edge cannot consist of those two points alone.)
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherChain& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherPolyline& other) const {
+    return detail::chainInteriorsIntersect(other, *this);
+}
+
+// The disk brings no edges to scan, so the fast path the area operands use —
+// an edge of the operand whose relative interior reaches A° — has no analogue
+// here, and the triangulated domain does the work. It answers completely: the
+// domain triangles tile closure(A°) and their interiors lie in A°, so A° ∩ D°
+// is nonempty exactly when some triangle interior meets the open disk.
+//
+// Two cheap tests come first. A disk missing the closed region misses its
+// interior too, and that is an O(n) edge scan; and a disk whose own interior
+// witness falls in A° settles it outright, which is what a query that actually
+// overlaps the region usually does.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherDisk& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    if (holes_.empty()) {
+        return other.interiorsIntersect(outer_);
+    }
+    if (!intersects(other)) {
+        return false;
+    }
+    if (other.pointInsideInteriorContainedIn(*this)) {
+        return true;
+    }
+    return triangulation().visitTriangles(
+        [&other](const auto& triangle) { return other.interiorsIntersect(triangle); });
+}
+
+// Clipping the operand to the region's bounding box loses nothing: A° is an open
+// subset of that box, so it stays clear of the box boundary, and the clip is
+// inflated past the box anyway. What it gains is a bounded operand — a convex
+// polygon — which the area path handles.
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherIntersection& other) const {
+    if (isDegenerate() || other.isDegenerate()) {
+        return false;
+    }
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return false;
+    }
+    return areaInteriorsIntersect(asConvexOperand(clipped));
+}
+
+
+// ---------------------------------------------------------------------------
 // Reverse direction: interiorsIntersect is symmetric, so the lower-ranked
 // shapes' generic rank-guarded forwarders dispatch these here — no per-shape
 // definitions are needed.
+
+// ---------------------------------------------------------------------------
+// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
+// alternative has a per-shape overload above, so no fallback is needed.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->interiorsIntersect(value);
+        },
+        other.variant());
+}
 
 }  // namespace pgl

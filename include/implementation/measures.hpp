@@ -753,6 +753,63 @@ constexpr bool Polygon<PointType, LabelType>::pointInsideInteriorContainedIn(con
 }
 
 // -----------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::verticesCentroid() const {
+    const std::size_t n = vertexCount();
+    if (n == 0) {
+        return Point<ResultNumber>();
+    }
+    ResultNumber cx{};
+    ResultNumber cy{};
+    const auto accumulate = [&](const PolygonType& ring) {
+        for (const auto& vertex : ring) {
+            cx += static_cast<ResultNumber>(vertex.x());
+            cy += static_cast<ResultNumber>(vertex.y());
+        }
+    };
+    accumulate(outer_);
+    for (const auto& hole : holes_) {
+        accumulate(hole);
+    }
+    return Point<ResultNumber>(cx / static_cast<ResultNumber>(n), cy / static_cast<ResultNumber>(n));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::centroid() const {
+    if (isEmpty()) {
+        return Point<ResultNumber>();
+    }
+    const NumberType netTwiceArea = twiceArea();
+    if (netTwiceArea == NumberType(0)) {
+        // No area to weight by (a collapsed outer ring, or holes cancelling it
+        // out); fall back to the vertex centroid as Polygon does.
+        return verticesCentroid<ResultNumber>();
+    }
+
+    // Each ring contributes its own area-weighted centroid, holes negatively.
+    // Weighting by twice the area keeps the single division to the very end.
+    ResultNumber cx{};
+    ResultNumber cy{};
+    const auto accumulate = [&](const PolygonType& ring, int sign) {
+        const auto ringTwiceArea = static_cast<ResultNumber>(ring.twiceArea());
+        const auto ringCentroid = ring.template centroid<ResultNumber>();
+        const ResultNumber weight = ringTwiceArea * static_cast<ResultNumber>(sign);
+        cx += ringCentroid.x() * weight;
+        cy += ringCentroid.y() * weight;
+    };
+    accumulate(outer_, 1);
+    for (const auto& hole : holes_) {
+        accumulate(hole, -1);
+    }
+    const auto denominator = static_cast<ResultNumber>(netTwiceArea);
+    return Point<ResultNumber>(cx / denominator, cy / denominator);
+}
+
+// -----------------------------------------------------------------------------
 // MonotoneChain
 
 template <class PointType, class LabelType, class Storage>

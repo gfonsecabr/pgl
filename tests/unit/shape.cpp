@@ -892,6 +892,179 @@ TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     CHECK(moved.scaledUpX(2).holdsAlternative<Polyline>());
 }
 
+TEST_CASE("Shape wraps a PolygonWithHoles") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Region annulus(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                         std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
+    const Shape shape = annulus;
+    REQUIRE(shape.holdsAlternative<Region>());
+    CHECK(shape.getIf<Region>() != nullptr);
+    CHECK(*shape.getIf<Region>() == annulus);
+    CHECK_FALSE(shape.isDegenerate());
+    CHECK(shape.bbox() == Rectangle({0, 0}, {6, 6}));
+
+    // The region's vertices are spread over its rings rather than forming one
+    // indexable sequence, so the element accessors are not defined for it.
+    CHECK_THROWS_AS((void)shape.size(), std::logic_error);
+    CHECK_THROWS_AS((void)shape.get(0), std::logic_error);
+    CHECK_THROWS_AS((void)shape[0], std::logic_error);
+    CHECK_THROWS_AS((void)shape.index(Point(0, 0)), std::logic_error);
+
+    // A region collapsed onto a segment reports itself degenerate.
+    CHECK(Shape(Region(Polygon({0, 0, 4, 0}))).isDegenerate());
+
+    std::ostringstream stream;
+    stream << shape;
+    CHECK(stream.str() ==
+          "PolygonWithHoles[Polygon[(0,0),(6,0),(6,6),(0,6)],Polygon[(2,2),(4,2),(4,4),(2,4)]]");
+
+    // The hole is part of the value, so filling it in gives a different shape.
+    const Shape filled = Region(Polygon({0, 0, 6, 0, 6, 6, 0, 6}));
+    std::unordered_set<Shape> shapes;
+    shapes.insert(shape);
+    shapes.insert(Shape(Region(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                               std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})})));
+    shapes.insert(filled);
+    CHECK(shapes.size() == 2);
+
+    std::set<Shape> ordered;
+    ordered.insert(shape);
+    ordered.insert(filled);
+    CHECK(ordered.size() == 2);
+
+    // A hole-free region and the polygon it is built from are different
+    // alternatives, so they are different shapes.
+    CHECK_FALSE(filled == Shape(Polygon({0, 0, 6, 0, 6, 6, 0, 6})));
+}
+
+TEST_CASE("Shape dispatches predicates, intersection, and distances through a PolygonWithHoles") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Region annulus(Polygon({0, 0, 6, 0, 6, 6, 0, 6}),
+                         std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
+    const Shape shape = annulus;
+    const Shape crossing = Segment({-1, 1}, {7, 1});
+    const Shape miss = Segment({8, 0}, {9, 4});
+    const Shape inHole = Point(3, 3);
+
+    CHECK(shape.contains(Shape(Point(1, 1))));
+    CHECK_FALSE(shape.contains(inHole));           // the hole is not material
+    CHECK(shape.contains(Shape(Point(2, 2))));     // but its rim is
+    CHECK_FALSE(shape.interiorContains(Shape(Point(2, 2))));
+    CHECK(shape.boundaryContains(Shape(Point(2, 2))));
+    CHECK(shape.intersects(crossing));
+    CHECK(crossing.intersects(shape));
+    CHECK_FALSE(shape.intersects(miss));
+    CHECK(shape.interiorsIntersect(crossing));
+    CHECK(shape.separates(crossing));
+    CHECK(crossing.separates(shape));
+    CHECK(shape.crosses(crossing));
+    CHECK(crossing.crosses(shape));
+
+    // The concrete region accepts the wrapper directly on every predicate.
+    CHECK(annulus.contains(Shape(Point(1, 1))));
+    CHECK_FALSE(annulus.contains(inHole));
+    CHECK_FALSE(annulus.interiorContains(Shape(Point(2, 2))));
+    CHECK(annulus.boundaryContains(Shape(Point(2, 2))));
+    CHECK(annulus.intersects(crossing));
+    CHECK(annulus.interiorsIntersect(crossing));
+    CHECK(annulus.separates(crossing));
+    CHECK(annulus.crosses(crossing));
+
+    // The self pair dispatches through the wrapper too.
+    const Shape shifted = annulus + Point(3, 0);
+    CHECK(shape.intersects(shifted));
+    CHECK(shape.interiorsIntersect(shifted));
+    CHECK_FALSE(shape.contains(shifted));
+
+    // A lower-ranked shape swallowing the region answers from the outer ring
+    // alone, and the region is contained in the box that covers it.
+    const Shape box = Rectangle({-1, -1}, {7, 7});
+    CHECK(box.contains(shape));
+    CHECK(box.interiorContains(shape));
+    CHECK_FALSE(shape.contains(box));
+
+    // Intersecting with an area operand yields a region again, holes and all —
+    // the one intersection no vector<Polygon> could express.
+    const Shape clipped = shape.intersection(box);
+    REQUIRE(clipped.holdsAlternative<Region>());
+    CHECK(Region(clipped) == annulus);
+    const Shape half = shape.intersection(Shape(Rectangle({0, 0}, {6, 3})));
+    REQUIRE(half.holdsAlternative<Region>());
+    CHECK(Region(half).twiceArea() == 2 * (18 - 2));  // the lower half, minus half the hole
+
+    // The rank forwarders answer the same pair the other way round. A Polygon
+    // on the left forwards too, even though its own Polygon-valued
+    // intersection would otherwise have answered a lower-ranked operand.
+    CHECK(Shape(Rectangle({0, 0}, {6, 3})).intersection(shape) == half);
+    CHECK(Shape(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {6, 0}, {6, 3}, {0, 3}}))
+              .intersection(shape) == half);
+    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection(shape) == half);
+
+    // An intersection that comes apart has no single-Shape answer; neither has
+    // a pair with no overload at all, such as a Disk.
+    CHECK_THROWS_AS((void)shape.intersection(Shape(Rectangle({-1, 2}, {7, 4}))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+
+    // Distances dispatch both ways, with the explicit ResultNumber probe.
+    const Shape farPoint = Point(20, 3);
+    CHECK(shape.squaredDistance<int>(farPoint) == 196);
+    CHECK(farPoint.squaredDistance<int>(shape) == 196);
+    CHECK(shape.distanceL1<int>(farPoint) == 14);
+    CHECK(shape.distanceLInf<int>(farPoint) == 14);
+    CHECK(annulus.distanceL1<int>(farPoint) == 14);   // concrete region, Shape argument
+    CHECK(annulus.distanceLInf<int>(farPoint) == 14);
+    CHECK(shape.squaredDistance<int>(Shape(Triangle({20, 0}, {24, 0}, {20, 4}))) == 196);
+    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+
+    // Transformations preserve the alternative.
+    Shape moved = shape;
+    moved += Point(1, 1);
+    REQUIRE(moved.holdsAlternative<Region>());
+    CHECK(Region(moved) == annulus + Point(1, 1));
+    CHECK((shape + Point(1, 1)) == moved);
+    CHECK((moved - Point(1, 1)) == shape);
+    CHECK((shape * 2).holdsAlternative<Region>());
+    CHECK(Region(shape * 2) == annulus * 2);
+    CHECK(((shape * 2) / 2) == shape);
+    CHECK(shape.rotated90(2).holdsAlternative<Region>());
+    CHECK(Region(shape.rotated90(2)) == annulus.rotated90(2));
+    CHECK(shape.scaledUpX(2).holdsAlternative<Region>());
+    CHECK(Region(shape.scaledUpX(2)) ==
+          Region(Polygon({0, 0, 12, 0, 12, 6, 0, 6}),
+                 std::vector<Polygon>{Polygon({4, 2, 8, 2, 8, 4, 4, 4})}));
+    CHECK(Region(shape.scaledUpX(2).scaledDownX(2)) == annulus);
+
+    // An affine map takes the region through the Shape wrapper as well; the
+    // shear keeps every area, so the region keeps its hole.
+    const pgl::Transformation<int> shear(1, 0, 1, 1, 0, 0);
+    const Shape sheared = shear * shape;
+    REQUIRE(sheared.holdsAlternative<Region>());
+    CHECK(Region(sheared).holeCount() == 1);
+    CHECK(Region(sheared).twiceArea() == annulus.twiceArea());
+
+    // Summing with a Point is a translation and stays a region.
+    const Shape summed = shape.minkowskiSum(Shape(Point(1, 1)));
+    REQUIRE(summed.holdsAlternative<Region>());
+    CHECK(Region(summed) == annulus + Point(1, 1));
+    // A non-convex operand has no single-Shape sum; that is what the
+    // vector-valued PolygonWithHoles::minkowskiSum overloads are for.
+    CHECK_THROWS_AS((void)shape.minkowskiSum(Shape(Triangle({0, 0}, {1, 0}, {0, 1}))),
+                    std::logic_error);
+}
+
 TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
@@ -934,6 +1107,8 @@ TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
     CHECK(Shape(pgl::Polygon<Point>({{0, 0}, {4, 0}, {0, 4}})).isPolygon());
     CHECK(Shape(pgl::HalfplaneIntersection<Point>(pgl::Rectangle<Point>({0, 0}, {4, 4})))
               .isHalfplaneIntersection());
+    CHECK(Shape(pgl::PolygonWithHoles<Point>(pgl::Polygon<Point>({0, 0, 4, 0, 4, 4, 0, 4})))
+              .isPolygonWithHoles());
 
     // The test is on the stored alternative, not on the geometry: a triangle
     // collapsed to a point is still the Triangle alternative.

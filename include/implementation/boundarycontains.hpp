@@ -411,10 +411,22 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherHalf
 
 // -----------------------------------------------------------------------------
 // Disk
+//
+// Every overload opens with the two degenerate readings. A disk of radius zero
+// is the point a(), and a shape that has dropped below its natural dimension is
+// entirely boundary (doc/raw/shapes.md), so boundaryContains coincides with
+// contains there — it cannot go through the line below, which would be built
+// from two equal points and hold every point of the plane. A disk whose three
+// defining points are collinear but distinct determines no circle and is
+// undefined; reading it as the line through them is one terminating answer
+// among the many the contract allows.
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    if (isPoint()) {
+        return contains(point);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(point);
     }
@@ -425,6 +437,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPoint& po
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -434,6 +449,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherSegment& 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -443,6 +461,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedS
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -452,6 +473,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherLine& oth
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -461,6 +485,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedL
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -470,6 +497,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRay& othe
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherHalfplane& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -479,6 +509,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherHalfplane
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -490,6 +523,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherTriangle&
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -501,6 +537,9 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRectangle
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -889,6 +928,9 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherPolygon
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -1073,6 +1115,9 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherChain
 template <class PointType, class LabelType>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -1175,6 +1220,9 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolyl
 template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    if (isPoint()) {
+        return contains(other);
+    }
     if (isDegenerate()) {
         return Line<PointType>(a(), c()).contains(other);
     }
@@ -1634,6 +1682,292 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRegion
         return false;
     }
     return detail::boundaryContainsDegenerateRegion(*this, other);
+}
+
+
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    if (outer_.boundaryContains(point)) {
+        return true;
+    }
+    for (const auto& hole : holes_) {
+        if (hole.boundaryContains(point)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
+    if (other.isDegenerate()) {
+        return boundaryContains(other.min());
+    }
+    // ∂A = A ∖ A°, so a segment lies on the boundary exactly when the region
+    // contains it while its relative interior never reaches the region
+    // interior. Testing it this way rather than edge by edge also accepts a
+    // segment covered jointly by several collinear ring edges.
+    return contains(other) && !interiorsIntersect(other);
+}
+
+template <class PointType, class LabelType>
+template <OrientedSegmentConcept OtherOrientedSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
+    return boundaryContains(other.asSegment());
+}
+
+// The boundary of a bounded region is bounded, so an unbounded operand fits on
+// it only after collapsing to a point.
+template <class PointType, class LabelType>
+template <LineConcept OtherLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
+    return other.isDegenerate() && boundaryContains(other.min());
+}
+
+template <class PointType, class LabelType>
+template <OrientedLineConcept OtherOrientedLine>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
+    return other.isDegenerate() && boundaryContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <RayConcept OtherRay>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
+    return other.isDegenerate() && boundaryContains(other.source());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneConcept OtherHalfplane>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherHalfplane& other) const {
+    return other.isDegenerate() && boundaryContains(other.source());
+}
+
+// ∂A is a finite union of segments and so has no area, which rules out any
+// operand that has some. A collapsed operand is exactly the union of its edges,
+// so the segment overload settles it one edge at a time — and that overload
+// already accepts an edge covered jointly by several collinear ring edges.
+template <class PointType, class LabelType>
+template <class OtherArea>
+constexpr bool PolygonWithHoles<PointType, LabelType>::areaBoundaryContains(const OtherArea& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    for (const auto& edge : other.edges()) {
+        if (!boundaryContains(edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <RectangleConcept OtherRectangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <TriangleConcept OtherTriangle>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <ConvexConcept OtherConvex>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonConcept OtherPolygon>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    return areaBoundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return areaBoundaryContains(other);
+}
+
+// A chain is the union of its edges, so it lies on ∂A exactly when every edge
+// does (see @ref chainRelation).
+template <class PointType, class LabelType>
+template <MonotoneChainConcept OtherChain>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->boundaryContains(edge); });
+}
+
+template <class PointType, class LabelType>
+template <PolylineConcept OtherPolyline>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    return chainRelation(other, true,
+                         [this](const auto& edge) { return this->boundaryContains(edge); });
+}
+
+// ∂A is a finite union of segments, so it holds no disk with any area; a
+// degenerate disk is the point a() (radius zero) or undefined.
+template <class PointType, class LabelType>
+template <DiskConcept OtherDisk>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    if (!other.isDegenerate()) {
+        return false;
+    }
+    return boundaryContains(other.a());
+}
+
+template <class PointType, class LabelType>
+template <HalfplaneIntersectionConcept OtherIntersection>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherIntersection& other) const {
+    if (other.isEmpty()) {
+        return true;
+    }
+    if (!other.isDegenerate()) {
+        return false;  // it has area, and ∂A has none
+    }
+    return degenerateIntersectionRelation(
+        other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
+}
+
+
+// ---------------------------------------------------------------------------
+// Reverse direction: lower-ranked shapes' boundaries containing a
+// PolygonWithHoles.
+//
+// One rewriting settles every shape here, because it asks nothing of the
+// shape at all. A boundary is at most one-dimensional, so it can hold the
+// region only when the region has no area — and a region with no area is
+// exactly the union of its ring edges (detail::everyHoledRegionEdge). So the
+// question is edge by edge, and each edge goes to the shape's own
+// boundaryContains(Segment).
+//
+// Note what this does *not* do: forward to the outer polygon. The outer
+// polygon of a zero-area region need not be zero-area itself — a hole may
+// cover it entirely, leaving the ring as the whole region — and a boundary
+// that holds the ring does not hold the polygon the ring bounds.
+
+namespace detail {
+
+// ∂shape ⊇ region, for any shape offering boundaryContains(Segment).
+template <class Shape2, class HoledRegion>
+constexpr bool boundaryContainsHoledRegion(const Shape2& shape, const HoledRegion& region) {
+    if (!region.isDegenerate()) {
+        return false;  // the region has area; the boundary has none
+    }
+    return everyHoledRegionEdge(
+        region, [&shape](const auto& edge) { return shape.boundaryContains(edge); });
+}
+
+}  // namespace detail
+
+template <class Number, class Label>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Point<Number, Label>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Segment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedSegment<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asSegment().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Line<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool OrientedLine<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return asLine().boundaryContains(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Ray<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool MonotoneChain<PointType, LabelType, Storage>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polyline<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherRegion>
+constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonWithHolesConcept OtherHoledRegion>
+constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherHoledRegion& other) const {
+    return detail::boundaryContainsHoledRegion(*this, other);
+}
+
+// ---------------------------------------------------------------------------
+// Runtime Shape argument: unwrap the stored alternative and re-dispatch. Every
+// alternative has a per-shape overload above, so no fallback is needed.
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+    return std::visit(
+        [this](const auto& value) {
+            return this->boundaryContains(value);
+        },
+        other.variant());
 }
 
 }  // namespace pgl

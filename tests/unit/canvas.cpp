@@ -447,3 +447,163 @@ TEST_CASE("Canvas renders a Polyline as an open polyline") {
     CHECK(svg.find("<polygon") == std::string::npos);   // never closed or filled
     CHECK(svg.find("<title>Polyline[(0,0),(4,4),(4,0),(0,4)]</title>") != std::string::npos);
 }
+
+TEST_CASE("Canvas renders a PolygonWithHoles as one even-odd path per ring") {
+    const std::string path = "build/tests/output/polygonwithholes_canvas.svg";
+
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    const Region annulus(Polygon({0, 0, 8, 0, 8, 8, 0, 8}),
+                         std::vector<Polygon>{Polygon({2, 2, 4, 2, 4, 4, 2, 4}),
+                                              Polygon({5, 5, 7, 5, 7, 7, 5, 7})});
+    const Region plain(Polygon({12, 0, 16, 0, 16, 4, 12, 4}));
+
+    pgl::Canvas canvas;
+    canvas << pgl::stroke("navy")
+           << pgl::fill("skyblue")
+           << pgl::fillOpacity("0.4")
+           << annulus
+           << pgl::Shape<Point>(plain);
+    canvas.writeSVG(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+    const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    // One <path> per region, with the holes as extra closed subpaths and the
+    // even-odd rule that punches them out.
+    CHECK(svg.find("fill-rule=\"evenodd\"") != std::string::npos);
+    CHECK(svg.find("<polygon") == std::string::npos);
+    CHECK(svg.find("fill=\"skyblue\"") != std::string::npos);
+    CHECK(svg.find("<title>PolygonWithHoles[Polygon[(0,0),(8,0),(8,8),(0,8)],"
+                   "Polygon[(2,2),(4,2),(4,4),(2,4)],Polygon[(5,5),(7,5),(7,7),(5,7)]]</title>") !=
+          std::string::npos);
+    CHECK(svg.find("<title>PolygonWithHoles[Polygon[(12,0),(16,0),(16,4),(12,4)]]</title>") !=
+          std::string::npos);
+
+    // Three rings on the annulus and one on the hole-free region: four
+    // subpaths, each opened by an M and closed by a Z.
+    const auto count = [&svg](const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = svg.find(needle); at != std::string::npos; at = svg.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+    CHECK(count("M ") == 4);
+    CHECK(count(" Z") == 4);
+
+    // Every hole must wind *against* the outer ring. That is what makes the
+    // fill come out as the region under the nonzero-winding rule as well as
+    // under even-odd, which is the only reason the PDF and Ipe backends — which
+    // cannot ask for even-odd — get it right. Recovering the signed area of each
+    // subpath pins it: the outer ring's sign is one, every hole's the other.
+    // Split on the subpath *closer* rather than its opener: SVG writes the
+    // opener before its coordinates (`M x,y … Z`) while PDF and Ipe write it
+    // after (`x y m … h`), but all three end a subpath after its last point.
+    const auto subpathSigns = [](const std::string& body, char closer) {
+        std::vector<int> signs;
+        std::size_t from = 0;
+        while (true) {
+            const std::size_t stop = body.find(closer, from);
+            if (stop == std::string::npos) break;
+            const std::string run = body.substr(from, stop - from);
+            from = stop + 1;
+            std::vector<double> values;
+            std::size_t pos = 0;
+            while (pos < run.size()) {
+                const std::size_t start = run.find_first_of("-0123456789.", pos);
+                if (start == std::string::npos) break;
+                std::size_t end = start;
+                while (end < run.size() && (std::isdigit(static_cast<unsigned char>(run[end])) != 0 ||
+                                            run[end] == '-' || run[end] == '.')) {
+                    ++end;
+                }
+                values.push_back(std::stod(run.substr(start, end - start)));
+                pos = end;
+            }
+            REQUIRE(values.size() >= 6);
+            REQUIRE(values.size() % 2 == 0);
+            double twiceArea = 0.0;
+            for (std::size_t i = 0; i + 1 < values.size(); i += 2) {
+                const std::size_t j = (i + 2) % values.size();
+                twiceArea += values[i] * values[j + 1] - values[j] * values[i + 1];
+            }
+            signs.push_back(twiceArea > 0.0 ? 1 : -1);
+        }
+        return signs;
+    };
+
+    const std::size_t firstPath = svg.find("<path d=\"");
+    REQUIRE(firstPath != std::string::npos);
+    const std::string first = svg.substr(firstPath, svg.find("</path>", firstPath) - firstPath);
+    CHECK(first.find("fill-rule") != std::string::npos);
+    // Only the d attribute: the <title> that follows it spells out the region's
+    // own coordinates, which would parse as path numbers.
+    const std::size_t dStart = firstPath + std::string("<path d=\"").size();
+    const std::string svgPathData = svg.substr(dStart, svg.find('"', dStart) - dStart);
+    const auto svgSigns = subpathSigns(svgPathData, 'Z');
+    REQUIRE(svgSigns.size() == 3);
+    CHECK(svgSigns[1] == -svgSigns[0]);
+    CHECK(svgSigns[2] == -svgSigns[0]);
+
+    // The empty region draws nothing at all.
+    pgl::Canvas emptyCanvas;
+    emptyCanvas << pgl::Point<int>(0, 0) << Region();
+    const std::string emptyPath = "build/tests/output/polygonwithholes_empty_canvas.svg";
+    emptyCanvas.writeSVG(emptyPath);
+    std::ifstream emptyInput(emptyPath);
+    REQUIRE(emptyInput.good());
+    const std::string emptySVG((std::istreambuf_iterator<char>(emptyInput)), std::istreambuf_iterator<char>());
+    CHECK(emptySVG.find("<path") == std::string::npos);
+
+    // PDF and Ipe take the region too, one subpath per ring in both.
+    canvas.writePDF("build/tests/output/polygonwithholes_canvas.pdf");
+    canvas.writeIPE("build/tests/output/polygonwithholes_canvas.ipe");
+    std::ifstream pdfInput("build/tests/output/polygonwithholes_canvas.pdf", std::ios::binary);
+    REQUIRE(pdfInput.good());
+    const std::string pdf((std::istreambuf_iterator<char>(pdfInput)), std::istreambuf_iterator<char>());
+    CHECK(pdf.rfind("%PDF-", 0) == 0);
+    std::ifstream ipeInput("build/tests/output/polygonwithholes_canvas.ipe");
+    REQUIRE(ipeInput.good());
+    const std::string ipe((std::istreambuf_iterator<char>(ipeInput)), std::istreambuf_iterator<char>());
+    CHECK(ipe.find("</ipe>") != std::string::npos);
+
+    // The annulus is one Ipe path holding three closed subpaths, with the same
+    // opposite windings the SVG carries — Ipe takes its fill rule from the style
+    // sheet, so the winding is the whole of the correctness here.
+    const std::size_t ipePath = ipe.find("<path");
+    REQUIRE(ipePath != std::string::npos);
+    const std::string ipeFirst = ipe.substr(ipePath, ipe.find("</path>", ipePath) - ipePath);
+    std::size_t closers = 0;
+    for (std::size_t at = ipeFirst.find("\nh\n"); at != std::string::npos; at = ipeFirst.find("\nh\n", at + 1)) {
+        ++closers;
+    }
+    CHECK(closers == 3);
+    CHECK(ipeFirst.find("fill=") != std::string::npos);
+    // Drop the attribute line, whose "0.529412 0.807843 0.921569" would parse
+    // as coordinates.
+    const std::string ipeBody = ipeFirst.substr(ipeFirst.find(">\n") + 1);
+    const auto ipeSigns = subpathSigns(ipeBody, 'h');
+    REQUIRE(ipeSigns.size() == 3);
+    CHECK(ipeSigns[1] == -ipeSigns[0]);
+    CHECK(ipeSigns[2] == -ipeSigns[0]);
+
+    // The PDF carries the same three subpaths in one path object: three `h`
+    // closers, then a single `B` (fill and stroke). pdfgen emits its content
+    // streams uncompressed, so they are readable as text.
+    const std::size_t pdfRing = pdf.find("23.000000 261.500000 m");
+    REQUIRE(pdfRing != std::string::npos);
+    const std::string pdfPath = pdf.substr(pdfRing, pdf.find("\r\nB\r\n", pdfRing) - pdfRing);
+    std::size_t pdfClosers = 0;
+    for (std::size_t at = pdfPath.find("h\r\n"); at != std::string::npos; at = pdfPath.find("h\r\n", at + 1)) {
+        ++pdfClosers;
+    }
+    CHECK(pdfClosers == 3);
+    const auto pdfSigns = subpathSigns(pdfPath, 'h');
+    REQUIRE(pdfSigns.size() == 3);
+    CHECK(pdfSigns[1] == -pdfSigns[0]);
+    CHECK(pdfSigns[2] == -pdfSigns[0]);
+}

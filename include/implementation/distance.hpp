@@ -1746,4 +1746,185 @@ constexpr auto HalfplaneIntersection<PointType, LabelType>::squaredDistance(cons
     return detail::regionEdgesSquaredDistance<ResultNumber>(*this, other);
 }
 
+
+// -----------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// The region is closed, so a shape it misses is nearest to a point of ∂A — the
+// edges of the outer ring and of every hole. One scan serves every operand.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, class OtherShape>
+constexpr ResultNumber PolygonWithHoles<PointType, LabelType>::edgeMinSquaredDistance(const OtherShape& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    anyBoundaryEdge([&](const auto& edge) {
+        const ResultNumber current = edge.template squaredDistance<ResultNumber>(other);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+        return false;
+    });
+    return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
+    if (intersects(point)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(point);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherTriangle& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, ConvexConcept OtherConvex>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherConvex& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPolygon& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// Against another region the scan over this region's ring edges is still
+// enough: the other region's own ring edges are what its edge-to-shape distance
+// minimizes over, so the pair is measured boundary against boundary either way.
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherRegion& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherChain& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherPolyline& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// The operand may be unbounded, which changes nothing: the region is bounded and
+// closed, so a disjoint pair still realizes its distance on ∂A, and each ring
+// edge hands the query on to the other region's own edge scan.
+template <class PointType, class LabelType>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherIntersection& other) const {
+    if (intersects(other)) {
+        return ResultNumber{};
+    }
+    return this->template edgeMinSquaredDistance<ResultNumber>(other);
+}
+
+// The nearest point of a disjoint disk lies on its circle, so the gap is the
+// distance to its center less its radius — generally irrational, hence the fixed
+// double result that every other distance to a Disk returns.
+template <class PointType, class LabelType>
+template <class ResultNumber, DiskConcept OtherDisk>
+double PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+    if (other.isDegenerate()) {
+        // A degenerate disk has no centre or radius to measure from: it is the
+        // point a() when its radius is zero, and undefined otherwise.
+        return this->template squaredDistance<double>(other.a());
+    }
+    if (intersects(other)) {
+        return 0.0;
+    }
+    return detail::diskExteriorSquaredDistance(other, *this);
+}
+
 }  // namespace pgl

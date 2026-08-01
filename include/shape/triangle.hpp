@@ -500,6 +500,16 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the triangle as a hole-free region.
+     *
+     * @return PolygonWithHoles whose outer boundary is the triangle and which
+     *         has no holes.
+     */
+    [[nodiscard]] constexpr PolygonWithHoles<PointType> asPolygonWithHoles() const {
+        return PolygonWithHoles<PointType>(asPolygon());
+    }
+
+    /**
      * @brief Returns the triangle rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).
@@ -1002,6 +1012,39 @@ struct Triangle {
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     template<HalfplaneIntersectionConcept OtherRegion>
     [[nodiscard]] constexpr bool separates(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * A region is contained exactly when its outer polygon is: the region holds
+     * the whole outer ring whatever its holes do, and this shape has a
+     * connected complement. See implementation/contains.hpp.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool contains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * A boundary has no area, so it holds only a region with no area — which is
+     * exactly the union of that region's ring edges.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherRegion& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] constexpr bool interiorContains(const OtherRegion& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * The region is settled by the cell engine of implementation/separates.hpp;
+     * see the notes on pgl::PolygonWithHoles::separates for what a region
+     * admits that a simply connected target does not.
+     */
+    template<PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] bool separates(const OtherRegion& other) const;
 
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
@@ -1516,6 +1559,57 @@ struct Triangle {
     template <class OtherShape>
         requires MinkowskiSummableConcept<Triangle<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The pairs @ref MinkowskiSummableConcept rejects are exactly the ones whose
+     * sum is a set of regions rather than a single shape; they are implemented on
+     * @ref Polygon and @ref PolygonWithHoles. Forwards to the other shape's
+     * implementation so that each unordered pair needs the sum defined only once,
+     * on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!MinkowskiSummableConcept<Triangle<PointType_, TLabel>, OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template minkowskiSum<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto minkowskiSum(const OtherShape& other) const {
+        return other.template minkowskiSum<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `unionWith` defined only once, on the higher-ranked shape. See
+     * @ref Polygon::unionWith for the contract.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template unionWith<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto unionWith(const OtherShape& other) const {
+        return other.template unionWith<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes (A △ B).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `symmetricDifference` defined only once, on the higher-ranked shape.
+     * See @ref Polygon::symmetricDifference for the contract.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template symmetricDifference<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto symmetricDifference(const OtherShape& other) const {
+        return other.template symmetricDifference<ResultNumber>(*this);
+    }
 
     /** @brief Translates all vertices by a point in place. */
     template<PointConcept OtherPoint>

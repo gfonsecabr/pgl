@@ -314,8 +314,35 @@ constexpr std::remove_cvref_t<Region> regionClippedToBox(const Region& region, c
     using N = typename Result::NumberType;
     using RegionHalfplane = typename Result::HalfplaneType;
     const N margin(2);
-    const RegionPoint lo(N(bounds.min().x()) - margin, N(bounds.min().y()) - margin);
-    const RegionPoint hi(N(bounds.max().x()) + margin, N(bounds.max().y()) + margin);
+    // A fractional bound is rounded away from the box before the margin is
+    // added, so the corners are whole numbers whatever N is. The box only has
+    // to contain @p bounds, and rounding outward keeps that; what it buys is
+    // the depth of everything downstream. Clipping against a corner that is
+    // itself a deep fraction — a disk's bounding box under rational
+    // coordinates carries twelve-digit numerators over eight-digit
+    // denominators — hands every clipped vertex those denominators, and the
+    // degree-four predicates over them then run on numbers with hundreds of
+    // digits. An integral corner leaves the clipped vertices as shallow as the
+    // region's own. For an integral N this is what the toward-zero cast
+    // already did.
+    const auto roundOutward = [](const auto& value, bool up) -> N {
+        if constexpr (requires { value.numerator(); value.denominator(); }) {
+            const auto numerator = value.numerator();
+            const auto denominator = value.denominator();   // always positive
+            auto quotient = numerator / denominator;        // truncates toward zero
+            const bool exact = quotient * denominator == numerator;
+            if (!exact && (numerator < 0) == !up) {
+                quotient = up ? quotient + 1 : quotient - 1;
+            }
+            return N(quotient);
+        } else {
+            return N(value);
+        }
+    };
+    const RegionPoint lo(roundOutward(bounds.min().x(), false) - margin,
+                         roundOutward(bounds.min().y(), false) - margin);
+    const RegionPoint hi(roundOutward(bounds.max().x(), true) + margin,
+                         roundOutward(bounds.max().y(), true) + margin);
     const RegionPoint lohi(lo.x(), hi.y());
     const RegionPoint hilo(hi.x(), lo.y());
     Result result(region);
@@ -324,6 +351,34 @@ constexpr std::remove_cvref_t<Region> regionClippedToBox(const Region& region, c
     result.insert(RegionHalfplane(hi, lohi));
     result.insert(RegionHalfplane(lohi, lo));
     return result;
+}
+
+/**
+ * @brief Folds a predicate over every boundary edge of a holed region, outer
+ * ring first, stopping at the first edge that fails.
+ *
+ * The union of these edges is `∂A`, and when the region has no area it is all
+ * of `A`: a closed set of zero measure has empty interior, so `A ⊆ ∂A`, and
+ * every ring lies in `A` to begin with. That identity is what the
+ * reverse-direction containment predicates need — a target that is at most
+ * one-dimensional (a boundary, a chain) can hold a region only when the region
+ * has no area, and then edge by edge is exact.
+ */
+template <class HoledRegion, class EdgePredicate>
+constexpr bool everyHoledRegionEdge(const HoledRegion& region, EdgePredicate&& predicate) {
+    for (const auto& edge : region.outer().edgesView()) {
+        if (!predicate(edge)) {
+            return false;
+        }
+    }
+    for (const auto& hole : region.holes()) {
+        for (const auto& edge : hole.edgesView()) {
+            if (!predicate(edge)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 }  // namespace detail

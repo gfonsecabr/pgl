@@ -102,6 +102,10 @@ struct Polygon;
 template <class PointType, class Label = NoLabel>
 struct HalfplaneIntersection;
 
+/** @brief Closed region bounded by one outer simple polygon minus disjoint polygonal holes. */
+template <class PointType, class Label = NoLabel>
+struct PolygonWithHoles;
+
 /** @brief Weakly x-monotone polyline stored by lexicographically sorted vertices. */
 template <class PointType, class Label = NoLabel, class Storage = std::vector<PointType>>
 struct MonotoneChain;
@@ -179,6 +183,8 @@ template <class PointType, class Label>
 inline constexpr int shapeRank<Polygon<PointType, Label>> = 120;
 template <class PointType, class Label>
 inline constexpr int shapeRank<HalfplaneIntersection<PointType, Label>> = 130;
+template <class PointType, class Label>
+inline constexpr int shapeRank<PolygonWithHoles<PointType, Label>> = 140;
 
 // Shape-detection traits: is_<shape>_v<T> is true when T (ignoring cv/ref) is a
 // specialization of that shape. They back the public XxxConcept concepts below
@@ -233,6 +239,10 @@ template <class T> struct is_polygon : std::false_type {};
 template <class PointType, class Label> struct is_polygon<Polygon<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_polygon_v = is_polygon<std::remove_cvref_t<T>>::value;
 
+template <class T> struct is_polygon_with_holes : std::false_type {};
+template <class PointType, class Label> struct is_polygon_with_holes<PolygonWithHoles<PointType, Label>> : std::true_type {};
+template <class T> inline constexpr bool is_polygon_with_holes_v = is_polygon_with_holes<std::remove_cvref_t<T>>::value;
+
 template <class T> struct is_halfplane_intersection : std::false_type {};
 template <class PointType, class Label> struct is_halfplane_intersection<HalfplaneIntersection<PointType, Label>> : std::true_type {};
 template <class T> inline constexpr bool is_halfplane_intersection_v = is_halfplane_intersection<std::remove_cvref_t<T>>::value;
@@ -274,6 +284,7 @@ template <class T> concept RectangleConcept = detail::is_rectangle_v<T>;
 template <class T> concept TriangleConcept = detail::is_triangle_v<T>;
 template <class T> concept ConvexConcept = detail::is_convex_v<T>;
 template <class T> concept PolygonConcept = detail::is_polygon_v<T>;
+template <class T> concept PolygonWithHolesConcept = detail::is_polygon_with_holes_v<T>;
 template <class T> concept HalfplaneIntersectionConcept = detail::is_halfplane_intersection_v<T>;
 template <class T> concept MonotoneChainConcept = detail::is_monotone_chain_v<T>;
 template <class T> concept PolylineConcept = detail::is_polyline_v<T>;
@@ -311,9 +322,13 @@ concept BoundedConvexConcept =
  * their sums are either not representable by any shape (a rounded polygon, a
  * polygon with holes) or not exact in the operands' coordinate type.
  *
- * This concept is the only place that decides which pairs are allowed, so it is
- * where a later widening starts — a non-convex sum once a shape can hold a
- * polygon with holes, or an unbounded one over `HalfplaneIntersection`.
+ * This concept is the only place that decides which pairs give back a **single
+ * shape**, so it is where a later widening starts — an unbounded sum over
+ * `HalfplaneIntersection`, say. The non-convex case is not a widening of it: a
+ * sum that can enclose a hole is not one shape but a set of regions, so
+ * `Polygon::minkowskiSum`, `PolygonWithHoles::minkowskiSum` and
+ * `Polyline::minkowskiSum` carry it as an overload set of their own, over exactly
+ * the pairs this concept rejects. See `algorithm/minkowskisum.hpp`.
  */
 template <class A, class B>
 concept MinkowskiSummableConcept =
@@ -355,6 +370,55 @@ constexpr bool reduceDegenerate(const Other& other, Predicate predicate) {
     if constexpr (requires { other.getIfSegment(); }) {
         if (const auto carrier = other.getIfSegment()) {
             return predicate(*carrier);
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief The @ref reduceDegenerate variant for an argument that answers
+ * `isDegenerate` more cheaply than it answers `getIfPoint` and `getIfSegment`.
+ *
+ * Both carriers exist only for a degenerate argument, so a shape whose
+ * degeneracy test is cheaper than the two probes -- `Rectangle`, two coordinate
+ * comparisons, and `Convex`, a vertex count -- settles the common
+ * non-degenerate case in one test instead of re-deriving overlapping facts in
+ * each probe.
+ *
+ * Reserved for exactly those shapes. `Polygon` and the chains answer
+ * `isDegenerate` with an exact area sum over every vertex, far dearer than the
+ * probes they would replace, and a shape that cannot collapse to a segment
+ * probes only once already.
+ *
+ * @param other Shape that may have collapsed to a point or to a segment.
+ * @param predicate Callable accepting the carrier point or segment.
+ * @return The predicate's value on the carrier, or `false` if there is none.
+ */
+template <class Other, class Predicate>
+constexpr bool reduceDegenerateGuarded(const Other& other, Predicate predicate) {
+    return other.isDegenerate() && reduceDegenerate(other, predicate);
+}
+
+/**
+ * @brief The @ref reduceDegenerate variant for a predicate that only a
+ * point-collapsed argument can satisfy.
+ *
+ * When the answer is a constant `false` for every argument of positive
+ * diameter -- as it is for a predicate about a boundary that is a finite point
+ * set -- the segment carrier of @ref reduceDegenerate would be tested only to
+ * be rejected. Skipping it matters: `getIfSegment` costs a collinearity scan,
+ * one exact orientation determinant per vertex, whereas `getIfPoint` costs an
+ * equality test that a shape with area fails on its second vertex.
+ *
+ * @param other Shape that may have collapsed to a point.
+ * @param predicate Callable accepting the carrier point.
+ * @return The predicate's value on the carrier point, or `false` if there is none.
+ */
+template <class Other, class Predicate>
+constexpr bool reduceDegenerateToPoint(const Other& other, Predicate predicate) {
+    if constexpr (requires { other.getIfPoint(); }) {
+        if (const auto vertex = other.getIfPoint()) {
+            return predicate(*vertex);
         }
     }
     return false;

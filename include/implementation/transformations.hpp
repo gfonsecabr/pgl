@@ -2027,6 +2027,29 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
             pts.push_back(point(p));
         }
         return Polyline<ResultPoint, typename ShapeT::LabelType>(std::move(pts));
+    } else if constexpr (PolygonWithHolesConcept<ShapeT>) {
+        // Every ring maps like the Polygon branch above, each through its own
+        // non-trusted constructor; the region's normalization then re-sorts the
+        // holes, whose relative order an orientation-reversing map can change,
+        // the same reasoning already used by PolygonWithHoles::rotated90.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        using ResultPolygon = Polygon<ResultPoint>;
+        const auto ring = [&point](const auto& source) {
+            std::vector<ResultPoint> pts;
+            pts.reserve(source.size());
+            for (const auto& p : source) {
+                pts.push_back(point(p));
+            }
+            return ResultPolygon(std::move(pts));
+        };
+
+        std::vector<ResultPolygon> holes;
+        holes.reserve(shape.holeCount());
+        for (const auto& hole : shape.holes()) {
+            holes.push_back(ring(hole));
+        }
+        return PolygonWithHoles<ResultPoint, typename ShapeT::LabelType>(
+            ring(shape.outer()), std::move(holes));
     } else if constexpr (HalfplaneIntersectionConcept<ShapeT>) {
         // Each stored half-plane maps like the Halfplane branch above,
         // swapping its defining points under a reflection; the non-trusted
