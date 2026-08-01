@@ -146,3 +146,45 @@ TEST_CASE("Convex bbox matches a linear scan over random polygons") {
     }
 }
 
+
+// A disk through three integer points has an irrational radius, so its box is
+// an outer bound rounded away from the centre. Deriving it once went through
+// the product of the three squared side lengths, which is degree six in the
+// coordinates and overflows a 64-bit intermediate at coordinates in the
+// thousands — the box then missed the disk entirely, silently. The three points
+// lie on the circle, so the box must hold them whatever their magnitude.
+TEST_CASE("Disk bounding box holds its own boundary points at any magnitude") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    SUBCASE("a case the 64-bit product overflowed") {
+        const Disk d(Point(-4728, 1042), Point(-4234, -883), Point(3121, -610));
+        const auto box = d.bbox();
+        CHECK(box.contains(d.a()));
+        CHECK(box.contains(d.b()));
+        CHECK(box.contains(d.c()));
+    }
+
+    // Up to a million; past a few million a near-collinear triple has a
+    // circumradius of 10^12 or more, and no `int` box can hold it whatever the
+    // arithmetic does. Where the answer is representable, it must be right.
+    SUBCASE("random disks across four magnitudes") {
+        std::mt19937 rng(20260801);
+        for (int scale : {10, 1000, 100000, 1000000}) {
+            std::uniform_int_distribution<int> coord(-scale, scale);
+            for (int trial = 0; trial < 200; ++trial) {
+                const Point a(coord(rng), coord(rng));
+                const Point b(coord(rng), coord(rng));
+                const Point c(coord(rng), coord(rng));
+                const Disk d(a, b, c);
+                if (d.isDegenerate() || d.isUndefined()) {
+                    continue;   // no finite circle; nothing to bound
+                }
+                const auto box = d.bbox();
+                REQUIRE(box.contains(a));
+                REQUIRE(box.contains(b));
+                REQUIRE(box.contains(c));
+            }
+        }
+    }
+}

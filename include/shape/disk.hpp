@@ -483,7 +483,17 @@ struct Disk {
             const auto ctr = center<NumberType>();
             return Rectangle<PointType>(ctr - PointType(r, r), ctr + PointType(r, r));
         } else {
-            using Wide = detail::promoted_number_t<NumberType>;
+            // The circumcentre numerators are degree three in the coordinates,
+            // and the radius bound below multiplies three side lengths, so a
+            // single promotion overflows well inside the coordinate type's own
+            // range — an `int` disk spanning a few million already lost its box.
+            // Promote twice for an integral coordinate, as @ref inCircleDeterminant
+            // does, which puts every `int` input safely inside the intermediate.
+            // A rational coordinate promotes once: its storage grows as needed.
+            using Wide = std::conditional_t<
+                detail::extended_integral<NumberType>,
+                detail::promoted_number_t<detail::promoted_number_t<NumberType>>,
+                detail::promoted_number_t<NumberType>>;
             const Wide ax = a().x(), ay = a().y();
             const Wide bx = b().x(), by = b().y();
             const Wide cx = c().x(), cy = c().y();
@@ -501,8 +511,6 @@ struct Disk {
             const Wide ab2 = (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
             const Wide bc2 = (bx - cx) * (bx - cx) + (by - cy) * (by - cy);
             const Wide ca2 = (cx - ax) * (cx - ax) + (cy - ay) * (cy - ay);
-            const Wide s = ab2 * bc2 * ca2;   // (radius * d)^2
-
             // ceil(sqrt(n)) for a non-negative *integer* n: floor-sqrt (std::sqrt
             // when usable, else integer Newton) followed by an upward correction.
             // The argument is always an integer, so this terminates.
@@ -522,10 +530,11 @@ struct Disk {
                 return r;
             };
 
-            if constexpr (requires { s.numerator(); s.denominator(); }) {
+            if constexpr (requires(Wide w) { w.numerator(); w.denominator(); }) {
                 // sqrt(s) = sqrt(sn*sd)/sd <= ceil(sqrt(sn*sd))/sd =: u, an exact
                 // rational upper bound whose only square root is over the integer
                 // sn*sd -- so it never iterates on the (irrational) sqrt itself.
+                const Wide s = ab2 * bc2 * ca2;   // (radius * d)^2
                 using Int = std::remove_cvref_t<decltype(s.numerator())>;
                 const Int sn = s.numerator();
                 const Int sd = s.denominator();
@@ -537,8 +546,18 @@ struct Disk {
                               static_cast<NumberType>((ny + u) / d)));
             } else {
                 // Integer coordinates: round (nx +/- q)/d outward to integers,
-                // with q = ceil(sqrt(s)) >= radius*d.
-                const Wide q = ceilIntSqrt(s);
+                // with q >= radius*d = sqrt(ab2*bc2*ca2).
+                //
+                // Bound each factor's root separately rather than forming that
+                // product: it is degree six in the coordinates, so it overflows
+                // a fixed-width Wide at coordinates around a thousand — where
+                // the box quietly stopped containing its disk. Each ceil-sqrt is
+                // at least the real root, so their product is at least the root
+                // of the product, which is all the radius needs; every
+                // intermediate stays as wide as a single squared distance. The
+                // box remains the outer bound promised above, wider by under one
+                // unit per factor.
+                const Wide q = ceilIntSqrt(ab2) * ceilIntSqrt(bc2) * ceilIntSqrt(ca2);
                 const auto floorDiv = [](Wide p, Wide den) {   // den > 0
                     return p >= Wide{0} ? p / den : -((-p + den - Wide{1}) / den);
                 };
