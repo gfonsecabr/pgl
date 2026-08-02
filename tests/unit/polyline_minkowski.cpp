@@ -10,6 +10,7 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
+using OrientedSegment = pgl::OrientedSegment<Point>;
 using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
@@ -20,10 +21,13 @@ using Region = pgl::PolygonWithHoles<Point>;
 using EPoint = pgl::EPoint;
 using EPolyline = pgl::EPolyline;
 
-// The Minkowski sum of a `Polyline` with a shape that has area: dragging that
+// The Minkowski sum of a `Polyline` with another bounded shape: dragging that
 // shape along the chain. The receiver contributes no area of its own, and the
 // answer still needs a region with holes -- a chain that comes back on itself
-// closes the swept material over a cavity neither operand has.
+// closes the swept material over a cavity neither operand has. Most of the
+// operands bring area; a `Segment` brings none and sweeps some out anyway, since
+// an edge of the chain and the segment span a parallelogram unless the two are
+// parallel.
 //
 // Same construction as the region-valued sums of `polygonwithholes_minkowski.cpp`
 // (the identity `A ⊕ B = ⋃ᵢⱼ (Aᵢ ⊕ Bⱼ)` over a convex decomposition of each
@@ -34,9 +38,10 @@ using EPolyline = pgl::EPolyline;
 // operand, and a chain that bends is not one.
 //
 // The sum is regularized, `closure((A ⊕ B)°)`, which bites harder here than it
-// does on an area receiver: the sum of a chain with a shape that has *no* area
-// keeps nothing at all, so a point summand -- a translation of the chain -- comes
-// back empty rather than as a flat region.
+// does on an area receiver: whatever the sweep leaves flat is dropped, so a point
+// summand -- a translation of the chain -- comes back empty rather than as a flat
+// region, and a segment summand drops the sweep of every chain edge parallel to
+// it, which can leave the answer disconnected.
 
 // -----------------------------------------------------------------------------
 // Both live in a template so that the requires-expressions are dependent: a
@@ -598,6 +603,68 @@ TEST_CASE("minkowskiSum: shear invariance carries the answers off the axes") {
     }
 }
 
+TEST_CASE("minkowskiSum: a segment summand, where neither operand has area") {
+    // The one operand a chain takes that brings no area of its own, and the sum
+    // still has some: an edge of the chain and the segment span a parallelogram
+    // unless the two are parallel. So the closed chain still comes back as a
+    // region with a hole -- the same shape of answer a rectangle summand gives,
+    // sheared into a band.
+    const PolylineShape square = closedChain();
+    const Segment slant(Point(0, 0), Point(2, 1));
+
+    const auto swept = square.minkowskiSum(slant);
+    REQUIRE(swept.size() == 1);
+    CHECK(swept[0].outer() == PolygonShape({Point(0, 0), Point(8, 0), Point(10, 1), Point(10, 9),
+                                            Point(2, 9), Point(0, 8)}));
+    REQUIRE(swept[0].holeCount() == 1);
+    // What the band leaves uncovered: `[0,8]² ∩ ([0,8]² + (2,1))`.
+    CHECK(swept[0].hole(0) == box(2, 1, 8, 8));
+
+    // Orientation is not part of a point set, and the same two points spelled as
+    // a flat rectangle, convex or polygon answer alike.
+    CHECK(square.minkowskiSum(OrientedSegment(Point(2, 1), Point(0, 0))) == swept);
+    CHECK(square.minkowskiSum(Convex(std::vector<Point>{Point(0, 0), Point(2, 1)})) == swept);
+    CHECK(square.minkowskiSum(PolygonShape({Point(0, 0), Point(2, 1)})) == swept);
+
+    // Written on the left, a segment forwards to the chain, as every other
+    // bounded operand does.
+    CHECK(slant.minkowskiSum(square) == swept);
+    CHECK(OrientedSegment(Point(0, 0), Point(2, 1)).minkowskiSum(square) == swept);
+    CHECK(slant.minkowskiSum<pgl::ERational>(square) ==
+          square.minkowskiSum<pgl::ERational>(slant));
+
+    // The regularization is easiest to trip over here, and it takes nothing
+    // exotic: an axis-parallel segment along the square's own edges leaves the
+    // two edges it is parallel to sweeping nothing at all, so what survives is
+    // the two bands the other pair sweeps -- and they do not touch. The sum of
+    // two connected shapes is connected; `closure((A ⊕ B)°)` need not be.
+    const auto split = square.minkowskiSum(Segment(Point(0, 0), Point(0, 3)));
+    REQUIRE(split.size() == 2);
+    CHECK(split[0].outer() == box(0, 0, 8, 3));
+    CHECK(split[1].outer() == box(0, 8, 8, 11));
+    CHECK(split[0].holeCount() == 0);
+    CHECK(split[1].holeCount() == 0);
+    // The vertical walls' sweep is part of the point set and not of the answer.
+    CHECK(inSumByDefinition(square, Segment(Point(0, 0), Point(0, 3)), Point(0, 5)));
+    CHECK_FALSE(inResult(split, Point(0, 5)));
+
+    // An L bent at a right angle keeps only the arm across the segment.
+    CHECK(lChain().minkowskiSum(Segment(Point(0, 0), Point(0, 2)))[0].outer() == box(0, 0, 6, 2));
+
+    // A summand collapsed to a point leaves nothing at all: a chain has no area
+    // to translate, so this is empty rather than the moved chain.
+    CHECK(square.minkowskiSum(Segment(Point(3, 3), Point(3, 3))).empty());
+
+    // The definition settles every probe as long as no edge of the chain runs
+    // parallel to the segment -- where one does, the sum is genuinely not the
+    // closure of its own interior and the case above is what states the contract.
+    for (const Segment& b : {Segment(Point(0, 0), Point(2, 1)), Segment(Point(-1, 1), Point(2, -1)),
+                             Segment(Point(0, 0), Point(1, 3))}) {
+        checkAgainstDefinition(vChain(), b, -4, 13);
+        checkAgainstDefinition(closedChain(), b, -4, 13);
+    }
+}
+
 TEST_CASE("minkowskiSum: degenerate operands") {
     const PolylineShape v = vChain();
 
@@ -729,12 +796,20 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
                                 PolylineShape>);
     static_assert(!pgl::MinkowskiSummableConcept<PolylineShape, PolygonShape>);
 
-    // Every bounded shape with area is now an operand, from either side, so what
-    // is left out is what has no area to sweep: a second chain, a segment, a
-    // monotone chain (which `asPolyline()` converts when its sum is wanted).
-    // `operator+` stays out of the region-valued case entirely.
+    // A `Segment` and an `OrientedSegment` join them: neither brings area, and
+    // the band each edge of the chain sweeps along one has some. Both spellings
+    // work, since the two segment types forward to the chain.
+    static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
+                                    std::declval<const Segment&>())),
+                                std::vector<Region>>);
+    static_assert(summable<PolylineShape, OrientedSegment>);
+    static_assert(summable<Segment, PolylineShape>);
+    static_assert(summable<OrientedSegment, PolylineShape>);
+
+    // What is left out is a second chain, and a monotone chain, which
+    // `asPolyline()` converts when its sum is wanted. `operator+` stays out of
+    // the region-valued case entirely.
     static_assert(!summable<PolylineShape, PolylineShape>);
-    static_assert(!summable<PolylineShape, Segment>);
     static_assert(!summable<PolylineShape, pgl::MonotoneChain<Point>>);
     static_assert(!summable<pgl::MonotoneChain<Point>, PolylineShape>);
     static_assert(!addable<PolylineShape, RectangleShape>);

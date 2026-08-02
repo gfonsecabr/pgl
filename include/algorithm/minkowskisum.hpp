@@ -41,12 +41,17 @@
  *
  * A @ref pgl::Polyline receiver is the same construction with the same two
  * consequences, and it is here for the same reason: a chain has no area, but
- * dragging a shape that has some along one sweeps out material that closes over
- * a hole as readily as a `C` does — a closed chain is the plainest example there
- * is. It takes every operand that has area to sweep (`Triangle`, `Rectangle`,
- * `Convex`, `Polygon`, `PolygonWithHoles`) and only those, since two chains sum to
- * something the regularization empties; being its own boundary, its own
- * decomposition is its edges.
+ * dragging another shape along one sweeps out material that closes over a hole as
+ * readily as a `C` does — a closed chain is the plainest example there is. It
+ * takes every bounded operand with area to sweep (`Triangle`, `Rectangle`,
+ * `Convex`, `Polygon`, `PolygonWithHoles`) plus `Segment` and `OrientedSegment`,
+ * which have none and sweep one out all the same: an edge of the chain and the
+ * segment span a parallelogram unless the two are parallel. Being its own
+ * boundary, the chain's own decomposition is its edges.
+ *
+ * A `Segment` is the thinnest operand all three receivers take, and the cheapest:
+ * it is one convex piece, so it costs one convex merge per piece of the receiver
+ * and the arrangement it feeds is a single translated copy of that decomposition.
  *
  * Exactness follows the same rule as `booleans.hpp`: every vertex of every
  * convex piece sum is a sum of two input vertices, so the pieces are exact in
@@ -68,7 +73,9 @@ namespace detail {
  * @brief A convex decomposition of a bounded shape: convex pieces whose union
  *        is exactly the shape.
  *
- * A convex operand is its own single piece. A polygon or a region decomposes
+ * A convex operand is its own single piece, and so is a `Segment` or an
+ * `OrientedSegment` — a two-vertex piece the Graham scan orders like any other.
+ * A polygon or a region decomposes
  * into the triangles of its triangulated domain, which tile `closure(A°)` —
  * everything of the shape that has area. What that leaves out is what the shape
  * holds without any neighbourhood of it being in the shape, and there are
@@ -215,13 +222,25 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, TriangleConcept, OtherTriangle
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, RectangleConcept, OtherRectangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonWithHolesConcept, OtherRegion)
 
-// A Polyline has no area, so it takes only the operands that have some: summing
-// it with another chain would give a set the regularization empties.
+// A Polyline has no area, so most of its operands are the ones that have some.
+// A Segment is the exception, and belongs here for the reason a chain does: two
+// shapes with no area between them still sweep one out, since an edge of the
+// chain and the segment span a parallelogram unless they are parallel.
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, ConvexConcept, OtherConvex)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, TriangleConcept, OtherTriangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, RectangleConcept, OtherRectangle)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonConcept, OtherPolygon)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonWithHolesConcept, OtherRegion)
+
+// The thinnest operand any of the three receivers takes. A segment is a single
+// convex piece, so it costs one convex merge per piece of the receiver, and it
+// is the receiver's own shape that decides whether the sweep strands a cavity.
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, SegmentConcept, OtherSegment)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, SegmentConcept, OtherSegment)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, SegmentConcept, OtherSegment)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherOriented)
 
 // The chain's two non-convex pairs, mirrored so that neither spelling is the
 // privileged one, exactly as `Polygon` and `PolygonWithHoles` mirror theirs. The

@@ -1650,6 +1650,25 @@ struct Segment {
         requires MinkowskiSummableConcept<Segment<TPoint, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The pairs @ref MinkowskiSummableConcept rejects are exactly the ones whose
+     * sum is a set of regions rather than a single shape; they are implemented on
+     * @ref Polygon, @ref PolygonWithHoles and @ref Polyline. Forwards to the other
+     * shape's implementation so that each unordered pair needs the sum defined
+     * only once, on the higher-ranked shape.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!MinkowskiSummableConcept<Segment<TPoint, TLabel>, OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
+                  && requires(const OtherShape& o, const Segment& self) {
+                         o.template minkowskiSum<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto minkowskiSum(const OtherShape& other) const {
+        return other.template minkowskiSum<ResultNumber>(*this);
+    }
+
     /** @brief Translates the segment by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Segment& operator+=(const OtherPoint& translation);
