@@ -295,6 +295,114 @@ TEST_CASE("PolygonWithHoles isValid") {
     }
 }
 
+// A slit is a stretch of boundary the rings cover twice: region material with no
+// area on either side of it. Rings meeting at an isolated point are not one — the
+// interior still reaches the point from every side.
+TEST_CASE("PolygonWithHoles isRegular") {
+    SUBCASE("a region without holes is regular") {
+        CHECK(Region(outerSquare()).isRegular());
+    }
+
+    SUBCASE("holes strictly inside leave the region regular") {
+        CHECK(Region(outerSquare(), std::vector{smallHole()}).isRegular());
+        CHECK(Region(outerSquare(), std::vector{smallHole(), otherHole()}).isRegular());
+    }
+
+    SUBCASE("holes touching at a point leave the region regular") {
+        const PolygonShape left({2, 2, 4, 2, 4, 4, 2, 4});
+        const PolygonShape right({4, 4, 6, 4, 6, 6, 4, 6});
+        CHECK(Region(outerSquare(), std::vector{left, right}).isRegular());
+    }
+
+    SUBCASE("a hole touching the outer boundary at a point leaves the region regular") {
+        const PolygonShape touching({0, 5, 3, 3, 3, 7});
+        const Region region(outerSquare(), std::vector{touching});
+        REQUIRE(region.isValid());
+        CHECK(region.isRegular());
+    }
+
+    SUBCASE("a hole sharing a whole edge with the outer boundary is a slit") {
+        const PolygonShape slit({0, 0, 4, 0, 4, 4, 0, 4});
+        CHECK(!Region(outerSquare(), std::vector{slit}).isRegular());
+    }
+
+    SUBCASE("a hole sharing part of an edge with the outer boundary is a slit") {
+        const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
+        CHECK(!Region(outerSquare(), std::vector{slit}).isRegular());
+    }
+
+    SUBCASE("holes sharing a whole edge are a slit") {
+        const PolygonShape left({2, 2, 5, 2, 5, 8, 2, 8});
+        const PolygonShape right({5, 2, 8, 2, 8, 8, 5, 8});
+        CHECK(!Region(outerSquare(), std::vector{left, right}).isRegular());
+    }
+
+    SUBCASE("a hole spanning the square from edge to edge is a slit on either side") {
+        const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
+        CHECK(!Region(outerSquare(), std::vector{band}).isRegular());
+    }
+
+    SUBCASE("the empty region is regular") {
+        CHECK(Region().isRegular());
+    }
+}
+
+TEST_CASE("PolygonWithHoles regularized") {
+    SUBCASE("a regular region comes back unchanged") {
+        const Region region(outerSquare(), std::vector{smallHole(), otherHole()});
+        const auto pieces = region.regularized();
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces.front() == region);
+    }
+
+    SUBCASE("a hole open to the outer boundary becomes a notch") {
+        const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
+        const Region region(outerSquare(), std::vector{slit});
+        const auto pieces = region.regularized();
+        REQUIRE(pieces.size() == 1);
+        CHECK(!pieces.front().hasHoles());
+        CHECK(pieces.front().isRegular());
+        CHECK(pieces.front().twiceArea() == region.twiceArea());
+    }
+
+    SUBCASE("holes sharing an edge merge into one") {
+        const PolygonShape left({2, 2, 5, 2, 5, 8, 2, 8});
+        const PolygonShape right({5, 2, 8, 2, 8, 8, 5, 8});
+        const Region region(outerSquare(), std::vector{left, right});
+        const auto pieces = region.regularized();
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(pieces.front().holeCount() == 1);
+        CHECK(pieces.front().hole(0) == PolygonShape({2, 2, 8, 2, 8, 8, 2, 8}));
+        CHECK(pieces.front().isRegular());
+        CHECK(pieces.front().twiceArea() == region.twiceArea());
+    }
+
+    SUBCASE("dropping the slits can take the region apart") {
+        const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
+        const Region region(outerSquare(), std::vector{band});
+        const auto pieces = region.regularized();
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Region(PolygonShape({0, 0, 10, 0, 10, 4, 0, 4})));
+        CHECK(pieces[1] == Region(PolygonShape({0, 6, 10, 6, 10, 10, 0, 10})));
+        CHECK(pieces[0].twiceArea() + pieces[1].twiceArea() == region.twiceArea());
+    }
+
+    SUBCASE("the empty region has no pieces") {
+        CHECK(Region().regularized().empty());
+    }
+
+    SUBCASE("the result type follows the requested number type") {
+        const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
+        const Region region(outerSquare(), std::vector{slit});
+        const auto pieces = region.regularized<double>();
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces.front().area() == doctest::Approx(region.area<double>()));
+        static_assert(
+            std::is_same_v<decltype(pieces.front()),
+                           const pgl::PolygonWithHoles<pgl::Point<double>>&>);
+    }
+}
+
 TEST_CASE("PolygonWithHoles transformations") {
     const Region region(outerSquare(), std::vector{smallHole()});
 

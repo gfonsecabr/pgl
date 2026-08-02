@@ -45,6 +45,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <map>
@@ -427,6 +428,27 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedSymmetricDifference(const 
 // Out-of-line: the boolean operations are declared in shape/polygon.hpp and
 // shape/polygonwithholes.hpp, which precede this header in the layering, but
 // they can only be defined once Triangulation is visible.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::regularized() const {
+    using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
+    // Nothing with area, so closure(A°) is empty and has no pieces at all.
+    if (isDegenerate()) {
+        return {};
+    }
+    // Already the closure of its own interior: rebuilding it through the
+    // arrangement could only cost time and shed collinear vertices.
+    if (isRegular()) {
+        return {PolygonWithHoles<ResultPoint>(*this)};
+    }
+    // One arrangement over this one boundary. Every cell of it is inside the
+    // region or outside it, and a slit — having no cell of its own — survives
+    // in neither.
+    const std::array<PolygonWithHoles, 1> self{*this};
+    return detail::regularizedUnionOf<ResultPoint>(self);
+}
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>

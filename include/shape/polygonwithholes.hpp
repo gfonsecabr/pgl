@@ -440,6 +440,58 @@ struct PolygonWithHoles {
     template <class Rational = pgl::Rational<pgl::BigInt>>
     [[nodiscard]] bool isValid() const;
 
+    /**
+     * @brief Tests whether the region is the closure of its own interior
+     *        (`A = closure(A°)`).
+     *
+     * A valid region is allowed to pinch shut where two rings run along one
+     * another — a **slit**: region material with no area on either side of it,
+     * as when a hole shares a stretch of edge with another hole or with the
+     * outer boundary. A slit belongs to `A` and not to `closure(A°)`, so it is
+     * exactly what this rules out: a region with area is regular when it has no
+     * slit, and @ref regularized removes them.
+     *
+     * Pinching at an isolated *point* is not a slit — the interior still reaches
+     * the point from every side of it — so a region whose rings meet only at
+     * vertices is regular.
+     *
+     * The empty region is regular (`∅ = closure(∅°)`); any other region without
+     * area is not, being material whose interior is empty.
+     *
+     * The region must satisfy @ref isValid.
+     *
+     * Complexity: O(n²) over the total vertex count.
+     */
+    [[nodiscard]] bool isRegular() const;
+
+    /**
+     * @brief Returns the region without its slits (`closure(A°)`), as a set of
+     *        regions.
+     *
+     * This is the regularization every boolean operation applies to its own
+     * result, offered on its own: the material of the region that has area
+     * beside it, with the slits @ref isRegular reports dropped. Dropping them
+     * can disconnect what they were holding together, which is why the result
+     * is a set of regions rather than one — a region whose slits are its only
+     * connective tissue comes back as several pieces, and one without area at
+     * all comes back empty.
+     *
+     * A region that is already regular is returned unchanged, vertex for vertex.
+     * The pieces of one that is not are read off an arrangement of its boundary,
+     * which drops vertices that no longer sit at a corner.
+     *
+     * The region must satisfy @ref isValid.
+     *
+     * Complexity: O(n²) for the @ref isRegular test, plus the arrangement when
+     * that test fails.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @return The pieces of `closure(A°)`, in canonical order.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    regularized() const;
+
     // -------------------------------------------------------------------------
     // Measures
 

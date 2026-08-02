@@ -854,6 +854,23 @@ bool PolygonWithHoles<PointType_, LabelType>::isValid() const {
     return true;
 }
 
+// Next to isValid because that is where a reader looks for the structural
+// queries, though what it needs is detail::regionSlits, from separates.hpp.
+template <class PointType_, class LabelType>
+bool PolygonWithHoles<PointType_, LabelType>::isRegular() const {
+    // The empty region is the closure of its own (empty) interior; anything else
+    // without area is material that no interior comes near.
+    if (isEmpty()) {
+        return true;
+    }
+    if (isDegenerate()) {
+        return false;
+    }
+    // With area and a valid structure, the only points of A that closure(A°)
+    // misses are the doubly covered stretches of the boundary.
+    return detail::regionSlits(*this).empty();
+}
+
 template <class PointType_, class TLabel>
 template <class Rational>
 bool Polyline<PointType_, TLabel>::isSimple() const {
