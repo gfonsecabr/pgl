@@ -106,36 +106,102 @@ TEST_CASE("Halfplane never separates or crosses Rectangle, and Rectangle never s
     CHECK_FALSE_MESSAGE(crossing.crosses(upper), crossing, " crosses ", upper);
 }
 
-TEST_CASE("Rectangle intersection with Halfplane: clips to Segment or Point") {
+// The clip cuts the rectangle edges wherever the boundary line meets them, so
+// the results are asked for in ERational and stay exact.
+TEST_CASE("Rectangle intersection with Halfplane: clips to Convex, Segment or Point") {
     using Point = pgl::Point<int>;
-    using Rectangle = pgl::Rectangle<Point>;
+    using RectangleShape = pgl::Rectangle<Point>;
     using Halfplane = pgl::Halfplane<Point>;
-    using Segment = pgl::Segment<Point>;
+    using EPoint = pgl::Point<pgl::ERational>;
+    using ESegment = pgl::Segment<EPoint>;
+    using EConvex = pgl::Convex<EPoint>;
 
-    const Rectangle rect(Point(0, 0), Point(4, 4));
+    const RectangleShape rect(Point(0, 0), Point(4, 4));
 
-    SUBCASE("halfplane cuts through the rectangle: clips the first crossing edge") {
-        // Halfplane y>=2; bottom edge (0,0)-(4,0) is fully outside, right edge (4,0)-(4,4)
-        // is clipped to (4,2)-(4,4).
+    SUBCASE("halfplane cuts through the rectangle: the overlapping area is kept") {
+        // Halfplane y >= 2 keeps the top half of the rectangle.
         const Halfplane upper({0, 2}, {4, 2});
-        const auto r = rect.intersection(upper);
+        const auto r = rect.intersection<pgl::ERational>(upper);
         REQUIRE_MESSAGE(r, "rect ∩ cutting halfplane should be non-empty");
-        REQUIRE(std::holds_alternative<Segment>(*r));
-        CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(4, 2), Point(4, 4)),
-                      "clipped right edge");
+        REQUIRE(std::holds_alternative<EConvex>(*r));
+        CHECK_MESSAGE(std::get<EConvex>(*r) ==
+                          EConvex({EPoint(0, 2), EPoint(4, 2), EPoint(4, 4), EPoint(0, 4)}),
+                      "top half of the rectangle");
     }
 
-    SUBCASE("halfplane contains the whole rectangle: first (bottom) edge returned") {
+    SUBCASE("halfplane cuts off a corner: the overlap is a triangle") {
+        // Halfplane x + y >= 4 keeps the corner triangle at (4,4).
+        const Halfplane corner({0, 4}, {4, 0});
+        const auto r = rect.intersection<pgl::ERational>(corner);
+        REQUIRE_MESSAGE(r, "rect ∩ corner-cutting halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<EConvex>(*r));
+        CHECK_MESSAGE(std::get<EConvex>(*r) ==
+                          EConvex({EPoint(4, 0), EPoint(4, 4), EPoint(0, 4)}),
+                      "corner triangle above the diagonal");
+    }
+
+    SUBCASE("halfplane contains the whole rectangle: the rectangle is returned") {
         const Halfplane all({0, -1}, {4, -1});  // y >= -1, entire rect inside
-        const auto r = rect.intersection(all);
+        const auto r = rect.intersection<pgl::ERational>(all);
         REQUIRE_MESSAGE(r, "rect ∩ containing halfplane should be non-empty");
-        REQUIRE(std::holds_alternative<Segment>(*r));
-        CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(0, 0), Point(4, 0)),
-                      "bottom edge returned when rect fully inside halfplane");
+        REQUIRE(std::holds_alternative<EConvex>(*r));
+        CHECK_MESSAGE(std::get<EConvex>(*r) == EConvex(rect.asConvex()),
+                      "whole rectangle kept when it lies inside the halfplane");
+    }
+
+    SUBCASE("halfplane tangent along an edge: that edge is the overlap") {
+        const Halfplane tangent({0, 4}, {4, 4});  // y >= 4, touches the top edge
+        const auto r = rect.intersection<pgl::ERational>(tangent);
+        REQUIRE_MESSAGE(r, "rect ∩ tangent halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<ESegment>(*r));
+        CHECK_MESSAGE(std::get<ESegment>(*r) == ESegment(EPoint(0, 4), EPoint(4, 4)),
+                      "shared top edge");
+    }
+
+    SUBCASE("halfplane touching a single corner: the overlap is that corner") {
+        const Halfplane tip({0, 8}, {8, 0});  // x + y >= 8, touches (4,4) only
+        const auto r = rect.intersection<pgl::ERational>(tip);
+        REQUIRE_MESSAGE(r, "rect ∩ corner-touching halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<EPoint>(*r));
+        CHECK_MESSAGE(std::get<EPoint>(*r) == EPoint(4, 4), "shared corner");
     }
 
     SUBCASE("halfplane misses the rectangle: empty") {
         const Halfplane above({0, 10}, {4, 10});  // y >= 10, rect max y = 4
-        CHECK_FALSE_MESSAGE(rect.intersection(above), "rect ∩ missing halfplane is empty");
+        CHECK_FALSE_MESSAGE(rect.intersection<pgl::ERational>(above),
+                            "rect ∩ missing halfplane is empty");
+    }
+
+    SUBCASE("halfplane on the left gives the same clip") {
+        const Halfplane upper({0, 2}, {4, 2});
+        CHECK_MESSAGE(upper.intersection<pgl::ERational>(rect) ==
+                          rect.intersection<pgl::ERational>(upper),
+                      "halfplane ∩ rect agrees with rect ∩ halfplane");
+    }
+
+    SUBCASE("crossings off the corners stay exact") {
+        // Boundary through (0,1) and (4,4): it enters the rectangle at (0,1) and
+        // leaves it at (4,4), keeping everything above the cut.
+        const Halfplane cut({0, 1}, {4, 4});
+        const auto r = rect.intersection<pgl::ERational>(cut);
+        REQUIRE_MESSAGE(r, "rect ∩ cutting halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<EConvex>(*r));
+        CHECK_MESSAGE(std::get<EConvex>(*r) ==
+                          EConvex({EPoint(0, 1), EPoint(4, 4), EPoint(0, 4)}),
+                      "exact clip against the slanted boundary");
+    }
+
+    SUBCASE("a fractional crossing is kept exactly") {
+        // Boundary through (1,0) and (2,3): it enters the rectangle at (1,0) and
+        // leaves it through the top edge at x = 7/3, off the integer grid.
+        const Halfplane cut({1, 0}, {2, 3});
+        const auto r = rect.intersection<pgl::ERational>(cut);
+        const pgl::ERational seven_thirds(7, 3);
+        REQUIRE_MESSAGE(r, "rect ∩ cutting halfplane should be non-empty");
+        REQUIRE(std::holds_alternative<EConvex>(*r));
+        CHECK_MESSAGE(std::get<EConvex>(*r) ==
+                          EConvex({EPoint(0, 0), EPoint(1, 0), EPoint(seven_thirds, 4),
+                                   EPoint(0, 4)}),
+                      "clip keeps the left side of the slanted boundary");
     }
 }
