@@ -124,7 +124,14 @@ def main() -> int:
                         "time_max":   td.get("time_max_ns", td["time_ns"]),
                         "unit":       "ns",
                         "result":     str(td.get("result")),
-                        "match_truth": bool(td.get("match_erational")),
+                        # Tri-state: True agrees with the exact baseline, False
+                        # disagrees, None means the two runs stopped on the time
+                        # budget at different points and summed their aggregates
+                        # over different pairs, so there is nothing to compare.
+                        "match_truth": (None if td.get("match_erational") is None
+                                        else bool(td["match_erational"])),
+                        "calls":      td.get("calls") or None,
+                        "truncated":  bool(td.get("truncated")),
                         "commit":     commit,
                         "date":       date,
                         "machine":    machine,
