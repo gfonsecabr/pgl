@@ -9,8 +9,8 @@ using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
 using Line = pgl::Line<Point>;
 using Halfplane = pgl::Halfplane<Point>;
-using Rectangle = pgl::Rectangle<Point>;
-using Polygon = pgl::Polygon<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 using Intersection = pgl::HalfplaneIntersection<Point>;
 using ERational = pgl::ERational;
@@ -33,8 +33,8 @@ using ERational = pgl::ERational;
 // PolygonWithHoles pair tests.
 
 static Region annulus() {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({3, 3, 7, 3, 7, 7, 3, 7});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({3, 3, 7, 3, 7, 7, 3, 7});
     return Region(outer, std::vector{hole});
 }
 
@@ -132,7 +132,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: bounded operands") {
     const Region region = annulus();
 
     SUBCASE("a box in the material between the rings") {
-        const Intersection box(Rectangle(Point(1, 1), Point(2, 9)));
+        const Intersection box(RectangleShape(Point(1, 1), Point(2, 9)));
         REQUIRE(box.isBounded());
         CHECK(region.contains(box));
         CHECK(region.interiorContains(box));
@@ -142,14 +142,14 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: bounded operands") {
     }
 
     SUBCASE("a box touching the outer ring leaves the region interior") {
-        const Intersection box(Rectangle(Point(0, 0), Point(2, 2)));
+        const Intersection box(RectangleShape(Point(0, 0), Point(2, 2)));
         CHECK(region.contains(box));
         CHECK(!region.interiorContains(box));
         CHECK(region.interiorsIntersect(box));
     }
 
     SUBCASE("a box enclosing the hole is not contained") {
-        const Intersection box(Rectangle(Point(2, 2), Point(8, 8)));
+        const Intersection box(RectangleShape(Point(2, 2), Point(8, 8)));
         CHECK(!region.contains(box));
         CHECK(!region.interiorContains(box));
         CHECK(region.intersects(box));
@@ -157,7 +157,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: bounded operands") {
     }
 
     SUBCASE("a box strictly inside the hole misses the region") {
-        const Intersection box(Rectangle(Point(4, 4), Point(6, 6)));
+        const Intersection box(RectangleShape(Point(4, 4), Point(6, 6)));
         CHECK(!region.contains(box));
         CHECK(!region.intersects(box));
         CHECK(!region.interiorsIntersect(box));
@@ -165,7 +165,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: bounded operands") {
     }
 
     SUBCASE("a box spanning the hole exactly meets the region on its rim") {
-        const Intersection box(Rectangle(Point(3, 3), Point(7, 7)));
+        const Intersection box(RectangleShape(Point(3, 3), Point(7, 7)));
         CHECK(!region.contains(box));
         CHECK(region.intersects(box));
         CHECK(!region.interiorsIntersect(box));
@@ -260,8 +260,8 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: a pinched region") {
     // The 6x6 square cut across by a band hole sharing an edge stretch with the
     // outer ring on both sides. The left slit belongs to the region and has no
     // area beside it.
-    const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
-    const Polygon hole({0, 2, 6, 2, 6, 4, 0, 4});
+    const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
+    const PolygonShape hole({0, 2, 6, 2, 6, 4, 0, 4});
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
 
@@ -282,8 +282,8 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: a pinched region") {
 
 TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the symmetric predicates") {
     const Region region = annulus();
-    const Intersection box(Rectangle(Point(2, 2), Point(8, 8)));
-    const Intersection inHole(Rectangle(Point(4, 4), Point(6, 6)));
+    const Intersection box(RectangleShape(Point(2, 2), Point(8, 8)));
+    const Intersection inHole(RectangleShape(Point(4, 4), Point(6, 6)));
     const Intersection halfplane(rightOf(5));
 
     CHECK(box.intersects(region) == region.intersects(box));
@@ -298,7 +298,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the symmetric predicates")
     CHECK(inHole.distanceLInf<ERational>(region) == region.distanceLInf<ERational>(inHole));
 
     // A region without holes is its outer polygon, and answers exactly as it does.
-    const Polygon poly({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape poly({0, 0, 10, 0, 10, 10, 0, 10});
     const Region solid(poly);
     for (const Intersection& h : {box, inHole, halfplane}) {
         CHECK(solid.intersects(h) == poly.intersects(h));

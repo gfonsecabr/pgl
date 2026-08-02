@@ -8,10 +8,10 @@
 #include <vector>
 
 using Point = pgl::Point<int>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 using EPoint = pgl::EPoint;
@@ -45,12 +45,12 @@ using ERegion = pgl::EPolygonWithHoles;
 // Fixtures, all on the even lattice so that the exhaustive oracle below can
 // probe unit cells at integer (odd, odd) points.
 
-static Polygon square(int lo, int hi) {
-    return Polygon({Point(lo, lo), Point(hi, lo), Point(hi, hi), Point(lo, hi)});
+static PolygonShape square(int lo, int hi) {
+    return PolygonShape({Point(lo, lo), Point(hi, lo), Point(hi, hi), Point(lo, hi)});
 }
 
-static Polygon box(int x0, int y0, int x1, int y1) {
-    return Polygon({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
+static PolygonShape box(int x0, int y0, int x1, int y1) {
+    return PolygonShape({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
 }
 
 namespace fixtures {
@@ -60,39 +60,39 @@ static Region plain() { return Region(square(0, 12)); }
 
 // A square with a hole in the middle.
 static Region annulus() {
-    return Region(square(0, 12), std::vector<Polygon>{box(4, 4, 8, 8)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(4, 4, 8, 8)});
 }
 
 // A hole spanning the square, so the region's *domain* is two slabs joined only
 // by the slits along the left and right edges.
 static Region band() {
-    return Region(square(0, 12), std::vector<Polygon>{box(0, 4, 12, 8)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(0, 4, 12, 8)});
 }
 
 // A hole sharing a stretch of the outer ring: the region is an L, and the shared
 // stretch is a slit, which no regularized answer may keep.
 static Region notched() {
-    return Region(square(0, 12), std::vector<Polygon>{box(6, 6, 12, 12)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(6, 6, 12, 12)});
 }
 
 // Two holes meeting at a single point, pinching the region shut there.
 static Region pinched() {
-    return Region(square(0, 12), std::vector<Polygon>{box(0, 0, 6, 6), box(6, 6, 12, 12)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(0, 0, 6, 6), box(6, 6, 12, 12)});
 }
 
 // A C-shaped hole: its cavity is material, reachable only through the gap.
 static Region cavity() {
     return Region(square(0, 12),
-                  std::vector<Polygon>{Polygon({Point(2, 2), Point(10, 2), Point(10, 10),
+                  std::vector<PolygonShape>{PolygonShape({Point(2, 2), Point(10, 2), Point(10, 10),
                                                 Point(2, 10), Point(2, 8), Point(8, 8),
                                                 Point(8, 4), Point(2, 4)})});
 }
 
 // An L-shaped outer ring with a hole in the long arm.
 static Region ell() {
-    return Region(Polygon({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6), Point(6, 12),
+    return Region(PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6), Point(6, 12),
                            Point(0, 12)}),
-                  std::vector<Polygon>{box(8, 2, 10, 4)});
+                  std::vector<PolygonShape>{box(8, 2, 10, 4)});
 }
 
 static std::vector<std::pair<std::string, Region>> all() {
@@ -108,7 +108,7 @@ static std::vector<std::pair<std::string, Region>> all() {
 // these operations returns when both operands are the same shape, and it
 // differs from the region itself exactly on the fixtures carrying a slit.
 static std::vector<Region> regularized(const Region& region) {
-    return region.difference(Polygon{});
+    return region.difference(PolygonShape{});
 }
 
 static int twiceAreaOf(const std::vector<Region>& pieces) {
@@ -123,7 +123,7 @@ static int twiceAreaOf(const std::vector<Region>& pieces) {
 // Union
 
 TEST_CASE("union: a U capped by a bar encloses a hole neither operand has") {
-    const Polygon u({Point(0, 0), Point(9, 0), Point(9, 9), Point(6, 9), Point(6, 3), Point(3, 3),
+    const PolygonShape u({Point(0, 0), Point(9, 0), Point(9, 9), Point(6, 9), Point(6, 3), Point(3, 3),
                      Point(3, 9), Point(0, 9)});
     const auto pieces = u.unionWith(box(0, 9, 9, 12));
 
@@ -184,7 +184,7 @@ TEST_CASE("union: filling a hole") {
     const auto through = annulus.unionWith(box(5, 5, 7, 20));
     REQUIRE(through.size() == 1);
     REQUIRE(through[0].holeCount() == 1);
-    CHECK(through[0].hole(0) == Polygon({Point(4, 4), Point(8, 4), Point(8, 8), Point(7, 8),
+    CHECK(through[0].hole(0) == PolygonShape({Point(4, 4), Point(8, 4), Point(8, 8), Point(7, 8),
                                          Point(7, 5), Point(5, 5), Point(5, 8), Point(4, 8)}));
     // 128 for the region, plus 30 for the plug, less the 8 they share.
     CHECK(through[0].twiceArea() == 2 * 150);
@@ -194,11 +194,11 @@ TEST_CASE("union: a region with a slit loses it, since a slit has no area") {
     // `notched` is an L whose hole shares the top and right edges of the outer
     // ring; those shared stretches are slits, in the region but with no area
     // beside them. The regularized union may not keep them.
-    const auto pieces = fixtures::notched().unionWith(Polygon{});
+    const auto pieces = fixtures::notched().unionWith(PolygonShape{});
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].holeCount() == 0);
-    CHECK(pieces[0].outer() == Polygon({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
+    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
                                         Point(6, 12), Point(0, 12)}));
     CHECK(pieces[0].twiceArea() == fixtures::notched().twiceArea());
 }
@@ -236,8 +236,8 @@ TEST_CASE("intersection: a hole survives being met") {
 }
 
 TEST_CASE("intersection: the holes of both operands are holes of the result") {
-    const Region a(square(0, 12), std::vector<Polygon>{box(2, 2, 5, 5)});
-    const Region b(square(0, 12), std::vector<Polygon>{box(7, 7, 10, 10)});
+    const Region a(square(0, 12), std::vector<PolygonShape>{box(2, 2, 5, 5)});
+    const Region b(square(0, 12), std::vector<PolygonShape>{box(7, 7, 10, 10)});
     const auto pieces = a.intersection(b);
 
     REQUIRE(pieces.size() == 1);
@@ -271,10 +271,10 @@ TEST_CASE("intersection: exact where Polygon::intersection truncates") {
     // integral result type loses nothing here. The arrangement is built over
     // rationals whatever the result type is, so nothing is truncated on the way.
     const Region region(square(0, 10));
-    const auto pieces = region.intersection(Polygon({Point(0, 0), Point(10, 10), Point(0, 10)}));
+    const auto pieces = region.intersection(PolygonShape({Point(0, 0), Point(10, 10), Point(0, 10)}));
 
     REQUIRE(pieces.size() == 1);
-    CHECK(pieces[0].outer() == Polygon({Point(0, 0), Point(10, 10), Point(0, 10)}));
+    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(10, 10), Point(0, 10)}));
     CHECK(pieces[0].twiceArea() == 100);
 }
 
@@ -332,11 +332,11 @@ TEST_CASE("symmetric difference: a region against its own hole is the square who
 
 TEST_CASE("boolean operations accept every bounded shape with area") {
     const Region region = fixtures::annulus();
-    const Polygon polygon = box(2, 2, 10, 10);
+    const PolygonShape polygon = box(2, 2, 10, 10);
     const Convex convex(std::vector<Point>{Point(2, 2), Point(10, 2), Point(10, 10),
                                            Point(2, 10)});
     const Triangle triangle(Point(2, 2), Point(10, 2), Point(10, 10));
-    const Rectangle rectangle(Point(2, 2), Point(10, 10));
+    const RectangleShape rectangle(Point(2, 2), Point(10, 10));
 
     // A convex operand and the polygon spelling of it must answer alike.
     CHECK(region.unionWith(convex) == region.unionWith(polygon));
@@ -367,11 +367,11 @@ TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region si
     // exactly as `intersection` does, so that writing the pair in either order
     // is the same call.
     const Region region = fixtures::annulus();
-    const Polygon polygon = box(2, 2, 10, 10);
+    const PolygonShape polygon = box(2, 2, 10, 10);
     const Convex convex(std::vector<Point>{Point(2, 2), Point(10, 2), Point(10, 10),
                                            Point(2, 10)});
     const Triangle triangle(Point(2, 2), Point(10, 2), Point(10, 10));
-    const Rectangle rectangle(Point(2, 2), Point(10, 10));
+    const RectangleShape rectangle(Point(2, 2), Point(10, 10));
 
     CHECK(convex.unionWith(polygon) == polygon.unionWith(convex));
     CHECK(triangle.unionWith(polygon) == polygon.unionWith(triangle));
@@ -448,7 +448,7 @@ static const char* name(Op op) {
     }
 }
 
-static std::vector<Region> apply(Op op, const Region& a, const Polygon& b) {
+static std::vector<Region> apply(Op op, const Region& a, const PolygonShape& b) {
     switch (op) {
         case Op::Union:
             return a.unionWith(b);
@@ -487,7 +487,7 @@ static std::vector<Point> cellRepresentatives() {
 // its total area is the cell count, its pieces are valid regions, and their
 // interiors are disjoint. Returns the oracle's cell count.
 static int checkAgainstCells(Op op, const std::string& fixture, const Region& region,
-                             const Polygon& other) {
+                             const PolygonShape& other) {
     INFO(fixture << name(op) << other);
     const auto pieces = apply(op, region, other);
 
@@ -644,17 +644,17 @@ static Point shear(const Point& p, int k) {
     return Point(p.x(), p.y() + k * p.x());
 }
 
-static Polygon shear(const Polygon& polygon, int k) {
+static PolygonShape shear(const PolygonShape& polygon, int k) {
     std::vector<Point> vertices;
     for (const Point& p : polygon) {
         vertices.push_back(shear(p, k));
     }
-    return Polygon(vertices);
+    return PolygonShape(vertices);
 }
 
 static Region shear(const Region& region, int k) {
-    std::vector<Polygon> holes;
-    for (const Polygon& hole : region.holes()) {
+    std::vector<PolygonShape> holes;
+    for (const PolygonShape& hole : region.holes()) {
         holes.push_back(shear(hole, k));
     }
     return Region(shear(region.outer(), k), holes);
@@ -666,7 +666,7 @@ TEST_CASE("boolean operations: shear invariance carries the answers off the axes
             for (const auto& [fixture, region] : fixtures::all()) {
                 for (int x0 = -2; x0 <= 10; x0 += 4) {
                     for (int y0 = -2; y0 <= 10; y0 += 4) {
-                        const Polygon other = box(x0, y0, x0 + 6, y0 + 6);
+                        const PolygonShape other = box(x0, y0, x0 + 6, y0 + 6);
                         INFO(fixture << name(op) << other << " sheared by " << k);
                         std::vector<Region> want;
                         for (const Region& piece : apply(op, region, other)) {

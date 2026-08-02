@@ -7,10 +7,10 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 // The operands here are the bounded shapes with area. Two things separate them
@@ -38,8 +38,8 @@ using Region = pgl::PolygonWithHoles<Point>;
 //     (0,0)               (10,0)
 
 static Region annulus() {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({3, 3, 7, 3, 7, 7, 3, 7});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({3, 3, 7, 3, 7, 7, 3, 7});
     return Region(outer, std::vector{hole});
 }
 
@@ -47,8 +47,8 @@ static Region annulus() {
 // joined only along the two slits on the outer ring. Its interior has two
 // components, which is what the triangulated fallback exists for.
 static Region bandSplit() {
-    const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
-    const Polygon hole({0, 2, 6, 2, 6, 4, 0, 4});
+    const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
+    const PolygonShape hole({0, 2, 6, 2, 6, 4, 0, 4});
     return Region(outer, std::vector{hole});
 }
 
@@ -57,7 +57,7 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     REQUIRE(region.isValid());
 
     SUBCASE("rectangle in the material between the rings") {
-        const Rectangle r(Point(1, 1), Point(2, 9));
+        const RectangleShape r(Point(1, 1), Point(2, 9));
         CHECK(region.contains(r));
         CHECK(region.interiorContains(r));
         CHECK(!region.boundaryContains(r));
@@ -66,21 +66,21 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     }
 
     SUBCASE("rectangle touching the outer ring leaves the region interior") {
-        const Rectangle r(Point(0, 0), Point(2, 2));
+        const RectangleShape r(Point(0, 0), Point(2, 2));
         CHECK(region.contains(r));
         CHECK(!region.interiorContains(r));
         CHECK(region.interiorsIntersect(r));
     }
 
     SUBCASE("rectangle touching the hole ring leaves the region interior") {
-        const Rectangle r(Point(1, 3), Point(3, 7));
+        const RectangleShape r(Point(1, 3), Point(3, 7));
         CHECK(region.contains(r));
         CHECK(!region.interiorContains(r));
         CHECK(region.interiorsIntersect(r));
     }
 
     SUBCASE("rectangle overlapping the hole is not contained") {
-        const Rectangle r(Point(1, 4), Point(5, 6));
+        const RectangleShape r(Point(1, 4), Point(5, 6));
         CHECK(!region.contains(r));
         CHECK(!region.interiorContains(r));
         CHECK(region.intersects(r));
@@ -88,7 +88,7 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     }
 
     SUBCASE("rectangle strictly inside the hole misses the region") {
-        const Rectangle r(Point(4, 4), Point(6, 6));
+        const RectangleShape r(Point(4, 4), Point(6, 6));
         CHECK(!region.contains(r));
         CHECK(!region.intersects(r));
         CHECK(!region.interiorsIntersect(r));
@@ -96,7 +96,7 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     }
 
     SUBCASE("rectangle spanning the hole exactly meets the region on its rim") {
-        const Rectangle r(Point(3, 3), Point(7, 7));
+        const RectangleShape r(Point(3, 3), Point(7, 7));
         CHECK(!region.contains(r));
         CHECK(region.intersects(r));           // the shared ring belongs to both
         CHECK(!region.interiorsIntersect(r));  // but no area is shared
@@ -107,7 +107,7 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     SUBCASE("rectangle enclosing the hole is not contained") {
         // Every edge of the rectangle runs through the material, yet the
         // rectangle holds the whole open hole, which the region does not.
-        const Rectangle r(Point(2, 2), Point(8, 8));
+        const RectangleShape r(Point(2, 2), Point(8, 8));
         CHECK(!region.contains(r));
         CHECK(!region.interiorContains(r));
         CHECK(region.intersects(r));
@@ -115,30 +115,30 @@ TEST_CASE("PolygonWithHoles vs Rectangle: containment") {
     }
 
     SUBCASE("the whole outer square is not contained either") {
-        const Rectangle r(Point(0, 0), Point(10, 10));
+        const RectangleShape r(Point(0, 0), Point(10, 10));
         CHECK(!region.contains(r));
         CHECK(region.intersects(r));
         CHECK(region.interiorsIntersect(r));
     }
 
     SUBCASE("a degenerate rectangle is a segment") {
-        const Rectangle onBoundary(Point(0, 1), Point(0, 9));
+        const RectangleShape onBoundary(Point(0, 1), Point(0, 9));
         CHECK(region.contains(onBoundary));
         CHECK(!region.interiorContains(onBoundary));
         CHECK(region.boundaryContains(onBoundary));
         CHECK(!region.interiorsIntersect(onBoundary));
 
-        const Rectangle throughTheHole(Point(1, 5), Point(9, 5));
+        const RectangleShape throughTheHole(Point(1, 5), Point(9, 5));
         CHECK(!region.contains(throughTheHole));
         CHECK(!region.boundaryContains(throughTheHole));
         CHECK(region.intersects(throughTheHole));
 
-        const Rectangle insideTheHole(Point(4, 5), Point(6, 5));
+        const RectangleShape insideTheHole(Point(4, 5), Point(6, 5));
         CHECK(!region.intersects(insideTheHole));
     }
 
     SUBCASE("a rectangle outside the region") {
-        const Rectangle r(Point(13, 0), Point(15, 2));
+        const RectangleShape r(Point(13, 0), Point(15, 2));
         CHECK(!region.intersects(r));
         CHECK(region.squaredDistance<double>(r) == doctest::Approx(9.0));
         CHECK(region.distanceL1<double>(r) == doctest::Approx(3.0));
@@ -214,7 +214,7 @@ TEST_CASE("PolygonWithHoles vs Polygon") {
     const Region region = annulus();
 
     SUBCASE("an L-shaped polygon threading the material") {
-        const Polygon p({1, 1, 9, 1, 9, 2, 2, 2, 2, 9, 1, 9});
+        const PolygonShape p({1, 1, 9, 1, 9, 2, 2, 2, 2, 9, 1, 9});
         CHECK(region.contains(p));
         CHECK(region.interiorContains(p));
         CHECK(region.interiorsIntersect(p));
@@ -224,7 +224,7 @@ TEST_CASE("PolygonWithHoles vs Polygon") {
         // The square between the two rings never touches the hole with an edge,
         // and it is still not contained: it closes over the hole, whose interior
         // is not part of the region.
-        const Polygon p({1, 1, 9, 1, 9, 9, 1, 9});
+        const PolygonShape p({1, 1, 9, 1, 9, 9, 1, 9});
         for (const auto& edge : p.edgesView()) {
             CHECK(region.contains(edge));
         }
@@ -233,28 +233,28 @@ TEST_CASE("PolygonWithHoles vs Polygon") {
     }
 
     SUBCASE("a polygon crossing from the material into the hole") {
-        const Polygon p({1, 4, 5, 4, 5, 6, 1, 6});
+        const PolygonShape p({1, 4, 5, 4, 5, 6, 1, 6});
         CHECK(!region.contains(p));
         CHECK(region.intersects(p));
         CHECK(region.interiorsIntersect(p));
     }
 
     SUBCASE("a polygon equal to the hole") {
-        const Polygon p({3, 3, 7, 3, 7, 7, 3, 7});
+        const PolygonShape p({3, 3, 7, 3, 7, 7, 3, 7});
         CHECK(!region.contains(p));
         CHECK(region.intersects(p));
         CHECK(!region.interiorsIntersect(p));
     }
 
     SUBCASE("a degenerate polygon along the outer ring") {
-        const Polygon p({0, 1, 0, 9});
+        const PolygonShape p({0, 1, 0, 9});
         CHECK(region.contains(p));
         CHECK(region.boundaryContains(p));
         CHECK(!region.interiorContains(p));
     }
 
     SUBCASE("a distant polygon") {
-        const Polygon p({20, 0, 22, 0, 22, 2, 20, 2});
+        const PolygonShape p({20, 0, 22, 0, 22, 2, 20, 2});
         CHECK(!region.intersects(p));
         CHECK(region.squaredDistance<double>(p) == doctest::Approx(100.0));
         CHECK(region.distanceL1<double>(p) == doctest::Approx(10.0));
@@ -265,7 +265,7 @@ TEST_CASE("PolygonWithHoles vs PolygonWithHoles") {
     const Region region = annulus();
 
     SUBCASE("a region nested in the material") {
-        const Region inner(Polygon({0, 0, 2, 0, 2, 10, 0, 10}));
+        const Region inner(PolygonShape({0, 0, 2, 0, 2, 10, 0, 10}));
         CHECK(region.contains(inner));
         CHECK(!region.interiorContains(inner));
         CHECK(region.intersects(inner));
@@ -283,8 +283,8 @@ TEST_CASE("PolygonWithHoles vs PolygonWithHoles") {
     }
 
     SUBCASE("a region holding a bigger hole is contained") {
-        const Region wider(Polygon({0, 0, 10, 0, 10, 10, 0, 10}),
-                           std::vector{Polygon({2, 2, 8, 2, 8, 8, 2, 8})});
+        const Region wider(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}),
+                           std::vector{PolygonShape({2, 2, 8, 2, 8, 8, 2, 8})});
         REQUIRE(wider.isValid());
         CHECK(region.contains(wider));
         CHECK(!wider.contains(region));
@@ -292,7 +292,7 @@ TEST_CASE("PolygonWithHoles vs PolygonWithHoles") {
     }
 
     SUBCASE("two regions meeting only along the shared hole rim") {
-        const Region insideTheHole(Polygon({3, 3, 7, 3, 7, 7, 3, 7}));
+        const Region insideTheHole(PolygonShape({3, 3, 7, 3, 7, 7, 3, 7}));
         CHECK(!region.contains(insideTheHole));
         CHECK(region.intersects(insideTheHole));
         CHECK(!region.interiorsIntersect(insideTheHole));
@@ -312,8 +312,8 @@ TEST_CASE("PolygonWithHoles vs PolygonWithHoles") {
         // the stretch x in [4,6], y = 5 is a slit: it belongs to `slit` but has
         // no interior beside it. That stretch is inside the annulus' hole, so
         // `slit` is *not* contained even though no interior of either meets it.
-        const Region slit(Polygon({0, 0, 10, 0, 10, 10, 0, 10}),
-                          std::vector{Polygon({4, 5, 6, 5, 6, 9, 4, 9})});
+        const Region slit(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}),
+                          std::vector{PolygonShape({4, 5, 6, 5, 6, 9, 4, 9})});
         REQUIRE(slit.isValid());
         CHECK(!region.contains(slit));
         CHECK(region.intersects(slit));
@@ -333,33 +333,33 @@ TEST_CASE("PolygonWithHoles with a split interior") {
         // neither does the region's own `pointInside`, which speaks for one slab
         // only. The lower slab is nonetheless the rectangle, and the interiors
         // do meet: this is the case the triangulated domain exists for.
-        const Rectangle r(Point(0, 0), Point(6, 2));
+        const RectangleShape r(Point(0, 0), Point(6, 2));
         CHECK(region.interiorsIntersect(r));
         CHECK(region.contains(r));
         CHECK(!region.interiorContains(r));
     }
 
     SUBCASE("a rectangle reaching into the hole is not contained") {
-        const Rectangle r(Point(0, 0), Point(6, 3));
+        const RectangleShape r(Point(0, 0), Point(6, 3));
         CHECK(!region.contains(r));
         CHECK(region.intersects(r));
         CHECK(region.interiorsIntersect(r));
     }
 
     SUBCASE("a rectangle covering the hole alone") {
-        const Rectangle r(Point(0, 2), Point(6, 4));
+        const RectangleShape r(Point(0, 2), Point(6, 4));
         CHECK(!region.interiorsIntersect(r));
         CHECK(region.intersects(r));  // the slits and the hole rim are shared
         CHECK(!region.contains(r));
     }
 
     SUBCASE("the upper slab alone is contained") {
-        CHECK(region.contains(Rectangle(Point(1, 4), Point(5, 6))));
-        CHECK(region.interiorsIntersect(Rectangle(Point(1, 4), Point(5, 6))));
+        CHECK(region.contains(RectangleShape(Point(1, 4), Point(5, 6))));
+        CHECK(region.interiorsIntersect(RectangleShape(Point(1, 4), Point(5, 6))));
     }
 
     SUBCASE("a rectangle touching only the upper slab") {
-        const Rectangle r(Point(2, 5), Point(4, 8));
+        const RectangleShape r(Point(2, 5), Point(4, 8));
         CHECK(region.interiorsIntersect(r));
         CHECK(!region.contains(r));
     }
@@ -402,10 +402,10 @@ TEST_CASE("PolygonWithHoles vs Polygon: exact rational coordinates") {
 
 TEST_CASE("PolygonWithHoles: the symmetric predicates answer the same either way") {
     const Region region = annulus();
-    const Rectangle r(Point(2, 2), Point(8, 8));
+    const RectangleShape r(Point(2, 2), Point(8, 8));
     const Triangle t(Point(1, 1), Point(9, 1), Point(5, 5));
     const Convex c({Point(4, 4), Point(6, 4), Point(6, 6), Point(4, 6)});
-    const Polygon p({1, 4, 5, 4, 5, 6, 1, 6});
+    const PolygonShape p({1, 4, 5, 4, 5, 6, 1, 6});
 
     CHECK(r.intersects(region) == region.intersects(r));
     CHECK(r.interiorsIntersect(region) == region.interiorsIntersect(r));
@@ -429,10 +429,10 @@ TEST_CASE("PolygonWithHoles: the symmetric predicates answer the same either way
 // the same boundary, no holes. The polygon overload is the identity on the
 // outer ring, and the three convex shapes agree with their own asPolygon.
 TEST_CASE("asPolygonWithHoles gives the hole-free region of each area shape") {
-    const Rectangle r(Point(0, 0), Point(4, 3));
+    const RectangleShape r(Point(0, 0), Point(4, 3));
     const Triangle t(Point(0, 0), Point(6, 0), Point(0, 5));
     const Convex c({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
-    const Polygon p({0, 0, 6, 0, 6, 6, 3, 3, 0, 6});
+    const PolygonShape p({0, 0, 6, 0, 6, 6, 3, 3, 0, 6});
 
     for (const Region& region : {r.asPolygonWithHoles(), t.asPolygonWithHoles(),
                                  c.asPolygonWithHoles(), p.asPolygonWithHoles()}) {
@@ -455,7 +455,7 @@ TEST_CASE("asPolygonWithHoles gives the hole-free region of each area shape") {
 
     // A region built this way is an ordinary operand for the region API.
     const Region annular = annulus();
-    const Rectangle big(Point(-1, -1), Point(11, 11));
+    const RectangleShape big(Point(-1, -1), Point(11, 11));
     CHECK(big.asPolygonWithHoles().contains(annular));
     CHECK(annular.intersects(c.asPolygonWithHoles()));
 }

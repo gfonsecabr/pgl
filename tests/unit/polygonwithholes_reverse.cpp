@@ -13,13 +13,13 @@ using Line = pgl::Line<Point>;
 using OrientedLine = pgl::OrientedLine<Point>;
 using Ray = pgl::Ray<Point>;
 using Halfplane = pgl::Halfplane<Point>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
 using Disk = pgl::Disk<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Chain = pgl::MonotoneChain<Point>;
-using Polyline = pgl::Polyline<Point>;
+using PolylineShape = pgl::Polyline<Point>;
 using Intersection = pgl::HalfplaneIntersection<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
@@ -45,8 +45,8 @@ using Region = pgl::PolygonWithHoles<Point>;
 // arrangement of every rectilinear shape used against them, which is what makes
 // the exhaustive oracle below exact rather than a sampling.
 
-static Polygon box(int x0, int y0, int x1, int y1) {
-    return Polygon({x0, y0, x1, y0, x1, y1, x0, y1});
+static PolygonShape box(int x0, int y0, int x1, int y1) {
+    return PolygonShape({x0, y0, x1, y0, x1, y1, x0, y1});
 }
 
 // The 16x16 square with an 8x8 hole in the middle.
@@ -110,7 +110,7 @@ static void checkAgainstGrid(const std::string& name, const Shape& shape, const 
     bool inside = true;
     bool onBoundary = true;
     bool strictlyInside = true;
-    const Rectangle bounds = region.bbox();
+    const RectangleShape bounds = region.bbox();
     for (int x = bounds.min().x(); x <= bounds.max().x(); ++x) {
         for (int y = bounds.min().y(); y <= bounds.max().y(); ++y) {
             const Point p(x, y);
@@ -163,11 +163,11 @@ TEST_CASE("PolygonWithHoles reverse containment: rectilinear grid oracle") {
         }
 
         // Areas: covering, cutting, and sitting inside a hole.
-        for (const Rectangle& r : {Rectangle(Point(-2, -2), Point(18, 18)),
-                                   Rectangle(Point(0, 0), Point(16, 16)),
-                                   Rectangle(Point(0, 0), Point(8, 16)),
-                                   Rectangle(Point(4, 4), Point(12, 12)),
-                                   Rectangle(Point(20, 20), Point(24, 24))}) {
+        for (const RectangleShape& r : {RectangleShape(Point(-2, -2), Point(18, 18)),
+                                   RectangleShape(Point(0, 0), Point(16, 16)),
+                                   RectangleShape(Point(0, 0), Point(8, 16)),
+                                   RectangleShape(Point(4, 4), Point(12, 12)),
+                                   RectangleShape(Point(20, 20), Point(24, 24))}) {
             checkAgainstGrid("rectangle", r, region);
             checkAgainstGrid("convex", Convex({r.min(), Point(r.max().x(), r.min().y()), r.max(),
                                                Point(r.min().x(), r.max().y())}),
@@ -178,8 +178,8 @@ TEST_CASE("PolygonWithHoles reverse containment: rectilinear grid oracle") {
         }
 
         // A rectilinear L and a rectilinear U, the non-convex containers.
-        checkAgainstGrid("L", Polygon({-2, -2, 18, -2, 18, 8, 8, 8, 8, 18, -2, 18}), region);
-        checkAgainstGrid("U", Polygon({-2, -2, 18, -2, 18, 18, 12, 18, 12, 4, 4, 4, 4, 18, -2, 18}),
+        checkAgainstGrid("L", PolygonShape({-2, -2, 18, -2, 18, 8, 8, 8, 8, 18, -2, 18}), region);
+        checkAgainstGrid("U", PolygonShape({-2, -2, 18, -2, 18, 18, 12, 18, 12, 4, 4, 4, 4, 18, -2, 18}),
                          region);
 
         // Degenerate triangles are the only rectilinear ones.
@@ -189,12 +189,12 @@ TEST_CASE("PolygonWithHoles reverse containment: rectilinear grid oracle") {
         checkAgainstGrid("staircase", Chain({Point(0, 0), Point(8, 0), Point(8, 16), Point(16, 16)}),
                          region);
         checkAgainstGrid("ring loop",
-                         Polyline({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16),
+                         PolylineShape({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16),
                                    Point(0, 0)}),
                          region);
         checkAgainstGrid("open ring",
-                         Polyline({Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)}), region);
-        checkAgainstGrid("comb", Polyline({Point(0, 0), Point(0, 16), Point(8, 16), Point(8, 0),
+                         PolylineShape({Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)}), region);
+        checkAgainstGrid("comb", PolylineShape({Point(0, 0), Point(0, 16), Point(8, 16), Point(8, 0),
                                            Point(16, 0), Point(16, 16)}),
                          region);
     }
@@ -214,17 +214,17 @@ static Point shear(const Point& p, int k) {
     return Point(p.x(), p.y() + k * p.x());
 }
 
-static Polygon shear(const Polygon& poly, int k) {
+static PolygonShape shear(const PolygonShape& poly, int k) {
     std::vector<Point> vertices;
     for (const Point& p : poly) {
         vertices.push_back(shear(p, k));
     }
-    return Polygon(vertices);
+    return PolygonShape(vertices);
 }
 
 static Region shear(const Region& region, int k) {
-    std::vector<Polygon> holes;
-    for (const Polygon& hole : region.holes()) {
+    std::vector<PolygonShape> holes;
+    for (const PolygonShape& hole : region.holes()) {
         holes.push_back(shear(hole, k));
     }
     return Region(shear(region.outer(), k), holes);
@@ -266,12 +266,12 @@ static Chain shear(const Chain& c, int k) {
     return Chain(vertices);
 }
 
-static Polyline shear(const Polyline& p, int k) {
+static PolylineShape shear(const PolylineShape& p, int k) {
     std::vector<Point> vertices;
     for (std::size_t i = 0; i < p.size(); ++i) {
         vertices.push_back(shear(p[i], k));
     }
-    return Polyline(vertices);
+    return PolylineShape(vertices);
 }
 
 template <class Shape>
@@ -301,13 +301,13 @@ TEST_CASE("PolygonWithHoles reverse containment: shear invariance") {
         checkShearInvariant("convex", Convex({Point(0, 0), Point(16, 0), Point(16, 16),
                                               Point(0, 16)}),
                             region);
-        checkShearInvariant("polygon L", Polygon({-2, -2, 18, -2, 18, 8, 8, 8, 8, 18, -2, 18}),
+        checkShearInvariant("polygon L", PolygonShape({-2, -2, 18, -2, 18, 8, 8, 8, 8, 18, -2, 18}),
                             region);
         checkShearInvariant("big polygon", box(-2, -2, 18, 18), region);
         checkShearInvariant("chain", Chain({Point(0, 0), Point(8, 0), Point(8, 16), Point(16, 16)}),
                             region);
         checkShearInvariant("ring loop",
-                            Polyline({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16),
+                            PolylineShape({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16),
                                       Point(0, 0)}),
                             region);
     }
@@ -366,7 +366,7 @@ TEST_CASE("PolygonWithHoles reverse containment: the polyline holds a ring no po
     REQUIRE(ring.twiceArea() == 0);
     REQUIRE(ring.hasHoles());
 
-    const Polyline loop({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)});
+    const PolylineShape loop({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)});
 
     SUBCASE("the loop holds the region but not the polygon it bounds") {
         CHECK(loop.contains(ring));
@@ -378,7 +378,7 @@ TEST_CASE("PolygonWithHoles reverse containment: the polyline holds a ring no po
     }
 
     SUBCASE("a loop started mid-edge leaves both ends outside the region's corner") {
-        const Polyline shifted({Point(8, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0),
+        const PolylineShape shifted({Point(8, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0),
                                 Point(8, 0)});
         CHECK(shifted.contains(ring));
         // The extremes are both (8,0), on the ring, so again not interior.
@@ -386,19 +386,19 @@ TEST_CASE("PolygonWithHoles reverse containment: the polyline holds a ring no po
     }
 
     SUBCASE("a loop with a tail has its extremes off the ring") {
-        const Polyline tailed({Point(8, -4), Point(8, 0), Point(16, 0), Point(16, 16), Point(0, 16),
+        const PolylineShape tailed({Point(8, -4), Point(8, 0), Point(16, 0), Point(16, 16), Point(0, 16),
                                Point(0, 0), Point(8, 0), Point(8, -4)});
         CHECK(tailed.contains(ring));
         CHECK(tailed.interiorContains(ring));
     }
 
     SUBCASE("an open ring misses the piece it does not close") {
-        const Polyline open({Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)});
+        const PolylineShape open({Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0)});
         CHECK_FALSE(open.contains(ring));
     }
 
     SUBCASE("the polyline never holds a region with area") {
-        const Polyline outline({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0),
+        const PolylineShape outline({Point(0, 0), Point(16, 0), Point(16, 16), Point(0, 16), Point(0, 0),
                                 Point(4, 4), Point(12, 4), Point(12, 12), Point(4, 12),
                                 Point(4, 4)});
         // Every ring edge of the annulus is on this polyline, and it still does
@@ -408,7 +408,7 @@ TEST_CASE("PolygonWithHoles reverse containment: the polyline holds a ring no po
     }
 
     SUBCASE("every other shape answers the ring by its outer polygon") {
-        const Rectangle r(Point(0, 0), Point(16, 16));
+        const RectangleShape r(Point(0, 0), Point(16, 16));
         CHECK(r.contains(ring));
         CHECK(r.contains(ring.outer()));
         CHECK(r.boundaryContains(ring));
@@ -425,7 +425,7 @@ TEST_CASE("PolygonWithHoles reverse containment: a hole never changes the answer
     const Region plain = noHoles();
 
     SUBCASE("a container covering the outer ring covers the region, hole or not") {
-        const Rectangle big(Point(-1, -1), Point(17, 17));
+        const RectangleShape big(Point(-1, -1), Point(17, 17));
         CHECK(big.contains(region));
         CHECK(big.contains(plain));
         CHECK(big.interiorContains(region));
@@ -433,7 +433,7 @@ TEST_CASE("PolygonWithHoles reverse containment: a hole never changes the answer
     }
 
     SUBCASE("a container filling the hole exactly holds none of the region") {
-        const Rectangle inner(Point(4, 4), Point(12, 12));
+        const RectangleShape inner(Point(4, 4), Point(12, 12));
         CHECK_FALSE(inner.contains(region));
         // It does hold the hole rim, which belongs to the region -- but the
         // material around it is what it misses.
@@ -441,13 +441,13 @@ TEST_CASE("PolygonWithHoles reverse containment: a hole never changes the answer
     }
 
     SUBCASE("a container that stops short of the outer ring fails") {
-        const Rectangle almost(Point(0, 0), Point(15, 16));
+        const RectangleShape almost(Point(0, 0), Point(15, 16));
         CHECK_FALSE(almost.contains(region));
         CHECK(almost.contains(Point(15, 16)));
     }
 
     SUBCASE("the boundary of a container never holds a region with area") {
-        const Rectangle exact(Point(0, 0), Point(16, 16));
+        const RectangleShape exact(Point(0, 0), Point(16, 16));
         CHECK(exact.contains(region));
         CHECK_FALSE(exact.boundaryContains(region));
         CHECK_FALSE(exact.interiorContains(region));
@@ -456,7 +456,7 @@ TEST_CASE("PolygonWithHoles reverse containment: a hole never changes the answer
 
 TEST_CASE("PolygonWithHoles reverse containment: degenerate regions") {
     SUBCASE("a region that is one point") {
-        const Region dot(Polygon({4, 4, 4, 4, 4, 4}));
+        const Region dot(PolygonShape({4, 4, 4, 4, 4, 4}));
         REQUIRE(dot.isPoint());
         CHECK(Point(4, 4).contains(dot));
         CHECK(Point(4, 4).interiorContains(dot));
@@ -465,21 +465,21 @@ TEST_CASE("PolygonWithHoles reverse containment: degenerate regions") {
         CHECK(Segment(Point(0, 4), Point(8, 4)).interiorContains(dot));
         CHECK_FALSE(Segment(Point(4, 4), Point(8, 4)).interiorContains(dot));
         CHECK(Segment(Point(4, 4), Point(8, 4)).boundaryContains(dot));
-        CHECK(Rectangle(Point(0, 0), Point(8, 8)).interiorContains(dot));
-        CHECK_FALSE(Rectangle(Point(0, 0), Point(8, 8)).boundaryContains(dot));
-        CHECK(Rectangle(Point(4, 4), Point(8, 8)).boundaryContains(dot));
+        CHECK(RectangleShape(Point(0, 0), Point(8, 8)).interiorContains(dot));
+        CHECK_FALSE(RectangleShape(Point(0, 0), Point(8, 8)).boundaryContains(dot));
+        CHECK(RectangleShape(Point(4, 4), Point(8, 8)).boundaryContains(dot));
     }
 
     SUBCASE("a region that is one segment") {
-        const Region bar(Polygon({2, 4, 10, 4, 6, 4}));
+        const Region bar(PolygonShape({2, 4, 10, 4, 6, 4}));
         REQUIRE(bar.isSegment());
         CHECK(Segment(Point(0, 4), Point(16, 4)).contains(bar));
         CHECK(Segment(Point(0, 4), Point(16, 4)).interiorContains(bar));
         CHECK(Line(Point(0, 4), Point(1, 4)).contains(bar));
         CHECK_FALSE(Segment(Point(0, 4), Point(8, 4)).contains(bar));
-        CHECK(Rectangle(Point(0, 0), Point(16, 4)).boundaryContains(bar));
-        CHECK_FALSE(Rectangle(Point(0, 0), Point(16, 8)).boundaryContains(bar));
-        CHECK(Rectangle(Point(0, 0), Point(16, 8)).interiorContains(bar));
+        CHECK(RectangleShape(Point(0, 0), Point(16, 4)).boundaryContains(bar));
+        CHECK_FALSE(RectangleShape(Point(0, 0), Point(16, 8)).boundaryContains(bar));
+        CHECK(RectangleShape(Point(0, 0), Point(16, 8)).interiorContains(bar));
     }
 
     SUBCASE("the empty region is inside everything") {
@@ -488,10 +488,10 @@ TEST_CASE("PolygonWithHoles reverse containment: degenerate regions") {
         CHECK(Point(0, 0).contains(empty));
         CHECK(Point(0, 0).boundaryContains(empty));
         CHECK(Point(0, 0).interiorContains(empty));
-        CHECK(Rectangle(Point(0, 0), Point(1, 1)).contains(empty));
-        CHECK(Rectangle(Point(0, 0), Point(1, 1)).boundaryContains(empty));
-        CHECK(Rectangle(Point(0, 0), Point(1, 1)).interiorContains(empty));
-        CHECK(Polyline({Point(0, 0), Point(1, 1)}).contains(empty));
+        CHECK(RectangleShape(Point(0, 0), Point(1, 1)).contains(empty));
+        CHECK(RectangleShape(Point(0, 0), Point(1, 1)).boundaryContains(empty));
+        CHECK(RectangleShape(Point(0, 0), Point(1, 1)).interiorContains(empty));
+        CHECK(PolylineShape({Point(0, 0), Point(1, 1)}).contains(empty));
         CHECK(Line(Point(0, 0), Point(1, 1)).contains(empty));
     }
 }
@@ -503,15 +503,15 @@ TEST_CASE("PolygonWithHoles reverse containment: boundaries hold slit material")
     const Region region = cornerHole();
 
     SUBCASE("only a region with no area can sit on a boundary") {
-        CHECK_FALSE(Rectangle(Point(0, 0), Point(16, 16)).boundaryContains(region));
+        CHECK_FALSE(RectangleShape(Point(0, 0), Point(16, 16)).boundaryContains(region));
     }
 
     SUBCASE("the slit alone is a region a boundary does hold") {
         const Region strip(box(0, 0, 6, 6), std::vector{box(0, 0, 6, 6)});
         REQUIRE(strip.isValid());
-        CHECK(Rectangle(Point(0, 0), Point(6, 6)).boundaryContains(strip));
-        CHECK_FALSE(Rectangle(Point(0, 0), Point(8, 6)).boundaryContains(strip));
-        CHECK(Polyline({Point(0, 0), Point(6, 0), Point(6, 6), Point(0, 6), Point(0, 0)})
+        CHECK(RectangleShape(Point(0, 0), Point(6, 6)).boundaryContains(strip));
+        CHECK_FALSE(RectangleShape(Point(0, 0), Point(8, 6)).boundaryContains(strip));
+        CHECK(PolylineShape({Point(0, 0), Point(6, 0), Point(6, 6), Point(0, 6), Point(0, 0)})
                   .contains(strip));
     }
 }
@@ -527,7 +527,7 @@ TEST_CASE("PolygonWithHoles reverse containment: unbounded containers") {
     }
 
     SUBCASE("a line or a ray holds only a collinear degenerate region") {
-        const Region bar(Polygon({2, 4, 10, 4, 6, 4}));
+        const Region bar(PolygonShape({2, 4, 10, 4, 6, 4}));
         CHECK(Line(Point(0, 4), Point(1, 4)).contains(bar));
         CHECK(Ray(Point(0, 4), Point(1, 4)).contains(bar));
         CHECK_FALSE(Ray(Point(4, 4), Point(5, 4)).contains(bar));
@@ -553,9 +553,9 @@ TEST_CASE("PolygonWithHoles reverse containment: the region as its own container
     CHECK(outerRegion.interiorContains(innerRegion));
     CHECK_FALSE(innerRegion.contains(outerRegion));
 
-    const Rectangle wide(Point(-1, -1), Point(17, 17));
+    const RectangleShape wide(Point(-1, -1), Point(17, 17));
     CHECK(wide.contains(outerRegion));
-    CHECK(outerRegion.contains(Rectangle(Point(1, 1), Point(5, 15))));
+    CHECK(outerRegion.contains(RectangleShape(Point(1, 1), Point(5, 15))));
     CHECK_FALSE(outerRegion.contains(wide));
 }
 

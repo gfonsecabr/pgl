@@ -8,10 +8,10 @@
 #include <vector>
 
 using Point = pgl::Point<int>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 using EPoint = pgl::EPoint;
@@ -37,12 +37,12 @@ using ERegion = pgl::EPolygonWithHoles;
 // Fixtures, all on the even lattice so that the exhaustive oracle below can
 // probe unit cells at integer (odd, odd) points.
 
-static Polygon square(int lo, int hi) {
-    return Polygon({Point(lo, lo), Point(hi, lo), Point(hi, hi), Point(lo, hi)});
+static PolygonShape square(int lo, int hi) {
+    return PolygonShape({Point(lo, lo), Point(hi, lo), Point(hi, hi), Point(lo, hi)});
 }
 
-static Polygon box(int x0, int y0, int x1, int y1) {
-    return Polygon({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
+static PolygonShape box(int x0, int y0, int x1, int y1) {
+    return PolygonShape({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
 }
 
 namespace fixtures {
@@ -52,39 +52,39 @@ static Region plain() { return Region(square(0, 12)); }
 
 // A square with a hole in the middle: the shape the operation exists for.
 static Region annulus() {
-    return Region(square(0, 12), std::vector<Polygon>{box(4, 4, 8, 8)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(4, 4, 8, 8)});
 }
 
 // A hole spanning the square, so the region's *domain* is two slabs joined only
 // by the slits along the left and right edges.
 static Region band() {
-    return Region(square(0, 12), std::vector<Polygon>{box(0, 4, 12, 8)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(0, 4, 12, 8)});
 }
 
 // A hole sharing a stretch of the outer ring: the region is an L, and the shared
 // stretch carries no boundary of the difference at all.
 static Region notched() {
-    return Region(square(0, 12), std::vector<Polygon>{box(6, 6, 12, 12)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(6, 6, 12, 12)});
 }
 
 // Two holes meeting at a single point, pinching the region shut there.
 static Region pinched() {
-    return Region(square(0, 12), std::vector<Polygon>{box(0, 0, 6, 6), box(6, 6, 12, 12)});
+    return Region(square(0, 12), std::vector<PolygonShape>{box(0, 0, 6, 6), box(6, 6, 12, 12)});
 }
 
 // A C-shaped hole: its cavity is material, reachable only through the gap.
 static Region cavity() {
     return Region(square(0, 12),
-                  std::vector<Polygon>{Polygon({Point(2, 2), Point(10, 2), Point(10, 10),
+                  std::vector<PolygonShape>{PolygonShape({Point(2, 2), Point(10, 2), Point(10, 10),
                                                 Point(2, 10), Point(2, 8), Point(8, 8),
                                                 Point(8, 4), Point(2, 4)})});
 }
 
 // An L-shaped outer ring with a hole in the long arm.
 static Region ell() {
-    return Region(Polygon({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6), Point(6, 12),
+    return Region(PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6), Point(6, 12),
                            Point(0, 12)}),
-                  std::vector<Polygon>{box(8, 2, 10, 4)});
+                  std::vector<PolygonShape>{box(8, 2, 10, 4)});
 }
 
 static std::vector<std::pair<std::string, Region>> all() {
@@ -99,8 +99,8 @@ static std::vector<std::pair<std::string, Region>> all() {
 // Named cases
 
 TEST_CASE("Polygon difference: a polygon removed from the middle leaves a hole") {
-    const Polygon outer = square(0, 10);
-    const Polygon inner = box(3, 3, 7, 7);
+    const PolygonShape outer = square(0, 10);
+    const PolygonShape inner = box(3, 3, 7, 7);
     const auto pieces = outer.difference(inner);
 
     REQUIRE(pieces.size() == 1);
@@ -116,7 +116,7 @@ TEST_CASE("Polygon difference: a bite from the side leaves no hole") {
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].holeCount() == 0);
-    CHECK(pieces[0].outer() == Polygon({Point(0, 0), Point(3, 0), Point(3, 4), Point(7, 4),
+    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(3, 0), Point(3, 4), Point(7, 4),
                                         Point(7, 0), Point(10, 0), Point(10, 10), Point(0, 10)}));
 }
 
@@ -129,7 +129,7 @@ TEST_CASE("Polygon difference: a band splits the polygon in two") {
 }
 
 TEST_CASE("Polygon difference: degenerate outcomes") {
-    const Polygon unit = square(0, 10);
+    const PolygonShape unit = square(0, 10);
 
     SUBCASE("a remover that misses gives the polygon back") {
         const auto pieces = unit.difference(box(50, 50, 60, 60));
@@ -142,7 +142,7 @@ TEST_CASE("Polygon difference: degenerate outcomes") {
         CHECK(pieces[0] == Region(unit));
     }
     SUBCASE("a remover meeting at one corner removes nothing") {
-        const auto pieces = unit.difference(Polygon({Point(10, 10), Point(14, 10), Point(14, 14)}));
+        const auto pieces = unit.difference(PolygonShape({Point(10, 10), Point(14, 10), Point(14, 14)}));
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Region(unit));
     }
@@ -153,13 +153,13 @@ TEST_CASE("Polygon difference: degenerate outcomes") {
         CHECK(unit.difference(box(-1, -1, 11, 11)).empty());
     }
     SUBCASE("a polygon with no area has nothing to lose") {
-        CHECK(Polygon({Point(0, 0), Point(4, 0), Point(2, 0)}).difference(unit).empty());
+        CHECK(PolygonShape({Point(0, 0), Point(4, 0), Point(2, 0)}).difference(unit).empty());
     }
     SUBCASE("a remover with no area removes nothing") {
-        const auto pieces = unit.difference(Polygon({Point(2, 2), Point(8, 2)}));
+        const auto pieces = unit.difference(PolygonShape({Point(2, 2), Point(8, 2)}));
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Region(unit));
-        CHECK(unit.difference(Polygon{})[0] == Region(unit));
+        CHECK(unit.difference(PolygonShape{})[0] == Region(unit));
     }
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("Polygon difference: a hole may touch the outer ring it is cut from") 
     // The diamond meets the left edge at (0,5) and nowhere else, so the boundary
     // of the difference is a single closed walk through that point twice. It has
     // to come back split into the two rings that touch there.
-    const Polygon diamond({Point(0, 5), Point(3, 2), Point(6, 5), Point(3, 8)});
+    const PolygonShape diamond({Point(0, 5), Point(3, 2), Point(6, 5), Point(3, 8)});
     const auto pieces = square(0, 10).difference(diamond);
 
     REQUIRE(pieces.size() == 1);
@@ -183,7 +183,7 @@ TEST_CASE("Polygon difference: pieces meeting at a point come back separately") 
     // that meet in pairs at those points. A region may not have a self-touching
     // outer ring, so each is its own piece.
     const auto pieces =
-        square(0, 10).difference(Polygon({Point(0, 5), Point(5, 0), Point(10, 5), Point(5, 10)}));
+        square(0, 10).difference(PolygonShape({Point(0, 5), Point(5, 0), Point(10, 5), Point(5, 10)}));
 
     REQUIRE(pieces.size() == 4);
     for (const Region& piece : pieces) {
@@ -223,7 +223,7 @@ TEST_CASE("PolygonWithHoles difference: a slit has no area and never survives") 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].holeCount() == 0);
     CHECK(pieces[0].twiceArea() == notched.twiceArea());
-    CHECK(pieces[0].outer() == Polygon({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
+    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
                                         Point(6, 12), Point(0, 12)}));
 }
 
@@ -259,7 +259,7 @@ TEST_CASE("difference: an island stranded in a lake is a piece of its own") {
 }
 
 TEST_CASE("difference: the remover's own hole leaves material behind") {
-    const Region ring(box(2, 2, 8, 8), std::vector<Polygon>{box(4, 4, 6, 6)});
+    const Region ring(box(2, 2, 8, 8), std::vector<PolygonShape>{box(4, 4, 6, 6)});
     const auto pieces = square(0, 10).difference(ring);
 
     REQUIRE(pieces.size() == 2);
@@ -269,14 +269,14 @@ TEST_CASE("difference: the remover's own hole leaves material behind") {
 }
 
 TEST_CASE("difference: convex, triangle and rectangle operands") {
-    const Polygon unit = square(0, 10);
-    const Rectangle rectangle(Point(3, 3), Point(7, 7));
+    const PolygonShape unit = square(0, 10);
+    const RectangleShape rectangle(Point(3, 3), Point(7, 7));
     const auto viaRectangle = unit.difference(rectangle);
     const auto viaPolygon = unit.difference(box(3, 3, 7, 7));
     CHECK(viaRectangle == viaPolygon);
 
     const Triangle triangle(Point(0, 0), Point(10, 0), Point(0, 10));
-    CHECK(unit.difference(triangle) == unit.difference(Polygon({Point(0, 0), Point(10, 0),
+    CHECK(unit.difference(triangle) == unit.difference(PolygonShape({Point(0, 0), Point(10, 0),
                                                                 Point(0, 10)})));
 
     const Convex hull(std::vector<Point>{Point(2, 2), Point(8, 2), Point(8, 8), Point(2, 8)});
@@ -287,8 +287,8 @@ TEST_CASE("difference: convex, triangle and rectangle operands") {
 }
 
 TEST_CASE("difference: crossings off the lattice need an exact result type") {
-    const Polygon a = square(0, 7);
-    const Polygon b({Point(3, -1), Point(9, 3), Point(3, 8)});
+    const PolygonShape a = square(0, 7);
+    const PolygonShape b({Point(3, -1), Point(9, 3), Point(3, 8)});
     const auto pieces = a.difference<pgl::ERational>(b);
 
     // Three pieces: the slab left of x = 3, and the two corners the slanted
@@ -351,7 +351,7 @@ static std::vector<Point> cellRepresentatives() {
 // interiors are disjoint. Returns the oracle's cell count so the caller can
 // check it saw a non-trivial one.
 static int checkAgainstCells(const std::string& name, const Region& region,
-                             const Polygon& remover) {
+                             const PolygonShape& remover) {
     INFO(name << " minus " << remover);
     const auto pieces = region.difference(remover);
 
@@ -412,17 +412,17 @@ static Point shear(const Point& p, int k) {
     return Point(p.x(), p.y() + k * p.x());
 }
 
-static Polygon shear(const Polygon& polygon, int k) {
+static PolygonShape shear(const PolygonShape& polygon, int k) {
     std::vector<Point> vertices;
     for (const Point& p : polygon) {
         vertices.push_back(shear(p, k));
     }
-    return Polygon(vertices);
+    return PolygonShape(vertices);
 }
 
 static Region shear(const Region& region, int k) {
-    std::vector<Polygon> holes;
-    for (const Polygon& hole : region.holes()) {
+    std::vector<PolygonShape> holes;
+    for (const PolygonShape& hole : region.holes()) {
         holes.push_back(shear(hole, k));
     }
     return Region(shear(region.outer(), k), holes);
@@ -433,7 +433,7 @@ TEST_CASE("difference: shear invariance carries the answers off the axes") {
         for (const auto& [name, region] : fixtures::all()) {
             for (int x0 = -2; x0 <= 10; x0 += 4) {
                 for (int y0 = -2; y0 <= 10; y0 += 4) {
-                    const Polygon remover = box(x0, y0, x0 + 6, y0 + 6);
+                    const PolygonShape remover = box(x0, y0, x0 + 6, y0 + 6);
                     INFO(name << " sheared by " << k << " minus " << remover);
                     std::vector<Region> expected;
                     for (const Region& piece : region.difference(remover)) {
@@ -515,7 +515,7 @@ TEST_CASE("difference: probe oracle in general position") {
 
 TEST_CASE("difference: removing a piece from the difference leaves the rest") {
     for (const auto& [name, region] : fixtures::all()) {
-        const Polygon remover = box(3, 3, 9, 9);
+        const PolygonShape remover = box(3, 3, 9, 9);
         const auto pieces = region.difference(remover);
         for (const Region& piece : pieces) {
             CHECK_MESSAGE(piece.difference(piece).empty(), name);

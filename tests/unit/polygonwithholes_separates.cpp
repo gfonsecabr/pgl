@@ -12,13 +12,13 @@ using Line = pgl::Line<Point>;
 using OrientedLine = pgl::OrientedLine<Point>;
 using Ray = pgl::Ray<Point>;
 using Halfplane = pgl::Halfplane<Point>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
 using Disk = pgl::Disk<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Chain = pgl::MonotoneChain<Point>;
-using Polyline = pgl::Polyline<Point>;
+using PolylineShape = pgl::Polyline<Point>;
 using Intersection = pgl::HalfplaneIntersection<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
@@ -52,8 +52,8 @@ using Region = pgl::PolygonWithHoles<Point>;
 //        +-----------------+
 //     (0,0)               (8,0)
 
-static Polygon box(int x0, int y0, int x1, int y1) {
-    return Polygon({x0, y0, x1, y0, x1, y1, x0, y1});
+static PolygonShape box(int x0, int y0, int x1, int y1) {
+    return PolygonShape({x0, y0, x1, y0, x1, y1, x0, y1});
 }
 
 static Region annulus() {
@@ -76,8 +76,8 @@ static Region pointTouch() {
 // pinching the region at (4,4) — but the wedges' outer sides lie on the outer
 // ring, so those two edges stay in the region and join the lobes as well.
 static Region bowtie() {
-    const Polygon left({0, 0, 4, 4, 0, 8});
-    const Polygon right({8, 0, 8, 8, 4, 4});
+    const PolygonShape left({0, 0, 4, 4, 0, 8});
+    const PolygonShape right({8, 0, 8, 8, 4, 4});
     return Region(box(0, 0, 8, 8), std::vector{left, right});
 }
 
@@ -109,7 +109,7 @@ TEST_CASE("PolygonWithHoles vs Segment: cutting the annulus") {
         CHECK_FALSE(left.separates(region));
         CHECK_FALSE(right.separates(region));
         // Both at once — as one polyline through the hole — do cut.
-        const Polyline across({Point(0, 4), Point(2, 4), Point(6, 4), Point(8, 4)});
+        const PolylineShape across({Point(0, 4), Point(2, 4), Point(6, 4), Point(8, 4)});
         CHECK(across.separates(region));
     }
 
@@ -167,7 +167,7 @@ TEST_CASE("PolygonWithHoles vs Segment: the slit and the band") {
         // The slit x = 4, 1 <= y <= 6 is the only material joining the two
         // halves apart from the outer margin; cutting both severs the region.
         const Region region = slit();
-        const Polyline cut({Point(4, 0), Point(4, 8)});
+        const PolylineShape cut({Point(4, 0), Point(4, 8)});
         CHECK(cut.separates(region));
         // Cutting the slit alone still leaves the way around the margin.
         const Segment partial(Point(4, 2), Point(4, 5));
@@ -180,7 +180,7 @@ TEST_CASE("PolygonWithHoles vs Segment: the slit and the band") {
         const Segment leftSlit(Point(0, 3), Point(0, 5));
         CHECK_FALSE(leftSlit.separates(region));
         // Removing both cuts the region into its two slabs.
-        const Polyline bothSlits({Point(0, 3), Point(0, 5), Point(8, 5), Point(8, 3)});
+        const PolylineShape bothSlits({Point(0, 3), Point(0, 5), Point(8, 5), Point(8, 3)});
         CHECK(bothSlits.separates(region));
     }
 }
@@ -266,7 +266,7 @@ TEST_CASE("PolygonWithHoles vs the area shapes") {
     const Region region = annulus();
 
     SUBCASE("a rectangle spanning the region cuts it, and is cut back") {
-        const Rectangle band(Point(-1, 3), Point(9, 5));
+        const RectangleShape band(Point(-1, 3), Point(9, 5));
         CHECK(band.separates(region));
         CHECK(region.separates(band));
         CHECK(region.crosses(band));
@@ -278,14 +278,14 @@ TEST_CASE("PolygonWithHoles vs the area shapes") {
         // never touches it — and the remainder still comes apart, into the
         // frame around the outer ring and the swallowed hole. No simple
         // polygon can do that to a rectangle.
-        const Rectangle over(Point(-1, -1), Point(9, 9));
+        const RectangleShape over(Point(-1, -1), Point(9, 9));
         CHECK(region.separates(over));
         CHECK_FALSE(over.separates(region));  // the annulus stays connected
         CHECK_FALSE(region.crosses(over));
 
         // A rectangle inside the outer ring instead loses everything but the
         // hole, which is one piece.
-        const Rectangle inside(Point(1, 1), Point(7, 7));
+        const RectangleShape inside(Point(1, 1), Point(7, 7));
         CHECK_FALSE(region.separates(inside));
     }
 
@@ -305,13 +305,13 @@ TEST_CASE("PolygonWithHoles vs the area shapes") {
     SUBCASE("a reflex polygon around the hole does not cut the annulus") {
         // A U shape open to the right: it takes one bite, so the material is
         // still connected around the far side.
-        const Polygon uShape({1, 1, 7, 1, 7, 3, 3, 3, 3, 5, 7, 5, 7, 7, 1, 7});
+        const PolygonShape uShape({1, 1, 7, 1, 7, 3, 3, 3, 3, 5, 7, 5, 7, 7, 1, 7});
         CHECK_FALSE(uShape.separates(region));
     }
 
     SUBCASE("a degenerate area operand answers as it does for a polygon") {
         // Matching Polygon::separates, which declines a degenerate operand.
-        const Rectangle flat(Point(1, 4), Point(7, 4));
+        const RectangleShape flat(Point(1, 4), Point(7, 4));
         CHECK(flat.isDegenerate());
         CHECK(region.separates(flat) == region.outer().separates(flat));
         CHECK(flat.separates(region) == flat.separates(region.outer()));
@@ -362,7 +362,7 @@ TEST_CASE("PolygonWithHoles vs MonotoneChain and Polyline") {
 
     SUBCASE("a polyline closing a loop inside the material strands its inside") {
         // A square loop drawn in the material: what it encloses is cut off.
-        const Polyline loop({Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1), Point(0, 0)});
+        const PolylineShape loop({Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1), Point(0, 0)});
         CHECK(loop.separates(region));
     }
 
@@ -445,7 +445,7 @@ TEST_CASE("PolygonWithHoles vs Disk") {
         CHECK_FALSE(cut.separates(curtain));
         // Take the slit away as well -- a band across everything -- and the
         // same two slabs do come apart.
-        CHECK(Rectangle(Point(-1, 3), Point(9, 5)).separates(curtain));
+        CHECK(RectangleShape(Point(-1, 3), Point(9, 5)).separates(curtain));
     }
 
     SUBCASE("the band's two slits both have to go") {

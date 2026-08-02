@@ -9,10 +9,10 @@
 #include <vector>
 
 using Point = pgl::Point<int>;
-using Rectangle = pgl::Rectangle<Point>;
+using RectangleShape = pgl::Rectangle<Point>;
 using Triangle = pgl::Triangle<Point>;
 using Convex = pgl::Convex<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 using EPoint = pgl::EPoint;
@@ -36,39 +36,39 @@ using ERegion = pgl::EPolygonWithHoles;
 // -----------------------------------------------------------------------------
 // Fixtures.
 
-static Polygon box(int x0, int y0, int x1, int y1) {
-    return Polygon({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
+static PolygonShape box(int x0, int y0, int x1, int y1) {
+    return PolygonShape({Point(x0, y0), Point(x1, y0), Point(x1, y1), Point(x0, y1)});
 }
 
 // A U opening upward: the square [0,6]² with the notch (2,4)×(2,6] cut out.
-static Polygon uShape() {
-    return Polygon({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6), Point(4, 2), Point(2, 2),
+static PolygonShape uShape() {
+    return PolygonShape({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6), Point(4, 2), Point(2, 2),
                     Point(2, 6), Point(0, 6)});
 }
 
 // A C: the square annulus [0,8]² ∖ (2,6)², cut open through the right wall over
 // y ∈ [3,5]. Simply connected, and the one fixture whose sum grows a hole out of
 // nothing once the cut is plugged.
-static Polygon cShape() {
-    return Polygon({Point(0, 0), Point(8, 0), Point(8, 3), Point(6, 3), Point(6, 2), Point(2, 2),
+static PolygonShape cShape() {
+    return PolygonShape({Point(0, 0), Point(8, 0), Point(8, 3), Point(6, 3), Point(6, 2), Point(2, 2),
                     Point(2, 6), Point(6, 6), Point(6, 5), Point(8, 5), Point(8, 8), Point(0, 8)});
 }
 
 // An L.
-static Polygon lShape() {
-    return Polygon({Point(0, 0), Point(6, 0), Point(6, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
+static PolygonShape lShape() {
+    return PolygonShape({Point(0, 0), Point(6, 0), Point(6, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
 }
 
 // The square annulus, as a region.
 static Region annulus() {
-    return Region(box(0, 0, 8, 8), std::vector<Polygon>{box(2, 2, 6, 6)});
+    return Region(box(0, 0, 8, 8), std::vector<PolygonShape>{box(2, 2, 6, 6)});
 }
 
 // The L-shape written as a region whose hole shares two edges with the outer
 // ring: `[0,8]² ∖ (0,4)²`. The two shared stretches are slits -- region material
 // with no area beside it -- and they sweep out area in a sum like anything else.
 static Region slitRegion() {
-    return Region(box(0, 0, 8, 8), std::vector<Polygon>{box(0, 0, 4, 4)});
+    return Region(box(0, 0, 8, 8), std::vector<PolygonShape>{box(0, 0, 4, 4)});
 }
 
 // -----------------------------------------------------------------------------
@@ -170,13 +170,13 @@ static std::vector<RegionT> sheared(const std::vector<RegionT>& sum, int k) {
 // -----------------------------------------------------------------------------
 
 TEST_CASE("minkowskiSum: a plugged cut grows a hole out of nothing") {
-    const Polygon c = cShape();
+    const PolygonShape c = cShape();
     REQUIRE(c.twiceArea() == 88);
 
     // The cut through the right wall is two units wide, so a 2×2 square exactly
     // closes it and strands the cavity. Neither operand has a hole; the sum
     // does, and no `vector<Polygon>` could say which ring is which.
-    const auto plugged = c.minkowskiSum(Rectangle(Point(0, 0), Point(2, 2)));
+    const auto plugged = c.minkowskiSum(RectangleShape(Point(0, 0), Point(2, 2)));
     REQUIRE(plugged.size() == 1);
     CHECK(plugged[0].outer() == box(0, 0, 10, 10));
     REQUIRE(plugged[0].holeCount() == 1);
@@ -184,7 +184,7 @@ TEST_CASE("minkowskiSum: a plugged cut grows a hole out of nothing") {
     CHECK(plugged[0].twiceArea() == 2 * (100 - 4));
 
     // One unit less and the cut survives, so the sum is simply connected.
-    const auto open = c.minkowskiSum(Rectangle(Point(0, 0), Point(1, 1)));
+    const auto open = c.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
     REQUIRE(open.size() == 1);
     CHECK(open[0].holeCount() == 0);
 }
@@ -192,7 +192,7 @@ TEST_CASE("minkowskiSum: a plugged cut grows a hole out of nothing") {
 TEST_CASE("minkowskiSum: a notch fills in without leaving a hole") {
     // The U's notch is two units wide and open at the top, so a summand that
     // spans it sweeps the arm across the whole notch rather than capping it.
-    const auto sum = uShape().minkowskiSum(Rectangle(Point(0, 0), Point(2, 1)));
+    const auto sum = uShape().minkowskiSum(RectangleShape(Point(0, 0), Point(2, 1)));
     REQUIRE(sum.size() == 1);
     CHECK(sum[0].outer() == box(0, 0, 8, 7));
     CHECK(sum[0].holeCount() == 0);
@@ -202,21 +202,21 @@ TEST_CASE("minkowskiSum: a region operand keeps its hole, shrunken") {
     const Region a = annulus();
 
     // Sliding the annulus right by one erodes the cavity from the left only.
-    const auto slid = a.minkowskiSum(Rectangle(Point(0, 0), Point(1, 0)));
+    const auto slid = a.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 0)));
     REQUIRE(slid.size() == 1);
     CHECK(slid[0].outer() == box(0, 0, 9, 8));
     REQUIRE(slid[0].holeCount() == 1);
     CHECK(slid[0].hole(0) == box(3, 2, 6, 6));
 
     // A 2×2 square erodes it from every side at once.
-    const auto grown = a.minkowskiSum(Rectangle(Point(0, 0), Point(2, 2)));
+    const auto grown = a.minkowskiSum(RectangleShape(Point(0, 0), Point(2, 2)));
     REQUIRE(grown.size() == 1);
     CHECK(grown[0].outer() == box(0, 0, 10, 10));
     REQUIRE(grown[0].holeCount() == 1);
     CHECK(grown[0].hole(0) == box(4, 4, 6, 6));
 
     // A summand as wide as the cavity closes it entirely.
-    const auto closed = a.minkowskiSum(Rectangle(Point(0, 0), Point(4, 4)));
+    const auto closed = a.minkowskiSum(RectangleShape(Point(0, 0), Point(4, 4)));
     REQUIRE(closed.size() == 1);
     CHECK(closed[0].holeCount() == 0);
     CHECK(closed[0].outer() == box(0, 0, 12, 12));
@@ -237,7 +237,7 @@ TEST_CASE("minkowskiSum: a slit sweeps out area like anything else") {
     // them the uncovered part is the open square `(1,4)²`, walled in on all four
     // sides. A decomposition that stopped at the triangulated domain would get
     // both the area and the topology wrong.
-    const auto sum = slitted.minkowskiSum(Rectangle(Point(0, 0), Point(1, 1)));
+    const auto sum = slitted.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
     REQUIRE(sum.size() == 1);
     CHECK(sum[0].outer() == box(0, 0, 9, 9));
     REQUIRE(sum[0].holeCount() == 1);
@@ -252,15 +252,15 @@ TEST_CASE("minkowskiSum: a slit sweeps out area like anything else") {
 TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
     // The strong oracle: `p ∈ A ⊕ B ⟺ A ∩ (p − B) ≠ ∅`, answered by the
     // library's own `intersects` on a reflected, translated copy of `B`.
-    const std::vector<Rectangle> rectangles{
-        Rectangle(Point(0, 0), Point(2, 1)), Rectangle(Point(0, 0), Point(2, 2)),
-        Rectangle(Point(-1, -1), Point(1, 1)), Rectangle(Point(0, 0), Point(1, 3))};
+    const std::vector<RectangleShape> rectangles{
+        RectangleShape(Point(0, 0), Point(2, 1)), RectangleShape(Point(0, 0), Point(2, 2)),
+        RectangleShape(Point(-1, -1), Point(1, 1)), RectangleShape(Point(0, 0), Point(1, 3))};
     const std::vector<Triangle> triangles{Triangle(Point(0, 0), Point(3, 0), Point(0, 3)),
                                           Triangle(Point(0, 0), Point(2, 0), Point(1, 3)),
                                           Triangle(Point(-2, -1), Point(2, 0), Point(0, 2))};
 
-    for (const Polygon& a : {uShape(), cShape(), lShape()}) {
-        for (const Rectangle& b : rectangles) {
+    for (const PolygonShape& a : {uShape(), cShape(), lShape()}) {
+        for (const RectangleShape& b : rectangles) {
             checkAgainstDefinition(a, b, -4, 13);
         }
         for (const Triangle& b : triangles) {
@@ -273,7 +273,7 @@ TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
 
     // A region operand: the holes need no special handling -- they are simply
     // where the decomposition has no piece.
-    for (const Rectangle& b : rectangles) {
+    for (const RectangleShape& b : rectangles) {
         checkAgainstDefinition(annulus(), b, -4, 13);
         // A slitted operand is not the closure of its own interior, but the
         // summand is, which is all the oracle needs for the sum to be regular.
@@ -288,8 +288,8 @@ TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
 }
 
 TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
-    const Polygon a = uShape();
-    const Polygon b = lShape();
+    const PolygonShape a = uShape();
+    const PolygonShape b = lShape();
 
     CHECK(a.minkowskiSum(b) == b.minkowskiSum(a));
     CHECK(cShape().minkowskiSum(a) == a.minkowskiSum(cShape()));
@@ -297,7 +297,7 @@ TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
     // `(A + t) ⊕ B = (A ⊕ B) + t`, which also exercises the canonicalization
     // every returned ring goes through.
     const Point t(-5, 3);
-    Polygon shifted = a;
+    PolygonShape shifted = a;
     shifted += t;
     const auto direct = shifted.minkowskiSum(b);
     auto moved = a.minkowskiSum(b);
@@ -313,15 +313,15 @@ TEST_CASE("minkowskiSum: a convex receiver answers as the convex merge does") {
     // Grounding the whole construction in the tested shape-valued sum: where the
     // operands are convex, the region-valued answer must be the single convex
     // shape the linear merge produces.
-    const std::vector<Polygon> convexPolygons{
-        box(0, 0, 4, 3), Polygon({Point(0, 0), Point(5, 0), Point(2, 4)}),
-        Polygon({Point(0, 0), Point(4, 0), Point(5, 3), Point(3, 5), Point(0, 4)})};
+    const std::vector<PolygonShape> convexPolygons{
+        box(0, 0, 4, 3), PolygonShape({Point(0, 0), Point(5, 0), Point(2, 4)}),
+        PolygonShape({Point(0, 0), Point(4, 0), Point(5, 3), Point(3, 5), Point(0, 4)})};
     const std::vector<Convex> summands{
         Convex(std::vector<Point>{Point(0, 0), Point(2, 0), Point(1, 2)}),
         Convex(std::vector<Point>{Point(0, 0), Point(3, 1), Point(1, 3)}),
         Convex(std::vector<Point>{Point(-1, -1), Point(1, -1), Point(1, 1), Point(-1, 1)})};
 
-    for (const Polygon& polygon : convexPolygons) {
+    for (const PolygonShape& polygon : convexPolygons) {
         const Convex hull(polygon.vertices());
         for (const Convex& summand : summands) {
             const auto sum = polygon.minkowskiSum(summand);
@@ -336,10 +336,10 @@ TEST_CASE("minkowskiSum: shear invariance carries the answers off the axes") {
     // The sum commutes with every linear map, and an integer shear is a
     // bijection of the lattice, so the sheared answer must be *equal as a set of
     // regions* to the answer for the sheared operands.
-    const std::vector<std::pair<Polygon, Polygon>> pairs{
+    const std::vector<std::pair<PolygonShape, PolygonShape>> pairs{
         {uShape(), lShape()},
         {cShape(), box(0, 0, 2, 2)},
-        {lShape(), Polygon({Point(0, 0), Point(3, 0), Point(0, 3)})}};
+        {lShape(), PolygonShape({Point(0, 0), Point(3, 0), Point(0, 3)})}};
 
     // Exact throughout: a sheared crossing need not be integral, and truncation
     // does not commute with the shear.
@@ -351,38 +351,38 @@ TEST_CASE("minkowskiSum: shear invariance carries the answers off the axes") {
 
         // The same for a region operand, whose slits the shear carries along.
         const Region slitted = slitRegion();
-        const Polygon unit = box(0, 0, 1, 1);
+        const PolygonShape unit = box(0, 0, 1, 1);
         CHECK(sheared(slitted, k).template minkowskiSum<pgl::ERational>(sheared(unit, k)) ==
               sheared(slitted.template minkowskiSum<pgl::ERational>(unit), k));
     }
 }
 
 TEST_CASE("minkowskiSum: degenerate operands") {
-    const Polygon u = uShape();
+    const PolygonShape u = uShape();
 
     // A summand collapsed to a single point is a translation, and the answer is
     // the regularized operand moved there.
-    const auto translated = u.minkowskiSum(Rectangle(Point(3, -1), Point(3, -1)));
+    const auto translated = u.minkowskiSum(RectangleShape(Point(3, -1), Point(3, -1)));
     REQUIRE(translated.size() == 1);
     CHECK(translated[0].holeCount() == 0);
-    Polygon expected = u;
+    PolygonShape expected = u;
     expected += Point(3, -1);
     CHECK(translated[0].outer() == expected);
 
     // A summand with no area but some length still sweeps out a region: the U
     // dragged three units upward keeps its notch, three units shallower.
-    const auto swept = u.minkowskiSum(Rectangle(Point(0, 0), Point(0, 3)));
+    const auto swept = u.minkowskiSum(RectangleShape(Point(0, 0), Point(0, 3)));
     REQUIRE(swept.size() == 1);
-    CHECK(swept[0].outer() == Polygon({Point(0, 0), Point(6, 0), Point(6, 9), Point(4, 9),
+    CHECK(swept[0].outer() == PolygonShape({Point(0, 0), Point(6, 0), Point(6, 9), Point(4, 9),
                                        Point(4, 5), Point(2, 5), Point(2, 9), Point(0, 9)}));
 
     // Two operands that are both flat sum to something flat, which regularizes
     // away -- unless they point in different directions, in which case the sum
     // is a genuine parallelogram.
-    const Polygon flat({Point(0, 0), Point(4, 0)});
+    const PolygonShape flat({Point(0, 0), Point(4, 0)});
     REQUIRE(flat.isDegenerate());
-    CHECK(flat.minkowskiSum(Polygon({Point(0, 0), Point(2, 0)})).empty());
-    const auto parallelogram = flat.minkowskiSum(Polygon({Point(0, 0), Point(0, 3)}));
+    CHECK(flat.minkowskiSum(PolygonShape({Point(0, 0), Point(2, 0)})).empty());
+    const auto parallelogram = flat.minkowskiSum(PolygonShape({Point(0, 0), Point(0, 3)}));
     REQUIRE(parallelogram.size() == 1);
     CHECK(parallelogram[0].outer() == box(0, 0, 4, 3));
 
@@ -398,20 +398,20 @@ TEST_CASE("minkowskiSum: degenerate operands") {
 
     // The empty shapes absorb, whichever type carries them and whichever side
     // they are on.
-    CHECK(u.minkowskiSum(Polygon()).empty());
-    CHECK(Polygon().minkowskiSum(u).empty());
+    CHECK(u.minkowskiSum(PolygonShape()).empty());
+    CHECK(PolygonShape().minkowskiSum(u).empty());
     CHECK(u.minkowskiSum(Convex()).empty());
     CHECK(u.minkowskiSum(Region()).empty());
     CHECK(Region().minkowskiSum(u).empty());
 }
 
 TEST_CASE("minkowskiSum: every operand type, on both receivers") {
-    const Polygon u = uShape();
+    const PolygonShape u = uShape();
     const Region a = annulus();
-    const Rectangle rectangle(Point(0, 0), Point(2, 2));
+    const RectangleShape rectangle(Point(0, 0), Point(2, 2));
     const Triangle triangle(Point(0, 0), Point(2, 0), Point(0, 2));
     const Convex convex(std::vector<Point>{Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
-    const Polygon polygon = box(0, 0, 2, 2);
+    const PolygonShape polygon = box(0, 0, 2, 2);
 
     // A rectangle, a convex square and the polygon that spells it are the same
     // point set, so they must sum alike whichever type carries them.
@@ -438,9 +438,9 @@ TEST_CASE("minkowskiSum: a bounded convex receiver forwards to the region side")
     // does. The shape-valued sum is untouched by that: where
     // `MinkowskiSummableConcept` accepts the pair, it still answers with a
     // single shape.
-    const Polygon u = uShape();
+    const PolygonShape u = uShape();
     const Region a = annulus();
-    const Rectangle rectangle(Point(0, 0), Point(2, 2));
+    const RectangleShape rectangle(Point(0, 0), Point(2, 2));
     const Triangle triangle(Point(0, 0), Point(2, 0), Point(0, 2));
     const Convex convex(std::vector<Point>{Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
 
@@ -456,7 +456,7 @@ TEST_CASE("minkowskiSum: a bounded convex receiver forwards to the region side")
     // Two bounded convex operands still sum to one shape, not to a set of
     // regions, and a point operand is still a translation.
     static_assert(std::is_same_v<decltype(triangle.minkowskiSum(rectangle)), Convex>);
-    static_assert(std::is_same_v<decltype(rectangle.minkowskiSum(rectangle)), Rectangle>);
+    static_assert(std::is_same_v<decltype(rectangle.minkowskiSum(rectangle)), RectangleShape>);
     static_assert(std::is_same_v<decltype(convex.minkowskiSum(triangle)), Convex>);
     static_assert(std::is_same_v<decltype(triangle.minkowskiSum(Point(1, 1))), Triangle>);
 }
@@ -490,7 +490,7 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
     // answer, not an artefact of the method -- no decomposition puts it anywhere
     // else -- so an integral result type has nowhere to put it and truncates,
     // exactly as `difference` and `unionWith` document.
-    const Polygon u = uShape();
+    const PolygonShape u = uShape();
     const Triangle t(Point(-2, -1), Point(2, 0), Point(0, 2));
 
     const auto exact = u.minkowskiSum<pgl::ERational>(t);
