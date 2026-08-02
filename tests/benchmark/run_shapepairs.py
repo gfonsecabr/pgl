@@ -8,11 +8,22 @@ times every pair-wise call to the method, and prints the elapsed time together
 with an aggregate result (e.g. count of true returns, or count of zero-distance
 pairs).
 
+Each program stops early once it has spent --time-budget seconds in its measured
+loop, and averages over the pairs it actually completed. Cost per call spans six
+orders of magnitude across the cube, so this is what keeps a handful of cells —
+crosses on two large PolygonWithHoles runs about 30 ms per call, against tens of
+ns for a segment predicate — from setting the length of the whole run.
+
 The script compiles and runs each program.  For each (shape1, size1, shape2,
 size2, method) quintuple, the results across all number types are compared against
 the ERational (exact) baseline.  Any type whose aggregate result disagrees with
-ERational is marked as discarded in the JSON output.  All timing data are written
-to a JSON file.
+ERational is marked as discarded in the JSON output.  Comparing aggregates only
+means something when both sides summed over the same pairs, so where ERational
+stops early the other types of that cell are capped at the same pair count, and
+a capped program runs that prefix out whatever it costs — the time budget binds
+only the uncapped ERational run that sets the cap.  Every type of a cell whose
+baseline ran therefore has a verdict.  All timing data are written to a JSON
+file.
 
 Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
@@ -32,6 +43,13 @@ Options:
     --cxx     CXX      Compiler    (default: $CXX or c++)
     --cxxflags FLAGS   Flags       (default: $CXXFLAGS or -std=c++23 -O3 -DNDEBUG)
     --jobs    N        Parallel compile jobs (default: all available CPUs)
+    --time-budget S    Seconds an uncapped program may spend in its measured
+                       loop before stopping early (default: 15; 0 disables the
+                       limit). Does not apply to the capped runs that replay
+                       the baseline's prefix.
+    --keep-build       Keep the generated sources and compiled binaries. A run
+                       that completes normally deletes them by default; one that
+                       fails or is interrupted keeps them either way.
     --dry-run          Write C++ sources but do not compile or run
 """
 
@@ -40,6 +58,7 @@ import argparse
 import itertools
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -129,6 +148,20 @@ N_SHAPES = 100
 # N_CONSTRUCTION_SHAPES of the same shapes every other method sees.
 N_CONSTRUCTION_SHAPES = 20
 _CONSTRUCTION_METHODS = {"unionWith", "difference", "symmetricDifference"}
+
+# Wall-clock ceiling on the measured loop of a single generated program. The
+# cost per call spans six orders of magnitude across the cube — tens of ns for
+# a segment predicate against tens of ms for crosses on a pair of large
+# PolygonWithHoles — so without a ceiling the handful of expensive cells decide
+# how long a full run takes. A truncated cell still reports a mean over the
+# pairs it did complete; see generate_source.
+TIME_BUDGET_S = 15.0
+
+# Wall-clock ceiling on a whole benchmark process, the backstop against one that
+# hangs rather than a second opinion on how long a run may take. What bounds a
+# legitimate run is the time budget above when it is uncapped, and the baseline's
+# prefix when it is capped; this only has to sit clear of both.
+RUN_TIMEOUT_S = 600.0
 
 
 def _n_shapes_for(method: str) -> int:
@@ -277,16 +310,33 @@ def generate_source(
     shape1: str, size1: str,
     shape2: str, size2: str,
     method: str, cpp_type: str,
+    time_budget_s: float = TIME_BUDGET_S,
 ) -> str:
-    """Return a complete, self-contained C++ benchmark source."""
+    """Return a complete, self-contained C++ benchmark source.
+
+    The generated program stops as soon as it has spent 'time_budget_s' in the
+    measured loop, and divides by the pairs it actually got through. A cell that
+    finishes the full n² pairs is unaffected; one that does not reports a timing
+    over a prefix of them, plus the size of that prefix so the caller can tell
+    the two apart. Passing a pair count as argv[1] caps the loop there and turns
+    the budget off, which is how the runner replays one type's prefix on another
+    and gets back something it can actually compare.
+    """
     n = _n_shapes_for(method)
+    # A non-positive budget means "run to completion". Rather than generating a
+    # second shape of loop for that case, push the deadline out of reach: the
+    # clock is then read once per 64 pairs and never trips, which is under a
+    # tenth of a percent of even the cheapest cell's per-call cost.
+    budget_ns = time_budget_s * 1e9 if time_budget_s > 0 else 1e18
     make1 = _cpp_make_shapes_for(shape1, size1, "S1", "shapes1", n)
     make2 = _cpp_make_shapes_for(shape2, size2, "S2", "shapes2", n)
     accum = _cpp_accumulate(method)
 
     lines = [
         f"// Benchmark: {shape1}({size1}) × {shape2}({size2}) :: {method}  [{cpp_type}]",
+        "#include <cstdlib>",
         "#include <iostream>",
+        "#include <limits>",
         '#include "pgl.hpp"',
         '#include "randomshapes.hpp"',
         '#include "plf_nanotimer.h"',
@@ -295,18 +345,45 @@ def generate_source(
         f"using S1 = {_cpp_shape_type(shape1)};",
         f"using S2 = {_cpp_shape_type(shape2)};",
         "",
-        "int main() {",
+        "int main(int argc, char** argv) {",
+        "    // argv[1], when given, caps the number of pairs. The runner uses it",
+        "    // to hold every number type of a cell to the prefix the exact",
+        "    // baseline managed, so their aggregates stay comparable.",
+        "    const long long arg_pairs = (argc > 1) ? std::atoll(argv[1]) : 0;",
+        "    const bool capped = arg_pairs > 0;",
+        "    const long long max_pairs =",
+        "        capped ? arg_pairs : std::numeric_limits<long long>::max();",
+        "    // A capped run has to finish the prefix it was given. It exists to be",
+        "    // compared against the run that set the cap, and one that stopped",
+        "    // somewhere short of it compares against nothing — so the time budget",
+        "    // applies only to an uncapped run, which has nothing to line up with.",
+        "    const double deadline_ns =",
+        f"        capped ? std::numeric_limits<double>::infinity() : {budget_ns:.1f};",
         f"    {make1}",
         f"    {make2}",
         "    plf::nanotimer timer;",
         "    timer.start();",
         "    long long count = 0;",
-        "    for (const auto& a : shapes1)",
-        "        for (const auto& b : shapes2)",
+        "    long long calls = 0;",
+        "    bool stop = false;",
+        "    for (const auto& a : shapes1) {",
+        "        for (const auto& b : shapes2) {",
         f"            {accum}",
-        "    double ns = timer.get_elapsed_ns()"
-        " / (double)(shapes1.size() * shapes2.size());",
-        '    std::cout << count << "\\t" << ns << "\\n";',
+        "            ++calls;",
+        "            if (calls >= max_pairs) { stop = true; break; }",
+        "            // Reading the clock costs on the order of the cheapest call",
+        "            // being measured, so amortize it over 64 pairs. The overshoot",
+        "            // that buys is 63 calls past the budget, which only matters",
+        "            // for the cells that are already far over it.",
+        "            if ((calls & 63) == 0 && timer.get_elapsed_ns() >= deadline_ns) {",
+        "                stop = true;",
+        "                break;",
+        "            }",
+        "        }",
+        "        if (stop) break;",
+        "    }",
+        "    double ns = timer.get_elapsed_ns() / (double)(calls > 0 ? calls : 1);",
+        '    std::cout << count << "\\t" << ns << "\\t" << calls << "\\n";',
         "    return 0;",
         "}",
         "",
@@ -331,19 +408,31 @@ def compile_source(src: Path, binary: Path,
 
 
 def run_binary(binary: Path,
-               repetitions: int = 1) -> tuple[bool, tuple[int, float, float, float] | str]:
+               repetitions: int = 1,
+               max_pairs: int = 0,
+               timeout_s: float = RUN_TIMEOUT_S) -> tuple[bool, tuple[int, float, float, float, int] | str]:
     """Run binary 'repetitions' times; aggregate the timings.
 
-    The aggregate result count is deterministic across runs, so only the timing
-    varies. Returns (True, (count, median_ns, min_ns, max_ns)) — the median damps
+    'max_pairs' caps the pairs the program may work through; 0 leaves it to run
+    until its own time budget stops it. A capped program ignores that budget —
+    it has a prefix to finish — so 'timeout_s' is the only thing bounding it,
+    and killing it there would throw away the very comparison the cap was for.
+
+    Returns (True, (count, median_ns, min_ns, max_ns, calls)) — the median damps
     scheduler noise while min/max record the observed spread. On failure returns
     (False, message).
+
+    A cell that completes all its pairs reports the same count every run. One
+    that stops on the time budget does not: where it stops depends on how the
+    machine was loaded, so both the count and the pair total shift run to run.
+    The reported count and calls are therefore taken from the same run that
+    supplied the median time, keeping the triple internally consistent.
     """
-    count: int | None = None
-    times: list[float] = []
+    argv = [str(binary)] + ([str(max_pairs)] if max_pairs > 0 else [])
+    runs: list[tuple[float, int, int]] = []   # (ns, count, calls)
     for _ in range(max(1, repetitions)):
         try:
-            r = subprocess.run([str(binary)], capture_output=True, text=True, timeout=300)
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout_s)
         except subprocess.TimeoutExpired:
             return False, "timeout"
         if r.returncode != 0:
@@ -351,27 +440,56 @@ def run_binary(binary: Path,
         parsed = parse_output(r.stdout)
         if parsed is None:
             return False, r.stdout
-        count, ns = parsed
-        times.append(ns)
-    if count is None or not times:
+        count, ns, calls = parsed
+        runs.append((ns, count, calls))
+    if not runs:
         return False, ""
-    times.sort()
-    median = times[len(times) // 2]
-    return True, (count, median, times[0], times[-1])
+    runs.sort()
+    median_ns, median_count, median_calls = runs[len(runs) // 2]
+    return True, (median_count, median_ns, runs[0][0], runs[-1][0], median_calls)
 
 
-def parse_output(raw: str) -> tuple[int, float] | None:
-    """Parse 'count<TAB>ns' output; returns None on malformed output."""
+def parse_output(raw: str) -> tuple[int, float, int] | None:
+    """Parse 'count<TAB>ns<TAB>calls' output; returns None on malformed output.
+
+    A two-field line is accepted as the pre-time-budget format, where the loop
+    always ran to completion; calls comes back as 0, meaning "unknown".
+    """
     lines = raw.strip().splitlines()
     if not lines:
         return None
     parts = lines[0].split("\t")
-    if len(parts) != 2:
+    if len(parts) not in (2, 3):
         return None
     try:
-        return int(parts[0]), float(parts[1])
+        return (int(parts[0]), float(parts[1]),
+                int(parts[2]) if len(parts) == 3 else 0)
     except ValueError:
         return None
+
+
+def remove_build_artifacts(src_dir: Path, bin_dir: Path,
+                           keep: Path) -> tuple[int, int]:
+    """Delete the generated sources and binaries; return (files, bytes) freed.
+
+    The full cube is tens of thousands of files and several GB, and once the
+    snapshot JSON is written none of it is worth keeping — the next run
+    regenerates every source anyway. Only called after a run that finished, so
+    a crash or a Ctrl-C leaves the sources on disk, which is what you want when
+    chasing the compile error that caused it.
+    """
+    n_files = n_bytes = 0
+    for d in (src_dir, bin_dir):
+        # Refuse to take the results with the artifacts, in case --output put
+        # the JSON inside one of these directories.
+        if not d.is_dir() or keep.is_relative_to(d):
+            continue
+        for p in d.rglob("*"):
+            if p.is_file():
+                n_files += 1
+                n_bytes += p.stat().st_size
+        shutil.rmtree(d)
+    return n_files, n_bytes
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -394,8 +512,15 @@ def main() -> None:
     ap.add_argument("--cxx",       default=os.environ.get("CXX", "c++"))
     ap.add_argument("--cxxflags",  default=os.environ.get("CXXFLAGS", "-std=c++23 -O3 -DNDEBUG"))
     ap.add_argument("--jobs",      type=int, default=default_jobs)
+    ap.add_argument("--time-budget", dest="time_budget", type=float,
+                    default=TIME_BUDGET_S,
+                    help="seconds a single benchmark program may spend in its "
+                         "measured loop before stopping early (0 = no limit)")
     ap.add_argument("--repetitions", type=int, default=1,
                     help="run each binary N times and keep the median time")
+    ap.add_argument("--keep-build", dest="keep_build", action="store_true",
+                    help="keep the generated sources and compiled binaries; "
+                         "by default a run that completes deletes them")
     ap.add_argument("--dry-run",   dest="dry_run", action="store_true")
     args = ap.parse_args()
 
@@ -529,7 +654,8 @@ def main() -> None:
         key    = (shape1, size1, shape2, size2, method, type_key)
         srcs[key] = src
         bins[key] = binary
-        src.write_text(generate_source(shape1, size1, shape2, size2, method, cpp_type))
+        src.write_text(generate_source(shape1, size1, shape2, size2, method,
+                                       cpp_type, args.time_budget))
 
     if args.dry_run:
         print(f"Dry-run: {total} sources written to {src_dir}")
@@ -566,16 +692,41 @@ def main() -> None:
     print(f"Compilation: {n_ok} ok, {n_fail} failed.")
 
     # ── Step 3: run all successful binaries ──────────────────────────────────
-    # parsed = (count, median_ns, min_ns, max_ns)
-    run_results: dict[tuple, tuple[int, float, float, float] | None] = {}
+    # parsed = (count, median_ns, min_ns, max_ns, calls)
+    run_results: dict[tuple, tuple[int, float, float, float, int] | None] = {}
 
+    # Run cell by cell with the exact baseline first. Where the baseline stops
+    # on the time budget, every other type of that cell is held to the same
+    # prefix of pairs, so the aggregates they aggregate over are the same set
+    # and stay comparable. The baseline is the slowest type on almost every
+    # cell, so this mostly costs the faster types nothing but the pairs they
+    # would have spent going further than the comparison could follow.
     successful_keys = [k for k in srcs if compile_ok.get(k)]
-    for i, key in enumerate(successful_keys, 1):
+    cells: dict[tuple, list[tuple]] = {}
+    for key in successful_keys:
+        cells.setdefault(key[:5], []).append(key)
+    ordered_keys = [
+        key
+        for cell_keys in cells.values()
+        for key in sorted(cell_keys, key=lambda k: k[5] != GROUND_TRUTH_TYPE)
+    ]
+
+    cap_for_cell: dict[tuple, int] = {}
+    for i, key in enumerate(ordered_keys, 1):
         shape1, size1, shape2, size2, method, type_key = key
-        ok, res = run_binary(bins[key], args.repetitions)
+        cap = 0 if type_key == GROUND_TRUTH_TYPE else cap_for_cell.get(key[:5], 0)
+        ok, res = run_binary(bins[key], args.repetitions, cap)
         parsed = res if ok else None
         run_results[key] = parsed
-        result_str = f"{parsed[0]}\t{parsed[1]:.2f}ns" if parsed else "ERROR"
+        if type_key == GROUND_TRUTH_TYPE and parsed:
+            cap_for_cell[key[:5]] = parsed[4]
+        if parsed:
+            full_pairs = _n_shapes_for(method) ** 2
+            cut = ("" if parsed[4] in (0, full_pairs)
+                   else f"\t({parsed[4]}/{full_pairs} pairs)")
+            result_str = f"{parsed[0]}\t{parsed[1]:.2f}ns{cut}"
+        else:
+            result_str = "ERROR"
         print(
             f"  [{i:>6}/{len(successful_keys)}] run"
             f" {shape1}({size1}) × {shape2}({size2})"
@@ -585,7 +736,7 @@ def main() -> None:
 
     # ── Step 4: assemble results, compare against ground truth ───────────────
     # Group by (shape1, size1, shape2, size2, method)
-    groups: dict[tuple, dict[str, tuple[int, float, float, float] | None]] = {}
+    groups: dict[tuple, dict[str, tuple[int, float, float, float, int] | None]] = {}
     for (shape1, size1, shape2, size2, method, type_key), parsed in run_results.items():
         groups.setdefault((shape1, size1, shape2, size2, method), {})[type_key] = parsed
     for (shape1, size1, shape2, size2, method, type_key) in srcs:
@@ -597,6 +748,8 @@ def main() -> None:
     for (shape1, size1, shape2, size2, method), type_data in groups.items():
         gt = type_data.get(GROUND_TRUTH_TYPE)
         gt_count = gt[0] if gt is not None else None
+        gt_calls   = gt[4] if gt is not None else None
+        full_pairs = _n_shapes_for(method) ** 2
 
         type_entries: dict[str, dict] = {}
         for type_key, _ in types:
@@ -607,14 +760,26 @@ def main() -> None:
             if parsed is None:
                 type_entries[type_key] = {"status": "run_error"}
                 continue
-            count, ns, lo, hi = parsed
-            matches = (gt_count is not None and count == gt_count)
+            count, ns, lo, hi, calls = parsed
+            # The aggregate only means the same thing on both sides when both
+            # sides summed it over the same pairs. Capping to the baseline's
+            # prefix is what normally makes that true; this catches the case it
+            # cannot, a type slower than the baseline that ran out of budget
+            # before reaching the cap. Not comparable is not the same as
+            # disagreeing — hence None rather than False, which would read as
+            # "this type got it wrong".
+            if gt_count is None or calls != gt_calls:
+                matches = None
+            else:
+                matches = (count == gt_count)
             type_entries[type_key] = {
                 "status":          "ok",
                 "result":          count,
                 "time_ns":         ns,
                 "time_min_ns":     lo,
                 "time_max_ns":     hi,
+                "calls":           calls,
+                "truncated":       calls not in (0, full_pairs),
                 "match_erational": matches,
             }
 
@@ -636,6 +801,7 @@ def main() -> None:
             "compiler":     cxx,
             "cxxflags":     args.cxxflags,
             "repetitions":  args.repetitions,
+            "time_budget_s": args.time_budget or None,
             "n_shapes":     N_SHAPES,
             "n_pairs":      N_SHAPES * N_SHAPES,
             # The constructive boolean methods run on a smaller sample; see
@@ -660,6 +826,13 @@ def main() -> None:
     )
     print(f"\n{ok_count}/{n_entries} (shape×size, method) combinations had at least one successful run.")
     print(f"Results → {output_path}")
+
+    if args.keep_build:
+        print(f"Build artifacts kept in {build_dir}")
+    else:
+        n_files, n_bytes = remove_build_artifacts(src_dir, bin_dir, output_path)
+        print(f"Removed {n_files} generated files"
+              f" ({n_bytes / 1e9:.2f} GB) from {build_dir}")
 
 
 if __name__ == "__main__":
