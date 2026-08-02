@@ -1022,22 +1022,86 @@ Rectangle<PointType, LabelType>::intersection(const OtherRay& other) const {
     return detail::rectangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
+// A half-plane clips a rectangle to the corners it keeps plus the at most two
+// points where the boundary line crosses the rectangle. Walking the four
+// corners counterclockwise emits that polygon in order, so no Convex is built
+// for the rectangle and the clipped output needs no hull pass, which is what
+// delegating to the generic convex clip would cost.
 template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
-    if (!other.intersects(*this)) {
-        return std::optional<std::variant<ResultPoint, ResultSegment>>{};
+    using ResultConvex = Convex<ResultPoint>;
+    using ResultType = std::optional<std::variant<ResultPoint, ResultSegment, ResultConvex>>;
+
+    const std::array<PointType, 4> corners{min(), bottomRight(), max(), topLeft()};
+    using Determinant = decltype(orientationDeterminant(other.source(), other.target(), corners[0]));
+    std::array<Determinant, 4> sides{};
+    for (std::size_t i = 0; i < 4; ++i) {
+        sides[i] = orientationDeterminant(other.source(), other.target(), corners[i]);
     }
-    const auto rectangle_edges = edges();
-    for (const auto& edge : rectangle_edges) {
-        const auto edge_intersection = other.template intersection<ResultNumber>(edge);
-        if (edge_intersection) {
-            return edge_intersection;
+
+    // Kept corners and crossings, counterclockwise. A repeated point can only
+    // come from a degenerate rectangle, where dropping it is exactly what makes
+    // the result collapse to a segment or a point.
+    std::array<ResultPoint, 6> clipped{};
+    std::size_t count = 0;
+    const auto keep = [&clipped, &count](const ResultPoint& point) {
+        if (count == 0 || clipped[count - 1] != point) {
+            clipped[count++] = point;
+        }
+    };
+
+    const auto boundary = other.asLine();
+    for (std::size_t i = 0; i < 4; ++i) {
+        const std::size_t next = (i + 1) % 4;
+        if (sides[i] >= 0) {
+            keep(ResultPoint(corners[i]));
+        }
+        if (!((sides[i] > 0 && sides[next] < 0) || (sides[i] < 0 && sides[next] > 0))) {
+            continue;   // the edge stays on one side; a corner on the line is already kept
+        }
+        // Edges are axis-parallel and the boundary line strictly crosses this
+        // one, so it is not parallel to it and one division gives the crossing,
+        // leaving the coordinate along the edge exact.
+        if (i % 2 == 0) {   // bottom and top edges are horizontal
+            keep(ResultPoint(*boundary.template xAtY<ResultNumber>(corners[i].y()),
+                             static_cast<ResultNumber>(corners[i].y())));
+        } else {            // right and left edges are vertical
+            keep(ResultPoint(static_cast<ResultNumber>(corners[i].x()),
+                             *boundary.template yAtX<ResultNumber>(corners[i].x())));
         }
     }
-    return std::optional<std::variant<ResultPoint, ResultSegment>>(ResultPoint(min()));
+    while (count > 1 && clipped[count - 1] == clipped[0]) {
+        --count;   // the walk closed back onto its first point
+    }
+
+    if (count == 0) {
+        return ResultType{};
+    }
+    if (count == 1) {
+        return ResultType(clipped[0]);
+    }
+    if (count == 2) {
+        return ResultType(ResultSegment(clipped[0], clipped[1]));
+    }
+
+    // A Convex holds its vertices counterclockwise from the lexicographically
+    // smallest one, which is where this walk starts only when the corner min()
+    // survived the clip.
+    std::size_t first = 0;
+    for (std::size_t i = 1; i < count; ++i) {
+        if (clipped[i] < clipped[first]) {
+            first = i;
+        }
+    }
+    std::vector<ResultPoint> vertices;
+    vertices.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        vertices.push_back(clipped[(first + i) % count]);
+    }
+    return ResultType(ResultConvex(std::move(vertices), /*trusted=*/true));
 }
 
 // -----------------------------------------------------------------------------
