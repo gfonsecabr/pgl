@@ -318,12 +318,13 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(!summable<pgl::Disk<>, pgl::Disk<>>);
     static_assert(!summable<pgl::Disk<>, pgl::Triangle<>>);
 
-    // Two operands with no area between them: nothing fills, so there is no sum
-    // at all -- neither one shape nor a region.
-    static_assert(!summable<pgl::Polyline<>, pgl::Segment<>>);
-    static_assert(!summable<pgl::Polyline<>, pgl::Polyline<>>);
+    // A `MonotoneChain` carries neither overload set: `asPolyline()` converts one
+    // when its sum is wanted.
     static_assert(!summable<pgl::MonotoneChain<>, pgl::Segment<>>);
     static_assert(!summable<pgl::MonotoneChain<>, pgl::Triangle<>>);
+
+    // The one pair of chains the region-valued set leaves out.
+    static_assert(!summable<pgl::Polyline<>, pgl::Polyline<>>);
 
     // A non-convex operand summed with one that *has* area is the exception, and
     // it is not a widening of this concept: the sum can enclose a hole, so it is
@@ -346,13 +347,42 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
                            std::declval<const pgl::Rectangle<>&>())),
                        std::vector<pgl::PolygonWithHoles<Point>>>);
     // The non-convex summands have area to sweep, so they are admitted too, and
-    // from either side since both carry the mirror overload. What a chain never
-    // takes is an operand with no area: another chain.
+    // from either side since both carry the mirror overload.
     static_assert(summable<pgl::Polyline<>, pgl::Polygon<>>);
     static_assert(summable<pgl::Polygon<>, pgl::Polyline<>>);
     static_assert(summable<pgl::Polyline<>, pgl::PolygonWithHoles<>>);
     static_assert(summable<pgl::PolygonWithHoles<>, pgl::Polyline<>>);
     static_assert(!summable<pgl::Polyline<>, pgl::MonotoneChain<>>);
+
+    // A `Segment` or `OrientedSegment` has no area either, and the sum of one
+    // with any of the three non-convex receivers still does: the segment sweeps
+    // each piece of the receiver's decomposition into a band. So the pair is
+    // region-valued, from either side, while `Segment ⊕ Segment` stays the
+    // single-shape convex merge above.
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Polygon<>, pgl::Segment<>>);
+    static_assert(summable<pgl::Polygon<>, pgl::Segment<>>);
+    static_assert(summable<pgl::Polygon<>, pgl::OrientedSegment<>>);
+    static_assert(summable<pgl::PolygonWithHoles<>, pgl::Segment<>>);
+    static_assert(summable<pgl::PolygonWithHoles<>, pgl::OrientedSegment<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::Segment<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::OrientedSegment<>>);
+    static_assert(summable<pgl::Segment<>, pgl::Polygon<>>);
+    static_assert(summable<pgl::OrientedSegment<>, pgl::Polygon<>>);
+    static_assert(summable<pgl::Segment<>, pgl::PolygonWithHoles<>>);
+    static_assert(summable<pgl::OrientedSegment<>, pgl::PolygonWithHoles<>>);
+    static_assert(summable<pgl::Segment<>, pgl::Polyline<>>);
+    static_assert(summable<pgl::OrientedSegment<>, pgl::Polyline<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
+                           std::declval<const pgl::Polyline<>&>())),
+                       std::vector<pgl::PolygonWithHoles<Point>>>);
+    static_assert(std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
+                                     std::declval<const pgl::Segment<>&>())),
+                                 pgl::Convex<Point>>);
+    // The forwarder is gated on the operand outranking the segment, so it never
+    // reaches a shape that has no region-valued sum to answer with.
+    static_assert(!summable<pgl::Segment<>, pgl::MonotoneChain<>>);
+    static_assert(!summable<pgl::OrientedSegment<>, pgl::Disk<>>);
 
     // Translation stays available for all of them.
     static_assert(summable<pgl::Halfplane<>, Point>);

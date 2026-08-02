@@ -273,9 +273,9 @@ empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 A non-convex operand is where the sum needs a region: sliding a shape around the
 inside of a `C` sweeps out material that closes over a hole neither operand has.
 `Polygon` and `PolygonWithHoles` therefore carry a second `minkowskiSum`, against
-`Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`, returning a
-`std::vector<PolygonWithHoles>` like the boolean operations above; so does
-`Polyline`, whose own operands are below.
+`Polygon`, `PolygonWithHoles`, `Convex`, `Triangle`, `Rectangle`, `Segment` and
+`OrientedSegment`, returning a `std::vector<PolygonWithHoles>` like the boolean
+operations above; so does `Polyline`, whose own operands are below.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
@@ -287,10 +287,12 @@ auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
 
 The two overload sets never overlap: the pairs whose sum fits in a single shape
 are exactly the pairs listed above, and these take the rest. Which one answers is
-again a question about the pair and not about the receiver — a `Convex`,
-`Triangle` or `Rectangle` written on the left of a non-convex operand forwards to
-it, so `rectangle.minkowskiSum(polygon)` is `polygon.minkowskiSum(rectangle)`,
-while `rectangle.minkowskiSum(triangle)` is still the single-shape sum. The result is a
+again a question about the pair and not about the receiver — a `Segment`,
+`OrientedSegment`, `Convex`, `Triangle` or `Rectangle` written on the left of a
+non-convex operand forwards to it, so `rectangle.minkowskiSum(polygon)` is
+`polygon.minkowskiSum(rectangle)` and `segment.minkowskiSum(polyline)` is
+`polyline.minkowskiSum(segment)`, while `rectangle.minkowskiSum(triangle)` and
+`segment.minkowskiSum(segment)` are still the single-shape sum. The result is a
 *set* of regions because $A \oplus B$ is connected whenever both operands are, so
 it is one region unless its boundary pinches shut — which no single region may
 do. Like the boolean operations it is **regularized**, so a flat operand's sum
@@ -318,12 +320,27 @@ A region operand needs nothing special for its holes — they are simply where t
 decomposition has no piece — but its **slits** do sweep out area, so they are part
 of the decomposition too.
 
-A `Polyline` carries the same second `minkowskiSum`, against the same five
-operands — `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`,
-every bounded shape with area to sweep. The chain has none of its own, and the sum
-still needs a region: dragging a shape along a chain that comes back on itself
-closes the swept material over a hole, and a closed chain is the plainest example
-there is.
+A `Segment` is the thinnest operand of the set, and the one that shows plainest
+that it is the *receiver's* concavity, not the summand's size, that calls for a
+region. It has no area at all, and dragging a non-convex shape along one sweeps a
+band that closes a cut exactly as a wider summand does:
+
+```c++
+pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
+auto plugged = c.minkowskiSum(pgl::Segment(0,0, 0,2));
+// plugged.size() == 1; outer ring (0,0)--(8,10), one hole, (2,4)--(6,6)
+```
+
+It is also the cheapest: a segment is one convex piece, so the sum costs one
+convex merge per piece of the receiver's decomposition. An `OrientedSegment`
+answers identically — an orientation is not part of a point set.
+
+A `Polyline` carries the same second `minkowskiSum`, against the same seven
+operands: `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`,
+every bounded shape with area to sweep, plus `Segment` and `OrientedSegment`,
+which have none. The chain has none of its own either, and the sum still needs a
+region: dragging a shape along a chain that comes back on itself closes the swept
+material over a hole, and a closed chain is the plainest example there is.
 
 ```c++
 pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
@@ -352,9 +369,22 @@ all, which leaves nothing to keep:
 `polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
 as the translated chain, which is what the single-shape `polyline + point` is for.
 
-Those five are the whole list. Two chains have no area between them, so `polyline +
-polyline` is no pair at all, and neither is a `MonotoneChain` receiver —
-`asPolyline()` converts one when its sum is wanted.
+A `Segment` summand is where that regularization is easiest to trip over, since
+the chain's own edges are what sweep: an edge *parallel* to the segment sweeps a
+segment, which is dropped. A closed square chain summed with a vertical segment
+therefore comes back as **two** disjoint bands — the sum of two connected shapes
+is connected, but $\mathrm{closure}((A \oplus B)^\circ)$ need not be, which is the
+other reason this entry point returns a set of regions rather than one.
+
+```c++
+pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});
+square.minkowskiSum(pgl::Segment(0,0, 2,1));   // one region, one hole
+square.minkowskiSum(pgl::Segment(0,0, 0,3));   // two regions, (0,0)--(8,3) and (0,8)--(8,11)
+```
+
+Those seven are the whole list. `polyline + polyline` is not a pair — sum the
+edges of one against the other if you want it — and neither is a `MonotoneChain`
+receiver, which `asPolyline()` converts when its sum is wanted.
 
 The remaining pairs are a compile error rather than an approximation: `Disk` sums
 to a rounded shape, and an unbounded operand (`Line`, `Ray`, `Halfplane`,

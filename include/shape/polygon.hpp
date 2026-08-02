@@ -918,6 +918,37 @@ struct Polygon {
     minkowskiSum(const OtherPolyline& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The thinnest summand that still needs a region. A segment has no area, but
+     * sliding this polygon along one sweeps the band between the polygon and its
+     * translate by the segment's vector, and that band closes over a cavity for
+     * the same reason a wider summand's does: a `C` whose opening is no wider
+     * than the vector is plugged by the sweep of its own arms. The summand is a
+     * single convex piece, so this is the cheapest of these sums — one convex
+     * merge per triangle of the triangulated domain.
+     *
+     * Distinguish it from `segment + segment`, which stays a single `Convex`:
+     * two bounded convex operands never need a region, and it is the receiver's
+     * concavity, not the summand's thinness, that brings one in. As everywhere
+     * here the result is regularized, so a summand that has collapsed to a point
+     * comes back empty rather than as a flat copy of this polygon.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * An orientation is not part of a point set, so this is the sum with the
+     * underlying segment, vertex for vertex.
+     */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * Uses an exact winding-number test, preceded by an explicit boundary

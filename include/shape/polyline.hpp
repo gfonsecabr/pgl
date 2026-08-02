@@ -1858,25 +1858,30 @@ struct Polyline {
      *
      * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
      * and returned as a set of regions with pairwise disjoint interiors. A
-     * polyline has no area of its own, but sweeping a shape with area along it
-     * does: the chain is one-dimensional and may bend back on itself, so the
+     * polyline has no area of its own, but sweeping another shape along it has
+     * some: the chain is one-dimensional and may bend back on itself, so the
      * swept material can close over a hole — a closed chain is the plainest
      * example, and an open one whose ends come within the summand's reach of each
      * other does it too — and no other shape in the library can say so.
      *
      * The sum of two connected shapes is connected, and a polyline is connected,
      * so the answer is a single region unless its boundary pinches shut — which a
-     * region may not do, since its outer ring may not touch itself. It is empty
-     * only when an operand is empty or the sum has no area at all (a summand
-     * collapsed to a point or to a segment parallel to a straight polyline).
+     * region may not do, since its outer ring may not touch itself — or unless the
+     * regularization drops what joined two of its parts, which only a summand with
+     * no area can cause. It is empty only when an operand is empty or the sum has
+     * no area at all (a summand collapsed to a point or to a segment parallel to a
+     * straight polyline).
      *
      * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
      * sums a `Point` — a translation, giving back a `Polyline` — and nothing
      * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
-     * every other pair. The operands here are every bounded shape that has area
-     * for the chain to sweep — the three convex ones, @ref Polygon and
-     * @ref PolygonWithHoles — and nothing else: summing two chains has no area for
-     * the regularization to keep, so that pair is a compile error.
+     * every other pair. The operands here are every bounded shape whose sweep
+     * along the chain has area: the three convex ones, @ref Polygon and
+     * @ref PolygonWithHoles, which bring area of their own, and a `Segment` or
+     * @ref OrientedSegment, which brings none and makes some anyway — see
+     * @ref minkowskiSum(const OtherSegment&) const. A second `Polyline` is not an
+     * operand: that one pair is left out, and a chain that needs it can be summed
+     * against the other's edges one at a time.
      *
      * Complexity: one convex merge per edge of the polyline, then a constrained
      * triangulation over the arrangement of all of them.
@@ -1941,6 +1946,42 @@ struct Polyline {
     template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     minkowskiSum(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The one operand here with no area of its own, and the sum still has some:
+     * an edge of the chain summed with the segment is the parallelogram they
+     * span, which is flat only where the two are parallel. So a chain that bends
+     * sweeps a band of material along itself whichever direction the segment
+     * points, and that band closes over a cavity exactly as a summand with area
+     * does — a closed chain still comes back as a region with a hole.
+     *
+     * This is the pair where the regularization is easiest to trip over, because
+     * the receiver's own edges are what sweep. An edge *parallel* to the segment
+     * sweeps a segment, which the regularization drops: a straight chain summed
+     * along its own direction comes back empty — as does any chain against a
+     * summand collapsed to a point — and a closed rectilinear chain summed with an
+     * axis-parallel segment comes back as **two disjoint regions**, the sweeps of
+     * the two edges across it, with what joined them dropped. Every one of those
+     * is `A ⊕ B` losing what has no area, not the sum being unsupported.
+     *
+     * Complexity: one convex merge per edge of the chain, then a constrained
+     * triangulation over the arrangement of all of them.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * An orientation is not part of a point set, so this is the sum with the
+     * underlying segment, vertex for vertex.
+     */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
 
     /**
      * @brief Translates the polyline by the given point.

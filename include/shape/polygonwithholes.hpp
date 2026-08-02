@@ -760,6 +760,32 @@ struct PolygonWithHoles {
     minkowskiSum(const OtherPolyline& other) const;
 
     /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * A segment has no area of its own and still needs a region here: the sweep
+     * of this region along one both closes cuts and erodes holes, exactly as a
+     * summand with area does. See @ref Polygon::minkowskiSum(const OtherSegment&) const.
+     *
+     * The region's slits sweep out area along the segment like its triangles do,
+     * so they are part of the decomposition — unless the slit runs *along* the
+     * segment's own direction, in which case that sweep is a segment and the
+     * regularization drops it.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * An orientation is not part of a point set, so this is the sum with the
+     * underlying segment, vertex for vertex.
+     */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a `Point`
