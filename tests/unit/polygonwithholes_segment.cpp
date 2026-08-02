@@ -8,7 +8,7 @@
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
 using OrientedSegment = pgl::OrientedSegment<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 // A segment is connected, which is what lets every predicate here reduce to
@@ -29,8 +29,8 @@ using Region = pgl::PolygonWithHoles<Point>;
 //     (0,0)               (10,0)
 
 static Region annulus() {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({3, 3, 7, 3, 7, 7, 3, 7});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({3, 3, 7, 3, 7, 7, 3, 7});
     return Region(outer, std::vector{hole});
 }
 
@@ -154,9 +154,9 @@ TEST_CASE("PolygonWithHoles vs Segment: a chord touching the hole tangentially")
 TEST_CASE("PolygonWithHoles vs Segment: two holes") {
     // A 12x6 box with two square holes, leaving a vertical bridge of material
     // between them at x in [5,7].
-    const Polygon outer({0, 0, 12, 0, 12, 6, 0, 6});
-    const Polygon left({1, 1, 5, 1, 5, 5, 1, 5});
-    const Polygon right({7, 1, 11, 1, 11, 5, 7, 5});
+    const PolygonShape outer({0, 0, 12, 0, 12, 6, 0, 6});
+    const PolygonShape left({1, 1, 5, 1, 5, 5, 1, 5});
+    const PolygonShape right({7, 1, 11, 1, 11, 5, 7, 5});
     const Region region(outer, std::vector{left, right});
     REQUIRE(region.isValid());
 
@@ -185,8 +185,8 @@ TEST_CASE("PolygonWithHoles vs Segment: two holes") {
 TEST_CASE("PolygonWithHoles vs Segment: holes touching the outer ring") {
     // The hole shares the corner (0,0) with the outer square, so the region is
     // weakly simple: the shared point belongs to the region.
-    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
-    const Polygon hole({0, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({0, 0, 4, 0, 4, 4, 0, 4});
     const Region region(outer, std::vector{hole});
 
     SUBCASE("segment along the shared edge is on the boundary") {
@@ -217,8 +217,8 @@ TEST_CASE("PolygonWithHoles vs Segment: holes touching the outer ring") {
 
 TEST_CASE("PolygonWithHoles vs Segment: crossing a ring touch point") {
     // The hole is a triangle whose apex (4,0) sits on the outer edge y = 0.
-    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
-    const Polygon hole({4, 0, 6, 2, 2, 2});
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({4, 0, 6, 2, 2, 2});
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
 
@@ -241,8 +241,8 @@ TEST_CASE("PolygonWithHoles vs Segment: crossing a ring touch point") {
 TEST_CASE("PolygonWithHoles vs Segment: crossing a doubly covered edge") {
     // The hole shares the corner and two whole edges with the outer square, so
     // the region is an L shape and the shared stretches are slits.
-    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
-    const Polygon hole({0, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({0, 0, 4, 0, 4, 4, 0, 4});
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
 
@@ -271,9 +271,9 @@ TEST_CASE("PolygonWithHoles vs Segment: crossing a doubly covered edge") {
 }
 
 TEST_CASE("PolygonWithHoles vs Segment: two holes touching at a point") {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon lower({1, 1, 5, 1, 5, 5, 1, 5});
-    const Polygon upper({5, 5, 9, 5, 9, 9, 5, 9});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape lower({1, 1, 5, 1, 5, 5, 1, 5});
+    const PolygonShape upper({5, 5, 9, 5, 9, 9, 5, 9});
     const Region region(outer, std::vector{lower, upper});
     REQUIRE(region.isValid());
 
@@ -295,7 +295,7 @@ TEST_CASE("PolygonWithHoles vs Segment: two holes touching at a point") {
 }
 
 TEST_CASE("PolygonWithHoles vs Segment: hole-free region matches its outer polygon") {
-    const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
+    const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
     const Region region(outer);
     const Segment inside({1, 1}, {5, 5});
     const Segment onEdge({0, 1}, {0, 5});
@@ -379,7 +379,7 @@ TEST_CASE("PolygonWithHoles distances") {
     }
 
     SUBCASE("a hole-free region agrees with its outer polygon") {
-        const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
+        const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
         const Region plain(outer);
         for (const Point p : {Point(3, 3), Point(9, 3), Point(-2, -2)}) {
             CHECK(plain.squaredDistance(p) == outer.squaredDistance(p));

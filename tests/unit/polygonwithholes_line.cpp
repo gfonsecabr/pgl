@@ -11,7 +11,7 @@ using Line = pgl::Line<Point>;
 using OrientedLine = pgl::OrientedLine<Point>;
 using Ray = pgl::Ray<Point>;
 using Halfplane = pgl::Halfplane<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 // Lines, rays and half-planes are unbounded, which settles the containment
@@ -36,8 +36,8 @@ using Region = pgl::PolygonWithHoles<Point>;
 //     (0,0)               (10,0)
 
 static Region annulus() {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({3, 3, 7, 3, 7, 7, 3, 7});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({3, 3, 7, 3, 7, 7, 3, 7});
     return Region(outer, std::vector{hole});
 }
 
@@ -123,8 +123,8 @@ TEST_CASE("PolygonWithHoles vs Line: a hole holding the whole chord") {
     // its whole passage across the square: it meets the region at the two touch
     // points and never reaches the interior. The outer polygon on its own says
     // the opposite, which is exactly why this cannot forward to Polygon.
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({0, 5, 5, 4, 10, 5, 5, 6});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({0, 5, 5, 4, 10, 5, 5, 6});
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
 
@@ -225,8 +225,8 @@ TEST_CASE("PolygonWithHoles vs Ray") {
     }
 
     SUBCASE("a ray along the boundary of a swallowed chord") {
-        const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-        const Polygon hole({0, 5, 5, 4, 10, 5, 5, 6});
+        const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+        const PolygonShape hole({0, 5, 5, 4, 10, 5, 5, 6});
         const Region pinched(outer, std::vector{hole});
         const Ray r({0, 5}, {10, 5});
         CHECK(pinched.intersects(r));
@@ -265,7 +265,7 @@ TEST_CASE("PolygonWithHoles vs Halfplane") {
     }
 
     SUBCASE("without holes the region answers exactly like its outer polygon") {
-        const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
+        const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
         const Region solid(outer);
         for (const Halfplane& h : {Halfplane({0, 0}, {0, 1}), Halfplane({5, 1}, {5, 0}),
                                    Halfplane({-1, 0}, {-1, 1}), Halfplane({10, 0}, {10, 1})}) {
@@ -287,8 +287,8 @@ TEST_CASE("PolygonWithHoles vs Halfplane: a slit tip carries no interior") {
     // The hole shares two whole edges with the outer square, so the region is an
     // L shape with two slits, and the corner (0,0) is the tip where they meet:
     // every neighbourhood of it holds region points, but no region interior.
-    const Polygon outer({0, 0, 8, 0, 8, 8, 0, 8});
-    const Polygon hole({0, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({0, 0, 4, 0, 4, 4, 0, 4});
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
     REQUIRE(region.contains(Point(0, 0)));

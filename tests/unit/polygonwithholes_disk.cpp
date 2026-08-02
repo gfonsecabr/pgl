@@ -7,7 +7,7 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 using Disk = pgl::Disk<Point>;
 
@@ -28,16 +28,16 @@ using Disk = pgl::Disk<Point>;
 // sides.
 
 static Region annulus() {
-    const Polygon outer({0, 0, 12, 0, 12, 12, 0, 12});
-    const Polygon hole({4, 4, 8, 4, 8, 8, 4, 8});
+    const PolygonShape outer({0, 0, 12, 0, 12, 12, 0, 12});
+    const PolygonShape hole({4, 4, 8, 4, 8, 8, 4, 8});
     return Region(outer, std::vector{hole});
 }
 
 // The 6x6 square cut across by a band hole that shares a stretch of edge with
 // the outer ring on both sides. The region pinches shut along those slits.
 static Region bandSplit() {
-    const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
-    const Polygon hole({0, 2, 6, 2, 6, 4, 0, 4});
+    const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
+    const PolygonShape hole({0, 2, 6, 2, 6, 4, 0, 4});
     return Region(outer, std::vector{hole});
 }
 
@@ -228,7 +228,7 @@ TEST_CASE("PolygonWithHoles vs Disk: the symmetric predicates and distances") {
     CHECK(inTheHole.squaredDistance(region) == doctest::Approx(region.squaredDistance(inTheHole)));
 
     // A region without holes is its outer polygon, and answers exactly as it does.
-    const Polygon poly({0, 0, 12, 0, 12, 12, 0, 12});
+    const PolygonShape poly({0, 0, 12, 0, 12, 12, 0, 12});
     const Region solid(poly);
     for (const Disk& d : {Disk(Point(2, 6), 1), Disk(Point(6, 6), 1), Disk(Point(0, 0), 3),
                           Disk(Point(18, 6), 2)}) {

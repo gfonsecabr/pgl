@@ -7,10 +7,10 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 using Chain = pgl::MonotoneChain<Point>;
-using Polyline = pgl::Polyline<Point>;
+using PolylineShape = pgl::Polyline<Point>;
 
 // The polygonal chains — a monotone chain and a polyline — are the first
 // operands since the segment family that are one-dimensional again, and they
@@ -33,8 +33,8 @@ using Polyline = pgl::Polyline<Point>;
 //     (0,0)               (10,0)
 
 static Region annulus() {
-    const Polygon outer({0, 0, 10, 0, 10, 10, 0, 10});
-    const Polygon hole({3, 3, 7, 3, 7, 7, 3, 7});
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({3, 3, 7, 3, 7, 7, 3, 7});
     return Region(outer, std::vector{hole});
 }
 
@@ -43,8 +43,8 @@ static Region annulus() {
 // along those two slits: they belong to the region and carry no area beside
 // them.
 static Region bandSplit() {
-    const Polygon outer({0, 0, 6, 0, 6, 6, 0, 6});
-    const Polygon hole({0, 2, 6, 2, 6, 4, 0, 4});
+    const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
+    const PolygonShape hole({0, 2, 6, 2, 6, 4, 0, 4});
     return Region(outer, std::vector{hole});
 }
 
@@ -137,35 +137,35 @@ TEST_CASE("PolygonWithHoles vs Polyline") {
 
     SUBCASE("a polyline may double back, which a monotone chain cannot") {
         // Out into the material and back to where it started.
-        const Polyline line(std::vector{Point(1, 1), Point(1, 9), Point(2, 1)});
+        const PolylineShape line(std::vector{Point(1, 1), Point(1, 9), Point(2, 1)});
         CHECK(region.contains(line));
         CHECK(region.interiorContains(line));
         CHECK(region.interiorsIntersect(line));
     }
 
     SUBCASE("a polyline dipping into the hole is not contained") {
-        const Polyline line(std::vector{Point(1, 1), Point(5, 5), Point(1, 9)});
+        const PolylineShape line(std::vector{Point(1, 1), Point(5, 5), Point(1, 9)});
         CHECK(!region.contains(line));
         CHECK(region.intersects(line));
         CHECK(region.interiorsIntersect(line));
     }
 
     SUBCASE("a polyline around the hole, touching two of its corners") {
-        const Polyline line(std::vector{Point(3, 3), Point(1, 5), Point(3, 7)});
+        const PolylineShape line(std::vector{Point(3, 3), Point(1, 5), Point(3, 7)});
         CHECK(region.contains(line));
         CHECK(!region.interiorContains(line));
         CHECK(region.interiorsIntersect(line));
     }
 
     SUBCASE("a polyline on the boundary, from an outer edge onto a hole edge") {
-        const Polyline onOuter(std::vector{Point(0, 0), Point(10, 0), Point(10, 10)});
+        const PolylineShape onOuter(std::vector{Point(0, 0), Point(10, 0), Point(10, 10)});
         CHECK(region.contains(onOuter));
         CHECK(region.boundaryContains(onOuter));
         CHECK(!region.interiorsIntersect(onOuter));
     }
 
     SUBCASE("a polyline inside the hole misses the region") {
-        const Polyline line(std::vector{Point(4, 4), Point(6, 4), Point(6, 6)});
+        const PolylineShape line(std::vector{Point(4, 4), Point(6, 4), Point(6, 6)});
         CHECK(!region.intersects(line));
         CHECK(region.squaredDistance<double>(line) == doctest::Approx(1.0));
     }
@@ -196,7 +196,7 @@ TEST_CASE("PolygonWithHoles vs a chain: the pinched boundary of a slit") {
 
     SUBCASE("a polyline touching the region only at the slit") {
         // From outside the square to a point of the left slit and back out.
-        const Polyline touch(std::vector{Point(-2, 2), Point(0, 3), Point(-2, 4)});
+        const PolylineShape touch(std::vector{Point(-2, 2), Point(0, 3), Point(-2, 4)});
         CHECK(!region.contains(touch));
         CHECK(region.intersects(touch));
         CHECK(!region.interiorsIntersect(touch));
@@ -229,7 +229,7 @@ TEST_CASE("PolygonWithHoles vs a chain: exact rational coordinates") {
 TEST_CASE("PolygonWithHoles vs a chain: the symmetric predicates and distances") {
     const Region region = annulus();
     const Chain chain(std::vector{Point(1, 5), Point(5, 5), Point(9, 5)});
-    const Polyline line(std::vector{Point(4, 4), Point(6, 4), Point(6, 6)});
+    const PolylineShape line(std::vector{Point(4, 4), Point(6, 4), Point(6, 6)});
 
     CHECK(chain.intersects(region) == region.intersects(chain));
     CHECK(chain.interiorsIntersect(region) == region.interiorsIntersect(chain));
@@ -244,7 +244,7 @@ TEST_CASE("PolygonWithHoles vs a chain: the symmetric predicates and distances")
     CHECK(line.distanceLInf<double>(region) == doctest::Approx(region.distanceLInf<double>(line)));
 
     // A region without holes is its outer polygon, and answers exactly as it does.
-    const Polygon poly({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape poly({0, 0, 10, 0, 10, 10, 0, 10});
     const Region solid(poly);
     CHECK(solid.contains(chain) == poly.contains(chain));
     CHECK(solid.interiorContains(chain) == poly.interiorContains(chain));

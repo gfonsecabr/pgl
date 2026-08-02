@@ -9,13 +9,13 @@
 #include <vector>
 
 using Point = pgl::Point<int>;
-using Polygon = pgl::Polygon<Point>;
+using PolygonShape = pgl::Polygon<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
 
 // A 10x10 square with a 2x2 square hole at (2,2)-(4,4): area 100 - 4 = 96.
-static Polygon outerSquare() { return Polygon({0, 0, 10, 0, 10, 10, 0, 10}); }
-static Polygon smallHole() { return Polygon({2, 2, 4, 2, 4, 4, 2, 4}); }
-static Polygon otherHole() { return Polygon({6, 6, 8, 6, 8, 8, 6, 8}); }
+static PolygonShape outerSquare() { return PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}); }
+static PolygonShape smallHole() { return PolygonShape({2, 2, 4, 2, 4, 4, 2, 4}); }
+static PolygonShape otherHole() { return PolygonShape({6, 6, 8, 6, 8, 8, 6, 8}); }
 
 TEST_CASE("PolygonWithHoles construction and ring access") {
     SUBCASE("default construction is the empty region") {
@@ -48,8 +48,8 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
     SUBCASE("zero-area holes are dropped") {
         // A collapsed ring (a point), a ring spanning only a segment, and a
         // proper hole. Only the proper hole removes anything from the region.
-        const Polygon degeneratePoint({3, 3, 3, 3, 3, 3});
-        const Polygon degenerateSegment({3, 3, 5, 3, 7, 3});
+        const PolygonShape degeneratePoint({3, 3, 3, 3, 3, 3});
+        const PolygonShape degenerateSegment({3, 3, 5, 3, 7, 3});
         const Region region(outerSquare(),
                             std::vector{degeneratePoint, degenerateSegment, smallHole()});
         CHECK(region.holeCount() == 1);
@@ -63,7 +63,7 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
         region.addHole(smallHole());
         REQUIRE(region.holeCount() == 2);
         CHECK(region.hole(0) < region.hole(1));
-        region.addHole(Polygon({1, 1, 1, 1, 1, 1}));
+        region.addHole(PolygonShape({1, 1, 1, 1, 1, 1}));
         CHECK(region.holeCount() == 2);
     }
 
@@ -88,7 +88,7 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
         // Erasing it again, and erasing a polygon that is no hole of this
         // region, both fail and leave the region alone.
         CHECK(!region.eraseHole(otherHole()));
-        CHECK(!region.eraseHole(Polygon({1, 1, 2, 1, 2, 2, 1, 2})));
+        CHECK(!region.eraseHole(PolygonShape({1, 1, 2, 1, 2, 2, 1, 2})));
         CHECK(region.holeCount() == 1);
         CHECK(region.twiceArea() == 192);
     }
@@ -114,8 +114,8 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
 
     SUBCASE("a region stays valid after an erase") {
         // Two holes that touch along an edge: erasing one leaves the other.
-        const Polygon left({2, 2, 5, 2, 5, 5, 2, 5});
-        const Polygon right({5, 2, 8, 2, 8, 5, 5, 5});
+        const PolygonShape left({2, 2, 5, 2, 5, 5, 2, 5});
+        const PolygonShape right({5, 2, 8, 2, 8, 5, 5, 5});
         Region region(outerSquare(), std::vector{left, right});
         REQUIRE(region.isValid());
         CHECK(region.eraseHole(left));
@@ -173,7 +173,7 @@ TEST_CASE("PolygonWithHoles measures") {
     }
 
     SUBCASE("a hole at the centre leaves the centroid put") {
-        const Polygon centred({4, 4, 6, 4, 6, 6, 4, 6});
+        const PolygonShape centred({4, 4, 6, 4, 6, 6, 4, 6});
         const Region symmetric(outerSquare(), std::vector{centred});
         const auto centre = symmetric.centroid<double>();
         CHECK(centre.x() == doctest::Approx(5.0));
@@ -233,13 +233,13 @@ TEST_CASE("PolygonWithHoles isValid") {
     }
 
     SUBCASE("holes touching each other at a point are valid") {
-        const Polygon left({2, 2, 4, 2, 4, 4, 2, 4});
-        const Polygon right({4, 4, 6, 4, 6, 6, 4, 6});
+        const PolygonShape left({2, 2, 4, 2, 4, 4, 2, 4});
+        const PolygonShape right({4, 4, 6, 4, 6, 6, 4, 6});
         CHECK(Region(outerSquare(), std::vector{left, right}).isValid());
     }
 
     SUBCASE("a hole touching the outer boundary is valid") {
-        const Polygon touching({0, 2, 2, 2, 2, 4, 0, 4});
+        const PolygonShape touching({0, 2, 2, 2, 2, 4, 0, 4});
         CHECK(Region(outerSquare(), std::vector{touching}).isValid());
     }
 
@@ -247,46 +247,46 @@ TEST_CASE("PolygonWithHoles isValid") {
     // may meet however they like, including along whole stretches of edge. The
     // region pinches shut where they do, which the predicates account for.
     SUBCASE("a hole sharing a whole edge with the outer boundary is valid") {
-        const Polygon slit({0, 0, 4, 0, 4, 4, 0, 4});
+        const PolygonShape slit({0, 0, 4, 0, 4, 4, 0, 4});
         CHECK(Region(outerSquare(), std::vector{slit}).isValid());
     }
 
     SUBCASE("holes sharing a whole edge are valid") {
-        const Polygon left({2, 2, 5, 2, 5, 8, 2, 8});
-        const Polygon right({5, 2, 8, 2, 8, 8, 5, 8});
+        const PolygonShape left({2, 2, 5, 2, 5, 8, 2, 8});
+        const PolygonShape right({5, 2, 8, 2, 8, 8, 5, 8});
         CHECK(Region(outerSquare(), std::vector{left, right}).isValid());
     }
 
     SUBCASE("a hole spanning the square from edge to edge is valid") {
         // Splits the region in two and leaves a whisker on either side.
-        const Polygon band({0, 4, 10, 4, 10, 6, 0, 6});
+        const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
         CHECK(Region(outerSquare(), std::vector{band}).isValid());
     }
 
     SUBCASE("overlapping holes are invalid") {
-        const Polygon left({2, 2, 5, 2, 5, 5, 2, 5});
-        const Polygon right({4, 4, 7, 4, 7, 7, 4, 7});
+        const PolygonShape left({2, 2, 5, 2, 5, 5, 2, 5});
+        const PolygonShape right({4, 4, 7, 4, 7, 7, 4, 7});
         CHECK(!Region(outerSquare(), std::vector{left, right}).isValid());
     }
 
     SUBCASE("a nested hole is invalid") {
-        const Polygon big({2, 2, 8, 2, 8, 8, 2, 8});
-        const Polygon inner({3, 3, 5, 3, 5, 5, 3, 5});
+        const PolygonShape big({2, 2, 8, 2, 8, 8, 2, 8});
+        const PolygonShape inner({3, 3, 5, 3, 5, 5, 3, 5});
         CHECK(!Region(outerSquare(), std::vector{big, inner}).isValid());
     }
 
     SUBCASE("a hole escaping the outer boundary is invalid") {
-        const Polygon escaping({8, 8, 12, 8, 12, 12, 8, 12});
+        const PolygonShape escaping({8, 8, 12, 8, 12, 12, 8, 12});
         CHECK(!Region(outerSquare(), std::vector{escaping}).isValid());
     }
 
     SUBCASE("a hole wholly outside the outer boundary is invalid") {
-        const Polygon outside({20, 20, 22, 20, 22, 22, 20, 22});
+        const PolygonShape outside({20, 20, 22, 20, 22, 22, 20, 22});
         CHECK(!Region(outerSquare(), std::vector{outside}).isValid());
     }
 
     SUBCASE("a self-intersecting ring is invalid") {
-        const Polygon bowtie({0, 0, 10, 10, 10, 0, 0, 10});
+        const PolygonShape bowtie({0, 0, 10, 10, 10, 0, 0, 10});
         CHECK(!Region(bowtie).isValid());
     }
 
@@ -416,23 +416,23 @@ TEST_CASE("PolygonWithHoles pointInside") {
         // and would look for a point in the triangle it spans with its
         // neighbours; here a hole occupies it, so the witness has to come from
         // elsewhere.
-        const Polygon hole({0, 1, 8, 1, 8, 9, 0, 9});
-        const Region region(Polygon({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{hole});
+        const PolygonShape hole({0, 1, 8, 1, 8, 9, 0, 9});
+        const Region region(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{hole});
         REQUIRE(region.isValid());
         CHECK(region.interiorContains(region.pointInside<Q>()));
     }
 
     SUBCASE("a region split in two by a hole") {
-        const Polygon band({0, 4, 10, 4, 10, 6, 0, 6});
-        const Region region(Polygon({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{band});
+        const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
+        const Region region(PolygonShape({0, 0, 10, 0, 10, 10, 0, 10}), std::vector{band});
         REQUIRE(region.isValid());
         const auto witness = region.pointInside<Q>();
         CHECK(region.interiorContains(witness));
     }
 
     SUBCASE("a slit region: the witness avoids the whiskers") {
-        const Polygon hole({0, 0, 4, 0, 4, 4, 0, 4});
-        const Region region(Polygon({0, 0, 8, 0, 8, 8, 0, 8}), std::vector{hole});
+        const PolygonShape hole({0, 0, 4, 0, 4, 4, 0, 4});
+        const Region region(PolygonShape({0, 0, 8, 0, 8, 8, 0, 8}), std::vector{hole});
         const auto witness = region.pointInside<Q>();
         CHECK(region.contains(witness));
         CHECK(region.interiorContains(witness));
@@ -443,7 +443,7 @@ TEST_CASE("PolygonWithHoles pointInside") {
         const Region region(outerSquare(), std::vector{smallHole()});
         CHECK(region.pointInsideInteriorContainedIn(outerSquare()));
         CHECK_FALSE(region.pointInsideInteriorContainedIn(smallHole()));
-        CHECK_FALSE(region.pointInsideInteriorContainedIn(Polygon({20, 20, 22, 20, 22, 22, 20, 22})));
+        CHECK_FALSE(region.pointInsideInteriorContainedIn(PolygonShape({20, 20, 22, 20, 22, 22, 20, 22})));
     }
 }
 
