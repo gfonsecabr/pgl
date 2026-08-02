@@ -36,8 +36,8 @@ The following shapes are supported by Pangolin:
 - [`Triangle`](#triangle) Unoriented triangle.
 - [`Rectangle`](#rectangle) Axis-aligned rectangle.
 - [`Disk`](#disk) A circle with its interior.
-- [`Polygon`](#polygon) Simple polygon.
 - [`Convex`](#convex) Convex polygon.
+- [`Polygon`](#polygon) Simple polygon.
 - [`PolygonWithHoles`](#polygon-with-holes) Simple polygon minus a set of disjoint polygonal holes.
 - [`HalfplaneIntersection`](#halfplane-intersection) Intersection of half-planes; convex but possibly unbounded or empty.
 
@@ -586,24 +586,6 @@ Since a self-intersecting polyline has no monotone structure to exploit, the pre
 - Other methods:
 
 
-### Polygon
-
-The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y).
-
-A polygon `P` has methods such as:
-
-- `P.isDegenerate()`: Returns true if the polygon has null area.
-- `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
-- `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
-- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
-- `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
-- `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
-- `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
-
-- Other methods:
-
-
 ### Convex
 
 The class template `Convex` represents a convex polygon. It can be constructed for any number of points in a container and will construct the convex hull. The vertices are stored in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y). If the container already has the vertices in order, a second constructor parameter can be set to true to avoid computing the convex hull.
@@ -634,6 +616,25 @@ If the convex polygon `c` has $n$ vertices, then:
 - `c.intersection(c2)` takes $O((n+m) log (n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 
 - Other methods:
+
+
+### Polygon
+
+The class template `Polygon` represents a simple polygon. It can be constructed for any number of points in a container that must be given in the order they appear on the polygon. The vertices are accessed in counterclockwise order starting from the minimum vertex (minimum x, breaking ties by minimum y).
+
+A polygon `P` has methods such as:
+
+- `P.isDegenerate()`: Returns true if the polygon has null area.
+- `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
+- `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
+- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
+- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
+- `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
+- `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
+- `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
+
+- Other methods:
+
 
 ### Polygon with Holes
 
