@@ -637,7 +637,16 @@ class Canvas {
         return value.substr(start, end - start);
     }
 
-    static std::optional<double> parseNumericLength(const std::string& value) {
+    // The number a style string denotes, together with the suffix that
+    // followed it. `"2px"` parses as {2.0, "px"} and `"25%"` as {25.0, "%"};
+    // anything that is not a number followed by letters or a percent sign does
+    // not parse at all.
+    struct ParsedLength {
+        double value = 0.0;
+        std::string suffix;
+    };
+
+    static std::optional<ParsedLength> parseLength(const std::string& value) {
         const std::string trimmed = trim(value);
         if (trimmed.empty()) {
             return std::nullopt;
@@ -646,12 +655,35 @@ class Canvas {
         std::size_t parsedCharacters = 0;
         try {
             const double numericValue = std::stod(trimmed, &parsedCharacters);
-            if (parsedCharacters == trimmed.size()) {
-                return numericValue;
-            }
+            return ParsedLength{numericValue, trimmed.substr(parsedCharacters)};
         } catch (...) {
         }
 
+        return std::nullopt;
+    }
+
+    // A length in user units. CSS length units other than `px` (which is the
+    // user unit) are not supported and are rejected rather than misread.
+    static std::optional<double> parseNumericLength(const std::string& value) {
+        const std::optional<ParsedLength> parsed = parseLength(value);
+        if (!parsed || (!parsed->suffix.empty() && lowercase(parsed->suffix) != "px")) {
+            return std::nullopt;
+        }
+        return parsed->value;
+    }
+
+    // An SVG opacity, which is either a number in [0,1] or a percentage.
+    static std::optional<double> parseOpacity(const std::string& value) {
+        const std::optional<ParsedLength> parsed = parseLength(value);
+        if (!parsed) {
+            return std::nullopt;
+        }
+        if (parsed->suffix == "%") {
+            return parsed->value / 100.0;
+        }
+        if (parsed->suffix.empty()) {
+            return parsed->value;
+        }
         return std::nullopt;
     }
 
@@ -692,6 +724,15 @@ class Canvas {
             << " stroke-width=\"" << escapeXML(style.strokeWidth, true) << '"'
             << " vector-effect=\"non-scaling-stroke\"";
         return out.str();
+    }
+
+    // The same attributes with the fill turned off, for shapes that are curves
+    // rather than regions: SVG fills an open path against the implicit edge
+    // that closes it, which paints an area no one asked for.
+    static std::string strokeOnlyAttributes(const CanvasStyle& style) {
+        CanvasStyle unfilled = style;
+        unfilled.fill = "none";
+        return styleAttributes(unfilled);
     }
 
     static std::string fillAttributes(const CanvasStyle& style) {
@@ -837,7 +878,7 @@ class Canvas {
     }
 
     static float opacityOr(const std::string& value, float fallback) {
-        if (const std::optional<double> numeric = parseNumericLength(value)) {
+        if (const std::optional<double> numeric = parseOpacity(value)) {
             if (std::isfinite(*numeric)) {
                 return std::clamp(static_cast<float>(*numeric), 0.0f, 1.0f);
             }
@@ -940,37 +981,158 @@ class Canvas {
             }
         }
 
-        static constexpr std::array<std::pair<const char*, std::uint32_t>, 30> namedColors{{
-            {"black", pdfgen::PDF_BLACK},
-            {"white", pdfgen::PDF_WHITE},
-            {"red", pdfgen::PDF_RED},
-            {"green", pdfgen::PDF_GREEN},
-            {"blue", pdfgen::PDF_BLUE},
-            {"yellow", pdfgen::PDF_RGB(255, 255, 0)},
-            {"orange", pdfgen::PDF_RGB(255, 165, 0)},
-            {"purple", pdfgen::PDF_RGB(128, 0, 128)},
-            {"teal", pdfgen::PDF_RGB(0, 128, 128)},
-            {"navy", pdfgen::PDF_RGB(0, 0, 128)},
-            {"skyblue", pdfgen::PDF_RGB(135, 206, 235)},
-            {"gold", pdfgen::PDF_RGB(255, 215, 0)},
-            {"royalblue", pdfgen::PDF_RGB(65, 105, 225)},
-            {"crimson", pdfgen::PDF_RGB(220, 20, 60)},
-            {"darkgreen", pdfgen::PDF_RGB(0, 100, 0)},
-            {"darkmagenta", pdfgen::PDF_RGB(139, 0, 139)},
-            {"plum", pdfgen::PDF_RGB(221, 160, 221)},
-            {"sienna", pdfgen::PDF_RGB(160, 82, 45)},
-            {"brown", pdfgen::PDF_RGB(165, 42, 42)},
-            {"gray", pdfgen::PDF_RGB(128, 128, 128)},
-            {"grey", pdfgen::PDF_RGB(128, 128, 128)},
-            {"silver", pdfgen::PDF_RGB(192, 192, 192)},
+        // The CSS/SVG named colors, so that a color name means the same
+        // thing in every backend: unknown names have no color to fall back
+        // on, and silently come out black (stroke) or unpainted (fill).
+        static constexpr std::array<std::pair<const char*, std::uint32_t>, 148> namedColors{{
+            {"aliceblue", pdfgen::PDF_RGB(240, 248, 255)},
+            {"antiquewhite", pdfgen::PDF_RGB(250, 235, 215)},
             {"aqua", pdfgen::PDF_RGB(0, 255, 255)},
+            {"aquamarine", pdfgen::PDF_RGB(127, 255, 212)},
+            {"azure", pdfgen::PDF_RGB(240, 255, 255)},
+            {"beige", pdfgen::PDF_RGB(245, 245, 220)},
+            {"bisque", pdfgen::PDF_RGB(255, 228, 196)},
+            {"black", pdfgen::PDF_RGB(0, 0, 0)},
+            {"blanchedalmond", pdfgen::PDF_RGB(255, 235, 205)},
+            {"blue", pdfgen::PDF_RGB(0, 0, 255)},
+            {"blueviolet", pdfgen::PDF_RGB(138, 43, 226)},
+            {"brown", pdfgen::PDF_RGB(165, 42, 42)},
+            {"burlywood", pdfgen::PDF_RGB(222, 184, 135)},
+            {"cadetblue", pdfgen::PDF_RGB(95, 158, 160)},
+            {"chartreuse", pdfgen::PDF_RGB(127, 255, 0)},
+            {"chocolate", pdfgen::PDF_RGB(210, 105, 30)},
+            {"coral", pdfgen::PDF_RGB(255, 127, 80)},
+            {"cornflowerblue", pdfgen::PDF_RGB(100, 149, 237)},
+            {"cornsilk", pdfgen::PDF_RGB(255, 248, 220)},
+            {"crimson", pdfgen::PDF_RGB(220, 20, 60)},
             {"cyan", pdfgen::PDF_RGB(0, 255, 255)},
-            {"magenta", pdfgen::PDF_RGB(255, 0, 255)},
+            {"darkblue", pdfgen::PDF_RGB(0, 0, 139)},
+            {"darkcyan", pdfgen::PDF_RGB(0, 139, 139)},
+            {"darkgoldenrod", pdfgen::PDF_RGB(184, 134, 11)},
+            {"darkgray", pdfgen::PDF_RGB(169, 169, 169)},
+            {"darkgreen", pdfgen::PDF_RGB(0, 100, 0)},
+            {"darkgrey", pdfgen::PDF_RGB(169, 169, 169)},
+            {"darkkhaki", pdfgen::PDF_RGB(189, 183, 107)},
+            {"darkmagenta", pdfgen::PDF_RGB(139, 0, 139)},
+            {"darkolivegreen", pdfgen::PDF_RGB(85, 107, 47)},
+            {"darkorange", pdfgen::PDF_RGB(255, 140, 0)},
+            {"darkorchid", pdfgen::PDF_RGB(153, 50, 204)},
+            {"darkred", pdfgen::PDF_RGB(139, 0, 0)},
+            {"darksalmon", pdfgen::PDF_RGB(233, 150, 122)},
+            {"darkseagreen", pdfgen::PDF_RGB(143, 188, 143)},
+            {"darkslateblue", pdfgen::PDF_RGB(72, 61, 139)},
+            {"darkslategray", pdfgen::PDF_RGB(47, 79, 79)},
+            {"darkslategrey", pdfgen::PDF_RGB(47, 79, 79)},
+            {"darkturquoise", pdfgen::PDF_RGB(0, 206, 209)},
+            {"darkviolet", pdfgen::PDF_RGB(148, 0, 211)},
+            {"deeppink", pdfgen::PDF_RGB(255, 20, 147)},
+            {"deepskyblue", pdfgen::PDF_RGB(0, 191, 255)},
+            {"dimgray", pdfgen::PDF_RGB(105, 105, 105)},
+            {"dimgrey", pdfgen::PDF_RGB(105, 105, 105)},
+            {"dodgerblue", pdfgen::PDF_RGB(30, 144, 255)},
+            {"firebrick", pdfgen::PDF_RGB(178, 34, 34)},
+            {"floralwhite", pdfgen::PDF_RGB(255, 250, 240)},
+            {"forestgreen", pdfgen::PDF_RGB(34, 139, 34)},
             {"fuchsia", pdfgen::PDF_RGB(255, 0, 255)},
+            {"gainsboro", pdfgen::PDF_RGB(220, 220, 220)},
+            {"ghostwhite", pdfgen::PDF_RGB(248, 248, 255)},
+            {"gold", pdfgen::PDF_RGB(255, 215, 0)},
+            {"goldenrod", pdfgen::PDF_RGB(218, 165, 32)},
+            {"gray", pdfgen::PDF_RGB(128, 128, 128)},
+            {"green", pdfgen::PDF_RGB(0, 128, 0)},
+            {"greenyellow", pdfgen::PDF_RGB(173, 255, 47)},
+            {"grey", pdfgen::PDF_RGB(128, 128, 128)},
+            {"honeydew", pdfgen::PDF_RGB(240, 255, 240)},
+            {"hotpink", pdfgen::PDF_RGB(255, 105, 180)},
+            {"indianred", pdfgen::PDF_RGB(205, 92, 92)},
+            {"indigo", pdfgen::PDF_RGB(75, 0, 130)},
+            {"ivory", pdfgen::PDF_RGB(255, 255, 240)},
+            {"khaki", pdfgen::PDF_RGB(240, 230, 140)},
+            {"lavender", pdfgen::PDF_RGB(230, 230, 250)},
+            {"lavenderblush", pdfgen::PDF_RGB(255, 240, 245)},
+            {"lawngreen", pdfgen::PDF_RGB(124, 252, 0)},
+            {"lemonchiffon", pdfgen::PDF_RGB(255, 250, 205)},
+            {"lightblue", pdfgen::PDF_RGB(173, 216, 230)},
+            {"lightcoral", pdfgen::PDF_RGB(240, 128, 128)},
+            {"lightcyan", pdfgen::PDF_RGB(224, 255, 255)},
+            {"lightgoldenrodyellow", pdfgen::PDF_RGB(250, 250, 210)},
+            {"lightgray", pdfgen::PDF_RGB(211, 211, 211)},
+            {"lightgreen", pdfgen::PDF_RGB(144, 238, 144)},
+            {"lightgrey", pdfgen::PDF_RGB(211, 211, 211)},
+            {"lightpink", pdfgen::PDF_RGB(255, 182, 193)},
+            {"lightsalmon", pdfgen::PDF_RGB(255, 160, 122)},
+            {"lightseagreen", pdfgen::PDF_RGB(32, 178, 170)},
+            {"lightskyblue", pdfgen::PDF_RGB(135, 206, 250)},
+            {"lightslategray", pdfgen::PDF_RGB(119, 136, 153)},
+            {"lightslategrey", pdfgen::PDF_RGB(119, 136, 153)},
+            {"lightsteelblue", pdfgen::PDF_RGB(176, 196, 222)},
+            {"lightyellow", pdfgen::PDF_RGB(255, 255, 224)},
             {"lime", pdfgen::PDF_RGB(0, 255, 0)},
-            {"olive", pdfgen::PDF_RGB(128, 128, 0)},
+            {"limegreen", pdfgen::PDF_RGB(50, 205, 50)},
+            {"linen", pdfgen::PDF_RGB(250, 240, 230)},
+            {"magenta", pdfgen::PDF_RGB(255, 0, 255)},
             {"maroon", pdfgen::PDF_RGB(128, 0, 0)},
+            {"mediumaquamarine", pdfgen::PDF_RGB(102, 205, 170)},
+            {"mediumblue", pdfgen::PDF_RGB(0, 0, 205)},
+            {"mediumorchid", pdfgen::PDF_RGB(186, 85, 211)},
+            {"mediumpurple", pdfgen::PDF_RGB(147, 112, 219)},
+            {"mediumseagreen", pdfgen::PDF_RGB(60, 179, 113)},
+            {"mediumslateblue", pdfgen::PDF_RGB(123, 104, 238)},
+            {"mediumspringgreen", pdfgen::PDF_RGB(0, 250, 154)},
+            {"mediumturquoise", pdfgen::PDF_RGB(72, 209, 204)},
+            {"mediumvioletred", pdfgen::PDF_RGB(199, 21, 133)},
+            {"midnightblue", pdfgen::PDF_RGB(25, 25, 112)},
+            {"mintcream", pdfgen::PDF_RGB(245, 255, 250)},
+            {"mistyrose", pdfgen::PDF_RGB(255, 228, 225)},
+            {"moccasin", pdfgen::PDF_RGB(255, 228, 181)},
+            {"navajowhite", pdfgen::PDF_RGB(255, 222, 173)},
+            {"navy", pdfgen::PDF_RGB(0, 0, 128)},
+            {"oldlace", pdfgen::PDF_RGB(253, 245, 230)},
+            {"olive", pdfgen::PDF_RGB(128, 128, 0)},
+            {"olivedrab", pdfgen::PDF_RGB(107, 142, 35)},
+            {"orange", pdfgen::PDF_RGB(255, 165, 0)},
+            {"orangered", pdfgen::PDF_RGB(255, 69, 0)},
+            {"orchid", pdfgen::PDF_RGB(218, 112, 214)},
+            {"palegoldenrod", pdfgen::PDF_RGB(238, 232, 170)},
+            {"palegreen", pdfgen::PDF_RGB(152, 251, 152)},
+            {"paleturquoise", pdfgen::PDF_RGB(175, 238, 238)},
+            {"palevioletred", pdfgen::PDF_RGB(219, 112, 147)},
+            {"papayawhip", pdfgen::PDF_RGB(255, 239, 213)},
+            {"peachpuff", pdfgen::PDF_RGB(255, 218, 185)},
+            {"peru", pdfgen::PDF_RGB(205, 133, 63)},
             {"pink", pdfgen::PDF_RGB(255, 192, 203)},
+            {"plum", pdfgen::PDF_RGB(221, 160, 221)},
+            {"powderblue", pdfgen::PDF_RGB(176, 224, 230)},
+            {"purple", pdfgen::PDF_RGB(128, 0, 128)},
+            {"rebeccapurple", pdfgen::PDF_RGB(102, 51, 153)},
+            {"red", pdfgen::PDF_RGB(255, 0, 0)},
+            {"rosybrown", pdfgen::PDF_RGB(188, 143, 143)},
+            {"royalblue", pdfgen::PDF_RGB(65, 105, 225)},
+            {"saddlebrown", pdfgen::PDF_RGB(139, 69, 19)},
+            {"salmon", pdfgen::PDF_RGB(250, 128, 114)},
+            {"sandybrown", pdfgen::PDF_RGB(244, 164, 96)},
+            {"seagreen", pdfgen::PDF_RGB(46, 139, 87)},
+            {"seashell", pdfgen::PDF_RGB(255, 245, 238)},
+            {"sienna", pdfgen::PDF_RGB(160, 82, 45)},
+            {"silver", pdfgen::PDF_RGB(192, 192, 192)},
+            {"skyblue", pdfgen::PDF_RGB(135, 206, 235)},
+            {"slateblue", pdfgen::PDF_RGB(106, 90, 205)},
+            {"slategray", pdfgen::PDF_RGB(112, 128, 144)},
+            {"slategrey", pdfgen::PDF_RGB(112, 128, 144)},
+            {"snow", pdfgen::PDF_RGB(255, 250, 250)},
+            {"springgreen", pdfgen::PDF_RGB(0, 255, 127)},
+            {"steelblue", pdfgen::PDF_RGB(70, 130, 180)},
+            {"tan", pdfgen::PDF_RGB(210, 180, 140)},
+            {"teal", pdfgen::PDF_RGB(0, 128, 128)},
+            {"thistle", pdfgen::PDF_RGB(216, 191, 216)},
+            {"tomato", pdfgen::PDF_RGB(255, 99, 71)},
+            {"turquoise", pdfgen::PDF_RGB(64, 224, 208)},
+            {"violet", pdfgen::PDF_RGB(238, 130, 238)},
+            {"wheat", pdfgen::PDF_RGB(245, 222, 179)},
+            {"white", pdfgen::PDF_RGB(255, 255, 255)},
+            {"whitesmoke", pdfgen::PDF_RGB(245, 245, 245)},
+            {"yellow", pdfgen::PDF_RGB(255, 255, 0)},
+            {"yellowgreen", pdfgen::PDF_RGB(154, 205, 50)},
         }};
         for (const auto& [name, colour] : namedColors) {
             if (normalized == name) {
@@ -1667,7 +1829,7 @@ class Canvas {
                         out << viewport.mapX(vertex.x()) << ',' << viewport.mapY(vertex.y());
                     }
                     out << "\""
-                        << styleAttributes(element.style) << ">"
+                        << strokeOnlyAttributes(element.style) << ">"
                         << titleTag << "</polyline>";
                 }
             } else if constexpr (std::same_as<S, Disk<PT>>) {
@@ -1696,11 +1858,11 @@ class Canvas {
         std::vector<int> keys;
         for (const Element& element : elements_) {
             const PDFStyle style = pdfStyleOf(element.style);
-            if (!pdfgen::PDF_IS_TRANSPARENT(style.stroke) && style.strokeAlpha < 1.0f) {
-                keys.push_back(static_cast<int>(std::lround(style.strokeAlpha * 1000.0f)));
+            if (const std::optional<int> key = ipeStrokeOpacityKey(style)) {
+                keys.push_back(*key);
             }
-            if (!pdfgen::PDF_IS_TRANSPARENT(style.fill) && style.fillAlpha < 1.0f) {
-                keys.push_back(static_cast<int>(std::lround(style.fillAlpha * 1000.0f)));
+            if (const std::optional<int> key = ipeFillOpacityKey(style)) {
+                keys.push_back(*key);
             }
         }
         std::sort(keys.begin(), keys.end());
@@ -1710,6 +1872,32 @@ class Canvas {
 
     static std::string ipeOpacityName(int perMille) {
         return "op" + std::to_string(perMille);
+    }
+
+    static int ipeOpacityKey(float alpha) {
+        return static_cast<int>(std::lround(alpha * 1000.0f));
+    }
+
+    // The opacity the fill must name, if any.
+    static std::optional<int> ipeFillOpacityKey(const PDFStyle& style) {
+        if (pdfgen::PDF_IS_TRANSPARENT(style.fill) || style.fillAlpha >= 1.0f) {
+            return std::nullopt;
+        }
+        return ipeOpacityKey(style.fillAlpha);
+    }
+
+    // The opacity the stroke must name, if any. Ipe's `opacity` attribute dims
+    // the whole object rather than just its interior, so a stroke drawn around
+    // a translucent fill has to name its own opacity — even when that opacity
+    // is 1 — or it inherits the fill's.
+    static std::optional<int> ipeStrokeOpacityKey(const PDFStyle& style) {
+        if (pdfgen::PDF_IS_TRANSPARENT(style.stroke)) {
+            return std::nullopt;
+        }
+        if (style.strokeAlpha >= 1.0f && !ipeFillOpacityKey(style)) {
+            return std::nullopt;
+        }
+        return ipeOpacityKey(style.strokeAlpha);
     }
 
     static std::string ipeColorTriplet(std::uint32_t colour) {
@@ -1722,8 +1910,8 @@ class Canvas {
         std::ostringstream out;
         if (!pdfgen::PDF_IS_TRANSPARENT(style.stroke)) {
             out << " stroke=\"" << ipeColorTriplet(style.stroke) << '"';
-            if (style.strokeAlpha < 1.0f) {
-                out << " stroke-opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(style.strokeAlpha * 1000.0f))) << '"';
+            if (const std::optional<int> key = ipeStrokeOpacityKey(style)) {
+                out << " stroke-opacity=\"" << ipeOpacityName(*key) << '"';
             }
             if (style.strokeWidth > 0.0f) {
                 out << " pen=\"" << style.strokeWidth << '"';
@@ -1736,8 +1924,8 @@ class Canvas {
         std::ostringstream out;
         if (!pdfgen::PDF_IS_TRANSPARENT(style.fill)) {
             out << " fill=\"" << ipeColorTriplet(style.fill) << '"';
-            if (style.fillAlpha < 1.0f) {
-                out << " opacity=\"" << ipeOpacityName(static_cast<int>(std::lround(style.fillAlpha * 1000.0f))) << '"';
+            if (const std::optional<int> key = ipeFillOpacityKey(style)) {
+                out << " opacity=\"" << ipeOpacityName(*key) << '"';
             }
         }
         return out.str();
