@@ -168,6 +168,51 @@ TEST_CASE("Canvas writes PDF opacity through ExtGState resources") {
     CHECK(countSubstring(pdf, "/Type /ExtGState") == 1);
 }
 
+TEST_CASE("Canvas resolves CSS colors and percentage opacities in every backend") {
+    const std::string pdfPath = "build/tests/output/canvas_css_style.pdf";
+    const std::string ipePath = "build/tests/output/canvas_css_style.ipe";
+
+    pgl::Canvas canvas;
+    canvas.size(320.0, 240.0).margin(16.0);
+
+    // seagreen and olivedrab are CSS color names; a backend that does not know
+    // them leaves the shape unpainted. The opacity is a percentage and the
+    // stroke width carries the "px" unit, as SVG allows for both.
+    canvas << pgl::stroke("olivedrab")
+           << pgl::fill("seagreen")
+           << pgl::fillOpacity("25%")
+           << pgl::strokeWidth("2px")
+           << pgl::Rectangle<pgl::Point<int>>({0, 0}, {40, 30});
+
+    canvas.writePDF(pdfPath);
+    canvas.writeIPE(ipePath);
+
+    std::ifstream pdfInput(pdfPath, std::ios::binary);
+    REQUIRE(pdfInput.good());
+    const std::string pdf((std::istreambuf_iterator<char>(pdfInput)), std::istreambuf_iterator<char>());
+
+    // seagreen is 46,139,87 and olivedrab is 107,142,35, both scaled to [0,1];
+    // "25%" is the fill alpha and "2px" the stroke width.
+    CHECK(pdf.find("0.180392 0.545098 0.341176 rg") != std::string::npos);
+    CHECK(pdf.find("0.419608 0.556863 0.137255 RG") != std::string::npos);
+    CHECK(pdf.find("/ca 0.250000") != std::string::npos);
+    CHECK(pdf.find("2.000000 w") != std::string::npos);
+
+    std::ifstream ipeInput(ipePath);
+    REQUIRE(ipeInput.good());
+    const std::string ipe((std::istreambuf_iterator<char>(ipeInput)), std::istreambuf_iterator<char>());
+
+    CHECK(ipe.find("<opacity name=\"op250\" value=\"0.25\"/>") != std::string::npos);
+    CHECK(ipe.find("fill=\"0.180392 0.545098 0.341176\" opacity=\"op250\"") != std::string::npos);
+    CHECK(ipe.find("stroke=\"0.419608 0.556863 0.137255\"") != std::string::npos);
+    CHECK(ipe.find("pen=\"2\"") != std::string::npos);
+
+    // Ipe's `opacity` dims the whole object, so an opaque stroke around a
+    // translucent fill has to name its own opacity, declared like any other.
+    CHECK(ipe.find("<opacity name=\"op1000\" value=\"1\"/>") != std::string::npos);
+    CHECK(ipe.find("stroke-opacity=\"op1000\"") != std::string::npos);
+}
+
 TEST_CASE("Canvas writes an Ipe (.ipe) XML file") {
     const std::string path = "build/tests/output/canvas_test.ipe";
 
@@ -358,7 +403,8 @@ TEST_CASE("Canvas renders a MonotoneChain as an open polyline") {
     const std::string path = "build/tests/output/monotonechain_canvas.svg";
 
     pgl::Canvas canvas;
-    canvas << pgl::MonotoneChain<pgl::Point<int>>({0, 0, 2, 4, 4, 0})
+    canvas << pgl::fill("gold")
+           << pgl::MonotoneChain<pgl::Point<int>>({0, 0, 2, 4, 4, 0})
            << pgl::Shape<pgl::Point<int>>(pgl::MonotoneChain<pgl::Point<int>>({0, 2, 4, 2}));
     canvas.writeSVG(path);
 
@@ -368,6 +414,10 @@ TEST_CASE("Canvas renders a MonotoneChain as an open polyline") {
 
     CHECK(svg.find("<polyline") != std::string::npos);
     CHECK(svg.find("<polygon") == std::string::npos);   // never closed or filled
+    // A curve is never filled, whatever the current fill color is: SVG would
+    // otherwise paint the area enclosed by the implicit closing edge.
+    CHECK(svg.find("fill=\"gold\"") == std::string::npos);
+    CHECK(svg.find("fill=\"none\"") != std::string::npos);
     CHECK(svg.find("<title>MonotoneChain[(0,0),(2,4),(4,0)]</title>") != std::string::npos);
 }
 
@@ -435,7 +485,8 @@ TEST_CASE("Canvas renders a Polyline as an open polyline") {
     const std::string path = "build/tests/output/polyline_canvas.svg";
 
     pgl::Canvas canvas;
-    canvas << pgl::Polyline<pgl::Point<int>>({0, 0, 4, 4, 4, 0, 0, 4})
+    canvas << pgl::fill("gold")
+           << pgl::Polyline<pgl::Point<int>>({0, 0, 4, 4, 4, 0, 0, 4})
            << pgl::Shape<pgl::Point<int>>(pgl::Polyline<pgl::Point<int>>({0, 2, 4, 2}));
     canvas.writeSVG(path);
 
@@ -445,6 +496,8 @@ TEST_CASE("Canvas renders a Polyline as an open polyline") {
 
     CHECK(svg.find("<polyline") != std::string::npos);
     CHECK(svg.find("<polygon") == std::string::npos);   // never closed or filled
+    CHECK(svg.find("fill=\"gold\"") == std::string::npos);
+    CHECK(svg.find("fill=\"none\"") != std::string::npos);
     CHECK(svg.find("<title>Polyline[(0,0),(4,4),(4,0),(0,4)]</title>") != std::string::npos);
 }
 
