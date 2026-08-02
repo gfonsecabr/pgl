@@ -665,6 +665,12 @@ struct PolygonWithHoles {
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     intersection(const OtherRegion& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
+
     /**
      * @brief Returns the regularized symmetric difference of the two shapes
      *        (A △ B).
