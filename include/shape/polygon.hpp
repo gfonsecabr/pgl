@@ -1860,12 +1860,13 @@ struct Polygon {
      * @brief Returns the squared Euclidean distance to a disk.
      *
      * Zero when the polygon's closed region intersects the disk; otherwise the
-     * squared exterior gap. Not templated on a result type: a disk's exterior
-     * distance is irrational, so it always returns `double`, mirroring
-     * @ref Disk::squaredDistance.
+     * squared exterior gap. Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      */
-    template <class DiskPointType, class DiskLabel>
-    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const;
+    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(
+        const Disk<DiskPointType, DiskLabel>& disk) const;
 
     /** @brief Returns the Manhattan (L1) distance to the given shape. */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>

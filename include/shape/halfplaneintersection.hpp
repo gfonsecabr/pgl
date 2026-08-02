@@ -1826,11 +1826,12 @@ struct HalfplaneIntersection {
     /**
      * @brief Returns the squared Euclidean distance to the given disk.
      *
-     * Always returns `double`, like @ref Disk::squaredDistance: the gap to a
-     * circle is generally irrational.
+     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      */
     template <class ResultNumber = NumberType, DiskConcept OtherDisk>
-    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
 
     /** @copydoc squaredDistance(const OtherPoint&) const */
     template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherRegion>

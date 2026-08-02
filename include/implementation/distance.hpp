@@ -1115,131 +1115,154 @@ namespace detail {
  * The caller has already established that the disk and @p other do not
  * intersect, so the nearest point of the disk lies on its circle and the
  * distance is `distance(center, other) - radius`. The squared distance is
- * generally irrational, hence the fixed `double` result. Evaluate the gap
+ * generally irrational, so the whole gap is evaluated in @p Float, the
+ * floating-point type the caller asked its result in. Evaluate the gap
  * directly as `sqrt(dc2) - radius`; this well-conditioned form avoids the
  * catastrophic cancellation of the algebraically equal
  * `dc2 + r2 - 2*sqrt(dc2 * r2)`.
  */
-template <class DiskType, class OtherShape>
-double diskExteriorSquaredDistance(const DiskType& disk, const OtherShape& other) {
-    const double gap =
-        std::sqrt(other.template squaredDistance<double>(disk.template center<double>()))
-        - disk.template radius<double>();
+template <class Float = double, class DiskType, class OtherShape>
+Float diskExteriorSquaredDistance(const DiskType& disk, const OtherShape& other) {
+    const Float gap =
+        std::sqrt(other.template squaredDistance<Float>(disk.template center<Float>()))
+        - disk.template radius<Float>();
     return gap * gap;
 }
 
 }  // namespace detail
 
 template <class PointType_, class LabelType>
-template <DiskConcept OtherDisk>
-double Convex<PointType_, LabelType>::squaredDistance(const OtherDisk& other) const {
+template <class ResultNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ResultNumber> Convex<PointType_, LabelType>::squaredDistance(
+    const OtherDisk& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(other, *this);
+    return detail::diskExteriorSquaredDistance<Float>(other, *this);
 }
 
 template <class PointType_, class TLabel>
-template <PointConcept OtherPoint>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherPoint& point) const {
+template <class ResultNumber, PointConcept OtherPoint>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherPoint& point) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (contains(point)) {
-        return 0.0;
+        return Float{0};
     }
 
     // Exterior point: the nearest point of the disk is on the circle, so the
     // distance is |point - center| - radius. The squared distance is generally
-    // irrational, hence the fixed double result. Evaluate the gap directly as
+    // irrational, hence the floating result. Evaluate the gap directly as
     // sqrt(dc2) - sqrt(r2); this well-conditioned form avoids the catastrophic
     // cancellation of the algebraically equal dc2 + r2 - 2*sqrt(dc2 * r2).
-    const double gap = center<double>().template distance<double>(point) - radius<double>();
+    const Float gap = center<Float>().template distance<Float>(point) - radius<Float>();
     return gap * gap;
 }
 
 template <class PointType_, class TLabel>
-template <SegmentConcept OtherSegment>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherSegment& other) const {
+template <class ResultNumber, SegmentConcept OtherSegment>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherSegment& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <OrientedSegmentConcept OtherOrientedSegment>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherOrientedSegment& other) const {
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherOrientedSegment& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <LineConcept OtherLine>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherLine& other) const {
+template <class ResultNumber, LineConcept OtherLine>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherLine& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <OrientedLineConcept OtherOrientedLine>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherOrientedLine& other) const {
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherOrientedLine& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <RayConcept OtherRay>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherRay& other) const {
+template <class ResultNumber, RayConcept OtherRay>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherRay& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <HalfplaneConcept OtherHalfplane>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherHalfplane& other) const {
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherHalfplane& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <RectangleConcept OtherRectangle>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherRectangle& other) const {
+template <class ResultNumber, RectangleConcept OtherRectangle>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherRectangle& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <TriangleConcept OtherTriangle>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherTriangle& other) const {
+template <class ResultNumber, TriangleConcept OtherTriangle>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherTriangle& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(*this, other);
+    return detail::diskExteriorSquaredDistance<Float>(*this, other);
 }
 
 template <class PointType_, class TLabel>
-template <DiskConcept OtherDisk>
-double Disk<PointType_, TLabel>::squaredDistance(const OtherDisk& other) const {
+template <class ResultNumber, DiskConcept OtherDisk>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::squaredDistance(
+    const OtherDisk& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
 
     // Disjoint disks: the nearest points lie on the two circles along the line
     // through the centers, so the distance is the center separation minus both
     // radii. Subtracting the radii from the directly computed center distance is
     // well-conditioned (no catastrophic cancellation in the squared form).
-    const double gap = center<double>().template distance<double>(other.template center<double>())
-                       - radius<double>() - other.template radius<double>();
+    const Float gap = center<Float>().template distance<Float>(other.template center<Float>())
+                      - radius<Float>() - other.template radius<Float>();
     return gap * gap;
 }
 
@@ -1360,12 +1383,14 @@ constexpr auto Polygon<PointType_, TLabel>::squaredDistance(const OtherPolygon& 
 }
 
 template <class PointType_, class TLabel>
-template <class DiskPointType, class DiskLabel>
-double Polygon<PointType_, TLabel>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+template <class ResultNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ResultNumber> Polygon<PointType_, TLabel>::squaredDistance(
+    const Disk<DiskPointType, DiskLabel>& disk) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(disk)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(disk, *this);
+    return detail::diskExteriorSquaredDistance<Float>(disk, *this);
 }
 
 template <class PointType_, class TLabel>
@@ -1500,12 +1525,14 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::squaredDistance(con
 }
 
 template <class PointType, class LabelType, class Storage>
-template <class DiskPointType, class DiskLabel>
-double MonotoneChain<PointType, LabelType, Storage>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+template <class ResultNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ResultNumber> MonotoneChain<PointType, LabelType, Storage>::squaredDistance(
+    const Disk<DiskPointType, DiskLabel>& disk) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(disk)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(disk, *this);
+    return detail::diskExteriorSquaredDistance<Float>(disk, *this);
 }
 
 // -----------------------------------------------------------------------------
@@ -1635,12 +1662,14 @@ constexpr auto Polyline<PointType, LabelType>::squaredDistance(const OtherChain&
 }
 
 template <class PointType, class LabelType>
-template <class DiskPointType, class DiskLabel>
-double Polyline<PointType, LabelType>::squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+template <class ResultNumber, class DiskPointType, class DiskLabel>
+detail::floating_result_t<ResultNumber> Polyline<PointType, LabelType>::squaredDistance(
+    const Disk<DiskPointType, DiskLabel>& disk) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(disk)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(disk, *this);
+    return detail::diskExteriorSquaredDistance<Float>(disk, *this);
 }
 
 template <class PointType_, class TLabel>
@@ -1714,18 +1743,20 @@ PGL_HPI_SQUARED_DISTANCE(PolygonConcept, OtherPolygon)
 
 template <class PointType, class LabelType>
 template <class ResultNumber, DiskConcept OtherDisk>
-double HalfplaneIntersection<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+detail::floating_result_t<ResultNumber>
+HalfplaneIntersection<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    // Disk::squaredDistance is not templated on ResultNumber, so the edge's
-    // own forwarder does not match; call the disk directly on each edge.
+    // A distance to a disk is irrational, so the whole scan runs in Float; the
+    // edges themselves stay exact, hence the separate E.
     using E = detail::region_exact_number_t<NumberType>;
-    double best = 0.0;
+    Float best{0};
     bool has = false;
     for (std::size_t i = 0; i < size(); ++i) {
-        const double current = std::visit(
-            [&other](const auto& piece) { return other.squaredDistance(piece); },
+        const Float current = std::visit(
+            [&other](const auto& piece) { return other.template squaredDistance<Float>(piece); },
             this->template edge<E>(i));
         if (!has || current < best) {
             best = current;
@@ -1911,20 +1942,22 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::squaredDistance(const Oth
 }
 
 // The nearest point of a disjoint disk lies on its circle, so the gap is the
-// distance to its center less its radius — generally irrational, hence the fixed
-// double result that every other distance to a Disk returns.
+// distance to its center less its radius — generally irrational, hence the
+// floating result every other distance to a Disk returns.
 template <class PointType, class LabelType>
 template <class ResultNumber, DiskConcept OtherDisk>
-double PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+detail::floating_result_t<ResultNumber>
+PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (other.isDegenerate()) {
         // A degenerate disk has no centre or radius to measure from: it is the
         // point a() when its radius is zero, and undefined otherwise.
-        return this->template squaredDistance<double>(other.a());
+        return this->template squaredDistance<Float>(other.a());
     }
     if (intersects(other)) {
-        return 0.0;
+        return Float{0};
     }
-    return detail::diskExteriorSquaredDistance(other, *this);
+    return detail::diskExteriorSquaredDistance<Float>(other, *this);
 }
 
 }  // namespace pgl

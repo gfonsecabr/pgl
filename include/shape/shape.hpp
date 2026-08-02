@@ -846,12 +846,11 @@ struct Shape {
      *   selected at runtime — anything involving an `EmptyShape`, and any `Disk`
      *   pair other than `Disk`-`Point` (not yet implemented).
      *
-     * @warning `Disk::distanceL1` (like `Disk::squaredDistance`) always computes
-     *   in `double` rather than being templated on @p ResultNumber; for a pair
-     *   involving a `Disk`, the `double` result is `static_cast` to
-     *   @p ResultNumber rather than computed exactly. The same is true of
-     *   `Point`-`Point`, whose `distanceL1` has no `ResultNumber` template since
-     *   it needs no division to stay exact.
+     * @warning `Disk::distanceL1` (like `Disk::squaredDistance`) reports in
+     *   `detail::floating_result_t<ResultNumber>`, so an exact @p ResultNumber
+     *   is served in `double` and then `static_cast` back rather than computed
+     *   exactly. `Point`-`Point` also takes a cast, its `distanceL1` having no
+     *   `ResultNumber` template since it needs no division to stay exact.
      *
      * @warning With an integer @p ResultNumber the exact distance is generally a
      *   fraction for a non-axis-aligned segment, ray, or line, so the internal
@@ -1275,14 +1274,18 @@ struct Shape {
     // no defined squaredDistance (anything against an EmptyShape) takes the throw.
     // The requires probes are SFINAE-safe and self-maintaining: a pair gains
     // support here as soon as either side implements squaredDistance for the
-    // other (directly or via forwarding). The second probe covers Disk, whose
-    // squaredDistance (and the Disk overloads on Convex, MonotoneChain,
-    // Polyline, and Polygon) always returns double rather than being templated
-    // on ResultNumber.
+    // other (directly or via forwarding).
+    //
+    // Both probes convert explicitly, because a pair involving a Disk answers in
+    // detail::floating_result_t<ResultNumber> rather than in ResultNumber itself
+    // — an exact request cannot be honoured for a distance realized on a circle.
+    // That conversion is the point at which an exact caller learns it is getting
+    // a rounded answer, and it is why the cast cannot be left implicit: Rational
+    // is only explicitly constructible from a floating-point value.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber squaredDistanceOf(const Left& left, const Right& right) {
         if constexpr (requires { left.template squaredDistance<ResultNumber>(right); }) {
-            return left.template squaredDistance<ResultNumber>(right);
+            return static_cast<ResultNumber>(left.template squaredDistance<ResultNumber>(right));
         } else if constexpr (requires { left.squaredDistance(right); }) {
             return static_cast<ResultNumber>(left.squaredDistance(right));
         } else {
@@ -1307,15 +1310,15 @@ struct Shape {
     }
 
     // Measure the L1 distance between two unwrapped alternatives. The second
-    // probe covers both Disk (whose distanceL1 always returns double, like
-    // squaredDistance) and Point-Point (whose distanceL1 has no ResultNumber
-    // template at all, since it needs no division to stay exact). Any pair with
-    // neither overload (an EmptyShape, or a Disk paired with anything but a
-    // Point) takes the throw.
+    // probe covers Point-Point, whose distanceL1 has no ResultNumber template at
+    // all since it needs no division to stay exact. Any pair with neither
+    // overload (an EmptyShape, or a Disk paired with anything but a Point) takes
+    // the throw. Both probes convert explicitly, for the reason given on
+    // squaredDistanceOf: a Disk pair answers in a floating type.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber distanceL1Of(const Left& left, const Right& right) {
         if constexpr (requires { left.template distanceL1<ResultNumber>(right); }) {
-            return left.template distanceL1<ResultNumber>(right);
+            return static_cast<ResultNumber>(left.template distanceL1<ResultNumber>(right));
         } else if constexpr (requires { left.distanceL1(right); }) {
             return static_cast<ResultNumber>(left.distanceL1(right));
         } else {
@@ -1327,7 +1330,7 @@ struct Shape {
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber distanceLInfOf(const Left& left, const Right& right) {
         if constexpr (requires { left.template distanceLInf<ResultNumber>(right); }) {
-            return left.template distanceLInf<ResultNumber>(right);
+            return static_cast<ResultNumber>(left.template distanceLInf<ResultNumber>(right));
         } else if constexpr (requires { left.distanceLInf(right); }) {
             return static_cast<ResultNumber>(left.distanceLInf(right));
         } else {

@@ -125,31 +125,32 @@ constexpr ResultNumber maxVertexDistanceLInf(const Self& self, const OtherShape&
  * `max(|a + r*cos(t)|, |b + r*sin(t)|)`; see there for why this needs a
  * numeric coarse-scan-then-golden-section search rather than a closed form.
  */
-inline double diskPointDistanceLInf(double a, double b, double r) {
-    const auto h = [&](double theta) {
+template <class Float = double>
+Float diskPointDistanceLInf(Float a, Float b, Float r) {
+    const auto h = [&](Float theta) {
         return std::max(std::abs(a + r * std::cos(theta)), std::abs(b + r * std::sin(theta)));
     };
 
     constexpr int coarseSteps = 720;
-    double bestTheta = 0.0;
-    double bestValue = h(0.0);
+    Float bestTheta{0};
+    Float bestValue = h(Float{0});
     for (int i = 1; i < coarseSteps; ++i) {
-        const double theta = 2.0 * std::numbers::pi_v<double> * i / coarseSteps;
-        const double value = h(theta);
+        const Float theta = Float{2} * std::numbers::pi_v<Float> * i / coarseSteps;
+        const Float value = h(theta);
         if (value < bestValue) {
             bestValue = value;
             bestTheta = theta;
         }
     }
 
-    const double step = 2.0 * std::numbers::pi_v<double> / coarseSteps;
-    double lo = bestTheta - step;
-    double hi = bestTheta + step;
-    constexpr double invPhi = 0.6180339887498949;
-    double c1 = hi - invPhi * (hi - lo);
-    double c2 = lo + invPhi * (hi - lo);
-    double hc1 = h(c1);
-    double hc2 = h(c2);
+    const Float step = Float{2} * std::numbers::pi_v<Float> / coarseSteps;
+    Float lo = bestTheta - step;
+    Float hi = bestTheta + step;
+    constexpr Float invPhi = 0.6180339887498949;
+    Float c1 = hi - invPhi * (hi - lo);
+    Float c2 = lo + invPhi * (hi - lo);
+    Float hc1 = h(c1);
+    Float hc2 = h(c2);
     for (int i = 0; i < 100; ++i) {
         if (hc1 < hc2) {
             hi = c2;
@@ -184,14 +185,16 @@ constexpr auto Point<Number, Label>::hausdorffDistanceLInf(const OtherPoint& oth
 // Disk
 
 template <class PointType_, class TLabel>
-template <PointConcept OtherPoint>
-double Disk<PointType_, TLabel>::distanceLInf(const OtherPoint& point) const {
+template <class ResultNumber, PointConcept OtherPoint>
+detail::floating_result_t<ResultNumber> Disk<PointType_, TLabel>::distanceLInf(
+    const OtherPoint& point) const {
+    using Float = detail::floating_result_t<ResultNumber>;
     if (contains(point)) {
-        return 0.0;
+        return Float{0};
     }
-    const double a = center<double>().x() - static_cast<double>(point.x());
-    const double b = center<double>().y() - static_cast<double>(point.y());
-    return detail::diskPointDistanceLInf(a, b, radius<double>());
+    const Float a = center<Float>().x() - static_cast<Float>(point.x());
+    const Float b = center<Float>().y() - static_cast<Float>(point.y());
+    return detail::diskPointDistanceLInf(a, b, radius<Float>());
 }
 
 // -----------------------------------------------------------------------------
