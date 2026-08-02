@@ -797,6 +797,12 @@ struct Disk {
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
+
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool contains(const OtherSegment& other) const;

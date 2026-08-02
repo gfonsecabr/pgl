@@ -1650,6 +1650,12 @@ struct MonotoneChain {
                                                      Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherChain& other) const;
 
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
+
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
