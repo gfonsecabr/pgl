@@ -1139,14 +1139,13 @@ struct Ray {
     /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
-     * Forwards to @ref Disk::squaredDistance, which is not templated on a result
-     * type: a disk's exterior distance is irrational, so it always returns
-     * `double`. The generic forwarder above does not apply because it requires
-     * the templated `squaredDistance<ResultNumber>` form.
+     * Forwards to @ref Disk::squaredDistance. Reports in `detail::floating_result_t<ResultNumber>`: a distance realized on a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      */
-    template <class DiskPointType, class DiskLabel>
-    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
-        return disk.squaredDistance(*this);
+    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
+        return disk.template squaredDistance<ResultNumber>(*this);
     }
 
     /** @brief Returns the Manhattan (L1) distance to the given shape. */

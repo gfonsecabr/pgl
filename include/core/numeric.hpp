@@ -313,6 +313,24 @@ template <typename T>
 using promoted_number_t = typename _promote<T>::type;
 
 /**
+ * @brief The floating-point type an inexact measurement reports its result in.
+ *
+ * A few measurements have no closed form in the coordinate type — every
+ * distance to a @ref Disk, whose nearest point sits on a circle — and are found
+ * numerically rather than exactly. They still take the usual `ResultNumber`
+ * parameter, but they cannot honour an exact one: the answer is generally
+ * irrational whatever the input. This is the type they return instead.
+ *
+ * A floating-point `ResultNumber` is passed through, so
+ * `squaredDistance<long double>(disk)` really does compute and report in
+ * `long double`. Any other request — an integer, a @ref Rational — falls back
+ * to `double`, the widest precision such a call can actually be served at.
+ */
+template <class ResultNumber>
+using floating_result_t =
+    std::conditional_t<std::is_floating_point_v<ResultNumber>, ResultNumber, double>;
+
+/**
  * @brief Returns the greatest common divisor of two integral values.
  */
 constexpr auto gcd(std::integral auto a, std::integral auto b) {

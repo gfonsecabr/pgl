@@ -1122,3 +1122,42 @@ TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
     *mutablePoint.getIfPoint() = Point(8, 9);
     CHECK(mutablePoint == Shape(Point(8, 9)));
 }
+
+TEST_CASE("Shape measures a distance to a Disk in a floating result type") {
+    // A distance realized on a circle is generally irrational, so the whole
+    // Disk family reports in detail::floating_result_t<ResultNumber>: the
+    // requested type when it is floating-point, and double otherwise. The
+    // wrapper converts that back to ResultNumber explicitly, which is what
+    // lets an exact request reach a Disk pair at all.
+    using Point = pgl::Point<pgl::ERational>;
+    using Disk = pgl::Disk<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Disk disk(Point(20, 0), 1);
+    const Region region(Polygon({0, 0, 4, 0, 4, 4, 0, 4}));
+
+    // The pair that motivated the change: PolygonWithHoles (like
+    // HalfplaneIntersection) declares squaredDistance<ResultNumber>(Disk) but
+    // answers in a floating type, so the wrapper's exact instantiation used to
+    // fail to compile on the double -> Rational conversion.
+    const Shape wrapped = region;
+    const auto viaShape = wrapped.squaredDistance<pgl::ERational>(disk);
+    const auto direct = region.squaredDistance<pgl::ERational>(disk);
+    CHECK(static_cast<double>(viaShape) == doctest::Approx(direct));
+    CHECK(direct == doctest::Approx(15.0 * 15.0));
+
+    // A floating ResultNumber is honoured as asked rather than forced to
+    // double, on the concrete shape and through the wrapper alike.
+    static_assert(std::is_same_v<decltype(region.squaredDistance<long double>(disk)), long double>);
+    static_assert(std::is_same_v<decltype(disk.squaredDistance<float>(Point(0, 0))), float>);
+    static_assert(std::is_same_v<decltype(disk.squaredDistance<pgl::ERational>(Point(0, 0))), double>);
+    CHECK(wrapped.squaredDistance<double>(disk) == doctest::Approx(direct));
+
+    // The L1/LInf side of the family behaves the same way.
+    static_assert(std::is_same_v<decltype(disk.distanceL1<long double>(Point(0, 0))), long double>);
+    static_assert(std::is_same_v<decltype(disk.distanceLInf<float>(Point(0, 0))), float>);
+    const Shape origin = Point(0, 0);
+    CHECK(origin.distanceL1<pgl::ERational>(disk) > pgl::ERational(0));
+}

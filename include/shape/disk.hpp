@@ -645,12 +645,13 @@ struct Disk {
      * square of `|point - center| - radius`, the gap between the point and the
      * nearest point of the circle.
      *
-     * Always returns `double`: the distance to an exterior point is generally
-     * irrational, so unlike the other shapes there is no exact result to request
-     * and no `ResultNumber` template parameter.
+     * Reports in `detail::floating_result_t<ResultNumber>`: the distance to an
+     * exterior point is generally irrational, so unlike the other shapes an
+     * exact `ResultNumber` cannot be honoured. A floating-point one is used as
+     * asked; anything else falls back to `double`.
      */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] double squaredDistance(const OtherPoint& point) const;
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance from this disk to a shape.
@@ -660,50 +661,53 @@ struct Disk {
      * nearest point of the circle. Because the disk is the set of points within
      * `radius` of the center, this gap is the disk-to-shape distance.
      *
-     * Always returns `double`, like @ref squaredDistance(const OtherPoint&) const:
-     * the distance to a disjoint shape is generally irrational, so there is no
-     * exact result to request and no `ResultNumber` template parameter. The lower-
-     * ranked shapes forward their `squaredDistance(Disk)` to this overload.
+     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`. The lower-ranked shapes forward
+     * their `squaredDistance(Disk)` to this overload.
      */
-    template <SegmentConcept OtherSegment>
-    [[nodiscard]] double squaredDistance(const OtherSegment& other) const;
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <OrientedSegmentConcept OtherOrientedSegment>
-    [[nodiscard]] double squaredDistance(const OtherOrientedSegment& other) const;
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <LineConcept OtherLine>
-    [[nodiscard]] double squaredDistance(const OtherLine& other) const;
+    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <OrientedLineConcept OtherOrientedLine>
-    [[nodiscard]] double squaredDistance(const OtherOrientedLine& other) const;
+    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <RayConcept OtherRay>
-    [[nodiscard]] double squaredDistance(const OtherRay& other) const;
+    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRay& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <HalfplaneConcept OtherHalfplane>
-    [[nodiscard]] double squaredDistance(const OtherHalfplane& other) const;
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherHalfplane& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <RectangleConcept OtherRectangle>
-    [[nodiscard]] double squaredDistance(const OtherRectangle& other) const;
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRectangle& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <TriangleConcept OtherTriangle>
-    [[nodiscard]] double squaredDistance(const OtherTriangle& other) const;
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherTriangle& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance between two disks.
      *
      * Zero when the disks intersect (touching counts); otherwise the square of
-     * `distance(centers) - radius - other.radius`. Always returns `double`.
+     * `distance(centers) - radius - other.radius`.
+     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      */
-    template <DiskConcept OtherDisk>
-    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+    template <class ResultNumber = NumberType, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
@@ -712,11 +716,11 @@ struct Disk {
      * needs `squaredDistance` defined only once, on the higher-ranked shape (the
      * shapes ranked above @ref Disk are @ref Convex and @ref Polygon).
      */
-    template <typename OtherShape>
+    template <class ResultNumber = NumberType, typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>
                   && requires(const OtherShape& o, const Disk& self) { o.squaredDistance(self); })
-    [[nodiscard]] double squaredDistance(const OtherShape& other) const {
-        return other.squaredDistance(*this);
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
     }
 
     /**
@@ -729,39 +733,45 @@ struct Disk {
      * coarse angular scan with a golden-section search. Always returns
      * `double`, like @ref squaredDistance(const OtherPoint&) const.
      */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] double distanceL1(const OtherPoint& point) const;
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceL1(const OtherPoint& point) const;
 
     /**
      * @brief Returns the Chebyshev (LInf) distance from this disk to a point.
      *
      * @copydetails distanceL1(const OtherPoint&) const
      */
-    template <PointConcept OtherPoint>
-    [[nodiscard]] double distanceLInf(const OtherPoint& point) const;
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> distanceLInf(const OtherPoint& point) const;
 
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
      * Distance is symmetric, so this just calls @p other's own `distanceL1`
-     * requesting `double` (like every other `Disk` overload), which visits
-     * its wrapped alternative and throws if the pair is unsupported.
+     * requesting `double`, which visits its wrapped alternative and throws if
+     * the pair is unsupported.
      *
-     * @warning Fixed to this disk's own `Shape<PointType>` rather than a
-     *          deduced point type: `Disk::distanceL1` has no `ResultNumber`
-     *          template of its own (it always returns `double`), so it is a
-     *          function with a single template parameter, just like the
-     *          plain `distanceL1(const OtherPoint&)` above. If that single
-     *          slot were a deduced point type here too, an external explicit
-     *          probe such as `o.template distanceL1<ResultNumber>(self)`
-     *          (used throughout this codebase's rank-forwarding machinery)
-     *          would bind `ResultNumber`'s type directly to it, forcing an
-     *          attempt to form `Shape<ResultNumberType>` — e.g. `Shape<int>`
-     *          — which is not a valid point type and triggers a hard error
-     *          deep inside `std::variant`'s instantiation, not a
-     *          SFINAE-friendly failure. A fixed, already-valid parameter type
-     *          has no template parameter for an explicit argument to land on,
-     *          so such a probe is simply rejected as an arity mismatch.
+     * @warning Deliberately *not* templated on `ResultNumber`, unlike every
+     *          other `Disk` distance overload, and fixed to this disk's own
+     *          `Shape<PointType>` rather than a deduced point type. Both halves
+     *          of that are load-bearing, for two different reasons.
+     *
+     *          The fixed parameter type keeps the rank-forwarding machinery's
+     *          explicit probe `o.template distanceL1<ResultNumber>(self)` from
+     *          landing on a deduced point type and forcing an attempt to form
+     *          `Shape<ResultNumberType>` — e.g. `Shape<int>` — which is not a
+     *          valid point type and triggers a hard error deep inside
+     *          `std::variant`'s instantiation rather than a SFINAE-friendly
+     *          failure.
+     *
+     *          The missing `ResultNumber` slot is what makes that same probe
+     *          fail by arity here. Give this overload one and the probe
+     *          succeeds instead, binding the other shape to `Shape<PointType>`
+     *          through its implicit conversion — so `line.distanceL1(disk)`
+     *          forwards to `disk.distanceL1(Shape(line))`, which visits the
+     *          `Line` alternative and forwards straight back. That cycle is a
+     *          stack overflow, not a compile error, which is why it is pinned
+     *          by a test (`tests/unit/shape.cpp`).
      */
     [[nodiscard]] double distanceL1(const Shape<PointType>& other) const {
         return other.template distanceL1<double>(*this);

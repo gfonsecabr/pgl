@@ -1530,11 +1530,13 @@ struct Polyline {
     /**
      * @brief Returns the squared Euclidean distance to a disk.
      *
-     * Forwards to @ref Disk::squaredDistance's model: a disk's exterior
-     * distance is irrational, so it always returns `double`.
+     * Forwards to @ref Disk::squaredDistance's model. Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      */
-    template <class DiskPointType, class DiskLabel>
-    [[nodiscard]] double squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const;
+    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(
+        const Disk<DiskPointType, DiskLabel>& disk) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.

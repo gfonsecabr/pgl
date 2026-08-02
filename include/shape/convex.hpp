@@ -2062,17 +2062,17 @@ struct Convex {
      * `distance(center, polygon) - radius`, the gap between the polygon and the
      * nearest point of the circle.
      *
-     * Always returns `double`, like @ref Disk::squaredDistance(const OtherPoint&) const:
-     * the distance to a disjoint disk is generally irrational, so there is no
-     * exact result to request and no `ResultNumber` template parameter.
+     * Reports in `detail::floating_result_t<ResultNumber>`: the gap to a
+     * circle is generally irrational, so a floating-point `ResultNumber` is
+     * honoured as asked and any other request falls back to `double`.
      *
      * Complexity: O(log n) for n vertices.
      *
      * @tparam OtherDisk The disk type.
      * @param other The disk to measure to.
      */
-    template <DiskConcept OtherDisk>
-    [[nodiscard]] double squaredDistance(const OtherDisk& other) const;
+    template <class ResultNumber = NumberType, DiskConcept OtherDisk>
+    [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
