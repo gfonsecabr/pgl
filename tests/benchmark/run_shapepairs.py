@@ -22,8 +22,10 @@ means something when both sides summed over the same pairs, so where ERational
 stops early the other types of that cell are capped at the same pair count, and
 a capped program runs that prefix out whatever it costs — the time budget binds
 only the uncapped ERational run that sets the cap.  Every type of a cell whose
-baseline ran therefore has a verdict.  All timing data are written to a JSON
-file.
+baseline ran therefore has a verdict.  Such a cell is measured once whatever
+--repetitions says, since a median over runs that each cost a full budget and
+each covered different pairs is not worth what it costs.  All timing data are
+written to a JSON file.
 
 Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
@@ -410,7 +412,8 @@ def compile_source(src: Path, binary: Path,
 def run_binary(binary: Path,
                repetitions: int = 1,
                max_pairs: int = 0,
-               timeout_s: float = RUN_TIMEOUT_S) -> tuple[bool, tuple[int, float, float, float, int] | str]:
+               timeout_s: float = RUN_TIMEOUT_S,
+               full_pairs: int = 0) -> tuple[bool, tuple[int, float, float, float, int] | str]:
     """Run binary 'repetitions' times; aggregate the timings.
 
     'max_pairs' caps the pairs the program may work through; 0 leaves it to run
@@ -418,15 +421,20 @@ def run_binary(binary: Path,
     it has a prefix to finish — so 'timeout_s' is the only thing bounding it,
     and killing it there would throw away the very comparison the cap was for.
 
+    'full_pairs' is the pair count of an untruncated run. Given it, repetitions
+    stop as soon as one comes back short of it: a run that stopped on the time
+    budget spent the whole budget getting there, and where it stopped moves with
+    the load on the machine, so repeating costs a budget apiece to take a median
+    over measurements that did not cover the same work.
+
     Returns (True, (count, median_ns, min_ns, max_ns, calls)) — the median damps
     scheduler noise while min/max record the observed spread. On failure returns
     (False, message).
 
     A cell that completes all its pairs reports the same count every run. One
-    that stops on the time budget does not: where it stops depends on how the
-    machine was loaded, so both the count and the pair total shift run to run.
-    The reported count and calls are therefore taken from the same run that
-    supplied the median time, keeping the triple internally consistent.
+    that stops on the time budget does not, so the reported count and calls are
+    taken from the same run that supplied the median time, keeping the triple
+    internally consistent.
     """
     argv = [str(binary)] + ([str(max_pairs)] if max_pairs > 0 else [])
     runs: list[tuple[float, int, int]] = []   # (ns, count, calls)
@@ -442,6 +450,8 @@ def run_binary(binary: Path,
             return False, r.stdout
         count, ns, calls = parsed
         runs.append((ns, count, calls))
+        if full_pairs and calls < full_pairs:
+            break
     if not runs:
         return False, ""
     runs.sort()
@@ -517,7 +527,9 @@ def main() -> None:
                     help="seconds a single benchmark program may spend in its "
                          "measured loop before stopping early (0 = no limit)")
     ap.add_argument("--repetitions", type=int, default=1,
-                    help="run each binary N times and keep the median time")
+                    help="run each binary N times and keep the median time; "
+                         "cells the exact baseline could not finish inside the "
+                         "time budget are run once regardless")
     ap.add_argument("--keep-build", dest="keep_build", action="store_true",
                     help="keep the generated sources and compiled binaries; "
                          "by default a run that completes deletes them")
@@ -712,16 +724,29 @@ def main() -> None:
     ]
 
     cap_for_cell: dict[tuple, int] = {}
+    truncated_cell: dict[tuple, bool] = {}
     for i, key in enumerate(ordered_keys, 1):
         shape1, size1, shape2, size2, method, type_key = key
-        cap = 0 if type_key == GROUND_TRUTH_TYPE else cap_for_cell.get(key[:5], 0)
-        ok, res = run_binary(bins[key], args.repetitions, cap)
+        full_pairs = _n_shapes_for(method) ** 2
+        if type_key == GROUND_TRUTH_TYPE:
+            # Uncapped, and told what an untruncated run looks like so it can
+            # give up repeating the moment the budget starts cutting runs short.
+            cap, reps, stop_early = 0, args.repetitions, full_pairs
+        else:
+            # A cell whose baseline was truncated is one of the expensive ones,
+            # and every type of it is measured over a prefix rather than the
+            # whole thing. Repeating that is minutes spent per cell to average
+            # samples the baseline could not afford to take itself.
+            cap = cap_for_cell.get(key[:5], 0)
+            reps = 1 if truncated_cell.get(key[:5]) else args.repetitions
+            stop_early = 0
+        ok, res = run_binary(bins[key], reps, cap, full_pairs=stop_early)
         parsed = res if ok else None
         run_results[key] = parsed
         if type_key == GROUND_TRUTH_TYPE and parsed:
             cap_for_cell[key[:5]] = parsed[4]
+            truncated_cell[key[:5]] = parsed[4] < full_pairs
         if parsed:
-            full_pairs = _n_shapes_for(method) ** 2
             cut = ("" if parsed[4] in (0, full_pairs)
                    else f"\t({parsed[4]}/{full_pairs} pairs)")
             result_str = f"{parsed[0]}\t{parsed[1]:.2f}ns{cut}"
