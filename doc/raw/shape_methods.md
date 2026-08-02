@@ -198,6 +198,14 @@ The pieces have pairwise disjoint interiors and their union is the result. They
 are **not** nested: an island stranded inside a hole of the result comes back as
 a piece of its own, since this library has no `PolygonSet`.
 
+A `PolygonWithHoles` written by hand can carry a slit of its own, and
+`A.regularized()` is that same regularization offered on its own: it returns the
+pieces of $\mathrm{closure}(A^\circ)$, which is `A` without its slits.
+`A.isRegular()` says whether there were any. Both are described with the
+[region](shapes.md#polygon-with-holes) itself. Note that this makes `A.unionWith(A)`
+*not* `A` but `A.regularized()`: idempotence holds up to regularization and no
+further.
+
 The boundaries can cross at non-integral points, so all four take the usual
 `ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The arrangement
 itself is always built over exact rationals and converted only at the end, so an
