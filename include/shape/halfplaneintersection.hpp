@@ -1764,6 +1764,63 @@ struct HalfplaneIntersection {
     [[nodiscard]] constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherRegion& other) const;
 
+    /**
+     * @brief Returns the intersection with a simple polygon (A ∩ B), as
+     * components.
+     *
+     * The polygon need not be convex, so the region's convexity buys nothing
+     * here: `A ∩ B` can be several disjoint pieces, and the result is the
+     * component vector @ref Polygon::intersection(const OtherPolygon&) const
+     * returns — @ref Point for an isolated boundary touch, @ref Polyline for a
+     * shared stretch of boundary with no area beside it, @ref Polygon for a
+     * filled piece — in no particular order. No component has a hole: both
+     * operands have a connected complement (see
+     * @ref PolygonWithHoles::intersection(const OtherPolygon&) const for the
+     * one shape that does not).
+     *
+     * The polygon is bounded, so the region is first clipped to the polygon's
+     * bounding rectangle; that leaves `A ∩ B` untouched — the polygon lies
+     * inside its own bounding rectangle — and makes even an unbounded region a
+     * convex polygon, which the polygon's own overload then handles. A region
+     * with empty interior contributes only its carrier — a point, a segment, a
+     * ray or a line — clipped to the polygon.
+     *
+     * Complexity: O(n m log(n + m)) for n stored half-planes and m vertices.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @tparam OtherPolygon The polygon type.
+     * @param other The polygon to intersect with.
+     * @return The intersection components: points, polylines, and polygons.
+     * @warning The region's vertices are crossings of constraint lines and so
+     * are generally rational; `ResultNumber` must be able to represent them —
+     * ask for `pgl::ERational` (or another @ref Rational) to keep the result
+     * exact. The clipping itself divides after casting to `ResultNumber`.
+     */
+    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherPolygon& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersection` defined only once, on the higher-ranked shape. The
+     * result is then the higher-ranked shape's: intersecting with a
+     * @ref PolygonWithHoles gives regions, not the component vector the
+     * polygon overload returns.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires (!PointConcept<OtherShape> &&
+                  (detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>) &&
+                  requires(const OtherShape& o, const HalfplaneIntersection& self) {
+                      o.template intersection<ResultNumber>(self);
+                  })
+    [[nodiscard]] auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
     // --- distances (defined in the implementation layer) ---
     //
     // Zero when the shapes intersect; otherwise the minimum over the region's

@@ -306,3 +306,73 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the symmetric predicates")
         CHECK(solid.squaredDistance<ERational>(h) == poly.squaredDistance<ERational>(h));
     }
 }
+
+// A half-plane intersection operand pulls in the region-valued `intersection`,
+// the one that keeps holes -- so this pair answers with regions rather than with
+// the component vector `HalfplaneIntersection::intersection(Polygon)` returns,
+// and it answers the same in either order.
+
+TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps holes") {
+    const Region region = annulus();
+    using EPoint = pgl::Point<ERational>;
+    using ERegion = pgl::PolygonWithHoles<EPoint>;
+
+    SUBCASE("a region covered by the operand comes back whole, hole and all") {
+        const Intersection covering(RectangleShape(Point(-5, -5), Point(15, 15)));
+        const auto pieces = region.intersection<ERational>(covering);
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == ERegion(region));
+        CHECK(covering.intersection<ERational>(region) == pieces);
+    }
+
+    SUBCASE("an unbounded operand is clipped to the region") {
+        // {x >= 5} keeps the right half of the annulus, whose ring is cut open
+        // by the hole into a single outer ring with a notch.
+        const Intersection right(rightOf(5));
+        REQUIRE(!right.isBounded());
+        const auto pieces = region.intersection<ERational>(right);
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0].holes().empty());
+        CHECK(pieces[0].area<ERational>() == ERational(50 - 8));
+        CHECK(right.intersection<ERational>(region) == pieces);
+    }
+
+    SUBCASE("the operand can come apart into several pieces") {
+        // The horizontal slab 4 <= y <= 6 crosses the hole, so what is left of
+        // the annulus in it is the two bars beside the hole.
+        Intersection slab(above(4));
+        slab.insert(below(6));
+        const auto pieces = region.intersection<ERational>(slab);
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0].area<ERational>() == ERational(6));
+        CHECK(pieces[1].area<ERational>() == ERational(6));
+        CHECK(slab.intersection<ERational>(region) == pieces);
+    }
+
+    SUBCASE("the crossings are exact whatever the coordinates look like") {
+        // The line through (0,1) and (3,0) meets the outer ring at thirds; the
+        // arrangement is built over rationals, so the area is exact.
+        const Intersection tilted(Halfplane(Point(0, 1), Point(3, 0)));
+        const auto pieces = region.intersection<ERational>(tilted);
+        REQUIRE(pieces.size() == 1);
+        REQUIRE(pieces[0].holes().size() == 1);
+        // The whole annulus but the corner triangle (0,0)-(3,0)-(0,1).
+        CHECK(pieces[0].area<ERational>() == ERational(100 - 16) - ERational(3, 2));
+    }
+
+    SUBCASE("nothing with area gives no piece at all") {
+        Intersection empty(rightOf(5));
+        empty.insert(leftOf(3));
+        REQUIRE(empty.isEmpty());
+        CHECK(region.intersection<ERational>(empty).empty());
+
+        Intersection line(above(5));
+        line.insert(below(5));
+        REQUIRE(line.isDegenerate());
+        CHECK(region.intersection<ERational>(line).empty());
+        CHECK(line.intersection<ERational>(region).empty());
+
+        // Missing the region entirely is empty too.
+        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).empty());
+    }
+}

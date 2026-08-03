@@ -717,6 +717,25 @@ struct PolygonWithHoles {
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     intersection(const OtherRegion& other) const;
 
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane intersection may be unbounded, but this region is not, so
+     * only the part of it near this region matters: it is first clipped to a
+     * box strictly containing the bounding rectangle, which leaves `A ∩ B`
+     * untouched and makes it a convex polygon. A half-plane intersection with
+     * empty interior contributes nothing to a regularized result.
+     *
+     * Note that this is the region-valued `intersection`, so it answers
+     * `intersection.intersection(region)` too — see
+     * @ref intersection(const OtherPolygon&) const. The clip's corners are
+     * whole numbers in the operand's own coordinate type, so the arrangement
+     * stays exact whatever @p ResultNumber is.
+     */
+    template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    intersection(const OtherIntersection& other) const;
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {

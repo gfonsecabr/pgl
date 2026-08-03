@@ -809,9 +809,18 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Ha
     REQUIRE(chord.holdsAlternative<Segment>());
     CHECK(Segment(chord) == Segment({0, 3}, {6, 3}));
 
-    // Unsupported pairs still throw: a Disk, or a Polygon, against the region.
+    // A polygon against the region comes back as its single component.
+    const Shape corner = shape.intersection(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})));
+    REQUIRE(corner.holdsAlternative<Polygon>());
+    CHECK(Polygon(corner) == Polygon({0, 0, 4, 0, 4, 4, 0, 4}));
+    CHECK(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})).intersection(shape) == corner);
+
+    // A disconnected one has no single Shape to be, and a Disk has no
+    // intersection with the region at all.
+    const Shape uShaped = Polygon({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
+    const Shape slab = Region({Halfplane({0, 3}, {1, 3}), Halfplane({1, 5}, {0, 5})});
+    CHECK_THROWS_AS((void)slab.intersection(uShaped), std::logic_error);
     CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
-    CHECK_THROWS_AS((void)shape.intersection(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4}))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
     const Shape farPoint = Point(20, 3);

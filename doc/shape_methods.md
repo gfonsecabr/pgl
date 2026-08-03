@@ -241,6 +241,11 @@ Which of the two answers a call is decided by the operands, not by the receiver:
 a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") operand pulls in the region-valued one whichever side it is
 written on, so `polygon.intersection(region)` forwards to
 `region.intersection(polygon)` and gives back regions rather than components.
+The same goes for a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") operand — `region.intersection(k)`
+and `k.intersection(region)` are the same regions — even though that shape's
+own `intersection` against a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") is the general, component-valued one.
+An unbounded operand is no obstacle: a region is bounded, so `k` is clipped to
+its bounding rectangle first, which changes nothing.
 
 One further difference is worth knowing: `Polygon::intersection` computes in the
 result type, so an integral one truncates every crossing, while the region

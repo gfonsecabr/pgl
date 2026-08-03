@@ -719,6 +719,8 @@ A half-plane intersection `k` has methods such as:
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an integer result type the box is rounded outward so it always encloses the region.
 - `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
 - `k.intersection(h)`: Intersecting with a `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection` returns another `HalfplaneIntersection`, so the type is closed under these operations and the result is exact (no coordinate divisions).
+- `k.intersection(P)`: Intersecting with a `Polygon` returns the usual `std::vector` of components — points, polylines, and polygons — since a reflex polygon can meet the convex region in several disjoint pieces. The region is first clipped to the polygon's bounding rectangle, which changes nothing and makes it a convex polygon; a region with empty interior contributes only its carrier, clipped to the polygon. Request `pgl::ERational` coordinates: the pieces are cut at crossings of the constraint lines and are generally rational.
+- `k.intersection(A)`: Intersecting with a `PolygonWithHoles` is the region-valued `intersection` — see [Boolean Operations](shape_methods.md#boolean-operations) — and returns a `std::vector<PolygonWithHoles>`, exact whatever the result type, since a holed operand keeps its holes.
 
 If the region has $n$ half-planes, then:
 

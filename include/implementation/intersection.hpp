@@ -3396,4 +3396,86 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRegion& oth
     return result;
 }
 
+// A polygon is bounded, so only the part of the region near it matters: the
+// region clipped to the polygon's own bounding rectangle has the same
+// intersection with it — P ⊆ bbox(P), so A ∩ P = (A ∩ bbox) ∩ P — and, being
+// bounded and convex, is a convex polygon, which Polygon::intersection already
+// handles. That is where all the work happens; everything here is the
+// reduction to it.
+//
+// The clip is done over exact rationals, and against bbox(P) itself rather
+// than an inflated box: an inflated one would move the clip vertices off the
+// crossings the answer already carries and deepen them for nothing, which for
+// an inexact ResultNumber is the difference between an answer that closes up
+// and one that does not.
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                         Polygon<Point<ResultNumber, typename PointType::LabelType>>>>
+HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPolygon& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultPolyline = Polyline<ResultPoint>;
+    using ResultPolygon = Polygon<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultPolyline, ResultPolygon>;
+    using ExactNumber = detail::region_exact_number_t<NumberType>;
+    using ExactPoint = Point<ExactNumber, typename PointType::LabelType>;
+    using ExactRegion = HalfplaneIntersection<ExactPoint>;
+
+    std::vector<Piece> result;
+    if (isEmpty() || other.size() == 0) {
+        return result;
+    }
+    // The polygon is relabelled into the region's label type so the components
+    // come back carrying it, as every other overload here does.
+    const Polygon<ExactPoint> exact(other);
+
+    // A region with empty interior is its carrier — a point, a segment, a ray
+    // or a line — and the polygon clips those itself. Their pieces are points
+    // and segments, and a segment is the two-vertex polyline of this contract.
+    const auto carrierPieces = [&exact, &result](const auto& region) {
+        std::visit(
+            [&exact, &result](const auto& carrier) {
+                using Carrier = std::remove_cvref_t<decltype(carrier)>;
+                if constexpr (PointConcept<Carrier>) {
+                    if (exact.contains(carrier)) {
+                        result.emplace_back(ResultPoint(carrier));
+                    }
+                } else {
+                    for (const auto& piece : exact.template intersection<ResultNumber>(carrier)) {
+                        if (const auto* point = std::get_if<ResultPoint>(&piece)) {
+                            result.emplace_back(*point);
+                        } else {
+                            const ResultSegment& chord = std::get<ResultSegment>(piece);
+                            result.emplace_back(
+                                ResultPolyline(std::vector<ResultPoint>{chord.min(), chord.max()}));
+                        }
+                    }
+                }
+            },
+            detail::degenerateRegionCarrier(region));
+    };
+
+    if (isDegenerate()) {
+        carrierPieces(*this);  // unclipped: the polygon handles a ray or a line itself
+        return result;
+    }
+
+    ExactRegion clipped(*this);
+    for (const auto& halfplane : ExactRegion(exact.bbox())) {
+        clipped.insert(halfplane);
+    }
+    if (clipped.isEmpty()) {
+        return result;  // the region misses the polygon's bounding rectangle
+    }
+    // A full-dimensional region can still meet the bounding rectangle in a
+    // segment or a point, and then so does everything below it.
+    if (clipped.isDegenerate()) {
+        carrierPieces(clipped);
+        return result;
+    }
+    return exact.template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
 }  // namespace pgl
