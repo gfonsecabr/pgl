@@ -328,7 +328,7 @@ concept BoundedConvexConcept =
  * sum that can enclose a hole is not one shape but a set of regions, so
  * `Polygon::minkowskiSum`, `PolygonWithHoles::minkowskiSum` and
  * `Polyline::minkowskiSum` carry it as an overload set of their own, over exactly
- * the pairs this concept rejects. See `algorithm/minkowskisum.hpp`.
+ * the pairs this concept rejects. See `implementation/minkowskisum.hpp`.
  */
 template <class A, class B>
 concept MinkowskiSummableConcept =

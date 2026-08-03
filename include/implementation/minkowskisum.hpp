@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/booleans.hpp"
+#include "implementation/booleans.hpp"
 
 /**
  * @file minkowskisum.hpp
