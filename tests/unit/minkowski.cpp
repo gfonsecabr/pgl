@@ -318,10 +318,13 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(!summable<pgl::Disk<>, pgl::Disk<>>);
     static_assert(!summable<pgl::Disk<>, pgl::Triangle<>>);
 
-    // A `MonotoneChain` carries neither overload set: `asPolyline()` converts one
-    // when its sum is wanted.
-    static_assert(!summable<pgl::MonotoneChain<>, pgl::Segment<>>);
-    static_assert(!summable<pgl::MonotoneChain<>, pgl::Triangle<>>);
+    // A `MonotoneChain` is not convex, so this concept rejects it as it rejects
+    // every other chain; its sums are the third overload set, on the chain itself
+    // (see monotonechain_minkowski.cpp).
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::MonotoneChain<>, pgl::Triangle<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::MonotoneChain<>, pgl::Segment<>>);
+    static_assert(summable<pgl::MonotoneChain<>, pgl::Triangle<>>);
+    static_assert(summable<pgl::MonotoneChain<>, pgl::Segment<>>);
 
     // The one pair of chains the region-valued set leaves out.
     static_assert(!summable<pgl::Polyline<>, pgl::Polyline<>>);
@@ -379,9 +382,15 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
                                      std::declval<const pgl::Segment<>&>())),
                                  pgl::Convex<Point>>);
-    // The forwarder is gated on the operand outranking the segment, so it never
-    // reaches a shape that has no region-valued sum to answer with.
-    static_assert(!summable<pgl::Segment<>, pgl::MonotoneChain<>>);
+    // A `MonotoneChain` outranks a segment and does have a sum to answer with, so
+    // the forwarder reaches it and the pair is region-valued from either side.
+    static_assert(summable<pgl::Segment<>, pgl::MonotoneChain<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
+                           std::declval<const pgl::MonotoneChain<>&>())),
+                       std::vector<pgl::PolygonWithHoles<Point>>>);
+    // The forwarder is otherwise gated on the operand outranking the segment, so
+    // it never reaches a shape that has no sum to answer with.
     static_assert(!summable<pgl::OrientedSegment<>, pgl::Disk<>>);
 
     // Translation stays available for all of them.

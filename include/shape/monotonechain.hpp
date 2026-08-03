@@ -1976,6 +1976,120 @@ struct MonotoneChain {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski sum of the chain and a bounded convex shape
+     *        (A ⊕ B), as a single polygon.
+     *
+     * The sum is `{p + q : p ∈ A, q ∈ B}`. A chain is not convex, so this pair
+     * is not one @ref MinkowskiSummableConcept accepts; it is not one of the
+     * region-valued sums either. **The sum of an x-monotone chain with a convex
+     * shape is a monotone polygon**: every vertical line meets it in a single
+     * interval, so it is the region between two x-monotone chains and can never
+     * enclose a hole, split into pieces, or need regularizing. Compare
+     * @ref Polyline::minkowskiSum(const OtherConvex&) const, which answers the
+     * same question for a chain that may bend back on itself and therefore has
+     * to return a set of regions.
+     *
+     * The result is **not regularized**: it is the sum's point set exactly, so an
+     * operand that has collapsed to a segment or a point — a degenerate operand,
+     * as everywhere in the library — gives back a degenerate polygon rather than
+     * nothing. An operand with area gives a simple one. The two operands that
+     * legitimately have no area, `Segment` and @ref OrientedSegment, are not in
+     * this set for that reason: their sums can pinch shut, which no polygon may
+     * do, so they keep the region-valued contract — see
+     * @ref minkowskiSum(const OtherSegment&) const.
+     *
+     * Complexity: one convex merge per chain edge, `O(nm)` for a chain of `n`
+     * vertices and an operand of `m`, then one sweep merging the pieces' arcs
+     * into the two boundaries. The pieces arrive already sorted along x, so the
+     * sweep touches only what an incoming piece can still reach: no arrangement
+     * is built and nothing is triangulated.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The sum, as one polygon.
+     * @note Every vertex of every piece sum is a sum of two input vertices, and
+     *       the sweep decides everything with integer determinants, so an
+     *       integral sum whose boundary has no crossing comes back exactly, with
+     *       no division performed anywhere. Only where two pieces cross can a
+     *       vertex land off the lattice; that one is formed as an exact fraction
+     *       and converted to @p ResultNumber once, so ask for an exact
+     *       `ResultNumber` unless you know the sum lands on the lattice.
+     */
+    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    [[nodiscard]] Polygon<Point<ResultNumber, typename PointType::LabelType>>
+    minkowskiSum(const OtherConvex& other) const;
+
+    /** @brief Returns the Minkowski sum of the two shapes (A ⊕ B), as one polygon. */
+    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    [[nodiscard]] Polygon<Point<ResultNumber, typename PointType::LabelType>>
+    minkowskiSum(const OtherTriangle& other) const;
+
+    /** @brief Returns the Minkowski sum of the two shapes (A ⊕ B), as one polygon. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] Polygon<Point<ResultNumber, typename PointType::LabelType>>
+    minkowskiSum(const OtherRectangle& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the chain and a segment
+     *        (A ⊕ B), as a set of regions.
+     *
+     * The thinnest operand a chain takes, and the one operand of the set with no
+     * area of its own: a chain edge and the segment span a parallelogram unless
+     * the two are parallel, in which case they span a segment. That is what puts
+     * this pair on the region-valued contract rather than the polygon-valued one
+     * above. An edge parallel to the summand sweeps out nothing, so the sum can
+     * carry a stretch with no area beside it and can pinch shut where two of its
+     * parts merely touch — and a polygon may do neither. The answer is therefore
+     * `closure((A ⊕ B)°)`, in pieces, exactly as
+     * @ref Polyline::minkowskiSum(const OtherSegment&) const returns it: a chain
+     * that *is* a segment parallel to the summand comes back **empty**, and one
+     * whose parts touch at a point comes back as two regions.
+     *
+     * The pieces never have holes — each is a slice of a region that meets every
+     * vertical line in an interval — and they are built by the same sweep as the
+     * polygon-valued sums, so this stays the cheap answer that the chain's
+     * monotonicity buys: no arrangement, and no rational unless a crossing needs
+     * one.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     */
+    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherSegment& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * An orientation is not part of a point set, so this is the sum with the
+     * underlying segment, vertex for vertex.
+     */
+    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOriented>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherOriented& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
+     * The operands left over are the ones whose own concavity can strand a
+     * cavity, so the sum is a set of regions however monotone the chain is.
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs the sum defined only once, on the higher-ranked shape; see
+     * @ref Polygon::minkowskiSum(const OtherChain&) const for the contract.
+     */
+    template <class ResultNumber = NumberType, typename OtherShape>
+        requires(!MinkowskiSummableConcept<MonotoneChain<PointType_, TLabel, Storage>, OtherShape>
+                 && (detail::shapeRank<OtherShape> >
+                     detail::shapeRank<MonotoneChain<PointType_, TLabel, Storage>>)
+                 && requires(const OtherShape& o, const MonotoneChain& self) {
+                        o.template minkowskiSum<ResultNumber>(self);
+                    })
+    [[nodiscard]] auto minkowskiSum(const OtherShape& other) const {
+        return other.template minkowskiSum<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Translates the chain by the given point.
      *
      * Complexity: O(1).
