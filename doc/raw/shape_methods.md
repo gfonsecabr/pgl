@@ -239,6 +239,11 @@ Which of the two answers a call is decided by the operands, not by the receiver:
 a `PolygonWithHoles` operand pulls in the region-valued one whichever side it is
 written on, so `polygon.intersection(region)` forwards to
 `region.intersection(polygon)` and gives back regions rather than components.
+The same goes for a `HalfplaneIntersection` operand — `region.intersection(k)`
+and `k.intersection(region)` are the same regions — even though that shape's
+own `intersection` against a `Polygon` is the general, component-valued one.
+An unbounded operand is no obstacle: a region is bounded, so `k` is clipped to
+its bounding rectangle first, which changes nothing.
 
 One further difference is worth knowing: `Polygon::intersection` computes in the
 result type, so an integral one truncates every crossing, while the region

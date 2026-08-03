@@ -710,17 +710,19 @@ struct Shape {
      * @throws std::logic_error when the result cannot be represented by a single
      *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
      *   whose intersection is unsupported (anything against a `Disk`, and a
-     *   `HalfplaneIntersection` against a `Polygon`, `MonotoneChain`, or
-     *   `Polyline`). Two `Halfplane`s, and a `HalfplaneIntersection` against a
-     *   `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another
-     *   `HalfplaneIntersection`, wrap their (possibly unbounded or empty)
-     *   `HalfplaneIntersection` result. A `PolygonWithHoles` against a
-     *   `Rectangle`, `Triangle`, `Convex`, `Polygon`, or another
-     *   `PolygonWithHoles` wraps the single component of its regularized
-     *   `PolygonWithHoles` result, and throws when that intersection comes apart
-     *   into several pieces. That pair answers in either order except with a
-     *   `Polygon` on the left, whose own `Polygon`-valued `intersection` leaves
-     *   no rank forwarder to reach the region's.
+     *   `HalfplaneIntersection` against a `MonotoneChain` or `Polyline`). Two
+     *   `Halfplane`s, and a `HalfplaneIntersection` against a `Halfplane`,
+     *   `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection`,
+     *   wrap their (possibly unbounded or empty) `HalfplaneIntersection`
+     *   result. A `HalfplaneIntersection` against a `Polygon` wraps the single
+     *   component of its component vector, in either order. A
+     *   `PolygonWithHoles` against a `Rectangle`, `Triangle`, `Convex`,
+     *   `Polygon`, `HalfplaneIntersection`, or another `PolygonWithHoles` wraps
+     *   the single component of its regularized `PolygonWithHoles` result, and
+     *   throws when that intersection comes apart into several pieces. That
+     *   pair answers in either order except with a `Polygon` on the left, whose
+     *   own `Polygon`-valued `intersection` leaves no rank forwarder to reach
+     *   the region's.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>

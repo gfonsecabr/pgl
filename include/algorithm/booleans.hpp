@@ -699,4 +699,22 @@ PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRegion& other) con
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    // Neither a region without area nor a half-plane intersection without
+    // interior can contribute to closure(A° ∩ B°).
+    if (isDegenerate() || other.isDegenerate()) {
+        return {};
+    }
+    // The clip only has to preserve A ∩ B, and A lies strictly inside the box.
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return {};
+    }
+    return this->template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
 }  // namespace pgl
