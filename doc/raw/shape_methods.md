@@ -142,9 +142,21 @@ pgl::Point<> p(isec);
 // p = (3,3)
 ```
 
-`PolygonWithHoles` carries a second `intersection` alongside this one, returning
-regions rather than polygons, because it is the one shape whose intersections
-can have holes. See [Boolean Operations](#boolean-operations).
+A region clips a one-dimensional operand — a point, a segment, a line, a ray, a
+polyline, a monotone chain — exactly as a polygon does, into the pieces the two
+share, holes taken out and every ring kept:
+
+```c++
+pgl::Polygon<> hole({3,3, 7,3, 7,7, 3,7});
+pgl::PolygonWithHoles<> annulus(square, std::vector{hole});
+auto pieces = annulus.intersection(pgl::Segment(-5,5, 15,5));
+// pieces == { Segment(0,5, 3,5), Segment(7,5, 10,5) } — the hole is out
+```
+
+`PolygonWithHoles` also carries a second `intersection` alongside this one, for
+operands with area, returning regions rather than polygons, because it is the one
+shape whose intersections can have holes. See
+[Boolean Operations](#boolean-operations).
 
 ### Boolean Operations
 
@@ -235,15 +247,23 @@ auto pieces = annulus.intersection(pgl::Rectangle(-5,-5, 20,20));
 // pieces.size() == 1, and pieces[0] == annulus — hole and all
 ```
 
-Which of the two answers a call is decided by the operands, not by the receiver:
-a `PolygonWithHoles` operand pulls in the region-valued one whichever side it is
-written on, so `polygon.intersection(region)` forwards to
-`region.intersection(polygon)` and gives back regions rather than components.
-The same goes for a `HalfplaneIntersection` operand — `region.intersection(k)`
-and `k.intersection(region)` are the same regions — even though that shape's
-own `intersection` against a `Polygon` is the general, component-valued one.
-An unbounded operand is no obstacle: a region is bounded, so `k` is clipped to
-its bounding rectangle first, which changes nothing.
+Which of the two answers a call is decided by the operands, not by the receiver.
+The region-valued one takes over as soon as **both** operands have area: a
+`PolygonWithHoles` operand pulls it in whichever side it is written on, so
+`polygon.intersection(region)` forwards to `region.intersection(polygon)` and
+gives back regions rather than components. The same goes for a
+`HalfplaneIntersection` operand — `region.intersection(k)` and
+`k.intersection(region)` are the same regions — even though that shape's own
+`intersection` against a `Polygon` is the general, component-valued one. An
+unbounded operand is no obstacle: a region is bounded, so `k` is clipped to its
+bounding rectangle first, which changes nothing.
+
+A one-dimensional operand gets the general one instead, on either side, since it
+is the only one there is: `closure(A° ∩ B°)` is empty for everything without
+area, so the regularized answer would always be nothing.
+`region.intersection(segment)` therefore returns the point-and-segment pieces
+shown [above](#intersection), the same ones `polygon.intersection(segment)`
+returns.
 
 One further difference is worth knowing: `Polygon::intersection` computes in the
 result type, so an integral one truncates every crossing, while the region

@@ -1600,6 +1600,283 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 }
 
 // ---------------------------------------------------------------------------
+// Clipping a one-dimensional shape to an area bounded by rings
+//
+// A polygon and a region differ here only in how many rings bound them, so the
+// walk below takes the boundary edges and nothing else: the even-odd rule reads
+// a ring system exactly as it reads a single ring, and a point inside a hole is
+// inside two rings and hence outside the area. The three shape-specific
+// wrappers add only the parameter window their shape occupies on its supporting
+// line, which leaves Polygon and PolygonWithHoles a one-line overload each.
+
+namespace detail {
+
+/** @brief The point-or-segment pieces a one-dimensional clip returns. */
+template <class ResultPoint>
+using LinePieces = std::vector<std::variant<ResultPoint, Segment<ResultPoint>>>;
+
+/**
+ * @brief A closed piece of (line ∩ area), as the interval `[lo, hi]` in the
+ *        line's parameter together with the matching endpoints.
+ *
+ * A degenerate interval (`lo == hi`) is a single point.
+ */
+template <class ResultNumber, class ResultPoint>
+struct LineSpan {
+    ResultNumber lo, hi;
+    ResultPoint plo, phi;
+};
+
+/**
+ * @brief Clips the whole line through @p a and @p b to the closed area bounded
+ *        by @p edges, as disjoint spans sorted by parameter.
+ *
+ * The parametrization is `t = (p − a) · (b − a)`: it is 0 at @p a, grows towards
+ * @p b, orders points along the line exactly (no division) and — since every
+ * point handled here lies on that line — identifies each point uniquely. Callers
+ * clip the spans to their own parameter window.
+ *
+ * @tparam ResultNumber Number type the parameter and the endpoints are computed in.
+ * @param a First point of the line and the parameter origin.
+ * @param b Second point of the line; must differ from @p a.
+ * @param edges Directed boundary edges of the area, ring by ring. The crossings
+ *        are computed from the edges' own coordinates, so an exact input stays
+ *        exact until the final cast.
+ * @return The closed pieces of (line ∩ area), sorted by @c lo and disjoint.
+ */
+template <class ResultNumber, class ResultPoint, class EdgeRange>
+constexpr std::vector<LineSpan<ResultNumber, ResultPoint>>
+lineAreaSpans(const ResultPoint& a, const ResultPoint& b, const EdgeRange& edges) {
+    using Span = LineSpan<ResultNumber, ResultPoint>;
+
+    const ResultPoint direction = b - a;
+    const Line<ResultPoint> line(a, b);
+    auto tOf = [&](const ResultPoint& p) -> ResultNumber { return (p - a) * direction; };
+
+    // Signed side of a vertex w.r.t. the line (CCW positive, 0 on the line).
+    auto sideOf = [&](const ResultPoint& v) -> int {
+        const auto o = orientationSign(a, b, v);
+        if (o > 0) return 1;
+        if (o < 0) return -1;
+        return 0;
+    };
+
+    auto makeSpan = [](ResultNumber t1, ResultNumber t2, const ResultPoint& p1, const ResultPoint& p2) -> Span {
+        return (t1 <= t2) ? Span{t1, t2, p1, p2} : Span{t2, t1, p2, p1};
+    };
+    std::vector<Span> spans;
+
+    // Boundary crossings of the line, used to recover inside/outside by ray
+    // parity. A vertex on the line is treated as if perturbed to the -1 side,
+    // which counts vertex touches and collinear edges consistently: each edge
+    // whose perturbed endpoint signs differ contributes one crossing. Each
+    // vertex is the source of exactly one directed edge of its ring, so which
+    // way the ring is wound changes nothing here — and hole rings are wound the
+    // other way from the outer one.
+    std::vector<std::pair<ResultNumber, ResultPoint>> crossings;
+
+    for (const auto& edge : edges) {
+        using EdgePoint = typename std::remove_cvref_t<decltype(edge)>::PointType;
+        const ResultPoint u = static_cast<ResultPoint>(edge.source());
+        const ResultPoint w = static_cast<ResultPoint>(edge.target());
+        const int su = sideOf(u);
+        const int sw = sideOf(w);
+
+        if (su == 0 && sw == 0) {
+            // Edge collinear with the line: a boundary overlap, always closed.
+            spans.push_back(makeSpan(tOf(u), tOf(w), u, w));
+            continue;
+        }
+        if (su == 0) {
+            // Vertex on the line: a boundary touch point (recorded once, here,
+            // as the source vertex of its edge).
+            spans.push_back({tOf(u), tOf(u), u, u});
+        }
+
+        if (su != 0 && sw != 0 && su != sw) {
+            // Transversal crossing through the edge interior.
+            const auto isec = line.template intersection<ResultNumber>(
+                Segment<EdgePoint>(edge.source(), edge.target()));
+            if (isec && std::holds_alternative<ResultPoint>(*isec)) {
+                const ResultPoint c = std::get<ResultPoint>(*isec);
+                spans.push_back({tOf(c), tOf(c), c, c});
+                crossings.emplace_back(tOf(c), c);
+            }
+        } else {
+            // Perturbed crossing located at whichever endpoint is on the line.
+            const int eu = (su != 0) ? su : -1;
+            const int ew = (sw != 0) ? sw : -1;
+            if (eu != ew) {
+                const ResultPoint& onLine = (su == 0) ? u : w;
+                crossings.emplace_back(tOf(onLine), onLine);
+            }
+        }
+    }
+
+    // Walk the crossings in order; the open cell to the right of a crossing is
+    // inside the area exactly when an odd number of crossings lie to its left.
+    // Each maximal inside cell becomes a closed interval (its endpoints are
+    // boundary crossings, hence in the closed area too).
+    std::sort(crossings.begin(), crossings.end(),
+              [](const auto& x, const auto& y) { return x.first < y.first; });
+    std::size_t idx = 0;
+    int parity = 0;
+    while (idx < crossings.size()) {
+        const ResultNumber tcur = crossings[idx].first;
+        const ResultPoint pcur = crossings[idx].second;
+        std::size_t next = idx;
+        while (next < crossings.size() && crossings[next].first == tcur) {
+            ++next;
+        }
+        parity += static_cast<int>(next - idx);
+        if ((parity & 1) && next < crossings.size()) {
+            spans.push_back({tcur, crossings[next].first, pcur, crossings[next].second});
+        }
+        idx = next;
+    }
+
+    // Union the spans: sort by lo, then merge touching or overlapping ones.
+    std::sort(spans.begin(), spans.end(),
+              [](const Span& x, const Span& y) { return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi; });
+    std::vector<Span> merged;
+    for (const Span& s : spans) {
+        if (merged.empty() || s.lo > merged.back().hi) {
+            merged.push_back(s);
+        } else if (s.hi > merged.back().hi) {
+            merged.back().hi = s.hi;
+            merged.back().phi = s.phi;
+        }
+    }
+    return merged;
+}
+
+/**
+ * @brief Clips a segment to the closed area @p area bounded by @p edges.
+ *
+ * @tparam ResultPoint Point type of the returned pieces.
+ * @param area The area, used for the degenerate operand only.
+ * @param edges Directed boundary edges of @p area, ring by ring.
+ * @param other The segment to clip.
+ * @return The disjoint pieces in order along the segment.
+ */
+template <class ResultPoint, class Area, class EdgeRange, class OtherSegment>
+constexpr LinePieces<ResultPoint>
+areaSegmentIntersection(const Area& area, const EdgeRange& edges, const OtherSegment& other) {
+    using ResultNumber = typename ResultPoint::NumberType;
+    using ResultSegment = Segment<ResultPoint>;
+
+    LinePieces<ResultPoint> result;
+    const ResultPoint a(other.min());
+    const ResultPoint b(other.max());
+
+    // A degenerate segment is just its single point.
+    if (other.isDegenerate()) {
+        if (area.contains(a)) {
+            result.emplace_back(a);
+        }
+        return result;
+    }
+
+    // The segment is the parameter window [0, T] of its supporting line.
+    const ResultNumber T = (b - a) * (b - a);
+    for (const auto& span : lineAreaSpans<ResultNumber>(a, b, edges)) {
+        if (span.hi < ResultNumber(0) || span.lo > T) {
+            continue;
+        }
+        const ResultPoint lo = (span.lo < ResultNumber(0)) ? a : span.plo;
+        const ResultPoint hi = (span.hi > T) ? b : span.phi;
+        if (lo == hi) {
+            result.emplace_back(lo);
+        } else {
+            result.emplace_back(ResultSegment(lo, hi));
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Clips a line to the closed area @p area bounded by @p edges.
+ *
+ * @tparam ResultPoint Point type of the returned pieces.
+ * @param area The area, used for the degenerate operand only.
+ * @param edges Directed boundary edges of @p area, ring by ring.
+ * @param other The line to clip.
+ * @return The disjoint pieces in order along the line.
+ */
+template <class ResultPoint, class Area, class EdgeRange, class OtherLine>
+constexpr LinePieces<ResultPoint>
+areaLineIntersection(const Area& area, const EdgeRange& edges, const OtherLine& other) {
+    using ResultNumber = typename ResultPoint::NumberType;
+    using ResultSegment = Segment<ResultPoint>;
+
+    LinePieces<ResultPoint> result;
+    const ResultPoint a(other.min());
+    const ResultPoint b(other.max());
+
+    // A degenerate line is a single point.
+    if (other.isDegenerate()) {
+        if (area.contains(a)) {
+            result.emplace_back(a);
+        }
+        return result;
+    }
+
+    // The line is its whole parametrization, so nothing is clipped away.
+    for (const auto& span : lineAreaSpans<ResultNumber>(a, b, edges)) {
+        if (span.lo == span.hi) {
+            result.emplace_back(span.plo);
+        } else {
+            result.emplace_back(ResultSegment(span.plo, span.phi));
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Clips a ray to the closed area @p area bounded by @p edges.
+ *
+ * @tparam ResultPoint Point type of the returned pieces.
+ * @param area The area, used for the degenerate operand only.
+ * @param edges Directed boundary edges of @p area, ring by ring.
+ * @param other The ray to clip.
+ * @return The disjoint pieces in order from the source outward.
+ */
+template <class ResultPoint, class Area, class EdgeRange, class OtherRay>
+constexpr LinePieces<ResultPoint>
+areaRayIntersection(const Area& area, const EdgeRange& edges, const OtherRay& other) {
+    using ResultNumber = typename ResultPoint::NumberType;
+    using ResultSegment = Segment<ResultPoint>;
+
+    LinePieces<ResultPoint> result;
+    const ResultPoint a(other.source());
+    const ResultPoint b(other.target());
+
+    // A degenerate ray is a single point.
+    if (other.isDegenerate()) {
+        if (area.contains(a)) {
+            result.emplace_back(a);
+        }
+        return result;
+    }
+
+    // The source is the parameter origin, so the ray is the window t >= 0.
+    for (const auto& span : lineAreaSpans<ResultNumber>(a, b, edges)) {
+        if (span.hi < ResultNumber(0)) {
+            continue;
+        }
+        const ResultPoint lo = (span.lo < ResultNumber(0)) ? a : span.plo;
+        if (lo == span.phi) {
+            result.emplace_back(lo);
+        } else {
+            result.emplace_back(ResultSegment(lo, span.phi));
+        }
+    }
+    return result;
+}
+
+}  // namespace detail
+
+// ---------------------------------------------------------------------------
 // Polygon
 
 template <class PointType, class LabelType>
@@ -1617,143 +1894,7 @@ template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    using Piece = std::variant<ResultPoint, ResultSegment>;
-
-    std::vector<Piece> result;
-    const std::size_t n = size();
-    if (n == 0) {
-        return result;
-    }
-
-    const ResultPoint a(other.min());
-    const ResultPoint b(other.max());
-
-    // A degenerate segment is just its single point.
-    if (other.isDegenerate()) {
-        if (contains(a)) {
-            result.emplace_back(a);
-        }
-        return result;
-    }
-
-    // Parametrize the supporting line by t = (p - a) . (b - a): t runs from 0 at
-    // `a` to T at `b`, orders points exactly (no division), and -- since every
-    // point handled here lies on that line -- identifies each point uniquely.
-    const ResultPoint direction = b - a;
-    const ResultNumber T = direction * direction;
-    auto tOf = [&](const ResultPoint& p) -> ResultNumber { return (p - a) * direction; };
-
-    // Signed side of a vertex w.r.t. the line (CCW positive, 0 on the line).
-    auto sideOf = [&](const ResultPoint& v) -> int {
-        const auto o = orientationSign(a, b, v);
-        if (o > 0) return 1;
-        if (o < 0) return -1;
-        return 0;
-    };
-
-    // Closed pieces of (line ∩ polygon), as intervals [lo, hi] in t with the
-    // matching endpoints; a degenerate interval (lo == hi) is a single point.
-    struct Span { ResultNumber lo, hi; ResultPoint plo, phi; };
-    auto makeSpan = [](ResultNumber t1, ResultNumber t2, const ResultPoint& p1, const ResultPoint& p2) -> Span {
-        return (t1 <= t2) ? Span{t1, t2, p1, p2} : Span{t2, t1, p2, p1};
-    };
-    std::vector<Span> spans;
-
-    // Boundary crossings of the *whole* line, used to recover inside/outside by
-    // ray parity. A vertex on the line is treated as if perturbed to the -1
-    // side, which counts vertex touches and collinear edges consistently: each
-    // edge whose perturbed endpoint signs differ contributes one crossing.
-    std::vector<std::pair<ResultNumber, ResultPoint>> crossings;
-
-    for (std::size_t i = 0; i < n; ++i) {
-        const ResultPoint u = static_cast<ResultPoint>((*this)[i]);
-        const ResultPoint w = static_cast<ResultPoint>((*this)[(i + 1) % n]);
-        const int su = sideOf(u);
-        const int sw = sideOf(w);
-
-        if (su == 0 && sw == 0) {
-            // Edge collinear with the line: a boundary overlap, always closed.
-            spans.push_back(makeSpan(tOf(u), tOf(w), u, w));
-            continue;
-        }
-        if (su == 0) {
-            // Vertex on the line: a boundary touch point (recorded once, here,
-            // as the starting vertex of its edge).
-            spans.push_back({tOf(u), tOf(u), u, u});
-        }
-
-        if (su != 0 && sw != 0 && su != sw) {
-            // Transversal crossing through the edge interior.
-            const Line<ResultPoint> line(a, b);
-            const auto isec = line.template intersection<ResultNumber>(
-                Segment<PointType>((*this)[i], (*this)[(i + 1) % n]));
-            if (isec && std::holds_alternative<ResultPoint>(*isec)) {
-                const ResultPoint c = std::get<ResultPoint>(*isec);
-                spans.push_back({tOf(c), tOf(c), c, c});
-                crossings.emplace_back(tOf(c), c);
-            }
-        } else {
-            // Perturbed crossing located at whichever endpoint is on the line.
-            const int eu = (su != 0) ? su : -1;
-            const int ew = (sw != 0) ? sw : -1;
-            if (eu != ew) {
-                const ResultPoint& onLine = (su == 0) ? u : w;
-                crossings.emplace_back(tOf(onLine), onLine);
-            }
-        }
-    }
-
-    // Walk the crossings in order; the open cell to the right of a crossing is
-    // inside the polygon exactly when an odd number of crossings lie to its
-    // left. Each maximal inside cell becomes a closed interval (its endpoints
-    // are boundary crossings, hence in the closed region too).
-    std::sort(crossings.begin(), crossings.end(),
-              [](const auto& x, const auto& y) { return x.first < y.first; });
-    std::size_t idx = 0;
-    int parity = 0;
-    while (idx < crossings.size()) {
-        const ResultNumber tcur = crossings[idx].first;
-        const ResultPoint pcur = crossings[idx].second;
-        std::size_t next = idx;
-        while (next < crossings.size() && crossings[next].first == tcur) {
-            ++next;
-        }
-        parity += static_cast<int>(next - idx);
-        if ((parity & 1) && next < crossings.size()) {
-            spans.push_back({tcur, crossings[next].first, pcur, crossings[next].second});
-        }
-        idx = next;
-    }
-
-    // Union the spans (sort by lo, merge touching/overlapping), then clip to the
-    // segment range [0, T] and emit each piece in order along the segment.
-    std::sort(spans.begin(), spans.end(),
-              [](const Span& x, const Span& y) { return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi; });
-    std::vector<Span> merged;
-    for (const Span& s : spans) {
-        if (merged.empty() || s.lo > merged.back().hi) {
-            merged.push_back(s);
-        } else if (s.hi > merged.back().hi) {
-            merged.back().hi = s.hi;
-            merged.back().phi = s.phi;
-        }
-    }
-
-    for (const Span& s : merged) {
-        if (s.hi < ResultNumber(0) || s.lo > T) {
-            continue;
-        }
-        const ResultPoint lo = (s.lo < ResultNumber(0)) ? a : s.plo;
-        const ResultPoint hi = (s.hi > T) ? b : s.phi;
-        if (lo == hi) {
-            result.emplace_back(lo);
-        } else {
-            result.emplace_back(ResultSegment(lo, hi));
-        }
-    }
-
-    return result;
+    return detail::areaSegmentIntersection<ResultPoint>(*this, orientedEdgesView(), other);
 }
 
 template <class PointType, class LabelType>
@@ -1768,137 +1909,7 @@ template <class ResultNumber, LineConcept OtherLine>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType, LabelType>::intersection(const OtherLine& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    using Piece = std::variant<ResultPoint, ResultSegment>;
-
-    std::vector<Piece> result;
-    const std::size_t n = size();
-    if (n == 0) {
-        return result;
-    }
-
-    const ResultPoint a(other.min());
-    const ResultPoint b(other.max());
-
-    // A degenerate line is a single point.
-    if (other.isDegenerate()) {
-        if (contains(a)) {
-            result.emplace_back(a);
-        }
-        return result;
-    }
-
-    // Parametrize the line by t = (p - a) . (b - a): t orders points along the
-    // line exactly (no division), and -- since every point handled here lies on
-    // that line -- identifies each point uniquely.
-    const ResultPoint direction = b - a;
-    auto tOf = [&](const ResultPoint& p) -> ResultNumber { return (p - a) * direction; };
-
-    // Signed side of a vertex w.r.t. the line (CCW positive, 0 on the line).
-    auto sideOf = [&](const ResultPoint& v) -> int {
-        const auto o = orientationSign(a, b, v);
-        if (o > 0) return 1;
-        if (o < 0) return -1;
-        return 0;
-    };
-
-    // Closed pieces of (line ∩ polygon), as intervals [lo, hi] in t with the
-    // matching endpoints; a degenerate interval (lo == hi) is a single point.
-    struct Span { ResultNumber lo, hi; ResultPoint plo, phi; };
-    auto makeSpan = [](ResultNumber t1, ResultNumber t2, const ResultPoint& p1, const ResultPoint& p2) -> Span {
-        return (t1 <= t2) ? Span{t1, t2, p1, p2} : Span{t2, t1, p2, p1};
-    };
-    std::vector<Span> spans;
-
-    // Boundary crossings of the line, used to recover inside/outside by ray
-    // parity. A vertex on the line is treated as if perturbed to the -1 side,
-    // which counts vertex touches and collinear edges consistently: each edge
-    // whose perturbed endpoint signs differ contributes one crossing.
-    std::vector<std::pair<ResultNumber, ResultPoint>> crossings;
-
-    for (std::size_t i = 0; i < n; ++i) {
-        const ResultPoint u = static_cast<ResultPoint>((*this)[i]);
-        const ResultPoint w = static_cast<ResultPoint>((*this)[(i + 1) % n]);
-        const int su = sideOf(u);
-        const int sw = sideOf(w);
-
-        if (su == 0 && sw == 0) {
-            // Edge collinear with the line: a boundary overlap, always closed.
-            spans.push_back(makeSpan(tOf(u), tOf(w), u, w));
-            continue;
-        }
-        if (su == 0) {
-            // Vertex on the line: a boundary touch point (recorded once, here,
-            // as the starting vertex of its edge).
-            spans.push_back({tOf(u), tOf(u), u, u});
-        }
-
-        if (su != 0 && sw != 0 && su != sw) {
-            // Transversal crossing through the edge interior.
-            const Line<ResultPoint> line(a, b);
-            const auto isec = line.template intersection<ResultNumber>(
-                Segment<PointType>((*this)[i], (*this)[(i + 1) % n]));
-            if (isec && std::holds_alternative<ResultPoint>(*isec)) {
-                const ResultPoint c = std::get<ResultPoint>(*isec);
-                spans.push_back({tOf(c), tOf(c), c, c});
-                crossings.emplace_back(tOf(c), c);
-            }
-        } else {
-            // Perturbed crossing located at whichever endpoint is on the line.
-            const int eu = (su != 0) ? su : -1;
-            const int ew = (sw != 0) ? sw : -1;
-            if (eu != ew) {
-                const ResultPoint& onLine = (su == 0) ? u : w;
-                crossings.emplace_back(tOf(onLine), onLine);
-            }
-        }
-    }
-
-    // Walk the crossings in order; the open cell to the right of a crossing is
-    // inside the polygon exactly when an odd number of crossings lie to its
-    // left. Each maximal inside cell becomes a closed interval (its endpoints
-    // are boundary crossings, hence in the closed region too).
-    std::sort(crossings.begin(), crossings.end(),
-              [](const auto& x, const auto& y) { return x.first < y.first; });
-    std::size_t idx = 0;
-    int parity = 0;
-    while (idx < crossings.size()) {
-        const ResultNumber tcur = crossings[idx].first;
-        const ResultPoint pcur = crossings[idx].second;
-        std::size_t next = idx;
-        while (next < crossings.size() && crossings[next].first == tcur) {
-            ++next;
-        }
-        parity += static_cast<int>(next - idx);
-        if ((parity & 1) && next < crossings.size()) {
-            spans.push_back({tcur, crossings[next].first, pcur, crossings[next].second});
-        }
-        idx = next;
-    }
-
-    // Union the spans (sort by lo, merge touching/overlapping) and emit each
-    // piece in order along the line -- no clipping, since the line is infinite.
-    std::sort(spans.begin(), spans.end(),
-              [](const Span& x, const Span& y) { return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi; });
-    std::vector<Span> merged;
-    for (const Span& s : spans) {
-        if (merged.empty() || s.lo > merged.back().hi) {
-            merged.push_back(s);
-        } else if (s.hi > merged.back().hi) {
-            merged.back().hi = s.hi;
-            merged.back().phi = s.phi;
-        }
-    }
-
-    for (const Span& s : merged) {
-        if (s.lo == s.hi) {
-            result.emplace_back(s.plo);
-        } else {
-            result.emplace_back(ResultSegment(s.plo, s.phi));
-        }
-    }
-
-    return result;
+    return detail::areaLineIntersection<ResultPoint>(*this, orientedEdgesView(), other);
 }
 
 template <class PointType, class LabelType>
@@ -1913,142 +1924,7 @@ template <class ResultNumber, RayConcept OtherRay>
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Polygon<PointType, LabelType>::intersection(const OtherRay& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    using ResultSegment = Segment<ResultPoint>;
-    using Piece = std::variant<ResultPoint, ResultSegment>;
-
-    std::vector<Piece> result;
-    const std::size_t n = size();
-    if (n == 0) {
-        return result;
-    }
-
-    const ResultPoint a(other.source());
-    const ResultPoint b(other.target());
-
-    // A degenerate ray is a single point.
-    if (other.isDegenerate()) {
-        if (contains(a)) {
-            result.emplace_back(a);
-        }
-        return result;
-    }
-
-    // Parametrize the supporting line by t = (p - a) . (b - a): t is 0 at the
-    // source and grows along the ray, ordering points exactly (no division) and
-    // -- since every point handled here lies on that line -- identifying each
-    // point uniquely. The ray is the half t >= 0.
-    const ResultPoint direction = b - a;
-    auto tOf = [&](const ResultPoint& p) -> ResultNumber { return (p - a) * direction; };
-
-    // Signed side of a vertex w.r.t. the line (CCW positive, 0 on the line).
-    auto sideOf = [&](const ResultPoint& v) -> int {
-        const auto o = orientationSign(a, b, v);
-        if (o > 0) return 1;
-        if (o < 0) return -1;
-        return 0;
-    };
-
-    // Closed pieces of (line ∩ polygon), as intervals [lo, hi] in t with the
-    // matching endpoints; a degenerate interval (lo == hi) is a single point.
-    struct Span { ResultNumber lo, hi; ResultPoint plo, phi; };
-    auto makeSpan = [](ResultNumber t1, ResultNumber t2, const ResultPoint& p1, const ResultPoint& p2) -> Span {
-        return (t1 <= t2) ? Span{t1, t2, p1, p2} : Span{t2, t1, p2, p1};
-    };
-    std::vector<Span> spans;
-
-    // Boundary crossings of the line, used to recover inside/outside by ray
-    // parity. A vertex on the line is treated as if perturbed to the -1 side,
-    // which counts vertex touches and collinear edges consistently: each edge
-    // whose perturbed endpoint signs differ contributes one crossing.
-    std::vector<std::pair<ResultNumber, ResultPoint>> crossings;
-
-    for (std::size_t i = 0; i < n; ++i) {
-        const ResultPoint u = static_cast<ResultPoint>((*this)[i]);
-        const ResultPoint w = static_cast<ResultPoint>((*this)[(i + 1) % n]);
-        const int su = sideOf(u);
-        const int sw = sideOf(w);
-
-        if (su == 0 && sw == 0) {
-            // Edge collinear with the line: a boundary overlap, always closed.
-            spans.push_back(makeSpan(tOf(u), tOf(w), u, w));
-            continue;
-        }
-        if (su == 0) {
-            // Vertex on the line: a boundary touch point (recorded once, here,
-            // as the starting vertex of its edge).
-            spans.push_back({tOf(u), tOf(u), u, u});
-        }
-
-        if (su != 0 && sw != 0 && su != sw) {
-            // Transversal crossing through the edge interior.
-            const Line<ResultPoint> line(a, b);
-            const auto isec = line.template intersection<ResultNumber>(
-                Segment<PointType>((*this)[i], (*this)[(i + 1) % n]));
-            if (isec && std::holds_alternative<ResultPoint>(*isec)) {
-                const ResultPoint c = std::get<ResultPoint>(*isec);
-                spans.push_back({tOf(c), tOf(c), c, c});
-                crossings.emplace_back(tOf(c), c);
-            }
-        } else {
-            // Perturbed crossing located at whichever endpoint is on the line.
-            const int eu = (su != 0) ? su : -1;
-            const int ew = (sw != 0) ? sw : -1;
-            if (eu != ew) {
-                const ResultPoint& onLine = (su == 0) ? u : w;
-                crossings.emplace_back(tOf(onLine), onLine);
-            }
-        }
-    }
-
-    // Walk the crossings in order; the open cell to the right of a crossing is
-    // inside the polygon exactly when an odd number of crossings lie to its
-    // left. Each maximal inside cell becomes a closed interval (its endpoints
-    // are boundary crossings, hence in the closed region too).
-    std::sort(crossings.begin(), crossings.end(),
-              [](const auto& x, const auto& y) { return x.first < y.first; });
-    std::size_t idx = 0;
-    int parity = 0;
-    while (idx < crossings.size()) {
-        const ResultNumber tcur = crossings[idx].first;
-        const ResultPoint pcur = crossings[idx].second;
-        std::size_t next = idx;
-        while (next < crossings.size() && crossings[next].first == tcur) {
-            ++next;
-        }
-        parity += static_cast<int>(next - idx);
-        if ((parity & 1) && next < crossings.size()) {
-            spans.push_back({tcur, crossings[next].first, pcur, crossings[next].second});
-        }
-        idx = next;
-    }
-
-    // Union the spans (sort by lo, merge touching/overlapping), then clip to the
-    // ray's half-line t >= 0 and emit each piece in order from the source.
-    std::sort(spans.begin(), spans.end(),
-              [](const Span& x, const Span& y) { return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi; });
-    std::vector<Span> merged;
-    for (const Span& s : spans) {
-        if (merged.empty() || s.lo > merged.back().hi) {
-            merged.push_back(s);
-        } else if (s.hi > merged.back().hi) {
-            merged.back().hi = s.hi;
-            merged.back().phi = s.phi;
-        }
-    }
-
-    for (const Span& s : merged) {
-        if (s.hi < ResultNumber(0)) {
-            continue;
-        }
-        const ResultPoint lo = (s.lo < ResultNumber(0)) ? a : s.plo;
-        if (lo == s.phi) {
-            result.emplace_back(lo);
-        } else {
-            result.emplace_back(ResultSegment(lo, s.phi));
-        }
-    }
-
-    return result;
+    return detail::areaRayIntersection<ResultPoint>(*this, orientedEdgesView(), other);
 }
 
 template <class PointType, class LabelType>
@@ -3047,10 +2923,11 @@ Polyline<PointType, LabelType>::intersection(const OtherPolyline& other) const {
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber, PolygonConcept OtherPolygon>
+template <class ResultNumber, class OtherArea>
+    requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>)
 constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                    Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-Polyline<PointType, LabelType>::polygonIntersection(const OtherPolygon& other) const {
+Polyline<PointType, LabelType>::polygonIntersection(const OtherArea& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using Piece = std::variant<ResultPoint, ResultSegment>;
@@ -3065,14 +2942,14 @@ Polyline<PointType, LabelType>::polygonIntersection(const OtherPolygon& other) c
         }
         return pieces;
     }
-    // Unlike the convex edgeFoldIntersection, a non-convex polygon can split a
+    // Unlike the convex edgeFoldIntersection, a non-convex area can split a
     // single edge into several disjoint pieces, so each edge yields a vector.
     for (std::size_t i = 0; i + 1 < size(); ++i) {
         const auto edgePieces =
             this->template boundaryAt<false>(i).template intersection<ResultNumber>(other);
         for (const auto& piece : edgePieces) {
             // Re-wrap in this polyline's result types: the delegated
-            // intersection labels its points with the polygon's label type.
+            // intersection labels its points with the area's label type.
             pieces.push_back(std::visit(
                 [](const auto& value) -> Piece {
                     if constexpr (detail::is_point_v<std::remove_cvref_t<decltype(value)>>) {
@@ -3100,6 +2977,85 @@ constexpr auto Polygon<PointType, LabelType>::intersection(const OtherPolyline& 
 template <class PointType, class LabelType>
 template <class ResultNumber, MonotoneChainConcept OtherChain>
 constexpr auto Polygon<PointType, LabelType>::intersection(const OtherChain& other) const {
+    return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
+}
+
+
+// ---------------------------------------------------------------------------
+// PolygonWithHoles
+//
+// The one-dimensional operands, which the region-valued booleans of
+// implementation/booleans.hpp leave alone: `closure(A° ∩ B°)` is empty for every
+// one of them, so they need the plain, unregularized intersection instead. Each
+// clip runs over the boundary edges of every ring at once -- see the helpers
+// above -- which is all that separates these from Polygon's.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PointConcept OtherPoint>
+constexpr std::optional<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPoint& other) const {
+    if (contains(other)) {
+        return Point<ResultNumber, typename PointType::LabelType>(other);
+    }
+    return {};
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, SegmentConcept OtherSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherSegment& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaSegmentIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherOrientedSegment& other) const {
+    return intersection<ResultNumber>(
+        Segment<typename OtherOrientedSegment::PointType>(other[0], other[1]));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, LineConcept OtherLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherLine& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaLineIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherOrientedLine& other) const {
+    return intersection<ResultNumber>(other.asLine());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RayConcept OtherRay>
+constexpr std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                                   Segment<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRay& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    return detail::areaRayIntersection<ResultPoint>(*this, orientedEdges(), other);
+}
+
+// A region outranks Polyline and MonotoneChain, so it owns these pairs; as with
+// Polygon, the clip itself lives on Polyline (reusing its coalescing) and a
+// monotone chain first views itself as a polyline.
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolylineConcept OtherPolyline>
+constexpr auto PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPolyline& other) const {
+    return other.template polygonIntersection<ResultNumber>(*this);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, MonotoneChainConcept OtherChain>
+constexpr auto PolygonWithHoles<PointType_, TLabel>::intersection(const OtherChain& other) const {
     return other.asPolyline().template polygonIntersection<ResultNumber>(*this);
 }
 

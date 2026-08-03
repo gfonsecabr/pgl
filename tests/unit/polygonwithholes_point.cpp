@@ -203,3 +203,27 @@ TEST_CASE("PolygonWithHoles point location with exact rational coordinates") {
     const RPoint between(RNumber(1, 2), RNumber(1, 2));
     CHECK(region.interiorContains(between));
 }
+
+// PolygonWithHoles::intersection with a point is `contains` in constructive
+// form: the region is closed, so a point on any ring comes back.
+TEST_CASE("PolygonWithHoles intersection with a Point") {
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape hole({2, 2, 6, 2, 6, 6, 2, 6});
+    const Region region(outer, std::vector{hole});
+    REQUIRE(region.isValid());
+
+    CHECK(region.intersection(Point(8, 8)) == Point(8, 8));    // outer interior
+    CHECK(region.intersection(Point(0, 5)) == Point(0, 5));    // outer boundary
+    CHECK(region.intersection(Point(2, 4)) == Point(2, 4));    // hole boundary
+    CHECK(!region.intersection(Point(4, 4)).has_value());      // hole interior
+    CHECK(!region.intersection(Point(12, 4)).has_value());     // outside
+
+    // The point ranks below the region, so the pair is answered the same way
+    // round, and the result carries the region's coordinate type.
+    for (const auto& p : {Point(8, 8), Point(2, 4), Point(4, 4), Point(12, 4)}) {
+        CHECK(p.intersection(region) == region.intersection(p));
+    }
+
+    using Rat = pgl::Rational<int64_t>;
+    CHECK(region.intersection<Rat>(Point(8, 8)) == pgl::Point<Rat>(Rat(8), Rat(8)));
+}

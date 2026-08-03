@@ -409,3 +409,139 @@ TEST_CASE("PolygonWithHoles vs Line: exact rational coordinates") {
     CHECK(!region.intersects(halfplane));
     CHECK(region.squaredDistance<ERational>(halfplane) == ERational(4));
 }
+
+// PolygonWithHoles::intersection clips an unbounded one-dimensional shape
+// against the closed region. The region is bounded, so every piece is bounded
+// too; a line differs from a segment only in having no parameter window to clip
+// to, and a ray in having a half-open one.
+
+TEST_CASE("PolygonWithHoles intersection with a Line") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = annulus();
+
+    SUBCASE("a line across the hole yields the two chords beside it") {
+        const auto pieces = region.intersection(Line({0, 5}, {1, 5}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a line along a hole edge keeps the whole chord") {
+        // y = 3 runs along the hole's bottom edge, which is region boundary.
+        const auto pieces = region.intersection(Line({0, 3}, {1, 3}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 3}, {10, 3})));
+    }
+
+    SUBCASE("a line along an outer edge keeps that edge") {
+        const auto pieces = region.intersection(Line({0, 0}, {1, 0}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 0}, {10, 0})));
+    }
+
+    SUBCASE("a line missing the region yields nothing") {
+        CHECK(region.intersection(Line({0, 12}, {1, 12})).empty());
+    }
+
+    SUBCASE("a line tangent at one outer corner keeps that point") {
+        const auto pieces = region.intersection(Line({8, 12}, {12, 8}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(10, 10)));
+    }
+
+    SUBCASE("the line answers the pair the same way round") {
+        const Line l({0, 5}, {1, 5});
+        CHECK(l.intersection(region) == region.intersection(l));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Line: a hole apex on the outer ring") {
+    using Piece = std::variant<Point, Segment>;
+    // The hole is a triangle whose apex (4,0) sits on the outer edge y = 0, so
+    // the region pinches shut there.
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({4, 0, 6, 2, 2, 2});
+    const Region region(outer, std::vector{hole});
+    REQUIRE(region.isValid());
+
+    SUBCASE("a line straight through the apex keeps it as its own piece") {
+        const auto pieces = region.intersection(Line({4, 0}, {4, 1}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Point(4, 0)));
+        CHECK(pieces[1] == Piece(Segment({4, 2}, {4, 8})));
+    }
+
+    SUBCASE("a line beside the apex keeps one chord") {
+        const auto pieces = region.intersection(Line({7, 0}, {7, 1}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({7, 0}, {7, 8})));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with an OrientedLine: direction never matters") {
+    const Region region = annulus();
+    const Line l({0, 5}, {1, 5});
+
+    for (const auto& o : {OrientedLine({0, 5}, {1, 5}), OrientedLine({1, 5}, {0, 5})}) {
+        CHECK(region.intersection(o) == region.intersection(l));
+        CHECK(o.intersection(region) == region.intersection(l));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Ray") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = annulus();
+
+    SUBCASE("a ray from inside the hole keeps only what lies ahead") {
+        const auto pieces = region.intersection(Ray({5, 5}, {6, 5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a ray from outside crossing the whole region keeps both chords") {
+        const auto pieces = region.intersection(Ray({-5, 5}, {-4, 5}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a ray from the material outward is cut at the source") {
+        const auto pieces = region.intersection(Ray({8, 5}, {9, 5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({8, 5}, {10, 5})));
+    }
+
+    SUBCASE("a ray pointing away from the region yields nothing") {
+        CHECK(region.intersection(Ray({-5, 5}, {-6, 5})).empty());
+    }
+
+    SUBCASE("the ray answers the pair the same way round") {
+        const Ray r({-5, 5}, {-4, 5});
+        CHECK(r.intersection(region) == region.intersection(r));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Line: fractional crossings") {
+    using Rat = pgl::Rational<int64_t>;
+    using RatPoint = pgl::Point<Rat>;
+    using RatSegment = pgl::Segment<RatPoint>;
+    using RatPiece = std::variant<RatPoint, RatSegment>;
+
+    const Region region = annulus();
+
+    // y = 1 + x/2 enters the hole at (4,3) and leaves it at (7,9/2).
+    const auto pieces = region.intersection<Rat>(Line({0, 1}, {2, 2}));
+
+    REQUIRE(pieces.size() == 2);
+    CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(1)}, {Rat(4), Rat(3)})));
+    CHECK(pieces[1] == RatPiece(RatSegment({Rat(7), Rat(9, 2)}, {Rat(10), Rat(6)})));
+}
