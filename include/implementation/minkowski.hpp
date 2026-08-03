@@ -387,49 +387,53 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
 // Each shape forwards to the same dispatcher; the pairs a shape actually
 // accepts are fixed by MinkowskiSummableConcept on the declaration.
 
-#define PGL_DEFINE_MINKOWSKI_SUM(SHAPE)                                                  \
-    template <class PointType, class LabelType>                                          \
+// TPOINT and TLABEL name the class template's own parameters, and have to be
+// spelled the way the shape's header spells them: some compilers compare the
+// constraint on an out-of-line definition to the one on the declaration by
+// parameter name rather than by position, and reject the definition otherwise.
+#define PGL_DEFINE_MINKOWSKI_SUM(SHAPE, TPOINT, TLABEL)                                  \
+    template <class TPOINT, class TLABEL>                                                \
     template <class OtherShape>                                                          \
-        requires MinkowskiSummableConcept<SHAPE<PointType, LabelType>, OtherShape>       \
-    constexpr auto SHAPE<PointType, LabelType>::minkowskiSum(const OtherShape& other) const { \
+        requires MinkowskiSummableConcept<SHAPE<TPOINT, TLABEL>, OtherShape>             \
+    constexpr auto SHAPE<TPOINT, TLABEL>::minkowskiSum(const OtherShape& other) const {  \
         return detail::minkowskiSumOf(*this, other);                                     \
     }
 
-PGL_DEFINE_MINKOWSKI_SUM(Segment)
-PGL_DEFINE_MINKOWSKI_SUM(OrientedSegment)
-PGL_DEFINE_MINKOWSKI_SUM(Line)
-PGL_DEFINE_MINKOWSKI_SUM(OrientedLine)
-PGL_DEFINE_MINKOWSKI_SUM(Ray)
-PGL_DEFINE_MINKOWSKI_SUM(Halfplane)
-PGL_DEFINE_MINKOWSKI_SUM(Rectangle)
-PGL_DEFINE_MINKOWSKI_SUM(Triangle)
-PGL_DEFINE_MINKOWSKI_SUM(Disk)
-PGL_DEFINE_MINKOWSKI_SUM(Convex)
-PGL_DEFINE_MINKOWSKI_SUM(Polygon)
-PGL_DEFINE_MINKOWSKI_SUM(Polyline)
-PGL_DEFINE_MINKOWSKI_SUM(PolygonWithHoles)
-PGL_DEFINE_MINKOWSKI_SUM(HalfplaneIntersection)
+PGL_DEFINE_MINKOWSKI_SUM(Segment, TPoint, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(OrientedSegment, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Line, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(OrientedLine, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Ray, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Halfplane, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Rectangle, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Triangle, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Disk, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Convex, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Polygon, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(Polyline, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(PolygonWithHoles, PointType_, TLabel)
+PGL_DEFINE_MINKOWSKI_SUM(HalfplaneIntersection, PointType_, TLabel)
 
 #undef PGL_DEFINE_MINKOWSKI_SUM
 
-template <class Number, class Label>
+template <class TNumber, class TLabel>
 template <class OtherShape>
-    requires MinkowskiSummableConcept<Point<Number, Label>, OtherShape>
-constexpr auto Point<Number, Label>::minkowskiSum(const OtherShape& other) const {
+    requires MinkowskiSummableConcept<Point<TNumber, TLabel>, OtherShape>
+constexpr auto Point<TNumber, TLabel>::minkowskiSum(const OtherShape& other) const {
     return detail::minkowskiSumOf(*this, other);
 }
 
-template <class PointType>
+template <class PointType_>
 template <class OtherShape>
-    requires MinkowskiSummableConcept<EmptyShape<PointType>, OtherShape>
-constexpr auto EmptyShape<PointType>::minkowskiSum(const OtherShape& other) const {
+    requires MinkowskiSummableConcept<EmptyShape<PointType_>, OtherShape>
+constexpr auto EmptyShape<PointType_>::minkowskiSum(const OtherShape& other) const {
     return detail::minkowskiSumOf(*this, other);
 }
 
-template <class PointType, class LabelType, class Storage>
+template <class PointType_, class TLabel, class Storage>
 template <class OtherShape>
-    requires MinkowskiSummableConcept<MonotoneChain<PointType, LabelType, Storage>, OtherShape>
-constexpr auto MonotoneChain<PointType, LabelType, Storage>::minkowskiSum(const OtherShape& other) const {
+    requires MinkowskiSummableConcept<MonotoneChain<PointType_, TLabel, Storage>, OtherShape>
+constexpr auto MonotoneChain<PointType_, TLabel, Storage>::minkowskiSum(const OtherShape& other) const {
     return detail::minkowskiSumOf(*this, other);
 }
 

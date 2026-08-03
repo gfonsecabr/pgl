@@ -200,6 +200,11 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
 // shape/polyline.hpp, shape/polygon.hpp and shape/polygonwithholes.hpp, which
 // precede this header in the layering, but they can only be defined once
 // Triangulation is visible.
+//
+// Every template parameter named here has to be spelled the way the declaring
+// header spells it, OPERAND included: some compilers match the constraints on an
+// out-of-line definition against the declaration's by parameter name rather than
+// by position, and reject the definition otherwise.
 
 #define PGL_DEFINE_REGION_MINKOWSKI_SUM(RECEIVER, CONCEPT, OPERAND)                        \
     template <class PointType_, class TLabel>                                              \
@@ -236,11 +241,11 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonWithHolesConcept, OtherRegion)
 // convex piece, so it costs one convex merge per piece of the receiver, and it
 // is the receiver's own shape that decides whether the sweep strands a cavity.
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, SegmentConcept, OtherSegment)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherSegment)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, SegmentConcept, OtherSegment)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, OrientedSegmentConcept, OtherSegment)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, SegmentConcept, OtherSegment)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherSegment)
 
 // The chain's two non-convex pairs, mirrored so that neither spelling is the
 // privileged one, exactly as `Polygon` and `PolygonWithHoles` mirror theirs. The
