@@ -270,35 +270,25 @@ def _cpp_accumulate(method: str) -> str:
                 " return n;"
                 f" }}(a.template {method}<N>(b));")
     if method == "minkowskiSum":
-        # Only the pairs whose sum is a single shape are measured: bounded convex
-        # operands, and anything summed with a Point, which is a translation.
-        # The rest of the cube fails to compile here and is recorded as
-        # unsupported, exactly like collinear or parallel.
-        #
-        # Deliberately no branch for the vector-of-regions result of the
-        # non-convex sum, even though the boolean operations above digest that
-        # shape of result fine. The sum of two 32-gons — the cube's polygon size
-        # — measures 7 s on its own, growing from 28 ms at 8 vertices and 170 ms
-        # at 12, and a pair of the six-holed regions takes 254 s. A cell is
-        # 10,000 pairs, so that cannot fit the run timeout at any sample size,
-        # and enabling it would only replace a fast compile error with a slow
-        # timeout.
-        #
-        # The aggregate mixes the element count, which is what disagrees when a
-        # type builds a different hull, with the sign of one coordinate of the
-        # result. The coordinate is what keeps the benchmark honest: for the
-        # fixed-size results (a translation returns the operand's own type)
-        # size() is a compile-time constant, and on its own it lets the compiler
-        # delete the whole construction as dead code. As with `intersection`, a
-        # generic lambda makes the argument dependent so `if constexpr` really
-        # discards the branch that does not apply.
+        # The non-convex overloads return a vector of regions, while translations
+        # and bounded-convex pairs return one shape. Digest the former just like
+        # the boolean operations, and retain a coordinate read for the latter:
+        # a fixed-size translated shape would otherwise let the compiler erase
+        # the whole construction. A generic lambda makes its branches dependent,
+        # so `if constexpr` discards the inapplicable result representation.
         return ("count += [](const auto& s) {"
-                " const auto element = s.get(0);"
-                " const auto vertex = [](const auto& e) {"
-                "   if constexpr (requires { e.source(); }) return e.source();"
-                "   else return e; }(element);"
-                " const typename std::remove_cvref_t<decltype(vertex)>::NumberType zero{};"
-                " return (long long)s.size() + ((vertex.x() < zero) ? 1 : 0);"
+                " if constexpr (requires { s.get(0); }) {"
+                "   const auto element = s.get(0);"
+                "   const auto vertex = [](const auto& e) {"
+                "     if constexpr (requires { e.source(); }) return e.source();"
+                "     else return e; }(element);"
+                "   const typename std::remove_cvref_t<decltype(vertex)>::NumberType zero{};"
+                "   return (long long)s.size() + ((vertex.x() < zero) ? 1 : 0);"
+                " } else {"
+                "   long long n = (long long)s.size();"
+                "   for (const auto& piece : s) n += (long long)piece.vertexCount();"
+                "   return n;"
+                " }"
                 " }(a.minkowskiSum(b));")
     if method in {"squaredDistance", "distanceL1", "distanceLInf",
                   "squaredHausdorffDistance", "hausdorffDistanceL1",
