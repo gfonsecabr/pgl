@@ -251,12 +251,15 @@ Which of the two answers a call is decided by the operands, not by the receiver.
 The region-valued one takes over as soon as **both** operands have area: a
 `PolygonWithHoles` operand pulls it in whichever side it is written on, so
 `polygon.intersection(region)` forwards to `region.intersection(polygon)` and
-gives back regions rather than components. The same goes for a
-`HalfplaneIntersection` operand — `region.intersection(k)` and
-`k.intersection(region)` are the same regions — even though that shape's own
-`intersection` against a `Polygon` is the general, component-valued one. An
-unbounded operand is no obstacle: a region is bounded, so `k` is clipped to its
-bounding rectangle first, which changes nothing.
+gives back regions rather than components. The same goes for a `Halfplane` or a
+`HalfplaneIntersection` operand — `region.intersection(h)` and
+`h.intersection(region)` are the same regions — even though each of those
+shapes' own `intersection` against a `Polygon` is the general, component-valued
+one. Being unbounded is no obstacle: a region is bounded, so `h` is clipped to
+its bounding rectangle first, which changes nothing, and a half-plane is handled
+as the one-constraint half-plane intersection it is. This is the only boolean
+operation that takes an unbounded operand; `difference`, `unionWith` and
+`symmetricDifference` would give back an unbounded answer and do not accept one.
 
 A one-dimensional operand gets the general one instead, on either side, since it
 is the only one there is: `closure(A° ∩ B°)` is empty for everything without
