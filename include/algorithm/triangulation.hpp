@@ -2187,6 +2187,12 @@ struct Triangulation {
     // closed boundary drawn inside such a domain can enclose a hole, which the
     // boundary alone never reveals, so the region queries consult these.
     std::vector<TriangleType> holeWitnesses_;
+    // One real triangle incident to each vertex, indexed by VertexId — the seed
+    // a fan rotation needs to reach a vertex's neighbourhood without scanning
+    // every triangle. Only a *hint*: it is refreshed by registerSides and
+    // verified by incidentTriangleOf, so an entry left stale by an edit that
+    // does not re-register costs a fallback, never an answer.
+    std::vector<TriId> vertexTri_;
     static constexpr VertexId GHOST = 0;  // index of the ghost vertex
     TriId firstGhost_ = 0;             // first ghost triangle index
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
@@ -2658,11 +2664,49 @@ struct Triangulation {
         return stop;
     }
 
-    // Inserts t's three edges into the segment-to-edge map, keyed by Segment.
+    // Inserts t's three edges into the segment-to-edge map, keyed by Segment,
+    // and records t as the fan seed of each of its vertices. The two go
+    // together: every edit that rewrites a triangle's vertices re-registers it,
+    // so hooking the seed here is what keeps it fresh across a flip — the flip
+    // re-registers both rewritten triangles, and a vertex of the quad ends up in
+    // at least one of them.
     void registerSides(TriId t) {
         for (std::int8_t s = 0; s < 3; ++s) {
             segToEdge_[edgeSegment(Edge{t, s})] = Edge{t, s};
         }
+        noteVertexIncidence(t);
+    }
+
+    // Records t as the fan seed of each of its real vertices. Ghost triangles
+    // are skipped: a fan rotation may pass through them but never starts there.
+    void noteVertexIncidence(TriId t) {
+        if (t < 0 || t >= firstGhost_) {
+            return;
+        }
+        if (vertexTri_.size() < vertices_.size()) {
+            vertexTri_.resize(vertices_.size(), NO_TRI);
+        }
+        for (const VertexId w : triangles_[t].v) {
+            if (w != GHOST) {
+                vertexTri_[static_cast<std::size_t>(w)] = t;
+            }
+        }
+    }
+
+    // A real triangle having w as a vertex, or NO_TRI when none is recorded.
+    // The record is verified against the triangle's current vertices, so it is
+    // authoritative when it answers: a triangle that still lists w really is in
+    // w's fan.
+    [[nodiscard]] TriId incidentTriangleOf(VertexId w) const {
+        if (static_cast<std::size_t>(w) >= vertexTri_.size()) {
+            return NO_TRI;
+        }
+        const TriId t = vertexTri_[static_cast<std::size_t>(w)];
+        if (t == NO_TRI || t >= firstGhost_) {
+            return NO_TRI;
+        }
+        const auto& v = triangles_[t].v;
+        return (v[0] == w || v[1] == w || v[2] == w) ? t : NO_TRI;
     }
 
     // Builds the segment-to-edge map over all real triangles.
@@ -2989,23 +3033,41 @@ struct Triangulation {
         const PointType& B = vertices_[vb];
         std::vector<std::pair<VertexId, VertexId>> out;
 
-        // Find the triangle incident to va that the segment first enters.
+        // Find the triangle incident to va that the segment first enters. Only
+        // va's own fan can hold it, so the search rotates around va rather than
+        // scanning the mesh: the scan is what made inserting k constraints cost
+        // O(k * triangles), which dominated every constrained triangulation
+        // here. Under this method's precondition the answer is unique — the
+        // link of va is star-shaped about it, so a segment leaving va properly
+        // crosses exactly one link edge — and the visit order therefore does not
+        // matter.
         TriId t = NO_TRI;
         std::pair<VertexId, VertexId> entry{NO_TRI, NO_TRI};
-        for (TriId k = 0; k < firstGhost_ && t == NO_TRI; ++k) {
+        const auto enterFrom = [&](TriId k) {
+            if (t != NO_TRI || k == NO_TRI || isGhost(k)) {
+                return;  // already found, or a ghost triangle closing the fan
+            }
             const auto& v = triangles_[k].v;
-            for (int i = 0; i < 3; ++i) {
-                if (v[i] != va) {
-                    continue;
+            const int i = localIndex(k, va);
+            const VertexId p = v[(i + 1) % 3];
+            const VertexId q = v[(i + 2) % 3];
+            if (properCross(A, B, vertices_[p], vertices_[q])) {
+                t = triangles_[k].nbr[i];
+                entry = {p, q};
+                out.push_back({p, q});
+            }
+        };
+        const TriId seed = incidentTriangleOf(va);
+        if (seed != NO_TRI) {
+            visitVertexFan(seed, va, enterFrom);
+        } else {
+            // No seed recorded (a mesh built by a path that never registered
+            // one): fall back to the scan, which needs no incidence at all.
+            for (TriId k = 0; k < firstGhost_ && t == NO_TRI; ++k) {
+                const auto& v = triangles_[k].v;
+                if (v[0] == va || v[1] == va || v[2] == va) {
+                    enterFrom(k);
                 }
-                const VertexId p = v[(i + 1) % 3];
-                const VertexId q = v[(i + 2) % 3];
-                if (properCross(A, B, vertices_[p], vertices_[q])) {
-                    t = triangles_[k].nbr[i];
-                    entry = {p, q};
-                    out.push_back({p, q});
-                }
-                break;
             }
         }
         if (t == NO_TRI) {
