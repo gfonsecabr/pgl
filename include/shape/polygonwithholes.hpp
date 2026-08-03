@@ -870,6 +870,24 @@ struct PolygonWithHoles {
     [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
     intersection(const OtherIntersection& other) const;
 
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane is the one-constraint half-plane intersection, and is handled
+     * as one: see @ref intersection(const OtherIntersection&) const, which
+     * bounds it against this region before any arrangement is built. Cutting a
+     * region with a half-plane can leave several pieces and can open a hole out
+     * into the rest of the plane, which is why the result is a set of regions
+     * rather than one.
+     *
+     * This is the region-valued `intersection`, so it answers
+     * `halfplane.intersection(region)` too — the half-plane's own
+     * component-valued overloads stop at @ref Polygon.
+     */
+    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    intersection(const OtherHalfplane& other) const;
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {

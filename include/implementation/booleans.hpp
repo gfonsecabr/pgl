@@ -717,4 +717,11 @@ PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& othe
     return this->template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
 }
 
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
+    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
+}
+
 }  // namespace pgl

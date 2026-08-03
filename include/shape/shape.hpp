@@ -717,7 +717,8 @@ struct Shape {
      *   result. A `HalfplaneIntersection` against a `Polygon` wraps the single
      *   component of its component vector, in either order. A
      *   `PolygonWithHoles` against a `Rectangle`, `Triangle`, `Convex`,
-     *   `Polygon`, `HalfplaneIntersection`, or another `PolygonWithHoles` wraps
+     *   `Polygon`, `Halfplane`, `HalfplaneIntersection`, or another
+     *   `PolygonWithHoles` wraps
      *   the single component of its regularized `PolygonWithHoles` result, and
      *   throws when that intersection comes apart into several pieces. That
      *   pair answers in either order except with a `Polygon` on the left, whose

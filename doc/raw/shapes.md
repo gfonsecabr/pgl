@@ -422,7 +422,6 @@ A half-plane `h` has methods such as:
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
 - `h.slope()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
-- `h.intersection(h2)`: Intersecting with another half-plane returns a [`HalfplaneIntersection`](#halfplane-intersection) — exact and division-free, whether the result is a wedge, a strip, a nested half-plane, a line, or the empty set.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -684,8 +683,6 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.pointInside()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. Divides coordinates by 4, and is undefined for a region with no area.
 - `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
 - `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
-- `A.difference(B)`, `A.unionWith(B)`, `A.symmetricDifference(B)` and `A.minkowskiSum(B)` return a `std::vector<PolygonWithHoles>`, as does `A.intersection(B)` when `B` has area — the one shape whose intersections can keep holes, and hence the one that carries a region-valued `intersection` next to the general one. See [Boolean Operations](shape_methods.md#boolean-operations) and [Minkowski Sum](shape_methods.md#minkowski-sum).
-- `A.intersection(s)` against a one-dimensional operand is the general `intersection` instead, since a regularized answer would always be empty for one: it returns an `std::vector` of points and segments sorted by the lexicographic order, in the same form `Polygon` returns, for points, segments, lines, rays, monotone chains, and polylines. The clip runs over every ring at once — a point is in the region exactly when an odd number of rings enclose it — so hole interiors are cut out while the rings themselves survive: a segment along a hole edge or through a slit comes back whole. It takes $O(n \log n)$ time against a single shape, and one such clip per edge against a chain with $m$ vertices, plus a coalescing step quadratic in the number of pieces.
 
 Against a region of $n$ vertices and an operand of $m$:
 
@@ -694,8 +691,6 @@ Against a region of $n$ vertices and an operand of $m$:
 - The distances take $O(n)$ edge queries: the region is closed, so whenever it misses the other shape the nearest pair is realized on one of its ring edges.
 
 - Other methods:
-
-`PolygonWithHoles` is an alternative of the polymorphic [`Shape`](#polymorphism-with-shape) class and can be drawn on a [canvas](canvas.md), which strokes one closed subpath per ring. Note that `Shape::size`, `Shape::get`, `Shape::operator[]` and `Shape::index` throw for this alternative, since its vertices are spread over its rings rather than forming one indexable sequence.
 
 
 ### Halfplane Intersection
