@@ -3089,28 +3089,22 @@ struct Triangulation {
     // Restores the constrained Delaunay property: flip every non-constrained
     // interior edge whose opposite apex lies inside the incident circumcircle,
     // until none remain. Constrained edges are never flipped.
+    //
+    // A triangulation is Delaunay exactly when every edge is locally Delaunay,
+    // and an edge's local test reads only its two incident triangles — so
+    // @ref legalize's work queue reaches the same fixpoint as a sweep, for the
+    // cost of the flips instead of the cost of the mesh per flip. Seeding it
+    // with every edge is what makes it a *global* restore: both callers reach
+    // here having forced constraints into a mesh whose edges have not been
+    // tested since, so none can be assumed legal.
     void restoreConstrainedDelaunay() {
-        bool changed = true;
-        std::size_t guard = 0, cap = triangles_.size() * triangles_.size() + 64;
-        while (changed && ++guard < cap) {
-            changed = false;
-            const auto snapshot = segToEdge_;
-            for (const auto& [seg, handle] : snapshot) {
-                (void)handle;
-                auto se = segToEdge_.find(seg);
-                if (se == segToEdge_.end() || !flippableEdge(se->second)) {
-                    continue;
-                }
-                const Edge cur = se->second;
-                const auto& T = triangles_[cur.tri];
-                const VertexId d = triangles_[mirror(cur).tri].v[mirror(cur).side];
-                if (inCircleSign(vertices_[T.v[0]], vertices_[T.v[1]], vertices_[T.v[2]],
-                                 vertices_[d]) == std::partial_ordering::greater) {
-                    flip(seg);
-                    changed = true;
-                }
-            }
+        std::vector<SegmentType> suspect;
+        suspect.reserve(segToEdge_.size());
+        for (const auto& [seg, handle] : segToEdge_) {
+            (void)handle;
+            suspect.push_back(seg);
         }
+        legalize(suspect);
     }
 
     // Flood-fills from the ghost (outside) across non-constrained edges, marking
