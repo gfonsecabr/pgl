@@ -407,9 +407,28 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnion(const ShapeA& a, con
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA || inB; });
 }
 
-/** @brief The regularized intersection `closure(A° ∩ B°)`, as a set of regions. */
+/**
+ * @brief The regularized intersection `closure(A° ∩ B°)`, as a set of regions.
+ *
+ * Bounding boxes settle the *box-separated* case outright. Interiors are
+ * monotone, so `A° ⊆ bbox(A)°`, and operands whose boxes share no area
+ * intersect in nothing that survives regularization — including the case where
+ * one of them has no area at all, whose box is degenerate. Worth the test
+ * because the engine's first step is quadratic in the boundary size *before*
+ * anything has been triangulated, so the alternative is to pay for the whole
+ * arrangement to discover that no cell is kept.
+ *
+ * This is narrower than "the operands are disjoint", and deliberately so: two
+ * interleaved combs share no area at all while their boxes coincide, and that
+ * pair still pays for the full arrangement. Cheap separation tests are all this
+ * shortcut can afford. Only the intersection shortcuts even this way — a
+ * difference or a union of separated operands still has to return one.
+ */
 template <class ResultPoint, class ShapeA, class ShapeB>
 std::vector<PolygonWithHoles<ResultPoint>> regularizedIntersection(const ShapeA& a, const ShapeB& b) {
+    if (!a.bbox().interiorsIntersect(b.bbox())) {
+        return {};
+    }
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA && inB; });
 }
 
