@@ -722,7 +722,11 @@ struct Shape {
      *   throws when that intersection comes apart into several pieces. That
      *   pair answers in either order except with a `Polygon` on the left, whose
      *   own `Polygon`-valued `intersection` leaves no rank forwarder to reach
-     *   the region's.
+     *   the region's. Against a one-dimensional alternative — a `Point`,
+     *   `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`,
+     *   `MonotoneChain` or `Polyline` — a `PolygonWithHoles` wraps the single
+     *   point-or-segment piece instead, in either order, and a hole is exactly
+     *   what makes several pieces likely there.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = NumberType, class Other>

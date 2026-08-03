@@ -261,3 +261,131 @@ TEST_CASE("PolygonWithHoles vs a chain: the symmetric predicates and distances")
     CHECK(region.contains(chain) == (region.contains(left) && region.contains(right)));
     CHECK(region.intersects(chain) == (region.intersects(left) || region.intersects(right)));
 }
+
+// PolygonWithHoles::intersection clips a chain edge by edge and coalesces the
+// pieces, exactly as the Polygon overload does — the region outranks both chain
+// kinds, so it owns the pair and the shared clip lives on Polyline. The pieces
+// come back sorted lexicographically, not in order along the chain, and maximal:
+// collinear touching runs are merged even across edges.
+
+TEST_CASE("PolygonWithHoles intersection with a Polyline") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = annulus();
+
+    SUBCASE("a polyline crossing the hole keeps the two runs beside it") {
+        const PolylineShape line(std::vector{Point(-2, 5), Point(5, 5), Point(12, 5)});
+        const auto pieces = region.intersection(line);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a polyline inside the material comes back whole") {
+        const PolylineShape line(std::vector{Point(1, 1), Point(1, 9), Point(2, 9)});
+        const auto pieces = region.intersection(line);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({1, 1}, {1, 9})));
+        CHECK(pieces[1] == Piece(Segment({1, 9}, {2, 9})));
+    }
+
+    SUBCASE("a polyline buried in the hole meets nothing") {
+        const PolylineShape line(std::vector{Point(4, 4), Point(6, 4), Point(6, 6)});
+        CHECK(region.intersection(line).empty());
+    }
+
+    SUBCASE("a polyline inside the hole touching one of its corners") {
+        // Both edges run through the hole interior and meet at the corner
+        // (3,3), which is the only point of the polyline in the region.
+        const PolylineShape line(std::vector{Point(5, 4), Point(3, 3), Point(4, 5)});
+        const auto pieces = region.intersection(line);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(3, 3)));
+    }
+
+    SUBCASE("a touch point covered by a run beside it is dropped") {
+        // The first edge meets the region only at the hole corner (3,3), which
+        // the second edge's run out into the material already covers.
+        const PolylineShape line(std::vector{Point(5, 4), Point(3, 3), Point(4, 2)});
+        const auto pieces = region.intersection(line);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({3, 3}, {4, 2})));
+    }
+
+    SUBCASE("the polyline answers the pair the same way round") {
+        const PolylineShape line(std::vector{Point(-2, 5), Point(5, 5), Point(12, 5)});
+        CHECK(line.intersection(region) == region.intersection(line));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a MonotoneChain") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = annulus();
+
+    SUBCASE("a chain crossing the hole keeps the two runs beside it") {
+        const Chain chain(std::vector{Point(-2, 5), Point(5, 5), Point(12, 5)});
+        const auto pieces = region.intersection(chain);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a chain agrees with the polyline it views itself as") {
+        const Chain chain(std::vector{Point(1, 5), Point(5, 5), Point(9, 5)});
+        CHECK(region.intersection(chain) == region.intersection(chain.asPolyline()));
+        CHECK(chain.intersection(region) == region.intersection(chain));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a chain: the pinched boundary of a slit") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = bandSplit();
+    REQUIRE(region.isValid());
+
+    SUBCASE("a chain along the left slit survives whole") {
+        const Chain slit(std::vector{Point(0, 2), Point(0, 3), Point(0, 4)});
+        const auto pieces = region.intersection(slit);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 2}, {0, 4})));
+    }
+
+    SUBCASE("a chain across the band keeps one run per slab") {
+        const Chain across(std::vector{Point(3, 1), Point(3, 3), Point(3, 5)});
+        const auto pieces = region.intersection(across);
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({3, 1}, {3, 2})));
+        CHECK(pieces[1] == Piece(Segment({3, 4}, {3, 5})));
+    }
+
+    SUBCASE("a polyline reaching the slit from outside keeps that point alone") {
+        const PolylineShape touch(std::vector{Point(-2, 2), Point(0, 3), Point(-2, 4)});
+        const auto pieces = region.intersection(touch);
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(0, 3)));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a chain: fractional crossings") {
+    using Rat = pgl::Rational<int64_t>;
+    using RatPoint = pgl::Point<Rat>;
+    using RatSegment = pgl::Segment<RatPoint>;
+    using RatPiece = std::variant<RatPoint, RatSegment>;
+
+    const Region region = annulus();
+
+    // The polyline runs y = 1 + x/2, entering the hole at (4,3) and leaving it
+    // at (7,9/2).
+    const PolylineShape line(std::vector{Point(0, 1), Point(10, 6)});
+    const auto pieces = region.intersection<Rat>(line);
+
+    REQUIRE(pieces.size() == 2);
+    CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(1)}, {Rat(4), Rat(3)})));
+    CHECK(pieces[1] == RatPiece(RatSegment({Rat(7), Rat(9, 2)}, {Rat(10), Rat(6)})));
+}

@@ -1429,34 +1429,37 @@ struct Polyline {
     intersection(const OtherPolyline& other) const;
 
     /**
-     * @brief Returns the intersection with a polygon (A ∩ B), a sequence of
-     * points and segments sorted by lexicographic order.
+     * @brief Returns the intersection with a polygon or a region (A ∩ B), a
+     * sequence of points and segments sorted by lexicographic order.
      *
-     * The polygon may be non-convex, so its intersection with a single edge can
-     * already split into several disjoint pieces; each edge is clipped against
-     * the polygon and the pieces are coalesced like
-     * @ref intersection(const OtherPolyline&) const.
+     * The area may be non-convex — and, for a @ref PolygonWithHoles, not simply
+     * connected — so its intersection with a single edge can already split into
+     * several disjoint pieces; each edge is clipped against the area and the
+     * pieces are coalesced like @ref intersection(const OtherPolyline&) const.
      *
-     * @note This is the shared implementation of the Polygon–polyline clip, not
-     * an `intersection` overload: @ref Polygon outranks @ref Polyline, so
-     * @ref Polygon::intersection(const OtherPolyline&) const owns the pair and
-     * calls this helper (and `polyline.intersection(polygon)` reaches it by
-     * forwarding up to the polygon). Keeping it here reuses the polyline's
-     * coalescing and labels the pieces with the polyline's label.
+     * @note This is the shared implementation of the area–polyline clip, not an
+     * `intersection` overload: @ref Polygon and @ref PolygonWithHoles both
+     * outrank @ref Polyline, so
+     * @ref Polygon::intersection(const OtherPolyline&) const and
+     * @ref PolygonWithHoles::intersection(const OtherPolyline&) const own the
+     * pairs and call this helper (and `polyline.intersection(area)` reaches it by
+     * forwarding up). Keeping it here reuses the polyline's coalescing and labels
+     * the pieces with the polyline's label.
      *
-     * Complexity: O(n) polygon-vs-segment clips for n vertices, plus coalescing
-     * the resulting pieces.
+     * Complexity: O(n) area-vs-segment clips for n vertices, plus coalescing the
+     * resulting pieces.
      *
      * @tparam ResultNumber Number type of the returned coordinates.
-     * @tparam OtherPolygon Type of the polygon.
-     * @param other Polygon to intersect with.
+     * @tparam OtherArea Type of the polygon or region.
+     * @param other Polygon or region to intersect with.
      * @return Vector of points and segments forming the intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
+    template <class ResultNumber = NumberType, class OtherArea>
+        requires(PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>)
     [[nodiscard]] constexpr std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
                                                      Segment<Point<ResultNumber, typename PointType::LabelType>>>>
-    polygonIntersection(const OtherPolygon& other) const;
+    polygonIntersection(const OtherArea& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
     template <class ResultNumber = NumberType, typename OtherShape>

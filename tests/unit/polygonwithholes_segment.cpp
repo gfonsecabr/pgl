@@ -417,3 +417,193 @@ TEST_CASE("PolygonWithHoles vs Segment: exact rational coordinates") {
     CHECK(region.squaredDistance(buried) == ERational(1, 4));
     CHECK(region.distanceL1(buried) == ERational(1, 2));
 }
+
+// PolygonWithHoles::intersection clips the segment against the closed region and
+// returns the disjoint pieces (points and sub-segments) in order along it. This
+// is the plain, unregularized intersection, and it is the only one a segment can
+// have: the boolean `closure(A° ∩ B°)` of a region and a segment is always empty.
+
+TEST_CASE("PolygonWithHoles intersection with a Segment") {
+    using Piece = std::variant<Point, Segment>;
+    const Region region = annulus();
+
+    SUBCASE("a chord across the hole yields the two pieces beside it") {
+        const auto pieces = region.intersection(Segment({-5, 5}, {15, 5}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
+        CHECK(pieces[1] == Piece(Segment({7, 5}, {10, 5})));
+    }
+
+    SUBCASE("a segment buried in the hole meets nothing") {
+        CHECK(region.intersection(Segment({4, 5}, {6, 5})).empty());
+    }
+
+    SUBCASE("a segment ending in the hole is cut at the ring") {
+        const auto pieces = region.intersection(Segment({1, 5}, {5, 5}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({1, 5}, {3, 5})));
+    }
+
+    SUBCASE("a segment along a hole ring survives whole") {
+        // A hole ring is boundary, and the boundary belongs to the region.
+        const auto pieces = region.intersection(Segment({3, 3}, {3, 7}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({3, 3}, {3, 7})));
+    }
+
+    SUBCASE("a diagonal through opposite hole corners touches each of them") {
+        const auto pieces = region.intersection(Segment({0, 0}, {10, 10}));
+
+        REQUIRE(pieces.size() == 2);
+        CHECK(pieces[0] == Piece(Segment({0, 0}, {3, 3})));
+        CHECK(pieces[1] == Piece(Segment({7, 7}, {10, 10})));
+    }
+
+    SUBCASE("a segment touching the region at one corner keeps that point") {
+        const auto pieces = region.intersection(Segment({8, 12}, {12, 8}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(10, 10)));
+    }
+
+    SUBCASE("a segment missing the region yields nothing") {
+        CHECK(region.intersection(Segment({11, 0}, {11, 10})).empty());
+    }
+
+    SUBCASE("the segment answers the pair the same way round") {
+        const Segment s({-5, 5}, {15, 5});
+        CHECK(s.intersection(region) == region.intersection(s));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Segment: two holes") {
+    using Piece = std::variant<Point, Segment>;
+    const PolygonShape outer({0, 0, 12, 0, 12, 6, 0, 6});
+    const PolygonShape left({1, 1, 5, 1, 5, 5, 1, 5});
+    const PolygonShape right({7, 1, 11, 1, 11, 5, 7, 5});
+    const Region region(outer, std::vector{left, right});
+    REQUIRE(region.isValid());
+
+    SUBCASE("a chord through both holes keeps only the bridge") {
+        const auto pieces = region.intersection(Segment({3, 3}, {9, 3}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({5, 3}, {7, 3})));
+    }
+
+    SUBCASE("a chord spanning the whole box keeps three pieces") {
+        const auto pieces = region.intersection(Segment({-1, 3}, {13, 3}));
+
+        REQUIRE(pieces.size() == 3);
+        CHECK(pieces[0] == Piece(Segment({0, 3}, {1, 3})));
+        CHECK(pieces[1] == Piece(Segment({5, 3}, {7, 3})));
+        CHECK(pieces[2] == Piece(Segment({11, 3}, {12, 3})));
+    }
+}
+
+// Where two rings meet the region pinches shut, and a segment crossing the
+// boundary exactly there passes between two non-region sides — the piece it
+// keeps is the single pinch point.
+
+TEST_CASE("PolygonWithHoles intersection with a Segment: slits and touch points") {
+    using Piece = std::variant<Point, Segment>;
+    // The hole shares the corner and two whole edges with the outer square, so
+    // the region is an L shape and the shared stretches are slits.
+    const PolygonShape outer({0, 0, 8, 0, 8, 8, 0, 8});
+    const PolygonShape hole({0, 0, 4, 0, 4, 4, 0, 4});
+    const Region region(outer, std::vector{hole});
+    REQUIRE(region.isValid());
+
+    SUBCASE("running along the slit comes back whole") {
+        const auto pieces = region.intersection(Segment({0, 0}, {8, 0}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({0, 0}, {8, 0})));
+    }
+
+    SUBCASE("crossing the slit keeps the pinch point alone") {
+        // Below the slit is outside the region, above it is the hole interior.
+        const auto pieces = region.intersection(Segment({2, -1}, {2, 1}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(2, 0)));
+    }
+
+    SUBCASE("crossing the same outer edge past the slit keeps a chord") {
+        const auto pieces = region.intersection(Segment({6, -1}, {6, 1}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({6, 0}, {6, 1})));
+    }
+
+    SUBCASE("a chord straddling a hole edge is cut there") {
+        const auto pieces = region.intersection(Segment({3, 2}, {5, 2}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({4, 2}, {5, 2})));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Segment: two holes touching at a point") {
+    using Piece = std::variant<Point, Segment>;
+    const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+    const PolygonShape lower({1, 1, 5, 1, 5, 5, 1, 5});
+    const PolygonShape upper({5, 5, 9, 5, 9, 9, 5, 9});
+    const Region region(outer, std::vector{lower, upper});
+    REQUIRE(region.isValid());
+
+    SUBCASE("a diagonal through both holes keeps the shared corner alone") {
+        const auto pieces = region.intersection(Segment({3, 3}, {7, 7}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Point(5, 5)));
+    }
+
+    SUBCASE("a diagonal squeezing past the corner survives whole") {
+        const auto pieces = region.intersection(Segment({7, 3}, {3, 7}));
+
+        REQUIRE(pieces.size() == 1);
+        CHECK(pieces[0] == Piece(Segment({3, 7}, {7, 3})));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Segment: hole-free region matches its outer polygon") {
+    const PolygonShape outer({0, 0, 10, 0, 6, 4, 10, 8, 0, 8});  // non-convex
+    const Region region(outer);
+
+    for (const auto& s : {Segment({-2, 2}, {12, 2}), Segment({-2, 6}, {12, 6}),
+                          Segment({1, 1}, {3, 3}), Segment({0, 0}, {0, 8}),
+                          Segment({20, 0}, {20, 8})}) {
+        CHECK(region.intersection(s) == outer.intersection(s));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with an OrientedSegment: direction never matters") {
+    const Region region = annulus();
+    const Segment s({-5, 5}, {15, 5});
+
+    for (const auto& o : {OrientedSegment({-5, 5}, {15, 5}), OrientedSegment({15, 5}, {-5, 5})}) {
+        CHECK(region.intersection(o) == region.intersection(s));
+        CHECK(o.intersection(region) == region.intersection(s));
+    }
+}
+
+TEST_CASE("PolygonWithHoles intersection with a Segment: fractional crossings") {
+    using Rat = pgl::Rational<int64_t>;
+    using RatPoint = pgl::Point<Rat>;
+    using RatSegment = pgl::Segment<RatPoint>;
+    using RatPiece = std::variant<RatPoint, RatSegment>;
+
+    const Region region = annulus();
+
+    // y = 1 + x/2 enters the hole where y = 3 (x = 4) and leaves it where
+    // x = 7 (y = 9/2), so both hole crossings are off-lattice on one side.
+    const auto pieces = region.intersection<Rat>(Segment({0, 1}, {10, 6}));
+
+    REQUIRE(pieces.size() == 2);
+    CHECK(pieces[0] == RatPiece(RatSegment({Rat(0), Rat(1)}, {Rat(4), Rat(3)})));
+    CHECK(pieces[1] == RatPiece(RatSegment({Rat(7), Rat(9, 2)}, {Rat(10), Rat(6)})));
+}
