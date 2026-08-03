@@ -920,6 +920,20 @@ struct Polygon {
     /**
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
+     * A @ref MonotoneChain summand is a polyline that happens to be sorted, and it
+     * sums here exactly as one: its monotonicity is what makes
+     * @ref MonotoneChain::minkowskiSum(const OtherConvex&) const one polygon, and a
+     * non-convex receiver takes that away again — this polygon's own concavity can
+     * strand a cavity whatever the chain does. So the chain contributes its edges
+     * and the answer is a set of regions, as it is for a `Polyline`.
+     */
+    template <class ResultNumber = NumberType, MonotoneChainConcept OtherChain>
+    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    minkowskiSum(const OtherChain& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
+     *
      * The thinnest summand that still needs a region. A segment has no area, but
      * sliding this polygon along one sweeps the band between the polygon and its
      * translate by the segment's vector, and that band closes over a cavity for
