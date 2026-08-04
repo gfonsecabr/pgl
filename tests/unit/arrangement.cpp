@@ -13,7 +13,11 @@ namespace {
 using Number = pgl::ERational;
 using Point = pgl::EPoint;
 using Segment = pgl::ESegment;
-using Polygon = pgl::EPolygon;
+// Named PolygonShape, not Polygon: under MSVC, <windows.h> (pulled in
+// transitively by doctest.h) injects a Win32 GDI function called `Polygon`
+// into the global namespace, and an alias of the same name used from
+// TEST_CASE bodies (global scope) resolves ambiguously against it.
+using PolygonShape = pgl::EPolygon;
 using Region = pgl::EPolygonWithHoles;
 using Arrangement = pgl::Arrangement<Point>;
 
@@ -162,7 +166,7 @@ std::vector<Region> boundedFaces(const Arrangement& arr) {
 }
 
 Region regionOf(const std::vector<Point>& ring) {
-    return Region(Polygon(ring));
+    return Region(PolygonShape(ring));
 }
 
 }  // namespace
@@ -260,8 +264,8 @@ TEST_CASE("a square inside a square is a face with a hole") {
     CHECK(arr.innerCycles(ring).size() == 1);
     CHECK(arr.innerCycles(inside).empty());
 
-    const Region holed(Polygon({P(0, 0), P(6, 0), P(6, 6), P(0, 6)}),
-                       std::vector<Polygon>{Polygon({P(2, 2), P(4, 2), P(4, 4), P(2, 4)})});
+    const Region holed(PolygonShape({P(0, 0), P(6, 0), P(6, 6), P(0, 6)}),
+                        std::vector<PolygonShape>{PolygonShape({P(2, 2), P(4, 2), P(4, 4), P(2, 4)})});
     CHECK(arr.polygon(ring) == holed);
     CHECK(arr.polygon(inside) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     // The witness of the ring-shaped face must miss the hole.
@@ -452,8 +456,8 @@ TEST_CASE("crossings off the input lattice") {
 
 TEST_CASE("polygonal input contributes its boundary") {
     SUBCASE("polygons") {
-        const std::vector<Polygon> polygons{Polygon({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}),
-                                            Polygon({P(2, 2), P(6, 2), P(6, 6), P(2, 6)})};
+        const std::vector<PolygonShape> polygons{PolygonShape({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}),
+                                                  PolygonShape({P(2, 2), P(6, 2), P(6, 6), P(2, 6)})};
         const Arrangement arr(polygons);
         checkInvariants(arr);
         // The two squares overlap in a third one, so three bounded faces.
@@ -462,8 +466,8 @@ TEST_CASE("polygonal input contributes its boundary") {
     }
 
     SUBCASE("a region, holes included") {
-        const Region holed(Polygon({P(0, 0), P(6, 0), P(6, 6), P(0, 6)}),
-                           std::vector<Polygon>{Polygon({P(2, 2), P(4, 2), P(4, 4), P(2, 4)})});
+        const Region holed(PolygonShape({P(0, 0), P(6, 0), P(6, 6), P(0, 6)}),
+                            std::vector<PolygonShape>{PolygonShape({P(2, 2), P(4, 2), P(4, 4), P(2, 4)})});
         const Arrangement arr(std::vector<Region>{holed});
         checkInvariants(arr);
         REQUIRE(arr.faceCount() == 3);
