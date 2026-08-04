@@ -576,6 +576,14 @@ instead — and so does a pair whose sum is a set of regions, which no single
 
 - `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`. Notice that two shapes (for example lines) may be equal (according to `==`) but still behave differently for verticesContain if they are defined by different points.
 
+- `convexPartition()` ([`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.")): Returns the shape cut
+  into [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") pieces with pairwise disjoint interiors whose union is the shape,
+  within a factor of four of the fewest possible. Shorthand for
+  `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation).
+  A convex shape comes back as a single piece. On a region the pieces cover only
+  what has area, so the holes are where there is no piece and a slit — having no
+  area — appears in none of them.
+
 ## Iterating
 
 There are several methods to iterate through vertices, edges, or oriented

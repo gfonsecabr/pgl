@@ -574,6 +574,14 @@ instead — and so does a pair whose sum is a set of regions, which no single
 
 - `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`. Notice that two shapes (for example lines) may be equal (according to `==`) but still behave differently for verticesContain if they are defined by different points.
 
+- `convexPartition()` (`Polygon` and `PolygonWithHoles`): Returns the shape cut
+  into `Convex` pieces with pairwise disjoint interiors whose union is the shape,
+  within a factor of four of the fewest possible. Shorthand for
+  `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation).
+  A convex shape comes back as a single piece. On a region the pieces cover only
+  what has area, so the holes are where there is no piece and a slit — having no
+  area — appears in none of them.
+
 ## Iterating
 
 There are several methods to iterate through vertices, edges, or oriented
