@@ -815,3 +815,48 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(!addable<PolylineShape, RectangleShape>);
     static_assert(addable<PolylineShape, Point>);
 }
+
+TEST_CASE("minkowskiSum: a chain's boundary decomposition agrees with its edges") {
+    // A polyline is its own boundary, so against a convex operand it need not be
+    // taken one edge at a time: consecutive edges that keep going the same way in
+    // x form a monotone run, whose whole sum is one polygon from the chain sweep
+    // and needs no arrangement. The answer must not depend on which of the two
+    // decompositions ran, and the REQUIRE is what keeps this from passing
+    // vacuously if the run decomposition ever stopped firing here.
+    const PolylineShape staircase({Point(0, 0), Point(2, 3), Point(4, 1), Point(6, 4), Point(8, 2),
+                                   Point(10, 5), Point(12, 3), Point(14, 6)});
+    const PolylineShape monotone({Point(0, 0), Point(2, 5), Point(4, 1), Point(6, 7), Point(9, 2),
+                                  Point(13, 8), Point(18, 3), Point(24, 9), Point(31, 4)});
+
+    const std::vector<Triangle> summands{Triangle(Point(0, 0), Point(4, 0), Point(0, 4)),
+                                         Triangle(Point(-1, -2), Point(3, 0), Point(0, 3))};
+
+    for (const PolylineShape& chain : {staircase, monotone}) {
+        for (const Triangle& summand : summands) {
+            const auto operand = pgl::detail::minkowskiAsConvex(summand);
+            auto runs = pgl::detail::minkowskiBoundaryRuns(chain);
+            REQUIRE(runs.size() < chain.size() - 1);  // fewer runs than edges, or why bother
+            REQUIRE(pgl::detail::minkowskiBoundaryPays(chain, operand, runs));
+
+            auto boundary = chain.minkowskiSum<pgl::ERational>(summand);
+            auto perEdge = pgl::detail::decomposedMinkowskiSum<EPoint>(chain, summand);
+            std::sort(boundary.begin(), boundary.end());
+            std::sort(perEdge.begin(), perEdge.end());
+            CHECK(boundary == perEdge);
+        }
+    }
+
+    // A chain that turns back at every vertex has one run per edge, so the two
+    // decompositions produce the very same pieces and the cheaper one is taken.
+    // The answer is the same either way; what is being pinned is the choice.
+    const PolylineShape zigzag({Point(0, 0), Point(5, 1), Point(1, 2), Point(6, 3), Point(2, 4)});
+    const auto operand = pgl::detail::minkowskiAsConvex(summands[0]);
+    const auto zigzagRuns = pgl::detail::minkowskiBoundaryRuns(zigzag);
+    CHECK(zigzagRuns.size() == zigzag.size() - 1);
+    CHECK_FALSE(pgl::detail::minkowskiBoundaryPays(zigzag, operand, zigzagRuns));
+    auto zigzagSum = zigzag.minkowskiSum<pgl::ERational>(summands[0]);
+    auto zigzagRef = pgl::detail::decomposedMinkowskiSum<EPoint>(zigzag, summands[0]);
+    std::sort(zigzagSum.begin(), zigzagSum.end());
+    std::sort(zigzagRef.begin(), zigzagRef.end());
+    CHECK(zigzagSum == zigzagRef);
+}

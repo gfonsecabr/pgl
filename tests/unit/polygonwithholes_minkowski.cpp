@@ -623,3 +623,97 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
     REQUIRE(truncated.size() == 1);
     CHECK_FALSE(truncated[0].contains(Point(3, 7)));
 }
+
+TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one") {
+    // A convex operand lets the receiver's *boundary* be decomposed into
+    // x-monotone runs, on the identity `A ⊕ B = (A + q₀) ∪ (∂A ⊕ B)`, instead of
+    // its area being triangulated. Both decompositions are exact and answer the
+    // same question, so they must give the same regions; what makes this worth a
+    // test of its own is that they reach them through entirely different code --
+    // one through the chain sweep and no triangulation at all.
+    //
+    // The receivers are chosen so that the boundary decomposition is what
+    // actually runs, and the REQUIRE below is what says so: it is the same
+    // predicate the dispatcher consults, and a change that quietly stopped the
+    // decomposition from firing would fail here rather than pass vacuously.
+    const PolygonShape comb({Point(0, 0), Point(12, 0), Point(12, 2), Point(10, 2), Point(10, 9),
+                             Point(8, 9), Point(8, 2), Point(6, 2), Point(6, 9), Point(4, 9),
+                             Point(4, 2), Point(2, 2), Point(2, 9), Point(0, 9)});
+    const PolygonShape staircase({Point(0, 0), Point(9, 0), Point(9, 9), Point(7, 9), Point(7, 6),
+                                  Point(5, 6), Point(5, 4), Point(3, 4), Point(3, 2),
+                                  Point(0, 2)});
+    const Region holed(box(0, 0, 24, 24), std::vector<PolygonShape>{box(8, 8, 16, 16)});
+
+    const std::vector<Triangle> summands{Triangle(Point(0, 0), Point(3, 0), Point(0, 3)),
+                                         Triangle(Point(-1, -2), Point(2, 0), Point(0, 2))};
+
+    const auto agrees = [&summands](const auto& receiver) {
+        for (const Triangle& summand : summands) {
+            const auto operand = pgl::detail::minkowskiAsConvex(summand);
+            auto runs = pgl::detail::minkowskiBoundaryRuns(receiver);
+            REQUIRE(pgl::detail::minkowskiBoundaryPays(receiver, operand, runs));
+
+            auto boundary = receiver.template minkowskiSum<pgl::ERational>(summand);
+            auto convex = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
+            std::sort(boundary.begin(), boundary.end());
+            std::sort(convex.begin(), convex.end());
+            CHECK(boundary == convex);
+        }
+    };
+    agrees(comb);
+    agrees(staircase);
+    agrees(holed);
+
+    // A slit is the one boundary the decomposition has to decline: two of the
+    // region's rings cover the same stretch, so the piece it would build has a
+    // boundary that overlaps itself, which the coverage classifier reads as
+    // outside. The answer still has to come back right, from the other path.
+    const Region slit = slitRegion();
+    REQUIRE_FALSE(pgl::detail::minkowskiHasSimpleBoundary(slit));
+    auto slitSum = slit.minkowskiSum<pgl::ERational>(summands[0]);
+    auto slitRef = pgl::detail::decomposedMinkowskiSum<EPoint>(slit, summands[0]);
+    std::sort(slitSum.begin(), slitSum.end());
+    std::sort(slitRef.begin(), slitRef.end());
+    CHECK(slitSum == slitRef);
+}
+
+TEST_CASE("minkowskiSum: monotone runs cover a walk exactly once") {
+    // The runs are what the boundary decomposition sums, so their union has to be
+    // the walk itself: every edge in exactly one run, and each run strictly
+    // increasing lexicographically, which is what `MonotoneChain` requires.
+    const auto runsOf = [](const std::vector<Point>& walk) {
+        return pgl::detail::minkowskiMonotoneRuns(walk);
+    };
+
+    // Already monotone: one run, untouched.
+    CHECK(runsOf({Point(0, 0), Point(1, 1), Point(2, 0), Point(3, 5)}).size() == 1);
+    // Monotone the other way: one run, reversed so that it increases.
+    const auto backwards = runsOf({Point(3, 5), Point(2, 0), Point(1, 1), Point(0, 0)});
+    REQUIRE(backwards.size() == 1);
+    CHECK(backwards[0].front() == Point(0, 0));
+    // A turn in x, and a vertical stretch that reverses: each ends a run.
+    CHECK(runsOf({Point(0, 0), Point(4, 1), Point(2, 2)}).size() == 2);
+    CHECK(runsOf({Point(0, 0), Point(0, 4), Point(0, 2)}).size() == 2);
+    // A repeated vertex spans no edge, so it ends the run and starts the next at
+    // the second of the two -- the split costs a piece and loses nothing, which is
+    // what matters, since a chain may not repeat a vertex at all.
+    CHECK(runsOf({Point(0, 0), Point(1, 1), Point(1, 1), Point(2, 2)}).size() == 2);
+    // A walk that is one point over and over spans no edge at all, and the caller
+    // is what turns that into the summand translated there.
+    CHECK(runsOf({Point(2, 3), Point(2, 3)}).empty());
+
+    // Every edge of a zigzag is its own run, and the runs still cover it.
+    const std::vector<Point> zigzag{Point(0, 0), Point(3, 1), Point(1, 2),
+                                    Point(4, 3), Point(2, 4)};
+    const auto runs = runsOf(zigzag);
+    CHECK(runs.size() == zigzag.size() - 1);
+    std::size_t edges = 0;
+    for (const auto& run : runs) {
+        REQUIRE(run.size() >= 2);
+        for (std::size_t i = 0; i + 1 < run.size(); ++i) {
+            CHECK(run[i] < run[i + 1]);  // strictly increasing, as a chain must be
+        }
+        edges += run.size() - 1;
+    }
+    CHECK(edges == zigzag.size() - 1);
+}

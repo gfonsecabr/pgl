@@ -16,7 +16,8 @@
  * holes … none of those is representable today". It is now, so this header adds
  * it.
  *
- * The construction is the one identity the sum satisfies over unions,
+ * The construction that always works is the one identity the sum satisfies over
+ * unions,
  *
  *     A ⊕ B  =  ⋃ᵢⱼ (Aᵢ ⊕ Bⱼ)      whenever  A = ⋃ᵢ Aᵢ  and  B = ⋃ⱼ Bⱼ,
  *
@@ -26,7 +27,25 @@
  * `Aᵢ ⊕ Bⱼ` is then the linear convex merge, and the union of the `|A|·|B|`
  * results is one call to @ref pgl::detail::regularizedUnionOf — the cell engine
  * of `booleans.hpp`, which increment 11 observed was already n-ary in everything
- * but its signature.
+ * but its signature. That is @ref pgl::detail::decomposedMinkowskiSum, and it
+ * costs `Θ(a²b²)`.
+ *
+ * It is also the *last* thing @ref pgl::detail::regularizedMinkowskiSum tries,
+ * because it charges for both operands' concavity whether or not either has any.
+ * Two cheaper constructions come first, and both turn on a **convex** operand
+ * rather than on a type:
+ *
+ * - **Both operands convex** — a `Polygon` or a hole-free region can be, and then
+ *   the answer is just the linear merge of `minkowski.hpp`, in `O(a + b)`.
+ * - **One operand convex** — the other's *boundary* is decomposed into
+ *   x-monotone runs instead of its area being triangulated, on the identity
+ *   `A ⊕ B = (A + q₀) ∪ (∂A ⊕ B)`; each run's sum is the chain sweep below, which
+ *   needs no arrangement at all. See @ref pgl::detail::minkowskiBoundaryPieces.
+ *
+ * Neither changes the worst case — a boundary that turns at every vertex has one
+ * monotone run per edge and gets the convex decomposition back — and neither is
+ * a special case in the contract: all three return the same answer, and the
+ * paragraphs below describe all of them.
  *
  * Two consequences worth stating, because they are what tells this entry point
  * apart from the shape-valued one:
@@ -61,6 +80,13 @@
  * vertex at a crossing, and that arrangement is built over rationals and
  * converted to the requested type once, at the end.
  *
+ * The boundary decomposition is the one construction here that does not fit that
+ * rule, since a run's sum can put a vertex at a crossing of two of *its own*
+ * pieces. Its pieces are therefore built over the exact type directly, and it is
+ * taken only when that type is a rational: on floating-point coordinates it would
+ * be rounding twice where the convex decomposition rounds once, which was measured
+ * to matter.
+ *
  * ### The chain that needs none of it
  *
  * A @ref pgl::MonotoneChain receiver is the exception this file also holds, and
@@ -89,6 +115,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -230,29 +258,26 @@ decltype(auto) holeFilteredFor(const Shape& shape, const OtherShape& other) {
 }
 
 /**
- * @brief The regularized Minkowski sum `closure((A ⊕ B)°)`, as a set of regions.
+ * @brief The Minkowski sum of two convex operands, decomposed into pairs of
+ *        convex pieces and united — the fallback every pair can take.
  *
  * Decomposes both operands into convex pieces, sums every pair of them with the
  * linear convex merge, and takes one regularized union of the results. Pieces
  * whose sum has no area are dropped before the union, which is sound and not
  * merely an optimization: a closed set with empty interior cannot add an
  * interior point to a closed union, so the regularized answer does not see it.
- * Holes that the sum would fill in anyway are dropped first — see
- * @ref holeFilteredFor — which is where an operand's holes stop costing anything.
  *
  * Complexity: `|A|·|B|` convex merges, then the cell engine over their combined
  * boundary — O(m²) segment intersections for m edges in total, over the
  * arrangement of them. That is quadratic in a quantity that is itself quadratic
- * in the operands, so this is a construction for the shapes someone writes down
- * rather than for large meshes.
+ * in the operands, which is why @ref regularizedMinkowskiSum sends every pair it
+ * can somewhere else first.
  */
 template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA& a,
-                                                                   const ShapeB& b) {
-    // Filtering either operand leaves the other's outer boundary untouched, so
-    // the two tests see the same boxes whichever order they run in.
-    const auto left = minkowskiConvexPieces(holeFilteredFor(a, b));
-    const auto right = minkowskiConvexPieces(holeFilteredFor(b, a));
+std::vector<PolygonWithHoles<ResultPoint>> decomposedMinkowskiSum(const ShapeA& a,
+                                                                  const ShapeB& b) {
+    const auto left = minkowskiConvexPieces(a);
+    const auto right = minkowskiConvexPieces(b);
     using SumConvex = decltype(minkowskiConvexSum(left.front(), right.front()));
 
     std::vector<SumConvex> sums;
@@ -273,6 +298,79 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
     sums.erase(std::unique(sums.begin(), sums.end()), sums.end());
 
     return regularizedUnionOf<ResultPoint>(sums);
+}
+
+// -----------------------------------------------------------------------------
+// What an operand is, as far as the sum is concerned. Three questions decide
+// which construction @ref regularizedMinkowskiSum runs, and all three are answered
+// at run time: a `Polygon` that happens to be convex takes the same path a
+// `Convex` does, and it is only convex on this particular call.
+
+/**
+ * @brief Tests whether a bounded operand's point set is convex.
+ *
+ * A `Convex`, a `Triangle`, a `Rectangle` and a `Segment` are convex by their
+ * type. A `Polygon` is convex when its own `isConvex` says so — which, on a
+ * shape meeting the simplicity precondition, is exactly convexity — and a region
+ * when it has no hole left and its outer ring is convex. A chain is not: a
+ * `Polyline` or a `MonotoneChain` is convex only when it is a segment, and its
+ * sums are handled well enough elsewhere not to need the extra case.
+ */
+template <class Shape>
+bool minkowskiIsConvex(const Shape& shape) {
+    if constexpr (is_polygon_v<Shape>) {
+        return shape.isConvex();
+    } else if constexpr (is_polygon_with_holes_v<Shape>) {
+        return shape.holes().empty() && shape.outer().isConvex();
+    } else if constexpr (is_polyline_v<Shape> || is_monotone_chain_v<Shape>) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+/**
+ * @brief Tests whether an operand has area.
+ *
+ * Distinct from `!isDegenerate()`, which a `Segment` answers about its *length*.
+ * What the sum needs to know is whether sweeping the other operand along this one
+ * leaves material behind, and only a two-dimensional operand does.
+ */
+template <class Shape>
+bool minkowskiHasArea(const Shape& shape) {
+    if constexpr (is_segment_v<Shape> || is_oriented_segment_v<Shape> ||
+                  is_polyline_v<Shape> || is_monotone_chain_v<Shape>) {
+        return false;
+    } else {
+        return !shape.isDegenerate();
+    }
+}
+
+/**
+ * @brief A convex operand as a @ref Convex, hulled once.
+ *
+ * @ref minkowskiConvexSum re-derives its operands' vertex lists on every call,
+ * and for anything but a `Convex` that means a Graham scan. Harmless when the
+ * call happens once, but the chain sweep below makes one call per chain edge, so
+ * a `Polygon` operand would be re-hulled `n` times. Converting up front makes
+ * that scan happen once.
+ */
+template <class Shape>
+auto minkowskiAsConvex(const Shape& shape) {
+    using ShapePoint = typename Shape::PointType;
+    if constexpr (is_convex_v<Shape>) {
+        return shape;
+    } else if constexpr (is_polygon_v<Shape>) {
+        return Convex<ShapePoint>(shape.vertices());
+    } else if constexpr (is_polygon_with_holes_v<Shape>) {
+        return Convex<ShapePoint>(shape.outer().vertices());
+    } else {
+        std::vector<ShapePoint> vertices;
+        for (const auto& vertex : shape.vertices()) {
+            vertices.emplace_back(vertex);
+        }
+        return Convex<ShapePoint>(std::move(vertices));
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -902,6 +1000,385 @@ Polygon<ResultPoint> chainMinkowskiSum(const ChainType& chain, const ConvexOpera
     // running denominator is the common multiple of every crossing's.
     std::rotate(walk.begin(), std::min_element(walk.begin(), walk.end()), walk.end());
     return Polygon<ResultPoint>(std::move(walk), true);
+}
+
+// -----------------------------------------------------------------------------
+// The boundary decomposition: what a convex operand buys the other one.
+
+/**
+ * @brief Splits a walk into its maximal lexicographically monotone runs.
+ *
+ * A @ref MonotoneChain is a *strictly* lexicographically increasing sequence, so
+ * a run ends wherever the walk turns back on itself in that order — at an
+ * x-extreme, and also where a vertical stretch reverses, since equal x is ordered
+ * by y. A decreasing run is reversed on the way out, which costs nothing and
+ * halves the number of cuts. Two equal consecutive points end a run and start the
+ * next at the second of them, so a repeated vertex neither joins two runs nor
+ * strands anything between them.
+ *
+ * The runs cover every edge of the walk exactly once, which is what makes their
+ * union the walk itself — the only property the sum below needs of them.
+ */
+template <class P>
+std::vector<std::vector<P>> minkowskiMonotoneRuns(const std::vector<P>& walk) {
+    std::vector<std::vector<P>> runs;
+    const auto direction = [](const P& from, const P& to) {
+        return from == to ? 0 : (from < to ? 1 : -1);
+    };
+
+    std::size_t start = 0;
+    while (start + 1 < walk.size()) {
+        const int forward = direction(walk[start], walk[start + 1]);
+        if (forward == 0) {
+            ++start;  // a repeated vertex spans no edge
+            continue;
+        }
+        std::size_t end = start + 1;
+        while (end + 1 < walk.size() && direction(walk[end], walk[end + 1]) == forward) {
+            ++end;
+        }
+        std::vector<P> run(walk.begin() + static_cast<std::ptrdiff_t>(start),
+                           walk.begin() + static_cast<std::ptrdiff_t>(end) + 1);
+        if (forward < 0) {
+            std::reverse(run.begin(), run.end());
+        }
+        runs.push_back(std::move(run));
+        start = end;
+    }
+    return runs;
+}
+
+/**
+ * @brief The monotone runs of a bounded shape's whole boundary.
+ *
+ * A region contributes every ring, each closed by repeating its first vertex so
+ * that the closing edge is covered like any other; a chain contributes its own
+ * vertex sequence, which is open and needs no closing. Their union is the
+ * boundary exactly, which is the property @ref minkowskiBoundaryPieces sums over.
+ *
+ * Computed apart from the pieces so that the dispatcher can *count* the runs
+ * before committing to them: a boundary that turns back on itself at every vertex
+ * has one run per edge and decomposing it buys nothing.
+ */
+template <class Shape>
+std::vector<std::vector<typename Shape::PointType>> minkowskiBoundaryRuns(const Shape& shape) {
+    using ShapePoint = typename Shape::PointType;
+
+    std::vector<std::vector<ShapePoint>> walks;
+    const auto addRing = [&walks](const auto& ring) {
+        std::vector<ShapePoint> walk = ring.vertices();
+        if (!walk.empty()) {
+            walk.push_back(walk.front());
+        }
+        walks.push_back(std::move(walk));
+    };
+    if constexpr (is_polygon_with_holes_v<Shape>) {
+        addRing(shape.outer());
+        for (const auto& hole : shape.holes()) {
+            addRing(hole);
+        }
+    } else if constexpr (is_polygon_v<Shape>) {
+        addRing(shape);
+    } else {
+        // A chain is open: no closing edge, and its own vertex order is the walk.
+        std::vector<ShapePoint> walk;
+        walk.reserve(shape.size());
+        for (std::size_t index = 0; index < shape.size(); ++index) {
+            walk.push_back(shape[index]);
+        }
+        walks.push_back(std::move(walk));
+    }
+
+    std::vector<std::vector<ShapePoint>> runs;
+    for (const std::vector<ShapePoint>& walk : walks) {
+        std::vector<std::vector<ShapePoint>> walkRuns = minkowskiMonotoneRuns(walk);
+        if (walkRuns.empty() && !walk.empty()) {
+            // No run means no two consecutive vertices differ, so the whole walk
+            // is one point. It still sums to something — the operand translated
+            // there — and a chain of that single vertex is what says so.
+            walkRuns.push_back({walk.front()});
+        }
+        runs.insert(runs.end(), std::make_move_iterator(walkRuns.begin()),
+                    std::make_move_iterator(walkRuns.end()));
+    }
+    return runs;
+}
+
+/**
+ * @brief The pieces of `shape ⊕ other` for a **convex** @p other with area:
+ *        one polygon per monotone run of @p shape's boundary, plus @p shape
+ *        itself translated.
+ *
+ * The identity this rests on is, for any `q₀ ∈ B` and connected `B`,
+ *
+ *     A ⊕ B  =  (A + q₀)  ∪  (∂A ⊕ B).
+ *
+ * `⊇` is immediate. For `⊆`, take `x = p + q` and slide `q` to `q₀` along the
+ * segment in `B`, which is in `B` because `B` is convex: either `x − q(t)` stays
+ * in `A` the whole way, and then `x ∈ A + q₀`, or it leaves, and — `A` being
+ * closed — it crosses `∂A` at some `t`, giving `x ∈ ∂A ⊕ B`. A chain has no
+ * interior and is its own boundary, so the first term drops for one and the
+ * identity is just `A = ∂A`.
+ *
+ * That trades the triangulation's `n − 2` pieces for `k + 1`, where `k` counts
+ * the boundary's monotone runs: the arrangement is fed `O(n + k·m)` edges instead
+ * of `Θ(n·m)`, and it is fed *polygons* whose own overlaps the chain sweep has
+ * already resolved. `k` is 1 for a boundary that turns back on itself once, `n`
+ * for a zigzag, and the worst case is therefore unchanged — what changes is
+ * everything between.
+ *
+ * Each run's sum is @ref chainMinkowskiSum, which builds no arrangement at all.
+ * The pieces come out in the exact coordinate the union engine arranges in, since
+ * unlike a convex piece sum a run's sum can put a vertex at a crossing of two of
+ * its own pieces, which need not be on the operands' lattice.
+ *
+ * @pre @p other is convex and has area, so that each run's sum is a simple
+ *      polygon rather than a walk that can pinch shut or trace a spur.
+ */
+template <class ExactPoint, class Shape, class ConvexOperand>
+std::vector<PolygonWithHoles<ExactPoint>> minkowskiBoundaryPieces(
+    const Shape& shape, const ConvexOperand& other,
+    std::vector<std::vector<typename Shape::PointType>> runs) {
+    using ShapePoint = typename Shape::PointType;
+    using SumPoint = minkowskiPoint_t<Shape, ConvexOperand>;
+    using SumNumber = typename SumPoint::NumberType;
+    using ExactNumber = typename ExactPoint::NumberType;
+    using ExactPolygon = Polygon<ExactPoint>;
+
+    std::vector<PolygonWithHoles<ExactPoint>> pieces;
+    pieces.reserve(runs.size() + 1);
+
+    for (std::vector<ShapePoint>& run : runs) {
+        const MonotoneChain<ShapePoint> chain(std::move(run), true);
+        ExactPolygon sum = chainMinkowskiSum<ExactPoint>(chain, other);
+        if (sum.size() >= 3) {
+            pieces.emplace_back(std::move(sum), std::vector<ExactPolygon>{}, true);
+        }
+    }
+
+    if constexpr (is_polygon_v<Shape> || is_polygon_with_holes_v<Shape>) {
+        // The interior term. A boundary with no area beside it needs none: the
+        // runs already cover such a shape entirely.
+        if (!shape.isDegenerate()) {
+            const std::vector<SumPoint> operandVertices = minkowskiVertices<SumPoint>(other);
+            if (operandVertices.empty()) {
+                return {};  // an empty operand absorbs
+            }
+            const SumPoint& q0 = operandVertices.front();
+            // Translating a ring preserves both the lexicographic order of its
+            // vertices and its orientation, so the canonical form survives and
+            // the rings can be rebuilt trusted.
+            const auto translated = [&q0](const auto& ring) {
+                std::vector<ExactPoint> moved;
+                moved.reserve(ring.size());
+                for (const auto& vertex : ring.vertices()) {
+                    moved.emplace_back(static_cast<ExactNumber>(static_cast<SumNumber>(vertex.x()) +
+                                                                q0.x()),
+                                       static_cast<ExactNumber>(static_cast<SumNumber>(vertex.y()) +
+                                                                q0.y()));
+                }
+                return ExactPolygon(std::move(moved), true);
+            };
+            if constexpr (is_polygon_with_holes_v<Shape>) {
+                std::vector<ExactPolygon> holes;
+                holes.reserve(shape.holes().size());
+                for (const auto& hole : shape.holes()) {
+                    holes.push_back(translated(hole));
+                }
+                pieces.emplace_back(translated(shape.outer()), std::move(holes), true);
+            } else {
+                pieces.emplace_back(translated(shape), std::vector<ExactPolygon>{}, true);
+            }
+        }
+    }
+    return pieces;
+}
+
+/**
+ * @brief The shape kinds @ref minkowskiBoundaryPieces knows how to decompose:
+ *        those whose boundary is a walk over their own vertices.
+ *
+ * A compile-time gate rather than a run-time one, since the decomposition asks
+ * for rings a `Triangle` or a `Rectangle` cannot hand it — and neither wants it,
+ * being convex and settled by the linear merge long before.
+ */
+template <class Shape>
+inline constexpr bool minkowskiHasWalkableBoundary =
+    is_polygon_v<Shape> || is_polygon_with_holes_v<Shape> || is_polyline_v<Shape> ||
+    is_monotone_chain_v<Shape>;
+
+/**
+ * @brief Tests whether @ref minkowskiBoundaryPieces may decompose this operand.
+ *
+ * Every shape it accepts qualifies except a region carrying a **slit**, a stretch
+ * of boundary two of its rings cover between them. Such a region translates into
+ * a piece whose own boundary overlaps itself, which is the one thing the coverage
+ * classifier cannot read — see @ref regularizedUnionByCoverage. Slits are rare
+ * and the test is only reached when a region still has a hole after the filter.
+ */
+template <class Shape>
+bool minkowskiHasSimpleBoundary(const Shape& shape) {
+    if constexpr (is_polygon_with_holes_v<Shape>) {
+        return shape.holes().empty() || regionSlits(shape).empty();
+    } else {
+        return is_polygon_v<Shape> || is_polyline_v<Shape> || is_monotone_chain_v<Shape>;
+    }
+}
+
+/**
+ * @brief Tests whether decomposing @p shape's boundary into @p runs is cheaper
+ *        than decomposing it into convex pieces.
+ *
+ * Both decompositions end in the same arrangement, whose cost tracks the number
+ * of edges it is handed, so that is what the two are compared on. For an
+ * `m`-vertex operand and a boundary of `E` edges falling into `k` runs:
+ *
+ * - the boundary decomposition gives `2·E + k·m`, since a run of `e` edges sums
+ *   to a polygon bounded above and below by those `e` edges' sweeps and closed off
+ *   by the operand's own `m` at either end;
+ * - the convex decomposition gives one piece of `m + 2` per chain edge, or of
+ *   `m + 3` per triangle, so `Θ(E·m)`.
+ *
+ * A run of a single edge produces *the very same piece* either way, so a boundary
+ * that turns at every vertex — `k = E` — gains nothing at all and the two
+ * estimates meet, as they should.
+ *
+ * The `6/5` is what makes this a real comparison rather than a tie-break there.
+ * The boundary decomposition's pieces can carry a vertex at a crossing of two of
+ * their own sub-sums, so they are built over `Rational<BigInt>` where a convex
+ * piece sum stays in the operands' integers; that was measured at **1.17x per
+ * edge** on exactly the `k = E` case, where the two produce identical pieces and
+ * one of them is needlessly exact. So the decomposition has to save about a fifth
+ * of the edges before it is worth taking, which on a chain works out at `k` under
+ * roughly three quarters of `E`.
+ *
+ * The estimate is deliberately conservative for a receiver with area, whose convex
+ * decomposition has to triangulate before it can produce a single piece — a cost
+ * counted nowhere here.
+ */
+template <class Shape, class ConvexOperand, class Runs>
+bool minkowskiBoundaryPays(const Shape& shape, const ConvexOperand& other, const Runs& runs) {
+    const std::size_t operandEdges = other.size();
+    std::size_t edges = 0;
+    std::size_t convexPieces = 0;
+    std::size_t convexPieceEdges = operandEdges + 3;  // a triangle's sum
+    if constexpr (is_polygon_with_holes_v<Shape>) {
+        edges = shape.outer().size();
+        for (const auto& hole : shape.holes()) {
+            edges += hole.size();
+        }
+        // One triangle per vertex, near enough: the outer ring saves two and each
+        // hole costs two more, so this is an underestimate for a holed region and
+        // the comparison errs towards the decomposition already there.
+        convexPieces = edges;
+    } else if constexpr (is_polygon_v<Shape>) {
+        edges = shape.size();  // a ring has one edge per vertex
+        convexPieces = edges > 2 ? edges - 2 : edges;
+    } else {
+        edges = shape.size() > 1 ? shape.size() - 1 : 0;
+        convexPieces = edges > 0 ? edges : 1;
+        convexPieceEdges = operandEdges + 2;  // an edge's sum, two vertices thick
+    }
+    const std::size_t boundaryEdges = 2 * edges + runs.size() * operandEdges;
+    return 6 * boundaryEdges < 5 * convexPieces * convexPieceEdges;
+}
+
+/**
+ * @brief The regularized Minkowski sum `closure((A ⊕ B)°)`, as a set of regions.
+ *
+ * Three constructions, cheapest first, and which one runs is decided on the
+ * operands' *values* rather than their types:
+ *
+ * 1. **Both convex** — one linear merge of the two edge-direction sequences, and
+ *    the answer is that convex polygon. No arrangement, no rational arithmetic,
+ *    `O(a + b)`. This is the same construction `Convex ⊕ Convex` has always taken
+ *    and it is worst-case optimal; what it adds is that a `Polygon` or a region
+ *    that *happens* to be convex now takes it too, where it used to pay the full
+ *    `Θ(a²b²)` for an `O(a + b)` answer.
+ * 2. **One convex operand with area, exact coordinates, and a boundary worth
+ *    decomposing** — the identity of @ref minkowskiBoundaryPieces: `k + 1` pieces
+ *    where the triangulation gave `a − 2`, none of them needing a triangulation
+ *    to find. The tight worst-case output bound for this pair is `Θ(a·b)` rather
+ *    than `Θ(a²b²)`, so it is the pair with the most left on the table; the pieces
+ *    are fewer and larger, which is what the arrangement is cheapest on. Three
+ *    things can send it back to construction 3, and each is a separate judgement:
+ *    a **slit** in a region operand, which the coverage classifier cannot read;
+ *    **floating-point** coordinates, where the decomposition's divisions cost more
+ *    accuracy than it is worth; and a boundary that **turns too often** for the
+ *    decomposition to save anything (@ref minkowskiBoundaryPays).
+ * 3. **Neither** — @ref decomposedMinkowskiSum, the all-pairs convex decomposition,
+ *    unchanged and still what every pair falls back to.
+ *
+ * Holes the sum would fill in anyway are dropped first, before any of the three
+ * — see @ref holeFilteredFor — which is also what lets a holed region reach
+ * construction 1 or 2 at all.
+ *
+ * None of the three changes the worst case, which stays `Θ(a²b²)`: a boundary
+ * that turns at every vertex has one run per edge and gets construction 3 back.
+ * What they change is everything either side of that.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA& a,
+                                                                   const ShapeB& b) {
+    using SumPoint = minkowskiPoint_t<ShapeA, ShapeB>;
+    using SumNumber = typename SumPoint::NumberType;
+    using ExactPoint = Point<Exact1DNumber<SumNumber, SumNumber>>;
+
+    // Filtering either operand leaves the other's outer boundary untouched, so
+    // the two tests see the same boxes whichever order they run in.
+    const auto& left = holeFilteredFor(a, b);
+    const auto& right = holeFilteredFor(b, a);
+
+    const bool leftConvex = minkowskiIsConvex(left);
+    const bool rightConvex = minkowskiIsConvex(right);
+
+    if (leftConvex && rightConvex) {
+        const auto sum = minkowskiConvexSum(minkowskiAsConvex(left), minkowskiAsConvex(right));
+        if (sum.isDegenerate()) {
+            return {};  // nothing with area, so the regularized sum is empty
+        }
+        return {PolygonWithHoles<ResultPoint>(Polygon<ResultPoint>(sum.asPolygon()))};
+    }
+
+    // The sum is commutative, so it is the convex operand that decides and not
+    // which side it arrived on. Only one of the two branches can fire: a pair that
+    // got past the test above has at most one convex operand, so the other is the
+    // one to decompose.
+    //
+    // Both branches are gated on the coordinates being exact, and that is not a
+    // performance choice. A convex piece sum never divides — every one of its
+    // vertices is a sum of two input vertices — so the all-pairs decomposition is
+    // exact in *any* coordinate type, floating-point included, and only the final
+    // arrangement rounds. A run's sum does divide, to place the crossings of its
+    // own sub-sums, and those rounded vertices then feed a second arrangement. On
+    // integral operands stored as `double`, measured against the exact answer, that
+    // costs a worst-case relative area error of 0.145 where the all-pairs
+    // decomposition holds 2e-14, and it turns single regions into two or invents
+    // holes. So the decomposition is taken only where its pieces can carry their
+    // own crossings, which is exactly where `Exact1DNumber` is a rational.
+    constexpr bool exactPieces = !std::is_floating_point_v<SumNumber>;
+    if constexpr (exactPieces && minkowskiHasWalkableBoundary<std::remove_cvref_t<decltype(left)>>) {
+        if (rightConvex && minkowskiHasArea(right) && minkowskiHasSimpleBoundary(left)) {
+            const auto convexRight = minkowskiAsConvex(right);
+            auto runs = minkowskiBoundaryRuns(left);
+            if (minkowskiBoundaryPays(left, convexRight, runs)) {
+                return regularizedUnionOf<ResultPoint>(
+                    minkowskiBoundaryPieces<ExactPoint>(left, convexRight, std::move(runs)), true);
+            }
+        }
+    }
+    if constexpr (exactPieces && minkowskiHasWalkableBoundary<std::remove_cvref_t<decltype(right)>>) {
+        if (leftConvex && minkowskiHasArea(left) && minkowskiHasSimpleBoundary(right)) {
+            const auto convexLeft = minkowskiAsConvex(left);
+            auto runs = minkowskiBoundaryRuns(right);
+            if (minkowskiBoundaryPays(right, convexLeft, runs)) {
+                return regularizedUnionOf<ResultPoint>(
+                    minkowskiBoundaryPieces<ExactPoint>(right, convexLeft, std::move(runs)), true);
+            }
+        }
+    }
+
+    return decomposedMinkowskiSum<ResultPoint>(left, right);
 }
 
 }  // namespace detail
