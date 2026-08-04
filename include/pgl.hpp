@@ -66,6 +66,7 @@
 #include "algorithm/sortpoints.hpp"
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"
+#include "algorithm/arrangement.hpp"
 #include "implementation/booleans.hpp"
 #include "implementation/minkowskisum.hpp"
 
