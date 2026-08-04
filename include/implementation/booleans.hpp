@@ -342,10 +342,17 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
     using ExactPoint = Point<ExactNumber>;
 
-    // A repeat contributes nothing: not to the union, not to the arrangement,
-    // and not to any classification. It would only be tested again for every
-    // face, so drop it once here rather than pay for it everywhere.
+    // What survives to be unioned. A shape with no interior contributes nothing
+    // to `closure(union of interiors)`, so dropping it cannot change the result
+    // on either path below — and the parity argument on the convex one *needs*
+    // it gone: such a boundary is traversed twice, but the two traversals
+    // coincide and the arrangement merges them into a single edge carrying that
+    // origin once, so crossing it would toggle an odd number of times and report
+    // the far side as inside. A repeat contributes nothing either, and would be
+    // tested again for every face it covers. Both go before the sort, which then
+    // has less to order.
     std::vector<ShapeType> distinct(std::ranges::begin(shapes), std::ranges::end(shapes));
+    std::erase_if(distinct, [](const ShapeType& shape) { return shape.isDegenerate(); });
     std::sort(distinct.begin(), distinct.end());
     distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
 
@@ -354,18 +361,6 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     }
 
     if constexpr (is_convex_v<ShapeType>) {
-        // A piece without an interior covers nothing, and the parity argument
-        // below cannot see it: its boundary is traversed twice, but the two
-        // traversals coincide and the arrangement merges them into one edge
-        // carrying that origin once. Crossing it would toggle an odd number of
-        // times and report the far side as inside. Dropping such a piece is
-        // right on its own terms anyway — a regularized union keeps no area it
-        // does not have.
-        std::erase_if(distinct, [](const ShapeType& piece) { return piece.isDegenerate(); });
-        if (distinct.empty()) {
-            return {};
-        }
-
         // Crossing a simple convex boundary toggles membership in exactly its
         // source piece. Start outside every piece in the unbounded face, then
         // propagate those parity bits across the arrangement's face adjacency
