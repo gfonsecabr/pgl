@@ -666,6 +666,39 @@ public:
                (*this <=> f) == std::partial_ordering::equivalent;
     }
 
+    // --- comparison against integers ---
+    //
+    // An integer converts implicitly to Rational, so `r == i` and `i < r` already
+    // work through the same-type operators. `i == r` does not, and neither does
+    // `i != r`: C++20 builds the reversed candidate for `==` out of the *declared*
+    // operator== functions, and the same-type one only matches after converting
+    // the integer, which is not something a reversed candidate is formed through.
+    // The relational forms escape this because they are rewritten via operator<=>,
+    // which is why `i < r` compiles while `i == r` does not — an asymmetry that
+    // surfaces wherever a predicate compares two coordinates of different types,
+    // such as Rectangle<Point<Rational>>::boundaryContains(Point<int>).
+    //
+    // Declaring the integer comparison as its own member template fixes both
+    // directions at once, exactly as the floating-point overloads above already
+    // do: the template matches the integer directly, so the reversed candidate is
+    // formed without any user-defined conversion. `Int` is admitted alongside the
+    // built-in integers to cover a storage type that is not one of them, BigInt
+    // being the case that matters here.
+
+    /// @brief Exact three-way comparison against an integer value.
+    template <class I>
+        requires(pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr std::strong_ordering operator<=>(const I& n) const {
+        return *this <=> Rational(n);
+    }
+
+    /// @brief Exact equality against an integer value.
+    template <class I>
+        requires(pgl::detail::extended_integral<I> || std::same_as<I, Int>)
+    constexpr bool operator==(const I& n) const {
+        return *this == Rational(n);
+    }
+
     constexpr Rational& operator++() { return *this += 1; }
     constexpr Rational operator++(int) { Rational tmp = *this; ++(*this); return tmp; }
 
