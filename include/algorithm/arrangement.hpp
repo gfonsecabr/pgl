@@ -969,26 +969,54 @@ private:
      * an isolated input point, meets it, so that the pieces meet each other only
      * at shared endpoints.
      *
-     * This is the all-pairs form: quadratic in the number of input segments. It
-     * is the one step of the construction that a sweep replaces wholesale, and
-     * it is deliberately kept as a single self-contained function so that it can
-     * be swapped out without touching the rest.
+     * Input segments covering the same stretch are grouped first, so a stretch
+     * is split once however many shapes contributed it. The scan below is
+     * quadratic and the callers produce repeats in bulk — the union of the
+     * pairwise Minkowski sums arrives with about one distinct cut segment for
+     * every two — so the grouping is worth its sort several times over. The
+     * pieces are still emitted once per contributing shape, so
+     * @ref internVertices sees the same multiset it would without it.
+     *
+     * This is the all-pairs form: quadratic in the number of *distinct* input
+     * segments. It is the one step of the construction that a sweep replaces
+     * wholesale, and it is deliberately kept as a single self-contained function
+     * so that it can be swapped out without touching the rest.
      */
-    static std::vector<Piece> split(const std::vector<InputSegment>& segments,
+    static std::vector<Piece> split(std::vector<InputSegment>& segments,
                                     const std::vector<PointType>& isolated) {
+        // Equal geometry adjacent, and within a group the contributing shapes in
+        // the order internVertices expects to see them.
+        std::sort(segments.begin(), segments.end(),
+                  [](const InputSegment& left, const InputSegment& right) {
+                      if (!(left.segment == right.segment)) {
+                          return left.segment < right.segment;
+                      }
+                      return left.origin < right.origin;
+                  });
+        // One entry per group plus a trailing sentinel, so group g occupies
+        // segments[group[g] .. group[g + 1]).
+        std::vector<std::size_t> group;
+        for (std::size_t i = 0; i < segments.size(); ++i) {
+            if (i == 0 || !(segments[i].segment == segments[i - 1].segment)) {
+                group.push_back(i);
+            }
+        }
+        group.push_back(segments.size());
+        const std::size_t count = group.size() - 1;
+
         std::vector<Piece> pieces;
         std::vector<PointType> cuts;
-        for (std::size_t i = 0; i < segments.size(); ++i) {
-            const Segment<PointType>& current = segments[i].segment;
+        for (std::size_t i = 0; i < count; ++i) {
+            const Segment<PointType>& current = segments[group[i]].segment;
             cuts.clear();
             cuts.push_back(current.min());
             cuts.push_back(current.max());
-            for (std::size_t j = 0; j < segments.size(); ++j) {
+            for (std::size_t j = 0; j < count; ++j) {
                 if (j == i) {
                     continue;
                 }
                 const auto piece =
-                    current.template intersection<NumberType>(segments[j].segment);
+                    current.template intersection<NumberType>(segments[group[j]].segment);
                 if (!piece) {
                     continue;
                 }
@@ -1010,8 +1038,10 @@ private:
             std::sort(cuts.begin(), cuts.end());
             cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
             for (std::size_t k = 0; k + 1 < cuts.size(); ++k) {
-                pieces.push_back(Piece{cuts[k], cuts[k + 1], segments[i].origin,
-                                       segments[i].label});
+                for (std::size_t s = group[i]; s < group[i + 1]; ++s) {
+                    pieces.push_back(
+                        Piece{cuts[k], cuts[k + 1], segments[s].origin, segments[s].label});
+                }
             }
         }
         return pieces;
