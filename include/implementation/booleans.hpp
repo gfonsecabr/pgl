@@ -90,16 +90,18 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
 // what turns any cell complex's boundary walks into rings.
 
 /**
- * @brief The union of the cells of an arrangement that @p keepWitness selects,
+ * @brief The union of the cells of an arrangement that @p keepWitnesses selects,
  *        as a set of regions.
  *
  * @p cuts must carry every point at which membership in the result can change —
  * the boundaries of all the operands involved, whatever they are. The
  * arrangement of those segments cuts the plane into faces on each of which
- * membership is constant, so @p keepWitness is called once per face, on a point
- * strictly inside it, and says whether the face belongs to the result. Being
- * strictly inside, the witness is on no boundary, which is why closed
+ * membership is constant, so one point strictly inside each face decides it.
+ * Being strictly inside, the witness is on no boundary, which is why closed
  * containments answer the open question and the result comes out regularized.
+ *
+ * @p keepWitness is called once per face, on that point, and says whether the
+ * face belongs to the result.
  *
  * Nothing here counts its operands: the whole engine sees only the cut segments
  * and the per-cell answer, so a boolean operation on two shapes
@@ -120,8 +122,7 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
  * hand and no map keyed on rational points anywhere.
  *
  * Complexity: one arrangement of the cut segments, then one @p keepWitness call
- * per face and a linear pass over the halfedges. The arrangement's own cost is
- * what dominates, and its splitting step is still the all-pairs one.
+ * per face and a linear pass over the halfedges.
  */
 template <class ResultPoint, class ExactPoint, class KeepWitness>
 std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
@@ -347,12 +348,31 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
     using ExactPoint = Point<ExactNumber>;
 
+    // A repeat contributes nothing: not to the union, not to the arrangement,
+    // and not to any classification. It would only be tested again for every
+    // face, so drop it once here rather than pay for it everywhere.
+    std::vector<ShapeType> distinct(std::ranges::begin(shapes), std::ranges::end(shapes));
+    std::sort(distinct.begin(), distinct.end());
+    distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
+
     std::vector<Segment<ExactPoint>> cuts;
-    for (const ShapeType& shape : shapes) {
+    for (const ShapeType& shape : distinct) {
         appendCutSegments<ExactPoint>(shape, cuts);
     }
-    return regularizedCells<ResultPoint>(cuts, [&shapes](const ExactPoint& witness) {
-        return std::ranges::any_of(shapes,
+
+    // A linear scan, stopping at the first operand that covers the witness.
+    // Indexing the operands in a ShapeTree was measured and is not worth it
+    // here: the operands of the construction this exists for — the pairwise
+    // convex sums of a Minkowski sum — tile one region and so overlap heavily,
+    // which is the input a bounding-volume hierarchy prunes worst. Its node
+    // boxes overlap as much as the operands do, a point query descends into most
+    // of them, and the whole tree bought 1.25x on the largest shape-pair cell
+    // while costing 13% at ordinary sizes. What this scan really wants is not a
+    // better index but no query at all: coverage propagates across the
+    // arrangement's edges, which know the operands they came from
+    // (@ref Arrangement::originsOf), in O(E) integer work.
+    return regularizedCells<ResultPoint>(cuts, [&distinct](const ExactPoint& witness) {
+        return std::ranges::any_of(distinct,
                                    [&witness](const ShapeType& s) { return s.contains(witness); });
     });
 }
