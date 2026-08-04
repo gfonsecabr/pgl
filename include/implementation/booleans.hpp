@@ -327,6 +327,124 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
 }
 
 /**
+ * @brief The regularized union of shapes each of whose boundaries is a disjoint
+ *        set of simple closed rings, classified by propagated parity.
+ *
+ * Crossing a ring toggles membership in the shape that carries it, so a face's
+ * membership is its neighbour's with the crossed edge's origins flipped, and one
+ * depth-first walk of the face adjacency graph settles every face in `O(E)` bit
+ * flips — where a witness scan costs one exact containment query per face and
+ * per shape. Parity reads insideness off a ring set only because the rings are
+ * disjoint: a region's outer ring counts once and a hole twice, which is exactly
+ * `inside outer and outside every hole`.
+ *
+ * @pre No two boundary edges of the same shape overlap. A stretch two rings
+ *      cover between them — a slit — reaches @ref Arrangement::originsOf as a
+ *      single origin rather than two, so crossing it would toggle once and
+ *      report the far side as outside. @ref regularizedUnionOf's caller is what
+ *      rules that out; see its `simpleBoundaries` parameter.
+ */
+template <class ResultPoint, class ShapeType>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
+    const std::vector<ShapeType>& distinct) {
+    using ShapeNumber = typename ShapeType::NumberType;
+    using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
+    using ExactPoint = Point<ExactNumber>;
+
+    // Start outside every piece in the unbounded face, then propagate those
+    // parity bits across the arrangement's face adjacency graph.
+    const Arrangement<ExactPoint> arrangement(distinct);
+    const std::size_t faceCount = arrangement.faceCount();
+    const std::size_t pieceCount = distinct.size();
+    constexpr std::size_t wordBits = 64;
+    const std::size_t words = (pieceCount + wordBits - 1) / wordBits;
+
+    // The halfedges bounding each face, as one pair of arrays rather than a
+    // vector per face: the face count runs to hundreds of thousands here, and
+    // that many separate allocations costs more than the traversal.
+    std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
+    for (const HalfedgeId h : arrangement.halfedges()) {
+        ++faceEdgeBegin[arrangement.face(h).index() + 1];
+    }
+    for (std::size_t i = 0; i < faceCount; ++i) {
+        faceEdgeBegin[i + 1] += faceEdgeBegin[i];
+    }
+    std::vector<std::uint32_t> faceEdge(arrangement.halfedgeCount(), 0);
+    {
+        std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
+        for (const HalfedgeId h : arrangement.halfedges()) {
+            faceEdge[cursor[arrangement.face(h).index()]++] = h.index();
+        }
+    }
+
+    // One shared membership word set, not one per face. Walking a spanning
+    // tree of the face adjacency graph depth first, a face's membership is
+    // its parent's with the crossed edge's origins toggled, so the descent
+    // toggles them and the return toggles them back. The flip is its own
+    // inverse in the coverage count too — a bit that was clear counts one
+    // more piece, a bit that was set one fewer — so both restore exactly.
+    // Storing membership per face instead would be faces x pieces bits,
+    // nearly half a gigabyte on the largest shape-pair cell.
+    std::vector<std::uint64_t> membership(words, 0);
+    std::size_t covered = 0;
+    const auto crossEdge = [&](std::uint32_t halfedge) {
+        for (const std::uint32_t origin : arrangement.originsOf(HalfedgeId(halfedge))) {
+            const std::size_t word = origin / wordBits;
+            const std::uint64_t mask = std::uint64_t{1} << (origin % wordBits);
+            if ((membership[word] & mask) == 0) {
+                ++covered;
+            } else {
+                --covered;
+            }
+            membership[word] ^= mask;
+        }
+    };
+
+    struct Frame {
+        std::uint32_t face;
+        std::uint32_t cursor;   // next index into faceEdge
+        std::uint32_t entered;  // halfedge crossed to get here, or noEdge at the root
+    };
+    constexpr std::uint32_t noEdge = ~std::uint32_t{0};
+
+    std::vector<std::size_t> coverage(faceCount, 0);
+    std::vector<char> seen(faceCount, 0);
+    std::vector<Frame> stack;
+    // Face 0 is the unbounded one, which lies outside every piece.
+    stack.push_back(Frame{0, faceEdgeBegin[0], noEdge});
+    seen[0] = 1;
+
+    while (!stack.empty()) {
+        Frame& top = stack.back();
+        if (top.cursor == faceEdgeBegin[top.face + 1]) {
+            if (top.entered != noEdge) {
+                crossEdge(top.entered);  // undo, restoring the parent's state
+            }
+            stack.pop_back();
+            continue;
+        }
+        const std::uint32_t h = faceEdge[top.cursor++];
+        const std::uint32_t next = arrangement.face(arrangement.twin(HalfedgeId(h))).index();
+        if (seen[next] != 0) {
+            continue;
+        }
+        seen[next] = 1;
+        crossEdge(h);
+        coverage[next] = covered;
+        // `top` may dangle after this, so nothing above may be used again.
+        stack.push_back(Frame{next, faceEdgeBegin[next], h});
+    }
+
+    assert(covered == 0);  // every descent undone
+    assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));
+    std::vector<char> keep(faceCount, 0);
+    for (const FaceId f : arrangement.faces()) {
+        keep[f.index()] = static_cast<char>(coverage[f.index()] != 0);
+    }
+    return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
+}
+
+/**
  * @brief The regularized union of arbitrarily many shapes, as a set of regions.
  *
  * One arrangement over all their boundaries settles the whole union, where
@@ -334,17 +452,24 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
  * re-triangulate everything accumulated so far. That is what makes it the right
  * back end for a construction whose natural form is a union of many pieces —
  * the Minkowski sum of two non-convex shapes is one.
+ *
+ * @param shapes The pieces to unite.
+ * @param simpleBoundaries Set when no two boundary edges of the *same* piece
+ *        overlap, which lets @ref regularizedUnionByCoverage classify the faces
+ *        instead of the witness scan below. A @ref Convex is such a piece by
+ *        construction and never has to say so; a @ref Polygon is one whenever it
+ *        meets its own simplicity precondition, and a @ref PolygonWithHoles is
+ *        one exactly when it carries no slit — which is why this is the caller's
+ *        to assert and not a property read off the type.
  */
 template <class ResultPoint, class ShapeRange>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& shapes) {
+std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& shapes,
+                                                              bool simpleBoundaries = false) {
     using ShapeType = std::ranges::range_value_t<ShapeRange>;
-    using ShapeNumber = typename ShapeType::NumberType;
-    using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
-    using ExactPoint = Point<ExactNumber>;
 
     // What survives to be unioned. A shape with no interior contributes nothing
     // to `closure(union of interiors)`, so dropping it cannot change the result
-    // on either path below — and the parity argument on the convex one *needs*
+    // on either path below — and the parity argument on the covered one *needs*
     // it gone: such a boundary is traversed twice, but the two traversals
     // coincide and the arrangement merges them into a single edge carrying that
     // origin once, so crossing it would toggle an odd number of times and report
@@ -361,101 +486,14 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     }
 
     if constexpr (is_convex_v<ShapeType>) {
-        // Crossing a simple convex boundary toggles membership in exactly its
-        // source piece. Start outside every piece in the unbounded face, then
-        // propagate those parity bits across the arrangement's face adjacency
-        // graph. This replaces one exact point-in-convex query per face and piece
-        // with O(E) bit flips.
-        const Arrangement<ExactPoint> arrangement(distinct);
-        const std::size_t faceCount = arrangement.faceCount();
-        const std::size_t pieceCount = distinct.size();
-        constexpr std::size_t wordBits = 64;
-        const std::size_t words = (pieceCount + wordBits - 1) / wordBits;
-
-        // The halfedges bounding each face, as one pair of arrays rather than a
-        // vector per face: the face count runs to hundreds of thousands here, and
-        // that many separate allocations costs more than the traversal.
-        std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
-        for (const HalfedgeId h : arrangement.halfedges()) {
-            ++faceEdgeBegin[arrangement.face(h).index() + 1];
-        }
-        for (std::size_t i = 0; i < faceCount; ++i) {
-            faceEdgeBegin[i + 1] += faceEdgeBegin[i];
-        }
-        std::vector<std::uint32_t> faceEdge(arrangement.halfedgeCount(), 0);
-        {
-            std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
-            for (const HalfedgeId h : arrangement.halfedges()) {
-                faceEdge[cursor[arrangement.face(h).index()]++] = h.index();
-            }
-        }
-
-        // One shared membership word set, not one per face. Walking a spanning
-        // tree of the face adjacency graph depth first, a face's membership is
-        // its parent's with the crossed edge's origins toggled, so the descent
-        // toggles them and the return toggles them back. The flip is its own
-        // inverse in the coverage count too — a bit that was clear counts one
-        // more piece, a bit that was set one fewer — so both restore exactly.
-        // Storing membership per face instead would be faces x pieces bits,
-        // nearly half a gigabyte on the largest shape-pair cell.
-        std::vector<std::uint64_t> membership(words, 0);
-        std::size_t covered = 0;
-        const auto crossEdge = [&](std::uint32_t halfedge) {
-            for (const std::uint32_t origin : arrangement.originsOf(HalfedgeId(halfedge))) {
-                const std::size_t word = origin / wordBits;
-                const std::uint64_t mask = std::uint64_t{1} << (origin % wordBits);
-                if ((membership[word] & mask) == 0) {
-                    ++covered;
-                } else {
-                    --covered;
-                }
-                membership[word] ^= mask;
-            }
-        };
-
-        struct Frame {
-            std::uint32_t face;
-            std::uint32_t cursor;   // next index into faceEdge
-            std::uint32_t entered;  // halfedge crossed to get here, or noEdge at the root
-        };
-        constexpr std::uint32_t noEdge = ~std::uint32_t{0};
-
-        std::vector<std::size_t> coverage(faceCount, 0);
-        std::vector<char> seen(faceCount, 0);
-        std::vector<Frame> stack;
-        // Face 0 is the unbounded one, which lies outside every piece.
-        stack.push_back(Frame{0, faceEdgeBegin[0], noEdge});
-        seen[0] = 1;
-
-        while (!stack.empty()) {
-            Frame& top = stack.back();
-            if (top.cursor == faceEdgeBegin[top.face + 1]) {
-                if (top.entered != noEdge) {
-                    crossEdge(top.entered);  // undo, restoring the parent's state
-                }
-                stack.pop_back();
-                continue;
-            }
-            const std::uint32_t h = faceEdge[top.cursor++];
-            const std::uint32_t next = arrangement.face(arrangement.twin(HalfedgeId(h))).index();
-            if (seen[next] != 0) {
-                continue;
-            }
-            seen[next] = 1;
-            crossEdge(h);
-            coverage[next] = covered;
-            // `top` may dangle after this, so nothing above may be used again.
-            stack.push_back(Frame{next, faceEdgeBegin[next], h});
-        }
-
-        assert(covered == 0);  // every descent undone
-        assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));
-        std::vector<char> keep(faceCount, 0);
-        for (const FaceId f : arrangement.faces()) {
-            keep[f.index()] = static_cast<char>(coverage[f.index()] != 0);
-        }
-        return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
+        return regularizedUnionByCoverage<ResultPoint>(distinct);
     } else {
+        using ShapeNumber = typename ShapeType::NumberType;
+        using ExactPoint = Point<Exact1DNumber<ShapeNumber, ShapeNumber>>;
+
+        if (simpleBoundaries) {
+            return regularizedUnionByCoverage<ResultPoint>(distinct);
+        }
         std::vector<Segment<ExactPoint>> cuts;
         for (const ShapeType& shape : distinct) {
             appendCutSegments<ExactPoint>(shape, cuts);
