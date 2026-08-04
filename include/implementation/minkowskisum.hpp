@@ -1237,6 +1237,80 @@ bool minkowskiHasSimpleBoundary(const Shape& shape) {
 }
 
 /**
+ * @brief How many **reflex** vertices a shape's domain boundary turns at, which
+ *        is what its convex partition costs.
+ *
+ * A vertex is reflex when the domain's interior angle there exceeds `π`, and a
+ * convex partition has to cut at every one of them: `r` reflex vertices need at
+ * least `⌈r/2⌉` diagonals, since a diagonal can only resolve its two endpoints,
+ * and @ref Triangulation::convexPartition typically spends one apiece. So `r + 1`
+ * is the piece count to plan for, against the `n − 2` a triangulation gives.
+ *
+ * A ring is stored counterclockwise, so a vertex of the **outer** ring is reflex
+ * exactly when it turns clockwise. A **hole** is stored counterclockwise too but
+ * bounds the domain the other way round, so its interior angle is the reflex of
+ * the ring's own and the test flips with it: a hole is a pit whose every convex
+ * corner is a reflex corner of the region around it.
+ *
+ * Costs one orientation test per vertex, exactly, and nothing is triangulated.
+ */
+template <class Ring>
+std::size_t minkowskiReflexCount(const Ring& ring, bool isHole) {
+    const std::size_t n = ring.size();
+    if (n < 3) {
+        return 0;
+    }
+    std::size_t reflex = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto turn = orientationSign(ring[(i + n - 1) % n], ring[i], ring[(i + 1) % n]);
+        if (isHole ? turn > 0 : turn < 0) {
+            ++reflex;
+        }
+    }
+    return reflex;
+}
+
+/**
+ * @brief The convex pieces @ref minkowskiConvexPieces will cut @p shape into, and
+ *        how many vertices they carry between them — both estimated without
+ *        triangulating anything.
+ *
+ * A chain is its own answer: one two-vertex piece per edge. A polygon or a region
+ * goes to @ref Triangulation::convexPartition, whose piece count is `r + 1` for
+ * `r` reflex vertices (@ref minkowskiReflexCount) plus one more per hole, since a
+ * hole has to be cut open before the partition can reach round it. Those pieces
+ * share their diagonals in pairs and use the boundary once, so between them they
+ * carry `E + 2·d` vertices for the `d = pieces − 1 + holes` diagonals a partition
+ * of a region with holes needs.
+ */
+template <class Shape>
+std::pair<std::size_t, std::size_t> minkowskiPieceEstimate(const Shape& shape) {
+    if constexpr (is_polygon_v<Shape> || is_polygon_with_holes_v<Shape>) {
+        std::size_t edges = 0;
+        std::size_t reflex = 0;
+        std::size_t holes = 0;
+        if constexpr (is_polygon_with_holes_v<Shape>) {
+            edges = shape.outer().size();
+            reflex = minkowskiReflexCount(shape.outer(), false);
+            holes = shape.holes().size();
+            for (const auto& hole : shape.holes()) {
+                edges += hole.size();
+                reflex += minkowskiReflexCount(hole, true);
+            }
+        } else {
+            edges = shape.size();
+            reflex = minkowskiReflexCount(shape, false);
+        }
+        const std::size_t pieces = reflex + 1 + holes;
+        return {pieces, edges + 2 * (pieces - 1 + holes)};
+    } else {
+        const std::size_t edges = shape.size() > 1 ? shape.size() - 1 : 0;
+        const std::size_t pieces = edges > 0 ? edges : 1;
+        return {pieces, 2 * pieces};
+    }
+}
+
+/**
  * @brief Tests whether decomposing @p shape's boundary into @p runs is cheaper
  *        than decomposing it into convex pieces.
  *
@@ -1247,10 +1321,23 @@ bool minkowskiHasSimpleBoundary(const Shape& shape) {
  * - the boundary decomposition gives `2·E + k·m`, since a run of `e` edges sums
  *   to a polygon bounded above and below by those `e` edges' sweeps and closed off
  *   by the operand's own `m` at either end;
- * - the convex decomposition gives one piece of `m + 2` per chain edge, or of
- *   `m + 3` per triangle, so `Θ(E·m)`.
+ * - the convex decomposition sums each piece with the linear merge, so a piece of
+ *   `kᵢ` vertices gives one of `kᵢ + m`, and the `p` pieces give
+ *   `Σkᵢ + p·m` between them — both of which @ref minkowskiPieceEstimate reads off
+ *   the boundary without triangulating it.
  *
- * A run of a single edge produces *the very same piece* either way, so a boundary
+ * That second line used to say `p·(m + 3)` for `p = n − 2` triangles, which was
+ * the decomposition of the day. It is a convex *partition* now, so `p` tracks the
+ * **reflex** vertices rather than all of them — half as many on a random simple
+ * polygon, and one on a shape that is nearly convex — and the pieces carry the
+ * boundary once between them instead of three vertices each. Both corrections
+ * push the same way: the convex decomposition is cheaper than this test used to
+ * think, so the boundary decomposition has to be better than it used to have to
+ * be. A nearly convex receiver is where that bites, and it is exactly where the
+ * old estimate was worst: an `L` against an `m`-gon is two convex pieces summing
+ * to `8 + 2m` edges, where the triangle count called it four pieces and `4m + 12`.
+ *
+ * A run of a single edge produces *the very same piece* either way, so a chain
  * that turns at every vertex — `k = E` — gains nothing at all and the two
  * estimates meet, as they should.
  *
@@ -1263,35 +1350,39 @@ bool minkowskiHasSimpleBoundary(const Shape& shape) {
  * of the edges before it is worth taking, which on a chain works out at `k` under
  * roughly three quarters of `E`.
  *
- * The estimate is deliberately conservative for a receiver with area, whose convex
+ * That ratio has been swept, over twelve cases that reach this test — five
+ * receiver shapes against a triangle, a rectangle and a convex operand, plus the
+ * region pairs whose construction-3 inner sums ask the same question — at
+ * `5/6 → 1/3, 1/2, 2/3, 1, 5/4, 3/2, 2, 3`. The answer is a **plateau and a
+ * cliff**: everything from `1/3` to `1` lands within run-to-run noise of
+ * everything else, and `5/4` costs **26%** on the spot, every case above it with
+ * it. So the value hardly matters as long as it stays under 1, and what it must
+ * not do is reach it. `1` itself measured about 1.7% better than `5/6` and is not
+ * worth taking: it is the cliff edge, it leaves no margin at all, and it prices
+ * the rational arithmetic above at exactly nothing.
+ *
+ * The estimate stays conservative for a receiver with area, whose convex
  * decomposition has to triangulate before it can produce a single piece — a cost
- * counted nowhere here.
+ * counted nowhere here, and the reason the plateau reaches as high as it does.
  */
 template <class Shape, class ConvexOperand, class Runs>
 bool minkowskiBoundaryPays(const Shape& shape, const ConvexOperand& other, const Runs& runs) {
     const std::size_t operandEdges = other.size();
     std::size_t edges = 0;
-    std::size_t convexPieces = 0;
-    std::size_t convexPieceEdges = operandEdges + 3;  // a triangle's sum
     if constexpr (is_polygon_with_holes_v<Shape>) {
         edges = shape.outer().size();
         for (const auto& hole : shape.holes()) {
             edges += hole.size();
         }
-        // One triangle per vertex, near enough: the outer ring saves two and each
-        // hole costs two more, so this is an underestimate for a holed region and
-        // the comparison errs towards the decomposition already there.
-        convexPieces = edges;
     } else if constexpr (is_polygon_v<Shape>) {
         edges = shape.size();  // a ring has one edge per vertex
-        convexPieces = edges > 2 ? edges - 2 : edges;
     } else {
         edges = shape.size() > 1 ? shape.size() - 1 : 0;
-        convexPieces = edges > 0 ? edges : 1;
-        convexPieceEdges = operandEdges + 2;  // an edge's sum, two vertices thick
     }
+    const auto [pieces, pieceVertices] = minkowskiPieceEstimate(shape);
+    const std::size_t convexEdges = pieceVertices + pieces * operandEdges;
     const std::size_t boundaryEdges = 2 * edges + runs.size() * operandEdges;
-    return 6 * boundaryEdges < 5 * convexPieces * convexPieceEdges;
+    return 6 * boundaryEdges < 5 * convexEdges;
 }
 
 // -----------------------------------------------------------------------------
@@ -1355,8 +1446,14 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiOneSidedPieces(const ShapeA& 
  * @brief How many convex pieces @ref minkowskiConvexPieces will cut an operand
  *        into, near enough to choose a side by.
  *
- * One per vertex: a triangulated ring gives two fewer, a hole two more and a
- * chain one fewer, and none of that survives the ratio it is used in.
+ * One per vertex, and deliberately *not* the reflex-vertex estimate
+ * @ref minkowskiPieceEstimate gives — which is the accurate count, and is what
+ * @ref minkowskiBoundaryPays plans against. What is wanted here is only the
+ * *ratio* of the two operands' counts, and substituting the accurate one was
+ * measured neutral on a random pair and slightly negative on the asymmetric case
+ * it was meant for: a nearly convex operand against a jagged one, at three
+ * relative sizes, where it moved the choice and did not improve it. So the crude
+ * count stays until there is a case that wants the other.
  */
 template <class Shape>
 std::size_t minkowskiPieceCount(const Shape& shape) {

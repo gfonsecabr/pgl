@@ -632,10 +632,13 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
     // test of its own is that they reach them through entirely different code --
     // one through the chain sweep and no triangulation at all.
     //
-    // The receivers are chosen so that the boundary decomposition is what
-    // actually runs, and the REQUIRE below is what says so: it is the same
-    // predicate the dispatcher consults, and a change that quietly stopped the
-    // decomposition from firing would fail here rather than pass vacuously.
+    // The boundary decomposition is invoked *directly* rather than through
+    // `minkowskiSum`, so this stays a test of the two constructions agreeing and
+    // not of the dispatcher's cost estimate: which of them `minkowskiSum` picks
+    // for a given receiver is a tuning decision (@ref minkowskiBoundaryPays) that
+    // moves whenever the decompositions get cheaper, and it moving must not look
+    // like a correctness failure here. That the dispatcher still reaches the
+    // decomposition at all is checked once, below, on the receiver it fires for.
     const PolygonShape comb({Point(0, 0), Point(12, 0), Point(12, 2), Point(10, 2), Point(10, 9),
                              Point(8, 9), Point(8, 2), Point(6, 2), Point(6, 9), Point(4, 9),
                              Point(4, 2), Point(2, 2), Point(2, 9), Point(0, 9)});
@@ -648,21 +651,34 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
                                          Triangle(Point(-1, -2), Point(2, 0), Point(0, 2))};
 
     const auto agrees = [&summands](const auto& receiver) {
+        REQUIRE(pgl::detail::minkowskiHasSimpleBoundary(receiver));
         for (const Triangle& summand : summands) {
             const auto operand = pgl::detail::minkowskiAsConvex(summand);
             auto runs = pgl::detail::minkowskiBoundaryRuns(receiver);
-            REQUIRE(pgl::detail::minkowskiBoundaryPays(receiver, operand, runs));
-
-            auto boundary = receiver.template minkowskiSum<pgl::ERational>(summand);
+            auto pieces =
+                pgl::detail::minkowskiBoundaryPieces<EPoint>(receiver, operand, std::move(runs));
+            auto boundary = pgl::detail::regularizedUnionOf<EPoint>(pieces, true);
             auto convex = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
             std::sort(boundary.begin(), boundary.end());
             std::sort(convex.begin(), convex.end());
             CHECK(boundary == convex);
+            // Whichever the dispatcher picks, that is the answer it must give.
+            auto dispatched = receiver.template minkowskiSum<pgl::ERational>(summand);
+            std::sort(dispatched.begin(), dispatched.end());
+            CHECK(dispatched == convex);
         }
     };
     agrees(comb);
     agrees(staircase);
     agrees(holed);
+
+    // The dispatcher does still reach the decomposition: a boundary that turns
+    // only a few times against an operand with area is what it is for.
+    {
+        const auto operand = pgl::detail::minkowskiAsConvex(summands[0]);
+        auto runs = pgl::detail::minkowskiBoundaryRuns(holed);
+        REQUIRE(pgl::detail::minkowskiBoundaryPays(holed, operand, runs));
+    }
 
     // A slit is the one boundary the decomposition has to decline: two of the
     // region's rings cover the same stretch, so the piece it would build has a
