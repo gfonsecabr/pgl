@@ -769,6 +769,200 @@ struct Triangulation {
         return out;
     }
 
+    // ---- convex partition ------------------------------------------------
+
+    /**
+     * @brief The domain cut into convex pieces with pairwise disjoint interiors.
+     *
+     * Hertel–Mehlhorn: start from the triangles and delete every diagonal whose
+     * deletion leaves a convex piece, in one pass. Deleting a diagonal can only
+     * change the interior angle at its two endpoints — everywhere else the merged
+     * boundary is a stretch of one of the two pieces, unchanged — so each merge is
+     * decided by two orientation tests and nothing has to be re-examined. The
+     * classical guarantee is that the result has at most **four times** the
+     * minimum number of convex pieces, whatever order the diagonals are visited
+     * in, which is why no search is worth doing here. On a random simple polygon
+     * it halves the piece count against the triangulation.
+     *
+     * What it partitions is the **domain**: `closure(interior)`, exactly the part
+     * the triangles cover. A region's holes are where there is no piece, and a
+     * slit — a stretch of boundary two rings cover between them — has no area and
+     * so appears in no piece. Callers that need to sweep a slit have to add it
+     * themselves; @ref pgl::detail::minkowskiConvexPieces is the one that does.
+     *
+     * A **constrained** edge is never deleted. It is in the triangulation because
+     * something asked for it, and a partition that cuts along it is the one the
+     * caller described; for a polygon or a region built without extra constraints
+     * only the rings are constrained, so nothing is given up.
+     *
+     * The pieces come back unlabeled: a piece is a merge of several triangles and
+     * there is no one triangle's label to carry.
+     *
+     * Complexity: `O(n)` merges over the `O(n)` diagonals, each `O(1)` apart from
+     * the one guard below, and one pass to read the rings out.
+     *
+     * @return The convex pieces, in canonical order, whose union is the domain.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const {
+        std::vector<Convex<PointType>> pieces;
+        if (domainTriangleCount_ == 0) {
+            return pieces;
+        }
+
+        // Pieces are grown by union-find over the triangles, and each piece
+        // carries its boundary as a circular list of half-edges. A half-edge is
+        // one (triangle, side) pair — `3 * tri + side` — which is exactly the
+        // directed edge `v[(side+1)%3] -> v[(side+2)%3]`, CCW around the triangle
+        // because the vertices are. A triangle starts as its own piece, so its
+        // three sides start as its ring, in that same CCW order.
+        std::vector<TriId> parent(static_cast<std::size_t>(firstGhost_));
+        for (TriId t = 0; t < firstGhost_; ++t) {
+            parent[static_cast<std::size_t>(t)] = t;
+        }
+        const auto findRoot = [&parent](TriId x) {
+            while (parent[static_cast<std::size_t>(x)] != x) {
+                parent[static_cast<std::size_t>(x)] =
+                    parent[static_cast<std::size_t>(parent[static_cast<std::size_t>(x)])];
+                x = parent[static_cast<std::size_t>(x)];
+            }
+            return x;
+        };
+
+        const std::size_t slots = static_cast<std::size_t>(firstGhost_) * 3;
+        std::vector<std::int32_t> succ(slots, -1);
+        std::vector<std::int32_t> pred(slots, -1);
+        std::vector<std::int32_t> diagonals;
+        for (TriId t = 0; t < firstGhost_; ++t) {
+            if (!inDomain(t)) {
+                continue;
+            }
+            for (int s = 0; s < 3; ++s) {
+                const std::int32_t h = 3 * t + s;
+                succ[static_cast<std::size_t>(h)] = 3 * t + (s + 1) % 3;
+                pred[static_cast<std::size_t>(3 * t + (s + 1) % 3)] = h;
+                // Each interior unconstrained edge is a candidate once, from the
+                // lower-numbered of the two triangles that meet along it.
+                const TriId n = triangles_[static_cast<std::size_t>(t)].nbr[s];
+                if (n > t && inDomain(n) &&
+                    !bit(triangles_[static_cast<std::size_t>(t)].constrainedMask, s)) {
+                    diagonals.push_back(h);
+                }
+            }
+        }
+
+        const auto originOf = [this](std::int32_t h) {
+            return triangles_[static_cast<std::size_t>(h / 3)].v[static_cast<std::size_t>((h % 3 + 1) % 3)];
+        };
+        const auto targetOf = [this](std::int32_t h) {
+            return triangles_[static_cast<std::size_t>(h / 3)].v[static_cast<std::size_t>((h % 3 + 2) % 3)];
+        };
+        const auto neighborOf = [this](std::int32_t h) {
+            return triangles_[static_cast<std::size_t>(h / 3)].nbr[static_cast<std::size_t>(h % 3)];
+        };
+        // How many edges the piece holding `start` shares with the piece rooted
+        // at `otherRoot`. Two convex sets with disjoint interiors are separated by
+        // a line, so they can only share more than one edge if those edges are
+        // collinear — which takes a slit or collinear vertices, and is rare
+        // enough to pay a ring walk for. Splicing across one of two shared edges
+        // would leave a boundary pinched shut at the other, which is not a ring.
+        const auto sharedEdges = [&](std::int32_t start, TriId otherRoot) {
+            int count = 0;
+            std::int32_t h = start;
+            do {
+                const TriId n = neighborOf(h);
+                if (n != NO_TRI && inDomain(n) && findRoot(n) == otherRoot) {
+                    ++count;
+                }
+                h = succ[static_cast<std::size_t>(h)];
+            } while (h != start);
+            return count;
+        };
+
+        for (const std::int32_t h : diagonals) {
+            const TriId t = h / 3;
+            const TriId n = neighborOf(h);
+            const TriId rootA = findRoot(t);
+            const TriId rootB = findRoot(n);
+            if (rootA == rootB) {
+                continue;  // an earlier merge already swallowed this diagonal
+            }
+            const std::int32_t twin = 3 * n + findSide(n, t);
+            // The ring runs ... -> p -> u -> v -> q -> ... on this side and
+            // ... -> r -> v -> u -> w -> ... on the other, so deleting the two
+            // half-edges u->v and v->u leaves u followed by w and v followed by q.
+            const VertexId u = originOf(h);
+            const VertexId v = targetOf(h);
+            const VertexId p = originOf(pred[static_cast<std::size_t>(h)]);
+            const VertexId q = targetOf(succ[static_cast<std::size_t>(h)]);
+            const VertexId r = originOf(pred[static_cast<std::size_t>(twin)]);
+            const VertexId w = targetOf(succ[static_cast<std::size_t>(twin)]);
+            const auto convexAt = [this](VertexId before, VertexId at, VertexId after) {
+                return orientationSign(vertices_[static_cast<std::size_t>(before)],
+                                       vertices_[static_cast<std::size_t>(at)],
+                                       vertices_[static_cast<std::size_t>(after)]) >= 0;
+            };
+            // Collinear counts as convex: the merged piece is still convex and
+            // carries one fewer corner, which is the whole point.
+            if (!convexAt(p, u, w) || !convexAt(r, v, q)) {
+                continue;
+            }
+            if (sharedEdges(h, rootB) != 1) {
+                continue;
+            }
+            const std::int32_t beforeU = pred[static_cast<std::size_t>(h)];
+            const std::int32_t afterU = succ[static_cast<std::size_t>(twin)];
+            const std::int32_t beforeV = pred[static_cast<std::size_t>(twin)];
+            const std::int32_t afterV = succ[static_cast<std::size_t>(h)];
+            succ[static_cast<std::size_t>(beforeU)] = afterU;
+            pred[static_cast<std::size_t>(afterU)] = beforeU;
+            succ[static_cast<std::size_t>(beforeV)] = afterV;
+            pred[static_cast<std::size_t>(afterV)] = beforeV;
+            succ[static_cast<std::size_t>(h)] = -1;
+            pred[static_cast<std::size_t>(h)] = -1;
+            succ[static_cast<std::size_t>(twin)] = -1;
+            pred[static_cast<std::size_t>(twin)] = -1;
+            parent[static_cast<std::size_t>(rootA)] = rootB;
+        }
+
+        // Read each surviving ring out once, in the canonical form a trusted
+        // `Convex` asks for: CCW, no vertex in the middle of a straight stretch,
+        // starting at the lexicographically smallest. The rings are convex, so a
+        // vertex is interior to a straight stretch exactly when its own two
+        // neighbours in the ring are collinear with it, and dropping every such
+        // vertex in one pass is correct however many run together.
+        std::vector<char> read(slots, 0);
+        std::vector<PointType> ring;
+        std::vector<PointType> kept;
+        for (std::int32_t start = 0; start < static_cast<std::int32_t>(slots); ++start) {
+            if (succ[static_cast<std::size_t>(start)] < 0 || read[static_cast<std::size_t>(start)]) {
+                continue;
+            }
+            ring.clear();
+            std::int32_t h = start;
+            do {
+                read[static_cast<std::size_t>(h)] = 1;
+                ring.push_back(vertices_[static_cast<std::size_t>(originOf(h))]);
+                h = succ[static_cast<std::size_t>(h)];
+            } while (h != start);
+
+            kept.clear();
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                const PointType& before = ring[(i + ring.size() - 1) % ring.size()];
+                const PointType& after = ring[(i + 1) % ring.size()];
+                if (orientationSign(before, ring[i], after) != 0) {
+                    kept.push_back(ring[i]);
+                }
+            }
+            if (kept.size() < 3) {
+                continue;  // no area, so nothing of the domain to carry
+            }
+            std::rotate(kept.begin(), std::min_element(kept.begin(), kept.end()), kept.end());
+            pieces.push_back(Convex<PointType>(kept, /*trusted=*/true));
+        }
+        std::sort(pieces.begin(), pieces.end());
+        return pieces;
+    }
+
     // ---- traversal along a segment or (oriented) line --------------------
 
     /**
@@ -4087,10 +4281,20 @@ auto Polygon<PointType_, TLabel>::triangulation(const PointRange& points,
     return Triangulation(*this, points, segments);
 }
 
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexPartition() const {
+    return triangulation().convexPartition();
+}
+
 // Out-of-line for the same reason: declared in shape/polygonwithholes.hpp.
 template <class PointType_, class TLabel>
 auto PolygonWithHoles<PointType_, TLabel>::triangulation() const {
     return Triangulation(*this);
+}
+
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> PolygonWithHoles<PointType_, TLabel>::convexPartition() const {
+    return triangulation().convexPartition();
 }
 
 template <class PointType_, class TLabel>

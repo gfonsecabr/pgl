@@ -1936,3 +1936,107 @@ TEST_CASE("Points-plus-segments constructor keeps segment labels") {
     CHECK(tri.isConstrained(wall));
     CHECK(tri.label(wall) == "wall");
 }
+
+// ---------------------------------------------------------------------------
+// convexPartition
+
+namespace {
+
+// Every piece is convex, non-degenerate, and inside the shape; together they
+// cover exactly its area. Area is the decisive check: pieces with disjoint
+// interiors summing to the shape's own area can neither miss part of it nor
+// overlap, and cannot stray outside a shape they are contained in.
+template <class Shape, class Pieces>
+void checkPartitions(const Shape& shape, const Pieces& pieces) {
+    REQUIRE_FALSE(pieces.empty());
+    auto total = shape.twiceArea();
+    total -= total;  // a zero of the shape's own area type
+    for (const auto& piece : pieces) {
+        // Re-hulling must be the identity: the pieces are built `trusted`, so
+        // this is what says they really are in canonical convex-hull form.
+        using PiecePoint = std::remove_cvref_t<decltype(*piece.begin())>;
+        const std::vector<PiecePoint> verts(piece.begin(), piece.end());
+        CHECK(pgl::Convex<PiecePoint>(verts) == piece);
+        CHECK_FALSE(piece.isDegenerate());
+        CHECK(shape.contains(piece));
+        total += piece.twiceArea();
+    }
+    CHECK(total == shape.twiceArea());
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("convexPartition covers a polygon with convex pieces",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    SUBCASE("a convex polygon is one piece") {
+        const pgl::Polygon<Point> square(std::vector<Point>{
+            P<Point>(0, 0), P<Point>(4, 0), P<Point>(4, 4), P<Point>(0, 4)});
+        const auto pieces = square.convexPartition();
+        CHECK(pieces.size() == 1);
+        checkPartitions(square, pieces);
+    }
+
+    SUBCASE("an L has one reflex vertex and splits in two") {
+        const pgl::Polygon<Point> ell(std::vector<Point>{
+            P<Point>(0, 0), P<Point>(3, 0), P<Point>(3, 1),
+            P<Point>(1, 1), P<Point>(1, 3), P<Point>(0, 3)});
+        const auto pieces = ell.convexPartition();
+        CHECK(pieces.size() == 2);  // one reflex vertex needs one cut
+        checkPartitions(ell, pieces);
+    }
+
+    SUBCASE("a comb keeps fewer pieces than the triangulation") {
+        // Four teeth pointing down from a bar: 8 reflex vertices.
+        std::vector<Point> verts{P<Point>(0, 0)};
+        for (int i = 0; i < 4; ++i) {
+            const int x = 4 * i;
+            verts.push_back(P<Point>(x + 1, 0));
+            verts.push_back(P<Point>(x + 1, 3));
+            verts.push_back(P<Point>(x + 3, 3));
+            verts.push_back(P<Point>(x + 3, 0));
+        }
+        verts.push_back(P<Point>(16, 0));
+        verts.push_back(P<Point>(16, 6));
+        verts.push_back(P<Point>(0, 6));
+        const pgl::Polygon<Point> comb(verts);
+        const auto pieces = comb.convexPartition();
+        checkPartitions(comb, pieces);
+        CHECK(pieces.size() < comb.triangulation().numTriangles());
+    }
+}
+
+TEST_CASE_TEMPLATE("convexPartition covers a region without covering its holes",
+                   Point, pgl::Point<int>, pgl::Point<pgl::Rational<int64_t>>) {
+    using Poly = pgl::Polygon<Point>;
+    const Poly outer(std::vector<Point>{P<Point>(0, 0), P<Point>(9, 0),
+                                        P<Point>(9, 9), P<Point>(0, 9)});
+    std::vector<Poly> holes{Poly(std::vector<Point>{P<Point>(3, 3), P<Point>(6, 3),
+                                                    P<Point>(6, 6), P<Point>(3, 6)})};
+    const pgl::PolygonWithHoles<Point> region(outer, holes);
+    const auto pieces = region.convexPartition();
+    checkPartitions(region, pieces);
+    // The hole is where there is no piece.
+    const Point inHole = P<Point>(4, 4);
+    for (const auto& piece : pieces) {
+        CHECK_FALSE(piece.interiorContains(inHole));
+    }
+}
+
+TEST_CASE("convexPartition respects constrained edges") {
+    using Point = pgl::Point<int>;
+    using Seg = pgl::Segment<Point>;
+    // A square that would be one convex piece, cut in half by a constraint.
+    const pgl::Polygon<Point> square({0, 0, 4, 0, 4, 4, 0, 4});
+    CHECK(square.convexPartition().size() == 1);
+    const std::vector<Seg> wall{Seg(Point(0, 0), Point(4, 4))};
+    const auto pieces = square.triangulation(wall).convexPartition();
+    CHECK(pieces.size() == 2);  // the constraint is never merged across
+    checkPartitions(square, pieces);
+}
+
+TEST_CASE("convexPartition of an empty triangulation is empty") {
+    using Point = pgl::Point<int>;
+    const pgl::Triangulation<pgl::Triangle<Point>> tri;
+    CHECK(tri.convexPartition().empty());
+}

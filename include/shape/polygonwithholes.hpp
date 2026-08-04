@@ -593,6 +593,25 @@ struct PolygonWithHoles {
     auto triangulation(const SegmentRange& segments) const;
 
     /**
+     * @brief Cuts this region into convex pieces with disjoint interiors.
+     *
+     * Equivalent to `triangulation().convexPartition()`, with the same
+     * precondition (@ref isValid). What the pieces cover is the part of the
+     * region that has **area** — `closure(interior)` — so the holes are where
+     * there is no piece, and a **slit** appears in none of them, having no area
+     * of its own. That is the one way this differs from
+     * @ref Polygon::convexPartition, and it matters to any caller that sweeps the
+     * pieces rather than merely measuring them.
+     *
+     * There are at most four times as many pieces as the fewest possible; see
+     * @ref Triangulation::convexPartition. A hole-free region with a convex outer
+     * ring comes back as a single piece.
+     *
+     * @return The convex pieces, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
+
+    /**
      * @brief Returns the regularized set difference of the two shapes (A ∖ B).
      *
      * The result is `closure(A° ∖ B)`: the part of this region with area that

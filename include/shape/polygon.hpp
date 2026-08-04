@@ -688,6 +688,22 @@ struct Polygon {
     auto triangulation(const SegmentRange& segments) const;
 
     /**
+     * @brief Cuts this polygon into convex pieces with disjoint interiors.
+     *
+     * Equivalent to `triangulation().convexPartition()`, and the polygon has the
+     * same precondition it does: simple and non-degenerate. The pieces' union is
+     * the polygon and their interiors are pairwise disjoint, so anything additive
+     * over a decomposition — an area, a sweep, a Minkowski sum — may be summed
+     * over them. There are at most four times as many as the fewest possible; see
+     * @ref Triangulation::convexPartition for why that is all one should want.
+     *
+     * A convex polygon comes back as a single piece.
+     *
+     * @return The convex pieces, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
+
+    /**
      * @brief Builds the constrained Delaunay triangulation of this polygon with
      *        the given interior vertices and constraint segments.
      *
