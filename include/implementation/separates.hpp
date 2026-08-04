@@ -4545,16 +4545,25 @@ std::vector<Segment<ExactPoint>> arrangedCutSegments(const std::vector<Segment<E
                                                      const std::vector<ExactPoint>& points) {
     using ExactNumber = typename ExactPoint::NumberType;
     std::vector<Segment<ExactPoint>> result;
+    // Repeated cut segments are common — both operands carry a shared boundary
+    // edge, and the Minkowski pieces overlap in bulk — and each repeat would
+    // otherwise pay for a whole pass of the quadratic scan below just to produce
+    // pieces the final unique discards. Dropping the repeats up front cannot
+    // change the result: a duplicate meets its twin in the whole of it, so the
+    // only cuts it contributes are the two endpoints already seeded.
+    std::vector<Segment<ExactPoint>> distinct = segments;
+    std::sort(distinct.begin(), distinct.end());
+    distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
     std::vector<ExactPoint> cuts;
-    for (std::size_t i = 0; i < segments.size(); ++i) {
+    for (std::size_t i = 0; i < distinct.size(); ++i) {
         cuts.clear();
-        cuts.push_back(segments[i].min());
-        cuts.push_back(segments[i].max());
-        for (std::size_t j = 0; j < segments.size(); ++j) {
+        cuts.push_back(distinct[i].min());
+        cuts.push_back(distinct[i].max());
+        for (std::size_t j = 0; j < distinct.size(); ++j) {
             if (j == i) {
                 continue;
             }
-            const auto piece = segments[i].template intersection<ExactNumber>(segments[j]);
+            const auto piece = distinct[i].template intersection<ExactNumber>(distinct[j]);
             if (!piece) {
                 continue;
             }
@@ -4567,7 +4576,7 @@ std::vector<Segment<ExactPoint>> arrangedCutSegments(const std::vector<Segment<E
             }
         }
         for (const auto& point : points) {
-            if (segments[i].contains(point)) {
+            if (distinct[i].contains(point)) {
                 cuts.push_back(point);
             }
         }
