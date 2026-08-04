@@ -47,6 +47,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstddef>
 #include <limits>
 #include <map>
@@ -90,24 +91,11 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
 // what turns any cell complex's boundary walks into rings.
 
 /**
- * @brief The union of the cells of an arrangement that @p keepWitnesses selects,
- *        as a set of regions.
+ * @brief Extracts the union of the selected cells of an arrangement as regions.
  *
- * @p cuts must carry every point at which membership in the result can change —
- * the boundaries of all the operands involved, whatever they are. The
- * arrangement of those segments cuts the plane into faces on each of which
- * membership is constant, so one point strictly inside each face decides it.
- * Being strictly inside, the witness is on no boundary, which is why closed
- * containments answer the open question and the result comes out regularized.
- *
- * @p keepWitness is called once per face, on that point, and says whether the
- * face belongs to the result.
- *
- * Nothing here counts its operands: the whole engine sees only the cut segments
- * and the per-cell answer, so a boolean operation on two shapes
- * (@ref regularizedBoolean) and a union of arbitrarily many
- * (@ref regularizedUnionOf, which is what the Minkowski sum needs) are the same
- * call with a different classifier.
+ * @p keep holds one membership decision per face. The unbounded face must be
+ * excluded. The caller may obtain those decisions from witnesses or by
+ * propagating membership across the arrangement's edge history.
  *
  * The returned regions have pairwise disjoint interiors and their union is the
  * result. They are *not* nested: an island stranded inside a hole of the result
@@ -121,62 +109,17 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
  * pinches shut comes apart into two rings for free, with no fan to rebuild by
  * hand and no map keyed on rational points anywhere.
  *
- * Complexity: one arrangement of the cut segments, then one @p keepWitness call
- * per face and a linear pass over the halfedges.
+ * Complexity: linear in the arrangement's faces and halfedges.
  */
-template <class ResultPoint, class ExactPoint, class KeepWitness>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
-    const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
+template <class ResultPoint, class ExactPoint>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
+    const Arrangement<ExactPoint>& arrangement, const std::vector<char>& keep) {
     using ExactNumber = typename ExactPoint::NumberType;
-    using ExactSegment = Segment<ExactPoint>;
     using ExactPolygon = Polygon<ExactPoint>;
     using ResultPolygon = Polygon<ResultPoint>;
     constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
 
     std::vector<PolygonWithHoles<ResultPoint>> result;
-    if (cuts.empty()) {
-        return result;  // no operand has an edge, so none has area
-    }
-
-    // A box strictly containing every operand, so that the region around them is
-    // a face like any other rather than the unbounded one. The arrangement no
-    // longer needs it — the unbounded face is never kept, every operand being
-    // bounded — but it costs four edges and one classifier call, and keeping it
-    // leaves the engine's behaviour exactly as it was.
-    ExactNumber loX = cuts.front().min().x();
-    ExactNumber loY = cuts.front().min().y();
-    ExactNumber hiX = loX;
-    ExactNumber hiY = loY;
-    for (const ExactSegment& cut : cuts) {
-        for (const ExactPoint& point : {cut.min(), cut.max()}) {
-            loX = std::min(loX, point.x());
-            loY = std::min(loY, point.y());
-            hiX = std::max(hiX, point.x());
-            hiY = std::max(hiY, point.y());
-        }
-    }
-    const ExactNumber margin(1);
-    const std::array<ExactPoint, 4> corners{
-        ExactPoint(loX - margin, loY - margin), ExactPoint(hiX + margin, loY - margin),
-        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)};
-    std::vector<ExactSegment> segments = cuts;
-    for (std::size_t i = 0; i < corners.size(); ++i) {
-        segments.emplace_back(corners[i], corners[(i + 1) % corners.size()]);
-    }
-
-    const Arrangement<ExactPoint> arrangement(segments);
-
-    // Each face is in the result or out of it as a whole: its interior meets no
-    // boundary edge of any operand, so one witness point settles it. The witness
-    // is strictly inside its face, hence on no boundary, which is why the closed
-    // containments answer the open question here.
-    std::vector<char> keep(arrangement.faceCount(), 0);
-    for (const FaceId f : arrangement.faces()) {
-        if (!arrangement.isUnbounded(f)) {
-            keep[f.index()] = static_cast<char>(
-                keepWitness(arrangement.template witness<ExactNumber>(f)));
-        }
-    }
     const auto isKept = [&](HalfedgeId h) { return keep[arrangement.face(h).index()] != 0; };
 
     // Kept faces sharing an edge are one piece of the result. Faces meeting at a
@@ -305,6 +248,57 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
 }
 
 /**
+ * @brief Builds an arrangement of cuts, classifies its bounded faces by witness,
+ *        then extracts the selected cells.
+ */
+template <class ResultPoint, class ExactPoint, class KeepWitness>
+std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
+    const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
+    using ExactNumber = typename ExactPoint::NumberType;
+    using ExactSegment = Segment<ExactPoint>;
+
+    if (cuts.empty()) {
+        return {};  // no operand has an edge, so none has area
+    }
+
+    // A box strictly containing every operand, so that the region around them is
+    // a face like any other rather than the unbounded one. The arrangement no
+    // longer needs it — the unbounded face is never kept, every operand being
+    // bounded — but it costs four edges and one classifier call, and keeping it
+    // leaves the engine's behaviour exactly as it was.
+    ExactNumber loX = cuts.front().min().x();
+    ExactNumber loY = cuts.front().min().y();
+    ExactNumber hiX = loX;
+    ExactNumber hiY = loY;
+    for (const ExactSegment& cut : cuts) {
+        for (const ExactPoint& point : {cut.min(), cut.max()}) {
+            loX = std::min(loX, point.x());
+            loY = std::min(loY, point.y());
+            hiX = std::max(hiX, point.x());
+            hiY = std::max(hiY, point.y());
+        }
+    }
+    const ExactNumber margin(1);
+    const std::array<ExactPoint, 4> corners{
+        ExactPoint(loX - margin, loY - margin), ExactPoint(hiX + margin, loY - margin),
+        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)};
+    std::vector<ExactSegment> segments = cuts;
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+        segments.emplace_back(corners[i], corners[(i + 1) % corners.size()]);
+    }
+
+    const Arrangement<ExactPoint> arrangement(segments);
+    std::vector<char> keep(arrangement.faceCount(), 0);
+    for (const FaceId f : arrangement.faces()) {
+        if (!arrangement.isUnbounded(f)) {
+            keep[f.index()] = static_cast<char>(
+                keepWitness(arrangement.template witness<ExactNumber>(f)));
+        }
+    }
+    return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
+}
+
+/**
  * @brief The regularized boolean operation @p keepCell selects, as a set of
  *        regions.
  *
@@ -355,26 +349,127 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     std::sort(distinct.begin(), distinct.end());
     distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
 
-    std::vector<Segment<ExactPoint>> cuts;
-    for (const ShapeType& shape : distinct) {
-        appendCutSegments<ExactPoint>(shape, cuts);
+    if (distinct.empty()) {
+        return {};
     }
 
-    // A linear scan, stopping at the first operand that covers the witness.
-    // Indexing the operands in a ShapeTree was measured and is not worth it
-    // here: the operands of the construction this exists for — the pairwise
-    // convex sums of a Minkowski sum — tile one region and so overlap heavily,
-    // which is the input a bounding-volume hierarchy prunes worst. Its node
-    // boxes overlap as much as the operands do, a point query descends into most
-    // of them, and the whole tree bought 1.25x on the largest shape-pair cell
-    // while costing 13% at ordinary sizes. What this scan really wants is not a
-    // better index but no query at all: coverage propagates across the
-    // arrangement's edges, which know the operands they came from
-    // (@ref Arrangement::originsOf), in O(E) integer work.
-    return regularizedCells<ResultPoint>(cuts, [&distinct](const ExactPoint& witness) {
-        return std::ranges::any_of(distinct,
-                                   [&witness](const ShapeType& s) { return s.contains(witness); });
-    });
+    if constexpr (is_convex_v<ShapeType>) {
+        // A piece without an interior covers nothing, and the parity argument
+        // below cannot see it: its boundary is traversed twice, but the two
+        // traversals coincide and the arrangement merges them into one edge
+        // carrying that origin once. Crossing it would toggle an odd number of
+        // times and report the far side as inside. Dropping such a piece is
+        // right on its own terms anyway — a regularized union keeps no area it
+        // does not have.
+        std::erase_if(distinct, [](const ShapeType& piece) { return piece.isDegenerate(); });
+        if (distinct.empty()) {
+            return {};
+        }
+
+        // Crossing a simple convex boundary toggles membership in exactly its
+        // source piece. Start outside every piece in the unbounded face, then
+        // propagate those parity bits across the arrangement's face adjacency
+        // graph. This replaces one exact point-in-convex query per face and piece
+        // with O(E) bit flips.
+        const Arrangement<ExactPoint> arrangement(distinct);
+        const std::size_t faceCount = arrangement.faceCount();
+        const std::size_t pieceCount = distinct.size();
+        constexpr std::size_t wordBits = 64;
+        const std::size_t words = (pieceCount + wordBits - 1) / wordBits;
+
+        // The halfedges bounding each face, as one pair of arrays rather than a
+        // vector per face: the face count runs to hundreds of thousands here, and
+        // that many separate allocations costs more than the traversal.
+        std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
+        for (const HalfedgeId h : arrangement.halfedges()) {
+            ++faceEdgeBegin[arrangement.face(h).index() + 1];
+        }
+        for (std::size_t i = 0; i < faceCount; ++i) {
+            faceEdgeBegin[i + 1] += faceEdgeBegin[i];
+        }
+        std::vector<std::uint32_t> faceEdge(arrangement.halfedgeCount(), 0);
+        {
+            std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
+            for (const HalfedgeId h : arrangement.halfedges()) {
+                faceEdge[cursor[arrangement.face(h).index()]++] = h.index();
+            }
+        }
+
+        // One shared membership word set, not one per face. Walking a spanning
+        // tree of the face adjacency graph depth first, a face's membership is
+        // its parent's with the crossed edge's origins toggled, so the descent
+        // toggles them and the return toggles them back. The flip is its own
+        // inverse in the coverage count too — a bit that was clear counts one
+        // more piece, a bit that was set one fewer — so both restore exactly.
+        // Storing membership per face instead would be faces x pieces bits,
+        // nearly half a gigabyte on the largest shape-pair cell.
+        std::vector<std::uint64_t> membership(words, 0);
+        std::size_t covered = 0;
+        const auto crossEdge = [&](std::uint32_t halfedge) {
+            for (const std::uint32_t origin : arrangement.originsOf(HalfedgeId(halfedge))) {
+                const std::size_t word = origin / wordBits;
+                const std::uint64_t mask = std::uint64_t{1} << (origin % wordBits);
+                if ((membership[word] & mask) == 0) {
+                    ++covered;
+                } else {
+                    --covered;
+                }
+                membership[word] ^= mask;
+            }
+        };
+
+        struct Frame {
+            std::uint32_t face;
+            std::uint32_t cursor;   // next index into faceEdge
+            std::uint32_t entered;  // halfedge crossed to get here, or noEdge at the root
+        };
+        constexpr std::uint32_t noEdge = ~std::uint32_t{0};
+
+        std::vector<std::size_t> coverage(faceCount, 0);
+        std::vector<char> seen(faceCount, 0);
+        std::vector<Frame> stack;
+        // Face 0 is the unbounded one, which lies outside every piece.
+        stack.push_back(Frame{0, faceEdgeBegin[0], noEdge});
+        seen[0] = 1;
+
+        while (!stack.empty()) {
+            Frame& top = stack.back();
+            if (top.cursor == faceEdgeBegin[top.face + 1]) {
+                if (top.entered != noEdge) {
+                    crossEdge(top.entered);  // undo, restoring the parent's state
+                }
+                stack.pop_back();
+                continue;
+            }
+            const std::uint32_t h = faceEdge[top.cursor++];
+            const std::uint32_t next = arrangement.face(arrangement.twin(HalfedgeId(h))).index();
+            if (seen[next] != 0) {
+                continue;
+            }
+            seen[next] = 1;
+            crossEdge(h);
+            coverage[next] = covered;
+            // `top` may dangle after this, so nothing above may be used again.
+            stack.push_back(Frame{next, faceEdgeBegin[next], h});
+        }
+
+        assert(covered == 0);  // every descent undone
+        assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));
+        std::vector<char> keep(faceCount, 0);
+        for (const FaceId f : arrangement.faces()) {
+            keep[f.index()] = static_cast<char>(coverage[f.index()] != 0);
+        }
+        return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
+    } else {
+        std::vector<Segment<ExactPoint>> cuts;
+        for (const ShapeType& shape : distinct) {
+            appendCutSegments<ExactPoint>(shape, cuts);
+        }
+        return regularizedCells<ResultPoint>(cuts, [&distinct](const ExactPoint& witness) {
+            return std::ranges::any_of(
+                distinct, [&witness](const ShapeType& shape) { return shape.contains(witness); });
+        });
+    }
 }
 
 /** @brief The regularized difference `closure(A° ∖ B)`, as a set of regions. */
