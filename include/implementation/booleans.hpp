@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/triangulation.hpp"
+#include "algorithm/arrangement.hpp"
 
 /**
  * @file booleans.hpp
@@ -97,38 +97,9 @@ typename ExactPoint::NumberType twiceSignedRingArea(const std::vector<ExactPoint
     return total;
 }
 
-/**
- * @brief Cuts a closed boundary walk into simple rings at its repeated vertices.
- *
- * A boundary walk visits a vertex twice exactly where the region pinches shut
- * there — a hole closing over the outer ring at a point, or two holes meeting.
- * The walk is then a correct description of the boundary but not a polygon, so
- * the loop between the two visits is peeled off as a ring of its own. That is
- * precisely the decomposition @ref PolygonWithHoles wants: the peeled loop is
- * the hole and what remains is the ring it touches.
- */
-template <class ExactPoint>
-void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
-                        std::vector<std::vector<ExactPoint>>& out) {
-    std::vector<ExactPoint> pending;
-    std::map<ExactPoint, std::size_t> position;
-    for (const ExactPoint& vertex : walk) {
-        const auto seen = position.find(vertex);
-        if (seen != position.end()) {
-            const std::size_t from = seen->second;
-            out.emplace_back(pending.begin() + static_cast<std::ptrdiff_t>(from), pending.end());
-            for (std::size_t i = from; i < pending.size(); ++i) {
-                position.erase(pending[i]);
-            }
-            pending.resize(from);
-        }
-        position.emplace(vertex, pending.size());
-        pending.push_back(vertex);
-    }
-    if (!pending.empty()) {
-        out.push_back(std::move(pending));
-    }
-}
+// splitWalkIntoRings, which the extraction below also uses, lives beside the
+// arrangement in algorithm/arrangement.hpp: turning a cell complex's boundary
+// walks into rings is what both of them are for.
 
 /**
  * @brief The union of the cells of an arrangement that @p keepWitness selects,
