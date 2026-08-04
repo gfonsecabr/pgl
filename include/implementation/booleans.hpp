@@ -34,14 +34,15 @@
  * dropped. That is the usual convention for boolean operations on solids.
  *
  * The engine is the cell decomposition of @ref detail::cellSeparates seen from
- * the other side: the arrangement of both boundaries cuts the plane into
- * triangles on which membership in `A` and in `B` is constant, one witness
- * point per triangle decides whether it survives, and the boundary of the union
- * of the surviving triangles is read off the mesh. Only the per-cell test tells
- * the four operations apart. Everything is exact — the arrangement is built
- * over rationals — and the result is converted to the requested coordinate type
- * only at the very end, so an integral answer comes back integral however the
- * intermediate crossings looked.
+ * the other side: the @ref pgl::Arrangement of both boundaries cuts the plane
+ * into faces on which membership in `A` and in `B` is constant, one witness
+ * point per face decides whether it survives, and the boundary of the union of
+ * the surviving faces is read straight off the arrangement — a halfedge is on
+ * it exactly when the face to its left is kept and the face across it is not.
+ * Only the per-cell test tells the four operations apart. Everything is exact —
+ * the arrangement is built over rationals — and the result is converted to the
+ * requested coordinate type only at the very end, so an integral answer comes
+ * back integral however the intermediate crossings looked.
  */
 
 #include <algorithm>
@@ -50,8 +51,7 @@
 #include <limits>
 #include <map>
 #include <ranges>
-#include <set>
-#include <utility>
+#include <type_traits>
 #include <vector>
 
 namespace pgl {
@@ -85,21 +85,9 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
     }
 }
 
-/** @brief Twice the signed area of a ring; positive when it runs counterclockwise. */
-template <class ExactPoint>
-typename ExactPoint::NumberType twiceSignedRingArea(const std::vector<ExactPoint>& ring) {
-    typename ExactPoint::NumberType total(0);
-    for (std::size_t i = 0; i < ring.size(); ++i) {
-        const ExactPoint& p = ring[i];
-        const ExactPoint& q = ring[(i + 1) % ring.size()];
-        total += p.x() * q.y() - q.x() * p.y();
-    }
-    return total;
-}
-
-// splitWalkIntoRings, which the extraction below also uses, lives beside the
-// arrangement in algorithm/arrangement.hpp: turning a cell complex's boundary
-// walks into rings is what both of them are for.
+// ringOrientation and splitWalkIntoRings, which the extraction below also
+// uses, live beside the arrangement in algorithm/arrangement.hpp: they are
+// what turns any cell complex's boundary walks into rings.
 
 /**
  * @brief The union of the cells of an arrangement that @p keepWitness selects,
@@ -107,9 +95,9 @@ typename ExactPoint::NumberType twiceSignedRingArea(const std::vector<ExactPoint
  *
  * @p cuts must carry every point at which membership in the result can change —
  * the boundaries of all the operands involved, whatever they are. The
- * arrangement of those segments cuts the plane into triangles on each of which
- * membership is constant, so @p keepWitness is called once per cell, on a point
- * strictly inside it, and says whether the cell belongs to the result. Being
+ * arrangement of those segments cuts the plane into faces on each of which
+ * membership is constant, so @p keepWitness is called once per face, on a point
+ * strictly inside it, and says whether the face belongs to the result. Being
  * strictly inside, the witness is on no boundary, which is why closed
  * containments answer the open question and the result comes out regularized.
  *
@@ -124,9 +112,16 @@ typename ExactPoint::NumberType twiceSignedRingArea(const std::vector<ExactPoint
  * comes back as a region of its own, which is what a flat list of regions can
  * say (see decision (c): this library has no `PolygonSet`).
  *
- * Complexity: O(m²) segment intersections for m cut segments, then a
- * constrained triangulation over the arrangement and one @p keepWitness call
- * per cell.
+ * The extraction is where the @ref Arrangement earns its place. A halfedge is on
+ * the result's boundary exactly when the face to its left is kept and the face
+ * across it is not, and the rotational order the DCEL already carries is what
+ * walks from one boundary halfedge to the next — so a vertex where the result
+ * pinches shut comes apart into two rings for free, with no fan to rebuild by
+ * hand and no map keyed on rational points anywhere.
+ *
+ * Complexity: one arrangement of the cut segments, then one @p keepWitness call
+ * per face and a linear pass over the halfedges. The arrangement's own cost is
+ * what dominates, and its splitting step is still the all-pairs one.
  */
 template <class ResultPoint, class ExactPoint, class KeepWitness>
 std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
@@ -135,7 +130,6 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
     using ExactSegment = Segment<ExactPoint>;
     using ExactPolygon = Polygon<ExactPoint>;
     using ResultPolygon = Polygon<ResultPoint>;
-    using Dart = std::pair<ExactPoint, ExactPoint>;
     constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
 
     std::vector<PolygonWithHoles<ResultPoint>> result;
@@ -143,9 +137,11 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
         return result;  // no operand has an edge, so none has area
     }
 
-    // A box strictly containing every operand, so no cell of the arrangement
-    // straddles its boundary and the surviving cells are decided entirely by
-    // the operands.
+    // A box strictly containing every operand, so that the region around them is
+    // a face like any other rather than the unbounded one. The arrangement no
+    // longer needs it — the unbounded face is never kept, every operand being
+    // bounded — but it costs four edges and one classifier call, and keeping it
+    // leaves the engine's behaviour exactly as it was.
     ExactNumber loX = cuts.front().min().x();
     ExactNumber loY = cuts.front().min().y();
     ExactNumber hiX = loX;
@@ -159,38 +155,34 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
         }
     }
     const ExactNumber margin(1);
-    const ExactPolygon box(std::vector<ExactPoint>{
+    const std::array<ExactPoint, 4> corners{
         ExactPoint(loX - margin, loY - margin), ExactPoint(hiX + margin, loY - margin),
-        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)});
-    const auto mesh = box.triangulation(arrangedCutSegments(cuts, std::vector<ExactPoint>{}));
-    const auto triangles = mesh.triangles();
-
-    // Each cell is in the result or out of it as a whole: its interior meets no
-    // boundary edge of either operand, so one witness point settles it. The
-    // witness is strictly inside its triangle, hence on neither boundary, which
-    // is why the closed containments answer the open question here.
-    std::vector<char> keep(triangles.size(), 0);
-    std::map<Dart, std::size_t> leftOf;
-    for (std::size_t i = 0; i < triangles.size(); ++i) {
-        const auto& triangle = triangles[i];
-        for (int k = 0; k < 3; ++k) {
-            leftOf.emplace(Dart(ExactPoint(triangle.get(k)), ExactPoint(triangle.get(k + 1))), i);
-        }
-        const ExactPoint witness = triangle.template pointInside<ExactNumber>();
-        keep[i] = static_cast<char>(keepWitness(witness));
+        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)};
+    std::vector<ExactSegment> segments = cuts;
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+        segments.emplace_back(corners[i], corners[(i + 1) % corners.size()]);
     }
 
-    // The triangle across a directed edge is the one carrying the reverse dart.
-    const auto across = [&](const ExactPoint& from, const ExactPoint& to) {
-        const auto it = leftOf.find(Dart(to, from));
-        return it == leftOf.end() ? none : it->second;
-    };
+    const Arrangement<ExactPoint> arrangement(segments);
 
-    // Kept cells sharing an edge are one piece of the result. Cells meeting at a
+    // Each face is in the result or out of it as a whole: its interior meets no
+    // boundary edge of any operand, so one witness point settles it. The witness
+    // is strictly inside its face, hence on no boundary, which is why the closed
+    // containments answer the open question here.
+    std::vector<char> keep(arrangement.faceCount(), 0);
+    for (const FaceId f : arrangement.faces()) {
+        if (!arrangement.isUnbounded(f)) {
+            keep[f.index()] = static_cast<char>(
+                keepWitness(arrangement.template witness<ExactNumber>(f)));
+        }
+    }
+    const auto isKept = [&](HalfedgeId h) { return keep[arrangement.face(h).index()] != 0; };
+
+    // Kept faces sharing an edge are one piece of the result. Faces meeting at a
     // single vertex are not: the result pinches shut there, and the two sides
     // have to come back as two regions, since neither a polygon nor a region may
     // have a self-touching outer ring.
-    std::vector<std::size_t> parent(triangles.size());
+    std::vector<std::size_t> parent(arrangement.faceCount());
     for (std::size_t i = 0; i < parent.size(); ++i) {
         parent[i] = i;
     }
@@ -201,69 +193,61 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
         }
         return x;
     };
-    std::vector<Dart> boundary;
-    for (std::size_t i = 0; i < triangles.size(); ++i) {
-        if (!keep[i]) {
+    std::vector<HalfedgeId> boundary;
+    for (const HalfedgeId h : arrangement.halfedges()) {
+        if (!isKept(h)) {
             continue;
         }
-        for (int k = 0; k < 3; ++k) {
-            const ExactPoint from(triangles[i].get(k));
-            const ExactPoint to(triangles[i].get(k + 1));
-            const std::size_t other = across(from, to);
-            if (other == none || !keep[other]) {
-                boundary.emplace_back(from, to);
-            } else {
-                parent[findRoot(i)] = findRoot(other);
-            }
+        if (isKept(arrangement.twin(h))) {
+            parent[findRoot(arrangement.face(h).index())] =
+                findRoot(arrangement.face(arrangement.twin(h)).index());
+        } else {
+            boundary.push_back(h);
         }
     }
 
-    // Walking the boundary: arriving at `v` along a dart with kept material on
-    // its left, leave along the far side of the *same* fan of kept cells around
-    // `v`. Rotating from one edge of a counterclockwise triangle to the next
-    // turns clockwise around the shared vertex, so following the triangles until
-    // one is dropped stops exactly at the fan's other edge. This is what keeps a
-    // pinch vertex, where the fan comes apart, from joining what meets there.
-    const auto nextDart = [&](const Dart& dart) {
-        std::size_t current = leftOf.at(dart);
-        for (;;) {
-            const auto& triangle = triangles[current];
-            int k = 0;
-            while (!(ExactPoint(triangle.get(k)) == dart.second)) {
-                ++k;
-            }
-            const ExactPoint ahead(triangle.get(k + 1));
-            const std::size_t other = across(dart.second, ahead);
-            if (other == none || !keep[other]) {
-                return Dart(dart.second, ahead);
-            }
-            current = other;
+    // Walking the boundary: from a halfedge with kept material on its left and
+    // none across it, follow the face's own cycle, stepping over any edge whose
+    // far side is kept too — that is the rotation around the shared vertex the
+    // DCEL stores, and it stops at the far side of the same fan of kept faces.
+    // An edge kept on both sides is interior to the result and is skipped, which
+    // is what regularizes a slit away.
+    const auto nextBoundary = [&](HalfedgeId h) {
+        HalfedgeId ahead = arrangement.next(h);
+        while (isKept(arrangement.twin(ahead))) {
+            ahead = arrangement.next(arrangement.twin(ahead));
         }
+        return ahead;
     };
 
     std::map<std::size_t, std::vector<std::vector<ExactPoint>>> ringsOfPiece;
-    std::set<Dart> walked;
-    for (const Dart& start : boundary) {
-        if (walked.count(start) != 0) {
+    std::vector<char> walked(arrangement.halfedgeCount(), 0);
+    for (const HalfedgeId start : boundary) {
+        if (walked[start.index()] != 0) {
             continue;
         }
         std::vector<ExactPoint> walk;
-        Dart dart = start;
+        HalfedgeId h = start;
         do {
-            walked.insert(dart);
-            walk.push_back(dart.first);
-            dart = nextDart(dart);
-        } while (dart != start);
-        splitWalkIntoRings(walk, ringsOfPiece[findRoot(leftOf.at(start))]);
+            walked[h.index()] = 1;
+            walk.push_back(arrangement[arrangement.origin(h)]);
+            h = nextBoundary(h);
+        } while (h != start);
+        splitWalkIntoRings(walk, ringsOfPiece[findRoot(arrangement.face(start).index())]);
     }
 
+    // Converting an already canonical ring into the caller's coordinates keeps
+    // it canonical whenever the conversion is the identity, and only then: an
+    // integral result type truncates, which can reorder the vertices or flip the
+    // ring, so that case is renormalized as usual.
     const auto convert = [](const std::vector<ExactPoint>& ring) {
         std::vector<ResultPoint> converted;
         converted.reserve(ring.size());
         for (const ExactPoint& vertex : ring) {
             converted.emplace_back(vertex);
         }
-        return ResultPolygon(std::move(converted));
+        constexpr bool exact = std::is_same_v<ResultPoint, ExactPoint>;
+        return ResultPolygon(std::move(converted), /*trusted=*/exact);
     };
 
     for (auto& entry : ringsOfPiece) {
@@ -271,23 +255,30 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
         std::vector<ExactPolygon> holes;
         for (std::vector<ExactPoint>& ring : entry.second) {
             dropCollinearRingVertices(ring);
-            const ExactNumber twiceArea = twiceSignedRingArea(ring);
-            if (twiceArea > ExactNumber(0)) {
-                outers.emplace_back(std::move(ring));
-            } else if (twiceArea < ExactNumber(0)) {
-                holes.emplace_back(std::move(ring));
+            const int orientation = ringOrientation(ring);
+            if (orientation == 0) {
+                continue;  // a ring bounding no area is not part of any region
             }
+            // The walks come out of a planar subdivision, so every ring here is
+            // simple and its orientation is one predicate away. Putting it into
+            // canonical form by hand then keeps @ref Polygon from measuring it
+            // all over again, which over rationals costs more than everything
+            // else in this function put together.
+            if (orientation < 0) {
+                std::reverse(ring.begin(), ring.end());
+            }
+            std::rotate(ring.begin(), std::min_element(ring.begin(), ring.end()), ring.end());
+            (orientation > 0 ? outers : holes).emplace_back(std::move(ring), /*trusted=*/true);
         }
         if (outers.empty()) {
             continue;
         }
 
-        // An edge-connected piece has a single outer ring, so its holes have
-        // nowhere else to go. The loop below is the general form, kept as a
-        // defence rather than for a case anyone can exhibit: each hole would go
-        // to the smallest outer ring holding it, decided by a witness strictly
-        // inside the hole (the rings meet at most along their boundaries, so the
-        // closed containment is unambiguous).
+        // An edge-connected piece has a single outer ring unless it pinches shut
+        // at a vertex, where the walk above cuts it into one ring per side. Each
+        // hole then goes to the smallest outer ring holding it, decided by a
+        // witness strictly inside the hole (the rings meet at most along their
+        // boundaries, so the closed containment is unambiguous).
         std::vector<std::vector<ResultPolygon>> holesOfOuter(outers.size());
         for (const ExactPolygon& hole : holes) {
             std::size_t owner = 0;
