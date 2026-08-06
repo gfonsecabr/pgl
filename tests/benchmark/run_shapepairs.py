@@ -37,7 +37,12 @@ Options:
     --focus   S,...    Run these shapes against everything: keep only pairs where
                        at least one operand is a focus shape (its row AND column).
                        Focus shapes are added to --shapes automatically.
-    --sizes   S,...    Size variants: small, large, or both (default: small,large)
+    --sizes   S,...    Size variants for both operands: small, large, or both
+                       (default: small,large)
+    --sizes-a S,...    Size variants for shape A only, overriding --sizes
+    --sizes-b S,...    Size variants for shape B only, overriding --sizes
+                       (e.g. --sizes-a large --sizes-b small runs only the
+                       large-A × small-B corner instead of the full cube)
     --methods M,...    Methods to include (default: all 21)
     --types   T,...    Number types (default: all 5)
     --output  FILE     JSON output path (default: build/tests/benchmark/benchmarks.json)
@@ -505,6 +510,10 @@ def main() -> None:
     ap.add_argument("--focus",     default="",
                     help="Run these shapes against everything (both operand A and B)")
     ap.add_argument("--sizes",     default=",".join(ALL_SIZES))
+    ap.add_argument("--sizes-a",   dest="sizes_a", default=None,
+                    help="size variants for shape A, overriding --sizes")
+    ap.add_argument("--sizes-b",   dest="sizes_b", default=None,
+                    help="size variants for shape B, overriding --sizes")
     ap.add_argument("--methods",   default=",".join(ALL_METHODS))
     ap.add_argument("--types",     default=",".join(k for k, _ in ALL_NUMBER_TYPES))
     ap.add_argument("--output",    default=None)
@@ -572,6 +581,10 @@ def main() -> None:
     shapes1 = [s for s in requested_shapes if s in valid_shapes_a]
     shapes2 = [s for s in requested_shapes if s in valid_shapes_b]
     sizes   = [s.strip() for s in args.sizes.split(",")   if s.strip() in valid_sizes]
+    sizes_a = ([s.strip() for s in args.sizes_a.split(",") if s.strip() in valid_sizes]
+               if args.sizes_a is not None else sizes)
+    sizes_b = ([s.strip() for s in args.sizes_b.split(",") if s.strip() in valid_sizes]
+               if args.sizes_b is not None else sizes)
     methods = [m.strip() for m in args.methods.split(",") if m.strip() in valid_methods]
 
     requested_keys = {k.strip() for k in args.types.split(",") if k.strip() in valid_type_keys}
@@ -582,17 +595,19 @@ def main() -> None:
         sys.exit("No valid shape A specified.")
     if not shapes2:
         sys.exit("No valid shape B specified.")
-    if not sizes:
-        sys.exit("No valid sizes specified (use 'small', 'large', or both).")
+    if not sizes_a:
+        sys.exit("No valid sizes specified for shape A (use 'small', 'large', or both).")
+    if not sizes_b:
+        sys.exit("No valid sizes specified for shape B (use 'small', 'large', or both).")
     if not methods:
         sys.exit("No valid methods specified.")
 
     # A bare Point is size-agnostic: a single variant, independent of --sizes.
-    def variants_of(shape: str) -> list[tuple[str, str]]:
-        return [(shape, POINT_SIZE)] if shape == "Point" else [(shape, sz) for sz in sizes]
+    def variants_of(shape: str, sizes_for: list[str]) -> list[tuple[str, str]]:
+        return [(shape, POINT_SIZE)] if shape == "Point" else [(shape, sz) for sz in sizes_for]
 
-    variants1 = [v for s in shapes1 for v in variants_of(s)]
-    variants2 = [v for s in shapes2 for v in variants_of(s)]
+    variants1 = [v for s in shapes1 for v in variants_of(s, sizes_a)]
+    variants2 = [v for s in shapes2 for v in variants_of(s, sizes_b)]
     pairs = list(itertools.product(variants1, variants2))
     if focus:
         focus_set = set(focus)
@@ -613,7 +628,11 @@ def main() -> None:
     print(f"  shape B: {shapes2}")
     if focus:
         print(f"  focus:   {focus} (kept pairs touching a focus shape)")
-    print(f"  sizes:   {sizes}")
+    if sizes_a == sizes_b:
+        print(f"  sizes:   {sizes_a}")
+    else:
+        print(f"  sizes A: {sizes_a}")
+        print(f"  sizes B: {sizes_b}")
     print(f"  methods: {methods}")
     print(f"  types:   {[k for k, _ in types]}")
 
@@ -825,7 +844,9 @@ def main() -> None:
             "shapes_a":     shapes1,
             "shapes_b":     shapes2,
             "focus":        focus or None,
-            "sizes":        sizes,
+            "sizes":        sizes_a if sizes_a == sizes_b else None,
+            "sizes_a":      sizes_a,
+            "sizes_b":      sizes_b,
             "methods":      methods,
             "number_types": [k for k, _ in types],
             "ground_truth": GROUND_TRUTH_TYPE,

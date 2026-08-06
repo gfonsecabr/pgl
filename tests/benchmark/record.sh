@@ -14,6 +14,7 @@
 # date. Untracked files (scratch sources, build output) are allowed and ignored.
 #
 # Pass-through filters for the shape-pair cube: --shapes, --focus, --sizes,
+# --sizes-a, --sizes-b (independent size lists per operand, overriding --sizes),
 # --methods, --types (comma lists; see run_shapepairs.py). Other options:
 #   --pairs-only / --extra-only   run only one half
 #   --repetitions N               samples per program; median kept (default: 3)
@@ -39,9 +40,9 @@ while [[ $# -gt 0 ]]; do
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
         --repetitions=*) repetitions="${1#*=}"; shift ;;
-        --shapes|--focus|--sizes|--methods|--types)
+        --shapes|--focus|--sizes|--sizes-a|--sizes-b|--methods|--types)
             pair_args+=("$1" "$2"); shift 2 ;;
-        --shapes=*|--focus=*|--sizes=*|--methods=*|--types=*)
+        --shapes=*|--focus=*|--sizes=*|--sizes-a=*|--sizes-b=*|--methods=*|--types=*)
             pair_args+=("$1"); shift ;;
         -h|--help)
             awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"
