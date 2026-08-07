@@ -6,7 +6,11 @@
 namespace {
 
 using Point = pgl::Point<int>;
-using Polygon = pgl::Polygon<Point>;
+// Named PolygonShape, not Polygon: under MSVC, <windows.h> (pulled in
+// transitively by doctest.h) injects a Win32 GDI function called `Polygon`
+// into the global namespace, making a file-scope alias of the same name
+// ambiguous from TEST_CASE bodies.
+using PolygonShape = pgl::Polygon<Point>;
 
 void checkEdge(const pgl::Graph<Point>& graph, const Point& a, const Point& b, bool expected) {
     CHECK(graph.containsEdge(a, b) == expected);
@@ -16,7 +20,7 @@ void checkEdge(const pgl::Graph<Point>& graph, const Point& a, const Point& b, b
 }  // namespace
 
 TEST_CASE("Polygon visibility graph is complete for a convex polygon") {
-    const Polygon square({0, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape square({0, 0, 4, 0, 4, 4, 0, 4});
     const auto graph = square.visibilityGraph();
 
     CHECK(graph.vertexCount() == 4);
@@ -29,7 +33,7 @@ TEST_CASE("Polygon visibility graph is complete for a convex polygon") {
 
 TEST_CASE("Polygon visibility graph excludes diagonals outside a concavity") {
     // An L-shape whose missing upper-right square blocks four vertex pairs.
-    const Polygon polygon({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+    const PolygonShape polygon({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
     const auto graph = polygon.visibilityGraph();
 
     CHECK(graph.vertexCount() == 6);
@@ -46,7 +50,7 @@ TEST_CASE("Polygon visibility graph excludes diagonals outside a concavity") {
 }
 
 TEST_CASE("Polygon visibility graph includes collinear boundary visibility") {
-    const Polygon polygon({0, 0, 2, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape polygon({0, 0, 2, 0, 4, 0, 4, 4, 0, 4});
     const auto graph = polygon.visibilityGraph();
 
     CHECK(graph.vertexCount() == 5);
@@ -55,7 +59,7 @@ TEST_CASE("Polygon visibility graph includes collinear boundary visibility") {
 }
 
 TEST_CASE("Polygon visibility graph applies lazy translation") {
-    Polygon polygon({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+    PolygonShape polygon({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
     polygon += Point(10, -3);
     const auto graph = polygon.visibilityGraph();
 
@@ -69,14 +73,14 @@ TEST_CASE("Polygon visibility graph applies lazy translation") {
 
 TEST_CASE("Polygon visibility graph preserves vertices without edges") {
     SUBCASE("empty polygon") {
-        const Polygon polygon;
+        const PolygonShape polygon;
         const auto graph = polygon.visibilityGraph();
         CHECK(graph.vertexCount() == 0);
         CHECK(graph.edgeCount() == 0);
     }
 
     SUBCASE("one-point polygon") {
-        const Polygon polygon({2, 3});
+        const PolygonShape polygon({2, 3});
         const auto graph = polygon.visibilityGraph();
         CHECK(graph.vertexCount() == 1);
         CHECK(graph.edgeCount() == 0);
@@ -84,7 +88,7 @@ TEST_CASE("Polygon visibility graph preserves vertices without edges") {
     }
 
     SUBCASE("segment polygon") {
-        const Polygon polygon({0, 0, 2, 0});
+        const PolygonShape polygon({0, 0, 2, 0});
         const auto graph = polygon.visibilityGraph();
         CHECK(graph.vertexCount() == 2);
         CHECK(graph.edgeCount() == 1);
