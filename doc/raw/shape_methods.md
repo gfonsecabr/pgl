@@ -308,19 +308,18 @@ empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 
 A non-convex operand is where the sum needs a region: sliding a shape around the
 inside of a `C` sweeps out material that closes over a hole neither operand has.
-`Polygon` and `PolygonWithHoles` therefore carry a second `minkowskiSum`, against
-`Polygon`, `PolygonWithHoles`, `Convex`, `Triangle`, `Rectangle`, `Segment` and
-`OrientedSegment`, returning a `std::vector<PolygonWithHoles>` like the boolean
-operations above; so does `Polyline`, whose own operands are below, and so does a
-`MonotoneChain` for the operands its own sum cannot hold in one polygon. A chain
-against a convex operand is the exception to all of this and is treated on its
-own, further down.
+Those overloads return one `PolygonWithHoles` whenever the nondegenerate case is
+necessarily a single regular region. This covers every `Polygon` overload,
+`PolygonWithHoles` against an area-carrying shape, and `Polyline` against an
+area-carrying convex shape or `Polygon`. A `MonotoneChain` against a convex
+operand is the more specific exception: its sum cannot have holes and returns a
+`Polygon`, as described further down.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
 pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
 auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
-// plugged.size() == 1; its outer ring is (0,0)--(10,10) and it has one hole,
+// plugged's outer ring is (0,0)--(10,10) and it has one hole,
 // (4,4)--(6,6) — the cavity, stranded once the two-unit cut is closed.
 ```
 
@@ -331,12 +330,17 @@ again a question about the pair and not about the receiver — a `Segment`,
 non-convex operand forwards to it, so `rectangle.minkowskiSum(polygon)` is
 `polygon.minkowskiSum(rectangle)` and `segment.minkowskiSum(polyline)` is
 `polyline.minkowskiSum(segment)`, while `rectangle.minkowskiSum(triangle)` and
-`segment.minkowskiSum(segment)` are still the single-shape sum. The result is a
-*set* of regions because $A \oplus B$ is connected whenever both operands are, so
-it is one region unless its boundary pinches shut — which no single region may
-do. Like the boolean operations it is **regularized**, so a flat operand's sum
-keeps only what has area, and it takes the same `ResultNumber` parameter. Every
-vertex of every convex piece sum is a sum of two input vertices, so those are
+`segment.minkowskiSum(segment)` are still the single-shape sum. A vector of
+regions remains only for pairs where valid thin or slit geometry can make the
+regularized result genuinely disconnected: `Segment` or `OrientedSegment` with
+`MonotoneChain`, `Polyline`, or `PolygonWithHoles`, and `PolygonWithHoles` with
+`MonotoneChain` or `Polyline` (in either operand order). Like the boolean
+operations these sums are **regularized**, so a flat operand's sum keeps only
+what has area, and they take the same `ResultNumber` parameter. A single-region
+overload returns an empty region when regularization leaves no area; if a
+degenerate input nevertheless produces several components, it returns the first
+one in canonical order rather than changing the substantive case's return type.
+Every vertex of every convex piece sum is a sum of two input vertices, so those are
 exact; only where two of them cross can a vertex land off the lattice, and that
 arrangement is built over exact rationals and converted once at the end.
 
@@ -367,7 +371,7 @@ band that closes a cut exactly as a wider summand does:
 ```c++
 pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
 auto plugged = c.minkowskiSum(pgl::Segment(0,0, 0,2));
-// plugged.size() == 1; outer ring (0,0)--(8,10), one hole, (2,4)--(6,6)
+// plugged has outer ring (0,0)--(8,10) and one hole, (2,4)--(6,6)
 ```
 
 It is also the cheapest: a segment is one convex piece, so the sum costs one
@@ -384,7 +388,7 @@ material over a hole, and a closed chain is the plainest example there is.
 ```c++
 pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
 auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
-// frame.size() == 1; its outer ring is (0,0)--(9,9) and it has one hole,
+// frame's outer ring is (0,0)--(9,9) and it has one hole,
 // (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
 ```
 
@@ -395,7 +399,7 @@ and `PolygonWithHoles` carry the mirror overload:
 ```c++
 pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});   // a U
 auto swept = square.minkowskiSum(u);            // == u.minkowskiSum(square)
-// swept.size() == 1; outer ring (0,0)--(14,14), one hole, (6,6)--(8,8)
+// swept has outer ring (0,0)--(14,14) and one hole, (6,6)--(8,8)
 ```
 
 A region operand behaves here as it does on the receivers above — its holes are
@@ -633,7 +637,5 @@ The runtime `Shape` wrapper exposes `size()`, `operator[]`, and `get()` that
 dispatch to the wrapped alternative. Because `Point`'s
 indexed access yields a coordinate rather than a `Point`, `Shape::operator[]`
 and `Shape::get` throw `std::logic_error` if the wrapped value is a `Point`.
-
-
 
 

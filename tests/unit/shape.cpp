@@ -1069,7 +1069,7 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
     REQUIRE(summed.holdsAlternative<Region>());
     CHECK(Region(summed) == annulus + Point(1, 1));
     // A non-convex operand has no single-Shape sum; that is what the
-    // vector-valued PolygonWithHoles::minkowskiSum overloads are for.
+    // PolygonWithHoles-valued minkowskiSum overloads are for.
     CHECK_THROWS_AS((void)shape.minkowskiSum(Shape(Triangle({0, 0}, {1, 0}, {0, 1}))),
                     std::logic_error);
 }

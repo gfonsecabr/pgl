@@ -136,9 +136,14 @@ static bool inSumByDefinition(const PolylineShape& a, const ShapeB& b, const Poi
     return a.intersects(placed);
 }
 
-template <class Sum>
-static bool inResult(const Sum& sum, const Point& p) {
-    for (const auto& piece : sum) {
+template <pgl::PolygonWithHolesConcept RegionT>
+static bool inResult(const RegionT& sum, const Point& p) {
+    return sum.contains(p);
+}
+
+template <class RegionT>
+static bool inResult(const std::vector<RegionT>& sum, const Point& p) {
+    for (const RegionT& piece : sum) {
         if (piece.contains(p)) {
             return true;
         }
@@ -160,10 +165,14 @@ static void checkAgainstDefinition(const PolylineShape& a, const ShapeB& b, int 
         }
     }
     // The pieces tile the sum: their interiors are pairwise disjoint.
-    for (std::size_t i = 0; i < sum.size(); ++i) {
-        REQUIRE(sum[i].isValid());
-        for (std::size_t j = i + 1; j < sum.size(); ++j) {
-            REQUIRE_FALSE(sum[i].interiorsIntersect(sum[j]));
+    if constexpr (pgl::PolygonWithHolesConcept<decltype(sum)>) {
+        REQUIRE(sum.isValid());
+    } else {
+        for (std::size_t i = 0; i < sum.size(); ++i) {
+            REQUIRE(sum[i].isValid());
+            for (std::size_t j = i + 1; j < sum.size(); ++j) {
+                REQUIRE_FALSE(sum[i].interiorsIntersect(sum[j]));
+            }
         }
     }
 }
@@ -228,19 +237,17 @@ TEST_CASE("minkowskiSum: dragging a shape along a chain sweeps out a region") {
     // The L dragged by the unit square: a one-unit band along each arm, joined at
     // the corner, and nothing else.
     const auto sum = lChain().minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
-    REQUIRE(sum.size() == 1);
-    CHECK(sum[0].outer() == PolygonShape({Point(0, 0), Point(7, 0), Point(7, 7), Point(6, 7),
-                                     Point(6, 1), Point(0, 1)}));
-    CHECK(sum[0].holeCount() == 0);
-    CHECK(sum[0].twiceArea() == 2 * (7 + 6));
+    CHECK(sum.outer() == PolygonShape({Point(0, 0), Point(7, 0), Point(7, 7), Point(6, 7),
+                                       Point(6, 1), Point(0, 1)}));
+    CHECK(sum.holeCount() == 0);
+    CHECK(sum.twiceArea() == 2 * (7 + 6));
 
     // A summand thick enough to bridge the corner from the outside rounds nothing
     // off: the sweep of a corner is the summand's own corner, translated.
     const auto wide = lChain().minkowskiSum(RectangleShape(Point(-1, -1), Point(1, 1)));
-    REQUIRE(wide.size() == 1);
-    CHECK(wide[0].holeCount() == 0);
-    CHECK(wide[0].outer() == PolygonShape({Point(-1, -1), Point(7, -1), Point(7, 7), Point(5, 7),
-                                      Point(5, 1), Point(-1, 1)}));
+    CHECK(wide.holeCount() == 0);
+    CHECK(wide.outer() == PolygonShape({Point(-1, -1), Point(7, -1), Point(7, 7), Point(5, 7),
+                                        Point(5, 1), Point(-1, 1)}));
 }
 
 TEST_CASE("minkowskiSum: a closed chain sweeps out a hole") {
@@ -249,33 +256,29 @@ TEST_CASE("minkowskiSum: a closed chain sweeps out a hole") {
     // encloses, eroded by the summand. Neither operand has a hole; no
     // `Polyline`, `Polygon` or `Convex` could hold this answer.
     const auto framed = closedChain().minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
-    REQUIRE(framed.size() == 1);
-    CHECK(framed[0].outer() == box(0, 0, 9, 9));
-    REQUIRE(framed[0].holeCount() == 1);
-    CHECK(framed[0].hole(0) == box(1, 1, 8, 8));
-    CHECK(framed[0].twiceArea() == 2 * (81 - 49));
+    CHECK(framed.outer() == box(0, 0, 9, 9));
+    REQUIRE(framed.holeCount() == 1);
+    CHECK(framed.hole(0) == box(1, 1, 8, 8));
+    CHECK(framed.twiceArea() == 2 * (81 - 49));
 
     // A bigger summand erodes the cavity further, from the far side of each wall.
     const auto thick = closedChain().minkowskiSum(RectangleShape(Point(0, 0), Point(4, 4)));
-    REQUIRE(thick.size() == 1);
-    CHECK(thick[0].outer() == box(0, 0, 12, 12));
-    REQUIRE(thick[0].holeCount() == 1);
-    CHECK(thick[0].hole(0) == box(4, 4, 8, 8));
+    CHECK(thick.outer() == box(0, 0, 12, 12));
+    REQUIRE(thick.holeCount() == 1);
+    CHECK(thick.hole(0) == box(4, 4, 8, 8));
 
     // A summand as wide as the square closes the cavity entirely.
     const auto filled = closedChain().minkowskiSum(RectangleShape(Point(0, 0), Point(8, 8)));
-    REQUIRE(filled.size() == 1);
-    CHECK(filled[0].outer() == box(0, 0, 16, 16));
-    CHECK(filled[0].holeCount() == 0);
+    CHECK(filled.outer() == box(0, 0, 16, 16));
+    CHECK(filled.holeCount() == 0);
 
     // A triangle drags a corner along instead of a side, so the frame is thicker
     // on two sides than on the others -- and the cavity is still a hole.
     const auto slanted = closedChain().minkowskiSum(Triangle(Point(0, 0), Point(2, 0), Point(0, 2)));
-    REQUIRE(slanted.size() == 1);
-    CHECK(slanted[0].outer() ==
+    CHECK(slanted.outer() ==
           PolygonShape({Point(0, 0), Point(10, 0), Point(10, 8), Point(8, 10), Point(0, 10)}));
-    REQUIRE(slanted[0].holeCount() == 1);
-    CHECK(slanted[0].hole(0) == box(2, 2, 8, 8));
+    REQUIRE(slanted.holeCount() == 1);
+    CHECK(slanted.hole(0) == box(2, 2, 8, 8));
 }
 
 TEST_CASE("minkowskiSum: an open chain can still close its own sweep") {
@@ -283,21 +286,19 @@ TEST_CASE("minkowskiSum: an open chain can still close its own sweep") {
     // the gap, the two ends of the sweep meet along a segment, and the cavity is
     // walled in exactly as it is for the closed chain.
     const auto closedOff = openChain(1).minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
-    REQUIRE(closedOff.size() == 1);
-    CHECK(closedOff[0].outer() == box(0, 0, 9, 9));
-    REQUIRE(closedOff[0].holeCount() == 1);
-    CHECK(closedOff[0].hole(0) == box(1, 1, 8, 8));
+    CHECK(closedOff.outer() == box(0, 0, 9, 9));
+    REQUIRE(closedOff.holeCount() == 1);
+    CHECK(closedOff.hole(0) == box(1, 1, 8, 8));
 
     // One unit wider and the summand no longer bridges it: the cavity opens to
     // the outside through the gap, so the sum is simply connected and its
     // boundary walks in and back out again.
     const auto open = openChain(2).minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
-    REQUIRE(open.size() == 1);
-    CHECK(open[0].holeCount() == 0);
-    CHECK(open[0].outer() ==
+    CHECK(open.holeCount() == 0);
+    CHECK(open.outer() ==
           PolygonShape({Point(0, 0), Point(9, 0), Point(9, 9), Point(0, 9), Point(0, 2), Point(1, 2),
                    Point(1, 8), Point(8, 8), Point(8, 1), Point(0, 1)}));
-    CHECK(open[0].twiceArea() == 62);
+    CHECK(open.twiceArea() == 62);
 }
 
 TEST_CASE("minkowskiSum: the sweep of a chain is the union of the sweeps of its parts") {
@@ -311,10 +312,9 @@ TEST_CASE("minkowskiSum: the sweep of a chain is the union of the sweeps of its 
     const auto whole = v.minkowskiSum(b);
     const auto left = PolylineShape({Point(0, 0), Point(4, 6)}).minkowskiSum(b);
     const auto right = PolylineShape({Point(4, 6), Point(8, 0)}).minkowskiSum(b);
-    REQUIRE(whole.size() == 1);
-    REQUIRE(left.size() == 1);
-    REQUIRE(right.size() == 1);
-    CHECK(left[0].unionWith(right[0]) == whole);
+    const auto joined = left.unionWith(right);
+    REQUIRE(joined.size() == 1);
+    CHECK(joined.front() == whole);
 
     // Splitting an edge in the middle of its length changes nothing either: the
     // extra vertex adds a piece to the decomposition that covers no new point.
@@ -333,17 +333,15 @@ TEST_CASE("minkowskiSum: a single-edge chain answers as the convex merge does") 
 
     for (const Convex& summand : summands) {
         const auto sum = PolylineShape({edge.min(), edge.max()}).minkowskiSum(summand);
-        REQUIRE(sum.size() == 1);
-        CHECK(sum[0].holeCount() == 0);
-        CHECK(sum[0].outer() == edge.minkowskiSum(summand).asPolygon());
+        CHECK(sum.holeCount() == 0);
+        CHECK(sum.outer() == edge.minkowskiSum(summand).asPolygon());
     }
 
     // A chain whose vertices are collinear covers exactly that segment, however
     // many edges it takes to retrace it, so it must sum alike.
     const Triangle t(Point(0, 0), Point(2, 0), Point(0, 2));
     const auto straight = PolylineShape({Point(0, 0), Point(2, 0), Point(5, 0)}).minkowskiSum(t);
-    REQUIRE(straight.size() == 1);
-    CHECK(straight[0].outer() == Segment(Point(0, 0), Point(5, 0)).minkowskiSum(t).asPolygon());
+    CHECK(straight.outer() == Segment(Point(0, 0), Point(5, 0)).minkowskiSum(t).asPolygon());
 }
 
 TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cavities") {
@@ -373,24 +371,29 @@ TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cav
     // reach around the other, and the answer still has one hole -- what the U
     // sweeping the square's boundary cannot reach at the centre.
     const auto both = closedChain().minkowskiSum(uShapePolygon());
-    REQUIRE(both.size() == 1);
-    CHECK(both[0].outer() == box(0, 0, 14, 14));
-    REQUIRE(both[0].holeCount() == 1);
-    CHECK(both[0].hole(0) == box(6, 6, 8, 8));
-    CHECK(both[0].twiceArea() == 2 * (196 - 4));
+    CHECK(both.outer() == box(0, 0, 14, 14));
+    REQUIRE(both.holeCount() == 1);
+    CHECK(both.hole(0) == box(6, 6, 8, 8));
+    CHECK(both.twiceArea() == 2 * (196 - 4));
 
     // A polygon with no area is a segment again: parallel to a straight chain the
     // sum keeps nothing, across it the sweep is a parallelogram.
     const PolygonShape flat({Point(0, 0), Point(4, 0)});
     REQUIRE(flat.isDegenerate());
-    CHECK(PolylineShape({Point(0, 0), Point(3, 0)}).minkowskiSum(flat).empty());
+    CHECK(PolylineShape({Point(0, 0), Point(3, 0)}).minkowskiSum(flat).isEmpty());
     const auto crossed = vertical.minkowskiSum(flat);
-    REQUIRE(crossed.size() == 1);
-    CHECK(crossed[0].outer() == box(0, 0, 4, 3));
+    CHECK(crossed.outer() == box(0, 0, 4, 3));
+
+    // Degeneracy does not widen this overload's result type. The same vertical
+    // segment spelling that makes the square-boundary sweep split below keeps
+    // the first component in canonical order here.
+    const auto first = closedChain().minkowskiSum(PolygonShape({Point(0, 0), Point(0, 3)}));
+    CHECK(first.outer() == box(0, 0, 8, 3));
+    CHECK(first.holeCount() == 0);
 
     // The empty polygon absorbs from either side.
-    CHECK(chain.minkowskiSum(PolygonShape()).empty());
-    CHECK(PolygonShape().minkowskiSum(chain).empty());
+    CHECK(chain.minkowskiSum(PolygonShape()).isEmpty());
+    CHECK(PolygonShape().minkowskiSum(chain).isEmpty());
 }
 
 TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") {
@@ -406,7 +409,7 @@ TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") 
     CHECK(slid[0].outer() == box(0, 0, 9, 8));
     REQUIRE(slid[0].holeCount() == 1);
     CHECK(slid[0].hole(0) == box(3, 2, 6, 6));
-    CHECK(slid == a.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 0))));
+    CHECK(slid[0] == a.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 0))));
 
     // Either order, and the same in an exact result type.
     CHECK(unitChain.minkowskiSum(a) == slid);
@@ -439,14 +442,13 @@ TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") 
     CHECK(swept[0].twiceArea() == 142);
 
     const auto withoutSlits = slitFreeL().minkowskiSum(diagonal);
-    REQUIRE(withoutSlits.size() == 1);
-    CHECK(withoutSlits[0].holeCount() == 0);
-    CHECK(withoutSlits[0].twiceArea() == 128);
+    CHECK(withoutSlits.holeCount() == 0);
+    CHECK(withoutSlits.twiceArea() == 128);
     // The two points the slits alone reach.
     for (const Point& p : {Point(1, 0), Point(0, 1)}) {
         INFO("slit-swept point " << p);
         CHECK(swept[0].contains(p));
-        CHECK_FALSE(withoutSlits[0].contains(p));
+        CHECK_FALSE(withoutSlits.contains(p));
     }
 
     // A slit whose direction the chain shares sweeps out nothing, and the
@@ -571,11 +573,7 @@ TEST_CASE("minkowskiSum: commutes, and translates with its operands") {
     shifted += t;
     const auto direct = shifted.minkowskiSum(triangle);
     auto moved = a.minkowskiSum(triangle);
-    REQUIRE(direct.size() == moved.size());
-    for (auto& piece : moved) {
-        piece += t;
-    }
-    std::sort(moved.begin(), moved.end());
+    moved += t;
     CHECK(direct == moved);
 
     // A polyline traversed backwards is the same point set, and compares equal;
@@ -623,8 +621,8 @@ TEST_CASE("minkowskiSum: a segment summand, where neither operand has area") {
     // Orientation is not part of a point set, and the same two points spelled as
     // a flat rectangle, convex or polygon answer alike.
     CHECK(square.minkowskiSum(OrientedSegment(Point(2, 1), Point(0, 0))) == swept);
-    CHECK(square.minkowskiSum(Convex(std::vector<Point>{Point(0, 0), Point(2, 1)})) == swept);
-    CHECK(square.minkowskiSum(PolygonShape({Point(0, 0), Point(2, 1)})) == swept);
+    CHECK(square.minkowskiSum(Convex(std::vector<Point>{Point(0, 0), Point(2, 1)})) == swept[0]);
+    CHECK(square.minkowskiSum(PolygonShape({Point(0, 0), Point(2, 1)})) == swept[0]);
 
     // Written on the left, a segment forwards to the chain, as every other
     // bounded operand does.
@@ -671,24 +669,22 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     // A chain has no area, so a summand with none either leaves nothing for the
     // regularization to keep. A point summand is the sharpest case: the sum is
     // the chain translated, a perfectly good `Polyline` and not a region at all.
-    CHECK(v.minkowskiSum(RectangleShape(Point(3, 3), Point(3, 3))).empty());
-    CHECK(v.minkowskiSum(Triangle(Point(1, 1), Point(1, 1), Point(1, 1))).empty());
+    CHECK(v.minkowskiSum(RectangleShape(Point(3, 3), Point(3, 3))).isEmpty());
+    CHECK(v.minkowskiSum(Triangle(Point(1, 1), Point(1, 1), Point(1, 1))).isEmpty());
 
     // A flat summand parallel to a straight chain is the same story; across it,
     // the sweep is a genuine parallelogram.
     const PolylineShape straight({Point(0, 0), Point(4, 0)});
-    CHECK(straight.minkowskiSum(RectangleShape(Point(0, 0), Point(2, 0))).empty());
+    CHECK(straight.minkowskiSum(RectangleShape(Point(0, 0), Point(2, 0))).isEmpty());
     const auto crossed = straight.minkowskiSum(RectangleShape(Point(0, 0), Point(0, 3)));
-    REQUIRE(crossed.size() == 1);
-    CHECK(crossed[0].outer() == box(0, 0, 4, 3));
+    CHECK(crossed.outer() == box(0, 0, 4, 3));
 
     // A chain of one vertex is that point, whose sum is the summand translated
     // there -- the one decomposition that is a lone point rather than an edge.
     const auto placed =
         PolylineShape({Point(2, 3)}).minkowskiSum(Triangle(Point(0, 0), Point(2, 0), Point(0, 2)));
-    REQUIRE(placed.size() == 1);
-    CHECK(placed[0].outer() == PolygonShape({Point(2, 3), Point(4, 3), Point(2, 5)}));
-    CHECK(placed[0].holeCount() == 0);
+    CHECK(placed.outer() == PolygonShape({Point(2, 3), Point(4, 3), Point(2, 5)}));
+    CHECK(placed.holeCount() == 0);
 
     // A degenerate chain with several coincident vertices is the same point.
     CHECK(PolylineShape({Point(2, 3), Point(2, 3), Point(2, 3)})
@@ -697,13 +693,12 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     // A zero-length edge inside a chain contributes nothing but is not an error.
     const auto repeated = PolylineShape({Point(0, 0), Point(0, 0), Point(4, 0)})
                               .minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
-    REQUIRE(repeated.size() == 1);
-    CHECK(repeated[0].outer() == box(0, 0, 5, 1));
+    CHECK(repeated.outer() == box(0, 0, 5, 1));
 
     // The empty operands absorb, whichever side they are on.
-    CHECK(PolylineShape().minkowskiSum(RectangleShape(Point(0, 0), Point(2, 2))).empty());
-    CHECK(v.minkowskiSum(Convex()).empty());
-    CHECK(Convex().minkowskiSum(v).empty());
+    CHECK(PolylineShape().minkowskiSum(RectangleShape(Point(0, 0), Point(2, 2))).isEmpty());
+    CHECK(v.minkowskiSum(Convex()).isEmpty());
+    CHECK(Convex().minkowskiSum(v).isEmpty());
 }
 
 TEST_CASE("minkowskiSum: exact over rational coordinates") {
@@ -711,22 +706,20 @@ TEST_CASE("minkowskiSum: exact over rational coordinates") {
     const pgl::Rectangle<EPoint> unit(EPoint(0, 0), EPoint(1, 1));
 
     const auto sum = chain.minkowskiSum(unit);
-    REQUIRE(sum.size() == 1);
-    CHECK(sum[0].outer() ==
+    CHECK(sum.outer() ==
           pgl::Polygon<EPoint>({EPoint(0, 0), EPoint(9, 0), EPoint(9, 9), EPoint(0, 9)}));
-    REQUIRE(sum[0].holeCount() == 1);
-    CHECK(sum[0].hole(0) ==
+    REQUIRE(sum.holeCount() == 1);
+    CHECK(sum.hole(0) ==
           pgl::Polygon<EPoint>({EPoint(1, 1), EPoint(8, 1), EPoint(8, 8), EPoint(1, 8)}));
 
     // Half-integral vertices are as exact as integral ones, and the answer's
     // coordinates are just the sums of the operands'.
     const EPolyline half({EPoint(pgl::ERational(1, 2), 0), EPoint(pgl::ERational(1, 2), 4)});
     const auto swept = half.minkowskiSum(unit);
-    REQUIRE(swept.size() == 1);
-    CHECK(swept[0].outer() == pgl::Polygon<EPoint>({EPoint(pgl::ERational(1, 2), 0),
-                                                    EPoint(pgl::ERational(3, 2), 0),
-                                                    EPoint(pgl::ERational(3, 2), 5),
-                                                    EPoint(pgl::ERational(1, 2), 5)}));
+    CHECK(swept.outer() == pgl::Polygon<EPoint>({EPoint(pgl::ERational(1, 2), 0),
+                                                 EPoint(pgl::ERational(3, 2), 0),
+                                                 EPoint(pgl::ERational(3, 2), 5),
+                                                 EPoint(pgl::ERational(1, 2), 5)}));
 }
 
 TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
@@ -740,21 +733,19 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
     const Triangle t(Point(0, 0), Point(3, 0), Point(0, 3));
 
     const auto exact = v.minkowskiSum<pgl::ERational>(t);
-    REQUIRE(exact.size() == 1);
-    const auto& ring = exact[0].outer().vertices();
+    const auto& ring = exact.outer().vertices();
     const pgl::Point<pgl::ERational> tip(pgl::ERational(11, 2), pgl::ERational(15, 4));
     CHECK(std::find(ring.begin(), ring.end(), tip) != ring.end());
-    CHECK(exact[0].twiceArea() == pgl::ERational(393, 4));
+    CHECK(exact.twiceArea() == pgl::ERational(393, 4));
 
     // The default result type is the operands' own, so the same call in `int`
     // rounds that vertex to (5,3) and reports as covered a point the definition
     // says is not: the truncated notch is shallower than the true one.
     const auto truncated = v.minkowskiSum(t);
-    REQUIRE(truncated.size() == 1);
-    CHECK(truncated[0].twiceArea() == 102);
+    CHECK(truncated.twiceArea() == 102);
     const pgl::Point<pgl::ERational> outside(pgl::ERational(26, 5), pgl::ERational(31, 10));
-    CHECK_FALSE(exact[0].contains(outside));
-    CHECK(truncated[0].contains(outside));
+    CHECK_FALSE(exact.contains(outside));
+    CHECK(truncated.contains(outside));
 }
 
 TEST_CASE("minkowskiSum: the pairs a chain accepts") {
@@ -764,19 +755,19 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     // goes through it, giving back a translated `Polyline`.
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const RectangleShape&>())),
-                                std::vector<Region>>);
+                                Region>);
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const Triangle&>())),
-                                std::vector<Region>>);
+                                Region>);
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const Convex&>())),
-                                std::vector<Region>>);
+                                Region>);
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const PolygonShape&>())),
-                                std::vector<Region>>);
+                                Region>);
     static_assert(std::is_same_v<decltype(std::declval<const PolygonShape&>().minkowskiSum(
                                     std::declval<const PolylineShape&>())),
-                                std::vector<Region>>);
+                                Region>);
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const Region&>())),
                                 std::vector<Region>>);
@@ -786,11 +777,11 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>()
                                               .minkowskiSum<pgl::ERational>(
                                                   std::declval<const Convex&>())),
-                                std::vector<pgl::PolygonWithHoles<EPoint>>>);
+                                pgl::PolygonWithHoles<EPoint>>);
     static_assert(std::is_same_v<decltype(std::declval<const PolygonShape&>()
                                               .minkowskiSum<pgl::ERational>(
                                                   std::declval<const PolylineShape&>())),
-                                std::vector<pgl::PolygonWithHoles<EPoint>>>);
+                                pgl::PolygonWithHoles<EPoint>>);
     static_assert(std::is_same_v<decltype(std::declval<const PolylineShape&>().minkowskiSum(
                                     std::declval<const Point&>())),
                                 PolylineShape>);
@@ -840,9 +831,9 @@ TEST_CASE("minkowskiSum: a chain's boundary decomposition agrees with its edges"
 
             auto boundary = chain.minkowskiSum<pgl::ERational>(summand);
             auto perEdge = pgl::detail::decomposedMinkowskiSum<EPoint>(chain, summand);
-            std::sort(boundary.begin(), boundary.end());
             std::sort(perEdge.begin(), perEdge.end());
-            CHECK(boundary == perEdge);
+            REQUIRE(perEdge.size() == 1);
+            CHECK(boundary == perEdge.front());
         }
     }
 
@@ -856,7 +847,7 @@ TEST_CASE("minkowskiSum: a chain's boundary decomposition agrees with its edges"
     CHECK_FALSE(pgl::detail::minkowskiBoundaryPays(zigzag, operand, zigzagRuns));
     auto zigzagSum = zigzag.minkowskiSum<pgl::ERational>(summands[0]);
     auto zigzagRef = pgl::detail::decomposedMinkowskiSum<EPoint>(zigzag, summands[0]);
-    std::sort(zigzagSum.begin(), zigzagSum.end());
     std::sort(zigzagRef.begin(), zigzagRef.end());
-    CHECK(zigzagSum == zigzagRef);
+    REQUIRE(zigzagRef.size() == 1);
+    CHECK(zigzagSum == zigzagRef.front());
 }

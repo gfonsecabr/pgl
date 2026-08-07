@@ -125,11 +125,10 @@ template <class ShapeB>
 static void checkAgainstPolyline(const Chain& a, const ShapeB& b) {
     const EPolygon mine = a.template minkowskiSum<pgl::ERational>(b);
     const auto theirs = a.asPolyline().template minkowskiSum<pgl::ERational>(b);
-    REQUIRE(theirs.size() == 1);
     const auto difference =
         pgl::PolygonWithHoles<EPoint>(mine).template symmetricDifference<pgl::ERational>(
-            theirs.front());
-    INFO("chain " << a << " operand " << b << " gave " << mine << " against " << theirs.front());
+            theirs);
+    INFO("chain " << a << " operand " << b << " gave " << mine << " against " << theirs);
     CHECK(difference.empty());
 }
 
@@ -346,9 +345,9 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
                                      std::declval<const Point&>())),
                                  Chain>);
 
-    // A chain is not convex, so no other pair is one shape. The polygon-valued
-    // set is the three convex operands with area; the region-valued one is
-    // everything else the chain takes.
+    // A chain is not convex, so no other pair uses the generic one-shape sum.
+    // The three convex operands return a polygon; a non-convex polygon returns
+    // one region, while thin operands and non-regular regions may need several.
     static_assert(!pgl::MinkowskiSummableConcept<Chain, RectangleShape>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
                                      std::declval<const RectangleShape&>())),
@@ -372,7 +371,7 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(summable<Region, Chain>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
                                      std::declval<const PolygonShape&>())),
-                                 std::vector<Region>>);
+                                 Region>);
 
     // Two chains are the pair left out, exactly as two polylines are: neither
     // outranks the other, so neither owns it. `asPolyline()` and the operand's

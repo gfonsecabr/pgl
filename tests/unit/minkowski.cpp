@@ -331,7 +331,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
 
     // A non-convex operand summed with one that *has* area is the exception, and
     // it is not a widening of this concept: the sum can enclose a hole, so it is
-    // a set of regions rather than one shape and lives in a separate overload set
+    // a region rather than a convex shape and lives in a separate overload set
     // on `Polygon`, `PolygonWithHoles` and `Polyline` (see
     // polygonwithholes_minkowski.cpp and polyline_minkowski.cpp). `summable` sees
     // it because it asks only whether the call compiles.
@@ -340,7 +340,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum(
                            std::declval<const pgl::Triangle<>&>())),
-                       std::vector<pgl::PolygonWithHoles<Point>>>);
+                       pgl::PolygonWithHoles<Point>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Rectangle<>>);
@@ -348,7 +348,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum(
                            std::declval<const pgl::Rectangle<>&>())),
-                       std::vector<pgl::PolygonWithHoles<Point>>>);
+                       pgl::PolygonWithHoles<Point>>);
     // The non-convex summands have area to sweep, so they are admitted too, and
     // from either side since both carry the mirror overload.
     static_assert(summable<pgl::Polyline<>, pgl::Polygon<>>);

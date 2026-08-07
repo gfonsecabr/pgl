@@ -1987,7 +1987,7 @@ struct MonotoneChain {
      * enclose a hole, split into pieces, or need regularizing. Compare
      * @ref Polyline::minkowskiSum(const OtherConvex&) const, which answers the
      * same question for a chain that may bend back on itself and therefore has
-     * to return a set of regions.
+     * to return a `PolygonWithHoles` region.
      *
      * The result is **not regularized**: it is the sum's point set exactly, so an
      * operand that has collapsed to a segment or a point — a degenerate operand,
@@ -2073,7 +2073,8 @@ struct MonotoneChain {
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The operands left over are the ones whose own concavity can strand a
-     * cavity, so the sum is a set of regions however monotone the chain is.
+     * cavity, so the sum needs a region-valued result however monotone the chain
+     * is. The exact return type is provided by the higher-ranked operand.
      * Forwards to the other shape's implementation so that each unordered pair
      * needs the sum defined only once, on the higher-ranked shape; see
      * @ref Polygon::minkowskiSum(const OtherChain&) const for the contract.
