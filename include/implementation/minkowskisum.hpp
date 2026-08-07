@@ -4,9 +4,10 @@
 
 /**
  * @file minkowskisum.hpp
- * @brief Minkowski sums whose result is not a single convex shape: a set of
- *        regions for a receiver that can strand a cavity, one polygon for the
- *        one receiver that cannot.
+ * @brief Minkowski sums whose result is not a single convex shape: one region
+ *        when the substantive case is connected and regular, several only when
+ *        thin or slit geometry can genuinely separate it, and one polygon for
+ *        the receiver whose monotonicity rules holes out.
  *
  * `implementation/minkowski.hpp` sums the pairs whose result is a single shape:
  * a translation, a rectangle, or — for two bounded convex operands — a
@@ -55,20 +56,22 @@
  * four return the same answer, and the paragraphs below describe all of them.
  *
  * Two consequences worth stating, because they are what tells this entry point
- * apart from the shape-valued one:
+ * apart from the convex-shape-valued one:
  *
- * - **The result is a set of regions, not one region.** `A ⊕ B` is connected
- *   whenever both operands are, so it is a single region for every input anyone
- *   is likely to write; a flat list is what lets the boundary pinch shut without
- *   the answer having to lie about it, since neither a polygon nor a region may
- *   have a self-touching outer ring.
+ * - **The result type follows the nondegenerate case.** A sum with a
+ *   nondegenerate `Polygon`, or between area-carrying regions, has connected
+ *   regularized interior and returns one `PolygonWithHoles`. A vector is kept
+ *   only where two thin operands, or a region slit swept by a thin operand, can
+ *   leave several components even for a valid input. A rare degenerate split in
+ *   a single-region overload returns its first component in canonical order;
+ *   degeneracy does not widen the public type.
  * - **The result is regularized**, `closure((A ⊕ B)°)`. That costs nothing when
  *   both operands have area — a simple polygon is the closure of its own
  *   interior, and so is a sum with one — and drops the lower-dimensional parts
  *   otherwise, exactly as the boolean operations do.
  *
- * A @ref pgl::Polyline receiver is the same construction with the same two
- * consequences, and it is here for the same reason: a chain has no area, but
+ * A @ref pgl::Polyline receiver is the same construction, and it is here for
+ * the same reason: a chain has no area, but
  * dragging another shape along one sweeps out material that closes over a hole as
  * readily as a `C` does — a closed chain is the plainest example there is. It
  * takes every bounded operand with area to sweep (`Triangle`, `Rectangle`,
@@ -1510,7 +1513,8 @@ bool minkowskiOneSidedDecomposesLeft(const ShapeA& a, const ShapeB& b) {
 }
 
 /**
- * @brief The regularized Minkowski sum `closure((A ⊕ B)°)`, as a set of regions.
+ * @brief The regularized Minkowski sum `closure((A ⊕ B)°)`, represented
+ *        internally as all of its regions.
  *
  * Four constructions, cheapest first, and which one runs is decided on the
  * operands' *values* rather than their types:
@@ -1646,6 +1650,26 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
     return decomposedMinkowskiSum<ResultPoint>(left, right);
 }
 
+/**
+ * @brief Returns the sole regularized component of a Minkowski sum.
+ *
+ * The overloads using this helper have a connected regularized sum whenever
+ * their area-carrying operands are nondegenerate. Degenerate spellings can
+ * still make the regularization split (for example, a flat `Polygon` summed
+ * with a bent chain); those deliberately keep only the first component in the
+ * canonical ordering. Degenerate behavior does not widen the public return
+ * type of the geometrically substantive case.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+PolygonWithHoles<ResultPoint> singleRegularizedMinkowskiSum(const ShapeA& a,
+                                                             const ShapeB& b) {
+    auto pieces = regularizedMinkowskiSum<ResultPoint>(a, b);
+    if (pieces.empty()) {
+        return {};
+    }
+    return std::move(pieces.front());
+}
+
 }  // namespace detail
 
 // -----------------------------------------------------------------------------
@@ -1663,33 +1687,42 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
             Point<ResultNumber, typename PointType_::LabelType>>(*this, other);            \
     }
 
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, PolygonConcept, OtherPolygon)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, ConvexConcept, OtherConvex)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, TriangleConcept, OtherTriangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, RectangleConcept, OtherRectangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, PolygonWithHolesConcept, OtherRegion)
+#define PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(RECEIVER, CONCEPT, OPERAND)                 \
+    template <class PointType_, class TLabel>                                              \
+    template <class ResultNumber, CONCEPT OPERAND>                                         \
+    PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>                  \
+    RECEIVER<PointType_, TLabel>::minkowskiSum(const OPERAND& other) const {               \
+        return detail::singleRegularizedMinkowskiSum<                                      \
+            Point<ResultNumber, typename PointType_::LabelType>>(*this, other);            \
+    }
 
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonConcept, OtherPolygon)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, ConvexConcept, OtherConvex)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, TriangleConcept, OtherTriangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, RectangleConcept, OtherRectangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonWithHolesConcept, OtherRegion)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, PolygonConcept, OtherPolygon)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, ConvexConcept, OtherConvex)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, TriangleConcept, OtherTriangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, RectangleConcept, OtherRectangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, PolygonWithHolesConcept, OtherRegion)
+
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonConcept, OtherPolygon)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(PolygonWithHoles, ConvexConcept, OtherConvex)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(PolygonWithHoles, TriangleConcept, OtherTriangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(PolygonWithHoles, RectangleConcept, OtherRectangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolygonWithHolesConcept, OtherRegion)
 
 // A Polyline has no area, so most of its operands are the ones that have some.
 // A Segment is the exception, and belongs here for the reason a chain does: two
 // shapes with no area between them still sweep one out, since an edge of the
 // chain and the segment span a parallelogram unless they are parallel.
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, ConvexConcept, OtherConvex)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, TriangleConcept, OtherTriangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, RectangleConcept, OtherRectangle)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonConcept, OtherPolygon)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polyline, ConvexConcept, OtherConvex)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polyline, TriangleConcept, OtherTriangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polyline, RectangleConcept, OtherRectangle)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polyline, PolygonConcept, OtherPolygon)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonWithHolesConcept, OtherRegion)
 
 // The thinnest operand any of the three receivers takes. A segment is a single
 // convex piece, so it costs one convex merge per piece of the receiver, and it
 // is the receiver's own shape that decides whether the sweep strands a cavity.
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, SegmentConcept, OtherSegment)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, SegmentConcept, OtherSegment)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherOriented)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, SegmentConcept, OtherSegment)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, OrientedSegmentConcept, OtherOriented)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, SegmentConcept, OtherSegment)
@@ -1699,21 +1732,22 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherOriented)
 // privileged one, exactly as `Polygon` and `PolygonWithHoles` mirror theirs. The
 // two calls build the same piece sums and take the same union, so they agree by
 // construction rather than by a forwarding hop.
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, PolylineConcept, OtherPolyline)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, PolylineConcept, OtherPolyline)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, PolylineConcept, OtherPolyline)
 
 // A monotone chain against a non-convex receiver, which owns the pair by rank.
 // The chain's monotonicity buys nothing here: it is the receiver's concavity that
 // calls for a region, and no sorting of the chain's edges takes that back.
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, MonotoneChainConcept, OtherChain)
+PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM(Polygon, MonotoneChainConcept, OtherChain)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, MonotoneChainConcept, OtherChain)
 
 #undef PGL_DEFINE_REGION_MINKOWSKI_SUM
+#undef PGL_DEFINE_SINGLE_REGION_MINKOWSKI_SUM
 
 // -----------------------------------------------------------------------------
 // The chain-valued receiver's own overload set: declared in
-// shape/monotonechain.hpp, and a polygon rather than a set of regions for every
-// operand a monotone chain accepts.
+// shape/monotonechain.hpp, and a polygon rather than a region-with-holes result
+// for every bounded convex operand a monotone chain accepts.
 
 #define PGL_DEFINE_CHAIN_MINKOWSKI_SUM(CONCEPT, OPERAND)                                       \
     template <class PointType_, class TLabel, class Storage>                                   \

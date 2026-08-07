@@ -953,7 +953,7 @@ struct PolygonWithHoles {
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
-     * and returned as a set of regions with pairwise disjoint interiors. See
+     * and returned as one region. See
      * @ref Polygon::minkowskiSum for the full contract.
      *
      * A region operand needs one thing a polygon does not: its **slits** sweep
@@ -963,30 +963,36 @@ struct PolygonWithHoles {
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
-     * @return The pieces of the sum, in canonical order.
+     * A nondegenerate area operand thickens every slit that could otherwise
+     * disconnect the regularization, so these overloads have one component.
+     * If the other operand is degenerate and the answer splits, only its first
+     * component in canonical order is returned. An empty regularized sum is
+     * represented by an empty region.
+     *
+     * @return The sum as one region, possibly empty.
      */
     template <class ResultNumber = NumberType, PolygonConcept OtherPolygon>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherPolygon& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherConvex& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = NumberType, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRegion& other) const;
 
     /**

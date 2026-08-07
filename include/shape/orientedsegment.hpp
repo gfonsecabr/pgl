@@ -1615,7 +1615,8 @@ struct OrientedSegment {
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The pairs @ref MinkowskiSummableConcept rejects are exactly the ones whose
-     * sum is a set of regions rather than a single shape; they are implemented on
+     * sum needs a region-valued result rather than one bounded convex shape;
+     * they are implemented on
      * @ref Polygon, @ref PolygonWithHoles and @ref Polyline. Forwards to the other
      * shape's implementation so that each unordered pair needs the sum defined
      * only once, on the higher-ranked shape.
