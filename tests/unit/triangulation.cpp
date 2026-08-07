@@ -2040,3 +2040,121 @@ TEST_CASE("convexPartition of an empty triangulation is empty") {
     const pgl::Triangulation<pgl::Triangle<Point>> tri;
     CHECK(tri.convexPartition().empty());
 }
+
+// ---------------------------------------------------------------------------
+// convexCovering
+
+namespace {
+
+template <class Shape, class Triangulation, class Pieces>
+void checkCovers(const Shape& shape, const Triangulation& triangulation,
+                 const Pieces& pieces) {
+    REQUIRE_FALSE(pieces.empty());
+    const auto triangles = triangulation.triangles();
+
+    for (const auto& piece : pieces) {
+        using PiecePoint = std::remove_cvref_t<decltype(*piece.begin())>;
+        const std::vector<PiecePoint> vertices(piece.begin(), piece.end());
+        CHECK(pgl::Convex<PiecePoint>(vertices) == piece);
+        CHECK_FALSE(piece.isDegenerate());
+        CHECK(shape.contains(piece));
+    }
+    for (const auto& triangle : triangles) {
+        CHECK(std::ranges::any_of(pieces, [&](const auto& piece) {
+            return piece.contains(triangle);
+        }));
+    }
+
+    // Redundancy removal leaves every selected piece with a triangle that no
+    // other selected piece covers.
+    for (std::size_t i = 0; i < pieces.size(); ++i) {
+        CHECK(std::ranges::any_of(triangles, [&](const auto& triangle) {
+            if (!pieces[i].contains(triangle)) {
+                return false;
+            }
+            for (std::size_t j = 0; j < pieces.size(); ++j) {
+                if (j != i && pieces[j].contains(triangle)) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+    }
+}
+
+}  // namespace
+
+TEST_CASE_TEMPLATE("convexCovering covers every original triangle",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    SUBCASE("a convex polygon needs one covering piece") {
+        const pgl::Polygon<Point> square(std::vector<Point>{
+            P<Point>(0, 0), P<Point>(4, 0), P<Point>(4, 4), P<Point>(0, 4)});
+        const auto triangulation = square.triangulation();
+        const auto pieces = triangulation.convexCovering();
+        CHECK(pieces.size() == 1);
+        CHECK(square.convexCovering() == pieces);
+        checkCovers(square, triangulation, pieces);
+    }
+
+    SUBCASE("a non-convex polygon is covered by irredundant convexes") {
+        const pgl::Polygon<Point> ell(std::vector<Point>{
+            P<Point>(0, 0), P<Point>(3, 0), P<Point>(3, 1),
+            P<Point>(1, 1), P<Point>(1, 3), P<Point>(0, 3)});
+        const auto triangulation = ell.triangulation();
+        const auto pieces = triangulation.convexCovering();
+        CHECK(pieces.size() <= triangulation.convexPartition().size());
+        checkCovers(ell, triangulation, pieces);
+    }
+}
+
+TEST_CASE("convexCovering may use overlapping candidates") {
+    using Point = pgl::Point<int>;
+    const pgl::Polygon<Point> star(std::vector<Point>{
+        Point(8, 0), Point(9, 9), Point(0, 9), Point(-4, 4),
+        Point(-5, 0), Point(-5, -5), Point(0, -2), Point(8, -8)});
+    const auto triangulation = star.triangulation();
+    const auto pieces = triangulation.convexCovering();
+    checkCovers(star, triangulation, pieces);
+
+    auto coveredTwiceArea = star.twiceArea();
+    coveredTwiceArea -= coveredTwiceArea;
+    for (const auto& piece : pieces) {
+        coveredTwiceArea += piece.twiceArea();
+    }
+    CHECK(coveredTwiceArea > star.twiceArea());
+}
+
+TEST_CASE_TEMPLATE("convexCovering does not cover a region's holes",
+                   Point, pgl::Point<int>, pgl::Point<pgl::Rational<int64_t>>) {
+    using Poly = pgl::Polygon<Point>;
+    const Poly outer(std::vector<Point>{P<Point>(0, 0), P<Point>(9, 0),
+                                        P<Point>(9, 9), P<Point>(0, 9)});
+    const std::vector<Poly> holes{Poly(std::vector<Point>{
+        P<Point>(3, 3), P<Point>(6, 3), P<Point>(6, 6), P<Point>(3, 6)})};
+    const pgl::PolygonWithHoles<Point> region(outer, holes);
+    const auto triangulation = region.triangulation();
+    const auto pieces = triangulation.convexCovering();
+    CHECK(region.convexCovering() == pieces);
+    checkCovers(region, triangulation, pieces);
+    for (const auto& piece : pieces) {
+        CHECK_FALSE(piece.interiorContains(P<Point>(4, 4)));
+    }
+}
+
+TEST_CASE("convexCovering respects constrained edges") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    const pgl::Polygon<Point> square({0, 0, 4, 0, 4, 4, 0, 4});
+    const std::vector<Segment> wall{Segment(Point(0, 0), Point(4, 4))};
+    const auto triangulation = square.triangulation(wall);
+    const auto pieces = triangulation.convexCovering();
+    CHECK(pieces.size() == 2);
+    checkCovers(square, triangulation, pieces);
+}
+
+TEST_CASE("convexCovering of an empty triangulation is empty") {
+    using Point = pgl::Point<int>;
+    const pgl::Triangulation<pgl::Triangle<Point>> triangulation;
+    CHECK(triangulation.convexCovering().empty());
+}

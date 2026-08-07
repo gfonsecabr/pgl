@@ -612,6 +612,19 @@ struct PolygonWithHoles {
     [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
 
     /**
+     * @brief Covers this region with a greedily selected set of convex polygons.
+     *
+     * Equivalent to `triangulation().convexCovering()`, with the same
+     * precondition (@ref isValid). Every piece is contained in this region and
+     * together they cover `closure(interior)`, so holes remain uncovered and a
+     * slit appears in no piece. Unlike @ref convexPartition, piece interiors may
+     * overlap. The returned cover is irredundant, not necessarily minimum.
+     *
+     * @return The convex covering, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
      * @brief Returns the regularized set difference of the two shapes (A ∖ B).
      *
      * The result is `closure(A° ∖ B)`: the part of this region with area that

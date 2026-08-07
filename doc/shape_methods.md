@@ -588,6 +588,12 @@ instead — and so does a pair whose sum is a set of regions, which no single
   what has area, so the holes are where there is no piece and a slit — having no
   area — appears in none of them.
 
+- `convexCovering()` ([`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") and [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.")): Returns an irredundant
+  greedy covering by [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") pieces. The pieces may overlap and the covering is
+  not necessarily minimum. Shorthand for `triangulation().convexCovering()`; see
+  [Triangulation](data_structures.md#triangulation). On a region it covers only
+  what has area, leaving holes and slits uncovered.
+
 ## Iterating
 
 There are several methods to iterate through vertices, edges, or oriented
@@ -639,5 +645,4 @@ The runtime [`Shape`](https://gfonsecabr.github.io/pgl/structpgl_1_1Shape.html "
 dispatch to the wrapped alternative. Because [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.")'s
 indexed access yields a coordinate rather than a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), `Shape::operator[]`
 and `Shape::get` throw `std::logic_error` if the wrapped value is a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.").
-
 

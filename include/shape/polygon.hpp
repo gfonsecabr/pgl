@@ -704,6 +704,21 @@ struct Polygon {
     [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
 
     /**
+     * @brief Covers this polygon with a greedily selected set of convex polygons.
+     *
+     * Equivalent to `triangulation().convexCovering()`, with the same polygon
+     * precondition as @ref triangulation: simple and non-degenerate. Every piece
+     * is contained in this polygon and their union is the polygon, but unlike
+     * @ref convexPartition their interiors may overlap. The returned cover is
+     * irredundant, not necessarily minimum.
+     *
+     * A convex polygon comes back as a single piece.
+     *
+     * @return The convex covering, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
      * @brief Builds the constrained Delaunay triangulation of this polygon with
      *        the given interior vertices and constraint segments.
      *
