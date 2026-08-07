@@ -798,8 +798,12 @@ struct Triangulation {
      * The pieces come back unlabeled: a piece is a merge of several triangles and
      * there is no one triangle's label to carry.
      *
-     * Complexity: `O(n)` merges over the `O(n)` diagonals, each `O(1)` apart from
-     * the one guard below, and one pass to read the rings out.
+     * Complexity: `O(n^2)` worst-case time and `O(n)` auxiliary space for `n`
+     * real triangles. The merge tests and ring construction are linear apart
+     * from the shared-edge guard below: it walks the boundary of a current piece,
+     * and repeated walks over a growing piece can take quadratic time altogether.
+     * Reading the surviving rings is linear; putting the `p` result pieces in
+     * canonical order additionally takes `O(p log p)` polygon comparisons.
      *
      * @return The convex pieces, in canonical order, whose union is the domain.
      */
@@ -961,6 +965,269 @@ struct Triangulation {
         }
         std::sort(pieces.begin(), pieces.end());
         return pieces;
+    }
+
+    /**
+     * @brief Covers the domain with a greedily selected set of convex polygons.
+     *
+     * A convex candidate is grown independently from every in-domain triangle,
+     * always against the original triangulation. Growth crosses an unconstrained
+     * boundary edge when adjoining its triangle keeps the candidate convex; a
+     * failed edge is reconsidered if a later merge changes either endpoint angle.
+     * Each candidate is stored together with the exact set of triangles fused to
+     * make it.
+     *
+     * Those triangle sets form a set-cover instance whose universe is the
+     * in-domain triangles. The greedy phase repeatedly takes the candidate that
+     * covers the most triangles not covered yet. A final reverse pass removes a
+     * selected candidate whenever all its triangles are still covered by the
+     * other selected candidates. Thus the result is irredundant, though neither
+     * the greedy cover nor the independently grown candidates are guaranteed
+     * minimum. Unlike @ref convexPartition, returned polygons may overlap.
+     *
+     * Constrained edges are never crossed. The pieces are unlabeled for the same
+     * reason as those returned by @ref convexPartition: one piece may contain
+     * several triangles with different labels.
+     *
+     * Complexity: `O(n^2)` time and space for `n` real triangles. There are at
+     * most `n` candidates, each grown and stored in `O(n)` time and space; the
+     * incidence-based greedy cover and redundancy pass are quadratic as well.
+     *
+     * @return The irredundant greedy convex covering, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const {
+        std::vector<Convex<PointType>> result;
+        if (domainTriangleCount_ == 0) {
+            return result;
+        }
+
+        const std::size_t triangleSlots = static_cast<std::size_t>(firstGhost_);
+        const std::size_t halfEdgeSlots = triangleSlots * 3;
+        const auto originOf = [this](std::int32_t h) {
+            return triangles_[static_cast<std::size_t>(h / 3)]
+                .v[static_cast<std::size_t>((h % 3 + 1) % 3)];
+        };
+        const auto targetOf = [this](std::int32_t h) {
+            return triangles_[static_cast<std::size_t>(h / 3)]
+                .v[static_cast<std::size_t>((h % 3 + 2) % 3)];
+        };
+        const auto convexAt = [this](VertexId before, VertexId at, VertexId after) {
+            return orientationSign(vertices_[static_cast<std::size_t>(before)],
+                                   vertices_[static_cast<std::size_t>(at)],
+                                   vertices_[static_cast<std::size_t>(after)]) >= 0;
+        };
+
+        struct Candidate {
+            std::vector<TriId> triangles;
+            Convex<PointType> convex;
+        };
+        std::vector<Candidate> candidates;
+        candidates.reserve(domainTriangleCount_);
+
+        for (TriId seed = 0; seed < firstGhost_; ++seed) {
+            if (!inDomain(seed)) {
+                continue;
+            }
+
+            // Only the growing candidate has a live ring. Newly fused triangles
+            // receive their original three-edge ring immediately before it is
+            // spliced into that candidate.
+            std::vector<std::int32_t> succ(halfEdgeSlots, -1);
+            std::vector<std::int32_t> pred(halfEdgeSlots, -1);
+            std::vector<char> fused(triangleSlots, 0);
+            std::vector<TriId> fusedTriangles{seed};
+            fused[static_cast<std::size_t>(seed)] = 1;
+
+            const auto initializeRing = [&](TriId t) {
+                for (int s = 0; s < 3; ++s) {
+                    const std::int32_t h = 3 * t + s;
+                    const std::int32_t next = 3 * t + (s + 1) % 3;
+                    succ[static_cast<std::size_t>(h)] = next;
+                    pred[static_cast<std::size_t>(next)] = h;
+                }
+            };
+            initializeRing(seed);
+
+            std::deque<std::int32_t> frontier;
+            for (int s = 0; s < 3; ++s) {
+                frontier.push_back(3 * seed + s);
+            }
+
+            while (!frontier.empty()) {
+                const std::int32_t h = frontier.front();
+                frontier.pop_front();
+                if (succ[static_cast<std::size_t>(h)] < 0) {
+                    continue;  // removed by an earlier fusion
+                }
+
+                const TriId t = h / 3;
+                const int side = h % 3;
+                const TriId neighbor = triangles_[static_cast<std::size_t>(t)].nbr[side];
+                if (!inDomain(neighbor) || fused[static_cast<std::size_t>(neighbor)] ||
+                    bit(triangles_[static_cast<std::size_t>(t)].constrainedMask, side)) {
+                    continue;
+                }
+
+                // Splicing one pair of twins is valid only while this triangle
+                // meets the candidate along exactly that one edge. Once it meets
+                // along two edges, that count can only grow, so it need not be
+                // reconsidered.
+                int sharedEdges = 0;
+                for (const TriId adjacent :
+                     triangles_[static_cast<std::size_t>(neighbor)].nbr) {
+                    if (inDomain(adjacent) && fused[static_cast<std::size_t>(adjacent)]) {
+                        ++sharedEdges;
+                    }
+                }
+                if (sharedEdges != 1) {
+                    continue;
+                }
+
+                const std::int32_t twin = 3 * neighbor + findSide(neighbor, t);
+                initializeRing(neighbor);
+
+                const VertexId u = originOf(h);
+                const VertexId v = targetOf(h);
+                const VertexId p = originOf(pred[static_cast<std::size_t>(h)]);
+                const VertexId q = targetOf(succ[static_cast<std::size_t>(h)]);
+                const VertexId r = originOf(pred[static_cast<std::size_t>(twin)]);
+                const VertexId w = targetOf(succ[static_cast<std::size_t>(twin)]);
+                if (!convexAt(p, u, w) || !convexAt(r, v, q)) {
+                    // Initializing a rejected triangle must not leave a live ring.
+                    for (int s = 0; s < 3; ++s) {
+                        const std::size_t rejected =
+                            static_cast<std::size_t>(3 * neighbor + s);
+                        succ[rejected] = -1;
+                        pred[rejected] = -1;
+                    }
+                    continue;
+                }
+
+                const std::int32_t beforeU = pred[static_cast<std::size_t>(h)];
+                const std::int32_t afterU = succ[static_cast<std::size_t>(twin)];
+                const std::int32_t beforeV = pred[static_cast<std::size_t>(twin)];
+                const std::int32_t afterV = succ[static_cast<std::size_t>(h)];
+                succ[static_cast<std::size_t>(beforeU)] = afterU;
+                pred[static_cast<std::size_t>(afterU)] = beforeU;
+                succ[static_cast<std::size_t>(beforeV)] = afterV;
+                pred[static_cast<std::size_t>(afterV)] = beforeV;
+                succ[static_cast<std::size_t>(h)] = -1;
+                pred[static_cast<std::size_t>(h)] = -1;
+                succ[static_cast<std::size_t>(twin)] = -1;
+                pred[static_cast<std::size_t>(twin)] = -1;
+                fused[static_cast<std::size_t>(neighbor)] = 1;
+                fusedTriangles.push_back(neighbor);
+
+                // These are precisely the live edges whose endpoint angles are
+                // new, including both newly exposed sides of `neighbor`.
+                frontier.push_back(beforeU);
+                frontier.push_back(afterU);
+                frontier.push_back(beforeV);
+                frontier.push_back(afterV);
+            }
+
+            std::int32_t start = -1;
+            for (std::int32_t h = 0; h < static_cast<std::int32_t>(halfEdgeSlots); ++h) {
+                if (succ[static_cast<std::size_t>(h)] >= 0) {
+                    start = h;
+                    break;
+                }
+            }
+            assert(start >= 0);
+
+            std::vector<PointType> ring;
+            std::int32_t h = start;
+            do {
+                ring.push_back(vertices_[static_cast<std::size_t>(originOf(h))]);
+                h = succ[static_cast<std::size_t>(h)];
+            } while (h != start);
+
+            std::vector<PointType> kept;
+            kept.reserve(ring.size());
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                const PointType& before = ring[(i + ring.size() - 1) % ring.size()];
+                const PointType& after = ring[(i + 1) % ring.size()];
+                if (orientationSign(before, ring[i], after) != 0) {
+                    kept.push_back(ring[i]);
+                }
+            }
+            assert(kept.size() >= 3);
+            std::rotate(kept.begin(), std::min_element(kept.begin(), kept.end()), kept.end());
+            candidates.push_back(
+                Candidate{std::move(fusedTriangles), Convex<PointType>(kept, /*trusted=*/true)});
+        }
+
+        // Maintain each candidate's uncovered gain through the inverse
+        // triangle-to-candidate incidence lists. Every incidence is processed at
+        // most once, when its triangle first becomes covered.
+        std::vector<std::vector<std::size_t>> coverers(triangleSlots);
+        std::vector<std::size_t> gain(candidates.size());
+        for (std::size_t c = 0; c < candidates.size(); ++c) {
+            gain[c] = candidates[c].triangles.size();
+            for (const TriId t : candidates[c].triangles) {
+                coverers[static_cast<std::size_t>(t)].push_back(c);
+            }
+        }
+
+        std::vector<char> covered(triangleSlots, 0);
+        std::vector<char> selected(candidates.size(), 0);
+        std::vector<std::size_t> selectionOrder;
+        std::size_t remaining = domainTriangleCount_;
+        while (remaining != 0) {
+            std::size_t best = candidates.size();
+            std::size_t bestGain = 0;
+            for (std::size_t c = 0; c < candidates.size(); ++c) {
+                if (!selected[c] && gain[c] > bestGain) {
+                    best = c;
+                    bestGain = gain[c];
+                }
+            }
+            assert(best != candidates.size() && bestGain != 0);
+            selected[best] = 1;
+            selectionOrder.push_back(best);
+            for (const TriId t : candidates[best].triangles) {
+                const std::size_t ti = static_cast<std::size_t>(t);
+                if (covered[ti]) {
+                    continue;
+                }
+                covered[ti] = 1;
+                --remaining;
+                for (const std::size_t c : coverers[ti]) {
+                    assert(gain[c] != 0);
+                    --gain[c];
+                }
+            }
+        }
+
+        std::vector<std::size_t> coverageCount(triangleSlots, 0);
+        for (const std::size_t c : selectionOrder) {
+            for (const TriId t : candidates[c].triangles) {
+                ++coverageCount[static_cast<std::size_t>(t)];
+            }
+        }
+        for (auto it = selectionOrder.rbegin(); it != selectionOrder.rend(); ++it) {
+            const std::size_t c = *it;
+            const bool redundant = std::ranges::all_of(
+                candidates[c].triangles, [&](TriId t) {
+                    return coverageCount[static_cast<std::size_t>(t)] > 1;
+                });
+            if (!redundant) {
+                continue;
+            }
+            selected[c] = 0;
+            for (const TriId t : candidates[c].triangles) {
+                --coverageCount[static_cast<std::size_t>(t)];
+            }
+        }
+
+        result.reserve(selectionOrder.size());
+        for (const std::size_t c : selectionOrder) {
+            if (selected[c]) {
+                result.push_back(std::move(candidates[c].convex));
+            }
+        }
+        std::sort(result.begin(), result.end());
+        return result;
     }
 
     // ---- traversal along a segment or (oriented) line --------------------
@@ -4286,6 +4553,11 @@ std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexPartition() c
     return triangulation().convexPartition();
 }
 
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexCovering() const {
+    return triangulation().convexCovering();
+}
+
 // Out-of-line for the same reason: declared in shape/polygonwithholes.hpp.
 template <class PointType_, class TLabel>
 auto PolygonWithHoles<PointType_, TLabel>::triangulation() const {
@@ -4295,6 +4567,11 @@ auto PolygonWithHoles<PointType_, TLabel>::triangulation() const {
 template <class PointType_, class TLabel>
 std::vector<Convex<PointType_>> PolygonWithHoles<PointType_, TLabel>::convexPartition() const {
     return triangulation().convexPartition();
+}
+
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> PolygonWithHoles<PointType_, TLabel>::convexCovering() const {
+    return triangulation().convexCovering();
 }
 
 template <class PointType_, class TLabel>

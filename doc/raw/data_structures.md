@@ -66,6 +66,8 @@ It may be constructed from a Polygon (constrained Delaunay triangulation), a con
 
 - `convexPartition()` returns a set of interior disjoint convex polygons that covers the domain, where each convex polygon is the union of one or more triangles. The result is guaranteed within a factor of four of the fewest convex pieces possible. A constrained edge is never deleted, so a partition can be shaped by the constraints the triangulation was built with. `Polygon::convexPartition()` and `PolygonWithHoles::convexPartition()` are shorthands for `triangulation().convexPartition()`. A convex polygon comes back as a single piece.
 
+- `convexCovering()` grows one convex candidate independently from every triangle, then greedily selects candidates whose triangle sets cover the domain and removes redundant selections. The resulting convexes may overlap, are not guaranteed minimum, and never cross a constrained edge. `Polygon::convexCovering()` and `PolygonWithHoles::convexCovering()` are shorthands for `triangulation().convexCovering()`.
+
 - Other methods:
 
 <p align="center">
@@ -73,6 +75,4 @@ It may be constructed from a Polygon (constrained Delaunay triangulation), a con
   <br/>
   <em>The constrained Delaunay triangulation of a polygon with points inside. Highlighting the triangles a segment meets and those whose interior it actually intersects.</em>
 </p>
-
-
 
