@@ -60,6 +60,7 @@
 #include "implementation/distancelinf.hpp"
 #include "visualization/canvas.hpp"
 #include "core/hash.hpp"
+#include "core/graph.hpp"
 #include "algorithm/intersections.hpp"
 #include "algorithm/convexhull.hpp"
 #include "algorithm/shapetree.hpp"

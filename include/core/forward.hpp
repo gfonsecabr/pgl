@@ -31,6 +31,10 @@ class BigInt;
 template <class T>
 class Rational;
 
+/** @brief Undirected simple graph with hashable vertices. */
+template <class Vertex>
+class Graph;
+
 /** @brief The empty set of points in the plane. */
 template <class PointType>
 struct EmptyShape;
