@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/hash.hpp"
+#include "algorithm/visibilitygraph.hpp"
 
 /**
  * @file intersections.hpp

@@ -587,10 +587,13 @@ instead — and so does a pair whose sum is a set of regions, which no single
   area — appears in none of them.
 
 - `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant
-  greedy covering by `Convex` pieces. The pieces may overlap and the covering is
-  not necessarily minimum. Shorthand for `triangulation().convexCovering()`; see
-  [Triangulation](data_structures.md#triangulation). On a region it covers only
-  what has area, leaving holes and slits uncovered.
+  covering by `Convex` pieces. The pieces may overlap and the covering is not
+  necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form
+  a full-visibility graph, a DSATUR vertex clique cover groups them, and every
+  clique becomes one convex hull. For `PolygonWithHoles`, the method remains a
+  shorthand for `triangulation().convexCovering()` because clique hulls can
+  surround holes and require an additional splitting step. On a region the
+  covering leaves holes and slits uncovered.
 
 ## Iterating
 
@@ -643,4 +646,3 @@ The runtime `Shape` wrapper exposes `size()`, `operator[]`, and `get()` that
 dispatch to the wrapped alternative. Because `Point`'s
 indexed access yields a coordinate rather than a `Point`, `Shape::operator[]`
 and `Shape::get` throw `std::logic_error` if the wrapped value is a `Point`.
-

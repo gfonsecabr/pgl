@@ -769,6 +769,52 @@ struct Triangulation {
         return out;
     }
 
+    /**
+     * @brief Builds the full-visibility graph of the domain triangles.
+     *
+     * Every in-domain triangle is a graph vertex. Two triangles are adjacent
+     * exactly when the convex hull of their union is contained in the
+     * triangulated domain. Thus any graph clique is a set of pairwise fully
+     * visible partition pieces, as used by the clique-cover construction of
+     * Abrahamsen, Meyling, and Nusser (SoCG 2023).
+     *
+     * For a simply connected domain, the convex hull of all triangles in a
+     * clique is contained in the domain. With holes, pairwise visibility does
+     * not suffice: a clique hull may surround a hole and must be validated or
+     * split before it can be used as a covering piece.
+     *
+     * This initial implementation checks every triangle pair directly.
+     *
+     * Complexity: O(m^3) worst-case time and O(m^2) space for m in-domain
+     * triangles; a containment walk may cross O(m) triangles for each of the
+     * O(m^2) candidate pairs.
+     *
+     * @return The undirected full-visibility graph of the domain triangles.
+     */
+    [[nodiscard]] Graph<TriangleType> visibilityGraph() const {
+        Graph<TriangleType> result;
+        const auto domainTriangles = triangles();
+
+        for (const auto& triangle : domainTriangles) {
+            result.addVertex(triangle);
+        }
+
+        for (std::size_t i = 0; i < domainTriangles.size(); ++i) {
+            for (std::size_t j = i + 1; j < domainTriangles.size(); ++j) {
+                const auto& a = domainTriangles[i];
+                const auto& b = domainTriangles[j];
+                const std::array<PointType, 6> vertices{
+                    a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
+                };
+                if (contains(Convex<PointType>(vertices))) {
+                    result.addEdge(a, b);
+                }
+            }
+        }
+
+        return result;
+    }
+
     // ---- convex partition ------------------------------------------------
 
     /**
@@ -4555,7 +4601,48 @@ std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexPartition() c
 
 template <class PointType_, class TLabel>
 std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexCovering() const {
-    return triangulation().convexCovering();
+    const auto partition = triangulation();
+    const auto triangles = partition.triangles();
+    const auto cliques = partition.visibilityGraph().cliqueCover();
+
+    std::vector<Convex<PointType_>> result;
+    result.reserve(cliques.size());
+    for (const auto& clique : cliques) {
+        std::vector<PointType_> vertices;
+        vertices.reserve(3 * clique.size());
+        for (const auto& triangle : clique) {
+            vertices.push_back(triangle.a());
+            vertices.push_back(triangle.b());
+            vertices.push_back(triangle.c());
+        }
+        result.emplace_back(vertices);
+    }
+
+    // A clique partition covers every source triangle, but one clique hull may
+    // also cover triangles assigned to other cliques. Remove such redundant
+    // hulls while preserving coverage of the whole triangulation.
+    for (std::size_t i = result.size(); i-- > 0;) {
+        bool redundant = true;
+        for (const auto& triangle : triangles) {
+            bool coveredElsewhere = false;
+            for (std::size_t j = 0; j < result.size(); ++j) {
+                if (j != i && result[j].contains(triangle)) {
+                    coveredElsewhere = true;
+                    break;
+                }
+            }
+            if (!coveredElsewhere) {
+                redundant = false;
+                break;
+            }
+        }
+        if (redundant) {
+            result.erase(result.begin() + static_cast<std::ptrdiff_t>(i));
+        }
+    }
+
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 // Out-of-line for the same reason: declared in shape/polygonwithholes.hpp.

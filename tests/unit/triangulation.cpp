@@ -2084,6 +2084,48 @@ void checkCovers(const Shape& shape, const Triangulation& triangulation,
 
 }  // namespace
 
+TEST_CASE("Triangulation visibility graph uses full visibility of triangle pairs") {
+    using Point = pgl::Point<int>;
+
+    const pgl::Triangulation<pgl::Triangle<Point>> empty;
+    CHECK(empty.visibilityGraph().vertexCount() == 0);
+
+    const pgl::Polygon<Point> ell(std::vector<Point>{
+        Point(0, 0), Point(4, 0), Point(4, 1),
+        Point(1, 1), Point(1, 4), Point(0, 4)});
+    const auto triangulation = ell.triangulation();
+    const auto triangles = triangulation.triangles();
+    const auto graph = triangulation.visibilityGraph();
+
+    CHECK(graph.vertexCount() == static_cast<int>(triangles.size()));
+    for (const auto& triangle : triangles) {
+        CHECK(graph.containsVertex(triangle));
+    }
+
+    for (std::size_t i = 0; i < triangles.size(); ++i) {
+        for (std::size_t j = i + 1; j < triangles.size(); ++j) {
+            const auto& a = triangles[i];
+            const auto& b = triangles[j];
+            const std::array<Point, 6> vertices{
+                a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
+            };
+            const bool fullyVisible = triangulation.contains(pgl::Convex<Point>(vertices));
+            CHECK(graph.containsEdge(a, b) == fullyVisible);
+        }
+    }
+
+    // In a simple polygon (no holes), every triangle clique has a valid hull.
+    for (const auto& clique : graph.cliqueCover()) {
+        std::vector<Point> vertices;
+        for (const auto& triangle : clique) {
+            vertices.push_back(triangle.a());
+            vertices.push_back(triangle.b());
+            vertices.push_back(triangle.c());
+        }
+        CHECK(ell.contains(pgl::Convex<Point>(vertices)));
+    }
+}
+
 TEST_CASE_TEMPLATE("convexCovering covers every original triangle",
                    Point, pgl::Point<int>, pgl::Point<double>,
                    pgl::Point<pgl::Rational<int64_t>>) {
@@ -2102,9 +2144,12 @@ TEST_CASE_TEMPLATE("convexCovering covers every original triangle",
             P<Point>(0, 0), P<Point>(3, 0), P<Point>(3, 1),
             P<Point>(1, 1), P<Point>(1, 3), P<Point>(0, 3)});
         const auto triangulation = ell.triangulation();
-        const auto pieces = triangulation.convexCovering();
-        CHECK(pieces.size() <= triangulation.convexPartition().size());
-        checkCovers(ell, triangulation, pieces);
+        const auto grownPieces = triangulation.convexCovering();
+        CHECK(grownPieces.size() <= triangulation.convexPartition().size());
+        checkCovers(ell, triangulation, grownPieces);
+
+        const auto cliquePieces = ell.convexCovering();
+        checkCovers(ell, triangulation, cliquePieces);
     }
 }
 
