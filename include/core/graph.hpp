@@ -1,0 +1,570 @@
+#pragma once
+
+/**
+ * @file graph.hpp
+ * @brief Simple undirected graph with hashable vertices.
+ */
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <iterator>
+#include <optional>
+#include <queue>
+#include <stack>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+namespace pgl {
+
+/**
+ * @brief Undirected simple graph stored as adjacency sets.
+ *
+ * Adding an edge also adds both of its endpoints. Self-loops are ignored and
+ * repeated edges are coalesced. Vertex and traversal order are unspecified
+ * because the graph uses unordered containers.
+ *
+ * @tparam Vertex Hashable, equality-comparable vertex type.
+ */
+template <class Vertex>
+class Graph {
+    using AdjacencyMap = std::unordered_map<Vertex, std::unordered_set<Vertex>>;
+
+public:
+    /** Type used to represent a vertex. */
+    using VertexType = Vertex;
+
+    /** Set containing the neighbors of a vertex. */
+    using NeighborSet = std::unordered_set<Vertex>;
+
+    /**
+     * @brief Forward iterator over the vertices of a graph.
+     *
+     * Dereferencing the iterator yields a const reference because changing a
+     * vertex in place would invalidate the graph's hash table.
+     */
+    class Iterator {
+        using BaseIterator = typename AdjacencyMap::const_iterator;
+
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using iterator_concept = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = Vertex;
+        using pointer = const Vertex*;
+        using reference = const Vertex&;
+
+        /** @brief Creates an iterator with no associated graph. */
+        Iterator() = default;
+
+        /** @brief Returns the current vertex. */
+        reference operator*() const {
+            return iterator_->first;
+        }
+
+        /** @brief Returns a pointer to the current vertex. */
+        pointer operator->() const {
+            return &iterator_->first;
+        }
+
+        /** @brief Advances to the next vertex. */
+        Iterator& operator++() {
+            ++iterator_;
+            return *this;
+        }
+
+        /** @brief Advances to the next vertex and returns the previous position. */
+        Iterator operator++(int) {
+            Iterator previous = *this;
+            ++(*this);
+            return previous;
+        }
+
+        friend bool operator==(const Iterator&, const Iterator&) = default;
+
+    private:
+        friend class Graph;
+
+        explicit Iterator(BaseIterator iterator)
+            : iterator_(iterator) {}
+
+        BaseIterator iterator_;
+    };
+
+    using iterator = Iterator;
+    using const_iterator = Iterator;
+
+    /** @brief Creates an empty graph. */
+    Graph() = default;
+
+    /**
+     * @brief Creates a graph from a list of undirected edges.
+     *
+     * @param edges Endpoint pairs. Self-loops are ignored.
+     */
+    explicit Graph(const std::vector<std::array<Vertex, 2>>& edges) {
+        for (const auto& [u, v] : edges) {
+            addEdge(u, v);
+        }
+    }
+
+    /**
+     * @brief Adds a vertex if it is not already present.
+     *
+     * @param vertex Vertex to add.
+     */
+    void addVertex(const Vertex& vertex) {
+        adjacency_.try_emplace(vertex);
+    }
+
+    /**
+     * @brief Adds an undirected edge and its endpoints.
+     *
+     * A self-loop is ignored, including its endpoint.
+     *
+     * @param u First endpoint.
+     * @param v Second endpoint.
+     */
+    void addEdge(const Vertex& u, const Vertex& v) {
+        if (u != v) {
+            adjacency_[u].insert(v);
+            adjacency_[v].insert(u);
+        }
+    }
+
+    /**
+     * @brief Tests whether a vertex is present.
+     *
+     * @param vertex Vertex to find.
+     * @return `true` if @p vertex belongs to the graph.
+     */
+    [[nodiscard]] bool containsVertex(const Vertex& vertex) const {
+        return adjacency_.contains(vertex);
+    }
+
+    /**
+     * @brief Tests whether an undirected edge is present.
+     *
+     * @param u First endpoint.
+     * @param v Second endpoint.
+     * @return `true` if the graph contains the edge between @p u and @p v.
+     */
+    [[nodiscard]] bool containsEdge(const Vertex& u, const Vertex& v) const {
+        const auto uIt = adjacency_.find(u);
+        return uIt != adjacency_.end() && uIt->second.contains(v);
+    }
+
+    /**
+     * @brief Returns the degree of a vertex.
+     *
+     * @param vertex Vertex whose degree to query.
+     * @return Number of neighbors, or `-1` if @p vertex is absent.
+     */
+    [[nodiscard]] int degree(const Vertex& vertex) const {
+        const auto vertexIt = adjacency_.find(vertex);
+        if (vertexIt == adjacency_.end()) {
+            return -1;
+        }
+        return static_cast<int>(vertexIt->second.size());
+    }
+
+    /**
+     * @brief Returns the largest vertex degree.
+     *
+     * @return Maximum degree, or `-1` if the graph is empty.
+     */
+    [[nodiscard]] int maxDegree() const {
+        int result = -1;
+        for (const auto& entry : adjacency_) {
+            result = std::max(result, static_cast<int>(entry.second.size()));
+        }
+        return result;
+    }
+
+    /** @brief Returns the number of vertices. */
+    [[nodiscard]] int vertexCount() const {
+        return static_cast<int>(adjacency_.size());
+    }
+
+    /** @brief Returns the number of undirected edges. */
+    [[nodiscard]] int edgeCount() const {
+        std::size_t directedEdgeCount = 0;
+        for (const auto& entry : adjacency_) {
+            directedEdgeCount += entry.second.size();
+        }
+        assert(directedEdgeCount % 2 == 0);
+        return static_cast<int>(directedEdgeCount / 2);
+    }
+
+    /**
+     * @brief Removes an undirected edge if it is present.
+     *
+     * The endpoints remain in the graph.
+     *
+     * @param u First endpoint.
+     * @param v Second endpoint.
+     */
+    void removeEdge(const Vertex& u, const Vertex& v) {
+        const auto uIt = adjacency_.find(u);
+        if (uIt == adjacency_.end() || !uIt->second.contains(v)) {
+            return;
+        }
+        uIt->second.erase(v);
+        adjacency_.at(v).erase(u);
+    }
+
+    /**
+     * @brief Removes a vertex and every incident edge.
+     *
+     * @param vertex Vertex to remove.
+     */
+    void removeVertex(const Vertex& vertex) {
+        const auto vertexIt = adjacency_.find(vertex);
+        if (vertexIt == adjacency_.end()) {
+            return;
+        }
+
+        // Copy because erasing incident edges invalidates adjacency iterators.
+        const NeighborSet neighbors = vertexIt->second;
+        for (const Vertex& neighbor : neighbors) {
+            adjacency_.at(neighbor).erase(vertex);
+        }
+        adjacency_.erase(vertexIt);
+    }
+
+    /** @brief Removes every vertex and edge. */
+    void clear() {
+        adjacency_.clear();
+    }
+
+    /**
+     * @brief Returns a copy of all vertices.
+     *
+     * @return Vertices in unspecified order.
+     */
+    [[nodiscard]] std::vector<Vertex> vertices() const {
+        std::vector<Vertex> result;
+        result.reserve(adjacency_.size());
+        for (const auto& entry : adjacency_) {
+            result.push_back(entry.first);
+        }
+        return result;
+    }
+
+    /**
+     * @brief Returns the neighbors of a vertex.
+     *
+     * @param vertex Vertex whose neighbors to access.
+     * @return Const reference to the vertex's adjacency set.
+     * @throws std::out_of_range if @p vertex is absent.
+     */
+    [[nodiscard]] const NeighborSet& neighbors(const Vertex& vertex) const {
+        return adjacency_.at(vertex);
+    }
+
+    /**
+     * @brief Returns a vertex together with all of its neighbors.
+     *
+     * @param vertex Vertex whose closed neighborhood to return.
+     * @return Closed neighborhood in unspecified order.
+     * @throws std::out_of_range if @p vertex is absent.
+     */
+    [[nodiscard]] NeighborSet closedNeighbors(const Vertex& vertex) const {
+        NeighborSet result = adjacency_.at(vertex);
+        result.insert(vertex);
+        return result;
+    }
+
+    /**
+     * @brief Traverses a connected component in breadth-first order.
+     *
+     * @param vertex Starting vertex.
+     * @param maxVertices Maximum number of vertices to return; `0` means no
+     * limit.
+     * @return Visited vertices in breadth-first order, or an empty vector if
+     * @p vertex is absent.
+     */
+    [[nodiscard]] std::vector<Vertex> bfs(const Vertex& vertex, int maxVertices = 0) const {
+        if (!containsVertex(vertex) || maxVertices < 0) {
+            return {};
+        }
+
+        const std::size_t limit = maxVertices == 0
+            ? adjacency_.size()
+            : static_cast<std::size_t>(maxVertices);
+
+        NeighborSet visited;
+        std::vector<Vertex> result;
+        std::queue<Vertex> queue;
+
+        visited.insert(vertex);
+        queue.push(vertex);
+        while (!queue.empty() && result.size() < limit) {
+            const Vertex current = queue.front();
+            queue.pop();
+            result.push_back(current);
+
+            for (const Vertex& neighbor : neighbors(current)) {
+                if (visited.insert(neighbor).second) {
+                    queue.push(neighbor);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * @brief Returns the graph's connected components.
+     *
+     * Isolated vertices form one-vertex components. Components are sorted by
+     * decreasing size; their order among equal-size components and the order
+     * of vertices within each component are unspecified.
+     *
+     * @return Connected components, largest first.
+     */
+    [[nodiscard]] std::vector<std::vector<Vertex>> components() const {
+        NeighborSet visited;
+        std::vector<std::vector<Vertex>> result;
+
+        for (const auto& entry : adjacency_) {
+            if (visited.contains(entry.first)) {
+                continue;
+            }
+
+            result.push_back(bfs(entry.first));
+            visited.insert(result.back().begin(), result.back().end());
+        }
+
+        std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+            return a.size() > b.size();
+        });
+        return result;
+    }
+
+    /**
+     * @brief Returns the vertex-biconnected blocks of the graph.
+     *
+     * A bridge is returned as a two-vertex block. Isolated vertices do not
+     * belong to an edge-defined block and are omitted. Articulation vertices
+     * consequently appear in more than one result. Blocks are sorted by
+     * decreasing size; their order among equal-size blocks and the order of
+     * vertices within each block are unspecified.
+     *
+     * The implementation is an iterative form of Tarjan's depth-first search,
+     * avoiding recursion depth proportional to the graph size.
+     *
+     * @return Vertex sets of the biconnected blocks, largest first.
+     */
+    [[nodiscard]] std::vector<std::vector<Vertex>> biconnectedComponents() const {
+        struct SearchData {
+            std::size_t index;
+            std::size_t low;
+        };
+
+        struct Frame {
+            Vertex vertex;
+            std::optional<Vertex> parent;
+            typename NeighborSet::const_iterator nextNeighbor;
+            typename NeighborSet::const_iterator endNeighbor;
+        };
+
+        std::size_t timer = 0;
+        std::unordered_map<Vertex, SearchData> searchData;
+        std::vector<std::pair<Vertex, Vertex>> edgeStack;
+        std::vector<std::vector<Vertex>> result;
+
+        for (const auto& entry : adjacency_) {
+            const Vertex& start = entry.first;
+            if (searchData.contains(start)) {
+                continue;
+            }
+
+            searchData.emplace(start, SearchData{timer, timer});
+            ++timer;
+
+            std::stack<Frame> stack;
+            stack.push(Frame{start, std::nullopt, entry.second.cbegin(), entry.second.cend()});
+
+            while (!stack.empty()) {
+                Frame& frame = stack.top();
+                const Vertex vertex = frame.vertex;
+
+                if (frame.nextNeighbor != frame.endNeighbor) {
+                    const Vertex neighbor = *frame.nextNeighbor;
+                    ++frame.nextNeighbor;
+
+                    if (frame.parent.has_value() && neighbor == *frame.parent) {
+                        continue;
+                    }
+
+                    const auto neighborData = searchData.find(neighbor);
+                    if (neighborData == searchData.end()) {
+                        edgeStack.emplace_back(vertex, neighbor);
+                        searchData.emplace(neighbor, SearchData{timer, timer});
+                        ++timer;
+
+                        const NeighborSet& nextNeighbors = adjacency_.at(neighbor);
+                        stack.push(Frame{
+                            neighbor,
+                            vertex,
+                            nextNeighbors.cbegin(),
+                            nextNeighbors.cend(),
+                        });
+                    } else if (neighborData->second.index < searchData.at(vertex).index) {
+                        SearchData& vertexData = searchData.at(vertex);
+                        vertexData.low = std::min(vertexData.low, neighborData->second.index);
+                        edgeStack.emplace_back(vertex, neighbor);
+                    }
+                    continue;
+                }
+
+                const std::optional<Vertex> parent = frame.parent;
+                stack.pop();
+                if (!parent.has_value()) {
+                    continue;
+                }
+
+                SearchData& parentData = searchData.at(*parent);
+                const SearchData& vertexData = searchData.at(vertex);
+                parentData.low = std::min(parentData.low, vertexData.low);
+
+                if (vertexData.low >= parentData.index) {
+                    NeighborSet addedVertices;
+                    std::vector<Vertex> component;
+                    bool foundTreeEdge = false;
+
+                    do {
+                        assert(!edgeStack.empty());
+                        const auto edge = std::move(edgeStack.back());
+                        edgeStack.pop_back();
+
+                        if (addedVertices.insert(edge.first).second) {
+                            component.push_back(edge.first);
+                        }
+                        if (addedVertices.insert(edge.second).second) {
+                            component.push_back(edge.second);
+                        }
+                        foundTreeEdge = edge.first == *parent && edge.second == vertex;
+                    } while (!foundTreeEdge);
+
+                    result.push_back(std::move(component));
+                }
+            }
+        }
+
+        std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+            return a.size() > b.size();
+        });
+        return result;
+    }
+
+    /**
+     * @brief Computes a vertex clique cover using the DSATUR heuristic.
+     *
+     * DSATUR colors the complement graph: vertices receiving the same color
+     * are pairwise adjacent in this graph and therefore form a clique. Every
+     * graph vertex appears in exactly one returned clique. The heuristic does
+     * not guarantee a minimum-cardinality cover.
+     *
+     * At each step, the algorithm selects an uncolored vertex adjacent in the
+     * complement to the largest number of distinct colors. Ties are broken by
+     * complement degree, then by the graph's unspecified iteration order.
+     * Returned cliques are sorted by decreasing size.
+     *
+     * @return A partition of the vertices into cliques, largest first.
+     */
+    [[nodiscard]] std::vector<std::vector<Vertex>> cliqueCover() const {
+        const std::vector<Vertex> graphVertices = vertices();
+        const std::size_t vertexCount = graphVertices.size();
+        const std::size_t uncolored = vertexCount;
+
+        std::vector<std::size_t> colors(vertexCount, uncolored);
+        std::vector<std::size_t> complementDegrees(vertexCount);
+        std::vector<std::unordered_set<std::size_t>> neighborColors(vertexCount);
+        std::vector<std::vector<Vertex>> result;
+
+        for (std::size_t i = 0; i < vertexCount; ++i) {
+            complementDegrees[i] = vertexCount - 1 - adjacency_.at(graphVertices[i]).size();
+        }
+
+        for (std::size_t coloredCount = 0; coloredCount < vertexCount; ++coloredCount) {
+            std::size_t selected = uncolored;
+            for (std::size_t i = 0; i < vertexCount; ++i) {
+                if (colors[i] != uncolored) {
+                    continue;
+                }
+
+                if (selected == uncolored ||
+                    neighborColors[i].size() > neighborColors[selected].size() ||
+                    (neighborColors[i].size() == neighborColors[selected].size() &&
+                     complementDegrees[i] > complementDegrees[selected])) {
+                    selected = i;
+                }
+            }
+            assert(selected != uncolored);
+
+            std::size_t color = 0;
+            while (neighborColors[selected].contains(color)) {
+                ++color;
+            }
+            colors[selected] = color;
+
+            if (color == result.size()) {
+                result.emplace_back();
+            }
+            result[color].push_back(graphVertices[selected]);
+
+            const NeighborSet& selectedNeighbors = adjacency_.at(graphVertices[selected]);
+            for (std::size_t i = 0; i < vertexCount; ++i) {
+                if (colors[i] == uncolored && i != selected &&
+                    !selectedNeighbors.contains(graphVertices[i])) {
+                    neighborColors[i].insert(color);
+                }
+            }
+        }
+
+        std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
+            return a.size() > b.size();
+        });
+        return result;
+    }
+
+    /** @brief Returns an iterator to the first vertex. */
+    [[nodiscard]] iterator begin() {
+        return iterator(adjacency_.cbegin());
+    }
+
+    /** @brief Returns the end iterator. */
+    [[nodiscard]] iterator end() {
+        return iterator(adjacency_.cend());
+    }
+
+    /** @brief Returns a const iterator to the first vertex. */
+    [[nodiscard]] const_iterator begin() const {
+        return const_iterator(adjacency_.cbegin());
+    }
+
+    /** @brief Returns the const end iterator. */
+    [[nodiscard]] const_iterator end() const {
+        return const_iterator(adjacency_.cend());
+    }
+
+    /** @brief Returns a const iterator to the first vertex. */
+    [[nodiscard]] const_iterator cbegin() const {
+        return begin();
+    }
+
+    /** @brief Returns the const end iterator. */
+    [[nodiscard]] const_iterator cend() const {
+        return end();
+    }
+
+private:
+    AdjacencyMap adjacency_;
+};
+
+}  // namespace pgl
