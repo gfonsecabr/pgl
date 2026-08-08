@@ -134,8 +134,12 @@ struct Shape;
  * @ref pgl::Polygon::separates and @ref pgl::Polygon::crosses run on the
  * arrangement of both operands' boundaries — may name the class inside a
  * template whose instantiation happens later.
+ *
+ * The vertex type defaults to @ref pgl::EPoint — spelled out here, where that
+ * alias does not exist yet — because an arrangement's vertices are crossings,
+ * and only an exact rational point type is guaranteed to hold them.
  */
-template <class PointType, class Label = NoLabel>
+template <class PointType = Point<Rational<BigInt>, NoLabel>, class Label = NoLabel>
 class Arrangement;
 
 /**
