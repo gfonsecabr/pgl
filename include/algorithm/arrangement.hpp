@@ -41,12 +41,14 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <ranges>
+#include <set>
 #include <span>
 #include <type_traits>
 #include <unordered_map>
@@ -233,9 +235,9 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
 /**
  * @brief The planar subdivision induced by a set of one-dimensional shapes.
  *
- * @tparam PointType_ Vertex type. It must be able to represent the crossings of
- *         the input, so a rational point type (e.g. @ref pgl::EPoint) unless the
- *         input segments meet only at their endpoints.
+ * @tparam PointType_ Vertex type, @ref pgl::EPoint by default. It must be able
+ *         to represent the crossings of the input, so a rational point type
+ *         unless the input segments meet only at their endpoints.
  * @tparam TLabel Label carried by an edge (inherited from the input shape that
  *         produced it) and by a face (default-constructed, editable).
  *
@@ -289,12 +291,25 @@ public:
      * are merged into a single edge, which then remembers every input shape it
      * came from (@ref originsOf).
      *
-     * Complexity: the splitting step is currently the all-pairs one, quadratic
-     * in the number of input segments; everything after it — interning the
-     * vertices, sorting each rotational fan, tracing the cycles — is
-     * `O(E log E)`, plus one linear scan per connected component of the input
-     * to nest its boundary in the face holding it. Replacing the split by a
-     * sweep is what the rest of the construction is arranged around.
+     * Complexity: `O(E log E)` in the size of the arrangement — interning the
+     * vertices, sorting each rotational fan, tracing the cycles, and nesting
+     * each boundary cycle in the face holding it — plus the splitting step,
+     * which is the one term that is not output-sensitive: it is quadratic in the
+     * number of *distinct* input segments in the worst case, although a sweep
+     * over the segments' `x`-projections keeps the pairs actually tested to those
+     * whose bounding boxes overlap. Replacing the split by a sweep that reports
+     * the crossings per segment is what the rest of the construction is arranged
+     * around; it is what stands between this and a construction whose whole cost
+     * follows the size of what it produces.
+     *
+     * The nesting is the one step with two implementations rather than one, so
+     * the bound deserves a word: @ref halfedgesLeftOf answers the batch of `Q`
+     * questions either by a sweep, in `O((E + Q) log E)`, or by a scan over the
+     * edges per question, in `O(Q E)`, and it takes the scan only when `Q E`
+     * comes out below the sweep's own bound. The scan is therefore capped by the
+     * inequality that admits it and not a fallback out of the bound; and `Q` is
+     * at most `2E`, a question being one boundary cycle and the cycles being
+     * halfedge-disjoint, so `O((E + Q) log E)` is `O(E log E)` either way.
      *
      * @tparam ShapeRange Range of shapes.
      * @param shapes Shapes whose subdivision of the plane to compute.
@@ -1280,19 +1295,31 @@ private:
             return x;
         };
 
+        // Which cycles are outer boundaries, and, for the inner ones, the vertex
+        // each of them has to ask what holds it from. The questions are collected
+        // rather than asked one by one: one sweep answers the whole batch, where
+        // a horizontal ray per cycle would scan every edge again for each.
         std::vector<bool> isOuter(cycles, false);
+        std::vector<std::uint32_t> asking;
+        std::vector<std::uint32_t> askedFrom;
         for (std::uint32_t id = 0; id < cycles; ++id) {
             const std::uint32_t leftmost = leftmostVertexOf(representative[id]);
             if (turnsLeftEverywhereAt(representative[id], leftmost)) {
                 isOuter[id] = true;
                 continue;
             }
-            // The leftmost vertex of an inner cycle has the face this cycle
-            // bounds immediately to its left, so whatever edge is there bounds
-            // the same face.
-            const HalfedgeId toTheLeft = halfedgeLeftOf(points_[leftmost]);
-            const std::uint32_t other = toTheLeft.valid() ? cycleOf[toTheLeft.index()] : cycles;
-            parent[root(id)] = root(other);
+            asking.push_back(id);
+            askedFrom.push_back(leftmost);
+        }
+        // The leftmost vertex of an inner cycle has the face this cycle bounds
+        // immediately to its left, so whatever edge is there bounds the same
+        // face. Merging them all afterwards builds the same partition merging
+        // them one at a time would.
+        const std::vector<HalfedgeId> toTheLeft = halfedgesLeftOf(askedFrom);
+        for (std::size_t i = 0; i < asking.size(); ++i) {
+            const std::uint32_t other =
+                toTheLeft[i].valid() ? cycleOf[toTheLeft[i].index()] : cycles;
+            parent[root(asking[i])] = root(other);
         }
 
         // The unbounded face comes first, then one face per outer cycle.
@@ -1394,6 +1421,207 @@ private:
             bestDenominator = denominator;
         }
         return best;
+    }
+
+    /**
+     * Orders the edges that a horizontal line crosses by where they cross it,
+     * left to right. An edge is named by its downward halfedge, so the low
+     * endpoint of `d` is `origin_[d ^ 1]` and the high one `origin_[d]`, and the
+     * key is already the answer @ref halfedgesLeftOf has to report. A
+     * @ref PointType compares as the point it is, which is what lets the
+     * structure be searched for a query point without a fake edge.
+     *
+     * Nothing here mentions the height of the line, and that is the point. Two
+     * edges that cross one horizontal line keep their order for as long as both
+     * cross it — the edges of an arrangement meet at their endpoints alone — so
+     * the order can be read off the endpoints once instead of being recomputed
+     * from a crossing abscissa at every comparison. Take the two low endpoints
+     * and pivot on the higher of them: it lies within the other edge's height
+     * range, so which side of that edge it falls on *is* the order, and one
+     * orientation sign settles it. Sitting on the other edge is not a third
+     * case: a vertex interior to an edge would have split it, so the pivot can
+     * only be the other edge's own low endpoint, and two edges leaving one
+     * vertex upwards are ordered by which leans further right.
+     *
+     * Both cheaper and more robust than comparing crossing abscissas: one
+     * orientation determinant of coordinate differences against six products of
+     * whole coordinates, and no dependence on where the line currently is.
+     *
+     * The higher low endpoint is found by comparing positions in the sweep
+     * order, which is an integer comparison, and equal positions are the same
+     * vertex — so the pivot choice and the shared-endpoint case cost no
+     * arithmetic at all.
+     */
+    struct SweepOrder {
+        using is_transparent = void;
+        const Arrangement* arrangement;
+        const std::vector<std::uint32_t>* position;
+
+        bool operator()(std::uint32_t left, std::uint32_t right) const {
+            const std::vector<std::uint32_t>& origin = arrangement->origin_;
+            const std::vector<PointType>& points = arrangement->points_;
+            const std::uint32_t leftLow = origin[left ^ 1];
+            const std::uint32_t rightLow = origin[right ^ 1];
+            if (leftLow == rightLow) {
+                // One vertex, both leaving it upwards: the one leaning further
+                // right crosses the line further right.
+                return orientationSign(points[leftLow], points[origin[left]],
+                                       points[origin[right]]) < 0;
+            }
+            if ((*position)[leftLow] > (*position)[rightLow]) {
+                return orientationSign(points[rightLow], points[origin[right]],
+                                       points[leftLow]) > 0;
+            }
+            return orientationSign(points[leftLow], points[origin[left]], points[rightLow]) < 0;
+        }
+
+        // The edge is strictly left of the point when the point is strictly to
+        // the right of it. A point *on* the edge is not, which is what keeps the
+        // edges through a query vertex from answering it.
+        bool operator()(std::uint32_t left, const PointType& p) const {
+            return orientationSign(arrangement->points_[arrangement->origin_[left ^ 1]],
+                                   arrangement->points_[arrangement->origin_[left]], p) < 0;
+        }
+
+        bool operator()(const PointType& p, std::uint32_t right) const {
+            return orientationSign(arrangement->points_[arrangement->origin_[right ^ 1]],
+                                   arrangement->points_[arrangement->origin_[right]], p) > 0;
+        }
+    };
+
+    /**
+     * Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
+     * that vertex, by whichever of the two ways of answering them is cheaper.
+     *
+     * A scan per query costs `O(Q E)`: one straddle test per query and edge, and
+     * that test is about as cheap as an exact test on a pair of coordinates gets.
+     * @ref sweepHalfedgesLeftOf costs `O((E + Q) log E)`, but pays an orientation
+     * predicate and a tree node per comparison, some five times the straddle test
+     * on the same coordinates. So the scan wins whenever the queries are few —
+     * connected input asks only a handful, and the arrangements that are large
+     * are usually connected — and loses by any margin one likes as they grow:
+     * scattered input asks one per component, which is where the `Q E` term was
+     * the whole cost of construction.
+     *
+     * Both counts are known before either runs, so this is a choice and not a
+     * bail-out — and the choice is what keeps the `Q E` term out of the bound.
+     * The scan runs only when `Q E` is below the sweep's estimate, so it makes
+     * at most that many straddle tests, and a straddle test and a sweep
+     * comparison are both one exact predicate: whichever branch runs, the batch
+     * costs `O((E + Q) log E)` predicate evaluations. The constant relating the
+     * two is all that calibration decides; it moves where the crossover sits and
+     * how tight the bound is, never its shape.
+     */
+    [[nodiscard]] std::vector<HalfedgeId> halfedgesLeftOf(
+        const std::vector<std::uint32_t>& queries) const {
+        const std::uint64_t edges = origin_.size() / 2;
+        const std::uint64_t asked = queries.size();
+        // log2 of the number of edges, near enough, and without a cast to double.
+        const std::uint64_t depth = std::bit_width(edges);
+        constexpr std::uint64_t perComparison = 5;
+        if (asked * edges > perComparison * (2 * edges + asked) * depth) {
+            return sweepHalfedgesLeftOf(queries);
+        }
+        std::vector<HalfedgeId> answer;
+        answer.reserve(queries.size());
+        for (const std::uint32_t query : queries) {
+            answer.push_back(halfedgeLeftOf(points_[query]));
+        }
+        return answer;
+    }
+
+    /**
+     * Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
+     * that vertex — the whole batch in `O((E + Q) log E)` rather than one linear
+     * scan over the edges per query.
+     *
+     * One sweep by a horizontal line moving upwards. The line's status holds the
+     * edges it currently crosses, ordered by @ref SweepOrder, and a query is the
+     * predecessor of its own vertex in that order. What makes this a plain sweep
+     * rather than a second Bentley–Ottmann is that the edges are already split:
+     * they meet at their endpoints alone, so no two of them ever swap along the
+     * line and the only events are the endpoints themselves.
+     *
+     * The vertices are visited by increasing height and, within one height, from
+     * left to right; at each of them the edges ending there leave the status
+     * first, then those starting there join it, then the queries are answered.
+     * That reproduces @ref halfedgeLeftOf exactly, ray included: an edge whose
+     * top is the query height has already left when the query is asked — the ray
+     * passes infinitesimally above it — and one whose bottom is that height has
+     * already joined. Within a height, everything at or left of a query vertex
+     * has been dealt with before the query, and everything to its right sits
+     * further right along the line than the query does, so it cannot be the
+     * predecessor either.
+     */
+    [[nodiscard]] std::vector<HalfedgeId> sweepHalfedgesLeftOf(
+        const std::vector<std::uint32_t>& queries) const {
+        // Vertices by height, then abscissa. A vertex is its position here, so
+        // the events sort on an integer and never on a coordinate.
+        std::vector<std::uint32_t> byHeight(points_.size());
+        for (std::uint32_t v = 0; v < byHeight.size(); ++v) {
+            byHeight[v] = v;
+        }
+        std::sort(byHeight.begin(), byHeight.end(), [this](std::uint32_t a, std::uint32_t b) {
+            if (!(points_[a].y() == points_[b].y())) {
+                return points_[a].y() < points_[b].y();
+            }
+            return points_[a].x() < points_[b].x();
+        });
+        std::vector<std::uint32_t> position(points_.size());
+        for (std::uint32_t i = 0; i < byHeight.size(); ++i) {
+            position[byHeight[i]] = i;
+        }
+
+        // What happens at a vertex, in the order it has to happen.
+        enum Phase : std::uint8_t { leaves = 0, joins = 1, asks = 2 };
+        struct Event {
+            std::uint32_t at;       // the vertex, as its position in `byHeight`
+            std::uint32_t subject;  // a downward halfedge, or a query's position
+            Phase phase;
+        };
+        std::vector<Event> events;
+        events.reserve(origin_.size() + queries.size());
+        for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+            if (points_[origin_[h]].y() == points_[origin_[h + 1]].y()) {
+                continue;  // horizontal: it crosses no horizontal line
+            }
+            const std::uint32_t downward =
+                points_[origin_[h]].y() > points_[origin_[h + 1]].y() ? h : h + 1;
+            events.push_back({position[origin_[downward]], downward, leaves});
+            events.push_back({position[origin_[downward ^ 1]], downward, joins});
+        }
+        for (std::uint32_t q = 0; q < queries.size(); ++q) {
+            events.push_back({position[queries[q]], q, asks});
+        }
+        std::sort(events.begin(), events.end(), [](const Event& left, const Event& right) {
+            if (left.at != right.at) {
+                return left.at < right.at;
+            }
+            return left.phase < right.phase;
+        });
+
+        std::vector<HalfedgeId> answer(queries.size());
+        using Status = std::set<std::uint32_t, SweepOrder>;
+        Status line(SweepOrder{this, &position});
+        // Erasing by key would compare an edge that ends on the line against the
+        // edges still crossing it, and an edge that has reached its top no longer
+        // has a side of it to be on. Every edge remembers where it sits instead.
+        std::vector<typename Status::iterator> seat(origin_.size() / 2);
+        for (const Event& event : events) {
+            if (event.phase == leaves) {
+                line.erase(seat[event.subject / 2]);
+            } else if (event.phase == joins) {
+                const auto placed = line.insert(event.subject);
+                assert(placed.second);
+                seat[event.subject / 2] = placed.first;
+            } else {
+                const auto above = line.lower_bound(points_[queries[event.subject]]);
+                if (above != line.begin()) {
+                    answer[event.subject] = HalfedgeId(*std::prev(above));
+                }
+            }
+        }
+        return answer;
     }
 
     // Calls `fn` on every halfedge bounding the face, outer cycle first.
@@ -1552,8 +1780,10 @@ private:
 
 // No deduction guide, deliberately: the vertex type cannot be read off the
 // input, because the input's own type is usually the wrong answer. Two integral
-// segments cross at a rational point, so `Arrangement(integralSegments)` would
-// silently deduce a vertex type that cannot hold the vertices it is about to
-// compute. Naming the type is the caller's decision to make.
+// segments cross at a rational point, so a guide reading the type off the input
+// would silently pick a vertex type that cannot hold the vertices it is about to
+// compute. What `Arrangement(shapes)` deduces instead is the default vertex
+// type, which is exact whatever the input is; a caller wanting another one, or
+// wanting the edges to carry the input's labels, names it.
 
 }  // namespace pgl

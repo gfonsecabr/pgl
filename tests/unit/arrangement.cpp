@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <type_traits>
 #include <vector>
 
 #include "pgl.hpp"
@@ -20,6 +21,10 @@ using Segment = pgl::ESegment;
 using PolygonShape = pgl::EPolygon;
 using Region = pgl::EPolygonWithHoles;
 using Arrangement = pgl::Arrangement<Point>;
+
+// The vertex type defaults to the exact one, since the crossings it has to hold
+// are rational whatever the input coordinates are.
+static_assert(std::is_same_v<pgl::Arrangement<>, Arrangement>);
 
 Point P(int x, int y) {
     return Point(Number(x), Number(y));
@@ -169,6 +174,54 @@ Region regionOf(const std::vector<Point>& ring) {
     return Region(PolygonShape(ring));
 }
 
+// The four sides of an axis-parallel square, appended to `out`.
+void square(std::vector<Segment>& out, int left, int low, int right, int high) {
+    out.push_back(S(left, low, right, low));
+    out.push_back(S(right, low, right, high));
+    out.push_back(S(right, high, left, high));
+    out.push_back(S(left, high, left, low));
+}
+
+// One big square holding a `cells` x `cells` grid of squares, each of which holds
+// a smaller square of its own. Every ring is a connected component of its own, so
+// the number of rings is the number of questions the face nesting has to ask, and
+// the answers are nested two deep — a ring's place is the face that really holds
+// it, not the outermost one that contains it.
+std::vector<Segment> nestedCells(int cells) {
+    std::vector<Segment> segments;
+    square(segments, 0, 0, 10 * cells, 10 * cells);
+    for (int i = 0; i < cells; ++i) {
+        for (int j = 0; j < cells; ++j) {
+            square(segments, 10 * i + 1, 10 * j + 1, 10 * i + 7, 10 * j + 7);
+            square(segments, 10 * i + 3, 10 * j + 3, 10 * i + 5, 10 * j + 5);
+        }
+    }
+    return segments;
+}
+
+// Everything the arrangement of nestedCells(cells) must look like.
+void checkNestedCells(const Arrangement& arr, int cells) {
+    const std::size_t rings = 1 + 2 * static_cast<std::size_t>(cells) * cells;
+    CHECK(arr.vertexCount() == 4 * rings);
+    CHECK(arr.edgeCount() == 4 * rings);
+    REQUIRE(arr.faceCount() == 1 + rings);
+
+    // The unbounded face is held off by the big square alone, and the big square
+    // holds one ring per cell — not the inner rings, which are two deep.
+    CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
+    CHECK(arr.innerCycles(arr.locate(P(0, 0) + Point(Number(1, 2), Number(1, 2)))).size() ==
+          static_cast<std::size_t>(cells) * cells);
+    for (int i = 0; i < cells; ++i) {
+        for (int j = 0; j < cells; ++j) {
+            const pgl::FaceId ring = arr.locate(P(10 * i + 2, 10 * j + 2));
+            const pgl::FaceId inside = arr.locate(P(10 * i + 4, 10 * j + 4));
+            CHECK(ring != inside);
+            CHECK(arr.innerCycles(ring).size() == 1);
+            CHECK(arr.innerCycles(inside).empty());
+        }
+    }
+}
+
 }  // namespace
 
 TEST_CASE("empty arrangement has only the unbounded face") {
@@ -289,6 +342,17 @@ TEST_CASE("nested rings are assigned to the face that really holds them") {
         CHECK(arr.innerCycles(arr.locate(P(0, 3))).size() == 1);
         CHECK(arr.innerCycles(arr.locate(P(0, 1))).empty());
         CHECK(arr.polygon(arr.locate(P(0, 3))).holeCount() == 1);
+    }
+
+    SUBCASE("many rings, nested two deep") {
+        // Placing a ring is a question about what lies to the left of it, and
+        // there are two ways to answer the whole batch: a scan over the edges per
+        // question, or one sweep answering all of them. Which one runs is decided
+        // on the counts, so the same figure is built at two sizes — three cells
+        // wide is answered by the scans, ten cells wide by the sweep — and both
+        // have to produce the same nesting.
+        checkNestedCells(arrangementOf(nestedCells(3)), 3);
+        checkNestedCells(arrangementOf(nestedCells(10)), 10);
     }
 
     SUBCASE("a hole level with a spike of its neighbour") {
