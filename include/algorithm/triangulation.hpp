@@ -35,6 +35,7 @@
 #include <deque>
 #include <map>
 #include <optional>
+#include <queue>
 #include <random>
 #include <set>
 #include <type_traits>
@@ -124,6 +125,10 @@ concept PolygonalRegion =
 template <class T>
 concept TriangulationQuery =
     DirectedTraversal<T> || ChainTraversal<T> || TriangulationRegionQuery<T>;
+
+// Narrow access point for the paper-specific graph used by
+// Polygon::convexCovering(). Defined after Triangulation is complete.
+struct ConvexCoverBuilder;
 }  // namespace detail
 
 /**
@@ -769,45 +774,109 @@ struct Triangulation {
         return out;
     }
 
+  private:
+    friend struct detail::ConvexCoverBuilder;
+
     /**
-     * @brief Builds the full-visibility graph of the domain triangles.
+     * @brief Builds a full-visibility subgraph of the domain triangles.
      *
-     * Every in-domain triangle is a graph vertex. Two triangles are adjacent
-     * exactly when the convex hull of their union is contained in the
-     * triangulated domain. Thus any graph clique is a set of pairwise fully
-     * visible partition pieces, as used by the clique-cover construction of
-     * Abrahamsen, Meyling, and Nusser (SoCG 2023).
+     * Every in-domain triangle is a graph vertex. Every edge joins two
+     * triangles whose joint convex hull is contained in the triangulated
+     * domain. Thus any graph clique is a set of pairwise fully visible
+     * partition pieces, as used by the clique-cover construction of Abrahamsen,
+     * Meyling, and Nusser (SoCG 2023).
      *
      * For a simply connected domain, the convex hull of all triangles in a
      * clique is contained in the domain. With holes, pairwise visibility does
      * not suffice: a clique hull may surround a hole and must be validated or
      * split before it can be used as a covering piece.
      *
-     * This initial implementation checks every triangle pair directly.
+     * The construction follows the paper's fast variant. For each source
+     * triangle, a breadth-first search walks the dual graph and crosses into a
+     * neighboring triangle only when that triangle is fully visible from the
+     * source. Consequently the result can omit a full-visibility edge whose
+     * target lies outside the source's fully visible dual component. This is
+     * deliberate: the resulting subgraph still gives a valid clique cover,
+     * while usually testing far fewer than all pairs. Previously discovered
+     * symmetric edges are reused without another containment test.
      *
      * Complexity: O(m^3) worst-case time and O(m^2) space for m in-domain
      * triangles; a containment walk may cross O(m) triangles for each of the
      * O(m^2) candidate pairs.
      *
-     * @return The undirected full-visibility graph of the domain triangles.
+     * @return An undirected full-visibility subgraph of the domain triangles.
      */
-    [[nodiscard]] Graph<TriangleType> visibilityGraph() const {
+    [[nodiscard]] Graph<TriangleType> convexCoverVisibilityGraph() const {
         Graph<TriangleType> result;
-        const auto domainTriangles = triangles();
-
-        for (const auto& triangle : domainTriangles) {
-            result.addVertex(triangle);
+        std::vector<TriId> sources;
+        sources.reserve(domainTriangleCount_);
+        for (TriId source = 0; source < firstGhost_; ++source) {
+            if (inDomain(source)) {
+                sources.push_back(source);
+                result.addVertex(triangleValue(source));
+            }
         }
 
-        for (std::size_t i = 0; i < domainTriangles.size(); ++i) {
-            for (std::size_t j = i + 1; j < domainTriangles.size(); ++j) {
-                const auto& a = domainTriangles[i];
-                const auto& b = domainTriangles[j];
-                const std::array<PointType, 6> vertices{
-                    a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
-                };
-                if (contains(Convex<PointType>(vertices))) {
-                    result.addEdge(a, b);
+        // A depth-first source order tends to make a previously processed
+        // source a neighbor of the next one. Its already known symmetric edges
+        // can then seed more of the next BFS without another geometric test.
+        std::vector<TriId> sourceOrder;
+        sourceOrder.reserve(sources.size());
+        std::vector<bool> ordered(static_cast<std::size_t>(firstGhost_), false);
+        std::vector<TriId> stack;
+        for (const TriId seed : sources) {
+            if (ordered[static_cast<std::size_t>(seed)]) {
+                continue;
+            }
+            stack.push_back(seed);
+            while (!stack.empty()) {
+                const TriId current = stack.back();
+                stack.pop_back();
+                if (ordered[static_cast<std::size_t>(current)]) {
+                    continue;
+                }
+                ordered[static_cast<std::size_t>(current)] = true;
+                sourceOrder.push_back(current);
+                for (const TriId neighbor : triangles_[current].nbr) {
+                    if (inDomain(neighbor) &&
+                        !ordered[static_cast<std::size_t>(neighbor)]) {
+                        stack.push_back(neighbor);
+                    }
+                }
+            }
+        }
+
+        std::vector<bool> visited(static_cast<std::size_t>(firstGhost_));
+        std::queue<TriId> queue;
+        for (const TriId source : sourceOrder) {
+            std::fill(visited.begin(), visited.end(), false);
+            visited[static_cast<std::size_t>(source)] = true;
+            queue.push(source);
+            const TriangleType sourceTriangle = triangleValue(source);
+
+            while (!queue.empty()) {
+                const TriId current = queue.front();
+                queue.pop();
+                for (const TriId neighbor : triangles_[current].nbr) {
+                    if (!inDomain(neighbor) ||
+                        visited[static_cast<std::size_t>(neighbor)]) {
+                        continue;
+                    }
+                    visited[static_cast<std::size_t>(neighbor)] = true;
+                    const TriangleType neighborTriangle = triangleValue(neighbor);
+
+                    bool fullyVisible = result.containsEdge(sourceTriangle, neighborTriangle);
+                    if (!fullyVisible) {
+                        const std::array<PointType, 6> vertices{
+                            sourceTriangle.a(), sourceTriangle.b(), sourceTriangle.c(),
+                            neighborTriangle.a(), neighborTriangle.b(), neighborTriangle.c()
+                        };
+                        fullyVisible = contains(Convex<PointType>(vertices));
+                    }
+                    if (fullyVisible) {
+                        result.addEdge(sourceTriangle, neighborTriangle);
+                        queue.push(neighbor);
+                    }
                 }
             }
         }
@@ -815,6 +884,7 @@ struct Triangulation {
         return result;
     }
 
+  public:
     // ---- convex partition ------------------------------------------------
 
     /**
@@ -4492,6 +4562,19 @@ struct Triangulation {
     }
 };
 
+namespace detail {
+
+/** Internal bridge from Polygon::convexCovering() to its triangulation helper. */
+struct ConvexCoverBuilder {
+    template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+    [[nodiscard]] static Graph<TriangleType> visibilityGraph(
+        const Triangulation<TriangleType, SegmentType>& triangulation) {
+        return triangulation.convexCoverVisibilityGraph();
+    }
+};
+
+}  // namespace detail
+
 // Deduction guides: the stored triangle type is not deducible from the
 // container-templated constructors on their own. From a triangle container it is
 // the element type (keeping its labels); from a segment container it is
@@ -4603,7 +4686,7 @@ template <class PointType_, class TLabel>
 std::vector<Convex<PointType_>> Polygon<PointType_, TLabel>::convexCovering() const {
     const auto partition = triangulation();
     const auto triangles = partition.triangles();
-    const auto cliques = partition.visibilityGraph().cliqueCover();
+    const auto cliques = detail::ConvexCoverBuilder::visibilityGraph(partition).cliqueCover();
 
     std::vector<Convex<PointType_>> result;
     result.reserve(cliques.size());

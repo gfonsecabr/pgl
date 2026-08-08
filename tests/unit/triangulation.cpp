@@ -2084,18 +2084,26 @@ void checkCovers(const Shape& shape, const Triangulation& triangulation,
 
 }  // namespace
 
-TEST_CASE("Triangulation visibility graph uses full visibility of triangle pairs") {
+template <class T>
+concept HasPublicVisibilityGraph = requires(const T& value) {
+    value.visibilityGraph();
+};
+
+static_assert(!HasPublicVisibilityGraph<
+              pgl::Triangulation<pgl::Triangle<pgl::Point<int>>>>);
+
+TEST_CASE("Triangulation visibility graph follows fully visible dual components") {
     using Point = pgl::Point<int>;
 
     const pgl::Triangulation<pgl::Triangle<Point>> empty;
-    CHECK(empty.visibilityGraph().vertexCount() == 0);
+    CHECK(pgl::detail::ConvexCoverBuilder::visibilityGraph(empty).vertexCount() == 0);
 
     const pgl::Polygon<Point> ell(std::vector<Point>{
         Point(0, 0), Point(4, 0), Point(4, 1),
         Point(1, 1), Point(1, 4), Point(0, 4)});
     const auto triangulation = ell.triangulation();
     const auto triangles = triangulation.triangles();
-    const auto graph = triangulation.visibilityGraph();
+    const auto graph = pgl::detail::ConvexCoverBuilder::visibilityGraph(triangulation);
 
     CHECK(graph.vertexCount() == static_cast<int>(triangles.size()));
     for (const auto& triangle : triangles) {
@@ -2110,7 +2118,12 @@ TEST_CASE("Triangulation visibility graph uses full visibility of triangle pairs
                 a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
             };
             const bool fullyVisible = triangulation.contains(pgl::Convex<Point>(vertices));
-            CHECK(graph.containsEdge(a, b) == fullyVisible);
+            // The paper's fast construction returns a subgraph: an edge is
+            // always a full-visibility certificate, but a pair outside the
+            // source's fully visible dual component may be omitted.
+            if (graph.containsEdge(a, b)) {
+                CHECK(fullyVisible);
+            }
         }
     }
 
@@ -2124,6 +2137,41 @@ TEST_CASE("Triangulation visibility graph uses full visibility of triangle pairs
         }
         CHECK(ell.contains(pgl::Convex<Point>(vertices)));
     }
+
+    // In a convex domain every triangle is fully visible from every source, so
+    // each dual BFS reaches the whole triangulation and the graph is complete.
+    const pgl::Polygon<Point> rectangle(std::vector<Point>{
+        Point(0, 0), Point(6, 0), Point(6, 4), Point(4, 4),
+        Point(2, 4), Point(0, 4)});
+    const auto convexTriangulation = rectangle.triangulation();
+    const auto convexGraph =
+        pgl::detail::ConvexCoverBuilder::visibilityGraph(convexTriangulation);
+    const int triangleCount = static_cast<int>(convexTriangulation.numTriangles());
+    CHECK(convexGraph.vertexCount() == triangleCount);
+    CHECK(convexGraph.edgeCount() == triangleCount * (triangleCount - 1) / 2);
+
+    // The fast variant intentionally need not return the complete visibility
+    // graph: these triangles have one fully visible pair separated in the dual
+    // graph by a triangle that is not fully visible from the same source.
+    const pgl::Polygon<Point> winding(std::vector<Point>{
+        Point(675, 0), Point(373, 373), Point(0, 916), Point(-569, 569),
+        Point(-704, 0), Point(-366, -366), Point(0, -979), Point(583, -583)});
+    const auto windingTriangulation = winding.triangulation();
+    const auto windingTriangles = windingTriangulation.triangles();
+    const auto windingGraph =
+        pgl::detail::ConvexCoverBuilder::visibilityGraph(windingTriangulation);
+    int fullEdgeCount = 0;
+    for (std::size_t i = 0; i < windingTriangles.size(); ++i) {
+        for (std::size_t j = i + 1; j < windingTriangles.size(); ++j) {
+            const auto& a = windingTriangles[i];
+            const auto& b = windingTriangles[j];
+            const std::array<Point, 6> vertices{
+                a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
+            };
+            fullEdgeCount += windingTriangulation.contains(pgl::Convex<Point>(vertices));
+        }
+    }
+    CHECK(windingGraph.edgeCount() < fullEdgeCount);
 }
 
 TEST_CASE_TEMPLATE("convexCovering covers every original triangle",
