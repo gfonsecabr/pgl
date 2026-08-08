@@ -528,7 +528,11 @@ struct Polygon {
      * graph, while a polygon collapsed to a point or segment connects every
      * pair of distinct contained vertices.
      *
-     * Complexity: O(n^3) for n vertices.
+     * Uses an exact angular sweep from every vertex, maintaining the polygon
+     * edges intersecting the current ray in distance order.
+     *
+     * Complexity: O(n^2 log n) time and O(n^2) space for n vertices, including
+     * the returned graph.
      *
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
