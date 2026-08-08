@@ -190,7 +190,7 @@ class BentleyOttmann {
     void printCrossings() const {
         std::cout << "Crossings: ";
         for(auto [sa,sb] : crossingsSet) {
-            auto p = std::get<0>(*sa.intersection(sb));
+            auto p = std::get<0>(*sa.template intersection<Rational>(sb));
             std::cout << sa << "crosses" << sb << " at " << p << "; ";
         }
         std::cout << std::endl;

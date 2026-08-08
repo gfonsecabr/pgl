@@ -121,7 +121,7 @@ TEST_CASE("Convex intersection with Rectangle") {
 
     SUBCASE("overlapping area: intersection is a Convex") {
         const Rectangle r({2, 2}, {6, 6});
-        const auto result = sq.intersection(r);
+        const auto result = sq.intersection<int>(r);
         REQUIRE_MESSAGE(result, "sq ∩ overlapping rect should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
                       "area overlap clips to a Convex");
@@ -129,7 +129,7 @@ TEST_CASE("Convex intersection with Rectangle") {
 
     SUBCASE("edge-adjacent: intersection is a Segment") {
         const Rectangle r({4, 0}, {6, 4});  // shares right edge x=4 with the square
-        const auto result = sq.intersection(r);
+        const auto result = sq.intersection<int>(r);
         REQUIRE_MESSAGE(result, "sq ∩ adjacent rect should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Segment>(*result),
                       "shared-edge intersection is a Segment");
@@ -137,7 +137,7 @@ TEST_CASE("Convex intersection with Rectangle") {
 
     SUBCASE("disjoint: no intersection") {
         const Rectangle r({10, 10}, {12, 12});
-        CHECK_FALSE_MESSAGE(sq.intersection(r), "sq ∩ disjoint rect should be empty");
+        CHECK_FALSE_MESSAGE(sq.intersection<int>(r), "sq ∩ disjoint rect should be empty");
     }
 }
 
@@ -150,6 +150,6 @@ TEST_CASE("Rectangle and Convex squared Hausdorff distance") {
     const Rectangle r({8, 0}, {12, 4});
 
     // Farthest vertex on either side is at squared distance 64 (opposite corners).
-    CHECK(sq.squaredHausdorffDistance(r) == 64);
-    CHECK(r.squaredHausdorffDistance(sq) == 64);
+    CHECK(sq.squaredHausdorffDistance<int>(r) == 64);
+    CHECK(r.squaredHausdorffDistance<int>(sq) == 64);
 }

@@ -469,7 +469,7 @@ public:
      * @warning Halves coordinates, so an integral @p ResultNumber may round the
      *          midpoint onto an endpoint.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> witness(HalfedgeId h) const {
         assert(h.valid() && h.index() < origin_.size());
         const PointType& a = points_[origin_[h.index()]];
@@ -508,7 +508,7 @@ public:
      *          integral @p ResultNumber may round it onto the boundary, exactly
      *          as @ref Triangle::pointInside may.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> witness(FaceId f) const {
         assert(f.valid() && !isUnbounded(f));
         if (hasSimpleBoundary(f)) {

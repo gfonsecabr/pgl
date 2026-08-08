@@ -238,18 +238,18 @@ TEST_CASE("OrientedLine evaluates coordinates like its supporting line") {
     const OrientedLine vertical({2, 3}, {2, -1});
     const OrientedLine horizontal({4, 1}, {-2, 1});
 
-    CHECK(diagonal.yAtX(2) == 2);
-    CHECK(diagonal.xAtY(3) == 3);
+    CHECK(diagonal.yAtX<int>(2) == 2);
+    CHECK(diagonal.xAtY<int>(3) == 3);
     CHECK(diagonal.yAtX<Rational>(1).value() == Rational(1));
     CHECK(diagonal.xAtY<Rational>(1).value() == Rational(1));
 
-    CHECK(vertical.yAtX(2) == -1);
-    CHECK_FALSE(vertical.yAtX(1).has_value());
-    CHECK(vertical.xAtY(0) == 2);
+    CHECK(vertical.yAtX<int>(2) == -1);
+    CHECK_FALSE(vertical.yAtX<int>(1).has_value());
+    CHECK(vertical.xAtY<int>(0) == 2);
 
-    CHECK(horizontal.xAtY(1) == -2);
-    CHECK_FALSE(horizontal.xAtY(0).has_value());
-    CHECK(horizontal.yAtX(3) == 1);
+    CHECK(horizontal.xAtY<int>(1) == -2);
+    CHECK_FALSE(horizontal.xAtY<int>(0).has_value());
+    CHECK(horizontal.yAtX<int>(3) == 1);
 }
 
 TEST_CASE("OrientedLine self-pair: separates another OrientedLine") {

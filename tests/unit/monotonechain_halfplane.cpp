@@ -92,7 +92,7 @@ TEST_CASE("MonotoneChain and Halfplane distance and intersection pieces") {
 
     // Clipping the chain to y >= 2 keeps the pieces around the two peaks; the
     // pieces meeting at a peak are not collinear, so they stay separate.
-    const auto pieces = zigzag.intersection(Halfplane({0, 2}, {1, 2}));
+    const auto pieces = zigzag.intersection<int>(Halfplane({0, 2}, {1, 2}));
     REQUIRE(pieces.size() == 4);
     const std::vector<pgl::Segment<Point>> expected{
         pgl::Segment<Point>({1, 2}, {2, 4}),

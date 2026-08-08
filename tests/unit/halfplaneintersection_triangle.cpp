@@ -44,7 +44,7 @@ TEST_CASE("Region intersects a triangle") {
 
 TEST_CASE("Intersection with a triangle stays a region") {
     const Region k = box6();
-    const Region clip = k.intersection(Triangle(Point(0, 0), Point(4, 0), Point(0, 4)));
+    const Region clip = k.intersection<int>(Triangle(Point(0, 0), Point(4, 0), Point(0, 4)));
     CHECK(clip.isBounded());
     CHECK(clip.twiceArea<long long>() == 16);   // right triangle legs 4
 }

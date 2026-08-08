@@ -123,12 +123,12 @@ TEST_CASE("OrientedSegment and Line intersection construction, both directions")
     const OrientedSegment horiz({4, 0}, {0, 0});
 
     SUBCASE("proper crossing yields a single point") {
-        const auto r1 = vert.intersection(horiz);
+        const auto r1 = vert.intersection<int>(horiz);
         REQUIRE(r1);
         REQUIRE(std::holds_alternative<Point>(*r1));
         CHECK_MESSAGE(std::get<Point>(*r1) == Point(2, 0), "vert ∩ horiz");
 
-        const auto r2 = horiz.intersection(vert);
+        const auto r2 = horiz.intersection<int>(vert);
         REQUIRE(r2);
         REQUIRE(std::holds_alternative<Point>(*r2));
         CHECK_MESSAGE(std::get<Point>(*r2) == Point(2, 0), "horiz ∩ vert");
@@ -136,7 +136,7 @@ TEST_CASE("OrientedSegment and Line intersection construction, both directions")
 
     SUBCASE("collinear oriented segment clipped by the line returns that segment") {
         const Line col({0, 0}, {4, 0});
-        const auto r1 = col.intersection(horiz);
+        const auto r1 = col.intersection<int>(horiz);
         REQUIRE(r1);
         REQUIRE(std::holds_alternative<Segment>(*r1));
         CHECK_MESSAGE(std::get<Segment>(*r1) == Segment({0, 0}, {4, 0}), "col ∩ horiz");
@@ -144,13 +144,13 @@ TEST_CASE("OrientedSegment and Line intersection construction, both directions")
 
     SUBCASE("disjoint: empty result") {
         const Line distant({10, 0}, {10, 5});
-        CHECK_FALSE_MESSAGE(vert.intersection(horiz) == std::nullopt, "just checking non-empty");
-        CHECK_FALSE_MESSAGE(distant.intersection(horiz), "distant ∩ horiz should be empty");
+        CHECK_FALSE_MESSAGE(vert.intersection<int>(horiz) == std::nullopt, "just checking non-empty");
+        CHECK_FALSE_MESSAGE(distant.intersection<int>(horiz), "distant ∩ horiz should be empty");
     }
 
     SUBCASE("touching at source endpoint returns a point") {
         const OrientedSegment touch({2, 0}, {5, 3}); // source (2,0) on vert
-        const auto r = vert.intersection(touch);
+        const auto r = vert.intersection<int>(touch);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK_MESSAGE(std::get<Point>(*r) == Point(2, 0), "vert ∩ touch");

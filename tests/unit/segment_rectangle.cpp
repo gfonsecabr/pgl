@@ -25,8 +25,8 @@ TEST_CASE("Segments disjoint from rectangles") {
     CHECK_FALSE_MESSAGE(r.separates(s), r, " separates ", s);
     CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
     CHECK_FALSE_MESSAGE(r.crosses(s), r, " crosses ", s);
-    CHECK_FALSE_MESSAGE(r.intersection(s), r, " intersection ", s);
-    CHECK_FALSE_MESSAGE(s.intersection(r), s, " intersection ", r);
+    CHECK_FALSE_MESSAGE(r.intersection<int>(s), r, " intersection ", s);
+    CHECK_FALSE_MESSAGE(s.intersection<int>(r), s, " intersection ", r);
 }
 
 TEST_CASE("Segments touching a rectangle in exactly one point") {
@@ -46,8 +46,8 @@ TEST_CASE("Segments touching a rectangle in exactly one point") {
         CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
         CHECK_FALSE_MESSAGE(r.crosses(s), r, " crosses ", s);
 
-        auto isec = r.intersection(s);
-        auto isec_reverse = s.intersection(r);
+        auto isec = r.intersection<int>(s);
+        auto isec_reverse = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE_MESSAGE(isec_reverse, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Point>(*isec));
@@ -66,8 +66,8 @@ TEST_CASE("Segments touching a rectangle in exactly one point") {
         CHECK_FALSE_MESSAGE(s.separates(r), s, " separates ", r);
         CHECK_FALSE_MESSAGE(r.separates(s), r, " separates ", s);
 
-        auto isec = r.intersection(s);
-        auto isec_reverse = s.intersection(r);
+        auto isec = r.intersection<int>(s);
+        auto isec_reverse = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE_MESSAGE(isec_reverse, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Point>(*isec));
@@ -97,7 +97,7 @@ TEST_CASE("Segments contained in rectangles") {
         CHECK_FALSE_MESSAGE(r.separates(s), r, " separates ", s);
         CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == s, r, " intersection ", s);
@@ -113,7 +113,7 @@ TEST_CASE("Segments contained in rectangles") {
         CHECK_FALSE_MESSAGE(s.separates(r), s, " separates ", r);
         CHECK_FALSE_MESSAGE(r.separates(s), r, " separates ", s);
 
-        auto isec = s.intersection(r);
+        auto isec = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == s, s, " intersection ", r);
@@ -129,7 +129,7 @@ TEST_CASE("Segments contained in rectangles") {
         CHECK_FALSE_MESSAGE(r.interiorsIntersect(s), r, " interiorsIntersect ", s);
         CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == s, r, " intersection ", s);
@@ -156,8 +156,8 @@ TEST_CASE("Segments crossing rectangles") {
         CHECK_MESSAGE(s.crosses(r), s, " crosses ", r);
         CHECK_MESSAGE(r.crosses(s), r, " crosses ", s);
 
-        auto isec = r.intersection(s);
-        auto isec_reverse = s.intersection(r);
+        auto isec = r.intersection<int>(s);
+        auto isec_reverse = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE_MESSAGE(isec_reverse, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Segment>(*isec));
@@ -176,7 +176,7 @@ TEST_CASE("Segments crossing rectangles") {
         CHECK_MESSAGE(s.crosses(r), s, " crosses ", r);
         CHECK_MESSAGE(r.crosses(s), r, " crosses ", s);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == clipped, r, " intersection ", s);
@@ -192,7 +192,7 @@ TEST_CASE("Segments crossing rectangles") {
         CHECK_MESSAGE(s.crosses(r), s, " crosses ", r);
         CHECK_MESSAGE(r.crosses(s), r, " crosses ", s);
 
-        auto isec = s.intersection(r);
+        auto isec = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == clipped, s, " intersection ", r);
@@ -207,7 +207,7 @@ TEST_CASE("Segments crossing rectangles") {
         CHECK_FALSE_MESSAGE(r.separates(s), r, " separates ", s);
         CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == clipped, r, " intersection ", s);
@@ -234,8 +234,8 @@ TEST_CASE("Generated horizontal and vertical cuts against a rectangle") {
         CHECK_MESSAGE(s.crosses(r) == cuts_interior, s, " crosses ", r);
         CHECK_MESSAGE(r.crosses(s) == cuts_interior, r, " crosses ", s);
 
-        auto isec = r.intersection(s);
-        auto isec_reverse = s.intersection(r);
+        auto isec = r.intersection<int>(s);
+        auto isec_reverse = s.intersection<int>(r);
         if (intersects) {
             Segment clipped(0, y, 4, y);
             REQUIRE_MESSAGE(isec, r, " intersection ", s);
@@ -263,8 +263,8 @@ TEST_CASE("Generated horizontal and vertical cuts against a rectangle") {
         CHECK_MESSAGE(s.crosses(r) == cuts_interior, s, " crosses ", r);
         CHECK_MESSAGE(r.crosses(s) == cuts_interior, r, " crosses ", s);
 
-        auto isec = r.intersection(s);
-        auto isec_reverse = s.intersection(r);
+        auto isec = r.intersection<int>(s);
+        auto isec_reverse = s.intersection<int>(r);
         if (intersects) {
             Segment clipped(x, 0, x, 3);
             REQUIRE_MESSAGE(isec, r, " intersection ", s);
@@ -337,7 +337,7 @@ TEST_CASE("Degenerate segments and rectangles") {
         CHECK_MESSAGE(r.intersects(s), r, " intersects ", s);
         CHECK_FALSE_MESSAGE(r.interiorsIntersect(s), r, " interiorsIntersect ", s);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK_MESSAGE(std::get<Point>(*isec) == p, r, " intersection ", s);
@@ -351,7 +351,7 @@ TEST_CASE("Degenerate segments and rectangles") {
         CHECK_MESSAGE(r.boundaryContains(s), r, " boundaryContains ", s);
         CHECK_FALSE_MESSAGE(r.interiorsIntersect(s), r, " interiorsIntersect ", s);
 
-        auto isec = r.intersection(s);
+        auto isec = r.intersection<int>(s);
         REQUIRE_MESSAGE(isec, r, " intersection ", s);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK_MESSAGE(std::get<Segment>(*isec) == s, r, " intersection ", s);
@@ -366,7 +366,7 @@ TEST_CASE("Degenerate segments and rectangles") {
         CHECK_FALSE_MESSAGE(r.interiorsIntersect(s), r, " interiorsIntersect ", s);
         CHECK_FALSE_MESSAGE(s.crosses(r), s, " crosses ", r);
 
-        auto isec = s.intersection(r);
+        auto isec = s.intersection<int>(r);
         REQUIRE_MESSAGE(isec, s, " intersection ", r);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK_MESSAGE(std::get<Point>(*isec) == p, s, " intersection ", r);
@@ -408,6 +408,6 @@ TEST_CASE("Segment and Rectangle squared Hausdorff distance") {
 
     // Farthest rectangle vertices from s are (0,0) and (0,4), each at squared
     // distance 37, which dominates the segment-side term (squared distance 4).
-    CHECK(r.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(r) == 37);
+    CHECK(r.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(r) == 37);
 }

@@ -360,7 +360,7 @@ TEST_CASE("HalfplaneIntersection recognizes the shape it describes") {
     SUBCASE("a segment slab is a segment") {
         const Region r{Segment(Point(0, 0), Point(4, 2))};
         expect(r, false, true, false, false, false);
-        CHECK(*r.getIfSegment() == Segment(Point(0, 0), Point(4, 2)));
+        CHECK(*r.getIfSegment<int>() == Segment(Point(0, 0), Point(4, 2)));
     }
 }
 

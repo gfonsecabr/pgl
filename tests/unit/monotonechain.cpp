@@ -169,7 +169,7 @@ TEST_CASE("MonotoneChain indexAtX and yAtX") {
     SUBCASE("outside the x-extent") {
         CHECK(!chain.indexAtX(-1).has_value());
         CHECK(!chain.indexAtX(7).has_value());
-        CHECK(!chain.yAtX(-1).has_value());
+        CHECK(!chain.yAtX<int>(-1).has_value());
         const Chain none;
         CHECK(!none.indexAtX(0).has_value());
     }
@@ -178,20 +178,20 @@ TEST_CASE("MonotoneChain indexAtX and yAtX") {
         CHECK(chain.indexAtX(0) == 0);
         CHECK(chain.indexAtX(2) == 1);
         CHECK(chain.indexAtX(6) == 5);
-        CHECK(chain.yAtX(2) == 4);
-        CHECK(chain.yAtX(6) == 6);
+        CHECK(chain.yAtX<int>(2) == 4);
+        CHECK(chain.yAtX<int>(6) == 6);
     }
 
     SUBCASE("at a vertical run the bottom vertex wins") {
         CHECK(chain.indexAtX(4) == 2);
-        CHECK(chain.yAtX(4) == 0);
+        CHECK(chain.yAtX<int>(4) == 0);
     }
 
     SUBCASE("strictly inside an edge") {
         CHECK(chain.indexAtX(1) == 0);
         CHECK(chain.indexAtX(5) == 4);
-        CHECK(chain.yAtX(1) == 2);       // edge (0,0)-(2,4) at x=1
-        CHECK(chain.yAtX(5) == 6);       // edge (4,6)-(6,6) at x=5
+        CHECK(chain.yAtX<int>(1) == 2);       // edge (0,0)-(2,4) at x=1
+        CHECK(chain.yAtX<int>(5) == 6);       // edge (4,6)-(6,6) at x=5
     }
 
     SUBCASE("exact rational interpolation") {
@@ -199,7 +199,7 @@ TEST_CASE("MonotoneChain indexAtX and yAtX") {
         CHECK(simple.yAtX<Rational>(1) == Rational(1, 2));
         // Truncating integer division is the documented behavior for an
         // integer ResultNumber.
-        CHECK(simple.yAtX(1) == 0);
+        CHECK(simple.yAtX<int>(1) == 0);
     }
 }
 
@@ -261,7 +261,7 @@ TEST_CASE("MonotoneChain insert") {
         chain.insert(Point(5, 3));
         REQUIRE(chain.size() == 3);
         CHECK(chain[1] == Point(5, 3));
-        CHECK(chain.yAtX(5) == 3);
+        CHECK(chain.yAtX<int>(5) == 3);
 
         chain.insert(Point(-2, 1));
         CHECK(chain[0] == Point(-2, 1));
@@ -295,7 +295,7 @@ TEST_CASE("MonotoneChain insert") {
         chain.insert(Point(105, 103));
         REQUIRE(chain.size() == 3);
         CHECK(chain[1] == Point(105, 103));
-        CHECK(chain.yAtX(105) == 103);
+        CHECK(chain.yAtX<int>(105) == 103);
     }
 }
 
@@ -309,7 +309,7 @@ TEST_CASE("MonotoneChain erase") {
         REQUIRE(chain.size() == 2);
         CHECK(chain[0] == Point(0, 0));
         CHECK(chain[1] == Point(10, 0));
-        CHECK(chain.yAtX(5) == 0);
+        CHECK(chain.yAtX<int>(5) == 0);
     }
 
     SUBCASE("erasing an extreme vertex shortens the chain") {
@@ -450,7 +450,7 @@ TEST_CASE("MonotoneChain works with other numeric types") {
         using Point = pgl::Point<double>;
         const pgl::MonotoneChain<Point> chain({Point(0.5, 0.0), Point(0.0, 1.5)});
         CHECK(chain[0] == Point(0.0, 1.5));
-        CHECK(chain.yAtX(0.25) == 0.75);
+        CHECK(chain.yAtX<double>(0.25) == 0.75);
     }
 
     SUBCASE("rational coordinates") {
@@ -458,14 +458,14 @@ TEST_CASE("MonotoneChain works with other numeric types") {
         using Point = pgl::Point<Rational>;
         const pgl::MonotoneChain<Point> chain(
             {Point(Rational(0), Rational(0)), Point(Rational(1), Rational(1, 3))});
-        CHECK(chain.yAtX(Rational(1, 2)) == Rational(1, 6));
+        CHECK(chain.yAtX<Rational>(Rational(1, 2)) == Rational(1, 6));
     }
 
     SUBCASE("exact aliases (Rational<BigInt>)") {
         const pgl::MonotoneChain<pgl::Point<int>> source({0, 0, 2, 1});
         const pgl::EMonotoneChain chain(source);
         CHECK(chain.size() == 2);
-        CHECK(chain.yAtX(pgl::ERational(1)) == pgl::ERational(1, 2));
+        CHECK(chain.yAtX<pgl::ERational>(pgl::ERational(1)) == pgl::ERational(1, 2));
         CHECK(!chain.isDegenerate());
     }
 }
@@ -572,7 +572,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
     SUBCASE("single crossing at a lattice point") {
         const Chain up({0, 0, 4, 4});
         const Chain down({0, 4, 4, 0});
-        const auto pieces = up.intersection(down);
+        const auto pieces = up.intersection<int>(down);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(2, 2));
@@ -590,7 +590,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
     SUBCASE("touch at a vertex shared by four edges is reported once") {
         const Chain valley({0, 4, 2, 0, 4, 4});
         const Chain peak({0, -4, 2, 0, 4, -4});
-        const auto pieces = valley.intersection(peak);
+        const auto pieces = valley.intersection<int>(peak);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(2, 0));
@@ -599,7 +599,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
     SUBCASE("collinear overlap split by vertices coalesces into one segment") {
         const Chain straight({0, 0, 4, 4});
         const Chain overlapping({1, 1, 2, 2, 3, 3, 6, 3});
-        const auto pieces = straight.intersection(overlapping);
+        const auto pieces = straight.intersection<int>(overlapping);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<pgl::Segment<Point>>(pieces[0]));
         CHECK(std::get<pgl::Segment<Point>>(pieces[0]) == pgl::Segment<Point>({1, 1}, {3, 3}));
@@ -608,7 +608,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
     SUBCASE("overlap across a bend stays two segments") {
         const Chain tent({0, 0, 2, 2, 4, 0});
         const Chain subPath({1, 1, 2, 2, 3, 1});
-        const auto pieces = tent.intersection(subPath);
+        const auto pieces = tent.intersection<int>(subPath);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<pgl::Segment<Point>>(pieces[0]));
         REQUIRE(std::holds_alternative<pgl::Segment<Point>>(pieces[1]));
@@ -618,7 +618,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
 
     SUBCASE("multiple crossings arrive sorted, including through the vertical edge") {
         const Chain horizontal({0, 2, 6, 2});
-        const auto pieces = zigzag.intersection(horizontal);
+        const auto pieces = zigzag.intersection<int>(horizontal);
         REQUIRE(pieces.size() == 4);
         const std::vector<Point> expected{Point(1, 2), Point(3, 2), Point(4, 2), Point(5, 2)};
         for (std::size_t i = 0; i < expected.size(); ++i) {
@@ -629,8 +629,8 @@ TEST_CASE("MonotoneChain vs MonotoneChain intersection pieces") {
 
     SUBCASE("disjoint chains produce no pieces") {
         const Chain above({0, 5, 6, 6});
-        CHECK(zigzag.intersection(above).empty());
-        CHECK(zigzag.intersection(Chain({7, 0, 9, 9})).empty());
+        CHECK(zigzag.intersection<int>(above).empty());
+        CHECK(zigzag.intersection<int>(Chain({7, 0, 9, 9})).empty());
     }
 }
 
@@ -783,7 +783,7 @@ TEST_CASE("MonotoneChain vs MonotoneChain edgesCross") {
 TEST_CASE("MonotoneChain separates agrees with an intersection-based oracle") {
     // Oracle: A separates B iff, walking B in arc (lexicographic) order, some
     // connected covered component avoids both extreme vertices of B. The
-    // covered components come from B.intersection(A), an independent code path
+    // covered components come from B.intersection<int>(A), an independent code path
     // from the edge-scan state machine that separates() uses.
     std::mt19937 rng(20260707);
     std::uniform_int_distribution<int> coord(0, 6);

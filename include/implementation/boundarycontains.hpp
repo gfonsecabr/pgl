@@ -1383,7 +1383,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(con
     if (!other.isDegenerate()) {
         return false;
     }
-    return boundaryContains(other.center());
+    return boundaryContains(other.template center<typename OtherDisk::NumberType>());
 }
 
 template <class PointType, class LabelType>

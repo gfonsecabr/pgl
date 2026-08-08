@@ -89,25 +89,14 @@ ResultNumber bruteNearestDistance(const std::vector<S>& v, const Q& q) {
     return best;
 }
 
-// Point-Point distanceL1/distanceLInf take no ResultNumber template of their
-// own (integer L1/LInf is always exact), unlike every other shape pair, so a
-// generic caller must probe for the templated overload before falling back.
 template <class ResultNumber, class Q, class Other>
 ResultNumber testDistanceL1(const Q& q, const Other& other) {
-    if constexpr (requires { q.template distanceL1<ResultNumber>(other); }) {
-        return q.template distanceL1<ResultNumber>(other);
-    } else {
-        return static_cast<ResultNumber>(q.distanceL1(other));
-    }
+    return q.template distanceL1<ResultNumber>(other);
 }
 
 template <class ResultNumber, class Q, class Other>
 ResultNumber testDistanceLInf(const Q& q, const Other& other) {
-    if constexpr (requires { q.template distanceLInf<ResultNumber>(other); }) {
-        return q.template distanceLInf<ResultNumber>(other);
-    } else {
-        return static_cast<ResultNumber>(q.distanceLInf(other));
-    }
+    return q.template distanceLInf<ResultNumber>(other);
 }
 
 // Same as bruteNearestDistance, but under the L1 (Manhattan) metric.
@@ -392,6 +381,18 @@ TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
         const Rational expected = bruteNearestDistance<Rational>(tris, q);
         CHECK(q.squaredDistance<Rational>(found) == expected);
     }
+}
+
+TEST_CASE("ShapeTree nearestNeighbor keeps fractional comparisons exact by default") {
+    using Segment = pgl::Segment<Point>;
+
+    // Both distances truncate to zero in int: 1/5 to the first segment and
+    // 1/13 to the second. The exact default must still select the second.
+    const Segment farther(Point(0, 0), Point(2, 1));
+    const Segment nearer(Point(0, 0), Point(3, 2));
+    const pgl::ShapeTree<Segment> tree(std::vector{farther, nearer}, 8);
+
+    CHECK(tree.nearestNeighbor(Point(1, 1)) == nearer);
 }
 
 TEST_CASE("ShapeTree empty tree returns a default-constructed L1/LInf nearest neighbor") {

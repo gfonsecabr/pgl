@@ -82,15 +82,15 @@ TEST_CASE("Point and Ray intersection construction, both directions") {
 
     SUBCASE("a point on the ray yields that point") {
         const Point inside(2, 2);
-        CHECK(diagonal.intersection(inside) == inside);
-        const auto fromPt = inside.intersection(diagonal);
+        CHECK(diagonal.intersection<int>(inside) == inside);
+        const auto fromPt = inside.intersection<int>(diagonal);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == inside);
     }
 
     SUBCASE("a point off the ray yields nothing") {
         const Point off(2, 3);
-        CHECK_FALSE(diagonal.intersection(off).has_value());
-        CHECK_FALSE(off.intersection(diagonal).has_value());
+        CHECK_FALSE(diagonal.intersection<int>(off).has_value());
+        CHECK_FALSE(off.intersection<int>(diagonal).has_value());
     }
 }

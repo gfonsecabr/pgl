@@ -881,7 +881,7 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherSegment& other)
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.min()));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.max()));
-    const W squared_length = static_cast<W>(other.min().squaredDistance(other.max()));
+    const W squared_length = other.min().template squaredDistance<W>(other.max());
     if (squared_length == W{}) {
         return false;  // Degenerate (point) segment whose sole point is outside.
     }
@@ -906,7 +906,7 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherDisk& other) co
         long double,
         Rational<BigInt>>;
 
-    const R d2 = center<R>().squaredDistance(other.template center<R>());
+    const R d2 = center<R>().template squaredDistance<R>(other.template center<R>());
     const R r1_sq = squaredRadius<R>();
     const R r2_sq = other.template squaredRadius<R>();
 
@@ -1158,7 +1158,7 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherLine& other) co
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[0]));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[1]));
-    const W squared_length = static_cast<W>(other[0].squaredDistance(other[1]));
+    const W squared_length = other[0].template squaredDistance<W>(other[1]);
     if (squared_length == W{}) {
         return false;  // Degenerate line.
     }
@@ -1201,7 +1201,7 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherRay& other) con
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.source()));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.target()));
-    const W squared_length = static_cast<W>(other.source().squaredDistance(other.target()));
+    const W squared_length = other.source().template squaredDistance<W>(other.target());
     const W m = squared_length * det;
 
     const W projection = (j0 - j1) * det;          // (J0 - J1) * A
@@ -1833,13 +1833,13 @@ template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherRectangle& other) const {
     // The intersection with a convex region is itself a half-plane
     // intersection; the two shapes meet exactly when it is nonempty.
-    return !intersection(other).isEmpty();
+    return !this->template intersection<NumberType>(other).isEmpty();
 }
 
 template <class PointType, class LabelType>
 template <TriangleConcept OtherTriangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherTriangle& other) const {
-    return !intersection(other).isEmpty();
+    return !this->template intersection<NumberType>(other).isEmpty();
 }
 
 template <class PointType, class LabelType>
@@ -1848,7 +1848,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Oth
     if (other.size() == 0) {
         return false;
     }
-    return !intersection(other).isEmpty();
+    return !this->template intersection<NumberType>(other).isEmpty();
 }
 
 template <class PointType, class LabelType>
@@ -1934,7 +1934,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Oth
     if (isEmpty() || other.isEmpty()) {
         return false;
     }
-    return !intersection(other).isEmpty();
+    return !this->template intersection<NumberType>(other).isEmpty();
 }
 
 template <class PointType, class LabelType>

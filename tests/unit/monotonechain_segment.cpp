@@ -256,7 +256,7 @@ TEST_CASE("MonotoneChain and Segment intersection pieces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("a segment crossing several edges") {
-        const auto pieces = zigzag.intersection(Segment({0, 2}, {6, 2}));
+        const auto pieces = zigzag.intersection<int>(Segment({0, 2}, {6, 2}));
         REQUIRE(pieces.size() == 4);
         const std::vector<Point> expected{Point(1, 2), Point(3, 2), Point(4, 2), Point(5, 2)};
         for (std::size_t i = 0; i < expected.size(); ++i) {
@@ -266,16 +266,16 @@ TEST_CASE("MonotoneChain and Segment intersection pieces") {
     }
 
     SUBCASE("collinear overlap yields a single segment") {
-        const auto pieces = zigzag.intersection(Segment({1, 2}, {3, 6}));
+        const auto pieces = zigzag.intersection<int>(Segment({1, 2}, {3, 6}));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment({1, 2}, {2, 4}));
     }
 
     SUBCASE("intersection with a point") {
-        const auto hit = zigzag.intersection(Point(1, 2));
+        const auto hit = zigzag.intersection<int>(Point(1, 2));
         REQUIRE(hit.has_value());
         CHECK(*hit == Point(1, 2));
-        CHECK_FALSE(zigzag.intersection(Point(1, 3)).has_value());
+        CHECK_FALSE(zigzag.intersection<int>(Point(1, 3)).has_value());
     }
 }

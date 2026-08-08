@@ -63,25 +63,31 @@ if (!d.interiorContains(diam))
 
 ## Exact Constructions
 
-Predicates are implemented with exact integer arithmetic. When a construction requires non-integer coordinates, it is often convenient to request a rational or floating point result only where needed.
+Predicates among integer coordinates are implemented with exact integer arithmetic. When a construction requires non-integer coordinates, it will return exact rational types of arbitrary precision by default.
 
 ```c++
 pgl::Segment s = {1, 0, 4, 7};
-pgl::Point<pgl::Rational<int>> midpoint = s.midpoint<pgl::Rational<int>>();
+pgl::EPoint midpoint = s.midpoint();
 std::cout << "The midpoint of " << s << " is " << midpoint << std::endl;
 // Output: The midpoint of (1,0)--(4,7) is (5/2,7/2)
+```
+
+It is possible to choose rational types with fewer digits manually:
+
+```c++
+pgl::Point<pgl::Rational<int>> midpointi = s.midpoint<pgl::Rational<int>>();
 ```
 
 Notice that sometimes it is possible to obtain integral results with scaling:
 
 ```c++
 pgl::Segment s = {1, 0, 4, 7};
-pgl::Point midpoint2 = (2*s).midpoint();
+pgl::Point midpoint2 = (2*s).midpoint<int>();
 std::cout << "The midpoint of " << 2*s << " is " << midpoint2 << std::endl;
 // Output: The midpoint of (2,0)--(8,14) is (5,7)
 ```
 
-If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc. See [types.md](doc/types.md) for more information.
+If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc. If performance is important, the library allows you to fine-tune number types accordingly. See [types.md](doc/types.md) for more information.
 
 ## Other Methods
 

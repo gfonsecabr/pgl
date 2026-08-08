@@ -94,19 +94,15 @@ constexpr ResultNumber segmentLikeDistanceLInf(const Point<ResultNumber>& a, con
  *
  * Mirrors @ref maxVertexDistanceL1 / `maxVertexSquaredDistance`: this only
  * relies on convexity of distance-to-`other`, which holds regardless of
- * metric, so the same vertex-supremum argument applies here too. See
- * @ref maxVertexDistanceL1 for why the vertex query falls back to an
- * untemplated call when `other` is a `Point`.
+ * metric, so the same vertex-supremum argument applies here too. Every
+ * concrete overload accepts `ResultNumber`, which is propagated to the
+ * vertex query.
  */
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexDistanceLInf(const Self& self, const OtherShape& other) {
     const auto self_vertices = self.vertices();
     const auto distanceToVertex = [&other](const auto& vertex) -> ResultNumber {
-        if constexpr (requires { other.template distanceLInf<ResultNumber>(vertex); }) {
-            return other.template distanceLInf<ResultNumber>(vertex);
-        } else {
-            return static_cast<ResultNumber>(other.distanceLInf(vertex));
-        }
+        return other.template distanceLInf<ResultNumber>(vertex);
     };
     ResultNumber worst = distanceToVertex(self_vertices[0]);
     for (std::size_t index = 1; index < self_vertices.size(); ++index) {
@@ -178,7 +174,7 @@ Float diskPointDistanceLInf(Float a, Float b, Float r) {
 template <class Number, class Label>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::hausdorffDistanceLInf(const OtherPoint& other) const {
-    return static_cast<ResultNumber>(distanceLInf(other));
+    return this->template distanceLInf<ResultNumber>(other);
 }
 
 // -----------------------------------------------------------------------------

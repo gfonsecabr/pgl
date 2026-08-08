@@ -4776,7 +4776,7 @@ Point<ResultNumber> PolygonWithHoles<PointType_, TLabel>::pointInside() const {
 template <class PointType_, class TLabel>
 template <class OtherShape>
 bool PolygonWithHoles<PointType_, TLabel>::pointInsideInteriorContainedIn(const OtherShape& shape) const {
-    const auto witness = pointInside();
+    const auto witness = pointInside<NumberType>();
     if (interiorContains(witness)) {
         return shape.interiorContains(witness);
     }
@@ -4784,7 +4784,7 @@ bool PolygonWithHoles<PointType_, TLabel>::pointInsideInteriorContainedIn(const 
     // can round it onto the boundary; scaling by 4 makes it exact without
     // changing containment. Scaling is a similarity, so the scaled region's
     // triangulation is the scaled triangulation and the witness scales with it.
-    return (shape * 4).interiorContains((*this * 4).pointInside());
+    return (shape * 4).interiorContains((*this * 4).template pointInside<NumberType>());
 }
 
 }  // namespace pgl

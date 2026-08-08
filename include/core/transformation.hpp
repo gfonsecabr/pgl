@@ -195,12 +195,12 @@ struct Transformation {
     /**
      * @brief Returns the inverse transformation.
      *
-     * @tparam ResultNumber Matrix entry type of the result (default: @ref NumberType).
+     * @tparam ResultNumber Matrix entry type of the result (default: @ref division_result_t).
      * @warning Divides by @ref determinant. For an integral @ref NumberType this
      * is inexact unless @p ResultNumber is a type such as `Rational<Number>`
      * that represents the division exactly.
      */
-    template <class ResultNumber = Number>
+    template <class ResultNumber = division_result_t<NumberType>>
     constexpr Transformation<ResultNumber> inverse() const {
         const ResultNumber det = static_cast<ResultNumber>(determinant());
         const ResultNumber ra = static_cast<ResultNumber>(a());

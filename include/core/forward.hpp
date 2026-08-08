@@ -366,12 +366,21 @@ namespace detail {
  */
 template <class Other, class Predicate>
 constexpr bool reduceDegenerate(const Other& other, Predicate predicate) {
-    if constexpr (requires { other.getIfPoint(); }) {
+    using Number = typename std::remove_cvref_t<Other>::NumberType;
+    if constexpr (requires { other.template getIfPoint<Number>(); }) {
+        if (const auto vertex = other.template getIfPoint<Number>()) {
+            return predicate(*vertex);
+        }
+    } else if constexpr (requires { other.getIfPoint(); }) {
         if (const auto vertex = other.getIfPoint()) {
             return predicate(*vertex);
         }
     }
-    if constexpr (requires { other.getIfSegment(); }) {
+    if constexpr (requires { other.template getIfSegment<Number>(); }) {
+        if (const auto carrier = other.template getIfSegment<Number>()) {
+            return predicate(*carrier);
+        }
+    } else if constexpr (requires { other.getIfSegment(); }) {
         if (const auto carrier = other.getIfSegment()) {
             return predicate(*carrier);
         }
@@ -420,7 +429,12 @@ constexpr bool reduceDegenerateGuarded(const Other& other, Predicate predicate) 
  */
 template <class Other, class Predicate>
 constexpr bool reduceDegenerateToPoint(const Other& other, Predicate predicate) {
-    if constexpr (requires { other.getIfPoint(); }) {
+    using Number = typename std::remove_cvref_t<Other>::NumberType;
+    if constexpr (requires { other.template getIfPoint<Number>(); }) {
+        if (const auto vertex = other.template getIfPoint<Number>()) {
+            return predicate(*vertex);
+        }
+    } else if constexpr (requires { other.getIfPoint(); }) {
         if (const auto vertex = other.getIfPoint()) {
             return predicate(*vertex);
         }

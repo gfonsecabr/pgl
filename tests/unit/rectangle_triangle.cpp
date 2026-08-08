@@ -133,14 +133,14 @@ TEST_CASE("Triangle intersection with Rectangle returns Convex or empty") {
 
     SUBCASE("overlapping rectangle clips triangle to smaller triangle") {
         // [2,8] x [2,8] ∩ triangle = the triangle (2,2)(4,2)(2,4)
-        const auto r = tri.intersection(Rectangle({2, 2}, {8, 8}));
+        const auto r = tri.intersection<int>(Rectangle({2, 2}, {8, 8}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Convex>(*r));
         CHECK(std::get<Convex>(*r).twiceArea() == 4);
     }
 
     SUBCASE("disjoint rectangle yields empty") {
-        CHECK_FALSE(tri.intersection(Rectangle({10, 10}, {12, 12})));
+        CHECK_FALSE(tri.intersection<int>(Rectangle({10, 10}, {12, 12})));
     }
 }
 
@@ -154,6 +154,6 @@ TEST_CASE("Rectangle and Triangle squared Hausdorff distance") {
 
     // Farthest rectangle vertex from t is (12,4), squared distance 80, which
     // dominates the farthest triangle vertex from r (squared distance 64).
-    CHECK(r.squaredHausdorffDistance(t) == 80);
-    CHECK(t.squaredHausdorffDistance(r) == 80);
+    CHECK(r.squaredHausdorffDistance<int>(t) == 80);
+    CHECK(t.squaredHausdorffDistance<int>(r) == 80);
 }

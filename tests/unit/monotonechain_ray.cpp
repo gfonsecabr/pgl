@@ -71,7 +71,7 @@ TEST_CASE("MonotoneChain and Ray distance and intersection") {
     CHECK(zigzag.squaredDistance<Rational>(above) == Rational(1));
     CHECK(above.squaredDistance<Rational>(zigzag) == Rational(1));
 
-    const auto pieces = zigzag.intersection(Ray({3, -5}, {3, 5}));
+    const auto pieces = zigzag.intersection<int>(Ray({3, -5}, {3, 5}));
     REQUIRE(pieces.size() == 1);
     REQUIRE(std::holds_alternative<Point>(pieces[0]));
     CHECK(std::get<Point>(pieces[0]) == Point(3, 2));

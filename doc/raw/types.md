@@ -26,6 +26,8 @@ pgl::Segment<pgl::Point<double>> s = {p,q};
 You may use integer, floating-point, rational, or custom numeric coordinate types as long as they support the required arithmetic.
 If performance is not critical, you may use arbitrary precision rational numbers everywhere with `ERational`, `EPoint`, `ESegment`, etc.
 
+Operations that may construct fractional coordinates deduce the return number type. For an integral receiver this is `ERational`; floating-point and already-rational receivers retain their own coordinate type. Operations that may be irrational default to `double`. These defaults depend only on the receiver; mixed-coordinate calls can select a different result type explicitly.
+
 ### Labels
 
 Shapes may carry an additional label so that they can stay associated with a name, id, or weight without going through an external map.
@@ -134,19 +136,21 @@ if (s.intersects(t)) {
 // Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
 ```
 
-However, rational numbers are significantly slower than integers and floating point numbers. Hence, it is a good idea to defer usage of rational coordinates until necessary:
+Rational numbers are significantly slower than integers and floating-point numbers. Pangolin therefore widens only the result of an operation that may divide, rather than requiring all input coordinates to be rational:
 
 ```c++
 pgl::Point p = {1,0}, q = {4,7};
 pgl::Segment s = {p,q}, t = {0,8,2,1};
 if (s.intersects(t)) {
     std::cout << s << " intersects " << t << " at point ";
-    pgl::Shape isec(s.intersection<pgl::Rational<int>>(t)); // Use rational here
-    pgl::Point<pgl::Rational<int>> cross(isec);
+    pgl::EShape isec(s.intersection(t)); // ERational is selected by default
+    pgl::EPoint cross(isec);
     std::cout << cross << std::endl;
 }
 // Output: (1,0)--(4,7) intersects (0,8)--(2,1) at point (62/35,9/5)
 ```
+
+An explicit result type remains useful when tighter bounds justify a smaller rational representation, for example `s.intersection<pgl::Rational<int64_t>>(t)`, or when truncation or floating-point approximation is intentionally requested.
 
 You may have noticed that the `intersection` method does not return a point. This is because the intersection of two segments may be null, a point, or a segment. Hence, the result is an [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional.html) of [`std::variant`](https://en.cppreference.com/w/cpp/utility/variant.html) of both point and segment.
 

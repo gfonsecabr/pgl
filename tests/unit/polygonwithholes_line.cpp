@@ -495,7 +495,7 @@ TEST_CASE("PolygonWithHoles intersection with a Line") {
     const Region region = annulus();
 
     SUBCASE("a line across the hole yields the two chords beside it") {
-        const auto pieces = region.intersection(Line({0, 5}, {1, 5}));
+        const auto pieces = region.intersection<int>(Line({0, 5}, {1, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -504,25 +504,25 @@ TEST_CASE("PolygonWithHoles intersection with a Line") {
 
     SUBCASE("a line along a hole edge keeps the whole chord") {
         // y = 3 runs along the hole's bottom edge, which is region boundary.
-        const auto pieces = region.intersection(Line({0, 3}, {1, 3}));
+        const auto pieces = region.intersection<int>(Line({0, 3}, {1, 3}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 3}, {10, 3})));
     }
 
     SUBCASE("a line along an outer edge keeps that edge") {
-        const auto pieces = region.intersection(Line({0, 0}, {1, 0}));
+        const auto pieces = region.intersection<int>(Line({0, 0}, {1, 0}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 0}, {10, 0})));
     }
 
     SUBCASE("a line missing the region yields nothing") {
-        CHECK(region.intersection(Line({0, 12}, {1, 12})).empty());
+        CHECK(region.intersection<int>(Line({0, 12}, {1, 12})).empty());
     }
 
     SUBCASE("a line tangent at one outer corner keeps that point") {
-        const auto pieces = region.intersection(Line({8, 12}, {12, 8}));
+        const auto pieces = region.intersection<int>(Line({8, 12}, {12, 8}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(10, 10)));
@@ -530,7 +530,7 @@ TEST_CASE("PolygonWithHoles intersection with a Line") {
 
     SUBCASE("the line answers the pair the same way round") {
         const Line l({0, 5}, {1, 5});
-        CHECK(l.intersection(region) == region.intersection(l));
+        CHECK(l.intersection<int>(region) == region.intersection<int>(l));
     }
 }
 
@@ -544,7 +544,7 @@ TEST_CASE("PolygonWithHoles intersection with a Line: a hole apex on the outer r
     REQUIRE(region.isValid());
 
     SUBCASE("a line straight through the apex keeps it as its own piece") {
-        const auto pieces = region.intersection(Line({4, 0}, {4, 1}));
+        const auto pieces = region.intersection<int>(Line({4, 0}, {4, 1}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Point(4, 0)));
@@ -552,7 +552,7 @@ TEST_CASE("PolygonWithHoles intersection with a Line: a hole apex on the outer r
     }
 
     SUBCASE("a line beside the apex keeps one chord") {
-        const auto pieces = region.intersection(Line({7, 0}, {7, 1}));
+        const auto pieces = region.intersection<int>(Line({7, 0}, {7, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({7, 0}, {7, 8})));
@@ -564,8 +564,8 @@ TEST_CASE("PolygonWithHoles intersection with an OrientedLine: direction never m
     const Line l({0, 5}, {1, 5});
 
     for (const auto& o : {OrientedLine({0, 5}, {1, 5}), OrientedLine({1, 5}, {0, 5})}) {
-        CHECK(region.intersection(o) == region.intersection(l));
-        CHECK(o.intersection(region) == region.intersection(l));
+        CHECK(region.intersection<int>(o) == region.intersection<int>(l));
+        CHECK(o.intersection<int>(region) == region.intersection<int>(l));
     }
 }
 
@@ -574,14 +574,14 @@ TEST_CASE("PolygonWithHoles intersection with a Ray") {
     const Region region = annulus();
 
     SUBCASE("a ray from inside the hole keeps only what lies ahead") {
-        const auto pieces = region.intersection(Ray({5, 5}, {6, 5}));
+        const auto pieces = region.intersection<int>(Ray({5, 5}, {6, 5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({7, 5}, {10, 5})));
     }
 
     SUBCASE("a ray from outside crossing the whole region keeps both chords") {
-        const auto pieces = region.intersection(Ray({-5, 5}, {-4, 5}));
+        const auto pieces = region.intersection<int>(Ray({-5, 5}, {-4, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -589,19 +589,19 @@ TEST_CASE("PolygonWithHoles intersection with a Ray") {
     }
 
     SUBCASE("a ray from the material outward is cut at the source") {
-        const auto pieces = region.intersection(Ray({8, 5}, {9, 5}));
+        const auto pieces = region.intersection<int>(Ray({8, 5}, {9, 5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({8, 5}, {10, 5})));
     }
 
     SUBCASE("a ray pointing away from the region yields nothing") {
-        CHECK(region.intersection(Ray({-5, 5}, {-6, 5})).empty());
+        CHECK(region.intersection<int>(Ray({-5, 5}, {-6, 5})).empty());
     }
 
     SUBCASE("the ray answers the pair the same way round") {
         const Ray r({-5, 5}, {-4, 5});
-        CHECK(r.intersection(region) == region.intersection(r));
+        CHECK(r.intersection<int>(region) == region.intersection<int>(r));
     }
 }
 

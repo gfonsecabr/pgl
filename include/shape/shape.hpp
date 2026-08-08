@@ -305,7 +305,9 @@ struct Shape {
     [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
         return std::visit(
             [](const auto& value) -> Rectangle<PointType> {
-                if constexpr (requires { value.bbox(); }) {
+                if constexpr (requires { value.template bbox<NumberType>(); }) {
+                    return value.template bbox<NumberType>();
+                } else if constexpr (requires { value.bbox(); }) {
                     return value.bbox();
                 } else {
                     throw std::logic_error("Shape::bbox is not defined for this unbounded alternative");
@@ -702,8 +704,8 @@ struct Shape {
      * `EmptyShape`. The returned wrapper is parameterized on the result point
      * type, which may differ from this wrapper's.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to this
-     *   wrapper's `NumberType`).
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Shape to intersect with.
      * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
@@ -730,7 +732,7 @@ struct Shape {
      *   what makes several pieces likely there.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr Shape<Point<ResultNumber, LabelType>> intersection(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -756,26 +758,23 @@ struct Shape {
      * and delegates to the concrete `squaredDistance` requesting @p ResultNumber
      * coordinates.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to this
-     *   wrapper's `NumberType`).
+     * @tparam ResultNumber Coordinate type of the result (defaults to `double`,
+     *   because the wrapped alternative may be a @ref Disk).
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Shape to measure the distance to.
      * @return The squared Euclidean distance as @p ResultNumber.
      * @throws std::logic_error when `squaredDistance` is undefined for the pair
      *   selected at runtime — anything involving an `EmptyShape`.
      *
-     * @warning `Disk::squaredDistance` (and the `Disk` overloads on `Convex`,
-     *   `MonotoneChain`, `Polyline`, and `Polygon`) always compute in `double`
-     *   rather than being templated on
-     *   @p ResultNumber; for a pair involving a `Disk`, the `double` result is
-     *   `static_cast` to @p ResultNumber rather than computed exactly.
+     * @warning A pair involving a @ref Disk computes in `double`; requesting a
+     *   non-floating @p ResultNumber does not make that leg exact.
      *
      * @warning With an integer @p ResultNumber the exact squared distance is
      *   generally a fraction, so the internal division truncates and the result
      *   is inexact. Request a floating-point or pgl::Rational result type for an
      *   accurate value.
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = double, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber squaredDistance(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -801,8 +800,8 @@ struct Shape {
      * and delegates to the concrete `squaredHausdorffDistance` requesting
      * @p ResultNumber coordinates.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to this
-     *   wrapper's `NumberType`).
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Shape to measure the Hausdorff distance to.
      * @return The squared Hausdorff distance as @p ResultNumber.
@@ -818,7 +817,7 @@ struct Shape {
      *   is inexact. Request a floating-point or pgl::Rational result type for an
      *   accurate value.
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber squaredHausdorffDistance(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -844,8 +843,8 @@ struct Shape {
      * and delegates to the concrete `distanceL1` requesting @p ResultNumber
      * coordinates.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to this
-     *   wrapper's `NumberType`).
+     * @tparam ResultNumber Coordinate type of the result (defaults to `double`,
+     *   because the wrapped alternative may be a @ref Disk).
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Shape to measure the distance to.
      * @return The L1 distance as @p ResultNumber.
@@ -856,15 +855,14 @@ struct Shape {
      * @warning `Disk::distanceL1` (like `Disk::squaredDistance`) reports in
      *   `detail::floating_result_t<ResultNumber>`, so an exact @p ResultNumber
      *   is served in `double` and then `static_cast` back rather than computed
-     *   exactly. `Point`-`Point` also takes a cast, its `distanceL1` having no
-     *   `ResultNumber` template since it needs no division to stay exact.
+     *   exactly.
      *
      * @warning With an integer @p ResultNumber the exact distance is generally a
      *   fraction for a non-axis-aligned segment, ray, or line, so the internal
      *   division truncates. Request a floating-point or pgl::Rational result
      *   type for an accurate value.
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = double, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber distanceL1(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -888,7 +886,7 @@ struct Shape {
      *
      * @copydetails distanceL1
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = double, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber distanceLInf(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -914,8 +912,8 @@ struct Shape {
      * and delegates to the concrete `hausdorffDistanceL1` requesting
      * @p ResultNumber coordinates.
      *
-     * @tparam ResultNumber Coordinate type of the result (defaults to this
-     *   wrapper's `NumberType`).
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
      * @tparam Other `Shape` or a supported alternative type.
      * @param other Shape to measure the Hausdorff distance to.
      * @return The L1 Hausdorff distance as @p ResultNumber.
@@ -929,7 +927,7 @@ struct Shape {
      *   fraction, so the internal division truncates. Request a floating-point
      *   or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber hausdorffDistanceL1(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -953,7 +951,7 @@ struct Shape {
      *
      * @copydetails hausdorffDistanceL1
      */
-    template <class ResultNumber = NumberType, class Other>
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
     constexpr ResultNumber hausdorffDistanceLInf(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
@@ -1316,30 +1314,25 @@ struct Shape {
         }
     }
 
-    // Measure the L1 distance between two unwrapped alternatives. The second
-    // probe covers Point-Point, whose distanceL1 has no ResultNumber template at
-    // all since it needs no division to stay exact. Any pair with neither
-    // overload (an EmptyShape, or a Disk paired with anything but a Point) takes
-    // the throw. Both probes convert explicitly, for the reason given on
-    // squaredDistanceOf: a Disk pair answers in a floating type.
+    // Measure the L1 distance between two unwrapped alternatives. Every
+    // supported concrete overload accepts ResultNumber; an EmptyShape or a Disk
+    // paired with anything but a Point takes the throw. Convert explicitly for
+    // the reason given on squaredDistanceOf: a Disk pair answers in a floating
+    // type.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber distanceL1Of(const Left& left, const Right& right) {
         if constexpr (requires { left.template distanceL1<ResultNumber>(right); }) {
             return static_cast<ResultNumber>(left.template distanceL1<ResultNumber>(right));
-        } else if constexpr (requires { left.distanceL1(right); }) {
-            return static_cast<ResultNumber>(left.distanceL1(right));
         } else {
             throw std::logic_error("Shape::distanceL1 is not defined for this shape pair");
         }
     }
 
-    // LInf counterpart of distanceL1Of; see there for the probe order.
+    // LInf counterpart of distanceL1Of.
     template <class ResultNumber, class Left, class Right>
     static constexpr ResultNumber distanceLInfOf(const Left& left, const Right& right) {
         if constexpr (requires { left.template distanceLInf<ResultNumber>(right); }) {
             return static_cast<ResultNumber>(left.template distanceLInf<ResultNumber>(right));
-        } else if constexpr (requires { left.distanceLInf(right); }) {
-            return static_cast<ResultNumber>(left.distanceLInf(right));
         } else {
             throw std::logic_error("Shape::distanceLInf is not defined for this shape pair");
         }

@@ -51,7 +51,8 @@ constexpr Line<Point<ResultNumber, Label>> Point<Number, Label>::polar() const {
         q2.y() = y() - 1;
     }
     Line<Point<ResultNumber, Label>> l1{p, q1}, l2{p, q2};
-    return Line<Point<ResultNumber, Label>>(l1.polar(), l2.polar());
+    return Line<Point<ResultNumber, Label>>(l1.template polar<ResultNumber>(),
+                                            l2.template polar<ResultNumber>());
 }
 
 // -----------------------------------------------------------------------------

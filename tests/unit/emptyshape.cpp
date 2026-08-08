@@ -9,7 +9,7 @@
 // Dependent on purpose: a non-dependent requires-expression is a hard error
 // rather than `false` under g++.
 template <class A, class B>
-inline constexpr bool intersectable = requires(const A& a, const B& b) { a.intersection(b); };
+inline constexpr bool intersectable = requires(const A& a, const B& b) { a.template intersection<int>(b); };
 
 // The empty set annihilates an intersection from either side, and says so in
 // the return type rather than through an empty optional or vector.
@@ -19,11 +19,11 @@ static void absorbsIntersection(const Shape& shape) {
 
     static_assert(intersectable<Shape, pgl::EmptyShape<>>);
     static_assert(intersectable<pgl::EmptyShape<>, Shape>);
-    static_assert(std::is_same_v<decltype(shape.intersection(empty)), pgl::EmptyShape<>>);
-    static_assert(std::is_same_v<decltype(empty.intersection(shape)), pgl::EmptyShape<>>);
+    static_assert(std::is_same_v<decltype(shape.template intersection<int>(empty)), pgl::EmptyShape<>>);
+    static_assert(std::is_same_v<decltype(empty.intersection<int>(shape)), pgl::EmptyShape<>>);
 
-    CHECK(shape.intersection(empty) == pgl::EmptyShape<>{});
-    CHECK(empty.intersection(shape) == pgl::EmptyShape<>{});
+    CHECK(shape.template intersection<int>(empty) == pgl::EmptyShape<>{});
+    CHECK(empty.intersection<int>(shape) == pgl::EmptyShape<>{});
 }
 
 TEST_CASE("The empty shape absorbs every intersection operand") {

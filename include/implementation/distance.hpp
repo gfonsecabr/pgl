@@ -66,19 +66,23 @@ constexpr auto Point<Number, Label>::squaredDistance(const OtherPoint& other) co
 template <class Number, class Label>
 template <class ApproximateNumber, PointConcept OtherPoint>
 ApproximateNumber Point<Number, Label>::distance(const OtherPoint& other) const {
-    return std::sqrt(static_cast<ApproximateNumber>(squaredDistance(other)));
+    return std::sqrt(this->template squaredDistance<ApproximateNumber>(other));
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::distanceL1(const OtherPoint& other) const {
-    return pgl::detail::abs(x() - other.x()) + pgl::detail::abs(y() - other.y());
+    const ResultNumber dx = static_cast<ResultNumber>(x()) - static_cast<ResultNumber>(other.x());
+    const ResultNumber dy = static_cast<ResultNumber>(y()) - static_cast<ResultNumber>(other.y());
+    return pgl::detail::abs(dx) + pgl::detail::abs(dy);
 }
 
 template <class Number, class Label>
-template<PointConcept OtherPoint>
+template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::distanceLInf(const OtherPoint& other) const {
-    return std::max(pgl::detail::abs(x() - other.x()), pgl::detail::abs(y() - other.y()));
+    const ResultNumber dx = static_cast<ResultNumber>(x()) - static_cast<ResultNumber>(other.x());
+    const ResultNumber dy = static_cast<ResultNumber>(y()) - static_cast<ResultNumber>(other.y());
+    return std::max(pgl::detail::abs(dx), pgl::detail::abs(dy));
 }
 
 template <class Number, class Label>

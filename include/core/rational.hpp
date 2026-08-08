@@ -814,6 +814,33 @@ public:
 template <typename T>
 using to_integer_with_digits_t = typename to_integer_with_digits<T>::type;
 
+/** @brief Exact, overflow-free result used when integral coordinates require fractions. */
+using ERational = Rational<BigInt>;
+
+/**
+ * @brief Default result type for an operation that may require division.
+ *
+ * Floating-point coordinates retain their native type instead of being
+ * rationalized after they have already been approximated. Rational coordinates
+ * are already closed under division and likewise retain their native type.
+ * Integral coordinate types, including @ref BigInt, use the overflow-free
+ * @ref ERational type so fractional results remain exact.
+ *
+ * Users may specialize this trait for custom coordinate types.
+ */
+template <class Number>
+struct DivisionResult {
+    using NumberType = std::remove_cvref_t<Number>;
+    using type = std::conditional_t<
+        std::floating_point<NumberType> || RationalConcept<NumberType>,
+        NumberType,
+        ERational>;
+};
+
+/** @brief Convenience alias for @ref DivisionResult. */
+template <class Number>
+using division_result_t = typename DivisionResult<Number>::type;
+
 }// pgl
 
 template<class U, class V>

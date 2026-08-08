@@ -52,10 +52,10 @@ TEST_CASE("Region intersects a convex polygon") {
 
 TEST_CASE("Intersection with a convex polygon stays a region") {
     const Region k = box6();
-    const Region clip = k.intersection(square(2, 5));
+    const Region clip = k.intersection<int>(square(2, 5));
     CHECK(clip.isBounded());
     CHECK(clip.twiceArea<long long>() == 18);   // 3 x 3
-    CHECK(k.intersection(square(10, 12)).isEmpty());
+    CHECK(k.intersection<int>(square(10, 12)).isEmpty());
 }
 
 TEST_CASE("Separation and crossing with a convex polygon") {

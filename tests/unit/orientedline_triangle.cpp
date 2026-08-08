@@ -78,7 +78,7 @@ TEST_CASE("Triangle intersection construction with OrientedLine") {
 
     SUBCASE("OrientedLine collinear with edge yields that edge as a Segment") {
         const OrientedLine edge_ol({0, 0}, {0, 4});
-        const auto r = triangle.intersection(edge_ol);
+        const auto r = triangle.intersection<int>(edge_ol);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({0, 0}, {0, 4}), "triangle ∩ edge OL");
@@ -86,6 +86,6 @@ TEST_CASE("Triangle intersection construction with OrientedLine") {
 
     SUBCASE("OrientedLine outside yields empty") {
         const OrientedLine away({0, 5}, {4, 5});
-        CHECK_FALSE_MESSAGE(triangle.intersection(away), "triangle ∩ outside OL should be empty");
+        CHECK_FALSE_MESSAGE(triangle.intersection<int>(away), "triangle ∩ outside OL should be empty");
     }
 }

@@ -71,25 +71,25 @@ TEST_CASE("Point and Triangle intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point interior(1, 1);
-        const auto fromTri = triangle.intersection(interior);
+        const auto fromTri = triangle.intersection<int>(interior);
         REQUIRE(fromTri.has_value());
         CHECK(*fromTri == interior);
-        const auto fromPt = interior.intersection(triangle);
+        const auto fromPt = interior.intersection<int>(triangle);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == interior);
     }
 
     SUBCASE("a boundary point yields that point") {
         const Point edge(3, 0);
-        const auto fromTri = triangle.intersection(edge);
+        const auto fromTri = triangle.intersection<int>(edge);
         REQUIRE(fromTri.has_value());
         CHECK(*fromTri == edge);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(4, 4);
-        CHECK_FALSE(triangle.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(triangle).has_value());
+        CHECK_FALSE(triangle.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(triangle).has_value());
     }
 }
 
@@ -102,6 +102,6 @@ TEST_CASE("Point and Triangle squared Hausdorff distance") {
 
     // Farthest triangle vertex from p is (0,4) at squared distance 45, which
     // dominates the point-side (nearest-point) term.
-    CHECK(t.squaredHausdorffDistance(p) == 45);
-    CHECK(p.squaredHausdorffDistance(t) == 45);
+    CHECK(t.squaredHausdorffDistance<int>(p) == 45);
+    CHECK(p.squaredHausdorffDistance<int>(t) == 45);
 }

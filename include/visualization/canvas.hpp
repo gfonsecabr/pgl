@@ -574,15 +574,15 @@ class Canvas {
                 if constexpr (std::same_as<V, Point<double>>) {
                     b.include(value.x(), value.y());
                 } else if constexpr (std::same_as<V, Disk<Point<double>>>) {
-                    const auto center = value.center();
-                    const double radius = value.radius();
+                    const auto center = value.template center<double>();
+                    const double radius = value.template radius<double>();
                     b.include(center.x() - radius, center.y() - radius);
                     b.include(center.x() + radius, center.y() + radius);
                 } else if constexpr (std::same_as<V, HalfplaneIntersection<Point<double>>>) {
                     // The region may be unbounded: focus on its vertices and,
                     // like the Halfplane alternative, on the points defining
                     // its boundary lines.
-                    for (const auto& vertexPoint : value.vertices()) {
+                    for (const auto& vertexPoint : value.template vertices<double>()) {
                         b.include(vertexPoint.x(), vertexPoint.y());
                     }
                     for (const auto& halfplane : value) {
@@ -1589,8 +1589,8 @@ class Canvas {
                     );
                 }
             } else if constexpr (std::same_as<S, Disk<PT>>) {
-                const auto [x, y] = mapPDFPoint(shape.center(), viewport);
-                const float radius = static_cast<float>(shape.radius() * viewport.scale);
+                const auto [x, y] = mapPDFPoint(shape.template center<double>(), viewport);
+                const float radius = static_cast<float>(shape.template radius<double>() * viewport.scale);
                 if (pdfgen::pdf_add_circle(
                         pdf,
                         page,
@@ -1833,10 +1833,10 @@ class Canvas {
                         << titleTag << "</polyline>";
                 }
             } else if constexpr (std::same_as<S, Disk<PT>>) {
-                const auto center = shape.center();
+                const auto center = shape.template center<double>();
                 const double cx = viewport.mapX(center.x());
                 const double cy = viewport.mapY(center.y());
-                const double r = shape.radius() * viewport.scale;
+                const double r = shape.template radius<double>() * viewport.scale;
                 out << "<circle cx=\"" << cx << "\" cy=\"" << cy
                     << "\" r=\"" << r << '"'
                     << styleAttributes(element.style) << ">"
@@ -2187,8 +2187,8 @@ class Canvas {
                     appendIPEPath(out, points, false, ipeStrokeAttributes(style));
                 }
             } else if constexpr (std::same_as<S, Disk<PT>>) {
-                const auto center = mapIPEPoint(shape.center(), viewport);
-                const double radius = shape.radius() * viewport.scale;
+                const auto center = mapIPEPoint(shape.template center<double>(), viewport);
+                const double radius = shape.template radius<double>() * viewport.scale;
                 appendIPEEllipse(out, center.first, center.second, radius, attrs);
             }
         }, element.shape.variant());
@@ -2490,7 +2490,7 @@ class Canvas {
                         }
                     }
                 },
-                region.edge(index));
+                region.template edge<double>(index));
         }
         return pieces;
     }

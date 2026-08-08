@@ -82,7 +82,6 @@
 // speed of fixed-width arithmetic.
 namespace pgl {
 
-using ERational        = Rational<BigInt>;
 using ETransformation  = Transformation<ERational>;
 using EPoint           = Point<ERational>;
 using EEmptyShape      = EmptyShape<EPoint>;

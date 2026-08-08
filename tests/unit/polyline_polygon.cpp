@@ -145,7 +145,7 @@ TEST_CASE("Polyline and Polygon intersection clips each edge and coalesces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("a contained polyline returns its own edges") {
-        const auto pieces = zig.intersection(square);
+        const auto pieces = zig.intersection<int>(square);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(3, 3)));
@@ -155,7 +155,7 @@ TEST_CASE("Polyline and Polygon intersection clips each edge and coalesces") {
 
     SUBCASE("a single edge crossing the notch splits into two segments") {
         // Horizontal line at y = 4 meets the U-shape in its two arms only.
-        const auto pieces = PLine({-1, 4, 7, 4}).intersection(ushape);
+        const auto pieces = PLine({-1, 4, 7, 4}).intersection<int>(ushape);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 4), Point(2, 4)));
@@ -164,6 +164,6 @@ TEST_CASE("Polyline and Polygon intersection clips each edge and coalesces") {
     }
 
     SUBCASE("a polyline missing the polygon has no intersection") {
-        CHECK(PLine({7, 7, 9, 9}).intersection(square).empty());
+        CHECK(PLine({7, 7, 9, 9}).intersection<int>(square).empty());
     }
 }

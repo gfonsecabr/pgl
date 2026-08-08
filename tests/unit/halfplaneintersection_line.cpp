@@ -279,10 +279,10 @@ TEST_CASE("Halfplane pair predicates") {
 
 TEST_CASE("Halfplane intersection construction chains exactly") {
     Region k;  // the whole plane
-    const auto once = k.intersection(yGE0);
+    const auto once = k.intersection<int>(yGE0);
     CHECK(once.size() == 1);
-    const auto twice = once.intersection(xGE0);
+    const auto twice = once.intersection<int>(xGE0);
     CHECK(twice == Region({yGE0, xGE0}));
-    const auto vanished = twice.intersection(Halfplane(1, -1, 0, -1));  // y <= -1
+    const auto vanished = twice.intersection<int>(Halfplane(1, -1, 0, -1));  // y <= -1
     CHECK(vanished.isEmpty());
 }

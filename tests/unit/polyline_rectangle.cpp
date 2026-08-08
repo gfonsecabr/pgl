@@ -115,7 +115,7 @@ TEST_CASE("Polyline and Rectangle intersection pieces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("a containing box returns the edges themselves") {
-        const auto pieces = zig.intersection(box);
+        const auto pieces = zig.intersection<int>(box);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
@@ -124,13 +124,13 @@ TEST_CASE("Polyline and Rectangle intersection pieces") {
     }
 
     SUBCASE("a clipping box truncates the edge") {
-        const auto pieces = zig.intersection(Box(Point(0, 0), Point(2, 1)));
+        const auto pieces = zig.intersection<int>(Box(Point(0, 0), Point(2, 1)));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(1, 1)));
     }
 
     SUBCASE("a disjoint box") {
-        CHECK(zig.intersection(Box(Point(5, 5), Point(6, 6))).empty());
+        CHECK(zig.intersection<int>(Box(Point(5, 5), Point(6, 6))).empty());
     }
 }

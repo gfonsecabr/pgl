@@ -113,12 +113,12 @@ TEST_CASE("OrientedSegment and OrientedLine intersection construction, both dire
     const OrientedSegment horiz({4, 0}, {0, 0});
 
     SUBCASE("proper crossing yields a single point") {
-        const auto r1 = vert.intersection(horiz);
+        const auto r1 = vert.intersection<int>(horiz);
         REQUIRE(r1);
         REQUIRE(std::holds_alternative<Point>(*r1));
         CHECK_MESSAGE(std::get<Point>(*r1) == Point(2, 0), "vert ∩ horiz");
 
-        const auto r2 = horiz.intersection(vert);
+        const auto r2 = horiz.intersection<int>(vert);
         REQUIRE(r2);
         REQUIRE(std::holds_alternative<Point>(*r2));
         CHECK_MESSAGE(std::get<Point>(*r2) == Point(2, 0), "horiz ∩ vert");
@@ -126,7 +126,7 @@ TEST_CASE("OrientedSegment and OrientedLine intersection construction, both dire
 
     SUBCASE("collinear: line intersection with collinear OS returns that segment") {
         const OrientedLine col({0, 0}, {4, 0});
-        const auto r = col.intersection(horiz);
+        const auto r = col.intersection<int>(horiz);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({0, 0}, {4, 0}), "col ∩ horiz");
@@ -134,6 +134,6 @@ TEST_CASE("OrientedSegment and OrientedLine intersection construction, both dire
 
     SUBCASE("disjoint: empty result") {
         const OrientedLine distant({10, 0}, {10, 5});
-        CHECK_FALSE_MESSAGE(distant.intersection(horiz), "distant ∩ horiz should be empty");
+        CHECK_FALSE_MESSAGE(distant.intersection<int>(horiz), "distant ∩ horiz should be empty");
     }
 }

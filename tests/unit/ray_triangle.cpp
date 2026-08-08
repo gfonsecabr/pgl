@@ -126,13 +126,13 @@ TEST_CASE("Triangle intersection with Ray returns clipped segment or touching po
     }
 
     SUBCASE("ray touching only a vertex: Point result") {
-        const auto r = tri.intersection(Ray({-1, 1}, {0, 0}));
+        const auto r = tri.intersection<int>(Ray({-1, 1}, {0, 0}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(0, 0));
     }
 
     SUBCASE("ray pointing away: empty") {
-        CHECK_FALSE(tri.intersection(Ray({5, 5}, {6, 6})));
+        CHECK_FALSE(tri.intersection<int>(Ray({5, 5}, {6, 6})));
     }
 }

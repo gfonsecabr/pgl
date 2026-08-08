@@ -77,7 +77,8 @@ If we want to scale around a particular point `p`, we can use a combination of t
 
 ```c++
 pgl::Segment s = {2,3,4,5};   // s = (2,3)--(4,5)
-pgl::Point p = s.midpoint();  // p = (3,4)
+auto exactMidpoint = s.midpoint(); // Point<ERational>(3,4) by default
+pgl::Point p = s.midpoint<int>();  // safe here because this midpoint is integral
 pgl::Segment t = 3*(s-p) + p; // t = (0,1)--(6,7)
 ```
 
@@ -95,12 +96,7 @@ auto t = pgl::Transformation<int>::rotation90(1) * pgl::Transformation<int>::tra
 auto rotated = t * s;
 ```
 
-Factories cover the common exact cases: `identity()`, `translation(dx,dy)`,
-`scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees),
-`shearX(k)`, `shearY(k)`, `reflectionX()`, `reflectionY()`. An arbitrary-angle
-`rotation<ResultNumber=double>(radians)` is also available but, unlike
-`rotation90`, requires an explicit floating-point `ResultNumber` since a
-general angle is generally irrational.
+Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees), `shearX(k)`, `shearY(k)`, `reflectionX()`, `reflectionY()`. An arbitrary-angle `rotation<ResultNumber=double>(radians)` is also available but, unlike `rotation90`, returns a floating-point transformation since a general angle is generally irrational. The default is `double`; an explicitly requested result type must also be floating-point.
 
 `determinant()` is negative exactly when the transformation reverses
 orientation (a reflection, or an odd number of shears/reflections composed
@@ -110,10 +106,7 @@ own constructors, and `Halfplane` swaps its source and target to keep the same
 interior, mirroring the existing negative-scalar handling already used by
 `scaledUpX`.
 
-`inverse<ResultNumber = Number>()` returns the inverse transformation.
-**Warning:** this divides by `determinant()`, so for an integral `Number` it
-is inexact unless `ResultNumber` is a type such as `Rational<Number>` that
-represents the division exactly.
+`inverse<ResultNumber>()` returns the inverse transformation. Integral transformations therefore return an exact `Transformation<ERational>` by default; floating-point and rational matrix types retain their own number type. An explicitly requested integral `ResultNumber` can still truncate the division by `determinant()`.
 
 `Transformation` is applied to every shape except `Rectangle` and `Disk`: a
 general affine map turns a rectangle into a parallelogram and a disk into an
@@ -128,8 +121,9 @@ The intersection of any two shapes may be calculated as follows. Note that the i
 ```c++
 pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
 auto isec(s.intersection(t));
-// The type of isec here is std::optional<std::variant<pgl::Point,pgl::Segment>>
-pgl::Point p = std::get<0>(*isec);
+// The type is std::optional<std::variant<pgl::EPoint,pgl::ESegment>>:
+// an integral receiver widens a construction that may divide to ERational.
+pgl::EPoint p = std::get<0>(*isec);
 // p = (3,3)
 ```
 
@@ -137,8 +131,8 @@ When the intersection can be represented as a `Shape`, you can convert directly:
 
 ```c++
 pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
-pgl::Shape isec(s.intersection(t));
-pgl::Point<> p(isec);
+pgl::EShape isec(s.intersection(t));
+pgl::EPoint p(isec);
 // p = (3,3)
 ```
 
@@ -218,11 +212,7 @@ pieces of $\mathrm{closure}(A^\circ)$, which is `A` without its slits.
 *not* `A` but `A.regularized()`: idempotence holds up to regularization and no
 further.
 
-The boundaries can cross at non-integral points, so all four take the usual
-`ResultNumber` parameter: `a.difference<pgl::ERational>(b)`. The arrangement
-itself is always built over exact rationals and converted only at the end, so an
-integral result type is exact whenever the crossings are integral — a
-rectilinear operation on rectilinear input needs nothing special.
+The boundaries can cross at non-integral points, so all four take the usual `ResultNumber` parameter. Integral receivers return ERational regions by default; an explicit override such as `a.difference<int>(b)` requests conversion back to the lattice. The arrangement itself is always built over exact rationals and converted only at the end, so an explicitly integral result type is exact whenever the crossings are integral.
 
 #### Why `intersection` is different
 
@@ -268,9 +258,7 @@ area, so the regularized answer would always be nothing.
 shown [above](#intersection), the same ones `polygon.intersection(segment)`
 returns.
 
-One further difference is worth knowing: `Polygon::intersection` computes in the
-result type, so an integral one truncates every crossing, while the region
-operations above never do.
+One further difference is worth knowing: `Polygon::intersection` computes each crossing directly in the result type, so an explicitly integral type can alter the reported geometry. The region operations instead build the arrangement in exact rationals and only convert the finished vertices to the requested type.
 
 ### Minkowski Sum
 
@@ -352,12 +340,11 @@ perfectly ordinary integer operands can produce on their own:
 
 ```c++
 pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});    // a U
-u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // notch tip truncated
-u.minkowskiSum<pgl::ERational>(pgl::Triangle(-2,-1, 2,0, 0,2)); // tip at (16/5, 34/5)
+u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // exact by default
+u.minkowskiSum<int>(pgl::Triangle(-2,-1, 2,0, 0,2));           // notch tip truncated
 ```
 
-Both operands are convex-edged and integral, and the answer still is not. Ask for
-an exact `ResultNumber` unless you know the sum lands on the lattice.
+Both operands are convex-edged and integral, but the answer need not land on the integer lattice. The division-capable default preserves the tip at `(16/5,34/5)`; request an integral `ResultNumber` only when truncation is wanted or the sum is known to stay on the lattice.
 
 A region operand needs nothing special for its holes — they are simply where the
 decomposition has no piece — but its **slits** do sweep out area, so they are part
@@ -447,9 +434,9 @@ the sum's two, which the chain hands over already sorted along x.
 
 ```c++
 pgl::MonotoneChain<> peak({0,0, 1,1, 2,0});
-peak.minkowskiSum<pgl::ERational>(pgl::Rectangle(0,0, 1,1));
-// Polygon[(0,0),(1,0),(3/2,1/2),(2,0),(3,0),(3,1),(2,2),(1,2),(0,1)]
 peak.minkowskiSum(pgl::Rectangle(0,0, 1,1));
+// Polygon[(0,0),(1,0),(3/2,1/2),(2,0),(3,0),(3,1),(2,2),(1,2),(0,1)]
+peak.minkowskiSum<int>(pgl::Rectangle(0,0, 1,1));
 // Polygon[(0,0),(3,0),(3,1),(2,2),(1,2),(0,1)] — the notch under the apex lands
 // at (3/2,1/2), and an integral result type truncates it away
 ```
@@ -461,13 +448,7 @@ one is linear in the pieces for every input anyone writes down, so the gap widen
 with the chain: for a chain of $n$ vertices against a rectangle it is some 40
 times faster at $n = 4$ and some 750 times at $n = 256$, for the identical answer.
 
-It is also **exact in integers**. Every vertex of every piece is a sum of two
-input vertices, and the sweep decides everything with integer determinants — it
-carries a boundary as a sequence of those integer segments and leaves the points
-where one takes over from the next implicit, so no coordinate is ever divided. A
-sum whose boundary has no crossing is computed and returned exactly in `int`;
-only a crossing can land off the lattice, and only that one vertex is formed as
-an exact fraction and converted once, exactly as above.
+The sweep is also exact. Every vertex of every piece is a sum of two input vertices, and it decides the boundary with integer determinants, leaving the points where one piece takes over from the next implicit. Only an actual crossing can land off the lattice; that vertex is formed as an exact fraction. The public overload consequently keeps the division-capable default even though a crossing-free result could be represented in `int`. Request `int` explicitly when that property is known and a native-coordinate return type is preferable.
 
 Unlike the sums above this one is **not regularized** — it is the point set — so a
 degenerate operand gives back a degenerate polygon rather than nothing:
@@ -490,6 +471,14 @@ instead — and so does a pair whose sum is a set of regions, which no single
 `Shape` alternative can hold.
 
 ### Other Methods for Shapes
+
+Methods that construct coordinates or return numeric measurements use one of three result-number defaults:
+
+- `ResultNumber = NumberType` when the operation needs no division, such as Point–Point distance or rectangle area;
+- `ResultNumber = division_result_t<NumberType>` when the operation may divide. Integral and `BigInt` receivers widen to `ERational`, while floating-point and already-rational receivers retain their coordinate type; and
+- `ResultNumber = double` when a supported result may be irrational, such as a disk radius or a distance involving a disk.
+
+The policy is receiver-only: mixed-coordinate calls use the receiver's default. An explicit result template argument overrides it. Explicit integral results can truncate an operation that divides; for disk computations, a non-floating request is served in `double` because an exact rational result is not generally available.
 
 - `rotated90(int k = 1)`: Returns the shape rotated by `90k` degrees around the
   origin.
@@ -516,41 +505,11 @@ instead — and so does a pair whose sum is a set of regions, which no single
 
 - `scaleDownY(Number)`: Divides the y-coordinate by a number.
 
-- `squaredDistance<ResultNumber = NumberType>(Shape)`: Returns the squared
-  distance, computed in `ResultNumber` (default: the shape's coordinate type),
-  mirroring `intersection`. **Warning:** distances to a line, segment or ray
-  divide by a squared length, so with an integer `ResultNumber` the result is
-  truncated; request a floating-point or `Rational` type, e.g.
-  `a.squaredDistance<double>(b)`, for an accurate value. Distances between
-  points and between axis-aligned rectangles use no division and are exact.
+- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance, computed in `ResultNumber`. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; pairs involving `Disk`, and calls through a runtime `Shape`, default to `double`. An explicitly integral result truncates any projection division.
 
-- `squaredHausdorffDistance<ResultNumber = NumberType>(Shape)`: Returns the
-  squared Hausdorff distance, with the same `ResultNumber` convention and
-  truncation warning as `squaredDistance`. Defined for every pair among
-  `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`
-  — all bounded, convex shapes, so the directed distance in either direction
-  is always attained at a vertex. Not defined for `Line`, `OrientedLine`,
-  `Ray`, `Halfplane`, or `HalfplaneIntersection` (unbounded, or possibly
-  unbounded, so the Hausdorff distance to or from them is generally infinite),
-  nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
+- `squaredHausdorffDistance<ResultNumber>(Shape)`: Returns the squared Hausdorff distance. Pair-specific defaults are native when the extrema only reuse stored vertices and `division_result_t<NumberType>` when an edge projection may be needed; runtime `Shape` uses the latter. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex` — all bounded, convex shapes, so the directed distance in either direction is always attained at a vertex. Not defined for `Line`, `OrientedLine`, `Ray`, `Halfplane`, or `HalfplaneIntersection` (unbounded, or possibly unbounded, so the Hausdorff distance to or from them is generally infinite), nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
 
-- `distanceL1(Shape)` / `distanceLInf(Shape)`: Return the Manhattan (L1) or
-  Chebyshev (LInf) distance to the given shape. Neither metric needs
-  squaring to stay exact, so `Point`-to-`Point` returns an exact value with
-  no `ResultNumber` template. Every other pair is
-  `distanceL1<ResultNumber = NumberType>(Shape)` /
-  `distanceLInf<ResultNumber = NumberType>(Shape)`, with the same
-  `ResultNumber` convention and truncation warning as `squaredDistance` (a
-  non-axis-aligned segment, ray, or line generally has a fractional exact
-  distance). Defined for every pair among `Point`, `Segment`,
-  `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`,
-  `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and
-  `HalfplaneIntersection`, plus `Disk`-`Point`: like `Disk`'s
-  other overloads this always returns `double`, since there is no closed
-  form for the distance from a point to a circle under either metric and it
-  is instead found with a numeric search. The remaining `Disk` pairs (`Disk`
-  against any shape other than `Point`, and `Disk`-`Disk`) are not yet
-  implemented — see [todo](todo.md).
+- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus `Disk`-`Point`. Disk distances default to `double`, since there is no closed form for the distance from a point to a circle under either metric and it is instead found with a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and `Disk`-`Disk`) are not yet implemented — see [todo](todo.md).
 
 - `hausdorffDistanceL1(Shape)` / `hausdorffDistanceLInf(Shape)`: Return the
   L1 or LInf Hausdorff distance, with the same `ResultNumber` convention as
@@ -558,18 +517,17 @@ instead — and so does a pair whose sum is a set of regions, which no single
   `squaredHausdorffDistance`: `Point`, `Segment`, `OrientedSegment`,
   `Rectangle`, `Triangle`, and `Convex`.
 
-- `bbox()`: Returns the minimum bounding box of the shape.
+- `bbox()`: Returns the minimum bounding box in the stored point type for ordinary shapes and for runtime `Shape`. `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()`, because its implicit vertices may be fractional.
 
 - `fbox<T>()`: Returns a bounding box of the shape using floating point coordinates of type `T`. The bounding box may not be minimum but must contain the entire shape. The `min` coordinates are rounded down and the `max` are rounded up to the nearest floating point. If `!s1.fbox().intersects(s2.fbox()))` then `!s1.bbox().intersects(s2.bbox()))`. Also, if `s1.fbox().crosses(s2.fbox()))` then `s1.bbox().crosses(s2.bbox()))`.
 
-- `area()`: Returns the area.
+- `area<ResultNumber>()`: Returns the area. Rectangle and one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; `Disk` defaults to `double` because its area contains π.
 
-- `twiceArea()`: Returns two times the area.
+- `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. `HalfplaneIntersection` uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.
 
-- `diameter()`: Returns a segment that defines the diameter.
+- `diameter()`: Returns a segment that defines the diameter in native coordinates. `Disk` instead exposes `diameter<ResultNumber = division_result_t<NumberType>>()`, since finding the center of a three-point disk may divide.
 
-- `pointInside()`: Returns a point strictly in the interior of the shape. Uses
-  only division by a power of 2.
+- `pointInside<ResultNumber>()`: Returns a point strictly in the interior of the shape. Forms that divide by a power of two default to `division_result_t<NumberType>`; forms that simply select a stored point default to `NumberType`.
 
 - `pointInsideInteriorContainedIn(other)`: Returns true if some point in this
   shape's relative interior lies in the strict interior of the argument `other`.
@@ -604,8 +562,7 @@ is used for shapes of constant size and an
 [`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) is
 used otherwise.
 
-- `vertices()`: Returns an `std::array` or an `std::vector` of `Point` that are
-  the vertices. 
+- `vertices()`: Returns an `std::array` or an `std::vector` of the stored `Point` type for ordinary shapes. `HalfplaneIntersection` exposes `vertices<ResultNumber>()` because its vertices are derived from line intersections.
 
 - `edges()`: Returns an `std::array` or an `std::vector` of `Segment` that are
   the edges.

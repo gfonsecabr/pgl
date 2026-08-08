@@ -79,7 +79,7 @@ TEST_CASE("MonotoneChain and Convex distance and intersection pieces") {
     CHECK(right.squaredDistance<Rational>(square) == Rational(4));
     CHECK(right.distanceL1<Rational>(square) == Rational(2));
 
-    const auto pieces = Chain({-2, 3, 8, 3}).intersection(square);
+    const auto pieces = Chain({-2, 3, 8, 3}).intersection<int>(square);
     REQUIRE(pieces.size() == 1);
     REQUIRE(std::holds_alternative<pgl::Segment<Point>>(pieces[0]));
     CHECK(std::get<pgl::Segment<Point>>(pieces[0]) == pgl::Segment<Point>({0, 3}, {6, 3}));

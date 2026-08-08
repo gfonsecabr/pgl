@@ -111,10 +111,10 @@ TEST_CASE("Point predicates: intersects, interiorsIntersect, separates, crosses"
 
 TEST_CASE("Point intersection construction") {
     const Region k = unitSquare();
-    const auto hit = k.intersection(Point(1, 1));
+    const auto hit = k.intersection<int>(Point(1, 1));
     REQUIRE(hit.has_value());
     CHECK(*hit == Point(1, 1));
-    CHECK(!k.intersection(Point(3, 3)).has_value());
+    CHECK(!k.intersection<int>(Point(3, 3)).has_value());
 }
 
 TEST_CASE("Mixed coordinate types") {

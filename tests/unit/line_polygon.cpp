@@ -101,7 +101,7 @@ TEST_CASE("Polygon intersects Line into points and chords") {
     const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
 
     SUBCASE("a horizontal line high up cuts both prongs into two chords") {
-        const auto pieces = u.intersection(Line({-5, 5}, {5, 5}));
+        const auto pieces = u.intersection<int>(Line({-5, 5}, {5, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -109,7 +109,7 @@ TEST_CASE("Polygon intersects Line into points and chords") {
     }
 
     SUBCASE("a line across the solid base is a single chord") {
-        const auto pieces = u.intersection(Line({0, 1}, {1, 1}));
+        const auto pieces = u.intersection<int>(Line({0, 1}, {1, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 1}, {10, 1})));
@@ -118,7 +118,7 @@ TEST_CASE("Polygon intersects Line into points and chords") {
     SUBCASE("a line lying along the two top edges yields two chords") {
         // y = 10 runs along the prongs' top edges (x in [0,3] and [7,10]); the
         // notch between them opens the top, so the overlap is two segments.
-        const auto pieces = u.intersection(Line({-1, 10}, {1, 10}));
+        const auto pieces = u.intersection<int>(Line({-1, 10}, {1, 10}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 10}, {3, 10})));
@@ -126,11 +126,11 @@ TEST_CASE("Polygon intersects Line into points and chords") {
     }
 
     SUBCASE("a line missing the polygon yields nothing") {
-        CHECK(u.intersection(Line({-5, 20}, {5, 20})).empty());
+        CHECK(u.intersection<int>(Line({-5, 20}, {5, 20})).empty());
     }
 
     SUBCASE("a vertical line through a prong is one chord") {
-        const auto pieces = u.intersection(Line({1, 0}, {1, 1}));
+        const auto pieces = u.intersection<int>(Line({1, 0}, {1, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({1, 0}, {1, 10})));
@@ -138,10 +138,10 @@ TEST_CASE("Polygon intersects Line into points and chords") {
 
     SUBCASE("an oriented line gives the same result, ignoring direction") {
         using OrientedLine = pgl::OrientedLine<Point>;
-        const auto forward = u.intersection(OrientedLine({-5, 5}, {5, 5}));
-        const auto reverse = u.intersection(OrientedLine({5, 5}, {-5, 5}));
+        const auto forward = u.intersection<int>(OrientedLine({-5, 5}, {5, 5}));
+        const auto reverse = u.intersection<int>(OrientedLine({5, 5}, {-5, 5}));
 
-        CHECK(forward == u.intersection(Line({-5, 5}, {5, 5})));
+        CHECK(forward == u.intersection<int>(Line({-5, 5}, {5, 5})));
         CHECK(reverse == forward);
     }
 }

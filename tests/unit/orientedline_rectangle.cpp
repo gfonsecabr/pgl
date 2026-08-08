@@ -72,7 +72,7 @@ TEST_CASE("Rectangle intersection construction with OrientedLine") {
 
     SUBCASE("a crossing OrientedLine clips to the interior chord segment") {
         const OrientedLine crossing({2, -1}, {2, 4});
-        const auto r = rect.intersection(crossing);
+        const auto r = rect.intersection<int>(crossing);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({2, 0}, {2, 3}),
@@ -81,6 +81,6 @@ TEST_CASE("Rectangle intersection construction with OrientedLine") {
 
     SUBCASE("OrientedLine outside yields empty") {
         const OrientedLine outside({0, 5}, {4, 5});
-        CHECK_FALSE_MESSAGE(rect.intersection(outside), "rect ∩ outside OL should be empty");
+        CHECK_FALSE_MESSAGE(rect.intersection<int>(outside), "rect ∩ outside OL should be empty");
     }
 }

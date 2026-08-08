@@ -137,7 +137,7 @@ static void checkAgainstPolyline(const Chain& a, const ShapeB& b) {
 TEST_CASE("minkowskiSum: the sum of a monotone chain with a convex shape is one polygon") {
     // A chain that is a segment is convex, so this is the plain convex merge
     // written as a polygon: the unit square dragged along four units of x.
-    CHECK(segmentChain().minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1))) ==
+    CHECK(segmentChain().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(1, 1))) ==
           PolygonShape({Point(0, 0), Point(5, 0), Point(5, 1), Point(0, 1)}));
 
     // The peak. Below, the two pieces' lower boundaries cross under the apex at
@@ -150,7 +150,7 @@ TEST_CASE("minkowskiSum: the sum of a monotone chain with a convex shape is one 
     // A wide operand swallows a saw whole: the lower boundary is flat because
     // some tooth's foot is always within reach, and the upper one is flat between
     // the outermost teeth for the same reason.
-    CHECK(sawChain().minkowskiSum(RectangleShape(Point(0, 0), Point(4, 1))) ==
+    CHECK(sawChain().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(4, 1))) ==
           PolygonShape({Point(0, 0), Point(8, 0), Point(8, 1), Point(7, 4), Point(1, 4),
                         Point(0, 1)}));
 
@@ -216,7 +216,7 @@ TEST_CASE("minkowskiSum: a vertical chain edge steps the boundary") {
     // but it is the one shape a boundary read as a function of x cannot have, so
     // it is worth pinning down on its own.
     const Chain step({Point(0, 0), Point(0, 4)});
-    CHECK(step.minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1))) ==
+    CHECK(step.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(1, 1))) ==
           PolygonShape({Point(0, 0), Point(1, 0), Point(1, 5), Point(0, 5)}));
 
     // A vertical edge of 5 against an operand only 1 wide: the sum keeps the
@@ -235,7 +235,7 @@ TEST_CASE("minkowskiSum: an operand of no width sweeps the chain vertically") {
     // the sum's fibre over x is the chain's own fibre widened by the operand's, so
     // the answer is the chain traced out through one end of the operand and back
     // through the other.
-    const auto sum = peakChain().minkowskiSum(RectangleShape(Point(0, 0), Point(0, 2)));
+    const auto sum = peakChain().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(0, 2)));
     CHECK(sum == PolygonShape({Point(0, 0), Point(1, 1), Point(2, 0), Point(2, 2), Point(1, 3),
                                Point(0, 2)}));
     checkAgainstDefinition(peakChain(), RectangleShape(Point(0, 0), Point(0, 2)), -3, 8);
@@ -276,7 +276,7 @@ TEST_CASE("minkowskiSum: exact for integer coordinates, and off the lattice on r
     // Asked for an integral result, that one vertex truncates, exactly as the
     // boolean operations and the region-valued sums truncate theirs. Every other
     // vertex of the answer is a sum of two input vertices and survives intact.
-    const auto truncated = valleyChain().minkowskiSum(RectangleShape(Point(0, 0), Point(1, 1)));
+    const auto truncated = valleyChain().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(1, 1)));
     REQUIRE(truncated.size() == notch.size());
     for (std::size_t i = 0; i < truncated.size(); ++i) {
         const bool isTheCrossing = notch[i] == EPoint(pgl::ERational(3, 2), pgl::ERational(5, 2));
@@ -312,7 +312,7 @@ TEST_CASE("minkowskiSum: a summand with no area keeps the region-valued contract
     // parallel, and consecutive pieces then meet along a segment rather than
     // overlapping. So the sum can pinch shut, which a polygon may not do, and
     // these two operands answer with regions like a `Polyline`'s.
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const Segment&>())),
                                  std::vector<Region>>);
 
@@ -349,16 +349,16 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     // The three convex operands return a polygon; a non-convex polygon returns
     // one region, while thin operands and non-regular regions may need several.
     static_assert(!pgl::MinkowskiSummableConcept<Chain, RectangleShape>);
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const RectangleShape&>())),
                                  PolygonShape>);
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const Triangle&>())),
                                  PolygonShape>);
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const Convex&>())),
                                  PolygonShape>);
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const OrientedSegment&>())),
                                  std::vector<Region>>);
 
@@ -369,7 +369,7 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(summable<PolygonShape, Chain>);
     static_assert(summable<Chain, Region>);
     static_assert(summable<Region, Chain>);
-    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const PolygonShape&>())),
                                  Region>);
 

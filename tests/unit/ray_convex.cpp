@@ -54,7 +54,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK(cut.crosses(triangle));
         CHECK(triangle.crosses(cut));
 
-        const auto clipped = cut.intersection(triangle);
+        const auto clipped = cut.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 2), Point(4, 2)));
@@ -75,7 +75,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK_FALSE(out.crosses(triangle));
         CHECK_FALSE(triangle.crosses(out));
 
-        const auto clipped = out.intersection(triangle);
+        const auto clipped = out.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(2, 2), Point(4, 2)));
@@ -92,7 +92,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK_FALSE(triangle.separates(away));
         CHECK_FALSE(away.crosses(triangle));
         CHECK_FALSE(triangle.crosses(away));
-        CHECK_FALSE(away.intersection(triangle));
+        CHECK_FALSE(away.intersection<int>(triangle));
     }
 
     SUBCASE("ray runs along a triangle edge") {
@@ -109,7 +109,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK_FALSE(along_edge.crosses(triangle));
         CHECK_FALSE(triangle.crosses(along_edge));
 
-        const auto overlap = along_edge.intersection(triangle);
+        const auto overlap = along_edge.intersection<int>(triangle);
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Segment>(*overlap));
         CHECK(std::get<Segment>(*overlap) == Segment(Point(0, 0), Point(6, 0)));
@@ -129,7 +129,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK_FALSE(tangent.crosses(triangle));
         CHECK_FALSE(triangle.crosses(tangent));
 
-        const auto isec = tangent.intersection(triangle);
+        const auto isec = tangent.intersection<int>(triangle);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(6, 0));
@@ -142,7 +142,7 @@ TEST_CASE("Ray and triangle as convex predicates tests") {
         CHECK_FALSE(triangle.intersects(farShape));
         CHECK_FALSE(farShape.interiorsIntersect(triangle));
         CHECK_FALSE(triangle.interiorsIntersect(farShape));
-        CHECK_FALSE(farShape.intersection(triangle));
+        CHECK_FALSE(farShape.intersection<int>(triangle));
     }
 }
 
@@ -174,7 +174,7 @@ TEST_CASE("Ray and convex predicates are invariant under convex translation") {
         CHECK(cut.crosses(pentagon));
         CHECK(pentagon.crosses(cut));
         {
-            const auto clipped = cut.intersection(pentagon);
+            const auto clipped = cut.intersection<int>(pentagon);
             REQUIRE(clipped);
             REQUIRE(std::holds_alternative<Segment>(*clipped));
             CHECK(std::get<Segment>(*clipped) == Segment(pt({2, 2}), pt({22, 2})));
@@ -187,7 +187,7 @@ TEST_CASE("Ray and convex predicates are invariant under convex translation") {
         CHECK_FALSE(along_edge.interiorsIntersect(pentagon));
         CHECK_FALSE(pentagon.interiorsIntersect(along_edge));
         {
-            const auto overlap = along_edge.intersection(pentagon);
+            const auto overlap = along_edge.intersection<int>(pentagon);
             REQUIRE(overlap);
             REQUIRE(std::holds_alternative<Segment>(*overlap));
             CHECK(std::get<Segment>(*overlap) == Segment(pt({8, 8}), pt({16, 8})));
@@ -200,7 +200,7 @@ TEST_CASE("Ray and convex predicates are invariant under convex translation") {
         CHECK_FALSE(tangent.interiorsIntersect(pentagon));
         CHECK_FALSE(pentagon.interiorsIntersect(tangent));
         {
-            const auto isec = tangent.intersection(pentagon);
+            const auto isec = tangent.intersection<int>(pentagon);
             REQUIRE(isec);
             REQUIRE(std::holds_alternative<Point>(*isec));
             CHECK(std::get<Point>(*isec) == pt({12, -8}));
@@ -212,6 +212,6 @@ TEST_CASE("Ray and convex predicates are invariant under convex translation") {
         CHECK_FALSE(pentagon.intersects(away));
         CHECK_FALSE(away.interiorsIntersect(pentagon));
         CHECK_FALSE(pentagon.interiorsIntersect(away));
-        CHECK_FALSE(away.intersection(pentagon));
+        CHECK_FALSE(away.intersection<int>(pentagon));
     }
 }

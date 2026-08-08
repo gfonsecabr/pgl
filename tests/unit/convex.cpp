@@ -138,7 +138,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Interior crossing: horizontal line y=1 → segment (0,1)-(3,1)
     {
         const Line hline({0,1},{1,1});
-        const auto r = tri.intersection(hline);
+        const auto r = tri.intersection<int>(hline);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(0,1));
@@ -148,7 +148,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Interior crossing: vertical line x=2 → segment (2,0)-(2,2)
     {
         const Line vline({2,0},{2,1});
-        const auto r = tri.intersection(vline);
+        const auto r = tri.intersection<int>(vline);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(2,0));
@@ -158,7 +158,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Line along bottom edge (y=0) → segment (0,0)-(4,0)
     {
         const Line edge({0,0},{4,0});
-        const auto r = tri.intersection(edge);
+        const auto r = tri.intersection<int>(edge);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(0,0));
@@ -169,7 +169,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     {
         // Line x+y=0 through (-1,1) and (1,-1): only (0,0) is on it
         const Line tangent({-1,1},{1,-1});
-        const auto r = tri.intersection(tangent);
+        const auto r = tri.intersection<int>(tangent);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(0,0));
@@ -178,7 +178,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Line tangent at (0,4) from outside: y=4 touches only vertex (0,4)
     {
         const Line top({0,4},{1,4});
-        const auto r = tri.intersection(top);
+        const auto r = tri.intersection<int>(top);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(0,4));
@@ -187,13 +187,13 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Complete miss: line y=-1 below the triangle
     {
         const Line below({0,-1},{1,-1});
-        CHECK_FALSE(tri.intersection(below));
+        CHECK_FALSE(tri.intersection<int>(below));
     }
 
     // Complete miss: line x=-1 left of the triangle
     {
         const Line left_of({-1,0},{-1,1});
-        CHECK_FALSE(tri.intersection(left_of));
+        CHECK_FALSE(tri.intersection<int>(left_of));
     }
 
     // Square (0,0)-(4,0)-(4,4)-(0,4)
@@ -202,7 +202,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Diagonal y=x: enters at (0,0) and exits at (4,4)
     {
         const Line diag({0,0},{1,1});
-        const auto r = sq.intersection(diag);
+        const auto r = sq.intersection<int>(diag);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(0,0));
@@ -212,7 +212,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Horizontal y=2 through interior: (0,2)-(4,2)
     {
         const Line mid({0,2},{1,2});
-        const auto r = sq.intersection(mid);
+        const auto r = sq.intersection<int>(mid);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(0,2));
@@ -225,7 +225,7 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
         shifted += Point(10, 10);
         // Horizontal line y=11 → segment (10,11)-(13,11)
         const Line hline({0,11},{1,11});
-        const auto r = shifted.intersection(hline);
+        const auto r = shifted.intersection<int>(hline);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r).min() == Point(10,11));
@@ -235,17 +235,17 @@ TEST_CASE("Convex::intersection(Line) handles all geometric cases") {
     // Degenerate: empty convex → always empty
     {
         const Convex empty;
-        CHECK_FALSE(empty.intersection(Line({0,0},{1,0})));
+        CHECK_FALSE(empty.intersection<int>(Line({0,0},{1,0})));
     }
 
     // Degenerate: single-vertex convex
     {
         const Convex pt(std::vector<Point>{{3,5}});
-        const auto on  = pt.intersection(Line({0,5},{1,5}));
+        const auto on  = pt.intersection<int>(Line({0,5},{1,5}));
         REQUIRE(on);
         REQUIRE(std::holds_alternative<Point>(*on));
         CHECK(std::get<Point>(*on) == Point(3,5));
-        CHECK_FALSE(pt.intersection(Line({0,6},{1,6})));
+        CHECK_FALSE(pt.intersection<int>(Line({0,6},{1,6})));
     }
 }
 
@@ -258,7 +258,7 @@ TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
 
     SUBCASE("overlapping squares meet in a smaller square") {
         const Convex other(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}});
-        const auto r = sq.intersection(other);
+        const auto r = sq.intersection<int>(other);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Convex>(*r));
         CHECK(std::get<Convex>(*r).twiceArea() == 8);  // the 2x2 square [2,4]^2
@@ -266,7 +266,7 @@ TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
 
     SUBCASE("edge-adjacent squares meet along a segment") {
         const Convex right(std::vector<Point>{{4, 0}, {8, 0}, {8, 4}, {4, 4}});
-        const auto r = sq.intersection(right);
+        const auto r = sq.intersection<int>(right);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment(Point(4, 0), Point(4, 4)));
@@ -274,7 +274,7 @@ TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
 
     SUBCASE("corner-touching squares meet at a single point, not a degenerate segment") {
         const Convex corner(std::vector<Point>{{4, 4}, {8, 4}, {8, 8}, {4, 8}});
-        const auto r = sq.intersection(corner);
+        const auto r = sq.intersection<int>(corner);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(4, 4));
@@ -282,7 +282,7 @@ TEST_CASE("Convex::intersection(Convex) returns a polygon, segment, or point") {
 
     SUBCASE("disjoint convex polygons have no intersection") {
         const Convex away(std::vector<Point>{{10, 10}, {12, 10}, {11, 12}});
-        CHECK_FALSE(sq.intersection(away));
+        CHECK_FALSE(sq.intersection<int>(away));
     }
 }
 
@@ -793,7 +793,7 @@ TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
         Convex c(pts);
         if (c.size() < 2) continue;
         const auto d = c.diameter();
-        const int64_t got = d.min().squaredDistance(d.max());
+        const int64_t got = d.min().squaredDistance<int>(d.max());
         CHECK_MESSAGE(got == bruteMaxSquared(c), "n=", c.size(), " trial=", trial);
     }
 
@@ -803,7 +803,7 @@ TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
         CHECK(pt.min() == BPoint(3, 7));
         CHECK(pt.max() == BPoint(3, 7));
         const auto seg = Convex(std::vector<BPoint>{{0, 0}, {6, 8}}).diameter();
-        CHECK(seg.min().squaredDistance(seg.max()) == 100);
+        CHECK(seg.min().squaredDistance<int>(seg.max()) == 100);
     }
 }
 
@@ -958,8 +958,8 @@ TEST_CASE("Convex L1/LInf distance to a point matches an O(n) brute-force edge s
                 continue;
             }
 
-            int expectedL1 = convex.edges().front().distanceL1(q);
-            int expectedLInf = convex.edges().front().distanceLInf(q);
+            pgl::ERational expectedL1 = convex.edges().front().distanceL1(q);
+            pgl::ERational expectedLInf = convex.edges().front().distanceLInf(q);
             for (const auto& e : convex.edges()) {
                 expectedL1 = std::min(expectedL1, e.distanceL1(q));
                 expectedLInf = std::min(expectedLInf, e.distanceLInf(q));
@@ -1154,31 +1154,31 @@ TEST_CASE("Convex squaredHausdorffDistance to lower-ranked shapes") {
     SUBCASE("point") {
         // Farthest square vertex from (7,2) is (0,4), squared distance 53,
         // which dominates the point-side (nearest-point) term.
-        CHECK(square.squaredHausdorffDistance(Point(7, 2)) == 53);
-        CHECK(Point(7, 2).squaredHausdorffDistance(square) == 53);
+        CHECK(square.squaredHausdorffDistance<int>(Point(7, 2)) == 53);
+        CHECK(Point(7, 2).squaredHausdorffDistance<int>(square) == 53);
     }
 
     SUBCASE("segment and oriented segment") {
         const Segment s({7, 1}, {7, 3});
         // Farthest square vertices from s are (0,0) and (0,4), squared distance 50.
-        CHECK(square.squaredHausdorffDistance(s) == 50);
-        CHECK(s.squaredHausdorffDistance(square) == 50);
+        CHECK(square.squaredHausdorffDistance<int>(s) == 50);
+        CHECK(s.squaredHausdorffDistance<int>(square) == 50);
 
         const OrientedSegment os({7, 1}, {7, 3});
-        CHECK(square.squaredHausdorffDistance(os) == 50);
-        CHECK(os.squaredHausdorffDistance(square) == 50);
+        CHECK(square.squaredHausdorffDistance<int>(os) == 50);
+        CHECK(os.squaredHausdorffDistance<int>(square) == 50);
     }
 
     SUBCASE("rectangle") {
         const Rectangle r({10, 10}, {12, 12});
-        CHECK(square.squaredHausdorffDistance(r) == 200);
-        CHECK(r.squaredHausdorffDistance(square) == 200);
+        CHECK(square.squaredHausdorffDistance<int>(r) == 200);
+        CHECK(r.squaredHausdorffDistance<int>(square) == 200);
     }
 
     SUBCASE("triangle") {
         const Triangle t({10, 10}, {12, 10}, {11, 12});
-        CHECK(square.squaredHausdorffDistance(t) == 200);
-        CHECK(t.squaredHausdorffDistance(square) == 200);
+        CHECK(square.squaredHausdorffDistance<int>(t) == 200);
+        CHECK(t.squaredHausdorffDistance<int>(square) == 200);
     }
 }
 

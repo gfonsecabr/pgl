@@ -28,7 +28,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK(horizontal.separates(r));
         CHECK(r.separates(horizontal));
 
-        const auto clipped = horizontal.intersection(r);
+        const auto clipped = horizontal.intersection<int>(r);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 1), Point(4, 1)));
@@ -42,7 +42,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK(vertical.interiorsIntersect(r));
         CHECK(vertical.crosses(r));
 
-        const auto clipped = vertical.intersection(r);
+        const auto clipped = vertical.intersection<int>(r);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(2, 0), Point(2, 3)));
@@ -56,7 +56,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK(diagonal.crosses(r));
         CHECK(diagonal.separates(r));
 
-        const auto clipped = diagonal.intersection(r);
+        const auto clipped = diagonal.intersection<int>(r);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 0), Point(4, 3)));
@@ -73,7 +73,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(along_top.crosses(r));
         CHECK_FALSE(along_top.separates(r));
 
-        const auto overlap = along_top.intersection(r);
+        const auto overlap = along_top.intersection<int>(r);
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Segment>(*overlap));
         CHECK(std::get<Segment>(*overlap) == Segment(Point(0, 3), Point(4, 3)));
@@ -88,7 +88,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(r.interiorsIntersect(tangent));
         CHECK_FALSE(tangent.crosses(r));
 
-        const auto isec = tangent.intersection(r);
+        const auto isec = tangent.intersection<int>(r);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(4, 0));
@@ -100,7 +100,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(parallel_line.intersects(r));
         CHECK_FALSE(parallel_line.interiorsIntersect(r));
         CHECK_FALSE(parallel_line.crosses(r));
-        CHECK_FALSE(parallel_line.intersection(r));
+        CHECK_FALSE(parallel_line.intersection<int>(r));
     }
 
     SUBCASE("line disjoint from the rectangle, slanted") {
@@ -109,7 +109,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(slanted.intersects(r));
         CHECK_FALSE(slanted.interiorsIntersect(r));
         CHECK_FALSE(slanted.crosses(r));
-        CHECK_FALSE(slanted.intersection(r));
+        CHECK_FALSE(slanted.intersection<int>(r));
     }
 
     SUBCASE("line through one corner and through interior of an opposite side") {
@@ -120,7 +120,7 @@ TEST_CASE("Line and rectangle predicates exercise the line's infinite extent") {
         CHECK(cut.crosses(r));
         CHECK(cut.separates(r));
 
-        const auto clipped = cut.intersection(r);
+        const auto clipped = cut.intersection<int>(r);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 0), Point(4, 2)));
@@ -185,7 +185,7 @@ TEST_CASE("Degenerate rectangle as a single point lies on the line") {
     CHECK(through.contains(degenerate_point));
     CHECK(through.intersects(degenerate_point));
 
-    const auto isec = through.intersection(degenerate_point);
+    const auto isec = through.intersection<int>(degenerate_point);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Point>(*isec));
     CHECK(std::get<Point>(*isec) == Point(2, 2));

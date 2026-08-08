@@ -265,14 +265,14 @@ TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
 
     SUBCASE("a half-plane through the middle keeps one half polygon") {
         // Boundary y = 5 oriented +x; interior is the upper half (y >= 5).
-        const auto pieces = square.intersection(Halfplane({0, 5}, {10, 5}));
+        const auto pieces = square.intersection<int>(Halfplane({0, 5}, {10, 5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Polygon({0, 5, 10, 5, 10, 10, 0, 10})));
     }
 
     SUBCASE("a half-plane containing the polygon returns it whole") {
-        const auto pieces = square.intersection(Halfplane({-100, -5}, {100, -5}));
+        const auto pieces = square.intersection<int>(Halfplane({-100, -5}, {100, -5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(square));
@@ -280,12 +280,12 @@ TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
 
     SUBCASE("a half-plane excluding the polygon returns nothing") {
         // Boundary y = 15 oriented +x; interior y >= 15 misses the square.
-        CHECK(square.intersection(Halfplane({-100, 15}, {100, 15})).empty());
+        CHECK(square.intersection<int>(Halfplane({-100, 15}, {100, 15})).empty());
     }
 
     SUBCASE("a half-plane tangent along the top edge yields a segment") {
         // Interior y >= 10 meets the square only along its top edge.
-        const auto pieces = square.intersection(Halfplane({0, 10}, {10, 10}));
+        const auto pieces = square.intersection<int>(Halfplane({0, 10}, {10, 10}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 10}, {10, 10})));
@@ -293,7 +293,7 @@ TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
 
     SUBCASE("a half-plane tangent at a single corner yields a point") {
         // Boundary x + y = 20 through (10,10); interior x + y >= 20.
-        const auto pieces = square.intersection(Halfplane({0, 20}, {20, 0}));
+        const auto pieces = square.intersection<int>(Halfplane({0, 20}, {20, 0}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(10, 10)));
@@ -303,7 +303,7 @@ TEST_CASE("Polygon intersects Halfplane into polygons, segments, and points") {
         // U-shape: prongs x in [0,3] and [7,10], joined by the base y in [0,3].
         const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
         // Keep y >= 5: removes the base, leaving the two prongs disconnected.
-        const auto pieces = u.intersection(Halfplane({0, 5}, {10, 5}));
+        const auto pieces = u.intersection<int>(Halfplane({0, 5}, {10, 5}));
 
         int polys = 0;
         int totalTwiceArea = 0;
@@ -343,7 +343,7 @@ TEST_CASE("Polygon intersects Halfplane through degree>2 boundary nodes") {
         // The top edge dips to (0,0) on the boundary line, so the part above the
         // line is two triangles meeting at (0,0) (a degree-4 pinch).
         const Polygon p({-2, 2, 0, 0, 2, 2, 2, -1, -2, -1});
-        const auto ps = polygons(p.intersection(upper));
+        const auto ps = polygons(p.intersection<int>(upper));
         CHECK(ps.size() == 2);
         for (const auto& piece : ps) CHECK(piece.size() == 3);
         CHECK(twiceArea(ps) == 8);                          // area 2 each
@@ -353,7 +353,7 @@ TEST_CASE("Polygon intersects Halfplane through degree>2 boundary nodes") {
         // The square's bottom edge is collinear with the half-plane boundary, so
         // that boundary is shared (degree-3 overlap); the result is the square.
         const Polygon square({0, 0, 4, 0, 4, 4, 0, 4});
-        const auto ps = polygons(square.intersection(upper));
+        const auto ps = polygons(square.intersection<int>(upper));
         CHECK(ps.size() == 1);
         CHECK(twiceArea(ps) == 32);                         // area 16
     }

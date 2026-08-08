@@ -129,7 +129,7 @@ TEST_CASE("Halfplane intersection clips an OrientedSegment") {
 
     SUBCASE("fully inside OS is returned unchanged") {
         const OrientedSegment os_in({3, 2}, {1, 1});
-        const auto r = upper.intersection(os_in);
+        const auto r = upper.intersection<int>(os_in);
         using Seg = pgl::Segment<Point>;
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Seg>(*r));
@@ -138,6 +138,6 @@ TEST_CASE("Halfplane intersection clips an OrientedSegment") {
 
     SUBCASE("fully outside OS yields empty") {
         const OrientedSegment os_out({1, -3}, {3, -1});
-        CHECK_FALSE_MESSAGE(upper.intersection(os_out), "upper ∩ os_out should be empty");
+        CHECK_FALSE_MESSAGE(upper.intersection<int>(os_out), "upper ∩ os_out should be empty");
     }
 }

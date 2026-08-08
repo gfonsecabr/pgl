@@ -100,7 +100,7 @@ TEST_CASE("Polyline and Convex intersection pieces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("a containing convex returns the edges themselves") {
-        const auto pieces = zig.intersection(square);
+        const auto pieces = zig.intersection<int>(square);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
@@ -109,7 +109,7 @@ TEST_CASE("Polyline and Convex intersection pieces") {
     }
 
     SUBCASE("an edge is clipped at the convex boundary") {
-        const auto pieces = PLine({-1, 2, 5, 2}).intersection(square);
+        const auto pieces = PLine({-1, 2, 5, 2}).intersection<int>(square);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 2), Point(4, 2)));

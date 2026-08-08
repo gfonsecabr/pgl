@@ -75,7 +75,8 @@ void sortAround(std::vector<Point<Number, Label>>& points,
             return false;
 
         // Same direction from p: the farther point comes first.
-        return p.squaredDistance(a) > p.squaredDistance(b);
+        return p.template squaredDistance<CenterNumber>(a) >
+               p.template squaredDistance<CenterNumber>(b);
     });
 }
 

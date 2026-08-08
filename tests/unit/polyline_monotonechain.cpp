@@ -118,7 +118,7 @@ TEST_CASE("Polyline and MonotoneChain intersection pieces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("identical geometry returns the edges themselves") {
-        const auto pieces = zig.intersection(tent);
+        const auto pieces = zig.intersection<int>(tent);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
@@ -127,18 +127,18 @@ TEST_CASE("Polyline and MonotoneChain intersection pieces") {
     }
 
     SUBCASE("the chain forwards to the polyline's overload") {
-        CHECK(tent.intersection(zig) == zig.intersection(tent));
+        CHECK(tent.intersection<int>(zig) == zig.intersection<int>(tent));
     }
 
     SUBCASE("a crossing chain yields a point") {
         const Chain crossing({1, -1, 1, 3});
-        const auto pieces = zig.intersection(crossing);
+        const auto pieces = zig.intersection<int>(crossing);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
     }
 
     SUBCASE("disjoint shapes") {
-        CHECK(zig.intersection(Chain({0, 3, 2, 5, 4, 3})).empty());
+        CHECK(zig.intersection<int>(Chain({0, 3, 2, 5, 4, 3})).empty());
     }
 }

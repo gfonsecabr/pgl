@@ -75,18 +75,18 @@ TEST_CASE("Point and Convex intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point interior(2, 2);
-        const auto fromConvex = sq.intersection(interior);
+        const auto fromConvex = sq.intersection<int>(interior);
         REQUIRE(fromConvex.has_value());
         CHECK(*fromConvex == interior);
-        const auto fromPt = interior.intersection(sq);
+        const auto fromPt = interior.intersection<int>(sq);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == interior);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(5, 2);
-        CHECK_FALSE(sq.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(sq).has_value());
+        CHECK_FALSE(sq.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(sq).has_value());
     }
 }
 
@@ -99,6 +99,6 @@ TEST_CASE("Point and Convex squared Hausdorff distance") {
 
     // Farthest square vertex from p is (0,4) at squared distance 45, which
     // dominates the point-side (nearest-point) term.
-    CHECK(sq.squaredHausdorffDistance(p) == 45);
-    CHECK(p.squaredHausdorffDistance(sq) == 45);
+    CHECK(sq.squaredHausdorffDistance<int>(p) == 45);
+    CHECK(p.squaredHausdorffDistance<int>(sq) == 45);
 }

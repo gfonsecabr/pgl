@@ -75,18 +75,18 @@ TEST_CASE("Point and Disk intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point inside(3, 0);
-        const auto fromDisk = disk.intersection(inside);
+        const auto fromDisk = disk.intersection<int>(inside);
         REQUIRE(fromDisk.has_value());
         CHECK(*fromDisk == inside);
-        const auto fromPt = inside.intersection(disk);
+        const auto fromPt = inside.intersection<int>(disk);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == inside);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(6, 0);
-        CHECK_FALSE(disk.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(disk).has_value());
+        CHECK_FALSE(disk.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(disk).has_value());
     }
 }
 

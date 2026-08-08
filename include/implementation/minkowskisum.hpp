@@ -1500,16 +1500,8 @@ std::size_t minkowskiPieceCount(const Shape& shape) {
  */
 template <class ShapeA, class ShapeB>
 bool minkowskiOneSidedDecomposesLeft(const ShapeA& a, const ShapeB& b) {
-    const auto boxAreaOf = [](const auto& shape) {
-        const auto box = shape.bbox();
-        const long double width =
-            static_cast<long double>(box.max().x()) - static_cast<long double>(box.min().x());
-        const long double height =
-            static_cast<long double>(box.max().y()) - static_cast<long double>(box.min().y());
-        return width * height;
-    };
-    return static_cast<long double>(minkowskiPieceCount(a)) * boxAreaOf(b) <=
-           static_cast<long double>(minkowskiPieceCount(b)) * boxAreaOf(a);
+    return static_cast<long double>(minkowskiPieceCount(a)) * b.bbox().template area<long double>() <=
+           static_cast<long double>(minkowskiPieceCount(b)) * a.bbox().template area<long double>();
 }
 
 /**

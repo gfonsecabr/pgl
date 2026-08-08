@@ -97,7 +97,7 @@ TEST_CASE("Polyline separates a disk") {
 
 TEST_CASE("Polyline and Disk distance") {
     const PLine outside({6, 8, 8, 8});   // nearest at (6,8), 10 - 5 from the center
-    CHECK(outside.squaredDistance(disk) == doctest::Approx(25.0));
-    CHECK(disk.squaredDistance(outside) == doctest::Approx(25.0));
-    CHECK(PLine({-7, 0, 7, 0}).squaredDistance(disk) == doctest::Approx(0.0));
+    CHECK(outside.squaredDistance<int>(disk) == doctest::Approx(25.0));
+    CHECK(disk.squaredDistance<int>(outside) == doctest::Approx(25.0));
+    CHECK(PLine({-7, 0, 7, 0}).squaredDistance<int>(disk) == doctest::Approx(0.0));
 }

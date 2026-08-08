@@ -135,40 +135,40 @@ TEST_CASE("Convex clipped by a half-plane") {
     const Convex square({{0, 0}, {4, 0}, {4, 4}, {0, 4}});
 
     SUBCASE("a cut keeps the half on the interior side (both directions)") {
-        const auto upper = square.intersection(Halfplane({0, 2}, {4, 2}));  // y >= 2
+        const auto upper = square.intersection<int>(Halfplane({0, 2}, {4, 2}));  // y >= 2
         REQUIRE(upper);
         REQUIRE(std::holds_alternative<Convex>(*upper));
         CHECK(std::get<Convex>(*upper).twiceArea() == 16);  // 4x2 rectangle
 
-        const auto lower = square.intersection(Halfplane({4, 2}, {0, 2}));  // y <= 2
+        const auto lower = square.intersection<int>(Halfplane({4, 2}, {0, 2}));  // y <= 2
         REQUIRE(lower);
         REQUIRE(std::holds_alternative<Convex>(*lower));
         CHECK(std::get<Convex>(*lower).twiceArea() == 16);
 
         // The half-plane side forwards to the same result.
-        CHECK(Halfplane({0, 2}, {4, 2}).intersection(square) == upper);
+        CHECK(Halfplane({0, 2}, {4, 2}).intersection<int>(square) == upper);
     }
 
     SUBCASE("a half-plane containing the whole convex returns it unchanged") {
-        const auto whole = square.intersection(Halfplane({0, -5}, {4, -5}));  // y >= -5
+        const auto whole = square.intersection<int>(Halfplane({0, -5}, {4, -5}));  // y >= -5
         REQUIRE(whole);
         REQUIRE(std::holds_alternative<Convex>(*whole));
         CHECK(std::get<Convex>(*whole).twiceArea() == 32);  // the full square
     }
 
     SUBCASE("a half-plane clear of the convex yields nothing") {
-        CHECK_FALSE(square.intersection(Halfplane({0, 5}, {4, 5})));  // y >= 5
+        CHECK_FALSE(square.intersection<int>(Halfplane({0, 5}, {4, 5})));  // y >= 5
     }
 
     SUBCASE("tangent along an edge yields that segment") {
-        const auto r = square.intersection(Halfplane({0, 4}, {4, 4}));  // y >= 4
+        const auto r = square.intersection<int>(Halfplane({0, 4}, {4, 4}));  // y >= 4
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment(Point(0, 4), Point(4, 4)));
     }
 
     SUBCASE("tangent at a single corner yields a point, not a degenerate segment") {
-        const auto r = square.intersection(Halfplane({4, 4}, {8, 0}));  // x + y >= 8
+        const auto r = square.intersection<int>(Halfplane({4, 4}, {8, 0}));  // x + y >= 8
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK(std::get<Point>(*r) == Point(4, 4));

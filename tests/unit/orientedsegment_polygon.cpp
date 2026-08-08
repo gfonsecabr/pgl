@@ -107,8 +107,8 @@ TEST_CASE("Polygon intersection with an OrientedSegment runs min-to-max") {
     const Polygon notch({0, 0, 10, 0, 10, 10, 6, 10, 6, 4, 4, 4, 4, 10, 0, 10});
 
     SUBCASE("a forward and a reversed segment give the same ordered pieces") {
-        const auto forward = notch.intersection(OrientedSegment({1, 8}, {9, 8}));
-        const auto reverse = notch.intersection(OrientedSegment({9, 8}, {1, 8}));
+        const auto forward = notch.intersection<int>(OrientedSegment({1, 8}, {9, 8}));
+        const auto reverse = notch.intersection<int>(OrientedSegment({9, 8}, {1, 8}));
 
         REQUIRE(forward.size() == 2);
         CHECK(forward[0] == Piece(Segment({1, 8}, {4, 8})));

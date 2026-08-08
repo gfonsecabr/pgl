@@ -45,8 +45,8 @@ void checkPair(Mode mode, const D& d, const C& c, const X& x, const std::string&
     if constexpr (requires { d.intersects(x); c.intersects(x); }) {
         CHECK(d.intersects(x) == c.intersects(x));
     }
-    if constexpr (requires { d.squaredDistance(x); c.squaredDistance(x); }) {
-        CHECK(d.squaredDistance(x) == c.squaredDistance(x));
+    if constexpr (requires { d.template squaredDistance<int>(x); c.template squaredDistance<int>(x); }) {
+        CHECK(d.template squaredDistance<int>(x) == c.template squaredDistance<int>(x));
     }
 
     // Boundary and interior: a collapsed shape is all boundary and no interior.
@@ -283,7 +283,7 @@ TEST_CASE("Polygons collapsed to a point terminate against other polygons") {
     CHECK_FALSE(point.interiorsIntersect(triangle));
     CHECK_FALSE(apart.intersects(point));
     CHECK_FALSE(apart.contains(point));
-    CHECK(point.squaredDistance(triangle) == 0);
+    CHECK(point.squaredDistance<int>(triangle) == 0);
 
     const pgl::Polygon<P> samePoint(std::vector<P>{P(2, 2), P(2, 2), P(2, 2)});
     CHECK(point.contains(samePoint));
@@ -293,9 +293,9 @@ TEST_CASE("Polygons collapsed to a point terminate against other polygons") {
 TEST_CASE("A monotone chain of one vertex measures distance from that vertex") {
     // Regression: the distance scan required at least one edge.
     const pgl::MonotoneChain<P> chain(std::vector<P>{P(2, 2)});
-    CHECK(chain.squaredDistance(P(2, 2)) == 0);
-    CHECK(chain.squaredDistance(P(5, 6)) == 25);
-    CHECK(chain.squaredDistance(pgl::Segment<P>(P(5, 2), P(5, 9))) == 9);
+    CHECK(chain.squaredDistance<int>(P(2, 2)) == 0);
+    CHECK(chain.squaredDistance<int>(P(5, 6)) == 25);
+    CHECK(chain.squaredDistance<int>(pgl::Segment<P>(P(5, 2), P(5, 9))) == 9);
 }
 
 TEST_CASE("Degenerate carriers account for a lazily applied translation") {
@@ -344,7 +344,7 @@ TEST_CASE("Collapsed area shapes convert to the matching degenerate region") {
     CHECK(flat.contains(P(3, 3)));
     CHECK_FALSE(flat.contains(P(4, 4)));
     CHECK_FALSE(flat.contains(P(9, 9)));
-    CHECK(*flat.getIfSegment() == pgl::Segment<P>(P(1, 1), P(3, 3)));
+    CHECK(*flat.getIfSegment<int>() == pgl::Segment<P>(P(1, 1), P(3, 3)));
 
     // The rectangle conversions already agreed with this and must keep doing so.
     const auto rectVertex = pgl::Rectangle<P>(p, p).asHalfplaneIntersection();

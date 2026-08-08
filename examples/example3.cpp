@@ -38,7 +38,7 @@ std::vector<Point> randomPointsInDisk(size_t n, int r) {
 pgl::Convex<Point> midpointPolygon(const pgl::Convex<Point>& c) {
     std::vector<Point> midpoints;
     for (const auto& edge : c.edges()) {
-        midpoints.push_back(edge.midpoint());   // exact rational midpoint
+        midpoints.push_back(edge.midpoint<Number>());   // exact rational midpoint
     }
     return pgl::Convex<Point>(midpoints);
 }
@@ -50,7 +50,7 @@ int main() {
     };
 
     pgl::Convex<Point> convex = pgl::Convex<Point>(randomPointsInDisk(30, 100));
-    Point center = convex.verticesCentroid();
+    Point center = convex.verticesCentroid<Number>();
 
     pgl::Canvas canvas;
 

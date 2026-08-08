@@ -338,7 +338,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polygon<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polygon<>, pgl::Triangle<>>);
     static_assert(
-        std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum(
+        std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Triangle<>&>())),
                        pgl::PolygonWithHoles<Point>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polyline<>, pgl::Triangle<>>);
@@ -346,7 +346,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(summable<pgl::Polyline<>, pgl::Rectangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Convex<>>);
     static_assert(
-        std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum(
+        std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Rectangle<>&>())),
                        pgl::PolygonWithHoles<Point>>);
     // The non-convex summands have area to sweep, so they are admitted too, and
@@ -376,7 +376,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(summable<pgl::Segment<>, pgl::Polyline<>>);
     static_assert(summable<pgl::OrientedSegment<>, pgl::Polyline<>>);
     static_assert(
-        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
+        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Polyline<>&>())),
                        std::vector<pgl::PolygonWithHoles<Point>>>);
     static_assert(std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
@@ -386,7 +386,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     // the forwarder reaches it and the pair is region-valued from either side.
     static_assert(summable<pgl::Segment<>, pgl::MonotoneChain<>>);
     static_assert(
-        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
+        std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum<int>(
                            std::declval<const pgl::MonotoneChain<>&>())),
                        std::vector<pgl::PolygonWithHoles<Point>>>);
     // The forwarder is otherwise gated on the operand outranking the segment, so

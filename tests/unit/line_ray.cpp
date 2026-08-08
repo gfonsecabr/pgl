@@ -28,7 +28,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.crosses(far_ray));
         CHECK_FALSE(diagonal.separates(far_ray));
 
-        const auto isec = diagonal.intersection(far_ray);
+        const auto isec = diagonal.intersection<int>(far_ray);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Ray>(*isec));
         CHECK(std::get<Ray>(*isec) == far_ray);
@@ -41,7 +41,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK(diagonal.collinear(reverse_ray));
         CHECK(diagonal.intersects(reverse_ray));
 
-        const auto isec = diagonal.intersection(reverse_ray);
+        const auto isec = diagonal.intersection<int>(reverse_ray);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Ray>(*isec));
         CHECK(std::get<Ray>(*isec) == reverse_ray);
@@ -60,7 +60,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK(crossing.crosses(diagonal));
         CHECK(diagonal.separates(crossing));
 
-        const auto isec = diagonal.intersection(crossing);
+        const auto isec = diagonal.intersection<int>(crossing);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(100, 100));
@@ -76,7 +76,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.crosses(leaving));
         CHECK_FALSE(diagonal.separates(leaving));
 
-        const auto isec = diagonal.intersection(leaving);
+        const auto isec = diagonal.intersection<int>(leaving);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(80, 80));
@@ -91,7 +91,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.interiorsIntersect(away));
         CHECK_FALSE(diagonal.crosses(away));
         CHECK_FALSE(diagonal.separates(away));
-        CHECK_FALSE(diagonal.intersection(away));
+        CHECK_FALSE(diagonal.intersection<int>(away));
     }
 
     SUBCASE("ray parallel to the line never reaches it even at infinity") {
@@ -103,7 +103,7 @@ TEST_CASE("Line and ray predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.intersects(parallel_ray));
         CHECK_FALSE(diagonal.interiorsIntersect(parallel_ray));
         CHECK_FALSE(diagonal.crosses(parallel_ray));
-        CHECK_FALSE(diagonal.intersection(parallel_ray));
+        CHECK_FALSE(diagonal.intersection<int>(parallel_ray));
     }
 }
 
@@ -119,7 +119,7 @@ TEST_CASE("Vertical line crossed by a ray pointing back from far away") {
     CHECK(vertical.intersects(inbound));
     CHECK(vertical.crosses(inbound));
 
-    const auto isec = vertical.intersection(inbound);
+    const auto isec = vertical.intersection<int>(inbound);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Point>(*isec));
     CHECK(std::get<Point>(*isec) == Point(2, 500));
@@ -139,7 +139,7 @@ TEST_CASE("Horizontal line, ray source past defining points, sliding along the l
     CHECK(horizontal.intersects(sliding));
     CHECK_FALSE(horizontal.crosses(sliding));
 
-    const auto isec = horizontal.intersection(sliding);
+    const auto isec = horizontal.intersection<int>(sliding);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Ray>(*isec));
     CHECK(std::get<Ray>(*isec) == sliding);

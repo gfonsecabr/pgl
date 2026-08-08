@@ -416,9 +416,11 @@ struct Segment {
      *
      * A segment is one-dimensional, so its area is always zero.
      *
+     * @tparam ResultNumber Result type (default: NumberType).
      * @return Zero.
      */
-    [[nodiscard]] constexpr NumberType area() const;
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber area() const;
 
     /**
      * @brief Returns twice the area of the segment.
@@ -877,7 +879,7 @@ struct Segment {
      * @tparam ResultNumber Coordinate type of the returned slope.
      * @return Slope.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr ResultNumber slope() const;
 
     /**
@@ -978,17 +980,17 @@ struct Segment {
      * @param other Other segment.
      * @return An std::optional of std::variant of Point and Segment representing the intersection.
      */
-    template <class ResultNumber=NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr std::optional<Point<ResultNumber, typename PointType::LabelType>>
     intersection(const OtherPoint& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
-    template <class ResultNumber=NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!PointConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
@@ -1016,7 +1018,7 @@ struct Segment {
      * @return An std::optional of ResultNumber corresponding to the y coordinate.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, class OtherNumber>
+    template <class ResultNumber = division_result_t<NumberType>, class OtherNumber>
     [[nodiscard]] constexpr std::optional<ResultNumber>
     yAtX(const OtherNumber &x) const;
 
@@ -1032,7 +1034,7 @@ struct Segment {
      * @return An std::optional of ResultNumber corresponding to the x coordinate.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, class OtherNumber>
+    template <class ResultNumber = division_result_t<NumberType>, class OtherNumber>
     [[nodiscard]] constexpr std::optional<ResultNumber>
     xAtY(const OtherNumber &y) const;
 
@@ -1272,7 +1274,7 @@ struct Segment {
      * The computation uses a projection on the supporting line and divides by
      * the squared segment length when the closest point lies in the interior.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to measure from.
@@ -1284,13 +1286,13 @@ struct Segment {
      *          result type, e.g. `squaredDistance<double>(point)`, for an
      *          accurate value.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
@@ -1302,7 +1304,7 @@ struct Segment {
      *          result type, e.g. `squaredDistance<double>(other)`, for an
      *          accurate value.
      */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
@@ -1311,7 +1313,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template squaredDistance<ResultNumber>(self);
@@ -1327,7 +1329,7 @@ struct Segment {
      * circle is generally irrational, so a floating-point `ResultNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
         return disk.template squaredDistance<ResultNumber>(*this);
     }
@@ -1340,11 +1342,11 @@ struct Segment {
      *          internal division truncates. Request a floating-point or
      *          pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
 
     /**
@@ -1353,7 +1355,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `distanceL1` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template distanceL1<ResultNumber>(self);
@@ -1370,7 +1372,7 @@ struct Segment {
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
         return other.template distanceL1<ResultNumber>(*this);
     }
@@ -1383,11 +1385,11 @@ struct Segment {
      *          internal division truncates. Request a floating-point or
      *          pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
 
     /**
@@ -1396,7 +1398,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `distanceLInf` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template distanceLInf<ResultNumber>(self);
@@ -1413,13 +1415,13 @@ struct Segment {
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
 
     /** @brief Returns the Manhattan (L1) Hausdorff distance to the given shape. */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherSegment& other) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherSegment&) const */
@@ -1432,7 +1434,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template hausdorffDistanceL1<ResultNumber>(self);
@@ -1449,13 +1451,13 @@ struct Segment {
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceL1<ResultNumber>(*this);
     }
 
     /** @brief Returns the Chebyshev (LInf) Hausdorff distance to the given shape. */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherSegment& other) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherSegment&) const */
@@ -1468,7 +1470,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template hausdorffDistanceLInf<ResultNumber>(self);
@@ -1485,7 +1487,7 @@ struct Segment {
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceLInf<ResultNumber>(*this);
     }
@@ -1496,7 +1498,7 @@ struct Segment {
      * Since the distance to a segment is convex along a segment, the directed
      * Hausdorff distance is attained at an endpoint.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherNumber Coordinate type of the other segment endpoints.
      * @tparam OtherPoint::LabelType Label type of the other segment endpoints.
      * @param other Other segment.
@@ -1508,7 +1510,7 @@ struct Segment {
      *          result type, e.g. `squaredHausdorffDistance<double>(other)`, for
      *          an accurate value.
      */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
 
     /**
@@ -1518,12 +1520,6 @@ struct Segment {
      * @tparam OtherPoint Type of the point.
      * @param point Point to measure from.
      * @return Squared Hausdorff distance.
-     *
-     * @warning With an integer @p ResultNumber the exact squared distance is
-     *          generally a fraction, so the internal division truncates and the
-     *          result is inexact. Request a floating-point or pgl::Rational
-     *          result type, e.g. `squaredHausdorffDistance<double>(point)`, for
-     *          an accurate value.
      */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
@@ -1534,7 +1530,7 @@ struct Segment {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredHausdorffDistance` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {
                          o.template squaredHausdorffDistance<ResultNumber>(self);
@@ -1559,7 +1555,7 @@ struct Segment {
      * @return Midpoint with no label.
      * @warning Divides coordinates by 2. Inexact for odd integer coordinates.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr Point<ResultNumber> midpoint() const;
 
     /**
@@ -1571,7 +1567,7 @@ struct Segment {
      * @return Midpoint with no label.
      * @warning Divides coordinates by 2. Inexact for odd integer coordinates.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr Point<ResultNumber> pointInside() const;
 
     /**
@@ -1659,7 +1655,7 @@ struct Segment {
      * shape's implementation so that each unordered pair needs the sum defined
      * only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!MinkowskiSummableConcept<Segment<TPoint, TLabel>, OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Segment>)
                   && requires(const OtherShape& o, const Segment& self) {

@@ -109,25 +109,25 @@ TEST_CASE("Segment evaluates coordinates with yAtX and xAtY") {
     using Rational = pgl::Rational<int64_t>;
 
     const Segment diagonal(Point(0, 0), Point(4, 4));
-    CHECK(diagonal.yAtX(2) == 2);
-    CHECK(diagonal.xAtY(3) == 3);
+    CHECK(diagonal.yAtX<int>(2) == 2);
+    CHECK(diagonal.xAtY<int>(3) == 3);
     CHECK(diagonal.yAtX<Rational>(1).value() == Rational(1));
     CHECK(diagonal.xAtY<Rational>(1).value() == Rational(1));
 
     const Segment descending(Point(0, 4), Point(4, 0));
-    CHECK(descending.yAtX(1) == 3);
-    CHECK(descending.xAtY(3) == 1);
-    CHECK_FALSE(descending.xAtY(5).has_value());
+    CHECK(descending.yAtX<int>(1) == 3);
+    CHECK(descending.xAtY<int>(3) == 1);
+    CHECK_FALSE(descending.xAtY<int>(5).has_value());
 
     const Segment vertical(Point(2, -1), Point(2, 3));
-    CHECK(vertical.yAtX(2) == -1);
-    CHECK_FALSE(vertical.yAtX(1).has_value());
-    CHECK(vertical.xAtY(0) == 2);
+    CHECK(vertical.yAtX<int>(2) == -1);
+    CHECK_FALSE(vertical.yAtX<int>(1).has_value());
+    CHECK(vertical.xAtY<int>(0) == 2);
 
     const Segment horizontal(Point(-2, 1), Point(4, 1));
-    CHECK(horizontal.xAtY(1) == -2);
-    CHECK_FALSE(horizontal.xAtY(0).has_value());
-    CHECK(horizontal.yAtX(3) == 1);
+    CHECK(horizontal.xAtY<int>(1) == -2);
+    CHECK_FALSE(horizontal.xAtY<int>(0).has_value());
+    CHECK(horizontal.yAtX<int>(3) == 1);
 }
 
 TEST_CASE("Segment converts between labeled and unlabeled endpoints") {
@@ -205,9 +205,9 @@ TEST_CASE_TEMPLATE("Segment reports zero area plus correct length, midpoint, and
     }
 
     if constexpr (requires { Point(static_cast<Number>(3), static_cast<Number>(2), "tag"); }) {
-        CHECK(segment.pointInside() == Point(static_cast<Number>(3), static_cast<Number>(2), ""));
+        CHECK(segment.template pointInside<Number>() == Point(static_cast<Number>(3), static_cast<Number>(2), ""));
     } else {
-        CHECK(segment.pointInside() == Point(static_cast<Number>(3), static_cast<Number>(2)));
+        CHECK(segment.template pointInside<Number>() == Point(static_cast<Number>(3), static_cast<Number>(2)));
     }
 }
 
@@ -296,8 +296,8 @@ TEST_CASE("Segment midpoint and pointInside can be checked with exact rational c
     CHECK(integer_fbox.max().y() == doctest::Approx(4.0));
 
     const RationalSegment rational_segment({Rational(1, 3), Rational(1, 2)}, {Rational(5, 3), Rational(7, 2)});
-    CHECK(rational_segment.pointInside().x() == Rational(1));
-    CHECK(rational_segment.pointInside().y() == Rational(2));
+    CHECK(rational_segment.pointInside<Rational>().x() == Rational(1));
+    CHECK(rational_segment.pointInside<Rational>().y() == Rational(2));
 }
 
 TEST_CASE("Segment distinguishes containment in the interior, boundary, and endpoints") {
@@ -511,17 +511,17 @@ TEST_CASE("Segment distances handle projections, intersections, degenerate cases
     const Segment inner({1, 0}, {3, 0});
     const Segment point_segment({2, 0}, {2, 0});
 
-    CHECK(horizontal.squaredDistance(Point(2, 3)) == doctest::Approx(9.0));
-    CHECK(horizontal.squaredDistance(Point(-1, 0)) == doctest::Approx(1.0));
-    CHECK(horizontal.squaredDistance(Point(5, 3)) == doctest::Approx(10.0));
+    CHECK(horizontal.squaredDistance<int>(Point(2, 3)) == doctest::Approx(9.0));
+    CHECK(horizontal.squaredDistance<int>(Point(-1, 0)) == doctest::Approx(1.0));
+    CHECK(horizontal.squaredDistance<int>(Point(5, 3)) == doctest::Approx(10.0));
 
-    CHECK(horizontal.squaredDistance(parallel) == doctest::Approx(4.0));
-    CHECK(horizontal.squaredDistance(far_right) == doctest::Approx(4.0));
-    CHECK(horizontal.squaredDistance(vertical) == doctest::Approx(0.0));
-    CHECK(point_segment.squaredDistance(Point(5, 0)) == doctest::Approx(9.0));
+    CHECK(horizontal.squaredDistance<int>(parallel) == doctest::Approx(4.0));
+    CHECK(horizontal.squaredDistance<int>(far_right) == doctest::Approx(4.0));
+    CHECK(horizontal.squaredDistance<int>(vertical) == doctest::Approx(0.0));
+    CHECK(point_segment.squaredDistance<int>(Point(5, 0)) == doctest::Approx(9.0));
 
-    CHECK(horizontal.squaredHausdorffDistance(parallel) == doctest::Approx(5.0));
-    CHECK(horizontal.squaredHausdorffDistance(inner) == doctest::Approx(1.0));
+    CHECK(horizontal.squaredHausdorffDistance<int>(parallel) == doctest::Approx(5.0));
+    CHECK(horizontal.squaredHausdorffDistance<int>(inner) == doctest::Approx(1.0));
 
     CHECK(horizontal.distanceL1(Point(2, 3)) == 3);
     CHECK(horizontal.distanceL1(Point(-1, 0)) == 1);
@@ -538,10 +538,10 @@ TEST_CASE("Segment distances handle projections, intersections, degenerate cases
     CHECK(horizontal.distanceLInf(far_right) == 2);
     CHECK(horizontal.distanceLInf(vertical) == 0);
 
-    CHECK(horizontal.hausdorffDistanceL1(parallel) == 3);
-    CHECK(horizontal.hausdorffDistanceL1(inner) == 1);
-    CHECK(horizontal.hausdorffDistanceLInf(parallel) == 2);
-    CHECK(horizontal.hausdorffDistanceLInf(inner) == 1);
+    CHECK(horizontal.hausdorffDistanceL1<int>(parallel) == 3);
+    CHECK(horizontal.hausdorffDistanceL1<int>(inner) == 1);
+    CHECK(horizontal.hausdorffDistanceLInf<int>(parallel) == 2);
+    CHECK(horizontal.hausdorffDistanceLInf<int>(inner) == 1);
 }
 
 TEST_CASE("Segment L1/LInf distance to an off-axis segment is exact only with a fractional ResultNumber") {
@@ -554,9 +554,9 @@ TEST_CASE("Segment L1/LInf distance to an off-axis segment is exact only with a 
 
     // True LInf distance from the origin to this segment is 3/2 (nearest point
     // (1.5, 1.5)); an int ResultNumber truncates, a Rational one is exact.
-    CHECK(diagonal.distanceLInf(origin) == 1);
+    CHECK(diagonal.distanceLInf<int>(origin) == 1);
     CHECK(diagonal.distanceLInf<Rational>(origin) == Rational(3, 2));
-    CHECK(diagonal.distanceL1(origin) == 3);
+    CHECK(diagonal.distanceL1<int>(origin) == 3);
     CHECK(diagonal.distanceL1<Rational>(origin) == Rational(3));
 }
 
@@ -589,9 +589,9 @@ TEST_CASE("Segment intersects and intersects-with-point use point containment") 
     CHECK(segment.intersects(endpoint));
     CHECK_FALSE(segment.intersects(off_segment));
 
-    CHECK(segment.intersection(on_segment) == Point(2, 2));
-    CHECK(segment.intersection(endpoint) == Point(0, 0));
-    CHECK_FALSE(segment.intersection(off_segment));
+    CHECK(segment.intersection<int>(on_segment) == Point(2, 2));
+    CHECK(segment.intersection<int>(endpoint) == Point(0, 0));
+    CHECK_FALSE(segment.intersection<int>(off_segment));
 }
 
 TEST_CASE("Degenerate segments have empty interiors even when they intersect other segments") {
@@ -748,8 +748,8 @@ TEST_CASE("Segments around a shared midpoint") {
 
         check_center_is_strictly_inside(first_diameter, center);
         check_center_is_strictly_inside(second_diameter, center);
-        CHECK(first_diameter.midpoint() == center);
-        CHECK(second_diameter.midpoint() == center);
+        CHECK(first_diameter.midpoint<int>() == center);
+        CHECK(second_diameter.midpoint<int>() == center);
 
         CHECK(first_diameter.intersects(second_diameter));
         CHECK(second_diameter.intersects(first_diameter));
@@ -773,8 +773,8 @@ TEST_CASE("Segments around a shared midpoint") {
 
         check_center_is_strictly_inside(longer_diameter, center);
         check_center_is_strictly_inside(shorter_diameter, center);
-        CHECK(longer_diameter.midpoint() == center);
-        CHECK(shorter_diameter.midpoint() == center);
+        CHECK(longer_diameter.midpoint<int>() == center);
+        CHECK(shorter_diameter.midpoint<int>() == center);
 
         CHECK(longer_diameter.intersects(shorter_diameter));
         CHECK_FALSE(longer_diameter.crosses(shorter_diameter));
@@ -790,8 +790,8 @@ TEST_CASE("Segments around a shared midpoint") {
 
         check_center_is_strictly_inside(reference_diameter, center);
         check_center_is_strictly_inside(identical_diameter, center);
-        CHECK(reference_diameter.midpoint() == center);
-        CHECK(identical_diameter.midpoint() == center);
+        CHECK(reference_diameter.midpoint<int>() == center);
+        CHECK(identical_diameter.midpoint<int>() == center);
 
         CHECK(reference_diameter.intersects(identical_diameter));
         CHECK_FALSE(reference_diameter.crosses(identical_diameter));
@@ -811,7 +811,7 @@ TEST_CASE("Segments sharing an endpoint") {
         const Segment branch_segment(center, center + Point{1, 3});
 
         check_center_is_strictly_inside(host_segment, center);
-        CHECK(host_segment.midpoint() == center);
+        CHECK(host_segment.midpoint<int>() == center);
         check_center_is_an_endpoint(branch_segment, center);
 
         CHECK(host_segment.intersects(branch_segment));
@@ -829,7 +829,7 @@ TEST_CASE("Segments sharing an endpoint") {
         const Segment contained_branch(center, center + Point{1, 1});
 
         check_center_is_strictly_inside(host_segment, center);
-        CHECK(host_segment.midpoint() == center);
+        CHECK(host_segment.midpoint<int>() == center);
         check_center_is_an_endpoint(contained_branch, center);
 
         CHECK(host_segment.intersects(contained_branch));
@@ -855,7 +855,7 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     SUBCASE("crossing segments intersect at a rational interior point") {
         const Segment rising_diagonal(Point{rational(0), rational(0)}, Point{rational(1), rational(1)});
         const Segment vertical_slice(Point{rational(1, 2), rational(0)}, Point{rational(1, 2), rational(2)});
-        const auto intersection = rising_diagonal.intersection(vertical_slice);
+        const auto intersection = rising_diagonal.intersection<Rational>(vertical_slice);
 
         INFO("first=" << rising_diagonal << " second=" << vertical_slice);
         REQUIRE(intersection);
@@ -871,7 +871,7 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     SUBCASE("touching segments intersect at a shared endpoint") {
         const Segment first_segment(Point{rational(0), rational(0)}, Point{rational(1), rational(1)});
         const Segment second_segment(Point{rational(1), rational(1)}, Point{rational(3, 2), rational(0)});
-        const auto intersection = first_segment.intersection(second_segment);
+        const auto intersection = first_segment.intersection<Rational>(second_segment);
 
         INFO("first=" << first_segment << " second=" << second_segment);
         REQUIRE(intersection);
@@ -888,7 +888,7 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     SUBCASE("colinear overlap returns the shared subsegment") {
         const Segment outer_segment(Point{rational(0), rational(0)}, Point{rational(2), rational(0)});
         const Segment inner_segment(Point{rational(1, 2), rational(0)}, Point{rational(3, 2), rational(0)});
-        const auto intersection = outer_segment.intersection(inner_segment);
+        const auto intersection = outer_segment.intersection<Rational>(inner_segment);
 
         INFO("first=" << outer_segment << " second=" << inner_segment);
         REQUIRE(intersection);
@@ -904,7 +904,7 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     SUBCASE("identical segments return the full segment") {
         const Segment reference_segment(Point{rational(1, 3), rational(2, 3)}, Point{rational(5, 3), rational(8, 3)});
         const Segment identical_segment(Point{rational(1, 3), rational(2, 3)}, Point{rational(5, 3), rational(8, 3)});
-        const auto intersection = reference_segment.intersection(identical_segment);
+        const auto intersection = reference_segment.intersection<Rational>(identical_segment);
 
         INFO("first=" << reference_segment << " second=" << identical_segment);
         REQUIRE(intersection);
@@ -917,7 +917,7 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     SUBCASE("disjoint segments return no intersection") {
         const Segment first_segment(Point{rational(0), rational(0)}, Point{rational(1), rational(0)});
         const Segment second_segment(Point{rational(2), rational(1)}, Point{rational(3), rational(1)});
-        const auto intersection = first_segment.intersection(second_segment);
+        const auto intersection = first_segment.intersection<Rational>(second_segment);
 
         INFO("first=" << first_segment << " second=" << second_segment);
         CHECK_FALSE(first_segment.intersects(second_segment));

@@ -73,24 +73,24 @@ TEST_CASE("Point and Halfplane intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point interior(0, 1);
-        const auto fromHp = diagonal.intersection(interior);
+        const auto fromHp = diagonal.intersection<int>(interior);
         REQUIRE(fromHp.has_value());
         CHECK(*fromHp == interior);
-        const auto fromPt = interior.intersection(diagonal);
+        const auto fromPt = interior.intersection<int>(diagonal);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == interior);
     }
 
     SUBCASE("a boundary point yields that point") {
         const Point boundary(2, 2);
-        const auto fromHp = diagonal.intersection(boundary);
+        const auto fromHp = diagonal.intersection<int>(boundary);
         REQUIRE(fromHp.has_value());
         CHECK(*fromHp == boundary);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(1, 0);
-        CHECK_FALSE(diagonal.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(diagonal).has_value());
+        CHECK_FALSE(diagonal.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(diagonal).has_value());
     }
 }

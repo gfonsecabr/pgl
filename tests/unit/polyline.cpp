@@ -633,7 +633,7 @@ TEST_CASE("Polyline separates and crosses Polyline") {
 }
 
 TEST_CASE("Polyline distances to Polyline") {
-    CHECK(zig.squaredDistance(PLine({1, -1, 1, 3})) == 0);
+    CHECK(zig.squaredDistance<int>(PLine({1, -1, 1, 3})) == 0);
     CHECK(zig.squaredDistance<double>(PLine({0, 3, 4, 3})) == doctest::Approx(1.0));
     CHECK(zig.squaredDistance<double>(PLine({6, 0, 7, 0, 7, 3})) == doctest::Approx(4.0));
     CHECK(zig.distanceL1(PLine({6, 0, 7, 0})) == 2);
@@ -652,7 +652,7 @@ TEST_CASE("Polyline and Polyline intersection pieces") {
         // bow shares zig's first edge; the bow's other edges touch it at
         // (1,1) and (2,2), both inside the reported overlap.
         const PLine bow({0, 0, 2, 2, 2, 0, 0, 2});
-        const auto pieces = zig.intersection(bow);
+        const auto pieces = zig.intersection<int>(bow);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(2, 2)));
@@ -664,7 +664,7 @@ TEST_CASE("Polyline and Polyline intersection pieces") {
         // lexicographic order; the merge must still join them.
         const PLine strands({0, 0, 10, 0, 3, 1, 4, 1, 5, 0, 12, 0});
         const PLine other({0, 0, 12, 0, 12, 1, 0, 1});
-        const auto pieces = strands.intersection(other);
+        const auto pieces = strands.intersection<int>(other);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(12, 0)));
@@ -673,7 +673,7 @@ TEST_CASE("Polyline and Polyline intersection pieces") {
     }
 
     SUBCASE("two proper crossings yield two points") {
-        const auto pieces = zig.intersection(PLine({1, -1, 1, 3, 3, 3, 3, -1}));
+        const auto pieces = zig.intersection<int>(PLine({1, -1, 1, 3, 3, 3, 3, -1}));
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
@@ -682,15 +682,15 @@ TEST_CASE("Polyline and Polyline intersection pieces") {
     }
 
     SUBCASE("disjoint bounding boxes") {
-        CHECK(zig.intersection(PLine({10, 10, 12, 12})).empty());
+        CHECK(zig.intersection<int>(PLine({10, 10, 12, 12})).empty());
     }
 
     SUBCASE("point-sized operands") {
-        const auto hit = zig.intersection(PLine({Point(3, 1)}));
+        const auto hit = zig.intersection<int>(PLine({Point(3, 1)}));
         REQUIRE(hit.size() == 1);
         REQUIRE(std::holds_alternative<Point>(hit[0]));
         CHECK(std::get<Point>(hit[0]) == Point(3, 1));
-        CHECK(PLine().intersection(zig).empty());
+        CHECK(PLine().intersection<int>(zig).empty());
     }
 }
 

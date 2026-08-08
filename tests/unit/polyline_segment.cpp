@@ -146,7 +146,7 @@ TEST_CASE("Polyline separates Segment and vice versa") {
 }
 
 TEST_CASE("Polyline distances to Segment") {
-    CHECK(zig.squaredDistance(Segment(Point(1, -1), Point(1, 3))) == 0);
+    CHECK(zig.squaredDistance<int>(Segment(Point(1, -1), Point(1, 3))) == 0);
     CHECK(zig.squaredDistance<double>(Segment(Point(0, 3), Point(4, 3))) ==
           doctest::Approx(1.0));  // closest at the apex (2,2), one unit below the segment
     CHECK(Segment(Point(0, 3), Point(4, 3)).squaredDistance<double>(zig) == doctest::Approx(1.0));
@@ -160,7 +160,7 @@ TEST_CASE("Polyline distances to Segment") {
 
 TEST_CASE("Polyline and Segment intersection pieces") {
     SUBCASE("a segment crossing both edges") {
-        const auto pieces = zig.intersection(Segment(Point(0, 1), Point(4, 1)));
+        const auto pieces = zig.intersection<int>(Segment(Point(0, 1), Point(4, 1)));
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
@@ -169,14 +169,14 @@ TEST_CASE("Polyline and Segment intersection pieces") {
     }
 
     SUBCASE("collinear overlap yields a single segment") {
-        const auto pieces = zig.intersection(Segment(Point(1, 1), Point(2, 2)));
+        const auto pieces = zig.intersection<int>(Segment(Point(1, 1), Point(2, 2)));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(2, 2)));
     }
 
     SUBCASE("a touch at the apex is reported once") {
-        const auto pieces = zig.intersection(Segment(Point(2, 2), Point(2, 5)));
+        const auto pieces = zig.intersection<int>(Segment(Point(2, 2), Point(2, 5)));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(2, 2));
@@ -186,7 +186,7 @@ TEST_CASE("Polyline and Segment intersection pieces") {
         // Edges (0,0)-(2,0) and (1,0)-(4,0) jointly cover the segment; the
         // vertical edge's touch at (1,0) is absorbed by the merged overlap.
         const PLine overlapping({0, 0, 2, 0, 1, 3, 1, 0, 4, 0});
-        const auto pieces = overlapping.intersection(Segment(Point(0, 0), Point(4, 0)));
+        const auto pieces = overlapping.intersection<int>(Segment(Point(0, 0), Point(4, 0)));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(4, 0)));
@@ -195,7 +195,7 @@ TEST_CASE("Polyline and Segment intersection pieces") {
     SUBCASE("a coverage gap yields two segments") {
         // Edges (0,0)-(1,0) and (2,0)-(4,0) leave the gap (1,0)-(2,0) open.
         const PLine gapped({0, 0, 1, 0, 1, 3, 2, 0, 4, 0});
-        const auto pieces = gapped.intersection(Segment(Point(0, 0), Point(4, 0)));
+        const auto pieces = gapped.intersection<int>(Segment(Point(0, 0), Point(4, 0)));
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 0), Point(1, 0)));
@@ -204,7 +204,7 @@ TEST_CASE("Polyline and Segment intersection pieces") {
     }
 
     SUBCASE("the segment forwards to the polyline's overload") {
-        const auto pieces = Segment(Point(0, 1), Point(4, 1)).intersection(zig);
+        const auto pieces = Segment(Point(0, 1), Point(4, 1)).intersection<int>(zig);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(1, 1));
@@ -212,7 +212,7 @@ TEST_CASE("Polyline and Segment intersection pieces") {
 
     SUBCASE("oriented segments delegate to the unoriented overload") {
         const auto pieces =
-            zig.intersection(pgl::OrientedSegment<Point>(Point(4, 1), Point(0, 1)));
+            zig.intersection<int>(pgl::OrientedSegment<Point>(Point(4, 1), Point(0, 1)));
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Point>(pieces[0]));
         CHECK(std::get<Point>(pieces[0]) == Point(1, 1));

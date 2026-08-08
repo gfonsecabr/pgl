@@ -309,7 +309,7 @@ TEST_CASE("Polygon intersects Ray from the source outward") {
     const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
 
     SUBCASE("a ray entering from the left cuts both prongs") {
-        const auto pieces = u.intersection(Ray({-5, 5}, {-4, 5}));
+        const auto pieces = u.intersection<int>(Ray({-5, 5}, {-4, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -319,20 +319,20 @@ TEST_CASE("Polygon intersects Ray from the source outward") {
     SUBCASE("a ray starting inside reaches only the pieces ahead of it") {
         // Source at (5, 5) is in the open notch (outside); aimed right, it hits
         // only the right prong.
-        const auto pieces = u.intersection(Ray({5, 5}, {6, 5}));
+        const auto pieces = u.intersection<int>(Ray({5, 5}, {6, 5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({7, 5}, {10, 5})));
     }
 
     SUBCASE("a ray pointing away from the polygon misses it") {
-        CHECK(u.intersection(Ray({-5, 5}, {-6, 5})).empty());
+        CHECK(u.intersection<int>(Ray({-5, 5}, {-6, 5})).empty());
     }
 
     SUBCASE("a ray whose source is strictly inside starts the chord at the source") {
         // Source (1,5) is inside the left prong; aimed right it exits the left
         // prong, crosses the open notch, then re-enters the right prong.
-        const auto pieces = u.intersection(Ray({1, 5}, {2, 5}));
+        const auto pieces = u.intersection<int>(Ray({1, 5}, {2, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({1, 5}, {3, 5})));
