@@ -2926,7 +2926,7 @@ struct Triangulation {
         if (it == segToEdge_.end()) {
             return NO_TRI;
         }
-        for (const Edge e : {it->second, mirror(it->second)}) {
+        for (const Edge& e : {it->second, mirror(it->second)}) {
             if (e.tri == NO_TRI) {
                 continue;
             }
