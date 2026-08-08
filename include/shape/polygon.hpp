@@ -725,12 +725,12 @@ struct Polygon {
     /**
      * @brief Covers this polygon with convex hulls derived from triangle cliques.
      *
-     * The polygon is triangulated and the triangulation's full-visibility graph
-     * is built: triangles are graph vertices, adjacent when their joint convex
-     * hull lies in the polygon. A DSATUR vertex clique cover is then converted
-     * into convex pieces by taking the hull of every clique. This is the
-     * Delaunay-partition variant of the clique-cover construction of Abrahamsen,
-     * Meyling, and Nusser (SoCG 2023).
+     * The polygon is triangulated and the paper's dual-graph BFS builds a
+     * full-visibility subgraph: triangles are graph vertices and every edge
+     * certifies that the endpoints' joint convex hull lies in the polygon. A
+     * DSATUR vertex clique cover is then converted into convex pieces by taking
+     * the hull of every clique. This is the Delaunay-partition variant of the
+     * clique-cover construction of Abrahamsen, Meyling, and Nusser (SoCG 2023).
      *
      * The polygon has the same precondition as @ref triangulation: simple and
      * non-degenerate. Every piece is contained in this polygon and their union
@@ -741,7 +741,8 @@ struct Polygon {
      * A convex polygon comes back as a single piece.
      *
      * Complexity: O(n^3 log n) worst-case time and O(n^2) space for n polygon
-     * vertices in this direct pairwise-visibility implementation.
+     * vertices; the dual search usually avoids most of the quadratic candidate
+     * pairs even though the worst-case bound is unchanged.
      *
      * @return The convex covering, in canonical order.
      */

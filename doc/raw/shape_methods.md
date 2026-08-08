@@ -589,11 +589,12 @@ instead — and so does a pair whose sum is a set of regions, which no single
 - `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant
   covering by `Convex` pieces. The pieces may overlap and the covering is not
   necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form
-  a full-visibility graph, a DSATUR vertex clique cover groups them, and every
-  clique becomes one convex hull. For `PolygonWithHoles`, the method remains a
-  shorthand for `triangulation().convexCovering()` because clique hulls can
-  surround holes and require an additional splitting step. On a region the
-  covering leaves holes and slits uncovered.
+  a full-visibility subgraph using the paper's dual-graph BFS, a DSATUR vertex
+  clique cover groups them, and every clique becomes one convex hull. For
+  `PolygonWithHoles`, the method remains a shorthand for
+  `triangulation().convexCovering()` because clique hulls can surround holes and
+  require an additional splitting step. On a region the covering leaves holes
+  and slits uncovered.
 
 ## Iterating
 
