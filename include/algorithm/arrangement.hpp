@@ -254,7 +254,7 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
  * a shape that is not bounded (a line, a ray, a half-plane) is rejected at
  * compile time.
  */
-template <class PointType_, class TLabel = NoLabel>
+template <class PointType_, class TLabel>
 class Arrangement {
 public:
     /** @brief Vertex type. */
@@ -303,10 +303,35 @@ public:
     explicit Arrangement(const ShapeRange& shapes) {
         std::vector<InputSegment> segments;
         std::vector<PointType> isolated;
-        std::uint32_t index = 0;
-        for (const auto& shape : shapes) {
-            append(shape, index, segments, isolated);
-            ++index;
+        collect(shapes, segments, isolated);
+        build(segments, isolated);
+    }
+
+    /**
+     * @brief Builds the arrangement of a range of shapes together with a range
+     *        of points.
+     *
+     * The points are vertices of the arrangement wherever they fall: a point on
+     * a shape splits it there, and a point on nothing becomes a vertex of its
+     * own, incident to no edge and lying in the interior of the face that holds
+     * it. Passing them separately is a convenience — a @ref Point in the shape
+     * range does the same thing — for the callers whose points and shapes come
+     * from different places, such as the cell decomposition behind
+     * @ref pgl::Polygon::separates.
+     *
+     * @tparam ShapeRange Range of shapes; see the single-range constructor for
+     *         what is accepted.
+     * @tparam PointRange Range of points.
+     * @param shapes Shapes whose subdivision of the plane to compute.
+     * @param points Points to add as vertices.
+     */
+    template <std::ranges::input_range ShapeRange, std::ranges::input_range PointRange>
+    Arrangement(const ShapeRange& shapes, const PointRange& points) {
+        std::vector<InputSegment> segments;
+        std::vector<PointType> isolated;
+        collect(shapes, segments, isolated);
+        for (const auto& point : points) {
+            isolated.emplace_back(point);
         }
         build(segments, isolated);
     }
@@ -879,6 +904,18 @@ private:
 
     // -------------------------------------------------------------------------
     // Input normalization
+
+    // Splits a shape range into the segments it contributes and the points it
+    // reduces to, keeping each shape's position in the range as its origin.
+    template <class ShapeRange>
+    static void collect(const ShapeRange& shapes, std::vector<InputSegment>& segments,
+                        std::vector<PointType>& isolated) {
+        std::uint32_t index = 0;
+        for (const auto& shape : shapes) {
+            append(shape, index, segments, isolated);
+            ++index;
+        }
+    }
 
     // The shapes the arrangement can be built from: the bounded ones, which are
     // exactly those whose whole point set is covered by finitely many segments.
