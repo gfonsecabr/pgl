@@ -777,6 +777,113 @@ struct Triangulation {
   private:
     friend struct detail::ConvexCoverBuilder;
 
+    // Full visibility of two mesh triangles needs only the new boundary edges
+    // introduced by their convex hull. A hull edge whose endpoints both belong
+    // to one input triangle already lies in that triangle and therefore in the
+    // domain; only the (at most two) bridges between the triangles need a mesh
+    // walk. The generic contains(Convex) path would locate both endpoints and
+    // walk every hull edge, including all of those known-contained chains.
+    [[nodiscard]] bool trianglesFullyVisible(
+        std::int32_t a, std::int32_t b, const std::vector<std::uint8_t>& visible) const {
+        const TriangleType first = triangleValue(a);
+        const TriangleType second = triangleValue(b);
+        std::array<PointType, 6> points{
+            first.a(), first.b(), first.c(), second.a(), second.b(), second.c()
+        };
+        std::sort(points.begin(), points.end());
+        const auto uniqueEnd = std::unique(points.begin(), points.end());
+        const std::size_t pointCount =
+            static_cast<std::size_t>(std::distance(points.begin(), uniqueEnd));
+
+        // Andrew's monotone chain on six points, kept entirely on the stack.
+        // Twelve slots cover the lower and upper chains before their repeated
+        // endpoint is discarded.
+        std::array<PointType, 12> hull;
+        std::size_t hullSize = 0;
+        for (std::size_t i = 0; i < pointCount; ++i) {
+            while (hullSize >= 2 &&
+                   orientationSign(hull[hullSize - 2], hull[hullSize - 1], points[i]) <= 0) {
+                --hullSize;
+            }
+            hull[hullSize++] = points[i];
+        }
+        const std::size_t lowerSize = hullSize;
+        for (std::size_t i = pointCount - 1; i-- != 0;) {
+            while (hullSize > lowerSize &&
+                   orientationSign(hull[hullSize - 2], hull[hullSize - 1], points[i]) <= 0) {
+                --hullSize;
+            }
+            hull[hullSize++] = points[i];
+        }
+        assert(hullSize >= 2);
+        --hullSize;  // the first vertex was repeated at the end
+
+        const auto isVertexOf = [&](TriId triangle, const PointType& point) {
+            const auto& ids = triangles_[triangle].v;
+            return vertices_[ids[0]] == point || vertices_[ids[1]] == point ||
+                   vertices_[ids[2]] == point;
+        };
+
+        // The candidate triangle is already visible if each of its sides that
+        // became internal to the joint hull borders a visible triangle. Their
+        // union fills the candidate-facing neighborhood of every such side.
+        // Conversely, an internalized side on the domain boundary proves that
+        // the hull escapes immediately. These are the paper implementation's
+        // inexpensive positive and negative tests.
+        bool boundedByVisibleTriangles = true;
+        for (std::int8_t side = 0; side < 3; ++side) {
+            const PointType u = vertices_[triangles_[b].v[(side + 1) % 3]];
+            const PointType v = vertices_[triangles_[b].v[(side + 2) % 3]];
+            bool onHullBoundary = false;
+            for (std::size_t i = 0; i < hullSize; ++i) {
+                const Segment<PointType> hullSide(hull[i], hull[(i + 1) % hullSize]);
+                if (hullSide.contains(u) && hullSide.contains(v)) {
+                    onHullBoundary = true;
+                    break;
+                }
+            }
+            if (onHullBoundary) {
+                continue;
+            }
+            const TriId across = triangles_[b].nbr[side];
+            if (!inDomain(across)) {
+                return false;
+            }
+            if (!visible[static_cast<std::size_t>(across)]) {
+                boundedByVisibleTriangles = false;
+            }
+        }
+        if (boundedByVisibleTriangles && holeWitnesses_.empty()) {
+            return true;
+        }
+
+        for (std::size_t i = 0; i < hullSize; ++i) {
+            const PointType u = hull[i];
+            const PointType v = hull[(i + 1) % hullSize];
+            if ((isVertexOf(a, u) && isVertexOf(a, v)) ||
+                (isVertexOf(b, u) && isVertexOf(b, v))) {
+                continue;
+            }
+            if (!segmentInteriorContained(Segment<PointType>(u, v))) {
+                return false;
+            }
+        }
+
+        // This helper is currently used by Polygon::convexCovering(), whose
+        // domain has no holes. Retain the general triangulation semantics here:
+        // a contained boundary must not have enclosed a hole.
+        if (!holeWitnesses_.empty()) {
+            const std::vector<PointType> hullVertices(hull.begin(), hull.begin() + hullSize);
+            const Convex<PointType> convexHull(hullVertices, true);
+            for (const TriangleType& witness : holeWitnesses_) {
+                if (convexHull.contains(witness)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * @brief Builds a full-visibility subgraph of the domain triangles.
      *
@@ -797,8 +904,10 @@ struct Triangulation {
      * source. Consequently the result can omit a full-visibility edge whose
      * target lies outside the source's fully visible dual component. This is
      * deliberate: the resulting subgraph still gives a valid clique cover,
-     * while usually testing far fewer than all pairs. Previously discovered
-     * symmetric edges are reused without another containment test.
+     * while usually testing far fewer than all pairs. Candidate sides adjacent
+     * to known-visible triangles provide an inexpensive visibility certificate,
+     * domain-boundary sides provide an inexpensive rejection, and previously
+     * discovered symmetric edges are reused without another containment test.
      *
      * Complexity: O(m^3) worst-case time and O(m^2) space for m in-domain
      * triangles; a containment walk may cross O(m) triangles for each of the
@@ -846,11 +955,14 @@ struct Triangulation {
             }
         }
 
-        std::vector<bool> visited(static_cast<std::size_t>(firstGhost_));
+        std::vector<std::uint8_t> visited(static_cast<std::size_t>(firstGhost_));
+        std::vector<std::uint8_t> visible(static_cast<std::size_t>(firstGhost_));
         std::queue<TriId> queue;
         for (const TriId source : sourceOrder) {
             std::fill(visited.begin(), visited.end(), false);
+            std::fill(visible.begin(), visible.end(), false);
             visited[static_cast<std::size_t>(source)] = true;
+            visible[static_cast<std::size_t>(source)] = true;
             queue.push(source);
             const TriangleType sourceTriangle = triangleValue(source);
 
@@ -867,14 +979,11 @@ struct Triangulation {
 
                     bool fullyVisible = result.containsEdge(sourceTriangle, neighborTriangle);
                     if (!fullyVisible) {
-                        const std::array<PointType, 6> vertices{
-                            sourceTriangle.a(), sourceTriangle.b(), sourceTriangle.c(),
-                            neighborTriangle.a(), neighborTriangle.b(), neighborTriangle.c()
-                        };
-                        fullyVisible = contains(Convex<PointType>(vertices));
+                        fullyVisible = trianglesFullyVisible(source, neighbor, visible);
                     }
                     if (fullyVisible) {
                         result.addEdge(sourceTriangle, neighborTriangle);
+                        visible[static_cast<std::size_t>(neighbor)] = true;
                         queue.push(neighbor);
                     }
                 }
@@ -2160,6 +2269,15 @@ struct Triangulation {
         if (!contains(shape[0]) || !contains(shape[1])) {
             return false;
         }
+        return segmentInteriorContained(shape);
+    }
+
+  private:
+    // Segment containment once its endpoints are known to lie in the closed
+    // domain. Kept separate because mesh vertices satisfy that precondition and
+    // the convex-cover visibility hot path must not locate them repeatedly.
+    template <detail::SegmentOrOriented S>
+    [[nodiscard]] bool segmentInteriorContained(const S& shape) const {
         // Both endpoints are in the domain, so the segment can only escape between
         // them, and the walk sees every triangle it crosses on the way. It escapes
         // iff it (a) enters the interior of an out-of-domain hull-fill triangle,
@@ -2188,6 +2306,8 @@ struct Triangulation {
             return false;
         });
     }
+
+  public:
 
     /** @overload */
     template <detail::ChainTraversal C>

@@ -2168,7 +2168,12 @@ TEST_CASE("Triangulation visibility graph follows fully visible dual components"
             const std::array<Point, 6> vertices{
                 a.a(), a.b(), a.c(), b.a(), b.b(), b.c()
             };
-            fullEdgeCount += windingTriangulation.contains(pgl::Convex<Point>(vertices));
+            const bool fullyVisible =
+                windingTriangulation.contains(pgl::Convex<Point>(vertices));
+            fullEdgeCount += fullyVisible;
+            if (windingGraph.containsEdge(a, b)) {
+                CHECK(fullyVisible);
+            }
         }
     }
     CHECK(windingGraph.edgeCount() < fullEdgeCount);
