@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <type_traits>
@@ -85,7 +86,8 @@ void checkInvariants(const Arrangement& arr) {
     for (pgl::HalfedgeId h : arr.halfedges()) {
         ++degree[arr.origin(h)];
     }
-    for (pgl::VertexId v : arr.vertices()) {
+    for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
+        const pgl::VertexId v(i);
         const pgl::HalfedgeId start = arr.outgoing(v);
         if (!start.valid()) {
             CHECK(degree[v] == 0);
@@ -133,6 +135,15 @@ void checkInvariants(const Arrangement& arr) {
         }
     }
     CHECK(listed == cycles);
+
+    // The edge list is one entry per twin pair, and agrees with indexing either
+    // halfedge of the pair.
+    const std::vector<Segment> edges = arr.edges();
+    REQUIRE(edges.size() == arr.edgeCount());
+    for (pgl::HalfedgeId h : arr.halfedges()) {
+        CHECK(edges[h.index() / 2] == arr[h]);
+    }
+    CHECK(arr.vertices().size() == arr.vertexCount());
 
     // Euler's formula, over the whole complex.
     const std::size_t v = arr.vertexCount();
@@ -259,7 +270,8 @@ TEST_CASE("crossing segments are split at their crossing") {
     CHECK(arr.faceCount() == 1);
     // The crossing is the only vertex of degree four.
     std::size_t crossings = 0;
-    for (pgl::VertexId v : arr.vertices()) {
+    for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
+        const pgl::VertexId v(i);
         std::size_t degree = 0;
         pgl::HalfedgeId h = arr.outgoing(v);
         const pgl::HalfedgeId start = h;
@@ -456,7 +468,8 @@ TEST_CASE("isolated points are vertices of the face holding them") {
     REQUIRE(arr.faceCount() == 2);
 
     std::size_t isolated = 0;
-    for (pgl::VertexId v : arr.vertices()) {
+    for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
+        const pgl::VertexId v(i);
         if (!arr.outgoing(v).valid()) {
             ++isolated;
             CHECK((arr[v] == P(2, 2) || arr[v] == P(9, 9)));
@@ -510,8 +523,8 @@ TEST_CASE("crossings off the input lattice") {
     CHECK(arr.vertexCount() == 5);
     CHECK(arr.edgeCount() == 4);
     bool foundCentre = false;
-    for (pgl::VertexId v : arr.vertices()) {
-        if (arr[v] == Point(Number(1, 2), Number(1, 2))) {
+    for (const Point& vertex : arr.vertices()) {
+        if (vertex == Point(Number(1, 2), Number(1, 2))) {
             foundCentre = true;
         }
     }
@@ -570,6 +583,15 @@ TEST_CASE("edges inherit the label of the shape that produced them") {
         CHECK(arr.label(h) == arr[h].label());
     }
 
+    // The edge list carries the same labels, one entry per twin pair.
+    const std::vector<LabeledSegment> edges = arr.edges();
+    REQUIRE(edges.size() == arr.edgeCount());
+    std::multiset<int> labels;
+    for (const LabeledSegment& edge : edges) {
+        labels.insert(edge.label());
+    }
+    CHECK(labels == std::multiset<int>{7, 7, 9, 9});
+
     // A face's label is the caller's to set.
     const pgl::FaceId unbounded(0);
     CHECK(arr.label(unbounded) == 0);
@@ -605,8 +627,8 @@ TEST_CASE("integer coordinates suffice when orthogonal segments cross") {
     CHECK(arr.edgeCount() == 4);
     CHECK(arr.faceCount() == 1);
     bool foundCentre = false;
-    for (pgl::VertexId v : arr.vertices()) {
-        if (arr[v] == IntPoint(0, 0)) {
+    for (const IntPoint& vertex : arr.vertices()) {
+        if (vertex == IntPoint(0, 0)) {
             foundCentre = true;
         }
     }

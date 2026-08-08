@@ -374,9 +374,33 @@ public:
         return outerCycle_.size();
     }
 
-    /** @brief Returns the range of every @ref VertexId, in index order. */
-    [[nodiscard]] auto vertices() const {
-        return handles<VertexId>(points_.size());
+    /**
+     * @brief Returns the position of every vertex, in @ref VertexId index order.
+     *
+     * The vertex of handle `v` is `vertices()[v.index()]`, which is what
+     * `operator[](VertexId)` returns. Build the handles themselves by counting
+     * up to @ref vertexCount when the incidence queries are what is wanted.
+     */
+    [[nodiscard]] const std::vector<PointType>& vertices() const {
+        return points_;
+    }
+
+    /**
+     * @brief Returns every edge, each carrying its label, one per twin pair.
+     *
+     * The edge of index `i` is the one the halfedges `2i` and `2i + 1` run
+     * along, so `edges()[h.index() / 2]` is what `operator[](HalfedgeId)`
+     * returns for `h` and for its twin alike. Unlike @ref vertices this is
+     * built on demand rather than stored, the topology keeping halfedges
+     * rather than edges.
+     */
+    [[nodiscard]] std::vector<SegmentType> edges() const {
+        std::vector<SegmentType> result;
+        result.reserve(edgeCount());
+        for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
+            result.push_back((*this)[HalfedgeId(h)]);
+        }
+        return result;
     }
 
     /** @brief Returns the range of every @ref HalfedgeId, in index order. */
