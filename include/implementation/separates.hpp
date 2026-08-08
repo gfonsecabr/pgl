@@ -4462,22 +4462,22 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherRegion& other
 //
 // What survives all of that is the plainest reading of the question. Both
 // operands are polygonal, so the arrangement of their boundaries cuts the
-// plane into cells — open triangles, open edges and vertices — on each of
-// which membership in *both* operands is constant, and `target ∖ remover` is
-// exactly the union of the kept cells. Two kept cells are adjacent in the
-// remainder exactly when one is a face of the other (a cell's closure meets
-// another kept cell only along shared faces, and `c ∪ f` is connected for a
-// face `f` of `c`), so a union-find over the incidences counts the components
-// with nothing assumed about either shape. Vertices and edges are cells in
-// their own right, which is what keeps slits — region material with no area
-// beside it — and pinch points from being lost.
+// plane into cells — open faces, open edges and vertices — on each of which
+// membership in *both* operands is constant, and `target ∖ remover` is exactly
+// the union of the kept cells. Two kept cells are adjacent in the remainder
+// exactly when one is a face of the other (a cell's closure meets another kept
+// cell only along shared faces, and `c ∪ f` is connected for a face `f` of
+// `c`), so a union-find over the incidences counts the components with nothing
+// assumed about either shape. Vertices and edges are cells in their own right,
+// which is what keeps slits — region material with no area beside it — and
+// pinch points from being lost.
 //
-// The construction is a constrained Delaunay triangulation of a box holding
-// both operands, with every boundary edge of both, split at their crossings,
-// as a constraint. Coordinates are exact rationals, since the crossings are.
-// A region without holes *is* its outer polygon, and forwards to it: that
-// keeps the tested polygon implementations in charge of everything they
-// already settle, and leaves the engine for the cases only a region reaches.
+// The construction is the @ref pgl::Arrangement of every boundary edge of both
+// operands, which is that decomposition and carries the incidences directly.
+// Coordinates are exact rationals, since the crossings are. A region without
+// holes *is* its outer polygon, and forwards to it: that keeps the tested
+// polygon implementations in charge of everything they already settle, and
+// leaves the engine for the cases only a region reaches.
 
 namespace detail {
 
@@ -4534,66 +4534,6 @@ void appendCutPoints(const Shape& shape, std::vector<ExactPoint>& out) {
 }
 
 /**
- * @brief The cut segments split at every crossing, overlap end and cut point,
- * so that they meet each other and the cut points only at shared endpoints.
- *
- * This is what makes them usable as triangulation constraints: no constraint
- * is left with a vertex in its relative interior.
- */
-template <class ExactPoint>
-std::vector<Segment<ExactPoint>> arrangedCutSegments(const std::vector<Segment<ExactPoint>>& segments,
-                                                     const std::vector<ExactPoint>& points) {
-    using ExactNumber = typename ExactPoint::NumberType;
-    std::vector<Segment<ExactPoint>> result;
-    // Repeated cut segments are common — both operands carry a shared boundary
-    // edge, and the Minkowski pieces overlap in bulk — and each repeat would
-    // otherwise pay for a whole pass of the quadratic scan below just to produce
-    // pieces the final unique discards. Dropping the repeats up front cannot
-    // change the result: a duplicate meets its twin in the whole of it, so the
-    // only cuts it contributes are the two endpoints already seeded.
-    std::vector<Segment<ExactPoint>> distinct = segments;
-    std::sort(distinct.begin(), distinct.end());
-    distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
-    std::vector<ExactPoint> cuts;
-    for (std::size_t i = 0; i < distinct.size(); ++i) {
-        cuts.clear();
-        cuts.push_back(distinct[i].min());
-        cuts.push_back(distinct[i].max());
-        for (std::size_t j = 0; j < distinct.size(); ++j) {
-            if (j == i) {
-                continue;
-            }
-            const auto piece = distinct[i].template intersection<ExactNumber>(distinct[j]);
-            if (!piece) {
-                continue;
-            }
-            if (const auto* point = std::get_if<0>(&*piece)) {
-                cuts.push_back(ExactPoint(*point));
-            } else {
-                const auto& overlap = std::get<1>(*piece);
-                cuts.push_back(ExactPoint(overlap.min()));
-                cuts.push_back(ExactPoint(overlap.max()));
-            }
-        }
-        for (const auto& point : points) {
-            if (distinct[i].contains(point)) {
-                cuts.push_back(point);
-            }
-        }
-        // Every cut lies on segment i, so the lexicographic point order is the
-        // linear order along it.
-        std::sort(cuts.begin(), cuts.end());
-        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
-        for (std::size_t k = 0; k + 1 < cuts.size(); ++k) {
-            result.emplace_back(cuts[k], cuts[k + 1]);
-        }
-    }
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    return result;
-}
-
-/**
  * @brief Whether `target ∖ remover` has at least two connected components.
  *
  * Both operands must be bounded and polygonal (a point, a segment, a chain, a
@@ -4601,10 +4541,25 @@ std::vector<Segment<ExactPoint>> arrangedCutSegments(const std::vector<Segment<E
  * neither may be self-overlapping. Nothing else is asked of them: the cell
  * decomposition described above is exact for any such pair, in either role.
  *
- * Complexity is dominated by the constrained triangulation over the
- * arrangement of both boundaries: O(m²) segment intersections for m boundary
- * edges, then O(k log k) for the k arrangement edges, with exact rational
- * arithmetic throughout.
+ * The decomposition is the @ref pgl::Arrangement of both operands' cut
+ * segments, with the cut points as vertices of it. Its cells are its faces, its
+ * open edges and its vertices, and every incidence the union-find needs is read
+ * off the halfedges: a halfedge has its edge, its origin and the face on its
+ * left all incident to one another, and every incidence of the arrangement is
+ * seen from some halfedge. The unbounded face is never kept — the target is
+ * bounded, so no point of a face reaching to infinity lies in it — which is why
+ * this needs no bounding box around the input.
+ *
+ * Cells are addressed by the arrangement's own handles, so the whole count runs
+ * on integer-indexed arrays rather than on maps keyed by rational points, and
+ * general faces replace the triangles a constrained triangulation would have
+ * cut them into. No convexity is asked of a face: a cell's closure meets
+ * another cell only along shared faces of the complex, and `c ∪ f` is connected
+ * whenever `f` is such a face of `c`, whatever shape `c` has.
+ *
+ * Complexity is that of the arrangement — the split of the m boundary edges at
+ * their crossings, then O(k log k) for the k arrangement edges — plus one
+ * containment test in each operand per cell, exact throughout.
  */
 template <class Target, class Remover>
 bool cellSeparates(const Target& target, const Remover& remover) {
@@ -4629,30 +4584,11 @@ bool cellSeparates(const Target& target, const Remover& remover) {
         return false;  // a target with no extent holds at most one component
     }
 
-    // A box strictly containing both operands, so its own edges never coincide
-    // with a boundary and every cell inside it is decided by the operands.
-    ExactNumber loX = cuts.front().min().x();
-    ExactNumber loY = cuts.front().min().y();
-    ExactNumber hiX = loX;
-    ExactNumber hiY = loY;
-    const auto include = [&](const ExactPoint& point) {
-        loX = std::min(loX, point.x());
-        loY = std::min(loY, point.y());
-        hiX = std::max(hiX, point.x());
-        hiY = std::max(hiY, point.y());
-    };
-    for (const auto& cut : cuts) {
-        include(cut.min());
-        include(cut.max());
-    }
-    for (const auto& point : cutPoints) {
-        include(point);
-    }
-    const ExactNumber margin(1);
-    const Polygon<ExactPoint> box(std::vector<ExactPoint>{
-        ExactPoint(loX - margin, loY - margin), ExactPoint(hiX + margin, loY - margin),
-        ExactPoint(hiX + margin, hiY + margin), ExactPoint(loX - margin, hiY + margin)});
-    const auto mesh = box.triangulation(cutPoints, arrangedCutSegments(cuts, cutPoints));
+    // Layering: Arrangement lives in algorithm/arrangement.hpp, which pgl.hpp
+    // includes after this header. Only the name is available here — see the
+    // declaration in core/forward.hpp — and that is enough, since the type
+    // depends on the operands and so is instantiated at the call site.
+    const Arrangement<ExactPoint> arrangement(cuts, cutPoints);
 
     // One union-find node per kept cell. A cell is kept when its relative
     // interior lies in target ∖ remover, which one witness point decides.
@@ -4664,10 +4600,12 @@ bool cellSeparates(const Target& target, const Remover& remover) {
         }
         return x;
     };
-    const auto unite = [&](std::size_t a, std::size_t b) {
-        parent[findRoot(a)] = findRoot(b);
-    };
     constexpr std::size_t dropped = std::numeric_limits<std::size_t>::max();
+    const auto unite = [&](std::size_t a, std::size_t b) {
+        if (a != dropped && b != dropped) {
+            parent[findRoot(a)] = findRoot(b);
+        }
+    };
     const auto cellOf = [&](const ExactPoint& witness) {
         if (!target.contains(witness) || remover.contains(witness)) {
             return dropped;
@@ -4676,44 +4614,34 @@ bool cellSeparates(const Target& target, const Remover& remover) {
         return parent.size() - 1;
     };
 
-    std::map<ExactSegment, std::size_t> edgeCells;
-    std::map<ExactPoint, std::size_t> vertexCells;
-    const auto vertexCell = [&](const ExactPoint& vertex) {
-        const auto [it, inserted] = vertexCells.try_emplace(vertex, dropped);
-        if (inserted) {
-            it->second = cellOf(vertex);
+    std::vector<std::size_t> faceCell(arrangement.faceCount(), dropped);
+    for (const auto f : arrangement.faces()) {
+        if (!arrangement.isUnbounded(f)) {
+            faceCell[f.index()] = cellOf(arrangement.template witness<ExactNumber>(f));
         }
-        return it->second;
-    };
-    const auto edgeCell = [&](const ExactSegment& edge) {
-        const auto [it, inserted] = edgeCells.try_emplace(edge, dropped);
-        if (inserted) {
-            it->second = cellOf(ExactPoint((edge.min().x() + edge.max().x()) / ExactNumber(2),
-                                           (edge.min().y() + edge.max().y()) / ExactNumber(2)));
-        }
-        return it->second;
-    };
+    }
+    // A vertex the input left isolated — a cut point lying on no cut segment —
+    // gets a cell of its own that the loop below never joins to anything, which
+    // is right because it only arises when an operand is a single point: as the
+    // target it is then the one cell that can survive at all, and as the remover
+    // it is dropped along with every other point of the remover.
+    std::vector<std::size_t> vertexCell(arrangement.vertexCount(), dropped);
+    for (const auto v : arrangement.vertices()) {
+        vertexCell[v.index()] = cellOf(arrangement.template witness<ExactNumber>(v));
+    }
 
-    for (const auto& triangle : mesh.triangles()) {
-        const std::size_t face = cellOf(triangle.template pointInside<ExactNumber>());
-        for (int k = 0; k < 3; ++k) {
-            const ExactSegment edge(triangle.get(k), triangle.get(k + 1));
-            const std::size_t side = edgeCell(edge);
-            const std::size_t corner = vertexCell(ExactPoint(triangle.get(k)));
-            if (face != dropped && side != dropped) {
-                unite(face, side);
-            }
-            if (face != dropped && corner != dropped) {
-                unite(face, corner);
-            }
-            if (side != dropped && corner != dropped) {
-                unite(side, corner);
-            }
-            const std::size_t next = vertexCell(ExactPoint(triangle.get(k + 1)));
-            if (side != dropped && next != dropped) {
-                unite(side, next);
-            }
+    std::vector<std::size_t> edgeCell(arrangement.edgeCount(), dropped);
+    for (const auto h : arrangement.halfedges()) {
+        const std::size_t edge = h.index() / 2;
+        if (h.index() % 2 == 0) {
+            edgeCell[edge] = cellOf(arrangement.template witness<ExactNumber>(h));
         }
+        const std::size_t side = edgeCell[edge];
+        const std::size_t corner = vertexCell[arrangement.origin(h).index()];
+        const std::size_t face = faceCell[arrangement.face(h).index()];
+        unite(side, corner);
+        unite(side, face);
+        unite(face, corner);
     }
 
     std::size_t components = 0;
@@ -4836,13 +4764,43 @@ bool convexAndRegionSeparate(const ConvexOperand& convex, const Region& region) 
 // ---------------------------------------------------------------------------
 // The disk pair.
 //
-// A circle is not polygonal, so the cell engine does not take it: its
-// decomposition wants both boundaries as triangulation constraints, and a
-// circle is neither a constraint nor a source of rational crossings. What
-// replaces it in each direction is the one property a disk has that a polygon
-// does not — convexity — and each direction uses it differently. Neither ever
-// constructs a circle crossing: every test below is a predicate on the disk,
-// exact in the operands' own arithmetic.
+// A circle is not polygonal, so the cell engine does not take it: it has no
+// boundary to add to the arrangement, being neither a segment nor a source of
+// rational crossings. What replaces it in each direction is the one property a
+// disk has that a polygon does not — convexity — and each direction uses it
+// differently. Neither ever constructs a circle crossing: every test below is a
+// predicate on the disk, exact in the operands' own arithmetic.
+//
+// Convexity is also why the direction below keeps a triangulation where
+// @ref cellSeparates dropped one. Its cells must each meet the disk in a
+// connected set, and a general arrangement face need not: an L-shaped face and
+// a disk covering both of its ends but not its corner meet in two pieces. A
+// triangle cannot do that, so the arrangement's faces are cut into triangles
+// before the union-find walks them, and only the split of the constraints —
+// which the arrangement does by sweep — is shared with the polygonal engine.
+
+/**
+ * @brief The cut segments split at every crossing and overlap end, so that they
+ * meet each other only at shared endpoints.
+ *
+ * This is what makes them usable as triangulation constraints: no constraint is
+ * left with a vertex in its relative interior, and no two overlap. The pieces
+ * are the arrangement's edges, so duplicated and overlapping input has already
+ * been merged into one segment apiece.
+ */
+template <class ExactPoint>
+std::vector<Segment<ExactPoint>> splitCutSegments(const std::vector<Segment<ExactPoint>>& cuts) {
+    // Layering: see the note in @ref cellSeparates.
+    const Arrangement<ExactPoint> arrangement(cuts);
+    std::vector<Segment<ExactPoint>> pieces;
+    pieces.reserve(arrangement.edgeCount());
+    for (const auto h : arrangement.halfedges()) {
+        if (h.index() % 2 == 0) {
+            pieces.push_back(arrangement[h]);
+        }
+    }
+    return pieces;
+}
 
 /**
  * @brief Whether `disk ∖ region` has at least two connected components.
@@ -4895,7 +4853,7 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
         std::max(ExactNumber(regionBox.max().y()), ExactNumber(diskBox.max().y())) + margin;
     const Polygon<ExactPoint> box(std::vector<ExactPoint>{
         ExactPoint(loX, loY), ExactPoint(hiX, loY), ExactPoint(hiX, hiY), ExactPoint(loX, hiY)});
-    const auto mesh = box.triangulation(arrangedCutSegments(cuts, std::vector<ExactPoint>{}));
+    const auto mesh = box.triangulation(splitCutSegments(cuts));
 
     // The disk in the arrangement's own arithmetic, so every test below is a
     // like-typed exact predicate.
