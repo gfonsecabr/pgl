@@ -592,6 +592,27 @@ TEST_CASE("integer coordinates suffice when segments meet only at endpoints") {
               .contains(arr.witness<pgl::Rational<int>>(pgl::FaceId(1))));
 }
 
+TEST_CASE("integer coordinates suffice when orthogonal segments cross") {
+    // Unlike the diagonals in "crossings off the input lattice", a horizontal and
+    // a vertical segment meet at a point both their coordinates already have, so
+    // int coordinates carry the crossing without promotion to a rational type.
+    using IntPoint = pgl::Point<int>;
+    using IntSegment = pgl::Segment<IntPoint>;
+    const std::vector<IntSegment> cross{IntSegment(IntPoint(-2, 0), IntPoint(2, 0)),
+                                        IntSegment(IntPoint(0, -2), IntPoint(0, 2))};
+    const pgl::Arrangement<IntPoint> arr(cross);
+    CHECK(arr.vertexCount() == 5);
+    CHECK(arr.edgeCount() == 4);
+    CHECK(arr.faceCount() == 1);
+    bool foundCentre = false;
+    for (pgl::VertexId v : arr.vertices()) {
+        if (arr[v] == IntPoint(0, 0)) {
+            foundCentre = true;
+        }
+    }
+    CHECK(foundCentre);
+}
+
 TEST_CASE("handles are distinct, ordered and hashable types") {
     CHECK(sizeof(pgl::VertexId) == sizeof(std::uint32_t));
     CHECK_FALSE(std::is_convertible_v<pgl::VertexId, pgl::FaceId>);
