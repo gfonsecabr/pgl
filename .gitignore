@@ -30,3 +30,4 @@ tests/graphical/*.svg
 *.exe
 a.out
 CLAUDE.md
+/AGENTS.md
