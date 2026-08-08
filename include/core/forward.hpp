@@ -127,6 +127,18 @@ template <class PointType>
 struct Shape;
 
 /**
+ * @brief Planar subdivision induced by a set of one-dimensional shapes.
+ *
+ * Declared here, well before its definition in algorithm/arrangement.hpp, so
+ * that an implementation header included ahead of it — the cut predicates
+ * @ref pgl::Polygon::separates and @ref pgl::Polygon::crosses run on the
+ * arrangement of both operands' boundaries — may name the class inside a
+ * template whose instantiation happens later.
+ */
+template <class PointType, class Label = NoLabel>
+class Arrangement;
+
+/**
  * @brief Affine transformation stored as a 2x3 matrix.
  *
  * Applied to a point or shape with `operator*`; composed with another
