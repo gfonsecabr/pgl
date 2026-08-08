@@ -4626,8 +4626,8 @@ bool cellSeparates(const Target& target, const Remover& remover) {
     // target it is then the one cell that can survive at all, and as the remover
     // it is dropped along with every other point of the remover.
     std::vector<std::size_t> vertexCell(arrangement.vertexCount(), dropped);
-    for (const auto v : arrangement.vertices()) {
-        vertexCell[v.index()] = cellOf(arrangement.template witness<ExactNumber>(v));
+    for (std::size_t i = 0; i < arrangement.vertexCount(); ++i) {
+        vertexCell[i] = cellOf(arrangement.vertices()[i]);  // a vertex is its own witness
     }
 
     std::vector<std::size_t> edgeCell(arrangement.edgeCount(), dropped);
