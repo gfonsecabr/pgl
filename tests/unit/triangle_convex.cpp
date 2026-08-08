@@ -118,7 +118,7 @@ TEST_CASE("Convex intersection with Triangle") {
 
     SUBCASE("overlapping area: intersection is a Convex") {
         const Triangle t({2, 2}, {6, 2}, {4, 6});
-        const auto result = sq.intersection(t);
+        const auto result = sq.intersection<int>(t);
         REQUIRE_MESSAGE(result, "sq ∩ overlapping triangle should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
                       "area overlap clips to a Convex");
@@ -128,7 +128,7 @@ TEST_CASE("Convex intersection with Triangle") {
         // Edges along y=1 (horizontal), x=1 (vertical), and y=4-x (slope-1) all
         // intersect the sq boundary at integer points, so int arithmetic is exact.
         const Triangle inner({1, 1}, {3, 1}, {1, 3});
-        const auto result = sq.intersection(inner);
+        const auto result = sq.intersection<int>(inner);
         REQUIRE_MESSAGE(result, "sq ∩ inner triangle should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Convex>(*result),
                       "contained triangle returned as Convex");
@@ -137,7 +137,7 @@ TEST_CASE("Convex intersection with Triangle") {
     SUBCASE("sharing only an edge: intersection is a Segment") {
         // Triangle whose base lies along the bottom edge of the square (y=0).
         const Triangle t({0, 0}, {4, 0}, {2, -2});
-        const auto result = sq.intersection(t);
+        const auto result = sq.intersection<int>(t);
         REQUIRE_MESSAGE(result, "sq ∩ edge-touching triangle should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Segment>(*result),
                       "shared-edge intersection is a Segment");
@@ -145,7 +145,7 @@ TEST_CASE("Convex intersection with Triangle") {
 
     SUBCASE("disjoint: no intersection") {
         const Triangle t({10, 10}, {12, 10}, {11, 12});
-        CHECK_FALSE_MESSAGE(sq.intersection(t), "sq ∩ disjoint triangle should be empty");
+        CHECK_FALSE_MESSAGE(sq.intersection<int>(t), "sq ∩ disjoint triangle should be empty");
     }
 }
 
@@ -158,6 +158,6 @@ TEST_CASE("Triangle and Convex squared Hausdorff distance") {
     const Triangle t({8, 0}, {12, 0}, {8, 4});
 
     // Farthest vertex on either side is at squared distance 64 (opposite corners).
-    CHECK(sq.squaredHausdorffDistance(t) == 64);
-    CHECK(t.squaredHausdorffDistance(sq) == 64);
+    CHECK(sq.squaredHausdorffDistance<int>(t) == 64);
+    CHECK(t.squaredHausdorffDistance<int>(sq) == 64);
 }

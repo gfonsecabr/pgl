@@ -180,10 +180,10 @@ TEST_CASE("Triangle reports exact area, centroid, interior point, and bounding b
 
     const auto centroid = triangle.centroid<Rational>();
     CHECK(centroid == RationalPoint(Rational(4, 3), Rational(2, 3)));
-    CHECK(triangle.interiorContains(triangle.pointInside()));
+    CHECK(triangle.interiorContains(triangle.pointInside<int>()));
 
     const auto circumcircle = triangle.circumcircle();
-    CHECK(circumcircle.center() == RationalPoint(Rational(2), Rational(1)));
+    CHECK(circumcircle.center<int>() == RationalPoint(Rational(2), Rational(1)));
     CHECK(circumcircle.squaredRadius<Rational>() == Rational(5));
 
     const auto box = triangle.bbox();
@@ -262,12 +262,12 @@ TEST_CASE("Triangle intersections with lines and segments return points or clipp
     REQUIRE(std::holds_alternative<RationalSegment>(*line_crossing));
     CHECK(std::get<RationalSegment>(*line_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
 
-    const auto line_vertex = triangle.intersection(Line({-1, 1}, {1, -1}));
+    const auto line_vertex = triangle.intersection<int>(Line({-1, 1}, {1, -1}));
     REQUIRE(line_vertex);
     REQUIRE(std::holds_alternative<Point>(*line_vertex));
     CHECK(std::get<Point>(*line_vertex) == Point(0, 0));
 
-    CHECK_FALSE(triangle.intersection(Line({0, 5}, {4, 5})));
+    CHECK_FALSE(triangle.intersection<int>(Line({0, 5}, {4, 5})));
     CHECK(triangle.intersects(Line({-1, 1}, {5, 1})));
     CHECK_FALSE(triangle.intersects(Line({0, 5}, {4, 5})));
 
@@ -276,12 +276,12 @@ TEST_CASE("Triangle intersections with lines and segments return points or clipp
     REQUIRE(std::holds_alternative<RationalSegment>(*segment_crossing));
     CHECK(std::get<RationalSegment>(*segment_crossing) == RationalSegment(RationalPoint(0, 1), RationalPoint(3, 1)));
 
-    const auto segment_touching = triangle.intersection(Segment({-1, -1}, {0, 0}));
+    const auto segment_touching = triangle.intersection<int>(Segment({-1, -1}, {0, 0}));
     REQUIRE(segment_touching);
     REQUIRE(std::holds_alternative<Point>(*segment_touching));
     CHECK(std::get<Point>(*segment_touching) == Point(0, 0));
 
-    CHECK_FALSE(triangle.intersection(Segment({5, 5}, {6, 6})));
+    CHECK_FALSE(triangle.intersection<int>(Segment({5, 5}, {6, 6})));
     CHECK(triangle.intersects(Segment({-1, 1}, {5, 1})));
     CHECK_FALSE(triangle.intersects(Segment({5, 5}, {6, 6})));
 }
@@ -493,31 +493,31 @@ TEST_CASE("Triangle predicates against another triangle") {
 
         // Area overlap is a convex polygon: base ∩ (2,2)(8,2)(2,8) is the triangle
         // (2,2)(4,2)(2,4), twiceArea 4.
-        const auto overlap = base.intersection(Triangle({2, 2}, {8, 2}, {2, 8}));
+        const auto overlap = base.intersection<int>(Triangle({2, 2}, {8, 2}, {2, 8}));
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Convex>(*overlap));
         CHECK(std::get<Convex>(*overlap).twiceArea() == 4);
 
         // A triangle sharing the whole bottom edge from below meets along it.
-        const auto edge = base.intersection(Triangle({0, 0}, {6, 0}, {0, -6}));
+        const auto edge = base.intersection<int>(Triangle({0, 0}, {6, 0}, {0, -6}));
         REQUIRE(edge);
         REQUIRE(std::holds_alternative<Segment>(*edge));
         CHECK(std::get<Segment>(*edge) == Segment(Point(0, 0), Point(6, 0)));
 
         // A strictly interior triangle is returned as the (convex) overlap.
-        const auto inner = base.intersection(Triangle({1, 1}, {2, 1}, {1, 2}));
+        const auto inner = base.intersection<int>(Triangle({1, 1}, {2, 1}, {1, 2}));
         REQUIRE(inner);
         REQUIRE(std::holds_alternative<Convex>(*inner));
         CHECK(std::get<Convex>(*inner).twiceArea() == 1);
 
         // Touching at a single vertex yields a Point, never a degenerate segment.
-        const auto tip = base.intersection(Triangle({6, 0}, {8, 0}, {7, 2}));
+        const auto tip = base.intersection<int>(Triangle({6, 0}, {8, 0}, {7, 2}));
         REQUIRE(tip);
         REQUIRE(std::holds_alternative<Point>(*tip));
         CHECK(std::get<Point>(*tip) == Point(6, 0));
 
         // Disjoint triangles do not intersect.
-        CHECK_FALSE(base.intersection(Triangle({10, 10}, {11, 10}, {10, 11})));
+        CHECK_FALSE(base.intersection<int>(Triangle({10, 10}, {11, 10}, {10, 11})));
     }
 }
 
@@ -527,24 +527,24 @@ TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {
     const pgl::Triangle<P> tri({0, 0}, {4, 0}, {0, 4});
 
     SUBCASE("intersecting shapes are at distance zero") {
-        CHECK(tri.squaredDistance(P(1, 1)) == 0);                              // interior point
-        CHECK(tri.squaredDistance(pgl::Line<P>({0, 1}, {1, 1})) == 0);         // y=1 cuts the triangle
-        CHECK(tri.squaredDistance(pgl::Segment<P>({-1, 1}, {5, 1})) == 0);     // crossing segment
-        CHECK(tri.squaredDistance(pgl::Rectangle<P>({1, 1}, {2, 2})) == 0);    // rectangle inside
+        CHECK(tri.squaredDistance<int>(P(1, 1)) == 0);                              // interior point
+        CHECK(tri.squaredDistance<int>(pgl::Line<P>({0, 1}, {1, 1})) == 0);         // y=1 cuts the triangle
+        CHECK(tri.squaredDistance<int>(pgl::Segment<P>({-1, 1}, {5, 1})) == 0);     // crossing segment
+        CHECK(tri.squaredDistance<int>(pgl::Rectangle<P>({1, 1}, {2, 2})) == 0);    // rectangle inside
     }
 
     SUBCASE("disjoint shapes whose nearest feature is a vertex are integer-exact") {
-        CHECK(tri.squaredDistance(P(10, 0)) == 36);                            // -> vertex (4,0)
-        CHECK(tri.squaredDistance(pgl::Segment<P>({10, 0}, {10, 4})) == 36);
-        CHECK(tri.squaredDistance(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 36);
-        CHECK(tri.squaredDistance(pgl::Ray<P>({10, 0}, {11, 0})) == 36);
-        CHECK(tri.squaredDistance(pgl::Line<P>({0, -1}, {1, -1})) == 1);       // bottom edge to y=-1
-        CHECK(tri.squaredDistance(pgl::OrientedLine<P>({0, -1}, {1, -1})) == 1);
+        CHECK(tri.squaredDistance<int>(P(10, 0)) == 36);                            // -> vertex (4,0)
+        CHECK(tri.squaredDistance<int>(pgl::Segment<P>({10, 0}, {10, 4})) == 36);
+        CHECK(tri.squaredDistance<int>(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 36);
+        CHECK(tri.squaredDistance<int>(pgl::Ray<P>({10, 0}, {11, 0})) == 36);
+        CHECK(tri.squaredDistance<int>(pgl::Line<P>({0, -1}, {1, -1})) == 1);       // bottom edge to y=-1
+        CHECK(tri.squaredDistance<int>(pgl::OrientedLine<P>({0, -1}, {1, -1})) == 1);
     }
 
     SUBCASE("fractional distances need a floating-point or rational ResultNumber") {
         const P near_hypotenuse(2, 3);                                        // exact squared distance 1/2
-        CHECK(tri.squaredDistance(near_hypotenuse) == 0);                     // integer default truncates
+        CHECK(tri.squaredDistance<int>(near_hypotenuse) == 0);                     // integer default truncates
         CHECK(tri.squaredDistance<double>(near_hypotenuse) == doctest::Approx(0.5));
         CHECK(tri.squaredDistance<Rational>(near_hypotenuse) == Rational(1, 2));
 
@@ -553,13 +553,13 @@ TEST_CASE("Triangle measures squared distance to every lower-ranked shape") {
     }
 
     SUBCASE("the relation is symmetric: lower-ranked shapes forward to the triangle") {
-        CHECK(P(10, 0).squaredDistance(tri) == tri.squaredDistance(P(10, 0)));
-        CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredDistance(tri)
-              == tri.squaredDistance(pgl::Segment<P>({10, 0}, {10, 4})));
-        CHECK(pgl::Line<P>({0, -1}, {1, -1}).squaredDistance(tri)
-              == tri.squaredDistance(pgl::Line<P>({0, -1}, {1, -1})));
-        CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredDistance(tri)
-              == tri.squaredDistance(pgl::Rectangle<P>({10, 10}, {12, 12})));
+        CHECK(P(10, 0).squaredDistance<int>(tri) == tri.squaredDistance<int>(P(10, 0)));
+        CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredDistance<int>(tri)
+              == tri.squaredDistance<int>(pgl::Segment<P>({10, 0}, {10, 4})));
+        CHECK(pgl::Line<P>({0, -1}, {1, -1}).squaredDistance<int>(tri)
+              == tri.squaredDistance<int>(pgl::Line<P>({0, -1}, {1, -1})));
+        CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredDistance<int>(tri)
+              == tri.squaredDistance<int>(pgl::Rectangle<P>({10, 10}, {12, 12})));
     }
 }
 
@@ -608,21 +608,21 @@ TEST_CASE("Triangle measures squared Hausdorff distance to every lower-ranked sh
     // Every case's farthest witness is a triangle vertex: (0,4) is farthest
     // from the point-like and segment-like shapes, dominating their own
     // (much smaller) farthest-point-from-the-triangle term.
-    CHECK(tri.squaredHausdorffDistance(P(10, 0)) == 116);
-    CHECK(P(10, 0).squaredHausdorffDistance(tri) == 116);
+    CHECK(tri.squaredHausdorffDistance<int>(P(10, 0)) == 116);
+    CHECK(P(10, 0).squaredHausdorffDistance<int>(tri) == 116);
 
-    CHECK(tri.squaredHausdorffDistance(pgl::Segment<P>({10, 0}, {10, 4})) == 100);
-    CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredHausdorffDistance(tri) == 100);
+    CHECK(tri.squaredHausdorffDistance<int>(pgl::Segment<P>({10, 0}, {10, 4})) == 100);
+    CHECK(pgl::Segment<P>({10, 0}, {10, 4}).squaredHausdorffDistance<int>(tri) == 100);
 
-    CHECK(tri.squaredHausdorffDistance(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 100);
-    CHECK(pgl::OrientedSegment<P>({10, 0}, {10, 4}).squaredHausdorffDistance(tri) == 100);
+    CHECK(tri.squaredHausdorffDistance<int>(pgl::OrientedSegment<P>({10, 0}, {10, 4})) == 100);
+    CHECK(pgl::OrientedSegment<P>({10, 0}, {10, 4}).squaredHausdorffDistance<int>(tri) == 100);
 
-    CHECK(tri.squaredHausdorffDistance(pgl::Rectangle<P>({10, 10}, {12, 12})) == 200);
-    CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredHausdorffDistance(tri) == 200);
+    CHECK(tri.squaredHausdorffDistance<int>(pgl::Rectangle<P>({10, 10}, {12, 12})) == 200);
+    CHECK(pgl::Rectangle<P>({10, 10}, {12, 12}).squaredHausdorffDistance<int>(tri) == 200);
 
     const pgl::Triangle<P> other({10, 10}, {11, 10}, {10, 11});
-    CHECK(tri.squaredHausdorffDistance(other) == 200);
-    CHECK(other.squaredHausdorffDistance(tri) == 200);
+    CHECK(tri.squaredHausdorffDistance<int>(other) == 200);
+    CHECK(other.squaredHausdorffDistance<int>(tri) == 200);
 }
 
 TEST_CASE("Triangle converts to a half-plane intersection") {

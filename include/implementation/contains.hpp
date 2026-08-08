@@ -1001,7 +1001,7 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherDisk& other) cons
         return false;
     }
 
-    const R d2 = center<R>().squaredDistance(other.template center<R>());
+    const R d2 = center<R>().template squaredDistance<R>(other.template center<R>());
     const R A = d2 - r1_sq - r2_sq;
     return A <= R{} && A * A >= R{4} * r1_sq * r2_sq;
 }

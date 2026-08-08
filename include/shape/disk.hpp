@@ -279,7 +279,7 @@ struct Disk {
      * @tparam ResultNumber Coordinate type of the result.
      * @warning Computes the center via division by twice the signed area unless the disk has been created by center and radius.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr Point<ResultNumber, PointLabelType> center() const {
         if (auto cr = centerAndRadius()) {
             return Point<ResultNumber, PointLabelType>(cr->first);
@@ -328,7 +328,7 @@ struct Disk {
      * @tparam ResultNumber Result type.
      * @warning If the disk has not been defined by center and radius, it takes a square root of @ref squaredRadius, which uses division.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = double>
     [[nodiscard]] constexpr ResultNumber radius() const {
         if (auto cr = centerAndRadius()) {
             return static_cast<ResultNumber>(cr->second);
@@ -397,7 +397,7 @@ struct Disk {
      * @tparam ResultNumber Result type.
      * @warning If the disk has not been defined by center and radius, it uses the circumradius formula, which divides by the squared area.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr ResultNumber squaredRadius() const {
         if (auto cr = centerAndRadius()) {
             return static_cast<ResultNumber>(cr->second) * static_cast<ResultNumber>(cr->second);
@@ -410,9 +410,9 @@ struct Disk {
         // Circumradius formula:
         // R^2 = |AB|^2 |BC|^2 |CA|^2 / (4 * det(A,B,C)^2),
         // where det(A,B,C) is twice the signed area of triangle ABC
-        const ResultNumber ab2 = static_cast<ResultNumber>(a().squaredDistance(b()));
-        const ResultNumber bc2 = static_cast<ResultNumber>(b().squaredDistance(c()));
-        const ResultNumber ca2 = static_cast<ResultNumber>(c().squaredDistance(a()));
+        const ResultNumber ab2 = a().template squaredDistance<ResultNumber>(b());
+        const ResultNumber bc2 = b().template squaredDistance<ResultNumber>(c());
+        const ResultNumber ca2 = c().template squaredDistance<ResultNumber>(a());
         const ResultNumber determinant = static_cast<ResultNumber>(orientationDeterminant(a(), b(), c()));
         const ResultNumber four = static_cast<ResultNumber>(4);
 
@@ -598,11 +598,11 @@ struct Disk {
      *
      * Being the midpoint of a chord, it lies strictly inside the disk.
      *
-     * @tparam ResultNumber Coordinate type of the result; defaults to @ref NumberType.
+     * @tparam ResultNumber Coordinate type of the result; defaults to @ref division_result_t.
      * @warning Divides by 2; with an integral @p ResultNumber the truncated
      *            result may land on or outside the boundary.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr Point<ResultNumber, PointLabelType> pointInside() const {
         const ResultNumber two = static_cast<ResultNumber>(2);
         return Point<ResultNumber, PointLabelType>(
@@ -621,7 +621,7 @@ struct Disk {
      * @tparam ResultNumber Coordinate type of the returned endpoints.
      * @warning Uses division unless the disk is defined by center and radius.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr Segment<Point<ResultNumber, PointLabelType>> diameter() const {
         using ResultPoint = Point<ResultNumber, PointLabelType>;
 
@@ -650,7 +650,7 @@ struct Disk {
      * exact `ResultNumber` cannot be honoured. A floating-point one is used as
      * asked; anything else falls back to `double`.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherPoint& point) const;
 
     /**
@@ -666,35 +666,35 @@ struct Disk {
      * honoured as asked and any other request falls back to `double`. The lower-ranked shapes forward
      * their `squaredDistance(Disk)` to this overload.
      */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = double, SegmentConcept OtherSegment>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = double, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    template <class ResultNumber = double, LineConcept OtherLine>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    template <class ResultNumber = double, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherOrientedLine& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    template <class ResultNumber = double, RayConcept OtherRay>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRay& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherHalfplane& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = double, RectangleConcept OtherRectangle>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherRectangle& other) const;
 
     /** @copydoc squaredDistance(const OtherSegment&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = double, TriangleConcept OtherTriangle>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherTriangle& other) const;
 
     /**
@@ -706,7 +706,7 @@ struct Disk {
      * circle is generally irrational, so a floating-point `ResultNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = NumberType, DiskConcept OtherDisk>
+    template <class ResultNumber = double, DiskConcept OtherDisk>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
@@ -716,7 +716,7 @@ struct Disk {
      * needs `squaredDistance` defined only once, on the higher-ranked shape (the
      * shapes ranked above @ref Disk are @ref Convex and @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = double, typename OtherShape>
         requires (!PointConcept<OtherShape> && detail::shapeRank<OtherShape> > detail::shapeRank<Disk>
                   && requires(const OtherShape& o, const Disk& self) { o.squaredDistance(self); })
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherShape& other) const {
@@ -730,10 +730,10 @@ struct Disk {
      * the disk lies on the circle, and its L1 distance to an external point
      * is a trigonometric optimization with no closed form (unlike the
      * Euclidean case's `|point - center| - radius`), so this refines a
-     * coarse angular scan with a golden-section search. Always returns
-     * `double`, like @ref squaredDistance(const OtherPoint&) const.
+     * coarse angular scan with a golden-section search. The result defaults to
+     * `double`; an explicitly requested floating-point type is preserved.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] detail::floating_result_t<ResultNumber> distanceL1(const OtherPoint& point) const;
 
     /**
@@ -741,45 +741,32 @@ struct Disk {
      *
      * @copydetails distanceL1(const OtherPoint&) const
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] detail::floating_result_t<ResultNumber> distanceLInf(const OtherPoint& point) const;
 
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
      * Distance is symmetric, so this just calls @p other's own `distanceL1`
-     * requesting `double`, which visits its wrapped alternative and throws if
-     * the pair is unsupported.
-     *
-     * @warning Deliberately *not* templated on `ResultNumber`, unlike every
-     *          other `Disk` distance overload, and fixed to this disk's own
-     *          `Shape<PointType>` rather than a deduced point type. Both halves
-     *          of that are load-bearing, for two different reasons.
-     *
-     *          The fixed parameter type keeps the rank-forwarding machinery's
-     *          explicit probe `o.template distanceL1<ResultNumber>(self)` from
-     *          landing on a deduced point type and forcing an attempt to form
-     *          `Shape<ResultNumberType>` — e.g. `Shape<int>` — which is not a
-     *          valid point type and triggers a hard error deep inside
-     *          `std::variant`'s instantiation rather than a SFINAE-friendly
-     *          failure.
-     *
-     *          The missing `ResultNumber` slot is what makes that same probe
-     *          fail by arity here. Give this overload one and the probe
-     *          succeeds instead, binding the other shape to `Shape<PointType>`
-     *          through its implicit conversion — so `line.distanceL1(disk)`
-     *          forwards to `disk.distanceL1(Shape(line))`, which visits the
-     *          `Line` alternative and forwards straight back. That cycle is a
-     *          stack overflow, not a compile error, which is why it is pinned
-     *          by a test (`tests/unit/shape.cpp`).
+     * in the requested floating result type, which visits its wrapped
+     * alternative and throws if the pair is unsupported. Deducing
+     * @p OtherPoint from an actual `Shape` prevents a plain concrete shape from
+     * reaching this overload through an implicit conversion and recursively
+     * re-entering rank-based forwarding.
      */
-    [[nodiscard]] double distanceL1(const Shape<PointType>& other) const {
-        return other.template distanceL1<double>(*this);
+    template <class ResultNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ResultNumber>
+    distanceL1(const Shape<OtherPoint>& other) const {
+        using FloatingResult = detail::floating_result_t<ResultNumber>;
+        return other.template distanceL1<FloatingResult>(*this);
     }
 
-    /** @copydoc distanceL1(const Shape<PointType>&) const */
-    [[nodiscard]] double distanceLInf(const Shape<PointType>& other) const {
-        return other.template distanceLInf<double>(*this);
+    /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
+    template <class ResultNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] detail::floating_result_t<ResultNumber>
+    distanceLInf(const Shape<OtherPoint>& other) const {
+        using FloatingResult = detail::floating_result_t<ResultNumber>;
+        return other.template distanceLInf<FloatingResult>(*this);
     }
 
     /**
@@ -1338,11 +1325,12 @@ struct Disk {
 
         // Order true circles from smaller to larger, then by center.
         if (!isDegenerate()) {
-            const auto radius_order = pgl::detail::threeWay(squaredRadius(), other.squaredRadius());
+            const auto radius_order = pgl::detail::threeWay(squaredRadius<NumberType>(),
+                                                             other.template squaredRadius<NumberType>());
             if (radius_order != 0) {
                 return radius_order;
             }
-            return center() <=> other.center();
+            return center<NumberType>() <=> other.template center<NumberType>();
         }
 
         // Degenerate disks fall back to their canonical point representation.
@@ -1491,11 +1479,11 @@ struct Disk {
      */
     template <class OtherShape>
     [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const {
-        const auto p = pointInside();
+        const auto p = pointInside<NumberType>();
         if (interiorContains(p)) {
             return shape.interiorContains(p);
         }
-        return (shape * 2).interiorContains((*this * 2).pointInside());
+        return (shape * 2).interiorContains((*this * 2).template pointInside<NumberType>());
     }
 
   private:

@@ -88,7 +88,7 @@ TEST_CASE("MonotoneChain and Line intersection pieces") {
     using Line = pgl::Line<Point>;
 
     SUBCASE("multiple crossings arrive sorted") {
-        const auto pieces = zigzag.intersection(Line({0, 2}, {1, 2}));
+        const auto pieces = zigzag.intersection<int>(Line({0, 2}, {1, 2}));
         REQUIRE(pieces.size() == 4);
         const std::vector<Point> expected{Point(1, 2), Point(3, 2), Point(4, 2), Point(5, 2)};
         for (std::size_t i = 0; i < expected.size(); ++i) {
@@ -99,13 +99,13 @@ TEST_CASE("MonotoneChain and Line intersection pieces") {
 
     SUBCASE("a collinear chain coalesces into a single segment") {
         const pgl::MonotoneChain<Point> straight({0, 0, 1, 1, 3, 3});
-        const auto pieces = straight.intersection(Line({0, 0}, {1, 1}));
+        const auto pieces = straight.intersection<int>(Line({0, 0}, {1, 1}));
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<pgl::Segment<Point>>(pieces[0]));
         CHECK(std::get<pgl::Segment<Point>>(pieces[0]) == pgl::Segment<Point>({0, 0}, {3, 3}));
     }
 
     SUBCASE("disjoint pair yields no pieces") {
-        CHECK(zigzag.intersection(Line({0, 5}, {1, 5})).empty());
+        CHECK(zigzag.intersection<int>(Line({0, 5}, {1, 5})).empty());
     }
 }

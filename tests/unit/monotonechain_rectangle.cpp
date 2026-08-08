@@ -83,7 +83,7 @@ TEST_CASE("MonotoneChain and Rectangle distance and intersection pieces") {
     CHECK(zigzag.distanceLInf<Rational>(right) == Rational(2));
 
     // Clipping the chain to the band y <= 2 keeps four non-collinear pieces.
-    const auto pieces = zigzag.intersection(Rectangle({0, 0}, {6, 2}));
+    const auto pieces = zigzag.intersection<int>(Rectangle({0, 0}, {6, 2}));
     REQUIRE(pieces.size() == 4);
     const std::vector<pgl::Segment<Point>> expected{
         pgl::Segment<Point>({0, 0}, {1, 2}),

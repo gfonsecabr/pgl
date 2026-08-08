@@ -126,7 +126,7 @@ For anything not forwarded by `Shape` itself, `s.variant()` exposes the underlyi
 `Shape` is also constructible from a `std::variant` of shapes, or a `std::optional` of one — the return types of the typed [intersection](shape_methods.md#intersection) methods — which lets an ambiguous result be stored in a single object without unwrapping it by hand:
 
 ```C++
-pgl::Shape i = a.intersection(b);   // point, segment or empty, uniformly
+auto i = pgl::Shape(a.intersection(b)); // point, segment or empty
 ```
 
 `Shape` forwards the common shape interface to the stored alternative by visitation:
@@ -206,7 +206,7 @@ if (!s.interiorsIntersect(t)) std::cout << " Interiors do not intersect!\n";
 
 A segment `s` has methods such as:
 
-- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handles divisions by powers of 2 exactly.
+- `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -216,7 +216,7 @@ A segment `s` has methods such as:
 - `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
-- `s.slope()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
+- `s.slope<ResultNumber>()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
 - `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
 - `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
@@ -250,7 +250,7 @@ std::cout << s << std::endl;
 
 An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
 
-- `s.midpoint()`: Returns the midpoint. Uses division by 2, so make sure that the coordinates are even or a non-integer type is used. Notice that floating point handles divisions by powers of 2 exactly.
+- `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -260,7 +260,7 @@ An oriented segment `s` has all methods of the `Segment` class, with the only di
 - `s.isHorizontal()`: Returns `s[0].y() == s[1].y()`.
 - `s.containsEndpoint(p)`: Returns `s[0] == p || s[1] == p`
 - `s.collinear(t)`: Returns whether `s` and `t` are on the same line, where `t` may be a point or another segment.
-- `s.slope()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
+- `s.slope<ResultNumber>()`: Returns `(s[1].y()-s[0].y()) / (s[1].x()-s[0].x())`.
 - `s.parallel(t)`: Returns whether `s` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `s.yAtX(x)`: Returns an `std::optional` with the value of the segment y coordinate at the given coordinate `x`.
 - `s.xAtY(y)`: Returns an `std::optional` with the value of the segment x coordinate at the given coordinate `y`.
@@ -303,7 +303,7 @@ A line `l` has some additional methods such as:
 - `l.isUndefined()`: Returns `l.isDegenerate()`: a line through two equal points has no direction and no reasonable interpretation.
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
-- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
+- `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) >= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
@@ -339,7 +339,7 @@ An oriented line `l` has methods such as:
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the oriented line with source and target interchanged.
-- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
+- `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
@@ -379,7 +379,7 @@ A ray `l` has methods such as:
 - `l.isVertical()`: Returns `l[0].x() == l[1].x()`.
 - `l.isHorizontal()`: Returns `l[0].y() == l[1].y()`.
 - `l.opposite()`: Returns the ray with source and target interchanged.
-- `l.slope()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
+- `l.slope<ResultNumber>()`: Returns `(l[1].y()-l[0].y()) / (l[1].x()-l[0].x())`, possibly negative.
 - `l.parallel(t)`: Returns whether `l` and `t` have the same slope, but without using division. Here, `t` may be a segment, oriented segment, line, ray, or oriented line.
 - `l.halfplaneAbove()`: Returns the half-plane defined by all points `p` that are above the line (larger y-coordinate). If the line is vertical, then it returns the half-plane with smaller x-coordinate. In other words, it returns the half-plane defined by all points `p` such that `pgl::OrientedSegment(l[0],l[1]).orientation(p) <= 0`, noticing that `l[0] < l[1]`.
 - `l.halfplaneBelow()`: Returns the half-plane containing `l` and not `halfplaneAbove`.
@@ -421,7 +421,7 @@ A half-plane `h` has methods such as:
 - `h.isVertical()`: Returns `h[0].x() == h[1].x()`.
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
-- `h.slope()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
+- `h.slope<ResultNumber>()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -455,7 +455,7 @@ A triangle `t` has methods such as:
 - `t.isPoint()` / `t.getIfPoint()`: Whether the triangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `t.isSegment()` / `t.getIfSegment()`: Whether the triangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `t.isUndefined()`: Always `false`: a degenerate triangle is always a point or a segment.
-- `t.centroid()`: Returns the centroid.
+- `t.centroid<ResultNumber>()`: Returns the centroid.
 - `t.circumcircle()`: Returns the circumcircle.
 - `t.isRectangle()`: Returns whether one angle is 90 degrees.
 - `t.isObtuse()`: Returns whether one angle is greater than 90 degrees.
@@ -496,7 +496,7 @@ A rectangle `r` has methods such as:
 - `r.isPoint()` / `r.getIfPoint()`: Whether the rectangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `r.isSegment()` / `r.getIfSegment()`: Whether the rectangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `r.isUndefined()`: Always `false`: a degenerate rectangle is always a point or a segment.
-- `r.centroid()`: Returns the centroid.
+- `r.centroid<ResultNumber>()`: Returns the centroid.
 - `r.circumcircle()`: Returns the circumcircle.
 - `r.insert(s)`: Enlarges the rectangle in order to contain a finite shape `s`. The shape must expose `bbox()`.
 - `r.insert(points)`: Enlarges the rectangle in order to contain every point in the input range.
@@ -525,10 +525,10 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.isDegenerate()`: Returns true if the points are collinear or equal.
 - `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `d.isUndefined()`: True if the boundary points are collinear but not all equal, so they do not determine a circle (three distinct collinear points have no circle through them; two distinct ones have infinitely many). A disk is never a segment, so this and `isPoint` cover every degenerate disk.
-- `d.radius()`: Returns the radius length.
-- `d.squaredRadius()`: Returns the squared radius.
-- `d.center()`: Returns the center point.
-- `d.diameter()`: As always returns a diameter `Segment`, but for disks the segment is always horizontal.
+- `d.radius<ResultNumber = double>()`: Returns the radius length. A radius can be irrational, so the result is floating-point by default. Notice that when the disk is defined by center and radius, we may set `ResultNumber` to the same number type as the defining point.
+- `d.squaredRadius<ResultNumber>()`: Returns  the squared radius.
+- `d.center<ResultNumber>()`: Returns the center point.
+- `d.diameter<ResultNumber>()`: Returns a diameter `Segment`. A center/radius disk uses its stored horizontal diameter; a genuine three-point disk uses one boundary point and its reflection across the center.
 
 - Other methods:
 
@@ -550,7 +550,7 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.insert(points)`: Extends the chain in order to contain all the given points as vertices.
 - `P.erase(p)` / `P.erase(i)`: Removes a vertex, given as a point or by its index in the lexicographic order (as in `P[i]`), the first returning whether it was a vertex (found in $O(\log n)$ comparisons, since the vertices are sorted) and the second requiring `i` to be smaller than `P.size()`. Erasing an interior vertex reroutes the chain through a single edge between its neighbors, and erasing an extreme vertex shortens the chain.
 - `P.indexAtX(x)`: Returns an `std::optional<size_t>` that is engaged if the chain contains a point of x-coordinate `x`. The returned value is the smallest index `i` such that `P[i].x() == x`, or the unique `i` with `P[i].x() < x < P[i+1].x()`. Takes $O(\log n)$ time.
-- `P.yAtX(x)`: Returns an `std::optional` with the value of the y coordinate at the given coordinate `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. **Warning:** interpolation divides, so request a floating-point or `Rational` result type for an accurate value.
+- `P.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the y coordinate at `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. Interpolation may divide, so integral receivers widen to ERational by default.
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
 - `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
@@ -561,7 +561,7 @@ The monotone structure speeds up several predicates and constructions:
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
 - `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
 - `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
-- `P.minkowskiSum(b)`: Returns a `Polygon` when `b` is a `Triangle`, `Rectangle` or `Convex`. A monotone chain is the one non-convex shape whose Minkowski sum with a convex one is always a single polygon, and the only receiver whose sum needs neither an arrangement nor a rational. See [Minkowski Sum](shape_methods.md#minkowski-sum).
+- `P.minkowskiSum<ResultNumber>(b)`: Returns a `Polygon` when `b` is a `Triangle`, `Rectangle` or `Convex`. A monotone chain is the one non-convex shape whose Minkowski sum with a convex one is always a single polygon and needs no arrangement, although a boundary-piece crossing can still produce a rational vertex. See [Minkowski Sum](shape_methods.md#minkowski-sum).
 
 
 ### Polyline
@@ -596,7 +596,7 @@ A convex polygon `c` has methods such as:
 - `c.isPoint()` / `c.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `c.isSegment()` / `c.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `c.isUndefined()`: True only for an empty convex polygon, which has no vertex.
-- `c.centroid()`: Returns the centroid.
+- `c.centroid<ResultNumber>()`: Returns the centroid.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
 - `c.upperHull()`: Returns the upper monotone chain.
@@ -678,10 +678,10 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.isRegular()`: Returns true if the region is the closure of its own interior, $A = \mathrm{closure}(A^\circ)$. Since the contract above constrains interiors only, a valid region may pinch shut along a whole stretch of edge — a **slit**, region material with no area on either side of it, as when a hole shares an edge with another hole or with the outer boundary. A slit belongs to $A$ but not to $\mathrm{closure}(A^\circ)$, so a region with area is regular exactly when it has no slit. Pinching at an isolated *point* is not a slit: the interior still reaches the point from every side, so rings meeting at a vertex leave the region regular. Takes $O(n^2)$ time.
 - `A.regularized()`: Returns $\mathrm{closure}(A^\circ)$ — the region without its slits — as a `std::vector<PolygonWithHoles>`, the same regularization every [boolean operation](shape_methods.md#boolean-operations) applies to its own result. Dropping the slits can disconnect what they were holding together, which is why the result is a set of regions: a region whose slits are its only connective tissue comes back as several pieces, and a region with no area comes back empty. A region that is already regular is returned unchanged, vertex for vertex; the pieces of one that is not are read off an arrangement of its boundary, which drops vertices that no longer sit at a corner.
 - `A.twiceArea()`: Returns twice the area, `2·area(outer) − Σ 2·area(hole)`, exactly and without division.
-- `A.area()`: Returns the area. Divides by 2.
-- `A.centroid()`: Returns the area-weighted centroid, the holes entering with negative weight. When the net area is zero the region has no area-weighted centroid and the centroid of the vertex set is returned instead.
-- `A.verticesCentroid()`: Returns the centroid of the vertex set over all rings.
-- `A.pointInside()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. Divides coordinates by 4, and is undefined for a region with no area.
+- `A.area<ResultNumber>()`: Returns the area; the final division by two is exact by default for integral receivers.
+- `A.centroid<ResultNumber>()`: Returns the area-weighted centroid, the holes entering with negative weight. When the net area is zero the region has no area-weighted centroid and the centroid of the vertex set is returned instead.
+- `A.verticesCentroid<ResultNumber>()`: Returns the centroid of the vertex set over all rings.
+- `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. It may divide coordinates by four and is undefined for a region with no area.
 - `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
 - `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
 
@@ -696,7 +696,7 @@ Against a region of $n$ vertices and an operand of $m$:
 
 ### Halfplane Intersection
 
-The class template `HalfplaneIntersection` represents the intersection of a finite set of closed half-planes: a convex region that, unlike `Convex`, may be unbounded (a wedge, a strip, a half-plane, or the whole plane) and may be empty. Its vertices are generally not representable in the coordinate type of the defining half-planes: integer half-planes routinely bound regions with rational vertices, so the constructive accessors take a result-type template parameter in the usual way (`k.vertex<pgl::Rational<int64_t>>(i)` is exact).
+The class template `HalfplaneIntersection` represents the intersection of a finite set of closed half-planes: a convex region that, unlike `Convex`, may be unbounded (a wedge, a strip, a half-plane, or the whole plane) and may be empty. Its vertices are generally not representable in the coordinate type of the defining half-planes: integer half-planes routinely bound regions with rational vertices, so constructive accessors return ERational coordinates for an integral receiver. An explicit result type such as `k.vertex<pgl::Rational<int64_t>>(i)` is available.
 
 The half-planes are stored sorted counterclockwise by boundary direction, with no redundant half-plane and at most one half-plane per direction. A default-constructed `HalfplaneIntersection` is the **whole plane** (the intersection of no half-planes) — the opposite convention of `Convex()`, which is the empty set. It can also be constructed from a range of half-planes, or from a `Halfplane`, `Rectangle`, `Triangle`, or `Convex`.
 
@@ -707,16 +707,17 @@ A half-plane intersection `k` has methods such as:
 - `k.isUndefined()`: Always `false`: `insert` ignores undefined half-planes, so every region — empty, degenerate, or full-dimensional — is well defined.
 - `k.isHalfplane()` / `k.getIfHalfplane()`: Whether the region is exactly one closed half-plane (a single stored constraint), and that half-plane. Exact, no division.
 - `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. A degenerate region is a point, segment, ray, or line, and only the line has no vertex, so this needs no coordinate arithmetic. Exact, no division.
-- `k.isPoint()` / `k.getIfPoint()`: Whether the region is a single point, and that point. The test is exact (it runs on rational coordinates for an integral region), so a point whose coordinates are not representable in `NumberType` is still recognized; `getIfPoint` divides, so request `pgl::Rational` coordinates for the exact point.
-- `k.isSegment()` / `k.getIfSegment()`: Whether the region is a segment of positive length, and that segment. Same exactness caveat as `isPoint` / `getIfPoint`.
-- `k.isRay()` / `k.getIfRay()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); `getIfRay` divides, so request `pgl::Rational` coordinates for the exact source.
+- `k.isPoint()` / `k.getIfPoint<ResultNumber>()`: Whether the region is a single point, and that point. The test and the default returned point are exact for an integral region, including when the point is not representable in `NumberType`.
+- `k.isSegment()` / `k.getIfSegment<ResultNumber>()`: Whether the region is a segment of positive length, and that segment. The default endpoints are exact for integral constraints.
+- `k.isRay()` / `k.getIfRay<ResultNumber>()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); the default source is exact for integral constraints.
 - Together with `isEmpty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
 - `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
 - `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
-- `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an integer result type the box is rounded outward so it always encloses the region.
+- `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.
 - `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
+- `k.twiceArea<R>()`, `k.area<R>()`, and `k.centroid<R>()`: Measures of a bounded region; they throw when the region is unbounded. Their defaults account for fractional implicit vertices as well as the final area or centroid division.
 - `k.intersection(h)`: Intersecting with a `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection` returns another `HalfplaneIntersection`, so the type is closed under these operations and the result is exact (no coordinate divisions).
-- `k.intersection(P)`: Intersecting with a `Polygon` returns the usual `std::vector` of components — points, polylines, and polygons — since a reflex polygon can meet the convex region in several disjoint pieces. The region is first clipped to the polygon's bounding rectangle, which changes nothing and makes it a convex polygon; a region with empty interior contributes only its carrier, clipped to the polygon. Request `pgl::ERational` coordinates: the pieces are cut at crossings of the constraint lines and are generally rational.
+- `k.intersection(P)`: Intersecting with a `Polygon` returns the usual `std::vector` of components — points, polylines, and polygons — since a reflex polygon can meet the convex region in several disjoint pieces. The region is first clipped to the polygon's bounding rectangle, which changes nothing and makes it a convex polygon; a region with empty interior contributes only its carrier, clipped to the polygon. The pieces are cut at crossings of the constraint lines and are generally rational, so an integral receiver returns ERational coordinates by default.
 - `k.intersection(A)`: Intersecting with a `PolygonWithHoles` is the region-valued `intersection` — see [Boolean Operations](shape_methods.md#boolean-operations) — and returns a `std::vector<PolygonWithHoles>`, exact whatever the result type, since a holed operand keeps its holes.
 
 If the region has $n$ half-planes, then:
@@ -728,4 +729,3 @@ If the region has $n$ half-planes, then:
 Equality compares the stored half-planes: for full-dimensional regions the non-redundant half-planes are a canonical function of the point set, so this is geometric equality; for lower-dimensional (degenerate) regions the representation is not unique and equality is representational.
 
 `HalfplaneIntersection` is an alternative of the polymorphic `Shape` class and can be drawn on a [canvas](canvas.md), which clips the region to the visible viewport and strokes only its real boundary edges. Note that `Shape::get`, `Shape::operator[]`, and `Shape::index` throw for this alternative, since its indexable elements are half-planes rather than points.
-

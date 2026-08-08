@@ -72,8 +72,8 @@ TEST_CASE("Point and OrientedLine intersection construction, both directions") {
 
     SUBCASE("a point on the line yields that point") {
         const Point on(3, 3);
-        CHECK(diagonal.intersection(on) == on);
-        const auto fromPt = on.intersection(diagonal);
+        CHECK(diagonal.intersection<int>(on) == on);
+        const auto fromPt = on.intersection<int>(diagonal);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == on);
 
@@ -84,8 +84,8 @@ TEST_CASE("Point and OrientedLine intersection construction, both directions") {
 
     SUBCASE("a point off the line yields nothing") {
         const Point off(3, 2);
-        CHECK_FALSE(diagonal.intersection(off).has_value());
-        CHECK_FALSE(off.intersection(diagonal).has_value());
+        CHECK_FALSE(diagonal.intersection<int>(off).has_value());
+        CHECK_FALSE(off.intersection<int>(diagonal).has_value());
         CHECK_FALSE(diagonal.intersection<Rational>(off).has_value());
     }
 }

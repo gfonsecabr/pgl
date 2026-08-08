@@ -323,7 +323,7 @@ TEST_CASE("PolygonWithHoles vs OrientedSegment: direction never matters") {
         CHECK(region.boundaryContains(o) == region.boundaryContains(s));
         CHECK(region.intersects(o) == region.intersects(s));
         CHECK(region.interiorsIntersect(o) == region.interiorsIntersect(s));
-        CHECK(region.squaredDistance(o) == region.squaredDistance(s));
+        CHECK(region.squaredDistance<int>(o) == region.squaredDistance<int>(s));
     }
 }
 
@@ -331,29 +331,29 @@ TEST_CASE("PolygonWithHoles distances") {
     const Region region = annulus();
 
     SUBCASE("a point in the region is at distance zero") {
-        CHECK(region.squaredDistance(Point(1, 1)) == 0);
+        CHECK(region.squaredDistance<int>(Point(1, 1)) == 0);
         CHECK(region.distanceL1(Point(1, 1)) == 0);
         CHECK(region.distanceLInf(Point(1, 1)) == 0);
-        CHECK(region.squaredDistance(Point(3, 5)) == 0);  // on a hole ring
+        CHECK(region.squaredDistance<int>(Point(3, 5)) == 0);  // on a hole ring
     }
 
     SUBCASE("a point inside a hole measures to the nearest hole edge") {
         // (5,5) is the hole centre; the nearest boundary is any hole edge at
         // distance 2.
-        CHECK(region.squaredDistance(Point(5, 5)) == 4);
+        CHECK(region.squaredDistance<int>(Point(5, 5)) == 4);
         CHECK(region.distanceL1(Point(5, 5)) == 2);
         CHECK(region.distanceLInf(Point(5, 5)) == 2);
 
         // Off-centre inside the hole: nearest hole edge is x = 3.
-        CHECK(region.squaredDistance(Point(4, 5)) == 1);
+        CHECK(region.squaredDistance<int>(Point(4, 5)) == 1);
         CHECK(region.distanceL1(Point(4, 5)) == 1);
     }
 
     SUBCASE("a point outside measures to the outer ring") {
-        CHECK(region.squaredDistance(Point(13, 5)) == 9);
+        CHECK(region.squaredDistance<int>(Point(13, 5)) == 9);
         CHECK(region.distanceL1(Point(13, 5)) == 3);
         CHECK(region.distanceLInf(Point(13, 5)) == 3);
-        CHECK(region.squaredDistance(Point(13, 14)) == 25);
+        CHECK(region.squaredDistance<int>(Point(13, 14)) == 25);
         CHECK(region.distanceL1(Point(13, 14)) == 7);
         CHECK(region.distanceLInf(Point(13, 14)) == 4);
     }
@@ -361,19 +361,19 @@ TEST_CASE("PolygonWithHoles distances") {
     SUBCASE("a segment inside a hole measures to the hole boundary") {
         const Segment s({4, 4}, {6, 6});
         CHECK(!region.intersects(s));
-        CHECK(region.squaredDistance(s) == 1);
+        CHECK(region.squaredDistance<int>(s) == 1);
         CHECK(region.distanceL1(s) == 1);
         CHECK(region.distanceLInf(s) == 1);
     }
 
     SUBCASE("a segment meeting the region is at distance zero") {
-        CHECK(region.squaredDistance(Segment({1, 5}, {9, 5})) == 0);
+        CHECK(region.squaredDistance<int>(Segment({1, 5}, {9, 5})) == 0);
         CHECK(region.distanceL1(Segment({1, 5}, {9, 5})) == 0);
     }
 
     SUBCASE("a segment outside measures to the outer ring") {
         const Segment s({12, 0}, {12, 10});
-        CHECK(region.squaredDistance(s) == 4);
+        CHECK(region.squaredDistance<int>(s) == 4);
         CHECK(region.distanceL1(s) == 2);
         CHECK(region.distanceLInf(s) == 2);
     }
@@ -382,7 +382,7 @@ TEST_CASE("PolygonWithHoles distances") {
         const PolygonShape outer({0, 0, 6, 0, 6, 6, 0, 6});
         const Region plain(outer);
         for (const Point p : {Point(3, 3), Point(9, 3), Point(-2, -2)}) {
-            CHECK(plain.squaredDistance(p) == outer.squaredDistance(p));
+            CHECK(plain.squaredDistance<int>(p) == outer.squaredDistance<int>(p));
             CHECK(plain.distanceL1(p) == outer.distanceL1(p));
             CHECK(plain.distanceLInf(p) == outer.distanceLInf(p));
         }
@@ -414,7 +414,7 @@ TEST_CASE("PolygonWithHoles vs Segment: exact rational coordinates") {
     // Strictly inside the hole, at distance 1/2 from the nearest hole edge.
     const ESegment buried({ERational(3, 2), ERational(2)}, {ERational(5, 2), ERational(2)});
     CHECK(!region.intersects(buried));
-    CHECK(region.squaredDistance(buried) == ERational(1, 4));
+    CHECK(region.squaredDistance<ERational>(buried) == ERational(1, 4));
     CHECK(region.distanceL1(buried) == ERational(1, 2));
 }
 
@@ -428,7 +428,7 @@ TEST_CASE("PolygonWithHoles intersection with a Segment") {
     const Region region = annulus();
 
     SUBCASE("a chord across the hole yields the two pieces beside it") {
-        const auto pieces = region.intersection(Segment({-5, 5}, {15, 5}));
+        const auto pieces = region.intersection<int>(Segment({-5, 5}, {15, 5}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -436,11 +436,11 @@ TEST_CASE("PolygonWithHoles intersection with a Segment") {
     }
 
     SUBCASE("a segment buried in the hole meets nothing") {
-        CHECK(region.intersection(Segment({4, 5}, {6, 5})).empty());
+        CHECK(region.intersection<int>(Segment({4, 5}, {6, 5})).empty());
     }
 
     SUBCASE("a segment ending in the hole is cut at the ring") {
-        const auto pieces = region.intersection(Segment({1, 5}, {5, 5}));
+        const auto pieces = region.intersection<int>(Segment({1, 5}, {5, 5}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({1, 5}, {3, 5})));
@@ -448,14 +448,14 @@ TEST_CASE("PolygonWithHoles intersection with a Segment") {
 
     SUBCASE("a segment along a hole ring survives whole") {
         // A hole ring is boundary, and the boundary belongs to the region.
-        const auto pieces = region.intersection(Segment({3, 3}, {3, 7}));
+        const auto pieces = region.intersection<int>(Segment({3, 3}, {3, 7}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({3, 3}, {3, 7})));
     }
 
     SUBCASE("a diagonal through opposite hole corners touches each of them") {
-        const auto pieces = region.intersection(Segment({0, 0}, {10, 10}));
+        const auto pieces = region.intersection<int>(Segment({0, 0}, {10, 10}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 0}, {3, 3})));
@@ -463,19 +463,19 @@ TEST_CASE("PolygonWithHoles intersection with a Segment") {
     }
 
     SUBCASE("a segment touching the region at one corner keeps that point") {
-        const auto pieces = region.intersection(Segment({8, 12}, {12, 8}));
+        const auto pieces = region.intersection<int>(Segment({8, 12}, {12, 8}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(10, 10)));
     }
 
     SUBCASE("a segment missing the region yields nothing") {
-        CHECK(region.intersection(Segment({11, 0}, {11, 10})).empty());
+        CHECK(region.intersection<int>(Segment({11, 0}, {11, 10})).empty());
     }
 
     SUBCASE("the segment answers the pair the same way round") {
         const Segment s({-5, 5}, {15, 5});
-        CHECK(s.intersection(region) == region.intersection(s));
+        CHECK(s.intersection<int>(region) == region.intersection<int>(s));
     }
 }
 
@@ -488,14 +488,14 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: two holes") {
     REQUIRE(region.isValid());
 
     SUBCASE("a chord through both holes keeps only the bridge") {
-        const auto pieces = region.intersection(Segment({3, 3}, {9, 3}));
+        const auto pieces = region.intersection<int>(Segment({3, 3}, {9, 3}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({5, 3}, {7, 3})));
     }
 
     SUBCASE("a chord spanning the whole box keeps three pieces") {
-        const auto pieces = region.intersection(Segment({-1, 3}, {13, 3}));
+        const auto pieces = region.intersection<int>(Segment({-1, 3}, {13, 3}));
 
         REQUIRE(pieces.size() == 3);
         CHECK(pieces[0] == Piece(Segment({0, 3}, {1, 3})));
@@ -518,7 +518,7 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: slits and touch points"
     REQUIRE(region.isValid());
 
     SUBCASE("running along the slit comes back whole") {
-        const auto pieces = region.intersection(Segment({0, 0}, {8, 0}));
+        const auto pieces = region.intersection<int>(Segment({0, 0}, {8, 0}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 0}, {8, 0})));
@@ -526,21 +526,21 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: slits and touch points"
 
     SUBCASE("crossing the slit keeps the pinch point alone") {
         // Below the slit is outside the region, above it is the hole interior.
-        const auto pieces = region.intersection(Segment({2, -1}, {2, 1}));
+        const auto pieces = region.intersection<int>(Segment({2, -1}, {2, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(2, 0)));
     }
 
     SUBCASE("crossing the same outer edge past the slit keeps a chord") {
-        const auto pieces = region.intersection(Segment({6, -1}, {6, 1}));
+        const auto pieces = region.intersection<int>(Segment({6, -1}, {6, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({6, 0}, {6, 1})));
     }
 
     SUBCASE("a chord straddling a hole edge is cut there") {
-        const auto pieces = region.intersection(Segment({3, 2}, {5, 2}));
+        const auto pieces = region.intersection<int>(Segment({3, 2}, {5, 2}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({4, 2}, {5, 2})));
@@ -556,14 +556,14 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: two holes touching at a
     REQUIRE(region.isValid());
 
     SUBCASE("a diagonal through both holes keeps the shared corner alone") {
-        const auto pieces = region.intersection(Segment({3, 3}, {7, 7}));
+        const auto pieces = region.intersection<int>(Segment({3, 3}, {7, 7}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(5, 5)));
     }
 
     SUBCASE("a diagonal squeezing past the corner survives whole") {
-        const auto pieces = region.intersection(Segment({7, 3}, {3, 7}));
+        const auto pieces = region.intersection<int>(Segment({7, 3}, {3, 7}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({3, 7}, {7, 3})));
@@ -577,7 +577,7 @@ TEST_CASE("PolygonWithHoles intersection with a Segment: hole-free region matche
     for (const auto& s : {Segment({-2, 2}, {12, 2}), Segment({-2, 6}, {12, 6}),
                           Segment({1, 1}, {3, 3}), Segment({0, 0}, {0, 8}),
                           Segment({20, 0}, {20, 8})}) {
-        CHECK(region.intersection(s) == outer.intersection(s));
+        CHECK(region.intersection<int>(s) == outer.intersection<int>(s));
     }
 }
 
@@ -586,8 +586,8 @@ TEST_CASE("PolygonWithHoles intersection with an OrientedSegment: direction neve
     const Segment s({-5, 5}, {15, 5});
 
     for (const auto& o : {OrientedSegment({-5, 5}, {15, 5}), OrientedSegment({15, 5}, {-5, 5})}) {
-        CHECK(region.intersection(o) == region.intersection(s));
-        CHECK(o.intersection(region) == region.intersection(s));
+        CHECK(region.intersection<int>(o) == region.intersection<int>(s));
+        CHECK(o.intersection<int>(region) == region.intersection<int>(s));
     }
 }
 

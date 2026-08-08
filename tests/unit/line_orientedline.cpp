@@ -95,7 +95,7 @@ TEST_CASE("Line and OrientedLine predicates ignore orientation") {
         CHECK_FALSE(diagonal.separates(same));
         CHECK_FALSE(same.separates(diagonal));
 
-        const auto isec = diagonal.intersection(same);
+        const auto isec = diagonal.intersection<int>(same);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Line>(*isec));
         CHECK(std::get<Line>(*isec).contains(Point(0, 0)));
@@ -111,7 +111,7 @@ TEST_CASE("Line and OrientedLine predicates ignore orientation") {
         CHECK_FALSE(diagonal.crosses(reversed));
         CHECK_FALSE(diagonal.separates(reversed));
 
-        const auto isec = diagonal.intersection(reversed);
+        const auto isec = diagonal.intersection<int>(reversed);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Line>(*isec));
     }
@@ -131,12 +131,12 @@ TEST_CASE("Line and OrientedLine predicates ignore orientation") {
         CHECK(diagonal.separates(crossing));
         CHECK(crossing.separates(diagonal));
 
-        const auto isec = diagonal.intersection(crossing);
+        const auto isec = diagonal.intersection<int>(crossing);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(4, 4));
 
-        const auto isec_rev = crossing.intersection(diagonal);
+        const auto isec_rev = crossing.intersection<int>(diagonal);
         REQUIRE(isec_rev);
         REQUIRE(std::holds_alternative<Point>(*isec_rev));
         CHECK(std::get<Point>(*isec_rev) == Point(4, 4));
@@ -156,8 +156,8 @@ TEST_CASE("Line and OrientedLine predicates ignore orientation") {
         CHECK_FALSE(parallel.crosses(diagonal));
         CHECK_FALSE(diagonal.separates(parallel));
         CHECK_FALSE(parallel.separates(diagonal));
-        CHECK_FALSE(diagonal.intersection(parallel));
-        CHECK_FALSE(parallel.intersection(diagonal));
+        CHECK_FALSE(diagonal.intersection<int>(parallel));
+        CHECK_FALSE(parallel.intersection<int>(diagonal));
     }
 }
 
@@ -176,7 +176,7 @@ TEST_CASE("Vertical line crossed by an oriented line") {
     CHECK(inbound.crosses(vertical));
     CHECK(vertical.separates(inbound));
 
-    const auto isec = vertical.intersection(inbound);
+    const auto isec = vertical.intersection<int>(inbound);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Point>(*isec));
     CHECK(std::get<Point>(*isec) == Point(2, 500));
@@ -197,7 +197,7 @@ TEST_CASE("Horizontal line collinear with an oriented line") {
     CHECK(horizontal.intersects(sliding));
     CHECK_FALSE(horizontal.crosses(sliding));
 
-    const auto isec = horizontal.intersection(sliding);
+    const auto isec = horizontal.intersection<int>(sliding);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Line>(*isec));
 }

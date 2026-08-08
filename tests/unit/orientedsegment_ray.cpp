@@ -93,12 +93,12 @@ TEST_CASE("Ray and OrientedSegment intersection construction, both directions") 
 
     SUBCASE("collinear OS overlapping the ray returns a segment") {
         const OrientedSegment col_os({3, 0}, {1, 0}); // reversed collinear OS
-        const auto r = horizontal.intersection(col_os);
+        const auto r = horizontal.intersection<int>(col_os);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(1, 0), Point(3, 0)), "horizontal ∩ col_os");
 
-        const auto r2 = col_os.intersection(horizontal);
+        const auto r2 = col_os.intersection<int>(horizontal);
         REQUIRE(r2);
         REQUIRE(std::holds_alternative<Segment>(*r2));
         CHECK_MESSAGE(std::get<Segment>(*r2) == Segment(Point(1, 0), Point(3, 0)), "col_os ∩ horizontal");
@@ -106,12 +106,12 @@ TEST_CASE("Ray and OrientedSegment intersection construction, both directions") 
 
     SUBCASE("crossing OS yields a single point") {
         const OrientedSegment cross_os({2, -2}, {2, 2});
-        const auto r = horizontal.intersection(cross_os);
+        const auto r = horizontal.intersection<int>(cross_os);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK_MESSAGE(std::get<Point>(*r) == Point(2, 0), "horizontal ∩ cross_os");
 
-        const auto r2 = cross_os.intersection(horizontal);
+        const auto r2 = cross_os.intersection<int>(horizontal);
         REQUIRE(r2);
         REQUIRE(std::holds_alternative<Point>(*r2));
         CHECK_MESSAGE(std::get<Point>(*r2) == Point(2, 0), "cross_os ∩ horizontal");
@@ -119,6 +119,6 @@ TEST_CASE("Ray and OrientedSegment intersection construction, both directions") 
 
     SUBCASE("OS before the ray source: empty") {
         const OrientedSegment before({-3, 0}, {-1, 0});
-        CHECK_FALSE_MESSAGE(horizontal.intersection(before), "horizontal ∩ before should be empty");
+        CHECK_FALSE_MESSAGE(horizontal.intersection<int>(before), "horizontal ∩ before should be empty");
     }
 }

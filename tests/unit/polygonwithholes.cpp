@@ -350,7 +350,7 @@ TEST_CASE("PolygonWithHoles isRegular") {
 TEST_CASE("PolygonWithHoles regularized") {
     SUBCASE("a regular region comes back unchanged") {
         const Region region(outerSquare(), std::vector{smallHole(), otherHole()});
-        const auto pieces = region.regularized();
+        const auto pieces = region.regularized<int>();
         REQUIRE(pieces.size() == 1);
         CHECK(pieces.front() == region);
     }
@@ -358,7 +358,7 @@ TEST_CASE("PolygonWithHoles regularized") {
     SUBCASE("a hole open to the outer boundary becomes a notch") {
         const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
         const Region region(outerSquare(), std::vector{slit});
-        const auto pieces = region.regularized();
+        const auto pieces = region.regularized<int>();
         REQUIRE(pieces.size() == 1);
         CHECK(!pieces.front().hasHoles());
         CHECK(pieces.front().isRegular());
@@ -369,7 +369,7 @@ TEST_CASE("PolygonWithHoles regularized") {
         const PolygonShape left({2, 2, 5, 2, 5, 8, 2, 8});
         const PolygonShape right({5, 2, 8, 2, 8, 8, 5, 8});
         const Region region(outerSquare(), std::vector{left, right});
-        const auto pieces = region.regularized();
+        const auto pieces = region.regularized<int>();
         REQUIRE(pieces.size() == 1);
         REQUIRE(pieces.front().holeCount() == 1);
         CHECK(pieces.front().hole(0) == PolygonShape({2, 2, 8, 2, 8, 8, 2, 8}));
@@ -380,7 +380,7 @@ TEST_CASE("PolygonWithHoles regularized") {
     SUBCASE("dropping the slits can take the region apart") {
         const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
         const Region region(outerSquare(), std::vector{band});
-        const auto pieces = region.regularized();
+        const auto pieces = region.regularized<int>();
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Region(PolygonShape({0, 0, 10, 0, 10, 4, 0, 4})));
         CHECK(pieces[1] == Region(PolygonShape({0, 6, 10, 6, 10, 10, 0, 10})));
@@ -388,7 +388,7 @@ TEST_CASE("PolygonWithHoles regularized") {
     }
 
     SUBCASE("the empty region has no pieces") {
-        CHECK(Region().regularized().empty());
+        CHECK(Region().regularized<int>().empty());
     }
 
     SUBCASE("the result type follows the requested number type") {
@@ -396,7 +396,7 @@ TEST_CASE("PolygonWithHoles regularized") {
         const Region region(outerSquare(), std::vector{slit});
         const auto pieces = region.regularized<double>();
         REQUIRE(pieces.size() == 1);
-        CHECK(pieces.front().area() == doctest::Approx(region.area<double>()));
+        CHECK(pieces.front().area<double>() == doctest::Approx(region.area<double>()));
         static_assert(
             std::is_same_v<decltype(pieces.front()),
                            const pgl::PolygonWithHoles<pgl::Point<double>>&>);

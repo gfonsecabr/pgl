@@ -29,18 +29,18 @@ TEST_CASE_TEMPLATE("Disk stores three boundary points and computes center and ra
     CHECK(degenerate.a() == make_point(Number{}, Number{}, ""));
     CHECK(degenerate.b() == make_point(Number{}, Number{}, ""));
     CHECK(degenerate.c() == make_point(Number{}, Number{}, ""));
-    CHECK(degenerate.center() == make_point(Number{}, Number{}, ""));
+    CHECK(degenerate.template center<Number>() == make_point(Number{}, Number{}, ""));
     CHECK(degenerate.radius() == 0);
     CHECK(degenerate.isDegenerate());
 
     const Disk disk(make_point(static_cast<Number>(2), static_cast<Number>(3), "c"), static_cast<Number>(-5));
-    CHECK(disk.center().x() == Number(2));
-    CHECK(disk.center().y() == Number(3));
+    CHECK(disk.template center<Number>().x() == Number(2));
+    CHECK(disk.template center<Number>().y() == Number(3));
     CHECK(disk.radius() == 5);
-    CHECK(disk.squaredRadius() == Number(25));
+    CHECK(disk.template squaredRadius<Number>() == Number(25));
 
-    if constexpr (requires { disk.center().label(); }) {
-        CHECK(disk.center().label().empty());
+    if constexpr (requires { disk.template center<Number>().label(); }) {
+        CHECK(disk.template center<Number>().label().empty());
     }
 }
 
@@ -50,9 +50,9 @@ TEST_CASE("Disk supports default template parameters and CTAD") {
 
     static_assert(std::is_same_v<decltype(deduced), pgl::Disk<pgl::Point<int>>>);
 
-    CHECK(explicit_default.center() == pgl::Point<int>(2, 3));
+    CHECK(explicit_default.center<int>() == pgl::Point<int>(2, 3));
     CHECK(explicit_default.radius() == 4);
-    CHECK(deduced.center() == pgl::Point<int>(2, 3));
+    CHECK(deduced.center<int>() == pgl::Point<int>(2, 3));
     CHECK(deduced.radius() == 4);
     CHECK(deduced.a() == pgl::Point<int>(-2, 3));
     CHECK(deduced.b() == pgl::Point<int>(6, 3));
@@ -73,9 +73,9 @@ TEST_CASE("Disk streams, translates, scales, and exposes its bounding box") {
     const auto shifted = translated - Point(2, 1);
     const auto scaled = -2 * disk;
 
-    CHECK(translated.center() == Point(3, 2));
-    CHECK(shifted.center() == Point(1, 1));
-    CHECK(scaled.center() == Point(-4, -6));
+    CHECK(translated.center<int>() == Point(3, 2));
+    CHECK(shifted.center<int>() == Point(1, 1));
+    CHECK(scaled.center<int>() == Point(-4, -6));
     CHECK(scaled.radius() == 8);
 
     CHECK(disk.fbox<float>().min() == pgl::Point<float>(-2.0f, -1.0f));
@@ -90,7 +90,7 @@ TEST_CASE("Disk diameter supports exact rational endpoints for three-point disks
     using RationalSegment = pgl::Segment<RationalPoint>;
 
     const Disk axis_aligned(Point(2, 3), 4);
-    CHECK(axis_aligned.diameter() == pgl::Segment<Point>(Point(-2, 3), Point(6, 3)));
+    CHECK(axis_aligned.diameter<int>() == pgl::Segment<Point>(Point(-2, 3), Point(6, 3)));
 
     const Disk disk(Point(-2, -2), Point(-2, -1), Point(1, 0));
     CHECK(disk.diameter<Rational>()
@@ -108,9 +108,9 @@ TEST_CASE("Disk converts between labeled and unlabeled centers and supports hash
     const PlainDisk plain = labeled;
     const LabelDisk relabeled = plain;
 
-    CHECK(plain.center() == PlainPoint(2, 3));
+    CHECK(plain.center<int>() == PlainPoint(2, 3));
     CHECK(plain.radius() == 4);
-    CHECK(relabeled.center() == LabelPoint(2, 3, ""));
+    CHECK(relabeled.center<int>() == LabelPoint(2, 3, ""));
     CHECK(relabeled.radius() == 4);
     CHECK(labeled.label() == "disk");
     CHECK(relabeled.label().empty());
@@ -314,57 +314,57 @@ TEST_CASE("Disk::squaredDistance to other shapes returns the squared exterior ga
 
     // Segment, both orientations, and the symmetric forwarder on the shape side.
     const pgl::Segment<Point> seg(Point(5, -1), Point(5, 1));
-    CHECK(disk.squaredDistance(seg) == doctest::Approx(gap));
-    CHECK(seg.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(seg) == doctest::Approx(gap));
+    CHECK(seg.squaredDistance<int>(disk) == doctest::Approx(gap));
     const pgl::Segment<Point> segHit(Point(-5, 0), Point(5, 0));
-    CHECK(disk.squaredDistance(segHit) == doctest::Approx(0.0));
-    CHECK(segHit.squaredDistance(disk) == doctest::Approx(0.0));
+    CHECK(disk.squaredDistance<int>(segHit) == doctest::Approx(0.0));
+    CHECK(segHit.squaredDistance<int>(disk) == doctest::Approx(0.0));
 
     const pgl::OrientedSegment<Point> oseg(Point(5, -1), Point(5, 1));
-    CHECK(disk.squaredDistance(oseg) == doctest::Approx(gap));
-    CHECK(oseg.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(oseg) == doctest::Approx(gap));
+    CHECK(oseg.squaredDistance<int>(disk) == doctest::Approx(gap));
 
     // Line / OrientedLine at x = 5.
     const pgl::Line<Point> line(Point(5, 0), Point(5, 7));
-    CHECK(disk.squaredDistance(line) == doctest::Approx(gap));
-    CHECK(line.squaredDistance(disk) == doctest::Approx(gap));
-    CHECK(disk.squaredDistance(pgl::Line<Point>(Point(-3, 0), Point(3, 0)))
+    CHECK(disk.squaredDistance<int>(line) == doctest::Approx(gap));
+    CHECK(line.squaredDistance<int>(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(pgl::Line<Point>(Point(-3, 0), Point(3, 0)))
           == doctest::Approx(0.0));
 
     const pgl::OrientedLine<Point> oline(Point(5, 0), Point(5, 7));
-    CHECK(disk.squaredDistance(oline) == doctest::Approx(gap));
-    CHECK(oline.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(oline) == doctest::Approx(gap));
+    CHECK(oline.squaredDistance<int>(disk) == doctest::Approx(gap));
 
     // Ray whose source (5,0) is the nearest point.
     const pgl::Ray<Point> ray(Point(5, 0), Point(5, 7));
-    CHECK(disk.squaredDistance(ray) == doctest::Approx(gap));
-    CHECK(ray.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(ray) == doctest::Approx(gap));
+    CHECK(ray.squaredDistance<int>(disk) == doctest::Approx(gap));
 
     // Halfplane with boundary line x = 5 and interior x >= 5 (origin is outside);
     // the directed boundary (5,7) -> (5,0) puts the interior to its left.
     const pgl::Halfplane<Point> hp(Point(5, 7), Point(5, 0));
-    CHECK(disk.squaredDistance(hp) == doctest::Approx(gap));
-    CHECK(hp.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(hp) == doctest::Approx(gap));
+    CHECK(hp.squaredDistance<int>(disk) == doctest::Approx(gap));
 
     // Rectangle, disjoint and containing.
     const pgl::Rectangle<Point> rect(Point(5, -1), Point(8, 1));
-    CHECK(disk.squaredDistance(rect) == doctest::Approx(gap));
-    CHECK(rect.squaredDistance(disk) == doctest::Approx(gap));
-    CHECK(disk.squaredDistance(pgl::Rectangle<Point>(Point(-3, -3), Point(3, 3)))
+    CHECK(disk.squaredDistance<int>(rect) == doctest::Approx(gap));
+    CHECK(rect.squaredDistance<int>(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(pgl::Rectangle<Point>(Point(-3, -3), Point(3, 3)))
           == doctest::Approx(0.0));
 
     // Triangle whose nearest edge lies on x = 5.
     const pgl::Triangle<Point> tri(Point(5, -2), Point(8, 0), Point(5, 2));
-    CHECK(disk.squaredDistance(tri) == doctest::Approx(gap));
-    CHECK(tri.squaredDistance(disk) == doctest::Approx(gap));
+    CHECK(disk.squaredDistance<int>(tri) == doctest::Approx(gap));
+    CHECK(tri.squaredDistance<int>(disk) == doctest::Approx(gap));
 
     // Disk vs disk: centres 10 apart, radii 2 and 2 -> gap 6, squared 36.
     const pgl::Disk<Point> disk2(Point(10, 0), 2);
-    CHECK(disk.squaredDistance(disk2) == doctest::Approx(36.0));
-    CHECK(disk2.squaredDistance(disk) == doctest::Approx(36.0));
+    CHECK(disk.squaredDistance<int>(disk2) == doctest::Approx(36.0));
+    CHECK(disk2.squaredDistance<int>(disk) == doctest::Approx(36.0));
     // Overlapping disks give 0.
     const pgl::Disk<Point> disk3(Point(2, 0), 2);
-    CHECK(disk.squaredDistance(disk3) == doctest::Approx(0.0));
+    CHECK(disk.squaredDistance<int>(disk3) == doctest::Approx(0.0));
 }
 
 // KNOWN BUG: several disk predicates evaluate the disk's circumcenter and
@@ -486,9 +486,9 @@ TEST_CASE("A disk of radius zero answers as the point it covers") {
     }
 
     SUBCASE("distances measure from the point") {
-        CHECK(zero.squaredDistance(Point(5, 8)) == doctest::Approx(9.0));
-        CHECK(zero.squaredDistance(Segment(Point(8, 0), Point(8, 10))) == doctest::Approx(9.0));
-        CHECK(zero.squaredDistance(Segment(Point(0, 0), Point(10, 10))) == doctest::Approx(0.0));
+        CHECK(zero.squaredDistance<int>(Point(5, 8)) == doctest::Approx(9.0));
+        CHECK(zero.squaredDistance<int>(Segment(Point(8, 0), Point(8, 10))) == doctest::Approx(9.0));
+        CHECK(zero.squaredDistance<int>(Segment(Point(0, 0), Point(10, 10))) == doctest::Approx(0.0));
     }
 
     SUBCASE("a disk with area is unaffected") {

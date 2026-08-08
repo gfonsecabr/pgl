@@ -770,14 +770,21 @@ struct Point {
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& other) const;
 
+    /** @brief Returns the squared distance to an axis-aligned rectangle without division. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
     /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `squaredDistance` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
-        requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires (!RectangleConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
                   && requires(const OtherShape& o, const Point& self) {
                          o.template squaredDistance<ResultNumber>(self);
                      })
@@ -792,7 +799,7 @@ struct Point {
      * circle is generally irrational, so a floating-point `ResultNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const Disk<DiskPointType, DiskLabel>& disk) const {
         return disk.template squaredDistance<ResultNumber>(*this);
     }
@@ -840,13 +847,20 @@ struct Point {
     /**
      * @brief Returns the Manhattan distance to another point.
      *
+     * @tparam ResultNumber Coordinate type of the result (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other point.
      * @tparam OtherPoint::LabelType Label type of the other point.
      * @param other Other point.
      * @return Manhattan distance.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& other) const;
+
+    /** @brief Returns the Manhattan distance to an axis-aligned rectangle without division. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the Manhattan distance to the given shape.
@@ -854,8 +868,9 @@ struct Point {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `distanceL1` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!PointConcept<OtherShape>
+                  && !RectangleConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
                   && requires(const OtherShape& o, const Point& self) {
                          o.template distanceL1<ResultNumber>(self);
@@ -871,18 +886,10 @@ struct Point {
      * `distanceL1`, which already visits its wrapped alternative and throws if
      * the pair is unsupported.
      *
-     * @warning The point type is deduced from @p other (rather than fixed to
-     *          this point's own `Shape<Point<TNumber, TLabel>>`) so that
-     *          argument matching never falls back to a user-defined
-     *          conversion from a plain `Point` to `Shape`: since
-     *          `distanceL1(const OtherPoint&)` above takes no `ResultNumber`
-     *          template of its own, an explicit `<ResultNumber>` probe (as
-     *          used internally by `Shape`'s dispatcher) would otherwise treat
-     *          a fixed-type overload here as viable via that conversion,
-     *          recursing back into `Shape::distanceL1` forever for a
-     *          `Point`-`Point` pair.
+     * The point type is deduced from @p other so a plain point cannot reach
+     * this overload through an implicit conversion to `Shape`.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
         return other.template distanceL1<ResultNumber>(*this);
     }
@@ -890,13 +897,20 @@ struct Point {
     /**
      * @brief Returns the Chebyshev distance to another point.
      *
+     * @tparam ResultNumber Coordinate type of the result (default: NumberType).
      * @tparam OtherNumber Coordinate type of the other point.
      * @tparam OtherPoint::LabelType Label type of the other point.
      * @param other Other point.
      * @return Chebyshev distance.
      */
-    template<PointConcept OtherPoint>
+    template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& other) const;
+
+    /** @brief Returns the Chebyshev distance to an axis-aligned rectangle without division. */
+    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the Chebyshev distance to the given shape.
@@ -904,8 +918,9 @@ struct Point {
      * Forwards to the other shape's implementation so that each unordered pair
      * needs `distanceLInf` defined only once, on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!PointConcept<OtherShape>
+                  && !RectangleConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Point>)
                   && requires(const OtherShape& o, const Point& self) {
                          o.template distanceLInf<ResultNumber>(self);
@@ -915,7 +930,7 @@ struct Point {
     }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
@@ -987,13 +1002,13 @@ struct Point {
      * circle is generally irrational, so a floating-point `ResultNumber` is
      * honoured as asked and any other request falls back to `double`.
      */
-    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
     [[nodiscard]] detail::floating_result_t<ResultNumber> distanceL1(const Disk<DiskPointType, DiskLabel>& disk) const {
         return disk.template distanceL1<ResultNumber>(*this);
     }
 
     /** @brief Returns the Chebyshev (LInf) distance to a disk. */
-    template <class ResultNumber = NumberType, class DiskPointType, class DiskLabel>
+    template <class ResultNumber = double, class DiskPointType, class DiskLabel>
     [[nodiscard]] detail::floating_result_t<ResultNumber> distanceLInf(const Disk<DiskPointType, DiskLabel>& disk) const {
         return disk.template distanceLInf<ResultNumber>(*this);
     }
@@ -1177,7 +1192,7 @@ struct Point {
      * @tparam ResultNumber Coordinate type of the returned line.
      * @return Line y = ax - b for point (a,b).
      */
-    template<class ResultNumber=NumberType>
+    template<class ResultNumber = NumberType>
     constexpr Line<Point<ResultNumber, LabelType>> dual() const;
 
     /**
@@ -1187,7 +1202,7 @@ struct Point {
      * @return Line ax + by = 1 for point (a,b).
      * @warning Uses division.
      */
-    template<class ResultNumber=NumberType>
+    template<class ResultNumber = division_result_t<NumberType>>
     constexpr Line<Point<ResultNumber, LabelType>> polar() const;
 
   private:

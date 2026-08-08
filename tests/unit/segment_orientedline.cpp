@@ -104,12 +104,12 @@ TEST_CASE("Segment and OrientedLine intersection construction, both directions")
     const OrientedLine parallel_ol({0, 1}, {4, 1});  // no intersection
 
     SUBCASE("transverse crossing yields a Point") {
-        const auto from_seg = horiz.intersection(cross_ol);
+        const auto from_seg = horiz.intersection<int>(cross_ol);
         REQUIRE(from_seg.has_value());
         REQUIRE(std::holds_alternative<Point>(*from_seg));
         CHECK(std::get<Point>(*from_seg) == Point(2, 0));
 
-        const auto from_ol = cross_ol.intersection(horiz);
+        const auto from_ol = cross_ol.intersection<int>(horiz);
         REQUIRE(from_ol.has_value());
         REQUIRE(std::holds_alternative<Point>(*from_ol));
         CHECK(std::get<Point>(*from_ol) == Point(2, 0));
@@ -118,19 +118,19 @@ TEST_CASE("Segment and OrientedLine intersection construction, both directions")
     SUBCASE("collinear overlap yields the Segment itself") {
         const OrientedLine col_ol({1, 0}, {3, 0});  // same line as horiz (y=0)
 
-        const auto from_seg = horiz.intersection(col_ol);
+        const auto from_seg = horiz.intersection<int>(col_ol);
         REQUIRE(from_seg.has_value());
         REQUIRE(std::holds_alternative<Segment>(*from_seg));
         CHECK(std::get<Segment>(*from_seg) == horiz);
 
-        const auto from_ol = col_ol.intersection(horiz);
+        const auto from_ol = col_ol.intersection<int>(horiz);
         REQUIRE(from_ol.has_value());
         REQUIRE(std::holds_alternative<Segment>(*from_ol));
         CHECK(std::get<Segment>(*from_ol) == horiz);
     }
 
     SUBCASE("parallel yields empty") {
-        CHECK_FALSE(horiz.intersection(parallel_ol).has_value());
-        CHECK_FALSE(parallel_ol.intersection(horiz).has_value());
+        CHECK_FALSE(horiz.intersection<int>(parallel_ol).has_value());
+        CHECK_FALSE(parallel_ol.intersection<int>(horiz).has_value());
     }
 }

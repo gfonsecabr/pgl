@@ -55,10 +55,10 @@ TEST_CASE("Region intersects and interior-intersects a rectangle") {
 
 TEST_CASE("Intersection with a rectangle stays a region") {
     const Region k = box6();
-    const Region clip = k.intersection(RectangleShape(Point(1, 1), Point(3, 3)));
+    const Region clip = k.intersection<int>(RectangleShape(Point(1, 1), Point(3, 3)));
     CHECK(clip.isBounded());
     CHECK(clip.twiceArea<long long>() == 8);   // 2 x 2 box
-    const Region miss = k.intersection(RectangleShape(Point(10, 10), Point(12, 12)));
+    const Region miss = k.intersection<int>(RectangleShape(Point(10, 10), Point(12, 12)));
     CHECK(miss.isEmpty());
 }
 

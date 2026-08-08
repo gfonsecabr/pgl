@@ -120,7 +120,7 @@ TEST_CASE("Convex and OrientedSegment intersection construction") {
 
     SUBCASE("fully inside OS: returns the segment itself") {
         const OrientedSegment inside({3, 1}, {1, 3});
-        const auto r = sq.intersection(inside);
+        const auto r = sq.intersection<int>(inside);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({1, 3}, {3, 1}), "sq ∩ inside");
@@ -128,7 +128,7 @@ TEST_CASE("Convex and OrientedSegment intersection construction") {
 
     SUBCASE("disjoint OS: empty") {
         const OrientedSegment outside({5, 5}, {6, 6});
-        CHECK_FALSE_MESSAGE(sq.intersection(outside), "sq ∩ outside should be empty");
+        CHECK_FALSE_MESSAGE(sq.intersection<int>(outside), "sq ∩ outside should be empty");
     }
 }
 
@@ -142,6 +142,6 @@ TEST_CASE("OrientedSegment and Convex squared Hausdorff distance") {
 
     // Matches the unoriented Segment case: the farthest square vertices
     // dominate, at squared distance 37.
-    CHECK(square.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(square) == 37);
+    CHECK(square.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(square) == 37);
 }

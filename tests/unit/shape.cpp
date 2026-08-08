@@ -319,7 +319,7 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     CHECK(origin.squaredDistance<int>(segment) == segment.squaredDistance<int>(origin));
 
     // ResultNumber defaults to the wrapper's NumberType.
-    static_assert(std::is_same_v<decltype(origin.squaredDistance(corner)), int>);
+    static_assert(std::is_same_v<decltype(origin.squaredDistance<int>(corner)), int>);
 
     // Pairs added on the concrete shapes are reachable through the wrapper.
     const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
@@ -331,8 +331,8 @@ TEST_CASE("Shape dispatches squaredDistance across wrapped shapes") {
     const Shape down = Halfplane({0, 0}, {1, 0});  // boundary y = 0
     CHECK(below.squaredDistance<int>(down) == down.squaredDistance<int>(below));
 
-    // Disk pairs are not templated on ResultNumber, so the wrapper falls back
-    // to the double-returning overload and static_casts the result.
+    // Disk pairs compute in a floating result type; an integral request is
+    // therefore converted back by the wrapper.
     const Shape disk = Disk(Point(0, 0), 2);
     CHECK(disk.squaredDistance<int>(Point(5, 5)) == 25);
     CHECK(disk.squaredDistance<int>(t2) == t2.squaredDistance<int>(disk));
@@ -378,8 +378,9 @@ TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
     const Shape segment = Segment({3, 4}, {3, 10});
     CHECK(origin.distanceL1<int>(segment) == segment.distanceL1<int>(origin));
 
-    // ResultNumber defaults to the wrapper's NumberType.
-    static_assert(std::is_same_v<decltype(origin.distanceL1(corner)), int>);
+    // A runtime Shape can contain a Disk, so the common default must allow an
+    // irrational metric result even when this particular pair is polygonal.
+    static_assert(std::is_same_v<decltype(origin.distanceL1(corner)), double>);
 
     // A purely horizontal gap: L1 and LInf both equal the axis gap.
     const Shape t1 = Triangle({0, 0}, {2, 0}, {0, 2});
@@ -388,8 +389,8 @@ TEST_CASE("Shape dispatches distanceL1/distanceLInf across wrapped shapes") {
     CHECK(t1.distanceLInf<int>(t2) == 8);
     CHECK(t2.distanceL1<int>(t1) == t1.distanceL1<int>(t2));
 
-    // Disk-Point is not templated on ResultNumber either, so the wrapper falls
-    // back to the double-returning overload and static_casts the result.
+    // Disk-Point computes in a floating result type; an integral request is
+    // therefore converted back by the wrapper.
     const Disk concreteDisk(Point(0, 0), 2);
     const Shape disk = concreteDisk;
     CHECK(disk.distanceL1<int>(Point(5, 5)) == static_cast<int>(concreteDisk.distanceL1(Point(5, 5))));
@@ -429,12 +430,9 @@ TEST_CASE("Concrete shapes accept a Shape argument for every distance method, sy
     // Distance is symmetric, so every concrete shape also accepts a Shape
     // wrapper directly (not just the other way around), re-dispatching
     // through the wrapper's own throw-safe visitor. Point and Disk are the
-    // most delicate cases: their plain point-to-point/point-to-disk overloads
-    // take no ResultNumber template of their own, which previously made the
-    // added Shape overload either infinite-recurse (Point-Point, via an
-    // unwanted implicit Point -> Shape conversion) or hard-fail to compile
-    // (Disk, via forming an invalid Shape<int> while probing with an explicit
-    // ResultNumber). Both are covered here so a regression would be caught.
+    // most delicate cases because the Shape overload must not be selected for
+    // a concrete argument through an implicit conversion. Both are covered
+    // here so a forwarding recursion regression would be caught.
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -450,6 +448,8 @@ TEST_CASE("Concrete shapes accept a Shape argument for every distance method, sy
 
     CHECK(origin.distanceL1(shapeCorner) == 7);
     CHECK(origin.distanceLInf(shapeCorner) == 4);
+    CHECK(origin.distanceL1<long long>(shapeCorner) == 7);
+    CHECK(origin.distanceLInf<long long>(shapeCorner) == 4);
     CHECK(origin.distanceL1(shapeCorner) == shapeCorner.distanceL1(origin));
 
     const Segment segment({0, 0}, {0, 4});
@@ -462,7 +462,7 @@ TEST_CASE("Concrete shapes accept a Shape argument for every distance method, sy
     CHECK(segment.distanceL1(farPoint) == farPoint.distanceL1(segment));
     CHECK(rectangle.distanceL1(farPoint) == farPoint.distanceL1(rectangle));
     CHECK(triangle.distanceL1(farPoint) == farPoint.distanceL1(triangle));
-    CHECK(triangle.hausdorffDistanceL1(farPoint) == farPoint.hausdorffDistanceL1(triangle));
+    CHECK(triangle.hausdorffDistanceL1<int>(farPoint) == farPoint.hausdorffDistanceL1<int>(triangle));
     CHECK(convex.distanceL1(farPoint) == farPoint.distanceL1(convex));
     CHECK(polygon.distanceL1(farPoint) == farPoint.distanceL1(polygon));
 
@@ -475,7 +475,10 @@ TEST_CASE("Concrete shapes accept a Shape argument for every distance method, sy
     // concrete Disk's own new Shape-argument overload.
     const Disk disk(Point(0, 0), 2);
     CHECK(disk.distanceL1(farPoint) == farPoint.distanceL1(disk));
+    CHECK(disk.distanceLInf<long double>(farPoint) ==
+          farPoint.distanceLInf<long double>(disk));
     CHECK_THROWS_AS((void)disk.distanceL1(Shape(segment)), std::logic_error);
+    CHECK_THROWS_AS((void)disk.distanceLInf<long double>(Shape(segment)), std::logic_error);
 }
 
 TEST_CASE("Shape translates and scales through the wrapped value") {
@@ -655,7 +658,7 @@ TEST_CASE("Shape dispatches predicates and measures through a MonotoneChain") {
     // operand stays concrete: a Shape-Shape intersection instantiates every
     // pair, and the preexisting Rectangle-Polygon result cannot be wrapped.)
     const Shape up = Chain({0, 0, 4, 4});
-    const Shape cross = up.intersection(Chain({0, 4, 4, 0}));
+    const Shape cross = up.intersection<int>(Chain({0, 4, 4, 0}));
     REQUIRE(cross.holdsAlternative<Point>());
     CHECK(Point(cross) == Point(2, 2));
 
@@ -790,37 +793,37 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Ha
     // which previously had no Shape representation and threw.
     const Shape upper = Halfplane({0, 0}, {1, 0});
     const Shape right = Halfplane({0, 1}, {0, 0});
-    const Shape wedge = upper.intersection(right);
+    const Shape wedge = upper.intersection<int>(right);
     REQUIRE(wedge.holdsAlternative<Region>());
     CHECK_FALSE(Region(wedge).isBounded());
     CHECK(wedge.contains(Shape(Point(3, 3))));
 
     // Region-with-area intersections stay regions through the wrapper; the
     // clip of the square with a half-plane keeps half the square.
-    const Shape clipped = shape.intersection(upper);
+    const Shape clipped = shape.intersection<int>(upper);
     REQUIRE(clipped.holdsAlternative<Region>());
     CHECK(Region(clipped) == square);
-    const Shape cell = strip.intersection(shape);
+    const Shape cell = strip.intersection<int>(shape);
     REQUIRE(cell.holdsAlternative<Region>());
     CHECK(Region(cell).twiceArea<int>() == 12);  // 6 x 1
 
     // One-dimensional results re-wrap as their own alternatives.
-    const Shape chord = shape.intersection(Shape(Segment({-1, 3}, {7, 3})));
+    const Shape chord = shape.intersection<int>(Shape(Segment({-1, 3}, {7, 3})));
     REQUIRE(chord.holdsAlternative<Segment>());
     CHECK(Segment(chord) == Segment({0, 3}, {6, 3}));
 
     // A polygon against the region comes back as its single component.
-    const Shape corner = shape.intersection(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})));
+    const Shape corner = shape.intersection<int>(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})));
     REQUIRE(corner.holdsAlternative<Polygon>());
     CHECK(Polygon(corner) == Polygon({0, 0, 4, 0, 4, 4, 0, 4}));
-    CHECK(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})).intersection(shape) == corner);
+    CHECK(Shape(Polygon({0, 0, 4, 0, 4, 4, 0, 4})).intersection<int>(shape) == corner);
 
     // A disconnected one has no single Shape to be, and a Disk has no
     // intersection with the region at all.
     const Shape uShaped = Polygon({0, 0, 6, 0, 6, 6, 4, 6, 4, 2, 2, 2, 2, 6, 0, 6});
     const Shape slab = Region({Halfplane({0, 3}, {1, 3}), Halfplane({1, 5}, {0, 5})});
-    CHECK_THROWS_AS((void)slab.intersection(uShaped), std::logic_error);
-    CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)slab.intersection<int>(uShaped), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
     const Shape farPoint = Point(20, 3);
@@ -888,7 +891,7 @@ TEST_CASE("Shape dispatches predicates and measures through a Polyline") {
     // A single-point crossing re-wraps into a Point-valued Shape. (The right
     // operand stays concrete, as in the MonotoneChain case above.)
     const Shape up = Polyline({0, 0, 4, 4});
-    const Shape cross = up.intersection(Polyline({0, 4, 4, 0}));
+    const Shape cross = up.intersection<int>(Polyline({0, 4, 4, 0}));
     REQUIRE(cross.holdsAlternative<Point>());
     CHECK(Point(cross) == Point(2, 2));
 
@@ -1007,25 +1010,25 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
 
     // Intersecting with an area operand yields a region again, holes and all —
     // the one intersection no vector<Polygon> could express.
-    const Shape clipped = shape.intersection(box);
+    const Shape clipped = shape.intersection<int>(box);
     REQUIRE(clipped.holdsAlternative<Region>());
     CHECK(Region(clipped) == annulus);
-    const Shape half = shape.intersection(Shape(Rectangle({0, 0}, {6, 3})));
+    const Shape half = shape.intersection<int>(Shape(Rectangle({0, 0}, {6, 3})));
     REQUIRE(half.holdsAlternative<Region>());
     CHECK(Region(half).twiceArea() == 2 * (18 - 2));  // the lower half, minus half the hole
 
     // The rank forwarders answer the same pair the other way round. A Polygon
     // on the left forwards too, even though its own Polygon-valued
     // intersection would otherwise have answered a lower-ranked operand.
-    CHECK(Shape(Rectangle({0, 0}, {6, 3})).intersection(shape) == half);
+    CHECK(Shape(Rectangle({0, 0}, {6, 3})).intersection<int>(shape) == half);
     CHECK(Shape(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {6, 0}, {6, 3}, {0, 3}}))
-              .intersection(shape) == half);
-    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection(shape) == half);
+              .intersection<int>(shape) == half);
+    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection<int>(shape) == half);
 
     // An intersection that comes apart has no single-Shape answer; neither has
     // a pair with no overload at all, such as a Disk.
-    CHECK_THROWS_AS((void)shape.intersection(Shape(Rectangle({-1, 2}, {7, 4}))), std::logic_error);
-    CHECK_THROWS_AS((void)shape.intersection(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Rectangle({-1, 2}, {7, 4}))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
     const Shape farPoint = Point(20, 3);

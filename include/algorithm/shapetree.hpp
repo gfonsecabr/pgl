@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 
@@ -54,14 +55,13 @@ template <class Fn, class Arg>
 }
 
 // Squared distance from q to other, for use in the nearest-neighbor
-// branch-and-bound. Prefers the templated `squaredDistance<ResultNumber>`
-// overload; falls back to the untemplated, double-returning overload used
-// whenever a Disk is involved (a disk's exterior distance is irrational, so it
-// is never exact and thus never templated on a result type).
+// branch-and-bound. The requested result type is passed through to exact
+// shape pairs. A Disk-related overload may necessarily compute in double; its
+// result is then converted to the tree's comparison type.
 template <class ResultNumber, class Q, class Other>
 [[nodiscard]] ResultNumber nearestSquaredDistance(const Q& q, const Other& other) {
     if constexpr (requires { q.template squaredDistance<ResultNumber>(other); }) {
-        return q.template squaredDistance<ResultNumber>(other);
+        return static_cast<ResultNumber>(q.template squaredDistance<ResultNumber>(other));
     } else {
         return static_cast<ResultNumber>(q.squaredDistance(other));
     }
@@ -71,7 +71,7 @@ template <class ResultNumber, class Q, class Other>
 template <class ResultNumber, class Q, class Other>
 [[nodiscard]] ResultNumber nearestDistanceL1(const Q& q, const Other& other) {
     if constexpr (requires { q.template distanceL1<ResultNumber>(other); }) {
-        return q.template distanceL1<ResultNumber>(other);
+        return static_cast<ResultNumber>(q.template distanceL1<ResultNumber>(other));
     } else {
         return static_cast<ResultNumber>(q.distanceL1(other));
     }
@@ -81,7 +81,7 @@ template <class ResultNumber, class Q, class Other>
 template <class ResultNumber, class Q, class Other>
 [[nodiscard]] ResultNumber nearestDistanceLInf(const Q& q, const Other& other) {
     if constexpr (requires { q.template distanceLInf<ResultNumber>(other); }) {
-        return q.template distanceLInf<ResultNumber>(other);
+        return static_cast<ResultNumber>(q.template distanceLInf<ResultNumber>(other));
     } else {
         return static_cast<ResultNumber>(q.distanceLInf(other));
     }
@@ -1300,17 +1300,16 @@ class ShapeTree {
      * shape than the best found are pruned, and the nearer child box is
      * descended first to tighten the bound early.
      *
-     * Like the other distance operations, the squared distance is computed with
-     * the @ref NumberType coordinate type by default; request an exact
-     * `ResultNumber` (a floating-point type or `pgl::Rational`) when a stored
-     * shape's nearest point falls in its interior, since integer division there
-     * truncates. With a truncating `ResultNumber` the box lower bound stays a
-     * lower bound, so the pruning remains conservative.
+     * With no explicit result type, the concrete shape pair chooses its natural
+     * type: native arithmetic when the metric uses no division, @ref
+     * division_result_t when it may produce a fraction, and `double` when a
+     * @ref Disk makes an irrational result possible. An explicitly requested
+     * integral `ResultNumber` may truncate fractional distances; the box lower
+     * bound remains conservative in that case.
      *
-     * If `Disk` is involved (as `ShapeType` or as `Q`), its distance is
-     * irrational and thus never templated on a result type; those legs of the
-     * comparison fall back to the untemplated `double`-returning overload,
-     * converted to `ResultNumber`.
+     * If a @ref Disk is involved (as `ShapeType` or as `Q`), that leg may be
+     * irrational and is computed in `double`, then converted to the common
+     * comparison type. Other legs stay exact.
      *
      * @pre The tree is non-empty. A reference to a default-constructed
      *      @ref ShapeType is returned otherwise.
@@ -1318,13 +1317,19 @@ class ShapeTree {
      * The reference points into the tree's own storage and stays valid until the
      * tree is destroyed or modified (e.g. by @ref insert).
      *
-     * @tparam ResultNumber Coordinate type of the squared distance (default:
-     *         @ref NumberType).
+     * @tparam ResultNumber Explicit coordinate type of the squared distance.
      * @tparam Q Query shape type.
      * @param q Query shape.
      * @return The nearest stored shape.
      */
-    template <class ResultNumber = NumberType, class Q>
+    template <class Q>
+    [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
+        using ResultNumber = std::remove_cvref_t<decltype(
+            q.squaredDistance(std::declval<const ShapeType&>()))>;
+        return nearestNeighborByMetric<detail::SquaredMetric, ResultNumber>(q);
+    }
+
+    template <class ResultNumber, class Q>
     [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
         return nearestNeighborByMetric<detail::SquaredMetric, ResultNumber>(q);
     }
@@ -1339,13 +1344,19 @@ class ShapeTree {
      * @pre The tree is non-empty. A reference to a default-constructed
      *      @ref ShapeType is returned otherwise.
      *
-     * @tparam ResultNumber Coordinate type of the distance (default:
-     *         @ref NumberType).
+     * @tparam ResultNumber Explicit coordinate type of the distance.
      * @tparam Q Query shape type.
      * @param q Query shape.
      * @return The stored shape nearest to `q` under the L1 metric.
      */
-    template <class ResultNumber = NumberType, class Q>
+    template <class Q>
+    [[nodiscard]] const ShapeType& nearestNeighborL1(const Q& q) const {
+        using ResultNumber = std::remove_cvref_t<decltype(
+            q.distanceL1(std::declval<const ShapeType&>()))>;
+        return nearestNeighborByMetric<detail::L1Metric, ResultNumber>(q);
+    }
+
+    template <class ResultNumber, class Q>
     [[nodiscard]] const ShapeType& nearestNeighborL1(const Q& q) const {
         return nearestNeighborByMetric<detail::L1Metric, ResultNumber>(q);
     }
@@ -1360,13 +1371,19 @@ class ShapeTree {
      * @pre The tree is non-empty. A reference to a default-constructed
      *      @ref ShapeType is returned otherwise.
      *
-     * @tparam ResultNumber Coordinate type of the distance (default:
-     *         @ref NumberType).
+     * @tparam ResultNumber Explicit coordinate type of the distance.
      * @tparam Q Query shape type.
      * @param q Query shape.
      * @return The stored shape nearest to `q` under the LInf metric.
      */
-    template <class ResultNumber = NumberType, class Q>
+    template <class Q>
+    [[nodiscard]] const ShapeType& nearestNeighborLInf(const Q& q) const {
+        using ResultNumber = std::remove_cvref_t<decltype(
+            q.distanceLInf(std::declval<const ShapeType&>()))>;
+        return nearestNeighborByMetric<detail::LInfMetric, ResultNumber>(q);
+    }
+
+    template <class ResultNumber, class Q>
     [[nodiscard]] const ShapeType& nearestNeighborLInf(const Q& q) const {
         return nearestNeighborByMetric<detail::LInfMetric, ResultNumber>(q);
     }

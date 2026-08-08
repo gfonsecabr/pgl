@@ -120,12 +120,12 @@ TEST_CASE("OrientedLine and Ray intersection construction, both directions") {
     SUBCASE("transversal crossing yields a single point") {
         const Ray crossing({2, -2}, {2, 2});
 
-        const auto r1 = horizontal.intersection(crossing);
+        const auto r1 = horizontal.intersection<int>(crossing);
         REQUIRE(r1);
         REQUIRE(std::holds_alternative<Point>(*r1));
         CHECK_MESSAGE(std::get<Point>(*r1) == Point(2, 0), "horizontal ∩ crossing");
 
-        const auto r2 = crossing.intersection(horizontal);
+        const auto r2 = crossing.intersection<int>(horizontal);
         REQUIRE(r2);
         REQUIRE(std::holds_alternative<Point>(*r2));
         CHECK_MESSAGE(std::get<Point>(*r2) == Point(2, 0), "crossing ∩ horizontal");
@@ -134,7 +134,7 @@ TEST_CASE("OrientedLine and Ray intersection construction, both directions") {
     SUBCASE("collinear ray in the same-ish direction: intersection is that ray") {
         const Ray along({2, 0}, {6, 0});
 
-        const auto r = horizontal.intersection(along);
+        const auto r = horizontal.intersection<int>(along);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Ray>(*r));
         CHECK_MESSAGE(std::get<Ray>(*r) == along, "horizontal ∩ along");
@@ -143,7 +143,7 @@ TEST_CASE("OrientedLine and Ray intersection construction, both directions") {
     SUBCASE("collinear opposite-direction ray: intersection is the ray itself (line contains it)") {
         const Ray opposite({3, 0}, {1, 0});   // goes left from x=3, entirely on the line
 
-        const auto r = horizontal.intersection(opposite);
+        const auto r = horizontal.intersection<int>(opposite);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Ray>(*r));
         CHECK_MESSAGE(std::get<Ray>(*r) == opposite, "horizontal ∩ opposite");
@@ -151,7 +151,7 @@ TEST_CASE("OrientedLine and Ray intersection construction, both directions") {
 
     SUBCASE("disjoint ray: empty result") {
         const Ray away({-1, 1}, {-4, 1});     // parallel, above
-        CHECK_FALSE_MESSAGE(horizontal.intersection(away), "horizontal ∩ away should be empty");
-        CHECK_FALSE_MESSAGE(away.intersection(horizontal), "away ∩ horizontal should be empty");
+        CHECK_FALSE_MESSAGE(horizontal.intersection<int>(away), "horizontal ∩ away should be empty");
+        CHECK_FALSE_MESSAGE(away.intersection<int>(horizontal), "away ∩ horizontal should be empty");
     }
 }

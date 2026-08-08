@@ -75,17 +75,17 @@ TEST_CASE("Point and Polygon intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point interior(2, 2);
-        const auto fromPoly = sq.intersection(interior);
+        const auto fromPoly = sq.intersection<int>(interior);
         REQUIRE(fromPoly.has_value());
         CHECK(*fromPoly == interior);
-        const auto fromPt = interior.intersection(sq);
+        const auto fromPt = interior.intersection<int>(sq);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == interior);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(5, 2);
-        CHECK_FALSE(sq.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(sq).has_value());
+        CHECK_FALSE(sq.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(sq).has_value());
     }
 }

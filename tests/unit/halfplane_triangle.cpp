@@ -121,7 +121,7 @@ TEST_CASE("Halfplane intersection clips Triangle to Convex, Segment, or Point") 
 
     SUBCASE("halfplane cut keeps the interior-side area as Convex") {
         // y >= 2: clips off bottom strip, leaving a quadrilateral.
-        const auto r = tri.intersection(Halfplane({0, 2}, {1, 2}));
+        const auto r = tri.intersection<int>(Halfplane({0, 2}, {1, 2}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Convex>(*r));
         CHECK(std::get<Convex>(*r).twiceArea() == 16);  // trapezoid area 8
@@ -129,14 +129,14 @@ TEST_CASE("Halfplane intersection clips Triangle to Convex, Segment, or Point") 
 
     SUBCASE("halfplane touching only along a triangle edge yields that Segment") {
         // y <= 0: the triangle sits above, meeting the boundary only along base.
-        const auto r = tri.intersection(Halfplane({1, 0}, {0, 0}));
+        const auto r = tri.intersection<int>(Halfplane({1, 0}, {0, 0}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment(Point(0, 0), Point(6, 0)));
     }
 
     SUBCASE("halfplane missing the triangle yields empty") {
-        CHECK_FALSE(tri.intersection(Halfplane({0, 7}, {1, 7})));
+        CHECK_FALSE(tri.intersection<int>(Halfplane({0, 7}, {1, 7})));
     }
 }
 
@@ -150,19 +150,19 @@ TEST_CASE("Triangle intersection with Halfplane returns Convex, Segment, or Poin
     const Triangle tri({0, 0}, {6, 0}, {0, 6});
 
     SUBCASE("halfplane slicing through interior yields Convex overlap") {
-        const auto r = tri.intersection(Halfplane({0, 2}, {1, 2}));
+        const auto r = tri.intersection<int>(Halfplane({0, 2}, {1, 2}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Convex>(*r));
         CHECK(std::get<Convex>(*r).twiceArea() == 16);
     }
 
     SUBCASE("halfplane tangent along base yields that Segment") {
-        const auto r = tri.intersection(Halfplane({1, 0}, {0, 0}));
+        const auto r = tri.intersection<int>(Halfplane({1, 0}, {0, 0}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
     }
 
     SUBCASE("halfplane that misses the triangle yields empty") {
-        CHECK_FALSE(tri.intersection(Halfplane({0, 7}, {1, 7})));
+        CHECK_FALSE(tri.intersection<int>(Halfplane({0, 7}, {1, 7})));
     }
 }

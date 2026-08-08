@@ -74,25 +74,25 @@ TEST_CASE("Point and Rectangle intersection construction, both directions") {
 
     SUBCASE("an interior point yields that point") {
         const Point interior(2, 2);
-        const auto fromRect = outer.intersection(interior);
+        const auto fromRect = outer.intersection<int>(interior);
         REQUIRE(fromRect.has_value());
         CHECK(*fromRect == interior);
-        const auto fromPt = interior.intersection(outer);
+        const auto fromPt = interior.intersection<int>(outer);
         REQUIRE(fromPt.has_value());
         CHECK(*fromPt == interior);
     }
 
     SUBCASE("a boundary point yields that point") {
         const Point corner(4, 3);
-        const auto fromRect = outer.intersection(corner);
+        const auto fromRect = outer.intersection<int>(corner);
         REQUIRE(fromRect.has_value());
         CHECK(*fromRect == corner);
     }
 
     SUBCASE("an outside point yields nothing") {
         const Point outside(5, 2);
-        CHECK_FALSE(outer.intersection(outside).has_value());
-        CHECK_FALSE(outside.intersection(outer).has_value());
+        CHECK_FALSE(outer.intersection<int>(outside).has_value());
+        CHECK_FALSE(outside.intersection<int>(outer).has_value());
     }
 }
 
@@ -105,6 +105,6 @@ TEST_CASE("Point and Rectangle squared Hausdorff distance") {
 
     // Farthest rectangle vertex from p is (0,4) at squared distance 45, which
     // dominates the point-side term (squaredDistance(p, r) == 4).
-    CHECK(r.squaredHausdorffDistance(p) == 45);
-    CHECK(p.squaredHausdorffDistance(r) == 45);
+    CHECK(r.squaredHausdorffDistance<int>(p) == 45);
+    CHECK(p.squaredHausdorffDistance<int>(r) == 45);
 }

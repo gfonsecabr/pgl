@@ -36,7 +36,7 @@ TEST_CASE("Segment and triangle as convex predicates tests") {
         CHECK(triangle.crosses(cut));
         CHECK(oriented_cut.crosses(triangle));
 
-        const auto clipped = triangle.intersection(cut);
+        const auto clipped = triangle.intersection<int>(cut);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 2), Point(4, 2)));
@@ -101,7 +101,7 @@ TEST_CASE("Segment and triangle as convex predicates tests") {
         CHECK_FALSE(along_edge.crosses(triangle));
         CHECK_FALSE(triangle.crosses(along_edge));
 
-        const auto overlap = triangle.intersection(along_edge);
+        const auto overlap = triangle.intersection<int>(along_edge);
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Segment>(*overlap));
         CHECK(std::get<Segment>(*overlap) == along_edge);
@@ -160,7 +160,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(convex.crosses(edge));
             CHECK_FALSE(convex.interiorsIntersect(edge));
 
-            const auto miniEdge = (edge - edge.midpoint()) / 2 + edge.midpoint();
+            const auto miniEdge = (edge - edge.midpoint<int>()) / 2 + edge.midpoint<int>();
 
             CHECK(miniEdge.intersects(convex));
             CHECK(convex.intersects(miniEdge));
@@ -173,7 +173,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(convex.crosses(miniEdge));
             CHECK_FALSE(convex.interiorsIntersect(miniEdge));
 
-            const auto maxiEdge = (edge - edge.midpoint()) * 2 + edge.midpoint();
+            const auto maxiEdge = (edge - edge.midpoint<int>()) * 2 + edge.midpoint<int>();
 
             CHECK(maxiEdge.intersects(convex));
             CHECK(convex.intersects(maxiEdge));
@@ -188,7 +188,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(convex.crosses(maxiEdge));
             CHECK_FALSE(convex.interiorsIntersect(maxiEdge));
 
-            const auto extension = maxiEdge - maxiEdge[0] + edge.midpoint();
+            const auto extension = maxiEdge - maxiEdge[0] + edge.midpoint<int>();
             CHECK(extension.intersects(convex));
             CHECK(convex.intersects(extension));
             CHECK_FALSE(convex.contains(extension));
@@ -219,7 +219,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(diagonal.crosses(convex));
             CHECK_FALSE(convex.crosses(diagonal));
 
-            const auto miniDiagonal = (diagonal - diagonal.midpoint()) / 2 + diagonal.midpoint();
+            const auto miniDiagonal = (diagonal - diagonal.midpoint<int>()) / 2 + diagonal.midpoint<int>();
 
             CHECK(miniDiagonal.intersects(convex));
             CHECK(convex.intersects(miniDiagonal));
@@ -233,7 +233,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(miniDiagonal.crosses(convex));
             CHECK_FALSE(convex.crosses(miniDiagonal));
 
-            const auto maxiDiagonal = (diagonal - diagonal.midpoint()) * 2 + diagonal.midpoint();
+            const auto maxiDiagonal = (diagonal - diagonal.midpoint<int>()) * 2 + diagonal.midpoint<int>();
 
             CHECK(maxiDiagonal.intersects(convex));
             CHECK(convex.intersects(maxiDiagonal));
@@ -250,7 +250,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
 
         std::vector<Segment> chords;
         for(size_t i = 0; i < edges.size(); ++i) {
-            chords.emplace_back(edges[i].midpoint(), convex.get(i + 2));
+            chords.emplace_back(edges[i].midpoint<int>(), convex.get(i + 2));
         }
 
         for(auto & chord: chords) {
@@ -266,7 +266,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(chord.crosses(convex));
             CHECK_FALSE(convex.crosses(chord));
 
-            const auto miniChord = (chord - chord.midpoint()) / 2 + chord.midpoint();
+            const auto miniChord = (chord - chord.midpoint<int>()) / 2 + chord.midpoint<int>();
 
             CHECK(miniChord.intersects(convex));
             CHECK(convex.intersects(miniChord));
@@ -280,7 +280,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(miniChord.crosses(convex));
             CHECK_FALSE(convex.crosses(miniChord));
 
-            const auto maxiChord = (chord - chord.midpoint()) * 2 + chord.midpoint();
+            const auto maxiChord = (chord - chord.midpoint<int>()) * 2 + chord.midpoint<int>();
 
             CHECK(maxiChord.intersects(convex));
             CHECK(convex.intersects(maxiChord));
@@ -297,7 +297,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
 
         std::vector<Segment> chords2;
         for(size_t i = 0; i < edges.size(); ++i) {
-            chords2.emplace_back(edges[i].midpoint(), edges[(i + 2) % edges.size()].midpoint());
+            chords2.emplace_back(edges[i].midpoint<int>(), edges[(i + 2) % edges.size()].midpoint<int>());
         }
 
         for(auto & chord: chords2) {
@@ -313,7 +313,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(chord.crosses(convex));
             CHECK_FALSE(convex.crosses(chord));
 
-            const auto miniChord = (chord - chord.midpoint()) / 2 + chord.midpoint();
+            const auto miniChord = (chord - chord.midpoint<int>()) / 2 + chord.midpoint<int>();
 
             CHECK(miniChord.intersects(convex));
             CHECK(convex.intersects(miniChord));
@@ -327,7 +327,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
             CHECK_FALSE(miniChord.crosses(convex));
             CHECK_FALSE(convex.crosses(miniChord));
 
-            const auto maxiChord = (chord - chord.midpoint()) * 2 + chord.midpoint();
+            const auto maxiChord = (chord - chord.midpoint<int>()) * 2 + chord.midpoint<int>();
 
             CHECK(maxiChord.intersects(convex));
             CHECK(convex.intersects(maxiChord));
@@ -347,7 +347,7 @@ TEST_CASE("Segment and pentagon predicates tests") {
 // Regression guards for the orientation-based Convex::interiorsIntersect(Segment)
 // (the cyclicMaxOrPositive support-triangle method) and for the exact
 // Convex::pointInside<ResultNumber>(), which previously truncated through an
-// untyped inner triangle.pointInside() call.
+// untyped inner triangle.pointInside<int>() call.
 TEST_CASE("Convex interiorsIntersect(Segment) adversarial cases") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
@@ -403,6 +403,6 @@ TEST_CASE("Segment and Convex squared Hausdorff distance") {
 
     // Farthest square vertices from s are (0,0) and (0,4), each at squared
     // distance 37, which dominates the segment-side term.
-    CHECK(square.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(square) == 37);
+    CHECK(square.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(square) == 37);
 }

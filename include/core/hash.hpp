@@ -236,8 +236,9 @@ namespace std {
                 pgl::detail::hashCombine(seed, disk.b());
                 pgl::detail::hashCombine(seed, disk.c());
             } else {
-                pgl::detail::hashCombine(seed, disk.center());
-                pgl::detail::hashCombine(seed, disk.squaredRadius());
+                using Number = typename std::decay_t<decltype(disk)>::NumberType;
+                pgl::detail::hashCombine(seed, disk.template center<Number>());
+                pgl::detail::hashCombine(seed, disk.template squaredRadius<Number>());
             }
             return seed;
         }

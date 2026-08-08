@@ -119,7 +119,7 @@ TEST_CASE("Rectangle and OrientedSegment intersection construction") {
 
     SUBCASE("fully inside OS: returns a segment equal to the OS") {
         const OrientedSegment inside({1, 1}, {3, 2});
-        const auto r = rect.intersection(inside);
+        const auto r = rect.intersection<int>(inside);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({1, 1}, {3, 2}), "rect ∩ inside");
@@ -127,7 +127,7 @@ TEST_CASE("Rectangle and OrientedSegment intersection construction") {
 
     SUBCASE("fully outside OS: empty") {
         const OrientedSegment outside({5, 0}, {8, 0});
-        CHECK_FALSE_MESSAGE(rect.intersection(outside), "rect ∩ outside should be empty");
+        CHECK_FALSE_MESSAGE(rect.intersection<int>(outside), "rect ∩ outside should be empty");
     }
 }
 
@@ -141,6 +141,6 @@ TEST_CASE("OrientedSegment and Rectangle squared Hausdorff distance") {
 
     // Matches the unoriented Segment case: the farthest rectangle vertices
     // dominate, at squared distance 37.
-    CHECK(r.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(r) == 37);
+    CHECK(r.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(r) == 37);
 }

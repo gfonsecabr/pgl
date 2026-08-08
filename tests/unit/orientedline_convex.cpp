@@ -72,7 +72,7 @@ TEST_CASE("Convex intersection with OrientedLine yields a chord segment") {
 
     SUBCASE("crossing OrientedLine clips to the chord segment") {
         const OrientedLine crossing({2, -1}, {2, 5});
-        const auto r = sq.intersection(crossing);
+        const auto r = sq.intersection<int>(crossing);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({2, 0}, {2, 4}), "sq ∩ crossing");
@@ -80,6 +80,6 @@ TEST_CASE("Convex intersection with OrientedLine yields a chord segment") {
 
     SUBCASE("OrientedLine outside yields empty") {
         const OrientedLine outside({0, 5}, {4, 5});
-        CHECK_FALSE_MESSAGE(sq.intersection(outside), "sq ∩ outside should be empty");
+        CHECK_FALSE_MESSAGE(sq.intersection<int>(outside), "sq ∩ outside should be empty");
     }
 }

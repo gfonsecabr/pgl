@@ -216,29 +216,29 @@ TEST_CASE("Ray evaluates coordinates with yAtX and xAtY") {
     using Rational = pgl::Rational<int64_t>;
 
     const Ray diagonal(Point(0, 0), Point(4, 4));
-    CHECK(diagonal.yAtX(3) == 3);
-    CHECK(diagonal.xAtY(2) == 2);
+    CHECK(diagonal.yAtX<int>(3) == 3);
+    CHECK(diagonal.xAtY<int>(2) == 2);
     CHECK(diagonal.yAtX<Rational>(1).value() == Rational(1));
     CHECK(diagonal.xAtY<Rational>(1).value() == Rational(1));
-    CHECK_FALSE(diagonal.yAtX(-1).has_value());
-    CHECK_FALSE(diagonal.xAtY(-1).has_value());
+    CHECK_FALSE(diagonal.yAtX<int>(-1).has_value());
+    CHECK_FALSE(diagonal.xAtY<int>(-1).has_value());
 
     const Ray descending(Point(0, 4), Point(4, 0));
-    CHECK(descending.yAtX(5) == -1);
-    CHECK(descending.xAtY(1) == 3);
-    CHECK_FALSE(descending.xAtY(5).has_value());
+    CHECK(descending.yAtX<int>(5) == -1);
+    CHECK(descending.xAtY<int>(1) == 3);
+    CHECK_FALSE(descending.xAtY<int>(5).has_value());
 
     const Ray vertical(Point(2, -1), Point(2, 3));
-    CHECK(vertical.yAtX(2) == -1);
-    CHECK_FALSE(vertical.yAtX(1).has_value());
-    CHECK(vertical.xAtY(4) == 2);
-    CHECK_FALSE(vertical.xAtY(-2).has_value());
+    CHECK(vertical.yAtX<int>(2) == -1);
+    CHECK_FALSE(vertical.yAtX<int>(1).has_value());
+    CHECK(vertical.xAtY<int>(4) == 2);
+    CHECK_FALSE(vertical.xAtY<int>(-2).has_value());
 
     const Ray horizontal(Point(4, 1), Point(-2, 1));
-    CHECK(horizontal.xAtY(1) == -2);
-    CHECK_FALSE(horizontal.xAtY(0).has_value());
-    CHECK(horizontal.yAtX(3) == 1);
-    CHECK_FALSE(horizontal.yAtX(5).has_value());
+    CHECK(horizontal.xAtY<int>(1) == -2);
+    CHECK_FALSE(horizontal.xAtY<int>(0).has_value());
+    CHECK(horizontal.yAtX<int>(3) == 1);
+    CHECK_FALSE(horizontal.yAtX<int>(5).has_value());
 }
 
 TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
@@ -251,35 +251,35 @@ TEST_CASE("Ray intersections cover point, segment, ray, and empty cases") {
     const Point on_ray(2, 0);
     const Point off_ray(-1, 1);
 
-    const auto with_point = horizontal.intersection(on_ray);
+    const auto with_point = horizontal.intersection<int>(on_ray);
     REQUIRE(with_point);
     CHECK(*with_point == on_ray);
 
-    CHECK_FALSE(horizontal.intersection(off_ray).has_value());
+    CHECK_FALSE(horizontal.intersection<int>(off_ray).has_value());
     CHECK(horizontal.intersects(on_ray));
     CHECK_FALSE(horizontal.intersects(off_ray));
 
-    const auto with_line = horizontal.intersection(Line({2, -2}, {2, 2}));
+    const auto with_line = horizontal.intersection<int>(Line({2, -2}, {2, 2}));
     REQUIRE(with_line);
     REQUIRE(std::holds_alternative<Point>(*with_line));
     CHECK(std::get<Point>(*with_line) == Point(2, 0));
 
-    const auto with_segment = horizontal.intersection(Segment({-2, 0}, {2, 0}));
+    const auto with_segment = horizontal.intersection<int>(Segment({-2, 0}, {2, 0}));
     REQUIRE(with_segment);
     REQUIRE(std::holds_alternative<Segment>(*with_segment));
     CHECK(std::get<Segment>(*with_segment) == Segment(Point(0, 0), Point(2, 0)));
 
-    const auto with_same_direction_ray = horizontal.intersection(Ray({2, 0}, {6, 0}));
+    const auto with_same_direction_ray = horizontal.intersection<int>(Ray({2, 0}, {6, 0}));
     REQUIRE(with_same_direction_ray);
     REQUIRE(std::holds_alternative<Ray>(*with_same_direction_ray));
     CHECK(std::get<Ray>(*with_same_direction_ray) == Ray(Point(2, 0), Point(6, 0)));
 
-    const auto with_opposite_same_source = horizontal.intersection(Ray({0, 0}, {-3, 0}));
+    const auto with_opposite_same_source = horizontal.intersection<int>(Ray({0, 0}, {-3, 0}));
     REQUIRE(with_opposite_same_source);
     REQUIRE(std::holds_alternative<Point>(*with_opposite_same_source));
     CHECK(std::get<Point>(*with_opposite_same_source) == Point(0, 0));
 
-    const auto with_opposite_overlap = horizontal.intersection(Ray({3, 0}, {1, 0}));
+    const auto with_opposite_overlap = horizontal.intersection<int>(Ray({3, 0}, {1, 0}));
     REQUIRE(with_opposite_overlap);
     REQUIRE(std::holds_alternative<Segment>(*with_opposite_overlap));
     CHECK(std::get<Segment>(*with_opposite_overlap) == Segment(Point(0, 0), Point(3, 0)));
@@ -380,11 +380,11 @@ TEST_CASE("Ray intersection and distances support exact rational results") {
     REQUIRE(std::holds_alternative<RationalPoint>(*intersection));
     CHECK(std::get<RationalPoint>(*intersection) == RationalPoint(Rational(2), Rational(2)));
 
-    CHECK(rising.squaredDistance(Point(2, 0)) == doctest::Approx(2.0));
-    CHECK(rising.squaredDistance(Point(-1, 0)) == doctest::Approx(1.0));
-    CHECK(leftward.squaredDistance(Ray({0, 0}, {4, 0})) == doctest::Approx(25.0));
-    CHECK(Ray({0, 0}, {4, 0}).squaredDistance(vertical) == doctest::Approx(25.0));
-    CHECK(Ray({0, 0}, {4, 0}).squaredDistance(pgl::Line<Point>({-2, -2}, {-2, 2})) == doctest::Approx(4.0));
+    CHECK(rising.squaredDistance<int>(Point(2, 0)) == doctest::Approx(2.0));
+    CHECK(rising.squaredDistance<int>(Point(-1, 0)) == doctest::Approx(1.0));
+    CHECK(leftward.squaredDistance<int>(Ray({0, 0}, {4, 0})) == doctest::Approx(25.0));
+    CHECK(Ray({0, 0}, {4, 0}).squaredDistance<int>(vertical) == doctest::Approx(25.0));
+    CHECK(Ray({0, 0}, {4, 0}).squaredDistance<int>(pgl::Line<Point>({-2, -2}, {-2, 2})) == doctest::Approx(4.0));
 }
 
 TEST_CASE("Ray interiorContains another ray") {

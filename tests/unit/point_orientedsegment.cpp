@@ -83,8 +83,8 @@ TEST_CASE("Point and OrientedSegment intersection construction, both directions"
 
     SUBCASE("a point on the segment yields that point") {
         const Point mid(2, 0);
-        const auto fromSeg = s.intersection(mid);
-        const auto fromPt = mid.intersection(s);
+        const auto fromSeg = s.intersection<int>(mid);
+        const auto fromPt = mid.intersection<int>(s);
         REQUIRE(fromSeg.has_value());
         CHECK(*fromSeg == mid);
         REQUIRE(fromPt.has_value());
@@ -93,8 +93,8 @@ TEST_CASE("Point and OrientedSegment intersection construction, both directions"
 
     SUBCASE("a point off the segment yields nothing") {
         const Point off(2, 2);
-        CHECK_FALSE(s.intersection(off).has_value());
-        CHECK_FALSE(off.intersection(s).has_value());
+        CHECK_FALSE(s.intersection<int>(off).has_value());
+        CHECK_FALSE(off.intersection<int>(s).has_value());
     }
 }
 
@@ -106,6 +106,6 @@ TEST_CASE("Point and OrientedSegment squared Hausdorff distance") {
     const Point p(1, 3);
 
     // Matches the unoriented Segment case: the farthest endpoint dominates.
-    CHECK(s.squaredHausdorffDistance(p) == 18);
-    CHECK(p.squaredHausdorffDistance(s) == 18);
+    CHECK(s.squaredHausdorffDistance<int>(p) == 18);
+    CHECK(p.squaredHausdorffDistance<int>(s) == 18);
 }

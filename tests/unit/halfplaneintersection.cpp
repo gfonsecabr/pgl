@@ -174,7 +174,7 @@ TEST_CASE("Constructors from other shapes") {
         const pgl::Convex<Point> convex({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)});
         const Region k(convex);
         CHECK(k.size() == 4);
-        CHECK(k.asConvex() == convex);
+        CHECK(k.asConvex<int>() == convex);
     }
 
     SUBCASE("an empty convex polygon gives the empty region") {
@@ -266,17 +266,17 @@ TEST_CASE("Vertices and edges") {
 
 TEST_CASE("Bounding boxes") {
     SUBCASE("exact box of the unit square") {
-        const auto box = unitSquare().bbox();
+        const auto box = unitSquare().bbox<int>();
         CHECK(box == pgl::Rectangle<Point>(Point(0, 0), Point(1, 1)));
     }
 
     SUBCASE("integer boxes round outward") {
         // y >= 0, x >= 0, x + 2y <= 1: y_max = 1/2 rounds up to 1.
         const Region k({yGE0, xGE0, Halfplane(1, 0, -1, 1)});
-        CHECK(k.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(1, 1)));
+        CHECK(k.bbox<int>() == pgl::Rectangle<Point>(Point(0, 0), Point(1, 1)));
         // Mirrored below the axes: y_min = -1/2 rounds down to -1.
         const Region m({Halfplane(0, 0, -1, 0), Halfplane(0, 0, 0, 1), Halfplane(-1, 0, 1, -1)});
-        CHECK(m.bbox() == pgl::Rectangle<Point>(Point(-1, -1), Point(0, 0)));
+        CHECK(m.bbox<int>() == pgl::Rectangle<Point>(Point(-1, -1), Point(0, 0)));
     }
 
     SUBCASE("rational and floating boxes are exact") {
@@ -398,10 +398,10 @@ TEST_CASE("Transformations") {
 
 TEST_CASE("Intersection with a half-plane stays exact and typed") {
     const Region k = unitSquare();
-    const auto cut = k.intersection(diag);
+    const auto cut = k.intersection<int>(diag);
     CHECK(cut == triangle());
     // Cutting the whole thing away yields the empty region, not an optional.
-    const auto gone = k.intersection(Halfplane(1, -1, 0, -1));  // y <= -1
+    const auto gone = k.intersection<int>(Halfplane(1, -1, 0, -1));  // y <= -1
     CHECK(gone.isEmpty());
 }
 
@@ -551,24 +551,24 @@ TEST_CASE("Region interiors intersect another region's") {
 }
 
 TEST_CASE("Region intersection with another region stays a region") {
-    const Region cell = hslab(0, 3).intersection(vslab(0, 2));
+    const Region cell = hslab(0, 3).intersection<int>(vslab(0, 2));
     CHECK(cell.isBounded());
     CHECK(cell.twiceArea<long long>() == 12);  // 2 x 3
 
     // Intersecting with the whole plane is the identity.
-    CHECK(plane().intersection(hslab(0, 3)) == hslab(0, 3));
-    CHECK(hslab(0, 3).intersection(plane()) == hslab(0, 3));
+    CHECK(plane().intersection<int>(hslab(0, 3)) == hslab(0, 3));
+    CHECK(hslab(0, 3).intersection<int>(plane()) == hslab(0, 3));
 
     // Unbounded results stay representable.
-    const Region wedgeCut = upper().intersection(quadrant());
+    const Region wedgeCut = upper().intersection<int>(quadrant());
     CHECK(wedgeCut == quadrant());
     CHECK(!wedgeCut.isBounded());
 
     // Disjoint and empty operands produce the canonical empty region.
-    CHECK(hslab(0, 1).intersection(hslab(3, 4)).isEmpty());
-    CHECK(upper().intersection(emptyRegion()).isEmpty());
-    CHECK(emptyRegion().intersection(upper()).isEmpty());
-    CHECK(hslab(0, 1).intersection(hslab(3, 4)) == emptyRegion());
+    CHECK(hslab(0, 1).intersection<int>(hslab(3, 4)).isEmpty());
+    CHECK(upper().intersection<int>(emptyRegion()).isEmpty());
+    CHECK(emptyRegion().intersection<int>(upper()).isEmpty());
+    CHECK(hslab(0, 1).intersection<int>(hslab(3, 4)) == emptyRegion());
 
     // Exactness: the result type promotes on request.
     const auto exact = hslab(0, 3).intersection<long long>(vslab(0, 2));
@@ -674,7 +674,7 @@ TEST_CASE("Region self-pair works with rational coordinates") {
     CHECK(a.intersects(b));
     CHECK(b.separates(a));
     CHECK(!a.separates(b));
-    const RRegion meet = a.intersection(b);
+    const RRegion meet = a.intersection<int>(b);
     CHECK(!meet.isBounded());
     CHECK(meet.contains(RPoint(1, 5)));
     CHECK(!meet.contains(RPoint(1, -1)));

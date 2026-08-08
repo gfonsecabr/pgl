@@ -108,7 +108,7 @@ static std::vector<std::pair<std::string, Region>> all() {
 // these operations returns when both operands are the same shape, and it
 // differs from the region itself exactly on the fixtures carrying a slit.
 static std::vector<Region> regularized(const Region& region) {
-    return region.difference(PolygonShape{});
+    return region.difference<int>(PolygonShape{});
 }
 
 static int twiceAreaOf(const std::vector<Region>& pieces) {
@@ -125,7 +125,7 @@ static int twiceAreaOf(const std::vector<Region>& pieces) {
 TEST_CASE("union: a U capped by a bar encloses a hole neither operand has") {
     const PolygonShape u({Point(0, 0), Point(9, 0), Point(9, 9), Point(6, 9), Point(6, 3), Point(3, 3),
                      Point(3, 9), Point(0, 9)});
-    const auto pieces = u.unionWith(box(0, 9, 9, 12));
+    const auto pieces = u.unionWith<int>(box(0, 9, 9, 12));
 
     REQUIRE(pieces.size() == 1);
     REQUIRE(pieces[0].holeCount() == 1);
@@ -136,7 +136,7 @@ TEST_CASE("union: a U capped by a bar encloses a hole neither operand has") {
 }
 
 TEST_CASE("union: overlapping shapes fuse into one piece") {
-    const auto pieces = square(0, 10).unionWith(box(5, 5, 15, 15));
+    const auto pieces = square(0, 10).unionWith<int>(box(5, 5, 15, 15));
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].holeCount() == 0);
@@ -144,19 +144,19 @@ TEST_CASE("union: overlapping shapes fuse into one piece") {
 }
 
 TEST_CASE("union: shapes sharing a stretch of boundary fuse; a point does not") {
-    const auto abutting = square(0, 10).unionWith(box(10, 0, 20, 10));
+    const auto abutting = square(0, 10).unionWith<int>(box(10, 0, 20, 10));
     REQUIRE(abutting.size() == 1);
     CHECK(abutting[0].outer() == box(0, 0, 20, 10));
 
     // Meeting at a single corner, the union pinches shut there. A region may not
     // have a self-touching outer ring, so it comes back as two pieces.
-    const auto corner = square(0, 10).unionWith(box(10, 10, 20, 20));
+    const auto corner = square(0, 10).unionWith<int>(box(10, 10, 20, 20));
     REQUIRE(corner.size() == 2);
     CHECK(twiceAreaOf(corner) == 2 * 200);
 }
 
 TEST_CASE("union: disjoint shapes come back side by side") {
-    const auto pieces = square(0, 10).unionWith(box(20, 20, 30, 30));
+    const auto pieces = square(0, 10).unionWith<int>(box(20, 20, 30, 30));
 
     REQUIRE(pieces.size() == 2);
     CHECK(pieces[0].outer() == square(0, 10));
@@ -167,13 +167,13 @@ TEST_CASE("union: filling a hole") {
     const Region annulus = fixtures::annulus();
 
     // Exactly plugged: the hole is gone and the square comes back whole.
-    const auto plugged = annulus.unionWith(box(4, 4, 8, 8));
+    const auto plugged = annulus.unionWith<int>(box(4, 4, 8, 8));
     REQUIRE(plugged.size() == 1);
     CHECK(plugged[0].holeCount() == 0);
     CHECK(plugged[0].outer() == square(0, 12));
 
     // Half plugged: what is left of the hole is still a hole.
-    const auto half = annulus.unionWith(box(4, 4, 8, 6));
+    const auto half = annulus.unionWith<int>(box(4, 4, 8, 6));
     REQUIRE(half.size() == 1);
     REQUIRE(half[0].holeCount() == 1);
     CHECK(half[0].hole(0) == box(4, 6, 8, 8));
@@ -181,7 +181,7 @@ TEST_CASE("union: filling a hole") {
     // A plug reaching out of the region: the outer ring grows, and what is left
     // of the hole is a U -- still one hole, since its two arms are joined below
     // the plug and the region closes over both of them.
-    const auto through = annulus.unionWith(box(5, 5, 7, 20));
+    const auto through = annulus.unionWith<int>(box(5, 5, 7, 20));
     REQUIRE(through.size() == 1);
     REQUIRE(through[0].holeCount() == 1);
     CHECK(through[0].hole(0) == PolygonShape({Point(4, 4), Point(8, 4), Point(8, 8), Point(7, 8),
@@ -194,7 +194,7 @@ TEST_CASE("union: a region with a slit loses it, since a slit has no area") {
     // `notched` is an L whose hole shares the top and right edges of the outer
     // ring; those shared stretches are slits, in the region but with no area
     // beside them. The regularized union may not keep them.
-    const auto pieces = fixtures::notched().unionWith(PolygonShape{});
+    const auto pieces = fixtures::notched().unionWith<int>(PolygonShape{});
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].holeCount() == 0);
@@ -213,7 +213,7 @@ TEST_CASE("union: a region with a slit loses it, since a slit has no area") {
 TEST_CASE("intersection: a region met by a shape covering it is the region itself") {
     for (const auto& [fixture, region] : fixtures::all()) {
         INFO(fixture);
-        const auto pieces = region.intersection(box(-5, -5, 20, 20));
+        const auto pieces = region.intersection<int>(box(-5, -5, 20, 20));
         CHECK(pieces == regularized(region));
         CHECK(twiceAreaOf(pieces) == region.twiceArea());
     }
@@ -222,13 +222,13 @@ TEST_CASE("intersection: a region met by a shape covering it is the region itsel
 TEST_CASE("intersection: a hole survives being met") {
     // Cut through, the hole opens: what is left of it is a bite out of the
     // boundary rather than a hole.
-    const auto half = fixtures::annulus().intersection(box(0, 0, 12, 6));
+    const auto half = fixtures::annulus().intersection<int>(box(0, 0, 12, 6));
     REQUIRE(half.size() == 1);
     CHECK(half[0].holeCount() == 0);
     CHECK(half[0].twiceArea() == 2 * (72 - 8));
 
     // Kept whole, the hole stays a hole.
-    const auto around = fixtures::annulus().intersection(box(1, 1, 11, 11));
+    const auto around = fixtures::annulus().intersection<int>(box(1, 1, 11, 11));
     REQUIRE(around.size() == 1);
     REQUIRE(around[0].holeCount() == 1);
     CHECK(around[0].hole(0) == box(4, 4, 8, 8));
@@ -238,7 +238,7 @@ TEST_CASE("intersection: a hole survives being met") {
 TEST_CASE("intersection: the holes of both operands are holes of the result") {
     const Region a(square(0, 12), std::vector<PolygonShape>{box(2, 2, 5, 5)});
     const Region b(square(0, 12), std::vector<PolygonShape>{box(7, 7, 10, 10)});
-    const auto pieces = a.intersection(b);
+    const auto pieces = a.intersection<int>(b);
 
     REQUIRE(pieces.size() == 1);
     REQUIRE(pieces[0].holeCount() == 2);
@@ -248,17 +248,17 @@ TEST_CASE("intersection: the holes of both operands are holes of the result") {
 }
 
 TEST_CASE("intersection: touching without overlapping is empty, being regularized") {
-    CHECK(Region(square(0, 10)).intersection(box(10, 0, 20, 10)).empty());
-    CHECK(Region(square(0, 10)).intersection(box(10, 10, 20, 20)).empty());
-    CHECK(Region(square(0, 10)).intersection(box(20, 20, 30, 30)).empty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(10, 0, 20, 10)).empty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(10, 10, 20, 20)).empty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(20, 20, 30, 30)).empty());
 
     // A shape lying entirely in a hole meets the region only along the rim.
-    CHECK(fixtures::annulus().intersection(box(5, 5, 7, 7)).empty());
-    CHECK(fixtures::annulus().intersection(box(4, 4, 8, 8)).empty());
+    CHECK(fixtures::annulus().intersection<int>(box(5, 5, 7, 7)).empty());
+    CHECK(fixtures::annulus().intersection<int>(box(4, 4, 8, 8)).empty());
 }
 
 TEST_CASE("intersection: a cut can split the result in two") {
-    const auto pieces = fixtures::annulus().intersection(box(0, 4, 12, 8));
+    const auto pieces = fixtures::annulus().intersection<int>(box(0, 4, 12, 8));
 
     REQUIRE(pieces.size() == 2);
     CHECK(twiceAreaOf(pieces) == 2 * (48 - 16));
@@ -271,7 +271,7 @@ TEST_CASE("intersection: exact where Polygon::intersection truncates") {
     // integral result type loses nothing here. The arrangement is built over
     // rationals whatever the result type is, so nothing is truncated on the way.
     const Region region(square(0, 10));
-    const auto pieces = region.intersection(PolygonShape({Point(0, 0), Point(10, 10), Point(0, 10)}));
+    const auto pieces = region.intersection<int>(PolygonShape({Point(0, 0), Point(10, 10), Point(0, 10)}));
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(10, 10), Point(0, 10)}));
@@ -282,7 +282,7 @@ TEST_CASE("intersection: exact where Polygon::intersection truncates") {
 // Symmetric difference
 
 TEST_CASE("symmetric difference: the part exactly one operand covers") {
-    const auto pieces = square(0, 10).symmetricDifference(box(5, 5, 15, 15));
+    const auto pieces = square(0, 10).symmetricDifference<int>(box(5, 5, 15, 15));
 
     // The two L-shaped remainders meet only at (5, 10) and (10, 5), so they are
     // two pieces rather than one.
@@ -292,13 +292,13 @@ TEST_CASE("symmetric difference: the part exactly one operand covers") {
 
 TEST_CASE("symmetric difference: a shape against itself is empty") {
     for (const auto& [fixture, region] : fixtures::all()) {
-        CHECK_MESSAGE(region.symmetricDifference(region).empty(), fixture);
+        CHECK_MESSAGE(region.symmetricDifference<int>(region).empty(), fixture);
     }
-    CHECK(square(0, 10).symmetricDifference(square(0, 10)).empty());
+    CHECK(square(0, 10).symmetricDifference<int>(square(0, 10)).empty());
 }
 
 TEST_CASE("symmetric difference: a region against its own outer polygon is its holes") {
-    const auto pieces = fixtures::annulus().symmetricDifference(square(0, 12));
+    const auto pieces = fixtures::annulus().symmetricDifference<int>(square(0, 12));
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].outer() == box(4, 4, 8, 8));
@@ -308,7 +308,7 @@ TEST_CASE("symmetric difference: a region against its own outer polygon is its h
 TEST_CASE("symmetric difference: it can carry a hole of its own") {
     // The bigger square minus the smaller one is an annulus; the smaller one
     // contributes nothing, being covered by both.
-    const auto pieces = square(0, 12).symmetricDifference(box(4, 4, 8, 8));
+    const auto pieces = square(0, 12).symmetricDifference<int>(box(4, 4, 8, 8));
 
     REQUIRE(pieces.size() == 1);
     REQUIRE(pieces[0].holeCount() == 1);
@@ -319,7 +319,7 @@ TEST_CASE("symmetric difference: a region against its own hole is the square who
     // The two operands share only the hole's rim, which has no area, so the
     // regularized answer joins across it: the annulus and the plug come back as
     // one filled square rather than two pieces meeting along the rim.
-    const auto pieces = fixtures::annulus().symmetricDifference(box(4, 4, 8, 8));
+    const auto pieces = fixtures::annulus().symmetricDifference<int>(box(4, 4, 8, 8));
 
     REQUIRE(pieces.size() == 1);
     CHECK(pieces[0].outer() == square(0, 12));
@@ -339,25 +339,25 @@ TEST_CASE("boolean operations accept every bounded shape with area") {
     const RectangleShape rectangle(Point(2, 2), Point(10, 10));
 
     // A convex operand and the polygon spelling of it must answer alike.
-    CHECK(region.unionWith(convex) == region.unionWith(polygon));
-    CHECK(region.unionWith(rectangle) == region.unionWith(polygon));
-    CHECK(region.intersection(convex) == region.intersection(polygon));
-    CHECK(region.intersection(rectangle) == region.intersection(polygon));
-    CHECK(region.symmetricDifference(convex) == region.symmetricDifference(polygon));
-    CHECK(region.symmetricDifference(rectangle) == region.symmetricDifference(polygon));
+    CHECK(region.unionWith<int>(convex) == region.unionWith<int>(polygon));
+    CHECK(region.unionWith<int>(rectangle) == region.unionWith<int>(polygon));
+    CHECK(region.intersection<int>(convex) == region.intersection<int>(polygon));
+    CHECK(region.intersection<int>(rectangle) == region.intersection<int>(polygon));
+    CHECK(region.symmetricDifference<int>(convex) == region.symmetricDifference<int>(polygon));
+    CHECK(region.symmetricDifference<int>(rectangle) == region.symmetricDifference<int>(polygon));
 
-    CHECK(polygon.unionWith(convex) == polygon.unionWith(rectangle));
-    CHECK(polygon.symmetricDifference(convex) == polygon.symmetricDifference(rectangle));
+    CHECK(polygon.unionWith<int>(convex) == polygon.unionWith<int>(rectangle));
+    CHECK(polygon.symmetricDifference<int>(convex) == polygon.symmetricDifference<int>(rectangle));
 
     // The triangle is half of it, so it is a different answer, not the same one.
-    CHECK(!region.intersection(triangle).empty());
-    CHECK(region.intersection(triangle) != region.intersection(convex));
-    CHECK(!polygon.unionWith(triangle).empty());
-    CHECK(!polygon.symmetricDifference(triangle).empty());
+    CHECK(!region.intersection<int>(triangle).empty());
+    CHECK(region.intersection<int>(triangle) != region.intersection<int>(convex));
+    CHECK(!polygon.unionWith<int>(triangle).empty());
+    CHECK(!polygon.symmetricDifference<int>(triangle).empty());
 
     // Region operands, on both receivers.
-    CHECK(polygon.unionWith(region) == Region(polygon).unionWith(region));
-    CHECK(polygon.symmetricDifference(region) == Region(polygon).symmetricDifference(region));
+    CHECK(polygon.unionWith<int>(region) == Region(polygon).unionWith<int>(region));
+    CHECK(polygon.symmetricDifference<int>(region) == Region(polygon).symmetricDifference<int>(region));
 }
 
 TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region side") {
@@ -373,26 +373,26 @@ TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region si
     const Triangle triangle(Point(2, 2), Point(10, 2), Point(10, 10));
     const RectangleShape rectangle(Point(2, 2), Point(10, 10));
 
-    CHECK(convex.unionWith(polygon) == polygon.unionWith(convex));
-    CHECK(triangle.unionWith(polygon) == polygon.unionWith(triangle));
-    CHECK(rectangle.unionWith(polygon) == polygon.unionWith(rectangle));
-    CHECK(convex.unionWith(region) == region.unionWith(convex));
-    CHECK(triangle.unionWith(region) == region.unionWith(triangle));
-    CHECK(rectangle.unionWith(region) == region.unionWith(rectangle));
+    CHECK(convex.unionWith<int>(polygon) == polygon.unionWith<int>(convex));
+    CHECK(triangle.unionWith<int>(polygon) == polygon.unionWith<int>(triangle));
+    CHECK(rectangle.unionWith<int>(polygon) == polygon.unionWith<int>(rectangle));
+    CHECK(convex.unionWith<int>(region) == region.unionWith<int>(convex));
+    CHECK(triangle.unionWith<int>(region) == region.unionWith<int>(triangle));
+    CHECK(rectangle.unionWith<int>(region) == region.unionWith<int>(rectangle));
 
-    CHECK(convex.symmetricDifference(polygon) == polygon.symmetricDifference(convex));
-    CHECK(triangle.symmetricDifference(polygon) == polygon.symmetricDifference(triangle));
-    CHECK(rectangle.symmetricDifference(region) == region.symmetricDifference(rectangle));
-    CHECK(triangle.symmetricDifference(region) == region.symmetricDifference(triangle));
+    CHECK(convex.symmetricDifference<int>(polygon) == polygon.symmetricDifference<int>(convex));
+    CHECK(triangle.symmetricDifference<int>(polygon) == polygon.symmetricDifference<int>(triangle));
+    CHECK(rectangle.symmetricDifference<int>(region) == region.symmetricDifference<int>(rectangle));
+    CHECK(triangle.symmetricDifference<int>(region) == region.symmetricDifference<int>(triangle));
 
     // `intersection` is the one whose two receivers answer differently:
     // `Polygon::intersection` returns components, `PolygonWithHoles` returns
     // regions. The region side owns the mixed pair, so a polygon receiver
     // forwards to it and gets regions back rather than components.
-    CHECK(polygon.intersection(region) == region.intersection(polygon));
-    CHECK(triangle.intersection(region) == region.intersection(triangle));
-    static_assert(std::is_same_v<decltype(polygon.intersection(region)),
-                                 decltype(region.intersection(polygon))>);
+    CHECK(polygon.intersection<int>(region) == region.intersection<int>(polygon));
+    CHECK(triangle.intersection<int>(region) == region.intersection<int>(triangle));
+    static_assert(std::is_same_v<decltype(polygon.intersection<int>(region)),
+                                 decltype(region.intersection<int>(polygon))>);
 
     // The requested result type travels through the forwarder untouched.
     CHECK(triangle.unionWith<pgl::ERational>(region) == region.unionWith<pgl::ERational>(triangle));
@@ -451,11 +451,11 @@ static const char* name(Op op) {
 static std::vector<Region> apply(Op op, const Region& a, const PolygonShape& b) {
     switch (op) {
         case Op::Union:
-            return a.unionWith(b);
+            return a.unionWith<int>(b);
         case Op::Intersection:
-            return a.intersection(b);
+            return a.intersection<int>(b);
         default:
-            return a.symmetricDifference(b);
+            return a.symmetricDifference<int>(b);
     }
 }
 
@@ -557,13 +557,13 @@ TEST_CASE("boolean operations: inclusion-exclusion ties the three answers togeth
                     const Region shifted = other + Point(dx, dy);
                     INFO(fixture << " against " << otherName << " shifted by " << dx << ", " << dy);
 
-                    const int united = twiceAreaOf(region.unionWith(shifted));
-                    const int met = twiceAreaOf(region.intersection(shifted));
-                    const int apart = twiceAreaOf(region.symmetricDifference(shifted));
+                    const int united = twiceAreaOf(region.unionWith<int>(shifted));
+                    const int met = twiceAreaOf(region.intersection<int>(shifted));
+                    const int apart = twiceAreaOf(region.symmetricDifference<int>(shifted));
 
                     CHECK(united + met == region.twiceArea() + shifted.twiceArea());
                     CHECK(apart == united - met);
-                    CHECK(twiceAreaOf(region.difference(shifted)) == region.twiceArea() - met);
+                    CHECK(twiceAreaOf(region.difference<int>(shifted)) == region.twiceArea() - met);
                 }
             }
         }
@@ -586,15 +586,15 @@ TEST_CASE("boolean operations: rewritten through the difference") {
                 const Region other(box(2 + dx, 2 + dy, 10 + dx, 10 + dy));
                 INFO(fixture << " against " << other.outer());
 
-                const int less = twiceAreaOf(region.difference(other));
-                const int lessTheOtherWay = twiceAreaOf(other.difference(region));
+                const int less = twiceAreaOf(region.difference<int>(other));
+                const int lessTheOtherWay = twiceAreaOf(other.difference<int>(region));
 
                 // A ∩ B = A ∖ (A ∖ B), so |A ∩ B| = |A| - |A ∖ B|.
-                CHECK(twiceAreaOf(region.intersection(other)) == region.twiceArea() - less);
+                CHECK(twiceAreaOf(region.intersection<int>(other)) == region.twiceArea() - less);
                 // A △ B = (A ∖ B) ∪ (B ∖ A), and the two are disjoint.
-                CHECK(twiceAreaOf(region.symmetricDifference(other)) == less + lessTheOtherWay);
+                CHECK(twiceAreaOf(region.symmetricDifference<int>(other)) == less + lessTheOtherWay);
                 // A ∪ B = (A ∖ B) ∪ B.
-                CHECK(twiceAreaOf(region.unionWith(other)) == less + other.twiceArea());
+                CHECK(twiceAreaOf(region.unionWith<int>(other)) == less + other.twiceArea());
             }
         }
     }
@@ -609,9 +609,9 @@ TEST_CASE("boolean operations: the symmetric ones do not depend on the order") {
             for (int dx = -6; dx <= 6; dx += 4) {
                 const Region shifted = other + Point(dx, dx / 2);
                 INFO(fixture << " against " << otherName << " shifted by " << dx);
-                CHECK(region.unionWith(shifted) == shifted.unionWith(region));
-                CHECK(region.intersection(shifted) == shifted.intersection(region));
-                CHECK(region.symmetricDifference(shifted) == shifted.symmetricDifference(region));
+                CHECK(region.unionWith<int>(shifted) == shifted.unionWith<int>(region));
+                CHECK(region.intersection<int>(shifted) == shifted.intersection<int>(region));
+                CHECK(region.symmetricDifference<int>(shifted) == shifted.symmetricDifference<int>(region));
             }
         }
     }
@@ -621,9 +621,9 @@ TEST_CASE("boolean operations: a shape against itself gives its regularization")
     for (const auto& [fixture, region] : fixtures::all()) {
         INFO(fixture);
         const auto self = regularized(region);
-        CHECK(region.unionWith(region) == self);
-        CHECK(region.intersection(region) == self);
-        CHECK(region.symmetricDifference(region).empty());
+        CHECK(region.unionWith<int>(region) == self);
+        CHECK(region.intersection<int>(region) == self);
+        CHECK(region.symmetricDifference<int>(region).empty());
 
         // Regularization never changes the area, only the point set: what it
         // drops has none. It can change the *number* of pieces, though, and on

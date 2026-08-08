@@ -7,8 +7,8 @@
  * @brief Manhattan (L1) distance between shapes.
  *
  * Mirrors the shape coverage of distance.hpp's `squaredDistance`, but for the
- * L1 metric `|dx| + |dy|` instead of the Euclidean one. Every overload beyond
- * Point-Point is templated on a `ResultNumber` coordinate type exactly like
+ * L1 metric `|dx| + |dy|` instead of the Euclidean one. Every overload is
+ * templated on a `ResultNumber` coordinate type exactly like
  * `squaredDistance`, and shares its caveat: an integer `ResultNumber` divides
  * (and therefore truncates) whenever the true distance is fractional, which
  * happens for any segment/ray/line that isn't axis-aligned. Request a
@@ -100,20 +100,14 @@ constexpr ResultNumber segmentLikeDistanceL1(const Point<ResultNumber>& a, const
  * That argument only relies on convexity, not on which metric induces the
  * distance, so it applies to L1 exactly as it does to the Euclidean case.
  *
- * `other.distanceL1` is only templated on `ResultNumber` from `Segment` rank
- * upward; `Point::distanceL1` takes no such template (it needs no division
- * to stay exact), so the vertex-to-`other` query below falls back to the
- * untemplated call, casting its result, whenever `other` is itself a `Point`.
+ * Every concrete `distanceL1` overload accepts `ResultNumber`, so the
+ * requested arithmetic is propagated to the vertex query as well.
  */
 template <class ResultNumber, class Self, class OtherShape>
 constexpr ResultNumber maxVertexDistanceL1(const Self& self, const OtherShape& other) {
     const auto self_vertices = self.vertices();
     const auto distanceToVertex = [&other](const auto& vertex) -> ResultNumber {
-        if constexpr (requires { other.template distanceL1<ResultNumber>(vertex); }) {
-            return other.template distanceL1<ResultNumber>(vertex);
-        } else {
-            return static_cast<ResultNumber>(other.distanceL1(vertex));
-        }
+        return other.template distanceL1<ResultNumber>(vertex);
     };
     ResultNumber worst = distanceToVertex(self_vertices[0]);
     for (std::size_t index = 1; index < self_vertices.size(); ++index) {
@@ -192,7 +186,7 @@ Float diskPointDistanceL1(Float a, Float b, Float r) {
 template <class Number, class Label>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::hausdorffDistanceL1(const OtherPoint& other) const {
-    return static_cast<ResultNumber>(distanceL1(other));
+    return this->template distanceL1<ResultNumber>(other);
 }
 
 // -----------------------------------------------------------------------------

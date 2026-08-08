@@ -65,7 +65,7 @@ TEST_CASE("MonotoneChainView answers read-only predicates like an owning chain")
         CHECK(view.contains(Point(2, 2)) == owning.contains(Point(2, 2)));
         CHECK(view.contains(Point(3, 3)) == owning.contains(Point(3, 3)));
         CHECK(view.isBelow(Point(1, 5)).has_value() == owning.isBelow(Point(1, 5)).has_value());
-        CHECK(view.yAtX(1) == owning.yAtX(1));
+        CHECK(view.yAtX<int>(1) == owning.yAtX<int>(1));
     }
 
     SUBCASE("bounding box and length agree") {

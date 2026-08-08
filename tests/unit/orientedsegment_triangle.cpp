@@ -124,7 +124,7 @@ TEST_CASE("Triangle and OrientedSegment intersection construction") {
 
     SUBCASE("OS along a triangle edge: returns that segment") {
         const OrientedSegment on_edge({0, 0}, {3, 0});
-        const auto r = tri.intersection(on_edge);
+        const auto r = tri.intersection<int>(on_edge);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment({0, 0}, {3, 0}), "tri ∩ on_edge");
@@ -132,7 +132,7 @@ TEST_CASE("Triangle and OrientedSegment intersection construction") {
 
     SUBCASE("OS touching a vertex only: returns a point") {
         const OrientedSegment touch({-1, -1}, {0, 0});
-        const auto r = tri.intersection(touch);
+        const auto r = tri.intersection<int>(touch);
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK_MESSAGE(std::get<Point>(*r) == Point(0, 0), "tri ∩ touch vertex");
@@ -140,7 +140,7 @@ TEST_CASE("Triangle and OrientedSegment intersection construction") {
 
     SUBCASE("disjoint OS: empty") {
         const OrientedSegment outside({5, 5}, {6, 6});
-        CHECK_FALSE_MESSAGE(tri.intersection(outside), "tri ∩ outside should be empty");
+        CHECK_FALSE_MESSAGE(tri.intersection<int>(outside), "tri ∩ outside should be empty");
     }
 }
 
@@ -154,6 +154,6 @@ TEST_CASE("OrientedSegment and Triangle squared Hausdorff distance") {
 
     // Matches the unoriented Segment case: the farthest triangle vertices
     // dominate, at squared distance 37.
-    CHECK(t.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(t) == 37);
+    CHECK(t.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(t) == 37);
 }

@@ -52,7 +52,7 @@ TEST_CASE("PolygonWithHoles vs Disk: containment") {
         CHECK(!region.boundaryContains(d));
         CHECK(region.intersects(d));
         CHECK(region.interiorsIntersect(d));
-        CHECK(region.squaredDistance(d) == doctest::Approx(0.0));
+        CHECK(region.squaredDistance<int>(d) == doctest::Approx(0.0));
     }
 
     SUBCASE("a disk tangent to the outer ring from inside") {
@@ -96,7 +96,7 @@ TEST_CASE("PolygonWithHoles vs Disk: containment") {
         CHECK(!region.interiorsIntersect(d));
         // The nearest region point is on the hole rim, two units from the
         // centre, so the gap is 2 - 1.
-        CHECK(region.squaredDistance(d) == doctest::Approx(1.0));
+        CHECK(region.squaredDistance<int>(d) == doctest::Approx(1.0));
     }
 
     SUBCASE("a disk inside the hole but touching its rim") {
@@ -104,7 +104,7 @@ TEST_CASE("PolygonWithHoles vs Disk: containment") {
         CHECK(!region.contains(d));
         CHECK(region.intersects(d));           // the rim belongs to the region
         CHECK(!region.interiorsIntersect(d));  // the open disk stays in the hole
-        CHECK(region.squaredDistance(d) == doctest::Approx(0.0));
+        CHECK(region.squaredDistance<int>(d) == doctest::Approx(0.0));
     }
 
     SUBCASE("a disk swallowing the whole region") {
@@ -119,7 +119,7 @@ TEST_CASE("PolygonWithHoles vs Disk: containment") {
         CHECK(!region.intersects(d));
         CHECK(!region.interiorsIntersect(d));
         // Six units from the centre to the right edge, less the radius.
-        CHECK(region.squaredDistance(d) == doctest::Approx(16.0));
+        CHECK(region.squaredDistance<int>(d) == doctest::Approx(16.0));
     }
 }
 
@@ -141,7 +141,7 @@ TEST_CASE("PolygonWithHoles vs Disk: a disk of radius zero is its point") {
         CHECK(region.contains(zero));
         CHECK(region.interiorContains(zero));
         CHECK(!region.interiorsIntersect(zero));  // no area to share
-        CHECK(region.squaredDistance(zero) == doctest::Approx(0.0));
+        CHECK(region.squaredDistance<int>(zero) == doctest::Approx(0.0));
     }
 
     SUBCASE("on the outer ring") {
@@ -156,9 +156,9 @@ TEST_CASE("PolygonWithHoles vs Disk: a disk of radius zero is its point") {
         const Disk zero(Point(6, 6), 0);
         CHECK(!region.contains(zero));
         CHECK(!region.intersects(zero));
-        CHECK(region.squaredDistance(zero) ==
+        CHECK(region.squaredDistance<int>(zero) ==
               doctest::Approx(region.squaredDistance<double>(Point(6, 6))));
-        CHECK(region.squaredDistance(zero) == doctest::Approx(4.0));
+        CHECK(region.squaredDistance<int>(zero) == doctest::Approx(4.0));
     }
 
     SUBCASE("far outside the region") {
@@ -170,7 +170,7 @@ TEST_CASE("PolygonWithHoles vs Disk: a disk of radius zero is its point") {
         CHECK(!region.contains(zero));
         CHECK(!region.intersects(zero));
         CHECK(!region.interiorsIntersect(zero));
-        CHECK(region.squaredDistance(zero) ==
+        CHECK(region.squaredDistance<int>(zero) ==
               doctest::Approx(region.squaredDistance<double>(Point(50, 50))));
     }
 }
@@ -225,7 +225,7 @@ TEST_CASE("PolygonWithHoles vs Disk: the symmetric predicates and distances") {
     CHECK(overlapping.interiorsIntersect(region) == region.interiorsIntersect(overlapping));
     CHECK(inTheHole.intersects(region) == region.intersects(inTheHole));
     CHECK(inTheHole.interiorsIntersect(region) == region.interiorsIntersect(inTheHole));
-    CHECK(inTheHole.squaredDistance(region) == doctest::Approx(region.squaredDistance(inTheHole)));
+    CHECK(inTheHole.squaredDistance<int>(region) == doctest::Approx(region.squaredDistance<int>(inTheHole)));
 
     // A region without holes is its outer polygon, and answers exactly as it does.
     const PolygonShape poly({0, 0, 12, 0, 12, 12, 0, 12});
@@ -237,6 +237,6 @@ TEST_CASE("PolygonWithHoles vs Disk: the symmetric predicates and distances") {
         CHECK(solid.boundaryContains(d) == poly.boundaryContains(d));
         CHECK(solid.intersects(d) == poly.intersects(d));
         CHECK(solid.interiorsIntersect(d) == poly.interiorsIntersect(d));
-        CHECK(solid.squaredDistance(d) == doctest::Approx(poly.squaredDistance(d)));
+        CHECK(solid.squaredDistance<int>(d) == doctest::Approx(poly.squaredDistance<int>(d)));
     }
 }

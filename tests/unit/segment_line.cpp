@@ -29,7 +29,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.crosses(far_collinear));
         CHECK_FALSE(diagonal.separates(far_collinear));
 
-        const auto isec = diagonal.intersection(far_collinear);
+        const auto isec = diagonal.intersection<int>(far_collinear);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Segment>(*isec));
         CHECK(std::get<Segment>(*isec) == far_collinear);
@@ -48,7 +48,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK(diagonal.separates(crossing));
         CHECK(crossing.separates(diagonal));
 
-        const auto isec = diagonal.intersection(crossing);
+        const auto isec = diagonal.intersection<int>(crossing);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
     }
@@ -60,7 +60,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK(diagonal.crosses(crossing));
         CHECK(diagonal.separates(crossing));
 
-        const auto isec = diagonal.intersection(crossing);
+        const auto isec = diagonal.intersection<int>(crossing);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(-9, -9));
@@ -74,7 +74,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK_FALSE(stops_short.intersects(diagonal));
         CHECK_FALSE(diagonal.interiorsIntersect(stops_short));
         CHECK_FALSE(diagonal.crosses(stops_short));
-        CHECK_FALSE(diagonal.intersection(stops_short));
+        CHECK_FALSE(diagonal.intersection<int>(stops_short));
     }
 
     SUBCASE("segment touches the line at one endpoint far past a defining point") {
@@ -87,7 +87,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK_FALSE(diagonal.crosses(touching));
         CHECK_FALSE(diagonal.separates(touching));
 
-        const auto isec = diagonal.intersection(touching);
+        const auto isec = diagonal.intersection<int>(touching);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(10, 10));
@@ -103,7 +103,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK_FALSE(parallel_seg.intersects(diagonal));
         CHECK_FALSE(diagonal.interiorsIntersect(parallel_seg));
         CHECK_FALSE(diagonal.crosses(parallel_seg));
-        CHECK_FALSE(diagonal.intersection(parallel_seg));
+        CHECK_FALSE(diagonal.intersection<int>(parallel_seg));
     }
 
     SUBCASE("degenerate segment far along the line is still contained") {
@@ -112,7 +112,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
         CHECK(diagonal.contains(far_point));
         CHECK(diagonal.intersects(far_point));
 
-        const auto isec = diagonal.intersection(far_point);
+        const auto isec = diagonal.intersection<int>(far_point);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(77, 77));
@@ -123,7 +123,7 @@ TEST_CASE("Line and segment predicates exercise the line's infinite extent") {
 
         CHECK_FALSE(diagonal.contains(far_point_off));
         CHECK_FALSE(diagonal.intersects(far_point_off));
-        CHECK_FALSE(diagonal.intersection(far_point_off));
+        CHECK_FALSE(diagonal.intersection<int>(far_point_off));
     }
 }
 
@@ -141,7 +141,7 @@ TEST_CASE("Vertical line crossed by a horizontal segment far above the defining 
     CHECK(horizontal.intersects(vertical));
     CHECK(vertical.crosses(horizontal));
 
-    const auto isec = vertical.intersection(horizontal);
+    const auto isec = vertical.intersection<int>(horizontal);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Point>(*isec));
     CHECK(std::get<Point>(*isec) == Point(2, 500));
@@ -159,7 +159,7 @@ TEST_CASE("Horizontal line crossed by a vertical segment far past the defining p
     CHECK(horizontal.intersects(vertical));
     CHECK(horizontal.crosses(vertical));
 
-    const auto isec = horizontal.intersection(vertical);
+    const auto isec = horizontal.intersection<int>(vertical);
     REQUIRE(isec);
     REQUIRE(std::holds_alternative<Point>(*isec));
     CHECK(std::get<Point>(*isec) == Point(999, 5));

@@ -259,17 +259,17 @@ TEST_CASE("Line measures squared distance to segments via the nearest endpoint")
     const pgl::Line<Point> diagonal({0, 0}, {1, 1});   // y = x
 
     // A crossing segment is at distance zero.
-    CHECK(diagonal.squaredDistance(pgl::Segment<Point>({0, 2}, {2, 0})) == 0);
-    CHECK(diagonal.squaredDistance(pgl::OrientedSegment<Point>({0, 2}, {2, 0})) == 0);
+    CHECK(diagonal.squaredDistance<int>(pgl::Segment<Point>({0, 2}, {2, 0})) == 0);
+    CHECK(diagonal.squaredDistance<int>(pgl::OrientedSegment<Point>({0, 2}, {2, 0})) == 0);
 
     // A disjoint segment: nearest endpoint (3,0) has exact squared distance 9/2.
     const pgl::Segment<Point> off({3, 0}, {5, 0});
-    CHECK(diagonal.squaredDistance(off) == 4);                       // integer default truncates
+    CHECK(diagonal.squaredDistance<int>(off) == 4);                       // integer default truncates
     CHECK(diagonal.squaredDistance<double>(off) == doctest::Approx(4.5));
     CHECK(diagonal.squaredDistance<Rational>(off) == Rational(9, 2));
 
     // The pair is symmetric: the segment forwards to the line.
-    CHECK(off.squaredDistance(diagonal) == diagonal.squaredDistance(off));
+    CHECK(off.squaredDistance<int>(diagonal) == diagonal.squaredDistance<int>(off));
     CHECK(off.squaredDistance<double>(diagonal) == doctest::Approx(4.5));
 }
 
@@ -282,23 +282,23 @@ TEST_CASE("Line evaluates coordinates at fixed x and y when the query is well-de
     const Line horizontal({-2, 1}, {4, 1});
     const Line degenerate({3, 5}, {3, 5});
 
-    CHECK(diagonal.yAtX(2) == 2);
-    CHECK(diagonal.xAtY(3) == 3);
+    CHECK(diagonal.yAtX<int>(2) == 2);
+    CHECK(diagonal.xAtY<int>(3) == 3);
     CHECK(diagonal.yAtX<Rational>(1).value() == Rational(1));
     CHECK(diagonal.xAtY<Rational>(1).value() == Rational(1));
 
-    CHECK(vertical.yAtX(2) == -1);
-    CHECK_FALSE(vertical.yAtX(1).has_value());
-    CHECK(vertical.xAtY(0) == 2);
+    CHECK(vertical.yAtX<int>(2) == -1);
+    CHECK_FALSE(vertical.yAtX<int>(1).has_value());
+    CHECK(vertical.xAtY<int>(0) == 2);
 
-    CHECK(horizontal.xAtY(1) == -2);
-    CHECK_FALSE(horizontal.xAtY(0).has_value());
-    CHECK(horizontal.yAtX(3) == 1);
+    CHECK(horizontal.xAtY<int>(1) == -2);
+    CHECK_FALSE(horizontal.xAtY<int>(0).has_value());
+    CHECK(horizontal.yAtX<int>(3) == 1);
 
-    CHECK(degenerate.yAtX(3) == 5);
-    CHECK_FALSE(degenerate.yAtX(2).has_value());
-    CHECK(degenerate.xAtY(5) == 3);
-    CHECK_FALSE(degenerate.xAtY(4).has_value());
+    CHECK(degenerate.yAtX<int>(3) == 5);
+    CHECK_FALSE(degenerate.yAtX<int>(2).has_value());
+    CHECK(degenerate.xAtY<int>(5) == 3);
+    CHECK_FALSE(degenerate.xAtY<int>(4).has_value());
 }
 
 TEST_CASE("Line separates and crosses 1D targets using the topological definition") {

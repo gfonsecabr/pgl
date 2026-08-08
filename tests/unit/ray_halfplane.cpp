@@ -119,14 +119,14 @@ TEST_CASE("Halfplane intersection clips Ray into point, segment, or ray") {
     const Halfplane upper({0, 0}, {4, 0});
 
     SUBCASE("ray fully inside: returned unchanged") {
-        const auto inside = upper.intersection(Ray({1, 1}, {3, 2}));
+        const auto inside = upper.intersection<int>(Ray({1, 1}, {3, 2}));
         REQUIRE(inside);
         REQUIRE(std::holds_alternative<Ray>(*inside));
         CHECK_MESSAGE(std::get<Ray>(*inside) == Ray({1, 1}, {3, 2}), "inside ray clipped");
     }
 
     SUBCASE("leaving ray: clipped to segment from source to boundary crossing") {
-        const auto leaving = upper.intersection(Ray({1, 1}, {3, -1}));
+        const auto leaving = upper.intersection<int>(Ray({1, 1}, {3, -1}));
         REQUIRE(leaving);
         REQUIRE(std::holds_alternative<Segment>(*leaving));
         CHECK_MESSAGE(std::get<Segment>(*leaving) == Segment({1, 1}, {2, 0}), "leaving ray clipped");
@@ -142,20 +142,20 @@ TEST_CASE("Halfplane intersection clips Ray into point, segment, or ray") {
     }
 
     SUBCASE("boundary ray: returned unchanged (lies on ∂H)") {
-        const auto boundary = upper.intersection(Ray({1, 0}, {3, 0}));
+        const auto boundary = upper.intersection<int>(Ray({1, 0}, {3, 0}));
         REQUIRE(boundary);
         REQUIRE(std::holds_alternative<Ray>(*boundary));
         CHECK(std::get<Ray>(*boundary) == Ray({1, 0}, {3, 0}));
     }
 
     SUBCASE("source touches boundary, ray points outside: touching Point") {
-        const auto touching = upper.intersection(Ray({0, 0}, {1, -1}));
+        const auto touching = upper.intersection<int>(Ray({0, 0}, {1, -1}));
         REQUIRE(touching);
         REQUIRE(std::holds_alternative<Point>(*touching));
         CHECK(std::get<Point>(*touching) == Point(0, 0));
     }
 
     SUBCASE("ray entirely outside: empty") {
-        CHECK_FALSE(upper.intersection(Ray({1, -2}, {3, -3})));
+        CHECK_FALSE(upper.intersection<int>(Ray({1, -2}, {3, -3})));
     }
 }

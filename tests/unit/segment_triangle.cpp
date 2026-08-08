@@ -36,7 +36,7 @@ TEST_CASE("Segment and triangle predicates tests") {
         CHECK(triangle.crosses(cut));
         CHECK(oriented_cut.crosses(triangle));
 
-        const auto clipped = cut.intersection(triangle);
+        const auto clipped = cut.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 2), Point(4, 2)));
@@ -99,7 +99,7 @@ TEST_CASE("Segment and triangle predicates tests") {
         CHECK_FALSE(along_edge.crosses(triangle));
         CHECK_FALSE(triangle.crosses(along_edge));
 
-        const auto overlap = along_edge.intersection(triangle);
+        const auto overlap = along_edge.intersection<int>(triangle);
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Segment>(*overlap));
         CHECK(std::get<Segment>(*overlap) == along_edge);
@@ -169,6 +169,6 @@ TEST_CASE("Segment and Triangle squared Hausdorff distance") {
 
     // Farthest triangle vertices from s are (0,0) and (0,4), each at squared
     // distance 37, which dominates the segment-side term.
-    CHECK(t.squaredHausdorffDistance(s) == 37);
-    CHECK(s.squaredHausdorffDistance(t) == 37);
+    CHECK(t.squaredHausdorffDistance<int>(s) == 37);
+    CHECK(s.squaredHausdorffDistance<int>(t) == 37);
 }

@@ -212,16 +212,16 @@ TEST_CASE("PolygonWithHoles intersection with a Point") {
     const Region region(outer, std::vector{hole});
     REQUIRE(region.isValid());
 
-    CHECK(region.intersection(Point(8, 8)) == Point(8, 8));    // outer interior
-    CHECK(region.intersection(Point(0, 5)) == Point(0, 5));    // outer boundary
-    CHECK(region.intersection(Point(2, 4)) == Point(2, 4));    // hole boundary
-    CHECK(!region.intersection(Point(4, 4)).has_value());      // hole interior
-    CHECK(!region.intersection(Point(12, 4)).has_value());     // outside
+    CHECK(region.intersection<int>(Point(8, 8)) == Point(8, 8));    // outer interior
+    CHECK(region.intersection<int>(Point(0, 5)) == Point(0, 5));    // outer boundary
+    CHECK(region.intersection<int>(Point(2, 4)) == Point(2, 4));    // hole boundary
+    CHECK(!region.intersection<int>(Point(4, 4)).has_value());      // hole interior
+    CHECK(!region.intersection<int>(Point(12, 4)).has_value());     // outside
 
     // The point ranks below the region, so the pair is answered the same way
     // round, and the result carries the region's coordinate type.
     for (const auto& p : {Point(8, 8), Point(2, 4), Point(4, 4), Point(12, 4)}) {
-        CHECK(p.intersection(region) == region.intersection(p));
+        CHECK(p.intersection<int>(region) == region.intersection<int>(p));
     }
 
     using Rat = pgl::Rational<int64_t>;

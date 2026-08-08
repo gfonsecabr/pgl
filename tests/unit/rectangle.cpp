@@ -365,7 +365,7 @@ TEST_CASE_TEMPLATE("Rectangle reports width, height, area, midpoint, and a diame
     CHECK(circumcircle.template squaredRadius<double>() == doctest::Approx(2.0));
 
     CHECK(rectangle.diameter() == Segment(Point(2, 1), Point(4, 3)));
-    CHECK(rectangle.pointInside() == Point(Number(3), Number(2)));
+    CHECK(rectangle.template pointInside<Number>() == Point(Number(3), Number(2)));
     CHECK_FALSE(rectangle.isDegenerate());
     CHECK(Rectangle(Point(2, 1), Point(2, 3)).isDegenerate());
     CHECK(Rectangle(Point(2, 1), Point(4, 1)).isDegenerate());
@@ -573,22 +573,22 @@ TEST_CASE("Rectangle intersections return clipped shapes") {
 
     const Rectangle rectangle({0, 0}, {4, 3});
 
-    const auto rectangle_overlap = rectangle.intersection(Rectangle({2, 1}, {6, 5}));
+    const auto rectangle_overlap = rectangle.intersection<int>(Rectangle({2, 1}, {6, 5}));
     REQUIRE(rectangle_overlap);
     CHECK(*rectangle_overlap == Rectangle({2, 1}, {4, 3}));
 
-    const auto rectangle_touch = rectangle.intersection(Rectangle({4, 1}, {6, 2}));
+    const auto rectangle_touch = rectangle.intersection<int>(Rectangle({4, 1}, {6, 2}));
     REQUIRE(rectangle_touch);
     CHECK(*rectangle_touch == Rectangle({4, 1}, {4, 2}));
 
-    CHECK_FALSE(rectangle.intersection(Rectangle({5, 4}, {6, 5})));
+    CHECK_FALSE(rectangle.intersection<int>(Rectangle({5, 4}, {6, 5})));
 
-    const auto crossing_segment = rectangle.intersection(Segment({-1, 1}, {5, 1}));
+    const auto crossing_segment = rectangle.intersection<int>(Segment({-1, 1}, {5, 1}));
     REQUIRE(crossing_segment);
     REQUIRE(std::holds_alternative<Segment>(*crossing_segment));
     CHECK(std::get<Segment>(*crossing_segment) == Segment({0, 1}, {4, 1}));
 
-    const auto inner_segment = rectangle.intersection(Segment({1, 1}, {3, 2}));
+    const auto inner_segment = rectangle.intersection<int>(Segment({1, 1}, {3, 2}));
     REQUIRE(inner_segment);
     REQUIRE(std::holds_alternative<Segment>(*inner_segment));
     CHECK(std::get<Segment>(*inner_segment) == Segment({1, 1}, {3, 2}));
@@ -602,46 +602,46 @@ TEST_CASE("Rectangle intersections return clipped shapes") {
     CHECK(clipped_fractional_segment.max().x() == doctest::Approx(4.0));
     CHECK(clipped_fractional_segment.max().y() == doctest::Approx(1.5));
 
-    const auto touching_segment = rectangle.intersection(Segment({4, 1}, {6, 1}));
+    const auto touching_segment = rectangle.intersection<int>(Segment({4, 1}, {6, 1}));
     REQUIRE(touching_segment);
     REQUIRE(std::holds_alternative<Point>(*touching_segment));
     CHECK(std::get<Point>(*touching_segment) == Point(4, 1));
 
-    CHECK_FALSE(rectangle.intersection(Segment({5, 4}, {6, 4})));
+    CHECK_FALSE(rectangle.intersection<int>(Segment({5, 4}, {6, 4})));
 
-    const auto crossing_line = rectangle.intersection(Line({-1, 1}, {5, 1}));
+    const auto crossing_line = rectangle.intersection<int>(Line({-1, 1}, {5, 1}));
     REQUIRE(crossing_line);
     REQUIRE(std::holds_alternative<Segment>(*crossing_line));
     CHECK(std::get<Segment>(*crossing_line) == Segment({0, 1}, {4, 1}));
 
-    const auto tangent_line = rectangle.intersection(Line({0, 0}, {4, 0}));
+    const auto tangent_line = rectangle.intersection<int>(Line({0, 0}, {4, 0}));
     REQUIRE(tangent_line);
     REQUIRE(std::holds_alternative<Segment>(*tangent_line));
     CHECK(std::get<Segment>(*tangent_line) == Segment({0, 0}, {4, 0}));
 
-    const auto vertex_line = rectangle.intersection(Line({-1, 1}, {1, -1}));
+    const auto vertex_line = rectangle.intersection<int>(Line({-1, 1}, {1, -1}));
     REQUIRE(vertex_line);
     REQUIRE(std::holds_alternative<Point>(*vertex_line));
     CHECK(std::get<Point>(*vertex_line) == Point(0, 0));
 
-    CHECK_FALSE(rectangle.intersection(Line({0, 5}, {4, 5})));
+    CHECK_FALSE(rectangle.intersection<int>(Line({0, 5}, {4, 5})));
 
-    const auto crossing_ray = rectangle.intersection(Ray({-2, 1}, {2, 1}));
+    const auto crossing_ray = rectangle.intersection<int>(Ray({-2, 1}, {2, 1}));
     REQUIRE(crossing_ray);
     REQUIRE(std::holds_alternative<Segment>(*crossing_ray));
     CHECK(std::get<Segment>(*crossing_ray) == Segment({0, 1}, {4, 1}));
 
-    const auto source_inside_ray = rectangle.intersection(Ray({2, 1}, {8, 1}));
+    const auto source_inside_ray = rectangle.intersection<int>(Ray({2, 1}, {8, 1}));
     REQUIRE(source_inside_ray);
     REQUIRE(std::holds_alternative<Segment>(*source_inside_ray));
     CHECK(std::get<Segment>(*source_inside_ray) == Segment({2, 1}, {4, 1}));
 
-    const auto tangent_ray = rectangle.intersection(Ray({-2, 0}, {2, 0}));
+    const auto tangent_ray = rectangle.intersection<int>(Ray({-2, 0}, {2, 0}));
     REQUIRE(tangent_ray);
     REQUIRE(std::holds_alternative<Segment>(*tangent_ray));
     CHECK(std::get<Segment>(*tangent_ray) == Segment({0, 0}, {4, 0}));
 
-    CHECK_FALSE(rectangle.intersection(Ray({-2, 5}, {2, 5})));
+    CHECK_FALSE(rectangle.intersection<int>(Ray({-2, 5}, {2, 5})));
 }
 
 TEST_CASE("Rectangle distances handle outside points, disjoint rectangles, and Hausdorff distance") {
@@ -658,25 +658,25 @@ TEST_CASE("Rectangle distances handle outside points, disjoint rectangles, and H
     const Rectangle touching({4, 1}, {6, 2});
     const Rectangle disjoint({6, 5}, {7, 6});
 
-    CHECK(rectangle.squaredDistance(Point(2, 2)) == 0);
-    CHECK(rectangle.squaredDistance(Point(6, 5)) == 8);
-    CHECK(rectangle.squaredDistance(inner) == 0);
-    CHECK(rectangle.squaredDistance(touching) == 0);
-    CHECK(rectangle.squaredDistance(disjoint) == 8);
-    CHECK(rectangle.squaredHausdorffDistance(inner) == 2);
-    CHECK(rectangle.squaredDistance(Line({0, 5}, {4, 5})) == doctest::Approx(4.0));
-    CHECK(rectangle.squaredDistance(OrientedLine({6, 0}, {6, 3})) == doctest::Approx(4.0));
-    CHECK(rectangle.squaredDistance(Segment({6, 1}, {8, 1})) == doctest::Approx(4.0));
-    CHECK(rectangle.squaredDistance(OrientedSegment({2, 5}, {3, 5})) == doctest::Approx(4.0));
-    CHECK(rectangle.squaredDistance(Ray({6, 1}, {8, 1})) == doctest::Approx(4.0));
-    CHECK(rectangle.squaredDistance(Ray({6, 1}, {2, 1})) == doctest::Approx(0.0));
+    CHECK(rectangle.squaredDistance<int>(Point(2, 2)) == 0);
+    CHECK(rectangle.squaredDistance<int>(Point(6, 5)) == 8);
+    CHECK(rectangle.squaredDistance<int>(inner) == 0);
+    CHECK(rectangle.squaredDistance<int>(touching) == 0);
+    CHECK(rectangle.squaredDistance<int>(disjoint) == 8);
+    CHECK(rectangle.squaredHausdorffDistance<int>(inner) == 2);
+    CHECK(rectangle.squaredDistance<int>(Line({0, 5}, {4, 5})) == doctest::Approx(4.0));
+    CHECK(rectangle.squaredDistance<int>(OrientedLine({6, 0}, {6, 3})) == doctest::Approx(4.0));
+    CHECK(rectangle.squaredDistance<int>(Segment({6, 1}, {8, 1})) == doctest::Approx(4.0));
+    CHECK(rectangle.squaredDistance<int>(OrientedSegment({2, 5}, {3, 5})) == doctest::Approx(4.0));
+    CHECK(rectangle.squaredDistance<int>(Ray({6, 1}, {8, 1})) == doctest::Approx(4.0));
+    CHECK(rectangle.squaredDistance<int>(Ray({6, 1}, {2, 1})) == doctest::Approx(0.0));
 
     CHECK(rectangle.distanceL1(Point(2, 2)) == 0);
     CHECK(rectangle.distanceL1(Point(6, 5)) == 4);
     CHECK(rectangle.distanceL1(inner) == 0);
     CHECK(rectangle.distanceL1(touching) == 0);
     CHECK(rectangle.distanceL1(disjoint) == 4);
-    CHECK(rectangle.hausdorffDistanceL1(inner) == 2);
+    CHECK(rectangle.hausdorffDistanceL1<int>(inner) == 2);
     CHECK(rectangle.distanceL1(Line({0, 5}, {4, 5})) == 2);
     CHECK(rectangle.distanceL1(OrientedLine({6, 0}, {6, 3})) == 2);
     CHECK(rectangle.distanceL1(Segment({6, 1}, {8, 1})) == 2);
@@ -689,7 +689,7 @@ TEST_CASE("Rectangle distances handle outside points, disjoint rectangles, and H
     CHECK(rectangle.distanceLInf(inner) == 0);
     CHECK(rectangle.distanceLInf(touching) == 0);
     CHECK(rectangle.distanceLInf(disjoint) == 2);
-    CHECK(rectangle.hausdorffDistanceLInf(inner) == 1);
+    CHECK(rectangle.hausdorffDistanceLInf<int>(inner) == 1);
     CHECK(rectangle.distanceLInf(Line({0, 5}, {4, 5})) == 2);
     CHECK(rectangle.distanceLInf(OrientedLine({6, 0}, {6, 3})) == 2);
     CHECK(rectangle.distanceLInf(Segment({6, 1}, {8, 1})) == 2);

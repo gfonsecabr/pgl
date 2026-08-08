@@ -368,7 +368,7 @@ struct Convex {
      * @return The area of the convex polygon.
      * @warning Uses division by 2.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     constexpr auto area() const;
 
     /**
@@ -716,7 +716,7 @@ struct Convex {
      * @return The centroid point.
      * @warning Uses division by 3 and twice the area, so the result may be inexact even for floating-point types.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber> centroid() const;
 
     /**
@@ -725,7 +725,7 @@ struct Convex {
      * @return The centroid of the vertex set.
      * @warning Uses division by the number of vertices, so the result may be inexact even for floating-point types.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber> verticesCentroid() const;
 
 
@@ -738,7 +738,7 @@ struct Convex {
      * @return A point guaranteed to be inside the convex polygon.
      * @warning Divides coordinates by 4. Inexact for integer coordinates not divisible by 4.
      */
-    template <class ResultNumber = NumberType>
+    template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber> pointInside() const;
 
     /**
@@ -1829,7 +1829,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      *
      * @warning With an integer @p ResultNumber the exact squared distance is
      *          generally a fraction, so the internal division truncates and the
@@ -1837,7 +1837,7 @@ struct Convex {
      *          result type, e.g. `squaredDistance<double>(point)`, for an
      *          accurate value.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredDistance(const OtherPoint& point) const;
 
     /**
@@ -1861,7 +1861,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherSegment The segment type.
      * @param other The segment to measure to.
      *
@@ -1869,7 +1869,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherSegment& other) const;
 
     /**
@@ -1880,7 +1880,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherOrientedSegment The oriented segment type.
      * @param other The oriented segment to measure to.
      *
@@ -1888,7 +1888,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedSegment& other) const;
 
     /**
@@ -1910,7 +1910,7 @@ struct Convex {
      *
      * Complexity: O(min(n,m) log(n+m)) for polygons with n and m vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherConvex The other convex polygon type.
      * @param other The convex polygon to measure to.
      *
@@ -1918,7 +1918,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto squaredDistance(const OtherConvex& other) const;
 
     /**
@@ -1929,7 +1929,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherTriangle The triangle type.
      * @param other The triangle to measure to.
      *
@@ -1937,7 +1937,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto squaredDistance(const OtherTriangle& other) const;
 
     /**
@@ -1948,7 +1948,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherRectangle The rectangle type.
      * @param other The rectangle to measure to.
      *
@@ -1956,7 +1956,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRectangle& other) const;
 
     /**
@@ -1974,7 +1974,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherLine The line type.
      * @param other The line to measure to.
      *
@@ -1982,7 +1982,7 @@ struct Convex {
      *          a squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    template <class ResultNumber = division_result_t<NumberType>, LineConcept OtherLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherLine& other) const;
 
     /**
@@ -1993,7 +1993,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherOrientedLine The oriented line type.
      * @param other The oriented line to measure to.
      *
@@ -2001,7 +2001,7 @@ struct Convex {
      *          a squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr auto squaredDistance(const OtherOrientedLine& other) const;
 
     /**
@@ -2023,7 +2023,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherRay The ray type.
      * @param other The ray to measure to.
      *
@@ -2031,7 +2031,7 @@ struct Convex {
      *          squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    template <class ResultNumber = division_result_t<NumberType>, RayConcept OtherRay>
     [[nodiscard]] constexpr auto squaredDistance(const OtherRay& other) const;
 
     /**
@@ -2044,7 +2044,7 @@ struct Convex {
      *
      * Complexity: O(log n) for n vertices.
      *
-     * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
      * @tparam OtherHalfplane The half-plane type.
      * @param other The half-plane to measure to.
      *
@@ -2052,7 +2052,7 @@ struct Convex {
      *          a squared length, so the result truncates and is inexact. Request a
      *          floating-point or pgl::Rational result type for an accurate value.
      */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr auto squaredDistance(const OtherHalfplane& other) const;
 
     /**
@@ -2071,7 +2071,7 @@ struct Convex {
      * @tparam OtherDisk The disk type.
      * @param other The disk to measure to.
      */
-    template <class ResultNumber = NumberType, DiskConcept OtherDisk>
+    template <class ResultNumber = double, DiskConcept OtherDisk>
     [[nodiscard]] detail::floating_result_t<ResultNumber> squaredDistance(const OtherDisk& other) const;
 
     /**
@@ -2081,7 +2081,7 @@ struct Convex {
      * needs `squaredDistance` defined only once, on the higher-ranked shape (the
      * only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template squaredDistance<ResultNumber>(self);
@@ -2098,43 +2098,43 @@ struct Convex {
      * edge normal the way the Euclidean squared distance is, so the fast
      * path's search functional does not carry over.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceL1(const OtherSegment& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto distanceL1(const OtherOrientedSegment& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto distanceL1(const OtherConvex& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto distanceL1(const OtherTriangle& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto distanceL1(const OtherRectangle& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    template <class ResultNumber = division_result_t<NumberType>, LineConcept OtherLine>
     [[nodiscard]] constexpr auto distanceL1(const OtherLine& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr auto distanceL1(const OtherOrientedLine& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    template <class ResultNumber = division_result_t<NumberType>, RayConcept OtherRay>
     [[nodiscard]] constexpr auto distanceL1(const OtherRay& other) const;
 
     /** @copydoc distanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr auto distanceL1(const OtherHalfplane& other) const;
 
     /**
@@ -2144,7 +2144,7 @@ struct Convex {
      * needs `distanceL1` defined only once, on the higher-ranked shape (the
      * only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template distanceL1<ResultNumber>(self);
@@ -2160,7 +2160,7 @@ struct Convex {
      * which visits its wrapped alternative and throws if the pair is
      * unsupported.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
         return other.template distanceL1<ResultNumber>(*this);
     }
@@ -2173,43 +2173,43 @@ struct Convex {
      * edge normal the way the Euclidean squared distance is, so the fast
      * path's search functional does not carry over.
      */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const OtherPoint& point) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherSegment& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedSegment& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto distanceLInf(const OtherConvex& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto distanceLInf(const OtherTriangle& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto distanceLInf(const OtherRectangle& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    template <class ResultNumber = division_result_t<NumberType>, LineConcept OtherLine>
     [[nodiscard]] constexpr auto distanceLInf(const OtherLine& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedLineConcept OtherOrientedLine>
     [[nodiscard]] constexpr auto distanceLInf(const OtherOrientedLine& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    template <class ResultNumber = division_result_t<NumberType>, RayConcept OtherRay>
     [[nodiscard]] constexpr auto distanceLInf(const OtherRay& other) const;
 
     /** @copydoc distanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] constexpr auto distanceLInf(const OtherHalfplane& other) const;
 
     /**
@@ -2219,7 +2219,7 @@ struct Convex {
      * needs `distanceLInf` defined only once, on the higher-ranked shape (the
      * only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template distanceLInf<ResultNumber>(self);
@@ -2229,7 +2229,7 @@ struct Convex {
     }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = double, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
         return other.template distanceLInf<ResultNumber>(*this);
     }
@@ -2239,23 +2239,23 @@ struct Convex {
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherPoint& point) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherSegment& other) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherOrientedSegment& other) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherRectangle& other) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherTriangle& other) const;
 
     /** @copydoc hausdorffDistanceL1(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const OtherConvex& other) const;
 
     /**
@@ -2265,7 +2265,7 @@ struct Convex {
      * needs `hausdorffDistanceL1` defined only once, on the higher-ranked shape
      * (the only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template hausdorffDistanceL1<ResultNumber>(self);
@@ -2275,7 +2275,7 @@ struct Convex {
     }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceL1(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceL1<ResultNumber>(*this);
     }
@@ -2285,23 +2285,23 @@ struct Convex {
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherPoint& point) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherSegment& other) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherOrientedSegment& other) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherRectangle& other) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherTriangle& other) const;
 
     /** @copydoc hausdorffDistanceLInf(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const OtherConvex& other) const;
 
     /**
@@ -2311,7 +2311,7 @@ struct Convex {
      * needs `hausdorffDistanceLInf` defined only once, on the higher-ranked shape
      * (the only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template hausdorffDistanceLInf<ResultNumber>(self);
@@ -2321,7 +2321,7 @@ struct Convex {
     }
 
     /** @copydoc distanceL1(const Shape<OtherPoint>&) const */
-    template <class ResultNumber = NumberType, PointConcept OtherPoint>
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto hausdorffDistanceLInf(const Shape<OtherPoint>& other) const {
         return other.template hausdorffDistanceLInf<ResultNumber>(*this);
     }
@@ -2334,34 +2334,28 @@ struct Convex {
      * and its supremum over any polygon is attained at a vertex.
      *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
-     *
-     * @warning With an integer @p ResultNumber the exact squared distance is
-     *          generally a fraction, so the internal division truncates and the
-     *          result is inexact. Request a floating-point or pgl::Rational
-     *          result type, e.g. `squaredHausdorffDistance<double>(point)`, for
-     *          an accurate value.
      */
     template <class ResultNumber = NumberType, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherPoint& point) const;
 
     /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherSegment& other) const;
 
     /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherOrientedSegment& other) const;
 
     /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherRectangle& other) const;
 
     /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherTriangle& other) const;
 
     /** @copydoc squaredHausdorffDistance(const OtherPoint&) const */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     [[nodiscard]] constexpr auto squaredHausdorffDistance(const OtherConvex& other) const;
 
     /**
@@ -2371,7 +2365,7 @@ struct Convex {
      * needs `squaredHausdorffDistance` defined only once, on the higher-ranked
      * shape (the only shape ranked above @ref Convex is @ref Polygon).
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template squaredHausdorffDistance<ResultNumber>(self);
@@ -2405,7 +2399,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, SegmentConcept OtherSegment>
+    template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherSegment& other) const;
 
@@ -2420,7 +2414,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, OrientedSegmentConcept OtherOrientedSegment>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOrientedSegment>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedSegment& other) const;
 
@@ -2435,7 +2429,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, LineConcept OtherLine>
+    template <class ResultNumber = division_result_t<NumberType>, LineConcept OtherLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherLine& other) const;
 
@@ -2450,7 +2444,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, OrientedLineConcept OtherOrientedLine>
+    template <class ResultNumber = division_result_t<NumberType>, OrientedLineConcept OtherOrientedLine>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherOrientedLine& other) const;
 
@@ -2465,7 +2459,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, RayConcept OtherRay>
+    template <class ResultNumber = division_result_t<NumberType>, RayConcept OtherRay>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRay& other) const;
 
@@ -2481,9 +2475,15 @@ struct Convex {
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherHalfplane& other) const;
+
+    /** @brief Adds this convex polygon's constraints to a half-plane intersection without deriving vertices. */
+    template <class ResultNumber = NumberType, HalfplaneIntersectionConcept OtherRegion>
+    [[nodiscard]] constexpr auto intersection(const OtherRegion& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint.
@@ -2496,7 +2496,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherRectangle& other) const;
 
@@ -2512,7 +2512,7 @@ struct Convex {
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, TriangleConcept OtherTriangle>
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherTriangle& other) const;
 
@@ -2527,13 +2527,14 @@ struct Convex {
      * @return An optional variant containing either a point or segment or convex polygon representing the intersection, or empty if no intersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
-    template <class ResultNumber = NumberType, ConvexConcept OtherConvex>
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
     constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>, Convex<Point<ResultNumber, typename PointType::LabelType>>>>
     intersection(const OtherConvex& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. @warning Divides coordinates after casting to ResultNumber. */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!PointConcept<OtherShape>
+                  && !HalfplaneIntersectionConcept<OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template intersection<ResultNumber>(self);
@@ -2631,7 +2632,7 @@ struct Convex {
      * implementation so that each unordered pair needs the sum defined only once,
      * on the higher-ranked shape.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires (!MinkowskiSummableConcept<Convex<PointType_, TLabel>, OtherShape>
                   && (detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
@@ -2648,7 +2649,7 @@ struct Convex {
      * needs `unionWith` defined only once, on the higher-ranked shape. See
      * @ref Polygon::unionWith for the contract.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template unionWith<ResultNumber>(self);
@@ -2664,7 +2665,7 @@ struct Convex {
      * needs `symmetricDifference` defined only once, on the higher-ranked shape.
      * See @ref Polygon::symmetricDifference for the contract.
      */
-    template <class ResultNumber = NumberType, typename OtherShape>
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Convex>)
                   && requires(const OtherShape& o, const Convex& self) {
                          o.template symmetricDifference<ResultNumber>(self);

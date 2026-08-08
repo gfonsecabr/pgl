@@ -109,7 +109,7 @@ TEST_CASE("Polyline and Triangle intersection pieces") {
     using Segment = pgl::Segment<Point>;
 
     SUBCASE("a containing triangle returns the edges themselves") {
-        const auto pieces = zig.intersection(tri);
+        const auto pieces = zig.intersection<int>(tri);
         REQUIRE(pieces.size() == 2);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(1, 1), Point(2, 3)));
@@ -118,7 +118,7 @@ TEST_CASE("Polyline and Triangle intersection pieces") {
     }
 
     SUBCASE("an edge is clipped at the triangle's leg") {
-        const auto pieces = PLine({-2, 2, 2, 2}).intersection(tri);
+        const auto pieces = PLine({-2, 2, 2, 2}).intersection<int>(tri);
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Segment>(pieces[0]));
         CHECK(std::get<Segment>(pieces[0]) == Segment(Point(0, 2), Point(2, 2)));

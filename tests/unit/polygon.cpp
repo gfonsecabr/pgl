@@ -36,7 +36,7 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
 
     SUBCASE("overlapping squares meet in a square") {
         const Polygon other({5, 5, 15, 5, 15, 15, 5, 15});
-        const auto pieces = square.intersection(other);
+        const auto pieces = square.intersection<int>(other);
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Polygon({5, 5, 10, 5, 10, 10, 5, 10})));
@@ -45,14 +45,14 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
     SUBCASE("a contained polygon is returned unchanged") {
         const Polygon big({0, 0, 20, 0, 20, 20, 0, 20});
         const Polygon small({5, 5, 8, 5, 8, 8, 5, 8});
-        const auto pieces = big.intersection(small);
+        const auto pieces = big.intersection<int>(small);
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(small));
     }
 
     SUBCASE("identical polygons return the polygon itself") {
-        const auto pieces = square.intersection(square);
+        const auto pieces = square.intersection<int>(square);
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(square));
@@ -60,12 +60,12 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
 
     SUBCASE("disjoint polygons have empty intersection") {
         const Polygon farShape({100, 100, 101, 100, 101, 101, 100, 101});
-        CHECK(square.intersection(farShape).empty());
+        CHECK(square.intersection<int>(farShape).empty());
     }
 
     SUBCASE("polygons sharing a single corner meet at a point") {
         const Polygon corner({10, 10, 20, 10, 20, 20, 10, 20});
-        const auto pieces = square.intersection(corner);
+        const auto pieces = square.intersection<int>(corner);
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(10, 10)));
@@ -74,7 +74,7 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
     SUBCASE("edge-adjacent polygons meet along a polyline") {
         // Shares the whole edge x = 10, y in [0, 10]: a 1D (zero-area) meeting.
         const Polygon right({10, 0, 20, 0, 20, 10, 10, 10});
-        const auto pieces = square.intersection(right);
+        const auto pieces = square.intersection<int>(right);
 
         REQUIRE(pieces.size() == 1);
         REQUIRE(std::holds_alternative<Polyline>(pieces[0]));
@@ -89,7 +89,7 @@ TEST_CASE("Polygon intersects Polygon into points, polylines, and polygons") {
         const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
         // A band high enough to miss the joining base, hitting each prong.
         const Polygon band({-1, 5, 11, 5, 11, 9, -1, 9});
-        const auto pieces = u.intersection(band);
+        const auto pieces = u.intersection<int>(band);
 
         CHECK(countPolys(pieces) == 2);
         // Each prong contributes a 3 x 4 rectangle: twiceArea 24 each.
@@ -184,7 +184,7 @@ TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
         // (2,2), so the intersection is two triangles touching at that point.
         const Polygon a({0, 0, 4, 0, 2, 2, 4, 4, 0, 4});
         const Polygon b({0, 0, 2, 2, 0, 4, 4, 4, 4, 0});
-        const auto ps = polygons(a.intersection(b));
+        const auto ps = polygons(a.intersection<int>(b));
         CHECK(ps.size() == 2);
         for (const auto& p : ps) CHECK(p.size() == 3);     // two triangles
         CHECK(twiceArea(ps) == 16);                        // area 4 each
@@ -195,7 +195,7 @@ TEST_CASE("Polygon intersects Polygon through degree>2 boundary nodes") {
         // true intersection is the simple rectangle [0,1] x [0,4].
         const Polygon bar({0, 0, 1, 0, 1, 5, 0, 5});
         const Polygon ell({0, 0, 2, 0, 2, 1, 1, 1, 1, 4, 0, 4});
-        const auto ps = polygons(bar.intersection(ell));
+        const auto ps = polygons(bar.intersection<int>(ell));
         CHECK(ps.size() == 1);
         CHECK(twiceArea(ps) == 8);                         // area 4
     }
@@ -408,7 +408,7 @@ TEST_CASE("Polygon::squaredDistance to every shape") {
         CHECK(square.squaredDistance<double>(Point(10, 0)) == doctest::Approx(gap));
         CHECK(square.squaredDistance<double>(Point(2, 2)) == doctest::Approx(0.0)); // interior
         CHECK(square.squaredDistance<double>(Point(4, 2)) == doctest::Approx(0.0)); // boundary
-        CHECK(square.squaredDistance(Point(10, 0)) == 36);                          // exact int
+        CHECK(square.squaredDistance<int>(Point(10, 0)) == 36);                          // exact int
         CHECK(Point(10, 0).squaredDistance<double>(square) == doctest::Approx(gap));
     }
 
@@ -465,9 +465,9 @@ TEST_CASE("Polygon::squaredDistance to every shape") {
     SUBCASE("disk (always double, exterior gap)") {
         // Centre (12,0), radius 1: centre-to-square distance is 8, gap 8 - 1 = 7.
         const pgl::Disk<Point> disk(Point(12, 0), 1);
-        CHECK(square.squaredDistance(disk) == doctest::Approx(49.0));
+        CHECK(square.squaredDistance<int>(disk) == doctest::Approx(49.0));
         // A disk that reaches the square gives 0.
-        CHECK(square.squaredDistance(pgl::Disk<Point>(Point(5, 0), 2)) == doctest::Approx(0.0));
+        CHECK(square.squaredDistance<int>(pgl::Disk<Point>(Point(5, 0), 2)) == doctest::Approx(0.0));
     }
 
     SUBCASE("non-convex polygon uses the nearest boundary edge") {

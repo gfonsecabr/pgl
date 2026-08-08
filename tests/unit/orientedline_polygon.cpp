@@ -83,8 +83,8 @@ TEST_CASE("Polygon intersection with an OrientedLine runs min-to-max") {
     const Polygon u({0, 0, 10, 0, 10, 10, 7, 10, 7, 3, 3, 3, 3, 10, 0, 10});
 
     SUBCASE("a high horizontal line clips both prongs, direction-independent") {
-        const auto forward = u.intersection(OrientedLine({-5, 5}, {5, 5}));
-        const auto reverse = u.intersection(OrientedLine({5, 5}, {-5, 5}));
+        const auto forward = u.intersection<int>(OrientedLine({-5, 5}, {5, 5}));
+        const auto reverse = u.intersection<int>(OrientedLine({5, 5}, {-5, 5}));
 
         REQUIRE(forward.size() == 2);
         CHECK(forward[0] == Piece(Segment({0, 5}, {3, 5})));
@@ -93,7 +93,7 @@ TEST_CASE("Polygon intersection with an OrientedLine runs min-to-max") {
     }
 
     SUBCASE("a line across the solid base is a single chord") {
-        const auto pieces = u.intersection(OrientedLine({0, 1}, {1, 1}));
+        const auto pieces = u.intersection<int>(OrientedLine({0, 1}, {1, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 1}, {10, 1})));

@@ -121,7 +121,7 @@ TEST_CASE("Halfplane intersection clips a Segment") {
 
     SUBCASE("segment fully inside: returned unchanged") {
         const Segment inside({1, 1}, {3, 2});
-        const auto r = upper.intersection(inside);
+        const auto r = upper.intersection<int>(inside);
         REQUIRE_MESSAGE(r, "halfplane ∩ inside segment should be non-empty");
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == inside, "fully-inside segment unchanged");
@@ -130,7 +130,7 @@ TEST_CASE("Halfplane intersection clips a Segment") {
     SUBCASE("segment crossing the boundary: clipped to the inside portion") {
         // (0,-2)→(4,2) crosses y=0 at (2,0); inside portion is (2,0)→(4,2)
         const Segment crossing({0, -2}, {4, 2});
-        const auto r = upper.intersection(crossing);
+        const auto r = upper.intersection<int>(crossing);
         REQUIRE_MESSAGE(r, "halfplane ∩ crossing segment should be non-empty");
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK_MESSAGE(std::get<Segment>(*r) == Segment(Point(2, 0), Point(4, 2)),
@@ -140,7 +140,7 @@ TEST_CASE("Halfplane intersection clips a Segment") {
     SUBCASE("segment touching boundary at one endpoint: returns that Point") {
         // (2,-1)→(2,0): only the endpoint (2,0) is in the halfplane
         const Segment touching({2, -1}, {2, 0});
-        const auto r = upper.intersection(touching);
+        const auto r = upper.intersection<int>(touching);
         REQUIRE_MESSAGE(r, "halfplane ∩ touching segment should be non-empty");
         CHECK_MESSAGE(std::holds_alternative<Point>(*r), "boundary-endpoint touch yields a Point");
         CHECK_MESSAGE(std::get<Point>(*r) == Point(2, 0), "touch point is (2,0)");
@@ -148,6 +148,6 @@ TEST_CASE("Halfplane intersection clips a Segment") {
 
     SUBCASE("segment fully outside: empty") {
         const Segment outside({1, -3}, {3, -1});
-        CHECK_FALSE_MESSAGE(upper.intersection(outside), "halfplane ∩ outside segment is empty");
+        CHECK_FALSE_MESSAGE(upper.intersection<int>(outside), "halfplane ∩ outside segment is empty");
     }
 }

@@ -666,7 +666,7 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
 
     SUBCASE("chord spanning both arms yields two disjoint pieces") {
         const Segment s({1, 8}, {9, 8});
-        const auto pieces = notch.intersection(s);
+        const auto pieces = notch.intersection<int>(s);
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({1, 8}, {4, 8})));
@@ -674,7 +674,7 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
     }
 
     SUBCASE("orientation is ignored: pieces still run from min to max") {
-        const auto pieces = notch.intersection(OrientedSegment({9, 8}, {1, 8}));
+        const auto pieces = notch.intersection<int>(OrientedSegment({9, 8}, {1, 8}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({1, 8}, {4, 8})));
@@ -682,7 +682,7 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
     }
 
     SUBCASE("segment crossing the solid base is a single piece") {
-        const auto pieces = notch.intersection(Segment({-3, 1}, {13, 1}));
+        const auto pieces = notch.intersection<int>(Segment({-3, 1}, {13, 1}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Segment({0, 1}, {10, 1})));
@@ -691,14 +691,14 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
     SUBCASE("a segment dropping into the gap touches the floor at one point") {
         // Vertical segment down the middle of the gap: only its endpoint on the
         // notch floor (5, 4) lies in the closed region.
-        const auto pieces = notch.intersection(Segment({5, 4}, {5, 9}));
+        const auto pieces = notch.intersection<int>(Segment({5, 4}, {5, 9}));
 
         REQUIRE(pieces.size() == 1);
         CHECK(pieces[0] == Piece(Point(5, 4)));
     }
 
     SUBCASE("a segment missing the polygon yields nothing") {
-        const auto pieces = notch.intersection(Segment({-3, 8}, {-1, 8}));
+        const auto pieces = notch.intersection<int>(Segment({-3, 8}, {-1, 8}));
 
         CHECK(pieces.empty());
     }
@@ -706,7 +706,7 @@ TEST_CASE("Polygon intersection with a segment for non-convex shapes") {
     SUBCASE("a segment running along the top boundary spans both top edges") {
         // y = 10 grazes the boundary on x in [0,4] and [6,10]; the notch opens
         // the top between them (x in (4,6)), so the overlap is two pieces.
-        const auto pieces = notch.intersection(Segment({-1, 10}, {11, 10}));
+        const auto pieces = notch.intersection<int>(Segment({-1, 10}, {11, 10}));
 
         REQUIRE(pieces.size() == 2);
         CHECK(pieces[0] == Piece(Segment({0, 10}, {4, 10})));

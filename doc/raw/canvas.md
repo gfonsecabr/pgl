@@ -45,7 +45,7 @@ int main() {
 
     if (s.intersects(t)) {
         // when they cross, we can highlight the exact intersection
-        pgl::Shape crossing(s.intersection<pgl::Rational<int>>(t));
+        pgl::EShape crossing(s.intersection(t)); // exact default for integral inputs
         canvas << pgl::stroke("crimson")
                << pgl::fill("none")
                << pgl::pointRadius("15px")

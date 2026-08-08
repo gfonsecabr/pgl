@@ -180,10 +180,10 @@ TEST_CASE("Tests halfplane pointInside and interiorContains") {
     const Halfplane diagonal({0, 0}, {4, 4});
     const Halfplane descending({4, 0}, {0, 4});
 
-    CHECK(horizontal.interiorContains(horizontal.pointInside()));
-    CHECK(vertical.interiorContains(vertical.pointInside()));
-    CHECK(diagonal.interiorContains(diagonal.pointInside()));
-    CHECK(descending.interiorContains(descending.pointInside()));
+    CHECK(horizontal.interiorContains(horizontal.pointInside<int>()));
+    CHECK(vertical.interiorContains(vertical.pointInside<int>()));
+    CHECK(diagonal.interiorContains(diagonal.pointInside<int>()));
+    CHECK(descending.interiorContains(descending.pointInside<int>()));
 }
 
 
@@ -271,22 +271,22 @@ TEST_CASE("Halfplane intersections clip segments") {
     CHECK(std::get<RationalSegment>(*crossing) == RationalSegment(RationalPoint(Rational(3, 2), Rational(0)),
                                                                   RationalPoint(Rational(3), Rational(1))));
 
-    const auto inside = upper.intersection(Segment({1, 1}, {3, 2}));
+    const auto inside = upper.intersection<int>(Segment({1, 1}, {3, 2}));
     REQUIRE(inside);
     REQUIRE(std::holds_alternative<Segment>(*inside));
     CHECK(std::get<Segment>(*inside) == Segment({1, 1}, {3, 2}));
 
-    const auto boundary = upper.intersection(Segment({1, 0}, {3, 0}));
+    const auto boundary = upper.intersection<int>(Segment({1, 0}, {3, 0}));
     REQUIRE(boundary);
     REQUIRE(std::holds_alternative<Segment>(*boundary));
     CHECK(std::get<Segment>(*boundary) == Segment({1, 0}, {3, 0}));
 
-    const auto touching = upper.intersection(Segment({0, -1}, {0, 0}));
+    const auto touching = upper.intersection<int>(Segment({0, -1}, {0, 0}));
     REQUIRE(touching);
     REQUIRE(std::holds_alternative<Point>(*touching));
     CHECK(std::get<Point>(*touching) == Point(0, 0));
 
-    CHECK_FALSE(upper.intersection(Segment({1, -3}, {3, -1})));
+    CHECK_FALSE(upper.intersection<int>(Segment({1, -3}, {3, -1})));
 }
 
 
@@ -322,33 +322,33 @@ TEST_CASE("Halfplane measures squared distance as zero inside or distance to its
     const Halfplane upper({0, 0}, {4, 0});
 
     SUBCASE("shapes meeting the half-plane are at distance zero") {
-        CHECK(upper.squaredDistance(Point(5, 5)) == 0);                        // interior point
-        CHECK(upper.squaredDistance(Point(5, 0)) == 0);                        // on the boundary
-        CHECK(upper.squaredDistance(pgl::Segment<Point>({1, -2}, {1, 3})) == 0); // crosses boundary
-        CHECK(upper.squaredDistance(pgl::Line<Point>({0, 1}, {1, 2})) == 0);   // non-parallel line always enters
-        CHECK(upper.squaredDistance(pgl::Ray<Point>({2, -1}, {2, 5})) == 0);   // ray enters the half-plane
+        CHECK(upper.squaredDistance<int>(Point(5, 5)) == 0);                        // interior point
+        CHECK(upper.squaredDistance<int>(Point(5, 0)) == 0);                        // on the boundary
+        CHECK(upper.squaredDistance<int>(pgl::Segment<Point>({1, -2}, {1, 3})) == 0); // crosses boundary
+        CHECK(upper.squaredDistance<int>(pgl::Line<Point>({0, 1}, {1, 2})) == 0);   // non-parallel line always enters
+        CHECK(upper.squaredDistance<int>(pgl::Ray<Point>({2, -1}, {2, 5})) == 0);   // ray enters the half-plane
     }
 
     SUBCASE("shapes outside fall back to the boundary line distance") {
-        CHECK(upper.squaredDistance(Point(5, -5)) == 25);
-        CHECK(upper.squaredDistance(pgl::Segment<Point>({2, -3}, {8, -7})) == 9);   // nearest endpoint (2,-3)
-        CHECK(upper.squaredDistance(pgl::OrientedSegment<Point>({2, -3}, {8, -7})) == 9);
-        CHECK(upper.squaredDistance(pgl::Line<Point>({0, -4}, {1, -4})) == 16);     // parallel line y=-4
-        CHECK(upper.squaredDistance(pgl::OrientedLine<Point>({1, -4}, {0, -4})) == 16);
-        CHECK(upper.squaredDistance(pgl::Ray<Point>({2, -3}, {2, -9})) == 9);       // points further away
+        CHECK(upper.squaredDistance<int>(Point(5, -5)) == 25);
+        CHECK(upper.squaredDistance<int>(pgl::Segment<Point>({2, -3}, {8, -7})) == 9);   // nearest endpoint (2,-3)
+        CHECK(upper.squaredDistance<int>(pgl::OrientedSegment<Point>({2, -3}, {8, -7})) == 9);
+        CHECK(upper.squaredDistance<int>(pgl::Line<Point>({0, -4}, {1, -4})) == 16);     // parallel line y=-4
+        CHECK(upper.squaredDistance<int>(pgl::OrientedLine<Point>({1, -4}, {0, -4})) == 16);
+        CHECK(upper.squaredDistance<int>(pgl::Ray<Point>({2, -3}, {2, -9})) == 9);       // points further away
 
         // Each equals the distance to the boundary line asLine().
-        CHECK(upper.squaredDistance(Point(5, -5)) == upper.asLine().squaredDistance(Point(5, -5)));
+        CHECK(upper.squaredDistance<int>(Point(5, -5)) == upper.asLine().squaredDistance<int>(Point(5, -5)));
     }
 
     SUBCASE("the relation is symmetric and honors ResultNumber") {
         const Point outside(5, -5);
-        CHECK(outside.squaredDistance(upper) == upper.squaredDistance(outside));
+        CHECK(outside.squaredDistance<int>(upper) == upper.squaredDistance<int>(outside));
 
         // A point whose squared distance to the boundary is fractional.
         const Halfplane diagonal({0, 0}, {2, 2});            // boundary y = x
         const Point q(3, 0);                                 // exact squared distance 9/2
-        CHECK(diagonal.squaredDistance(q) == 4);             // integer default truncates
+        CHECK(diagonal.squaredDistance<int>(q) == 4);             // integer default truncates
         CHECK(diagonal.squaredDistance<double>(q) == doctest::Approx(4.5));
         CHECK(diagonal.squaredDistance<Rational>(q) == Rational(9, 2));
     }
@@ -377,7 +377,7 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
     const Halfplane right(0, 1, 0, 0);   // x >= 0
 
     SUBCASE("two generic halfplanes give a wedge") {
-        const Region wedge = upper.intersection(right);
+        const Region wedge = upper.intersection<int>(right);
         CHECK(wedge.size() == 2);
         CHECK(!wedge.isBounded());
         CHECK(wedge.vertexCount() == 1);
@@ -388,24 +388,24 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
 
     SUBCASE("parallel same-side halfplanes keep the more restrictive one") {
         const Halfplane higher(0, 1, 1, 1);  // y >= 1
-        CHECK(upper.intersection(higher) == higher.asHalfplaneIntersection());
-        CHECK(higher.intersection(upper) == higher.asHalfplaneIntersection());
+        CHECK(upper.intersection<int>(higher) == higher.asHalfplaneIntersection());
+        CHECK(higher.intersection<int>(upper) == higher.asHalfplaneIntersection());
     }
 
     SUBCASE("opposite halfplanes give a strip, a line, or the empty set") {
         const Halfplane below1(1, 1, 0, 1);   // y <= 1
-        const Region strip = upper.intersection(below1);
+        const Region strip = upper.intersection<int>(below1);
         CHECK(strip.size() == 2);
         CHECK(strip.contains(Point(7, 0)));
         CHECK(!strip.contains(Point(7, 2)));
 
-        const Region line = upper.intersection(upper.opposite());
+        const Region line = upper.intersection<int>(upper.opposite());
         CHECK(line.isDegenerate());
         CHECK(line.contains(Point(5, 0)));
         CHECK(!line.contains(Point(5, 1)));
 
         const Halfplane belowMinus1(1, -1, 0, -1);  // y <= -1
-        CHECK(upper.intersection(belowMinus1).isEmpty());
+        CHECK(upper.intersection<int>(belowMinus1).isEmpty());
     }
 
     SUBCASE("the result stays exact with a rational result type") {
@@ -419,7 +419,7 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
         // variant dispatch wraps the (possibly unbounded) result directly.
         const pgl::Shape<Point> a = upper;
         const pgl::Shape<Point> b = right;
-        const pgl::Shape<Point> wedge = a.intersection(b);
+        const pgl::Shape<Point> wedge = a.intersection<int>(b);
         REQUIRE(wedge.holdsAlternative<Region>());
         CHECK(Region(wedge) == Region({upper, right}));
     }

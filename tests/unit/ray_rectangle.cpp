@@ -120,27 +120,27 @@ TEST_CASE("Rectangle intersection clips Ray into segment or point") {
     const Rectangle rect({0, 0}, {4, 3});
 
     SUBCASE("crossing ray is clipped to interior segment") {
-        const auto r = rect.intersection(Ray({-2, 1}, {2, 1}));
+        const auto r = rect.intersection<int>(Ray({-2, 1}, {2, 1}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment({0, 1}, {4, 1}));
     }
 
     SUBCASE("source-inside ray is clipped to exit segment") {
-        const auto r = rect.intersection(Ray({2, 1}, {8, 1}));
+        const auto r = rect.intersection<int>(Ray({2, 1}, {8, 1}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment({2, 1}, {4, 1}));
     }
 
     SUBCASE("ray along boundary edge is clipped to that edge segment") {
-        const auto r = rect.intersection(Ray({-2, 0}, {2, 0}));
+        const auto r = rect.intersection<int>(Ray({-2, 0}, {2, 0}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Segment>(*r));
         CHECK(std::get<Segment>(*r) == Segment({0, 0}, {4, 0}));
     }
 
     SUBCASE("ray entirely outside: empty") {
-        CHECK_FALSE(rect.intersection(Ray({-2, 5}, {2, 5})));
+        CHECK_FALSE(rect.intersection<int>(Ray({-2, 5}, {2, 5})));
     }
 }

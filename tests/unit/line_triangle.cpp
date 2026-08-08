@@ -52,7 +52,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK(cut.separates(triangle));
         CHECK(triangle.separates(cut));
 
-        const auto clipped = cut.intersection(triangle);
+        const auto clipped = cut.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 2), Point(4, 2)));
@@ -69,7 +69,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(through_vertices.crosses(triangle));
         CHECK_FALSE(through_vertices.separates(triangle));
 
-        const auto clipped = through_vertices.intersection(triangle);
+        const auto clipped = through_vertices.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
         CHECK(std::get<Segment>(*clipped) == Segment(Point(0, 6), Point(6, 0)));
@@ -86,7 +86,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(along_edge.crosses(triangle));
         CHECK_FALSE(along_edge.separates(triangle));
 
-        const auto overlap = along_edge.intersection(triangle);
+        const auto overlap = along_edge.intersection<int>(triangle);
         REQUIRE(overlap);
         REQUIRE(std::holds_alternative<Segment>(*overlap));
         CHECK(std::get<Segment>(*overlap) == Segment(Point(0, 0), Point(6, 0)));
@@ -102,7 +102,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(triangle.interiorsIntersect(tangent));
         CHECK_FALSE(tangent.crosses(triangle));
 
-        const auto isec = tangent.intersection(triangle);
+        const auto isec = tangent.intersection<int>(triangle);
         REQUIRE(isec);
         REQUIRE(std::holds_alternative<Point>(*isec));
         CHECK(std::get<Point>(*isec) == Point(0, 6));
@@ -115,7 +115,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK_FALSE(triangle.intersects(farShape));
         CHECK_FALSE(farShape.interiorsIntersect(triangle));
         CHECK_FALSE(farShape.crosses(triangle));
-        CHECK_FALSE(farShape.intersection(triangle));
+        CHECK_FALSE(farShape.intersection<int>(triangle));
     }
 
     SUBCASE("line cuts from one edge interior to the opposite vertex region") {
@@ -126,7 +126,7 @@ TEST_CASE("Line and triangle predicates exercise the line's infinite extent") {
         CHECK(cut.crosses(triangle));
         CHECK(cut.separates(triangle));
 
-        const auto clipped = cut.intersection(triangle);
+        const auto clipped = cut.intersection<int>(triangle);
         REQUIRE(clipped);
         REQUIRE(std::holds_alternative<Segment>(*clipped));
     }
@@ -145,7 +145,7 @@ TEST_CASE("Vertical line cutting a triangle far from the line's defining points"
     CHECK(vertical.intersects(triangle));
     CHECK(vertical.crosses(triangle));
 
-    const auto clipped = vertical.intersection(triangle);
+    const auto clipped = vertical.intersection<int>(triangle);
     REQUIRE(clipped);
     REQUIRE(std::holds_alternative<Segment>(*clipped));
     CHECK(std::get<Segment>(*clipped) == Segment(Point(2, 0), Point(2, 4)));

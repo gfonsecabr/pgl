@@ -152,27 +152,27 @@ TEST_CASE("Halfplane clips a Line via intersection") {
     }
 
     SUBCASE("line inside the halfplane clips to itself") {
-        const auto r = upper.intersection(Line({0, 2}, {4, 2}));
+        const auto r = upper.intersection<int>(Line({0, 2}, {4, 2}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Line>(*r));
         CHECK_MESSAGE(std::get<Line>(*r) == Line({0, 2}, {4, 2}), "inside line unchanged");
     }
 
     SUBCASE("boundary line clips to itself") {
-        const auto r = upper.intersection(Line({0, 0}, {4, 0}));
+        const auto r = upper.intersection<int>(Line({0, 0}, {4, 0}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Line>(*r));
         CHECK_MESSAGE(std::get<Line>(*r) == Line({0, 0}, {4, 0}), "boundary line unchanged");
     }
 
     SUBCASE("line entirely outside yields empty result") {
-        CHECK_FALSE_MESSAGE(upper.intersection(Line({0, -2}, {4, -2})),
+        CHECK_FALSE_MESSAGE(upper.intersection<int>(Line({0, -2}, {4, -2})),
                             "outside line clips to nothing");
     }
 
     SUBCASE("degenerate halfplane (a point) intersected with a line yields that point if it lies on it") {
         const Halfplane degenerate({0, 0}, {0, 0});
-        const auto r = degenerate.intersection(Line({-1, -1}, {1, 1}));
+        const auto r = degenerate.intersection<int>(Line({-1, -1}, {1, 1}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Point>(*r));
         CHECK_MESSAGE(std::get<Point>(*r) == Point(0, 0), "degenerate halfplane gives its point");

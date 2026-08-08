@@ -203,8 +203,8 @@ TEST_CASE("Point shape predicates use coordinate equality and an empty boundary"
     // shared point, and a point never crosses another point.
     CHECK(labeled.intersects(same_coordinates));
     CHECK_FALSE(labeled.intersects(different));
-    CHECK(labeled.intersection(same_coordinates) == same_coordinates);
-    CHECK_FALSE(labeled.intersection(different).has_value());
+    CHECK(labeled.intersection<int>(same_coordinates) == same_coordinates);
+    CHECK_FALSE(labeled.intersection<int>(different).has_value());
     CHECK_FALSE(labeled.crosses(same_coordinates));
     CHECK_FALSE(labeled.crosses(different));
 }
@@ -260,19 +260,31 @@ TEST_CASE_TEMPLATE("Point supports scaling, translation, and subtraction in plac
 }
 
 TEST_CASE_TEMPLATE("Point computes dot product and Euclidean, L1, and Linf distances", Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<>>) {
+    using Number = typename Point::NumberType;
     const Point first(1, 2);
     const Point second(3, 4);
 
     CHECK(first * second == 11);
-    CHECK(first.squaredDistance(second) == 8);
+    CHECK(first.template squaredDistance<Number>(second) == 8);
     // Hausdorff distance between two single-point sets is just their distance.
-    CHECK(first.squaredHausdorffDistance(second) == 8);
-    CHECK(second.squaredHausdorffDistance(first) == 8);
+    CHECK(first.template squaredHausdorffDistance<Number>(second) == 8);
+    CHECK(second.template squaredHausdorffDistance<Number>(first) == 8);
     CHECK(first.template distance<double>(second) == doctest::Approx(std::sqrt(8.0)));
     CHECK(first.distanceL1(second) == 4);
     CHECK(first.distanceLInf(second) == 2);
-    CHECK(first.hausdorffDistanceL1(second) == 4);
-    CHECK(first.hausdorffDistanceLInf(second) == 2);
+    CHECK(first.template distanceL1<double>(second) == doctest::Approx(4.0));
+    CHECK(first.template distanceLInf<double>(second) == doctest::Approx(2.0));
+    CHECK(first.template hausdorffDistanceL1<Number>(second) == 4);
+    CHECK(first.template hausdorffDistanceLInf<Number>(second) == 2);
+}
+
+TEST_CASE("Point computes mixed-coordinate L1/LInf distances in the requested result type") {
+    const pgl::Point<int> first(1, 2);
+    const pgl::Point<double> second(3.5, 4.25);
+
+    static_assert(std::is_same_v<decltype(first.distanceL1(second)), int>);
+    CHECK(first.distanceL1<double>(second) == doctest::Approx(4.75));
+    CHECK(first.distanceLInf<double>(second) == doctest::Approx(2.5));
 }
 
 TEST_CASE("Point forwards distanceL1/distanceLInf to a higher-ranked shape") {
@@ -340,22 +352,24 @@ TEST_CASE("Point streams as coordinates or label colon coordinates") {
 }
 
 TEST_CASE_TEMPLATE("Point-line duality", Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<>>) {
+    using Number = typename Point::NumberType;
     const Point p0{0,0}, p1{3,7}, p2{2,-5}, p3{-4,2};
 
-    CHECK(p0.dual().dual() == p0);
-    CHECK(p1.dual().dual() == p1);
-    CHECK(p2.dual().dual() == p2);
-    CHECK(p3.dual().dual() == p3);
+    CHECK(p0.template dual<Number>().template dual<Number>() == p0);
+    CHECK(p1.template dual<Number>().template dual<Number>() == p1);
+    CHECK(p2.template dual<Number>().template dual<Number>() == p2);
+    CHECK(p3.template dual<Number>().template dual<Number>() == p3);
 }
 
 TEST_CASE("Point-line polarity") {
     using Point = pgl::Point<pgl::Rational<>>;
+    using Number = typename Point::NumberType;
     const Point p0{1,1},p1{3,7}, p2{2,-5}, p3{-4,2};
 
-    CHECK(p0.polar().polar() == p0);
-    CHECK(p1.polar().polar() == p1);
-    CHECK(p2.polar().polar() == p2);
-    CHECK(p3.polar().polar() == p3);
+    CHECK(p0.polar<Number>().polar<Number>() == p0);
+    CHECK(p1.polar<Number>().polar<Number>() == p1);
+    CHECK(p2.polar<Number>().polar<Number>() == p2);
+    CHECK(p3.polar<Number>().polar<Number>() == p3);
 }
 
 TEST_CASE("Point rotated90 and rotate90") {

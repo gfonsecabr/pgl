@@ -120,7 +120,7 @@ TEST_CASE("Point separates Polyline") {
 }
 
 TEST_CASE("Polyline squaredDistance to Point") {
-    CHECK(zig.squaredDistance(Point(1, 1)) == 0);
+    CHECK(zig.squaredDistance<int>(Point(1, 1)) == 0);
     CHECK(zig.squaredDistance<double>(Point(2, 3)) == doctest::Approx(1.0));
     CHECK(zig.squaredDistance<double>(Point(5, 0)) == doctest::Approx(1.0));
     CHECK(Point(2, 3).squaredDistance<double>(zig) == doctest::Approx(1.0));
@@ -139,13 +139,13 @@ TEST_CASE("Polyline distanceL1 and distanceLInf to Point") {
 }
 
 TEST_CASE("Polyline and Point intersection") {
-    const auto hit = zig.intersection(Point(1, 1));
+    const auto hit = zig.intersection<int>(Point(1, 1));
     REQUIRE(hit.has_value());
     CHECK(*hit == Point(1, 1));
-    CHECK_FALSE(zig.intersection(Point(1, 2)).has_value());
+    CHECK_FALSE(zig.intersection<int>(Point(1, 2)).has_value());
 
     // The point forwards to the polyline's overload.
-    const auto forwarded = Point(2, 2).intersection(zig);
+    const auto forwarded = Point(2, 2).intersection<int>(zig);
     REQUIRE(forwarded.has_value());
     CHECK(*forwarded == Point(2, 2));
 }

@@ -1357,7 +1357,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherSegment
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.min()));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.max()));
-    const W squared_length = static_cast<W>(other.min().squaredDistance(other.max()));
+    const W squared_length = other.min().template squaredDistance<W>(other.max());
     const W m = squared_length * det;
 
     const W projection = (j0 - j1) * det;          // (J0 - J1) * A
@@ -1397,7 +1397,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherLine& o
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[0]));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other[1]));
-    const W squared_length = static_cast<W>(other[0].squaredDistance(other[1]));
+    const W squared_length = other[0].template squaredDistance<W>(other[1]);
     const W discriminant_base = j0 + j1 + squared_length * det;  // J0 + J1 + M
 
     return discriminant_base * discriminant_base > W{4} * j0 * j1;
@@ -1436,7 +1436,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRay& ot
     const W det = static_cast<W>(orientationDeterminant(a(), b(), c()));
     const W j0 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.source()));
     const W j1 = static_cast<W>(inCircleDeterminant(a(), b(), c(), other.target()));
-    const W squared_length = static_cast<W>(other.source().squaredDistance(other.target()));
+    const W squared_length = other.source().template squaredDistance<W>(other.target());
     const W m = squared_length * det;
 
     const W projection = (j0 - j1) * det;          // (J0 - J1) * A
@@ -1511,7 +1511,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherDisk& o
             std::is_floating_point_v<typename OtherDisk::NumberType>,
         long double,
         Rational<BigInt>>;
-    const R d2 = center<R>().squaredDistance(other.template center<R>());
+    const R d2 = center<R>().template squaredDistance<R>(other.template center<R>());
     const R r1_sq = squaredRadius<R>();
     const R r2_sq = other.template squaredRadius<R>();
     const R A = d2 - r1_sq - r2_sq;
@@ -2113,7 +2113,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    return !intersection(other).isDegenerate();
+    return !this->template intersection<NumberType>(other).isDegenerate();
 }
 
 template <class PointType, class LabelType>
@@ -2122,7 +2122,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
     if (isDegenerate()) {
         return false;
     }
-    return !intersection(other).isDegenerate();
+    return !this->template intersection<NumberType>(other).isDegenerate();
 }
 
 template <class PointType, class LabelType>
@@ -2131,7 +2131,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    return !intersection(other).isDegenerate();
+    return !this->template intersection<NumberType>(other).isDegenerate();
 }
 
 template <class PointType, class LabelType>
@@ -2209,7 +2209,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    return !intersection(other).isDegenerate();
+    return !this->template intersection<NumberType>(other).isDegenerate();
 }
 
 template <class PointType, class LabelType>

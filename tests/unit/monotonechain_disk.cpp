@@ -73,7 +73,7 @@ TEST_CASE("MonotoneChain and Disk distance is always double") {
     using Chain = pgl::MonotoneChain<Point>;
 
     const Chain right({3, 0, 4, 1});
-    CHECK(right.squaredDistance(disk) == doctest::Approx(1.0));
-    CHECK(disk.squaredDistance(right) == doctest::Approx(1.0));
-    CHECK(Chain({-4, 0, 4, 0}).squaredDistance(disk) == doctest::Approx(0.0));
+    CHECK(right.squaredDistance<int>(disk) == doctest::Approx(1.0));
+    CHECK(disk.squaredDistance<int>(right) == doctest::Approx(1.0));
+    CHECK(Chain({-4, 0, 4, 0}).squaredDistance<int>(disk) == doctest::Approx(0.0));
 }

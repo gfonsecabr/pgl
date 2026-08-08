@@ -20,18 +20,18 @@ TEST_CASE("Segments with a common endpoint") {
     auto y = GENERATE(-3,-2,-1,1,2,3);
     Segment s(center, center+Point{x,y});
 
-    // std::cout << s << " " << s.midpoint() << std::endl;
+    // std::cout << s << " " << s.midpoint<int>() << std::endl;
     CHECK_MESSAGE(s.contains(center), s, " contains ", center);
     CHECK_MESSAGE(s.boundaryContains(center), s, " boundaryContains ", center);
     CHECK_FALSE_MESSAGE(s.interiorContains(center), s, " interiorContains ", center);
     if(x%2 == 0 && y%2 == 0) {
-        CHECK_MESSAGE(s.interiorContains(s.midpoint()), s, " interiorContains ", s.midpoint());
+        CHECK_MESSAGE(s.interiorContains(s.midpoint<int>()), s, " interiorContains ", s.midpoint<int>());
     }
-    CHECK_FALSE_MESSAGE(s.interiorContains(s.midpoint()+Point(2,0)), s, " interiorContains ", s.midpoint()+Point(2,0));
+    CHECK_FALSE_MESSAGE(s.interiorContains(s.midpoint<int>()+Point(2,0)), s, " interiorContains ", s.midpoint<int>()+Point(2,0));
 
     pgl::Segment<pgl::Point<double>> sd(pgl::Point<double>(center), pgl::Point<double>(center+Point{x,y}));
 
-    CHECK_MESSAGE(sd.interiorContains(sd.midpoint()), sd, " interiorContains ", sd.midpoint());
+    CHECK_MESSAGE(sd.interiorContains(sd.midpoint<double>()), sd, " interiorContains ", sd.midpoint<double>());
 }
 
 TEST_CASE("Scaling segments") {
@@ -122,8 +122,8 @@ TEST_CASE("Point and Segment intersection construction") {
 
     SUBCASE("a point on the segment yields that point, both directions") {
         const Point mid(2, 0);
-        const auto fromSeg = s.intersection(mid);
-        const auto fromPt = mid.intersection(s);
+        const auto fromSeg = s.intersection<int>(mid);
+        const auto fromPt = mid.intersection<int>(s);
 
         REQUIRE(fromSeg.has_value());
         CHECK(*fromSeg == mid);
@@ -133,13 +133,14 @@ TEST_CASE("Point and Segment intersection construction") {
 
     SUBCASE("a point off the segment yields nothing") {
         const Point off(2, 2);
-        CHECK_FALSE(s.intersection(off).has_value());
-        CHECK_FALSE(off.intersection(s).has_value());
+        CHECK_FALSE(s.intersection<int>(off).has_value());
+        CHECK_FALSE(off.intersection<int>(s).has_value());
     }
 }
 
 TEST_CASE("Rational points") {
-    using Point = pgl::Point<pgl::Rational<int64_t>>;
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
     using Segment = pgl::Segment<Point>;
 
     auto x = GENERATE(-3,-2,-1,0,1,2,3);
@@ -149,7 +150,7 @@ TEST_CASE("Rational points") {
     Point p(x,y), p2(x2,y2);
     Segment s(p, p2);
     if(p != p2) {
-        CHECK_MESSAGE(s.interiorContains(s.midpoint()), s, " interiorContains ", s.midpoint());
+        CHECK_MESSAGE(s.interiorContains(s.midpoint<Rational>()), s, " interiorContains ", s.midpoint<Rational>());
 
         auto ratio = GENERATE(1,2,3,4);
         Point q = pgl::Rational<int64_t>(ratio)*p/5 + pgl::Rational<int64_t>(5-ratio)*p2/5;
@@ -167,7 +168,6 @@ TEST_CASE("Point and Segment squared Hausdorff distance") {
 
     // The segment's farthest endpoint from p is (4,0) at squared distance 18,
     // which dominates the point-side term (squaredDistance(p, s) == 9).
-    CHECK(s.squaredHausdorffDistance(p) == 18);
-    CHECK(p.squaredHausdorffDistance(s) == 18);
+    CHECK(s.squaredHausdorffDistance<int>(p) == 18);
+    CHECK(p.squaredHausdorffDistance<int>(s) == 18);
 }
-

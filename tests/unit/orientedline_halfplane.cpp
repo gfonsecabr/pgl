@@ -142,13 +142,13 @@ TEST_CASE("Halfplane clips an OrientedLine via intersection") {
     }
 
     SUBCASE("oriented line inside the halfplane clips to a plain Line") {
-        const auto r = upper.intersection(OrientedLine({0, 2}, {4, 2}));
+        const auto r = upper.intersection<int>(OrientedLine({0, 2}, {4, 2}));
         REQUIRE(r);
         REQUIRE(std::holds_alternative<Line>(*r));
     }
 
     SUBCASE("oriented line entirely outside yields empty") {
-        CHECK_FALSE_MESSAGE(upper.intersection(OrientedLine({4, -2}, {0, -2})),
+        CHECK_FALSE_MESSAGE(upper.intersection<int>(OrientedLine({4, -2}, {0, -2})),
                             "outside OL clips to nothing");
     }
 }

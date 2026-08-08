@@ -109,24 +109,24 @@ TEST_CASE("Segment and Ray intersection construction") {
 
     SUBCASE("a transversal cut yields the crossing point") {
         const Segment cross({2, -1}, {2, 1});
-        const auto a = r.intersection(cross);
+        const auto a = r.intersection<int>(cross);
         REQUIRE(a.has_value());
         CHECK(*a == Piece(Point(2, 0)));
-        CHECK(cross.intersection(r) == a);
+        CHECK(cross.intersection<int>(r) == a);
     }
 
     SUBCASE("a collinear overlap yields the shared segment") {
         const Segment along({1, 0}, {3, 0});
-        const auto a = r.intersection(along);
+        const auto a = r.intersection<int>(along);
         REQUIRE(a.has_value());
         CHECK(*a == Piece(Segment({1, 0}, {3, 0})));
-        CHECK(along.intersection(r) == a);
+        CHECK(along.intersection<int>(r) == a);
     }
 
     SUBCASE("a disjoint segment yields nothing") {
         const Segment behind({-3, -1}, {-3, 1});
-        CHECK_FALSE(r.intersection(behind).has_value());
-        CHECK_FALSE(behind.intersection(r).has_value());
+        CHECK_FALSE(r.intersection<int>(behind).has_value());
+        CHECK_FALSE(behind.intersection<int>(r).has_value());
     }
 }
 

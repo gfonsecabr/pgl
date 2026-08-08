@@ -107,24 +107,24 @@ TEST_CASE("Segment and OrientedSegment intersection construction, both direction
     const OrientedSegment sub_os({3, 0}, {1, 0});     // collinear sub-segment (reversed)
 
     SUBCASE("transverse crossing yields a Point") {
-        const auto from_seg = horiz.intersection(vert_os);
+        const auto from_seg = horiz.intersection<int>(vert_os);
         REQUIRE(from_seg.has_value());
         REQUIRE(std::holds_alternative<Point>(*from_seg));
         CHECK(std::get<Point>(*from_seg) == Point(2, 0));
 
-        const auto from_os = vert_os.intersection(horiz);
+        const auto from_os = vert_os.intersection<int>(horiz);
         REQUIRE(from_os.has_value());
         REQUIRE(std::holds_alternative<Point>(*from_os));
         CHECK(std::get<Point>(*from_os) == Point(2, 0));
     }
 
     SUBCASE("collinear overlap yields the overlapping Segment") {
-        const auto from_seg = horiz.intersection(sub_os);
+        const auto from_seg = horiz.intersection<int>(sub_os);
         REQUIRE(from_seg.has_value());
         REQUIRE(std::holds_alternative<Segment>(*from_seg));
         CHECK(std::get<Segment>(*from_seg) == Segment({1, 0}, {3, 0}));
 
-        const auto from_os = sub_os.intersection(horiz);
+        const auto from_os = sub_os.intersection<int>(horiz);
         REQUIRE(from_os.has_value());
         REQUIRE(std::holds_alternative<Segment>(*from_os));
         CHECK(std::get<Segment>(*from_os) == Segment({1, 0}, {3, 0}));
@@ -132,7 +132,7 @@ TEST_CASE("Segment and OrientedSegment intersection construction, both direction
 
     SUBCASE("disjoint yields empty") {
         const OrientedSegment disjoint_os({5, -1}, {5, 1});
-        CHECK_FALSE(horiz.intersection(disjoint_os).has_value());
-        CHECK_FALSE(disjoint_os.intersection(horiz).has_value());
+        CHECK_FALSE(horiz.intersection<int>(disjoint_os).has_value());
+        CHECK_FALSE(disjoint_os.intersection<int>(horiz).has_value());
     }
 }
