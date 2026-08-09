@@ -4589,6 +4589,8 @@ bool cellSeparates(const Target& target, const Remover& remover) {
     // declaration in core/forward.hpp — and that is enough, since the type
     // depends on the operands and so is instantiated at the call site.
     const Arrangement<ExactPoint> arrangement(cuts, cutPoints);
+    using FaceHandle = typename Arrangement<ExactPoint>::FaceId;
+    using HalfedgeHandle = typename Arrangement<ExactPoint>::HalfedgeId;
 
     // One union-find node per kept cell. A cell is kept when its relative
     // interior lies in target ∖ remover, which one witness point decides.
@@ -4615,7 +4617,8 @@ bool cellSeparates(const Target& target, const Remover& remover) {
     };
 
     std::vector<std::size_t> faceCell(arrangement.faceCount(), dropped);
-    for (const auto f : arrangement.faces()) {
+    for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
+        const FaceHandle f(i);
         if (!arrangement.isUnbounded(f)) {
             faceCell[f.index()] = cellOf(arrangement.template witness<ExactNumber>(f));
         }
@@ -4631,13 +4634,14 @@ bool cellSeparates(const Target& target, const Remover& remover) {
     }
 
     std::vector<std::size_t> edgeCell(arrangement.edgeCount(), dropped);
-    for (const auto h : arrangement.halfedges()) {
+    for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+        const HalfedgeHandle h(i);
         const std::size_t edge = h.index() / 2;
         if (h.index() % 2 == 0) {
             edgeCell[edge] = cellOf(arrangement.template witness<ExactNumber>(h));
         }
         const std::size_t side = edgeCell[edge];
-        const std::size_t corner = vertexCell[arrangement.origin(h).index()];
+        const std::size_t corner = vertexCell[arrangement.source(h).index()];
         const std::size_t face = faceCell[arrangement.face(h).index()];
         unite(side, corner);
         unite(side, face);
@@ -4792,14 +4796,7 @@ template <class ExactPoint>
 std::vector<Segment<ExactPoint>> splitCutSegments(const std::vector<Segment<ExactPoint>>& cuts) {
     // Layering: see the note in @ref cellSeparates.
     const Arrangement<ExactPoint> arrangement(cuts);
-    std::vector<Segment<ExactPoint>> pieces;
-    pieces.reserve(arrangement.edgeCount());
-    for (const auto h : arrangement.halfedges()) {
-        if (h.index() % 2 == 0) {
-            pieces.push_back(arrangement[h]);
-        }
-    }
-    return pieces;
+    return arrangement.edges();
 }
 
 /**

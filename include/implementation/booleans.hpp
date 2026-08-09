@@ -114,6 +114,7 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
 template <class ResultPoint, class ExactPoint>
 std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
     const Arrangement<ExactPoint>& arrangement, const std::vector<char>& keep) {
+    using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
     using ExactNumber = typename ExactPoint::NumberType;
     using ExactPolygon = Polygon<ExactPoint>;
     using ResultPolygon = Polygon<ResultPoint>;
@@ -138,7 +139,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
         return x;
     };
     std::vector<HalfedgeId> boundary;
-    for (const HalfedgeId h : arrangement.halfedges()) {
+    for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
         if (!isKept(h)) {
             continue;
         }
@@ -174,7 +176,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
         HalfedgeId h = start;
         do {
             walked[h.index()] = 1;
-            walk.push_back(arrangement[arrangement.origin(h)]);
+            walk.push_back(arrangement[arrangement.source(h)]);
             h = nextBoundary(h);
         } while (h != start);
         splitWalkIntoRings(walk, ringsOfPiece[findRoot(arrangement.face(start).index())]);
@@ -288,8 +290,10 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
     }
 
     const Arrangement<ExactPoint> arrangement(segments);
+    using FaceId = typename Arrangement<ExactPoint>::FaceId;
     std::vector<char> keep(arrangement.faceCount(), 0);
-    for (const FaceId f : arrangement.faces()) {
+    for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
+        const FaceId f(i);
         if (!arrangement.isUnbounded(f)) {
             keep[f.index()] = static_cast<char>(
                 keepWitness(arrangement.template witness<ExactNumber>(f)));
@@ -354,6 +358,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
     // Start outside every piece in the unbounded face, then propagate those
     // parity bits across the arrangement's face adjacency graph.
     const Arrangement<ExactPoint> arrangement(distinct);
+    using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
+    using FaceId = typename Arrangement<ExactPoint>::FaceId;
     const std::size_t faceCount = arrangement.faceCount();
     const std::size_t pieceCount = distinct.size();
     constexpr std::size_t wordBits = 64;
@@ -363,7 +369,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
     // vector per face: the face count runs to hundreds of thousands here, and
     // that many separate allocations costs more than the traversal.
     std::vector<std::uint32_t> faceEdgeBegin(faceCount + 1, 0);
-    for (const HalfedgeId h : arrangement.halfedges()) {
+    for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
         ++faceEdgeBegin[arrangement.face(h).index() + 1];
     }
     for (std::size_t i = 0; i < faceCount; ++i) {
@@ -372,7 +379,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
     std::vector<std::uint32_t> faceEdge(arrangement.halfedgeCount(), 0);
     {
         std::vector<std::uint32_t> cursor(faceEdgeBegin.begin(), faceEdgeBegin.end() - 1);
-        for (const HalfedgeId h : arrangement.halfedges()) {
+        for (std::uint32_t i = 0; i < arrangement.halfedgeCount(); ++i) {
+            const HalfedgeId h(i);
             faceEdge[cursor[arrangement.face(h).index()]++] = h.index();
         }
     }
@@ -438,7 +446,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
     assert(covered == 0);  // every descent undone
     assert(std::ranges::all_of(seen, [](char value) { return value != 0; }));
     std::vector<char> keep(faceCount, 0);
-    for (const FaceId f : arrangement.faces()) {
+    for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
+        const FaceId f(i);
         keep[f.index()] = static_cast<char>(coverage[f.index()] != 0);
     }
     return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
