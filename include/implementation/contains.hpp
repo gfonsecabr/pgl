@@ -87,9 +87,10 @@ template <class Number, class Label>
 template<DiskConcept OtherDisk>
 constexpr bool Point<Number, Label>::contains(const OtherDisk& other) const {
     // A non-degenerate disk has positive area, so a single point can only
-    // contain a degenerate disk, which is the segment from a() to c().
-    return other.isDegenerate() &&
-           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    // contain a disk that has collapsed to a point, which is the case a() == b()
+    // (a disk is never a segment). A disk with a() == b() != c() is undefined,
+    // and reading it as the point a() is one answer the contract allows.
+    return other.a() == other.b() && contains(other.a());
 }
 
 template <class Number, class Label>
@@ -474,10 +475,10 @@ constexpr bool Line<PointType, LabelType>::contains(const OtherConvex& other) co
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Line<PointType, LabelType>::contains(const OtherDisk& other) const {
-    // A non-degenerate disk has positive area; only a degenerate disk, which is
-    // the segment from a() to c(), can lie in a one-dimensional line.
-    return other.isDegenerate() &&
-           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    // A non-degenerate disk has positive area; only a disk collapsed to a point,
+    // the case a() == b(), can lie in a one-dimensional line. See
+    // Point::contains(Disk) for the undefined a() == b() != c() case.
+    return other.a() == other.b() && contains(other.a());
 }
 
 template <class PointType, class LabelType>
@@ -661,10 +662,10 @@ constexpr bool Ray<PointType, LabelType>::contains(const OtherConvex& other) con
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Ray<PointType, LabelType>::contains(const OtherDisk& other) const {
-    // A non-degenerate disk has positive area; only a degenerate disk, which is
-    // the segment from a() to c(), can lie in a one-dimensional ray.
-    return other.isDegenerate() &&
-           contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    // A non-degenerate disk has positive area; only a disk collapsed to a point,
+    // the case a() == b(), can lie in a one-dimensional ray. See
+    // Point::contains(Disk) for the undefined a() == b() != c() case.
+    return other.a() == other.b() && contains(other.a());
 }
 
 template <class PointType, class LabelType>
@@ -912,8 +913,12 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const Shape<PointType>&
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::contains(const OtherPoint& point) const {
-    if (isDegenerate()) {
-        return Segment<PointType>(a(), c()).contains(point);
+    // A disk that has collapsed covers the single point a(); it is never a
+    // segment. The remaining degenerate disks -- three collinear points that
+    // determine no circle -- are undefined, and fall through to the in-circle
+    // determinant, which is division-free and terminates on any input.
+    if (a() == b()) {
+        return a() == point;
     }
 
     return inCircleSign(a(), b(), c(), point) != std::partial_ordering::less;
@@ -982,8 +987,9 @@ constexpr bool Disk<PointType, LabelType>::contains(const OtherConvex& other) co
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::contains(const OtherDisk& other) const {
-    if (other.isDegenerate()) {
-        return contains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    // A collapsed disk is the point a(), never a segment.
+    if (other.a() == other.b()) {
+        return contains(other.a());
     }
     if (isDegenerate()) {
         return false;

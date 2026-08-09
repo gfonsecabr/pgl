@@ -195,11 +195,14 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     CHECK(degenerate.contains(Point(0, 0)));
     CHECK_FALSE(degenerate.contains(Point(1, 0)));
 
-    const Disk collinear(Point(0, 0), Point(2, 0), Point(4, 0));
-    CHECK(collinear.contains(Point(2, 0)));
-    CHECK(collinear.contains(Point(3, 0)));
-    CHECK_FALSE(collinear.contains(Point(5, 0)));
-    CHECK_FALSE(collinear.contains(Point(2, 1)));
+    // A disk collapses to a point, never to a segment (doc/raw/shapes.md), so a
+    // zero-radius disk holds its centre and nothing else. Three distinct
+    // collinear points determine no circle and are isUndefined(), which carries
+    // no contract, so nothing here asserts on such a disk.
+    const Disk dot(Point(2, 0), 0);
+    CHECK(dot.contains(Point(2, 0)));
+    CHECK_FALSE(dot.contains(Point(3, 0)));
+    CHECK_FALSE(dot.contains(Point(2, 1)));
 
     CHECK(disk.contains(Line(Point(3, 4), Point(3, 4))));
     CHECK_FALSE(disk.contains(Line(Point(6, 0), Point(6, 0))));
@@ -218,11 +221,11 @@ TEST_CASE("Disk contains detects points inside or on the circle") {
     CHECK_FALSE(disk.contains(Disk(Point(1, 0), 5)));
     CHECK_FALSE(disk.contains(Disk(Point(6, 0), 1)));
 
-    CHECK(disk.contains(Disk(Point(0, 0), Point(2, 0), Point(4, 0))));
-    CHECK_FALSE(disk.contains(Disk(Point(0, 0), Point(5, 0), Point(6, 0))));
+    CHECK(disk.contains(Disk(Point(3, 4), 0)));
+    CHECK_FALSE(disk.contains(Disk(Point(6, 0), 0)));
 
-    CHECK(collinear.contains(Disk(Point(1, 0), Point(2, 0), Point(3, 0))));
-    CHECK_FALSE(collinear.contains(Disk(Point(2, 0), 1)));
+    CHECK(dot.contains(Disk(Point(2, 0), 0)));
+    CHECK_FALSE(dot.contains(Disk(Point(2, 0), 1)));
 
     CHECK(disk.contains(pgl::Shape<Point>(Point(3, 4))));
     CHECK(disk.contains(pgl::Shape<Point>(pgl::Segment<Point>(Point(0, 0), Point(3, 4)))));
