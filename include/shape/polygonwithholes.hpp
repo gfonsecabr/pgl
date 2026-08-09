@@ -978,7 +978,7 @@ struct PolygonWithHoles {
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
-     * and returned as one region. See
+     * and returned as a set of regions. See
      * @ref Polygon::minkowskiSum for the full contract.
      *
      * A region operand needs one thing a polygon does not: its **slits** sweep
@@ -989,35 +989,35 @@ struct PolygonWithHoles {
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
      * A nondegenerate area operand thickens every slit that could otherwise
-     * disconnect the regularization, so these overloads have one component.
-     * If the other operand is degenerate and the answer splits, only its first
-     * component in canonical order is returned. An empty regularized sum is
-     * represented by an empty region.
+     * disconnect the regularization, so these sums have a single component. A
+     * degenerate one can split the answer, and every piece of it comes back —
+     * where this overload used to keep only the first in canonical order. An
+     * empty regularized sum is the empty set.
      *
-     * @return The sum as one region, possibly empty.
+     * @return The pieces of the sum, in canonical order.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherPolygon& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherConvex& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRegion& other) const;
 
     /**
@@ -1029,7 +1029,7 @@ struct PolygonWithHoles {
      * answer: which operand is written first never decides which sum answers.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolylineConcept OtherPolyline>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherPolyline& other) const;
 
     /**
@@ -1043,7 +1043,7 @@ struct PolygonWithHoles {
      * edges and the answer is a set of regions, as it is for a `Polyline`.
      */
     template <class ResultNumber = division_result_t<NumberType>, MonotoneChainConcept OtherChain>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherChain& other) const;
 
     /**
@@ -1059,7 +1059,7 @@ struct PolygonWithHoles {
      * regularization drops it.
      */
     template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherSegment& other) const;
 
     /**
@@ -1069,7 +1069,7 @@ struct PolygonWithHoles {
      * underlying segment, vertex for vertex.
      */
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherSegment>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherSegment& other) const;
 
     /**

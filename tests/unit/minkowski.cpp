@@ -340,7 +340,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Triangle<>&>())),
-                       pgl::PolygonWithHoles<Point>>);
+                       pgl::PolygonSet<Point>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Rectangle<>>);
@@ -348,7 +348,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Rectangle<>&>())),
-                       pgl::PolygonWithHoles<Point>>);
+                       pgl::PolygonSet<Point>>);
     // The non-convex summands have area to sweep, so they are admitted too, and
     // from either side since both carry the mirror overload.
     static_assert(summable<pgl::Polyline<>, pgl::Polygon<>>);
@@ -378,7 +378,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Polyline<>&>())),
-                       std::vector<pgl::PolygonWithHoles<Point>>>);
+                       pgl::PolygonSet<Point>>);
     static_assert(std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum(
                                      std::declval<const pgl::Segment<>&>())),
                                  pgl::Convex<Point>>);
@@ -388,7 +388,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Segment<>&>().minkowskiSum<int>(
                            std::declval<const pgl::MonotoneChain<>&>())),
-                       std::vector<pgl::PolygonWithHoles<Point>>>);
+                       pgl::PolygonSet<Point>>);
     // The forwarder is otherwise gated on the operand outranking the segment, so
     // it never reaches a shape that has no sum to answer with.
     static_assert(!summable<pgl::OrientedSegment<>, pgl::Disk<>>);

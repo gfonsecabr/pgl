@@ -1914,52 +1914,46 @@ struct Polyline {
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The sum is `{p + q : p ∈ A, q ∈ B}`, regularized to `closure((A ⊕ B)°)`
-     * and returned as one region. A
+     * and returned as a set of regions. A
      * polyline has no area of its own, but sweeping another shape along it has
      * some: the chain is one-dimensional and may bend back on itself, so the
      * swept material can close over a hole — a closed chain is the plainest
      * example, and an open one whose ends come within the summand's reach of each
      * other does it too — and no other shape in the library can say so.
      *
-     * Each overload below has a nondegenerate area operand whose connected
-     * interior thickens the whole polyline, so its regularized sum has one
-     * component. If that operand degenerates and the regularization splits,
-     * only its first component in canonical order is returned. An empty or
-     * wholly flat regularized sum is represented by an empty region.
+     * An operand with a nondegenerate, connected interior thickens the whole
+     * polyline, so its regularized sum has a single component; a degenerate one
+     * can split the answer, and every piece of it comes back. An empty or wholly
+     * flat regularized sum is the empty set.
      *
      * Distinguish this from @ref minkowskiSum(const OtherShape&) const, which
      * sums a `Point` — a translation, giving back a `Polyline` — and nothing
      * else: a polyline is not convex, so @ref MinkowskiSummableConcept rejects
-     * every other pair. The single-region operands here are the three convex
-     * ones and @ref Polygon. @ref PolygonWithHoles keeps a vector result because
-     * its valid non-regular instances may contain slits, and `Segment` and
-     * @ref OrientedSegment keep one because neither operand then has area; see
-     * @ref minkowskiSum(const OtherSegment&) const. A second `Polyline` is not an
-     * operand.
+     * every other pair. A second `Polyline` is not an operand.
      *
      * Complexity: one convex merge per edge of the polyline, then a constrained
      * triangulation over the arrangement of all of them.
      *
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
-     * @return The sum as one region, possibly empty.
+     * @return The pieces of the sum, in canonical order.
      * @note Every vertex of every piece sum is a sum of two input vertices, so
      *       the pieces are exact; only their union can put a vertex at a
      *       crossing, and that arrangement is built over exact rationals and
      *       converted to @p ResultNumber only at the end.
      */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B). */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherConvex& other) const;
 
     /**
@@ -1976,7 +1970,7 @@ struct Polyline {
      * then a constrained triangulation over the arrangement of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherPolygon& other) const;
 
     /**
@@ -1998,7 +1992,7 @@ struct Polyline {
      * a constrained triangulation over the arrangement of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherRegion& other) const;
 
     /**
@@ -2024,7 +2018,7 @@ struct Polyline {
      * triangulation over the arrangement of all of them.
      */
     template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherSegment& other) const;
 
     /**
@@ -2034,7 +2028,7 @@ struct Polyline {
      * underlying segment, vertex for vertex.
      */
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherSegment>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherSegment& other) const;
 
     /**
