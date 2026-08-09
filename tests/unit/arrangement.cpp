@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -22,6 +23,9 @@ using Segment = pgl::ESegment;
 using PolygonShape = pgl::EPolygon;
 using Region = pgl::EPolygonWithHoles;
 using Arrangement = pgl::Arrangement<Point>;
+using VertexId = Arrangement::VertexId;
+using HalfedgeId = Arrangement::HalfedgeId;
+using FaceId = Arrangement::FaceId;
 
 // The vertex type defaults to the exact one, since the crossings it has to hold
 // are rational whatever the input coordinates are.
@@ -49,8 +53,9 @@ std::size_t componentCount(const Arrangement& arr) {
         }
         return x;
     };
-    for (pgl::HalfedgeId h : arr.halfedges()) {
-        parent[root(arr.origin(h).index())] = root(arr.target(h).index());
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
+        parent[root(arr.source(h).index())] = root(arr.target(h).index());
     }
     std::set<std::size_t> roots;
     for (std::size_t i = 0; i < parent.size(); ++i) {
@@ -64,56 +69,68 @@ std::size_t componentCount(const Arrangement& arr) {
 void checkInvariants(const Arrangement& arr) {
     REQUIRE(arr.halfedgeCount() % 2 == 0);
     REQUIRE(arr.faceCount() >= 1);
-    CHECK(arr.isUnbounded(pgl::FaceId(0)));
+    CHECK(arr.isUnbounded(FaceId(0)));
 
-    for (pgl::HalfedgeId h : arr.halfedges()) {
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
         CHECK(arr.twin(arr.twin(h)) == h);
         CHECK(arr.twin(h) != h);
         CHECK(arr.face(arr.next(h)) == arr.face(h));
-        CHECK(arr.origin(arr.next(h)) == arr.target(h));
-        CHECK(arr.origin(h) != arr.target(h));
+        CHECK(arr.source(arr.next(h)) == arr.target(h));
+        CHECK(arr.source(h) != arr.target(h));
         CHECK_FALSE(arr.isFictitious(h));
-        // The edge of a halfedge is the edge of its twin, and it joins the two
-        // endpoints the topology names.
-        CHECK(arr[h] == arr[arr.twin(h)]);
-        CHECK(arr[h] == Segment(arr[arr.origin(h)], arr[arr.target(h)]));
+        // A halfedge indexes to the directed segment between the topology's
+        // source and target; its twin has the reverse direction.
+        CHECK(arr[h].source() == arr[arr.source(h)]);
+        CHECK(arr[h].target() == arr[arr.target(h)]);
+        CHECK(arr[h].source() == arr[arr.twin(h)].target());
+        CHECK(arr[h].target() == arr[arr.twin(h)].source());
         CHECK_FALSE(arr.originsOf(h).empty());
     }
 
     // Every halfedge leaving a vertex says so, and the rotational fan reaches
     // all of them.
-    std::map<pgl::VertexId, std::size_t> degree;
-    for (pgl::HalfedgeId h : arr.halfedges()) {
-        ++degree[arr.origin(h)];
+    std::map<VertexId, std::size_t> degree;
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
+        ++degree[arr.source(h)];
     }
     for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
-        const pgl::VertexId v(i);
-        const pgl::HalfedgeId start = arr.outgoing(v);
+        const VertexId v(i);
+        const HalfedgeId start = arr.outgoing(v);
+        const std::vector<HalfedgeId> outgoing = arr.outgoingHalfedges(v);
         if (!start.valid()) {
             CHECK(degree[v] == 0);
+            CHECK(outgoing.empty());
             continue;
         }
+        REQUIRE_FALSE(outgoing.empty());
+        CHECK(outgoing.front() == start);
         std::size_t seen = 0;
-        pgl::HalfedgeId h = start;
+        HalfedgeId h = start;
         do {
-            CHECK(arr.origin(h) == v);
+            REQUIRE(seen < outgoing.size());
+            CHECK(outgoing[seen] == h);
+            CHECK(arr.source(h) == v);
             h = arr.next(arr.twin(h));
             ++seen;
             REQUIRE(seen <= arr.halfedgeCount());
         } while (h != start);
         CHECK(seen == degree[v]);
+        CHECK(outgoing.size() == degree[v]);
     }
 
     // The next cycles partition the halfedges, and each is listed exactly once
     // as the outer or an inner cycle of the face it bounds.
     std::set<std::uint32_t> visited;
     std::size_t cycles = 0;
-    for (pgl::HalfedgeId h : arr.halfedges()) {
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
         if (visited.count(h.index()) != 0) {
             continue;
         }
         ++cycles;
-        pgl::HalfedgeId walk = h;
+        HalfedgeId walk = h;
         do {
             CHECK(visited.insert(walk.index()).second);
             walk = arr.next(walk);
@@ -122,14 +139,15 @@ void checkInvariants(const Arrangement& arr) {
     CHECK(visited.size() == arr.halfedgeCount());
 
     std::size_t listed = 0;
-    for (pgl::FaceId f : arr.faces()) {
-        const pgl::HalfedgeId outer = arr.outerCycle(f);
+    for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+        const FaceId f(i);
+        const HalfedgeId outer = arr.outerCycle(f);
         CHECK(outer.valid() == !arr.isUnbounded(f));
         if (outer.valid()) {
             CHECK(arr.face(outer) == f);
             ++listed;
         }
-        for (pgl::HalfedgeId inner : arr.innerCycles(f)) {
+        for (HalfedgeId inner : arr.innerCycles(f)) {
             CHECK(arr.face(inner) == f);
             ++listed;
         }
@@ -140,8 +158,9 @@ void checkInvariants(const Arrangement& arr) {
     // halfedge of the pair.
     const std::vector<Segment> edges = arr.edges();
     REQUIRE(edges.size() == arr.edgeCount());
-    for (pgl::HalfedgeId h : arr.halfedges()) {
-        CHECK(edges[h.index() / 2] == arr[h]);
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
+        CHECK(edges[h.index() / 2] == Segment(arr[h].source(), arr[h].target()));
     }
     CHECK(arr.vertices().size() == arr.vertexCount());
 
@@ -152,13 +171,14 @@ void checkInvariants(const Arrangement& arr) {
     CHECK(v + f == e + 1 + componentCount(arr));
 
     // Each bounded face's witness is where it says it is.
-    for (pgl::FaceId face : arr.faces()) {
+    for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+        const FaceId face(i);
         if (arr.isUnbounded(face)) {
             continue;
         }
         const Point witness = arr.witness(face);
         CHECK(arr.locate(witness) == face);
-        CHECK(arr.polygon(face).contains(witness));
+        CHECK(arr.polygonWithHoles(face).contains(witness));
     }
 }
 
@@ -172,9 +192,10 @@ Arrangement arrangementOf(const std::vector<Segment>& segments) {
 // whole subdivision it expects.
 std::vector<Region> boundedFaces(const Arrangement& arr) {
     std::vector<Region> regions;
-    for (pgl::FaceId f : arr.faces()) {
+    for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+        const FaceId f(i);
         if (!arr.isUnbounded(f)) {
-            regions.push_back(arr.polygon(f));
+            regions.push_back(arr.polygonWithHoles(f));
         }
     }
     std::sort(regions.begin(), regions.end());
@@ -183,6 +204,31 @@ std::vector<Region> boundedFaces(const Arrangement& arr) {
 
 Region regionOf(const std::vector<Point>& ring) {
     return Region(PolygonShape(ring));
+}
+
+// The public face boundary is a flat sequence, but its cycles remain evident:
+// each supplied start begins a consecutive `next` walk in the returned order.
+void checkBoundaryOf(const Arrangement& arr, FaceId face,
+                     const std::vector<HalfedgeId>& starts) {
+    std::vector<HalfedgeId> expected;
+    for (HalfedgeId start : starts) {
+        HalfedgeId h = start;
+        do {
+            expected.push_back(h);
+            h = arr.next(h);
+        } while (h != start);
+    }
+    CHECK(arr.boundaryOf(face) == expected);
+}
+
+std::vector<HalfedgeId> cycleFrom(const Arrangement& arr, HalfedgeId start) {
+    std::vector<HalfedgeId> cycle;
+    HalfedgeId h = start;
+    do {
+        cycle.push_back(h);
+        h = arr.next(h);
+    } while (h != start);
+    return cycle;
 }
 
 // The four sides of an axis-parallel square, appended to `out`.
@@ -219,13 +265,13 @@ void checkNestedCells(const Arrangement& arr, int cells) {
 
     // The unbounded face is held off by the big square alone, and the big square
     // holds one ring per cell — not the inner rings, which are two deep.
-    CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
+    CHECK(arr.innerCycles(FaceId(0)).size() == 1);
     CHECK(arr.innerCycles(arr.locate(P(0, 0) + Point(Number(1, 2), Number(1, 2)))).size() ==
           static_cast<std::size_t>(cells) * cells);
     for (int i = 0; i < cells; ++i) {
         for (int j = 0; j < cells; ++j) {
-            const pgl::FaceId ring = arr.locate(P(10 * i + 2, 10 * j + 2));
-            const pgl::FaceId inside = arr.locate(P(10 * i + 4, 10 * j + 4));
+            const FaceId ring = arr.locate(P(10 * i + 2, 10 * j + 2));
+            const FaceId inside = arr.locate(P(10 * i + 4, 10 * j + 4));
             CHECK(ring != inside);
             CHECK(arr.innerCycles(ring).size() == 1);
             CHECK(arr.innerCycles(inside).empty());
@@ -241,12 +287,56 @@ TEST_CASE("empty arrangement has only the unbounded face") {
     CHECK(empty.vertexCount() == 0);
     CHECK(empty.halfedgeCount() == 0);
     CHECK(empty.faceCount() == 1);
-    CHECK(empty.locate(P(3, 7)) == pgl::FaceId(0));
-    CHECK(empty.innerCycles(pgl::FaceId(0)).empty());
+    CHECK(empty.locate(P(3, 7)) == FaceId(0));
+    CHECK(empty.innerCycles(FaceId(0)).empty());
+    CHECK(empty.boundaryOf(FaceId(0)).empty());
+    CHECK(empty.outerBoundaryOf(FaceId(0)).empty());
+    CHECK(empty.innerBoundariesOf(FaceId(0)).empty());
+    CHECK_THROWS_AS(static_cast<void>(empty.polygonWithHoles(FaceId(0))), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(empty.polygonWithHoles(FaceId())), std::logic_error);
 
     const Arrangement fromNothing{std::vector<Segment>{}};
     checkInvariants(fromNothing);
     CHECK(fromNothing.faceCount() == 1);
+}
+
+TEST_CASE("boundaryOf visits outer and inner face cycles in order") {
+    SUBCASE("the unbounded face lists its inner cycle") {
+        const Arrangement arr = arrangementOf(
+            {S(0, 0, 4, 0), S(4, 0, 4, 4), S(4, 4, 0, 4), S(0, 4, 0, 0)});
+        const FaceId unbounded(0);
+        REQUIRE(arr.innerCycles(unbounded).size() == 1);
+        checkBoundaryOf(arr, unbounded, {arr.innerCycles(unbounded).front()});
+        CHECK(arr.outerBoundaryOf(unbounded).empty());
+        CHECK(arr.innerBoundariesOf(unbounded) ==
+              std::vector<std::vector<HalfedgeId>>{
+                  cycleFrom(arr, arr.innerCycles(unbounded).front())});
+    }
+
+    SUBCASE("a bounded face without holes lists its outer cycle") {
+        const Arrangement arr = arrangementOf(
+            {S(0, 0, 4, 0), S(4, 0, 4, 4), S(4, 4, 0, 4), S(0, 4, 0, 0)});
+        const FaceId inside = arr.locate(P(1, 1));
+        REQUIRE(arr.outerCycle(inside).valid());
+        CHECK(arr.innerCycles(inside).empty());
+        checkBoundaryOf(arr, inside, {arr.outerCycle(inside)});
+        CHECK(arr.outerBoundaryOf(inside) == cycleFrom(arr, arr.outerCycle(inside)));
+        CHECK(arr.innerBoundariesOf(inside).empty());
+    }
+
+    SUBCASE("a bounded face with a hole lists its outer cycle then its inner cycle") {
+        const Arrangement arr = arrangementOf({S(0, 0, 6, 0), S(6, 0, 6, 6), S(6, 6, 0, 6),
+                                               S(0, 6, 0, 0), S(2, 2, 4, 2), S(4, 2, 4, 4),
+                                               S(4, 4, 2, 4), S(2, 4, 2, 2)});
+        const FaceId ring = arr.locate(P(1, 1));
+        REQUIRE(arr.outerCycle(ring).valid());
+        REQUIRE(arr.innerCycles(ring).size() == 1);
+        checkBoundaryOf(arr, ring, {arr.outerCycle(ring), arr.innerCycles(ring).front()});
+        CHECK(arr.outerBoundaryOf(ring) == cycleFrom(arr, arr.outerCycle(ring)));
+        CHECK(arr.innerBoundariesOf(ring) ==
+              std::vector<std::vector<HalfedgeId>>{
+                  cycleFrom(arr, arr.innerCycles(ring).front())});
+    }
 }
 
 TEST_CASE("a single segment is two vertices, one edge and no bounded face") {
@@ -255,12 +345,13 @@ TEST_CASE("a single segment is two vertices, one edge and no bounded face") {
     CHECK(arr.edgeCount() == 1);
     CHECK(arr.faceCount() == 1);
     // The two halfedges form a single cycle, an inner cycle of the outer face.
-    CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
-    CHECK(arr.locate(P(2, 1)) == pgl::FaceId(0));
+    CHECK(arr.innerCycles(FaceId(0)).size() == 1);
+    CHECK(arr.locate(P(2, 1)) == FaceId(0));
 
-    const pgl::HalfedgeId h = arr.outgoing(pgl::VertexId(0));
+    const HalfedgeId h = arr.outgoing(VertexId(0));
     CHECK(arr.witness(h) == P(2, 1));
-    CHECK(arr[h] == S(0, 0, 4, 2));
+    CHECK(arr[h].source() == P(0, 0));
+    CHECK(arr[h].target() == P(4, 2));
 }
 
 TEST_CASE("crossing segments are split at their crossing") {
@@ -271,10 +362,10 @@ TEST_CASE("crossing segments are split at their crossing") {
     // The crossing is the only vertex of degree four.
     std::size_t crossings = 0;
     for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
-        const pgl::VertexId v(i);
+        const VertexId v(i);
         std::size_t degree = 0;
-        pgl::HalfedgeId h = arr.outgoing(v);
-        const pgl::HalfedgeId start = h;
+        HalfedgeId h = arr.outgoing(v);
+        const HalfedgeId start = h;
         do {
             ++degree;
             h = arr.next(arr.twin(h));
@@ -293,14 +384,14 @@ TEST_CASE("a square encloses one bounded face") {
     CHECK(arr.vertexCount() == 4);
     CHECK(arr.edgeCount() == 4);
     REQUIRE(arr.faceCount() == 2);
-    CHECK(arr.polygon(pgl::FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
-    CHECK(arr.locate(P(1, 1)) == pgl::FaceId(1));
-    CHECK(arr.locate(P(5, 1)) == pgl::FaceId(0));
-    CHECK(arr.locate(P(-1, 2)) == pgl::FaceId(0));
+    CHECK(arr.polygonWithHoles(FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
+    CHECK(arr.locate(P(1, 1)) == FaceId(1));
+    CHECK(arr.locate(P(5, 1)) == FaceId(0));
+    CHECK(arr.locate(P(-1, 2)) == FaceId(0));
 
     // Only the unbounded face is unbounded, and it is the one holding the square.
-    CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
-    CHECK(arr.innerCycles(pgl::FaceId(1)).empty());
+    CHECK(arr.innerCycles(FaceId(0)).size() == 1);
+    CHECK(arr.innerCycles(FaceId(1)).empty());
 }
 
 TEST_CASE("a diagonal cuts a square into two faces") {
@@ -320,8 +411,8 @@ TEST_CASE("a square inside a square is a face with a hole") {
                                            S(4, 4, 2, 4), S(2, 4, 2, 2)});
     REQUIRE(arr.faceCount() == 3);
 
-    const pgl::FaceId ring = arr.locate(P(1, 1));
-    const pgl::FaceId inside = arr.locate(P(3, 3));
+    const FaceId ring = arr.locate(P(1, 1));
+    const FaceId inside = arr.locate(P(3, 3));
     CHECK(ring != inside);
     CHECK_FALSE(arr.isUnbounded(ring));
     CHECK_FALSE(arr.isUnbounded(inside));
@@ -331,8 +422,8 @@ TEST_CASE("a square inside a square is a face with a hole") {
 
     const Region holed(PolygonShape({P(0, 0), P(6, 0), P(6, 6), P(0, 6)}),
                         std::vector<PolygonShape>{PolygonShape({P(2, 2), P(4, 2), P(4, 4), P(2, 4)})});
-    CHECK(arr.polygon(ring) == holed);
-    CHECK(arr.polygon(inside) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
+    CHECK(arr.polygonWithHoles(ring) == holed);
+    CHECK(arr.polygonWithHoles(inside) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     // The witness of the ring-shaped face must miss the hole.
     CHECK(holed.contains(arr.witness(ring)));
 }
@@ -349,11 +440,11 @@ TEST_CASE("nested rings are assigned to the face that really holds them") {
         const Arrangement arr = arrangementOf(squares);
         REQUIRE(arr.faceCount() == 4);
         // Each ring holds exactly the next one in, and the innermost holds none.
-        CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
+        CHECK(arr.innerCycles(FaceId(0)).size() == 1);
         CHECK(arr.innerCycles(arr.locate(P(0, 5))).size() == 1);
         CHECK(arr.innerCycles(arr.locate(P(0, 3))).size() == 1);
         CHECK(arr.innerCycles(arr.locate(P(0, 1))).empty());
-        CHECK(arr.polygon(arr.locate(P(0, 3))).holeCount() == 1);
+        CHECK(arr.polygonWithHoles(arr.locate(P(0, 3))).holeCount() == 1);
     }
 
     SUBCASE("many rings, nested two deep") {
@@ -376,9 +467,9 @@ TEST_CASE("nested rings are assigned to the face that really holds them") {
                                                S(3, 6, 2, 2), S(4, 2, 6, 2), S(6, 2, 6, 4),
                                                S(6, 4, 4, 4), S(4, 4, 4, 2)});
         REQUIRE(arr.faceCount() == 4);
-        const pgl::FaceId around = arr.locate(P(7, 1));
+        const FaceId around = arr.locate(P(7, 1));
         CHECK(arr.innerCycles(around).size() == 2);
-        CHECK(arr.polygon(around).holeCount() == 2);
+        CHECK(arr.polygonWithHoles(around).holeCount() == 2);
         CHECK(arr.innerCycles(arr.locate(P(2, 5))).empty());   // the triangle
         CHECK(arr.innerCycles(arr.locate(P(5, 3))).empty());   // the small square
     }
@@ -397,7 +488,7 @@ TEST_CASE("two triangles meeting at a point stay two faces") {
     CHECK(faces == expected);
     // The unbounded face's inner cycle walks the whole bowtie, passing the pinch
     // vertex twice.
-    CHECK(arr.innerCycles(pgl::FaceId(0)).size() == 1);
+    CHECK(arr.innerCycles(FaceId(0)).size() == 1);
 }
 
 TEST_CASE("duplicated and overlapping input becomes one edge each") {
@@ -405,7 +496,7 @@ TEST_CASE("duplicated and overlapping input becomes one edge each") {
         const Arrangement arr = arrangementOf({S(0, 0, 4, 0), S(4, 0, 0, 0), S(0, 0, 4, 0)});
         CHECK(arr.vertexCount() == 2);
         CHECK(arr.edgeCount() == 1);
-        const pgl::HalfedgeId h = arr.outgoing(pgl::VertexId(0));
+        const HalfedgeId h = arr.outgoing(VertexId(0));
         const std::vector<std::uint32_t> origins(arr.originsOf(h).begin(),
                                                  arr.originsOf(h).end());
         CHECK(origins == std::vector<std::uint32_t>{0, 1, 2});
@@ -417,8 +508,9 @@ TEST_CASE("duplicated and overlapping input becomes one edge each") {
         CHECK(arr.edgeCount() == 3);
         // Only the shared stretch has two origins.
         std::map<Segment, std::size_t> origins;
-        for (pgl::HalfedgeId h : arr.halfedges()) {
-            origins[arr[h]] = arr.originsOf(h).size();
+        for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+            const HalfedgeId h(i);
+            origins[Segment(arr[h].source(), arr[h].target())] = arr.originsOf(h).size();
         }
         CHECK(origins.size() == 3);
         CHECK(origins[S(0, 0, 2, 0)] == 1);
@@ -436,8 +528,8 @@ TEST_CASE("a dangling edge does not disturb the face it hangs in") {
         REQUIRE(arr.faceCount() == 2);
         // The face's boundary walks down the spike and back; its polygon is the
         // regularized face, so the spike is gone.
-        CHECK(arr.polygon(pgl::FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
-        CHECK(arr.locate(P(3, 1)) == pgl::FaceId(1));
+        CHECK(arr.polygonWithHoles(FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
+        CHECK(arr.locate(P(3, 1)) == FaceId(1));
     }
 
     SUBCASE("floating inside") {
@@ -447,8 +539,8 @@ TEST_CASE("a dangling edge does not disturb the face it hangs in") {
         CHECK(arr.edgeCount() == 5);
         REQUIRE(arr.faceCount() == 2);
         // The floating segment is an inner cycle of the square's face.
-        CHECK(arr.innerCycles(pgl::FaceId(1)).size() == 1);
-        CHECK(arr.polygon(pgl::FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
+        CHECK(arr.innerCycles(FaceId(1)).size() == 1);
+        CHECK(arr.polygonWithHoles(FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
     }
 }
 
@@ -469,16 +561,16 @@ TEST_CASE("isolated points are vertices of the face holding them") {
 
     std::size_t isolated = 0;
     for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
-        const pgl::VertexId v(i);
+        const VertexId v(i);
         if (!arr.outgoing(v).valid()) {
             ++isolated;
             CHECK((arr[v] == P(2, 2) || arr[v] == P(9, 9)));
         }
     }
     CHECK(isolated == 2);
-    CHECK(arr.locate(P(2, 2)) == pgl::FaceId(1));
-    CHECK(arr.locate(P(9, 9)) == pgl::FaceId(0));
-    CHECK(arr.witness(pgl::VertexId(0)) == arr[pgl::VertexId(0)]);
+    CHECK(arr.locate(P(2, 2)) == FaceId(1));
+    CHECK(arr.locate(P(9, 9)) == FaceId(0));
+    CHECK(arr.witness(VertexId(0)) == arr[VertexId(0)]);
 }
 
 TEST_CASE("many segments through one point") {
@@ -490,9 +582,10 @@ TEST_CASE("many segments through one point") {
     CHECK(arr.vertexCount() == 7);
     CHECK(arr.edgeCount() == 12);
     CHECK(arr.faceCount() == 7);
-    for (pgl::FaceId f : arr.faces()) {
+    for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+        const FaceId f(i);
         if (!arr.isUnbounded(f)) {
-            CHECK(arr.polygon(f).outer().size() == 3);
+            CHECK(arr.polygonWithHoles(f).outer().size() == 3);
         }
     }
 }
@@ -508,9 +601,10 @@ TEST_CASE("vertical and horizontal segments in a grid") {
     CHECK(arr.edgeCount() == 12);
     REQUIRE(arr.faceCount() == 5);
     Number total(0);
-    for (pgl::FaceId f : arr.faces()) {
+    for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+        const FaceId f(i);
         if (!arr.isUnbounded(f)) {
-            total += arr.polygon(f).twiceArea();
+            total += arr.polygonWithHoles(f).twiceArea();
         }
     }
     CHECK(total == Number(8));  // twice the area of the 2x2 square
@@ -539,7 +633,7 @@ TEST_CASE("polygonal input contributes its boundary") {
         checkInvariants(arr);
         // The two squares overlap in a third one, so three bounded faces.
         CHECK(arr.faceCount() == 4);
-        CHECK(arr.polygon(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
+        CHECK(arr.polygonWithHoles(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     }
 
     SUBCASE("a region, holes included") {
@@ -548,8 +642,8 @@ TEST_CASE("polygonal input contributes its boundary") {
         const Arrangement arr(std::vector<Region>{holed});
         checkInvariants(arr);
         REQUIRE(arr.faceCount() == 3);
-        CHECK(arr.polygon(arr.locate(P(1, 1))) == holed);
-        CHECK(arr.polygon(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
+        CHECK(arr.polygonWithHoles(arr.locate(P(1, 1))) == holed);
+        CHECK(arr.polygonWithHoles(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     }
 
     SUBCASE("triangles and rectangles") {
@@ -573,11 +667,13 @@ TEST_CASE("polygonal input contributes its boundary") {
 
 TEST_CASE("edges inherit the label of the shape that produced them") {
     using LabeledSegment = pgl::Segment<Point, int>;
+    using LabeledArrangement = pgl::Arrangement<Point, int>;
     const std::vector<LabeledSegment> segments{
         LabeledSegment(P(0, 0), P(4, 0), 7), LabeledSegment(P(2, -2), P(2, 2), 9)};
 
-    pgl::Arrangement<Point, int> arr(segments);
-    for (pgl::HalfedgeId h : arr.halfedges()) {
+    LabeledArrangement arr(segments);
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const LabeledArrangement::HalfedgeId h(i);
         const std::uint32_t source = arr.originsOf(h).front();
         CHECK(arr.label(h) == (source == 0 ? 7 : 9));
         CHECK(arr.label(h) == arr[h].label());
@@ -593,7 +689,7 @@ TEST_CASE("edges inherit the label of the shape that produced them") {
     CHECK(labels == std::multiset<int>{7, 7, 9, 9});
 
     // A face's label is the caller's to set.
-    const pgl::FaceId unbounded(0);
+    const LabeledArrangement::FaceId unbounded(0);
     CHECK(arr.label(unbounded) == 0);
     arr.label(unbounded) = 5;
     CHECK(arr.label(unbounded) == 5);
@@ -602,16 +698,17 @@ TEST_CASE("edges inherit the label of the shape that produced them") {
 TEST_CASE("integer coordinates suffice when segments meet only at endpoints") {
     using IntPoint = pgl::Point<int>;
     using IntSegment = pgl::Segment<IntPoint>;
+    using IntArrangement = pgl::Arrangement<IntPoint>;
     const std::vector<IntSegment> square{
         IntSegment(IntPoint(0, 0), IntPoint(4, 0)), IntSegment(IntPoint(4, 0), IntPoint(4, 4)),
         IntSegment(IntPoint(4, 4), IntPoint(0, 4)), IntSegment(IntPoint(0, 4), IntPoint(0, 0))};
-    const pgl::Arrangement<IntPoint> arr(square);
+    const IntArrangement arr(square);
     REQUIRE(arr.faceCount() == 2);
-    CHECK(arr.locate(IntPoint(2, 2)) == pgl::FaceId(1));
-    CHECK(arr.locate(IntPoint(9, 2)) == pgl::FaceId(0));
+    CHECK(arr.locate(IntPoint(2, 2)) == IntArrangement::FaceId(1));
+    CHECK(arr.locate(IntPoint(9, 2)) == IntArrangement::FaceId(0));
     // The witness is asked for in a type that can hold it.
-    CHECK(arr.polygon<pgl::Rational<int>>(pgl::FaceId(1))
-              .contains(arr.witness<pgl::Rational<int>>(pgl::FaceId(1))));
+    CHECK(arr.polygonWithHoles<pgl::Rational<int>>(IntArrangement::FaceId(1))
+              .contains(arr.witness<pgl::Rational<int>>(IntArrangement::FaceId(1))));
 }
 
 TEST_CASE("integer coordinates suffice when orthogonal segments cross") {
@@ -636,21 +733,22 @@ TEST_CASE("integer coordinates suffice when orthogonal segments cross") {
 }
 
 TEST_CASE("handles are distinct, ordered and hashable types") {
-    CHECK(sizeof(pgl::VertexId) == sizeof(std::uint32_t));
-    CHECK_FALSE(std::is_convertible_v<pgl::VertexId, pgl::FaceId>);
-    CHECK_FALSE(std::is_convertible_v<std::uint32_t, pgl::VertexId>);
+    CHECK(sizeof(VertexId) == sizeof(std::uint32_t));
+    CHECK_FALSE(std::is_convertible_v<VertexId, FaceId>);
+    CHECK_FALSE(std::is_convertible_v<std::uint32_t, VertexId>);
+    CHECK_FALSE(std::is_same_v<VertexId, pgl::Arrangement<Point, int>::VertexId>);
 
-    const pgl::FaceId invalid;
+    const FaceId invalid;
     CHECK_FALSE(invalid.valid());
     CHECK_FALSE(static_cast<bool>(invalid));
-    CHECK(pgl::FaceId(3).valid());
-    CHECK(pgl::FaceId(3).index() == 3);
-    CHECK(pgl::FaceId(2) < pgl::FaceId(3));
-    CHECK(pgl::FaceId(3) == pgl::FaceId(3));
-    CHECK(pgl::FaceId(3) != invalid);
+    CHECK(FaceId(3).valid());
+    CHECK(FaceId(3).index() == 3);
+    CHECK(FaceId(2) < FaceId(3));
+    CHECK(FaceId(3) == FaceId(3));
+    CHECK(FaceId(3) != invalid);
 
-    const std::set<pgl::HalfedgeId> ordered{pgl::HalfedgeId(4), pgl::HalfedgeId(1)};
+    const std::set<HalfedgeId> ordered{HalfedgeId(4), HalfedgeId(1)};
     CHECK(ordered.begin()->index() == 1);
-    CHECK(std::hash<pgl::VertexId>{}(pgl::VertexId(6)) ==
-          std::hash<pgl::VertexId>{}(pgl::VertexId(6)));
+    CHECK(std::hash<VertexId>{}(VertexId(6)) ==
+          std::hash<VertexId>{}(VertexId(6)));
 }

@@ -20,7 +20,8 @@
  * twin-adjacent pairs, so `twin(h)` is `h.index() ^ 1` and costs no memory
  * access, and the whole structure is three `std::uint32_t` arrays (`origin`,
  * `next`, `face`) beside the vertex coordinates. The three handle families are
- * distinct types (@ref pgl::VertexId, @ref pgl::HalfedgeId, @ref pgl::FaceId),
+ * distinct types (@ref pgl::Arrangement::VertexId,
+ * @ref pgl::Arrangement::HalfedgeId and @ref pgl::Arrangement::FaceId),
  * which is what lets @ref pgl::Arrangement::operator[] and
  * @ref pgl::Arrangement::witness be one name each across cell families instead
  * of three, and what lets a caller classify cells of all three dimensions in a
@@ -50,6 +51,7 @@
 #include <ranges>
 #include <set>
 #include <span>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -125,20 +127,6 @@ private:
 };
 
 }  // namespace detail
-
-/** @brief Tag making @ref VertexId a distinct type. */
-struct ArrangementVertexTag;
-/** @brief Tag making @ref HalfedgeId a distinct type. */
-struct ArrangementHalfedgeTag;
-/** @brief Tag making @ref FaceId a distinct type. */
-struct ArrangementFaceTag;
-
-/** @brief Handle of a vertex of an @ref Arrangement. */
-using VertexId = detail::Handle<ArrangementVertexTag>;
-/** @brief Handle of a halfedge of an @ref Arrangement. */
-using HalfedgeId = detail::Handle<ArrangementHalfedgeTag>;
-/** @brief Handle of a face of an @ref Arrangement. */
-using FaceId = detail::Handle<ArrangementFaceTag>;
 
 }  // namespace pgl
 
@@ -242,11 +230,11 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
  *         produced it) and by a face (default-constructed, editable).
  *
  * The cells of the subdivision are its vertices, edges and faces, handled by
- * @ref VertexId, @ref HalfedgeId and @ref FaceId. Each edge is a pair of
- * twin halfedges: `twin(h)` is `h.index() ^ 1`, and the face of a halfedge is
- * always the one on its **left**, so a bounded face is enclosed by a
- * counterclockwise cycle of `next` and the outer boundary of a connected piece
- * of the input runs clockwise.
+ * @ref Arrangement::VertexId, @ref Arrangement::HalfedgeId and
+ * @ref Arrangement::FaceId. Each edge is a pair of twin halfedges: `twin(h)`
+ * is `h.index() ^ 1`, and the face of a halfedge is always the one on its
+ * **left**, so a bounded face is enclosed by a counterclockwise cycle of `next`
+ * and the outer boundary of a connected piece of the input runs clockwise.
  *
  * Face 0 is always the unbounded face, and it is the only face of an empty
  * arrangement.
@@ -258,7 +246,18 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
  */
 template <class PointType_, class TLabel>
 class Arrangement {
+    struct VertexTag;
+    struct HalfedgeTag;
+    struct FaceTag;
+
 public:
+    /** @brief Handle of a vertex of this arrangement specialization. */
+    using VertexId = detail::Handle<VertexTag>;
+    /** @brief Handle of a halfedge of this arrangement specialization. */
+    using HalfedgeId = detail::Handle<HalfedgeTag>;
+    /** @brief Handle of a face of this arrangement specialization. */
+    using FaceId = detail::Handle<FaceTag>;
+
     /** @brief Vertex type. */
     using PointType = PointType_;
     /** @brief Coordinate type of the vertices. */
@@ -267,6 +266,8 @@ public:
     using LabelType = TLabel;
     /** @brief Type returned for an edge. */
     using SegmentType = Segment<PointType, TLabel>;
+    /** @brief Type returned for a halfedge. */
+    using OrientedSegmentType = OrientedSegment<PointType, TLabel>;
 
     static_assert(detail::is_point_v<PointType>, "Arrangement requires pgl::Point vertices");
 
@@ -389,28 +390,21 @@ public:
      * @brief Returns every edge, each carrying its label, one per twin pair.
      *
      * The edge of index `i` is the one the halfedges `2i` and `2i + 1` run
-     * along, so `edges()[h.index() / 2]` is what `operator[](HalfedgeId)`
-     * returns for `h` and for its twin alike. Unlike @ref vertices this is
-     * built on demand rather than stored, the topology keeping halfedges
-     * rather than edges.
+     * along, so `edges()[h.index() / 2]` is their common, unoriented edge.
+     * Unlike @ref vertices this is built on demand rather than stored, the
+     * topology keeping halfedges rather than edges.
      */
     [[nodiscard]] std::vector<SegmentType> edges() const {
         std::vector<SegmentType> result;
         result.reserve(edgeCount());
         for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
-            result.push_back((*this)[HalfedgeId(h)]);
+            SegmentType edge(points_[origin_[h]], points_[origin_[h ^ 1]]);
+            if constexpr (detail::has_label_v<TLabel>) {
+                edge.label() = edgeLabel_[h / 2];
+            }
+            result.push_back(std::move(edge));
         }
         return result;
-    }
-
-    /** @brief Returns the range of every @ref HalfedgeId, in index order. */
-    [[nodiscard]] auto halfedges() const {
-        return handles<HalfedgeId>(origin_.size());
-    }
-
-    /** @brief Returns the range of every @ref FaceId, in index order. */
-    [[nodiscard]] auto faces() const {
-        return handles<FaceId>(outerCycle_.size());
     }
 
     /**
@@ -424,17 +418,16 @@ public:
     }
 
     /**
-     * @brief Returns the edge a halfedge belongs to, carrying the edge label.
+     * @brief Returns the directed segment of a halfedge, carrying the edge label.
      *
-     * Twin halfedges return the same segment: a @ref Segment is unoriented, so
-     * this is the edge, not the directed halfedge. Use @ref origin and
-     * @ref target for the direction.
+     * The returned @ref OrientedSegment runs from @ref source to @ref target.
+     * A twin returns the same geometric edge in the opposite direction.
      *
      * @param h Halfedge handle.
      */
-    [[nodiscard]] SegmentType operator[](HalfedgeId h) const {
+    [[nodiscard]] OrientedSegmentType operator[](HalfedgeId h) const {
         assert(h.valid() && h.index() < origin_.size());
-        SegmentType segment(points_[origin_[h.index()]], points_[origin_[h.index() ^ 1]]);
+        OrientedSegmentType segment(points_[origin_[h.index()]], points_[origin_[h.index() ^ 1]]);
         if constexpr (detail::has_label_v<TLabel>) {
             segment.label() = edgeLabel_[h.index() / 2];
         }
@@ -471,7 +464,7 @@ public:
      *
      * @param h Halfedge handle.
      */
-    [[nodiscard]] VertexId origin(HalfedgeId h) const {
+    [[nodiscard]] VertexId source(HalfedgeId h) const {
         assert(h.valid() && h.index() < origin_.size());
         return VertexId(origin_[h.index()]);
     }
@@ -482,7 +475,7 @@ public:
      * @param h Halfedge handle.
      */
     [[nodiscard]] VertexId target(HalfedgeId h) const {
-        return origin(twin(h));
+        return source(twin(h));
     }
 
     /**
@@ -509,6 +502,30 @@ public:
     [[nodiscard]] HalfedgeId outgoing(VertexId v) const {
         assert(v.valid() && v.index() < outgoing_.size());
         return outgoing_[v.index()];
+    }
+
+    /**
+     * @brief Returns every halfedge leaving a vertex, in clockwise order.
+     *
+     * The first entry is @ref outgoing(v), and each following entry is
+     * `next(twin(h))` of the previous one. An isolated vertex has no outgoing
+     * halfedges and returns an empty vector.
+     *
+     * @param v Vertex handle.
+     */
+    [[nodiscard]] std::vector<HalfedgeId> outgoingHalfedges(VertexId v) const {
+        assert(v.valid() && v.index() < outgoing_.size());
+        std::vector<HalfedgeId> halfedges;
+        const HalfedgeId start = outgoing_[v.index()];
+        if (!start.valid()) {
+            return halfedges;
+        }
+        HalfedgeId h = start;
+        do {
+            halfedges.push_back(h);
+            h = next(twin(h));
+        } while (h != start);
+        return halfedges;
     }
 
     // -------------------------------------------------------------------------
@@ -795,6 +812,83 @@ public:
     }
 
     /**
+     * @brief Returns every halfedge bounding a face, outer cycle first.
+     *
+     * The returned halfedges follow each boundary cycle under @ref next. For a
+     * bounded face, its counterclockwise outer cycle comes first, followed by
+     * each clockwise inner cycle. The unbounded face has no outer cycle, so
+     * its result consists only of its inner cycles. Consequently, the boundary
+     * of the empty arrangement is empty.
+     *
+     * @param f Face handle.
+     */
+    [[nodiscard]] std::vector<HalfedgeId> boundaryOf(FaceId f) const {
+        assert(f.valid() && f.index() < outerCycle_.size());
+        std::vector<HalfedgeId> boundary;
+        const auto walkCycle = [&](HalfedgeId start) {
+            HalfedgeId h = start;
+            do {
+                boundary.push_back(h);
+                h = next(h);
+            } while (h != start);
+        };
+        if (outerCycle_[f.index()].valid()) {
+            walkCycle(outerCycle_[f.index()]);
+        }
+        for (HalfedgeId inner : innerCycles(f)) {
+            walkCycle(inner);
+        }
+        return boundary;
+    }
+
+    /**
+     * @brief Returns the halfedges of a face's counterclockwise outer boundary.
+     *
+     * The halfedges follow one another under @ref next. The unbounded face has
+     * no outer boundary, so its result is empty.
+     *
+     * @param f Face handle.
+     */
+    [[nodiscard]] std::vector<HalfedgeId> outerBoundaryOf(FaceId f) const {
+        assert(f.valid() && f.index() < outerCycle_.size());
+        std::vector<HalfedgeId> boundary;
+        const HalfedgeId start = outerCycle_[f.index()];
+        if (!start.valid()) {
+            return boundary;
+        }
+        HalfedgeId h = start;
+        do {
+            boundary.push_back(h);
+            h = next(h);
+        } while (h != start);
+        return boundary;
+    }
+
+    /**
+     * @brief Returns the halfedges of every clockwise inner boundary cycle.
+     *
+     * Each vector follows one cycle under @ref next, and the vectors have the
+     * same order as @ref innerCycles. The result is empty when the face has no
+     * inner boundaries.
+     *
+     * @param f Face handle.
+     */
+    [[nodiscard]] std::vector<std::vector<HalfedgeId>> innerBoundariesOf(FaceId f) const {
+        assert(f.valid() && f.index() < outerCycle_.size());
+        std::vector<std::vector<HalfedgeId>> boundaries;
+        boundaries.reserve(innerCycles(f).size());
+        for (HalfedgeId start : innerCycles(f)) {
+            std::vector<HalfedgeId>& boundary = boundaries.emplace_back();
+            HalfedgeId h = start;
+            do {
+                boundary.push_back(h);
+                h = next(h);
+            } while (h != start);
+        }
+        return boundaries;
+    }
+
+    /**
      * @brief Returns the closure of a bounded face as a region.
      *
      * The result is the **regularized** face: a dangling edge sticking into the
@@ -806,11 +900,14 @@ public:
      *
      * @tparam ResultNumber Coordinate type of the result.
      * @param f Face handle.
-     * @pre The face is bounded (@ref isUnbounded is false).
+     * @throws std::logic_error if @p f is invalid or names the unbounded face.
      */
     template <class ResultNumber = NumberType>
-    [[nodiscard]] PolygonWithHoles<Point<ResultNumber>> polygon(FaceId f) const {
-        assert(f.valid() && !isUnbounded(f));
+    [[nodiscard]] PolygonWithHoles<Point<ResultNumber>> polygonWithHoles(FaceId f) const {
+        if (!f.valid() || f.index() >= outerCycle_.size() || f.index() == 0) {
+            throw std::logic_error(
+                "Arrangement::polygonWithHoles is only defined for bounded faces");
+        }
         using ExactPolygon = Polygon<PointType>;
 
         std::vector<ExactPolygon> rings;
@@ -934,12 +1031,6 @@ private:
         std::uint32_t origin;
         [[no_unique_address]] TLabel label;
     };
-
-    template <class Id>
-    static auto handles(std::size_t count) {
-        return std::views::iota(std::uint32_t{0}, static_cast<std::uint32_t>(count)) |
-               std::views::transform([](std::uint32_t i) { return Id(i); });
-    }
 
     // -------------------------------------------------------------------------
     // Input normalization
