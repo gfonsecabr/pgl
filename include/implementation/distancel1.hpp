@@ -1565,4 +1565,35 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::distanceL1(const OtherInt
 // No Disk overload: the library defines the L1 and LInf distances to a disk
 // only from a point.
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// The distance to a union is the minimum of the distances, with no caveat and
+// no operand it fails for. An empty set has no component to measure from and
+// reports zero.
+
+template <class PointType, class LabelType>
+template <class ResultNumber, detail::SetOperandConcept OtherShape>
+auto PolygonSet<PointType, LabelType>::distanceL1(const OtherShape& other) const {
+    return minOverComponents<ResultNumber>([&other](const ComponentType& component) {
+        return component.template distanceL1<ResultNumber>(other);
+    });
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber, PolygonSetConcept OtherSet>
+auto PolygonSet<PointType, LabelType>::distanceL1(const OtherSet& other) const {
+    ResultNumber best{};
+    bool seeded = false;
+    for (const auto& component : other) {
+        const ResultNumber current = this->template distanceL1<ResultNumber>(component);
+        if (!seeded || current < best) {
+            best = current;
+            seeded = true;
+        }
+    }
+    return best;
+}
+
 }  // namespace pgl

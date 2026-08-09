@@ -13,6 +13,18 @@ namespace pgl {
 namespace detail {
 
 /**
+ * @brief Exact coordinate type for a mixed pair, mirroring separates1DSet.
+ *
+ * The type the crossings of two shapes are held in: a rational over
+ * arbitrary-precision integers unless an operand already brought floating-point
+ * coordinates, in which case there is no exactness left to preserve.
+ */
+template <class ANumber, class BNumber>
+using Exact1DNumber = std::conditional_t<
+    std::is_floating_point_v<ANumber> || std::is_floating_point_v<BNumber>,
+    double, Rational<BigInt>>;
+
+/**
  * @name Shape Category Traits
  * predicates.hpp uses these traits to route generic 'Shape' overloads toward
  * the correct helper at compile time. The single-shape detectors (is_segment,

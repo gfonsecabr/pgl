@@ -1095,6 +1095,58 @@ struct Rectangle {
     template<PolygonWithHolesConcept OtherRegion>
     [[nodiscard]] bool separates(const OtherRegion& other) const;
 
+    // -------------------------------------------------------------------------
+    // A set of regions
+    //
+    // It outranks every other shape, so the symmetric relations reach it through
+    // the rank-based forwarders and only the asymmetric ones are answered here.
+    // A set is the union of its components, so it is contained exactly when
+    // every component is — no matter what this shape is.
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template<PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool contains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!contains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template<PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!boundaryContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template<PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!interiorContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * A set of regions is the one target that may already be in several pieces
+     * before anything is removed, so this neither folds over its components nor
+     * answers false for a remover that misses it. See
+     * implementation/separates.hpp.
+     */
+    template<PolygonSetConcept OtherSet>
+    [[nodiscard]] bool separates(const OtherSet& other) const;
+
     /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
     [[nodiscard]] constexpr bool separates(const Shape<PointType>& other) const;
 

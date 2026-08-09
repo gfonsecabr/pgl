@@ -1975,4 +1975,73 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const Sh
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// `∂A = ⋃ ∂Aᵢ`: a point on a component's boundary is in the set's interior only
+// if another component fills the far side of it, which would mean a shared
+// stretch of edge — what PolygonSet::isValid rules out. The union has no area,
+// so only a collapsed operand can lie on it, and the one-dimensional case is
+// the same one PolygonSet::contains has: a segment may run from one component's
+// boundary onto another's through a point where the two touch.
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::boundaryContains(const OtherShape& other) const {
+    if constexpr (PointConcept<OtherShape>) {
+        return anyComponent([&](const ComponentType& c) { return c.boundaryContains(other); });
+    } else if constexpr (LineConcept<OtherShape>) {
+        return other.isDegenerate() && boundaryContains(other.min());
+    } else if constexpr (OrientedLineConcept<OtherShape>) {
+        return other.isDegenerate() && boundaryContains(other.source());
+    } else if constexpr (RayConcept<OtherShape>) {
+        return other.isDegenerate() && boundaryContains(other.source());
+    } else if constexpr (HalfplaneConcept<OtherShape>) {
+        // A half-plane is unbounded unless it has collapsed onto its own
+        // boundary line, which the line path then settles.
+        return other.isDegenerate() && boundaryContains(other.source());
+    } else if constexpr (SegmentConcept<OtherShape> || OrientedSegmentConcept<OtherShape>) {
+        if (anyComponent([&](const ComponentType& c) { return c.boundaryContains(other); })) {
+            return true;
+        }
+        if (!isPinched() || !intersects(other)) {
+            return false;
+        }
+        return segmentIn(other, /*boundaryOnly=*/true);
+    } else if constexpr (MonotoneChainConcept<OtherShape> || PolylineConcept<OtherShape>) {
+        if (anyComponent([&](const ComponentType& c) { return c.boundaryContains(other); })) {
+            return true;
+        }
+        if (!isPinched()) {
+            return false;
+        }
+        return chainIn(other, /*boundaryOnly=*/true);
+    } else {
+        if (anyComponent([&](const ComponentType& c) { return c.boundaryContains(other); })) {
+            return true;
+        }
+        return detail::reduceDegenerate(
+            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+    }
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::boundaryContains(const OtherSet& other) const {
+    for (const auto& component : other) {
+        if (!boundaryContains(component)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::boundaryContains(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->boundaryContains(value); },
+                      other.variant());
+}
+
 }  // namespace pgl

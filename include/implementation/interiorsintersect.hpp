@@ -2651,4 +2651,36 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const 
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// `A° = ⋃ Aᵢ°` for a valid set, so this is componentwise for the same reason
+// PolygonSet::intersects is.
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::interiorsIntersect(const OtherShape& other) const {
+    return anyComponent(
+        [&](const ComponentType& component) { return component.interiorsIntersect(other); });
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::interiorsIntersect(const OtherSet& other) const {
+    for (const auto& component : other) {
+        if (interiorsIntersect(component)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::interiorsIntersect(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->interiorsIntersect(value); },
+                      other.variant());
+}
+
 }  // namespace pgl

@@ -2396,4 +2396,40 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Sh
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// The component interiors are open and pairwise disjoint, so their union — the
+// set's interior, by the no-shared-edge clause of PolygonSet::isValid — holds a
+// connected shape only by holding it in one of them. Every operand but another
+// set is connected, so this is exact componentwise throughout, with none of the
+// one-dimensional trouble PolygonSet::contains has.
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::interiorContains(const OtherShape& other) const {
+    return anyComponent([&](const ComponentType& component) {
+        return component.interiorContains(other);
+    });
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::interiorContains(const OtherSet& other) const {
+    for (const auto& component : other) {
+        if (!interiorContains(component)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::interiorContains(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->interiorContains(value); },
+                      other.variant());
+}
+
 }  // namespace pgl

@@ -3332,11 +3332,9 @@ std::vector<Segment<ExactPoint>> arrangedPolylineEdges(const PolylineType& polyl
     return result;
 }
 
-/** @brief Exact coordinate type for a mixed pair, mirroring separates1DSet. */
-template <class ANumber, class BNumber>
-using Exact1DNumber = std::conditional_t<
-    std::is_floating_point_v<ANumber> || std::is_floating_point_v<BNumber>,
-    double, Rational<BigInt>>;
+// Exact1DNumber, the exact coordinate type for a mixed pair, lives in
+// predicates_helpers.hpp: the containment predicates need it too, and that
+// header is parsed well before this one.
 
 /**
  * @brief Tests whether removing a *convex* shape disconnects a polyline.
@@ -4503,7 +4501,7 @@ void appendCutSegments(const Shape& shape, std::vector<Segment<ExactPoint>>& out
         (void)add;
     } else if constexpr (is_segment_v<Shape>) {
         add(shape);
-    } else if constexpr (is_polygon_with_holes_v<Shape>) {
+    } else if constexpr (is_polygon_with_holes_v<Shape> || is_polygon_set_v<Shape>) {
         for (const auto& edge : shape.edges()) {
             add(edge);
         }
@@ -4530,6 +4528,25 @@ void appendCutPoints(const Shape& shape, std::vector<ExactPoint>& out) {
     } else {
         (void)shape;
         (void)out;
+    }
+}
+
+/**
+ * @brief What a shortcut answers when the remover cannot reach the target at
+ *        all: whether the target was already in more than one piece.
+ *
+ * Every shape in the library is connected except a @ref pgl::PolygonSet, whose
+ * components need not touch, so this is a constant `false` everywhere else. It
+ * is what keeps the cheap "the two shapes miss each other" exits of the engines
+ * below correct now that a target may come apart on its own.
+ */
+template <class Target>
+bool disconnectedOnItsOwn(const Target& target) {
+    if constexpr (is_polygon_set_v<Target>) {
+        return !target.isConnected();
+    } else {
+        (void)target;
+        return false;
     }
 }
 
@@ -4569,9 +4586,10 @@ bool cellSeparates(const Target& target, const Remover& remover) {
 
     // Every operand the engine is called with is connected — a region included,
     // see @ref regionsAreConnected — so a remover that misses the target
-    // removes nothing that matters.
+    // removes nothing that matters. A set of regions is the exception: it may
+    // come apart on its own, and then no remover has to touch it at all.
     if (!target.bbox().intersects(remover.bbox())) {
-        return false;
+        return disconnectedOnItsOwn(target);
     }
 
     std::vector<ExactSegment> cuts;
@@ -4718,7 +4736,9 @@ bool linearAndRegionSeparate(const Linear& linear, const Region& region) {
     using ExactPoint = Point<ExactNumber>;
     const auto clip = clipLinearToRegion<ExactPoint>(linear, region);
     if (!clip) {
-        return false;  // the operand stays clear of the region, which is connected
+        // The operand stays clear of the region; only a region that was already
+        // in several pieces answers anything but false.
+        return LinearIsTarget ? false : disconnectedOnItsOwn(region);
     }
     if constexpr (LinearIsTarget) {
         return cellSeparates(*clip, region);
@@ -4748,7 +4768,9 @@ bool convexAndRegionSeparate(const ConvexOperand& convex, const Region& region) 
         }
     };
     if (clipped.isEmpty()) {
-        return false;  // the operand stays clear of the region, which is connected
+        // As in @ref linearAndRegionSeparate: the operand cannot reach the
+        // region, so only a region already in several pieces answers true.
+        return ConvexIsTarget ? false : disconnectedOnItsOwn(region);
     }
     if (clipped.isDegenerate()) {
         return std::visit(
@@ -5018,7 +5040,7 @@ bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
     // it removes nothing that matters, and the triangulation below is not worth
     // building. The same shortcut @ref cellSeparates takes.
     if (!disk.bbox().intersects(region.bbox())) {
-        return false;
+        return disconnectedOnItsOwn(region);
     }
 
     std::vector<std::size_t> parent;
@@ -5443,6 +5465,230 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::separates(const Shape<Oth
             return this->separates(value);
         },
         other.variant());
+}
+
+
+template <class PointType, class LabelType>
+bool PolygonSet<PointType, LabelType>::isConnected() const {
+    // Each component is connected on its own, so the set is connected exactly
+    // when the graph joining components that meet is — a union-find over the
+    // pairs whose boxes overlap.
+    if (components_.size() < 2) {
+        return true;
+    }
+    std::vector<std::size_t> parent(components_.size());
+    for (std::size_t i = 0; i < parent.size(); ++i) {
+        parent[i] = i;
+    }
+    const auto findRoot = [&parent](std::size_t x) {
+        while (parent[x] != x) {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        return x;
+    };
+    std::size_t pieces = components_.size();
+    for (std::size_t i = 0; i < components_.size(); ++i) {
+        for (std::size_t j = i + 1; j < components_.size(); ++j) {
+            if (findRoot(i) == findRoot(j) ||
+                !components_[i].bbox().intersects(components_[j].bbox())) {
+                continue;
+            }
+            if (components_[i].intersects(components_[j])) {
+                parent[findRoot(i)] = findRoot(j);
+                --pieces;
+            }
+        }
+    }
+    return pieces == 1;
+}
+
+// ---------------------------------------------------------------------------
+// The set of regions, in both directions.
+//
+// A set is the first shape in the library that may be disconnected, and that is
+// what shapes these. As a **target** it can already be in several pieces, so
+// none of the shortcuts that lean on a connected target apply and the engine has
+// to count for real — including for a remover that misses it entirely, which
+// still leaves it disconnected. As a **remover** it behaves like any other
+// polygonal shape: its rings are cut segments like a region's.
+//
+// Neither direction folds over the components. Removing one component may leave
+// the target whole while removing all of them cuts it, and a target's pieces are
+// counted across the whole set at once.
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::separates(const OtherShape& other) const {
+    if (isEmpty()) {
+        return false;  // nothing removed, and every operand here is connected
+    }
+
+    if constexpr (PointConcept<OtherShape>) {
+        return false;  // removing anything from a point leaves at most one piece
+    } else if constexpr (OrientedSegmentConcept<OtherShape>) {
+        return separates(other.asSegment());
+    } else if constexpr (OrientedLineConcept<OtherShape>) {
+        return separates(other.asLine());
+    } else if constexpr (LineConcept<OtherShape> || RayConcept<OtherShape>) {
+        if (other.isDegenerate()) {
+            return false;
+        }
+        return detail::linearAndRegionSeparate<true>(other, *this);
+    } else if constexpr (HalfplaneConcept<OtherShape>) {
+        if (other.isUndefined()) {
+            return false;
+        }
+        return detail::convexAndRegionSeparate<true>(other, *this);
+    } else if constexpr (HalfplaneIntersectionConcept<OtherShape>) {
+        return detail::convexAndRegionSeparate<true>(other, *this);
+    } else if constexpr (DiskConcept<OtherShape>) {
+        if (other.isDegenerate()) {
+            return false;  // a disk of radius zero is a point, an undefined one has no circle
+        }
+        return detail::regionSeparatesDisk(*this, other);
+    } else if constexpr (RectangleConcept<OtherShape> || TriangleConcept<OtherShape> ||
+                         ConvexConcept<OtherShape>) {
+        return separates(other.asPolygon());
+    } else if constexpr (MonotoneChainConcept<OtherShape> || PolylineConcept<OtherShape>) {
+        return detail::cellSeparates(other, *this);
+    } else {
+        if (other.isDegenerate()) {
+            return false;
+        }
+        return detail::cellSeparates(other, *this);
+    }
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::separates(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->separates(value); },
+                      other.variant());
+}
+
+// Reverse direction: removing a lower-ranked shape from a set. Every one of
+// these is a real computation — even a point's, since a set that is already in
+// two pieces stays in two however little is taken out of it.
+
+template <class Number, class Label>
+template <PolygonSetConcept OtherSet>
+bool Point<Number, Label>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Segment<PointType, LabelType>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool OrientedSegment<PointType, LabelType>::separates(const OtherSet& other) const {
+    return asSegment().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Line<PointType, LabelType>::separates(const OtherSet& other) const {
+    if (isDegenerate()) {
+        return min().separates(other);
+    }
+    return detail::linearAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool OrientedLine<PointType, LabelType>::separates(const OtherSet& other) const {
+    return asLine().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Ray<PointType, LabelType>::separates(const OtherSet& other) const {
+    if (isDegenerate()) {
+        return source().separates(other);
+    }
+    return detail::linearAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Halfplane<PointType, LabelType>::separates(const OtherSet& other) const {
+    if (isUndefined()) {
+        // A collapsed half-plane is the whole plane or none of it, so it removes
+        // everything or nothing; either way only a set already in several pieces
+        // comes apart.
+        return detail::disconnectedOnItsOwn(other);
+    }
+    return detail::convexAndRegionSeparate<false>(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Rectangle<PointType, LabelType>::separates(const OtherSet& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Triangle<PointType, LabelType>::separates(const OtherSet& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Convex<PointType, LabelType>::separates(const OtherSet& other) const {
+    return asPolygon().separates(other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Polygon<PointType, LabelType>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonWithHoles<PointType, LabelType>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType, class Storage>
+template <PolygonSetConcept OtherSet>
+bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Polyline<PointType, LabelType>::separates(const OtherSet& other) const {
+    return detail::cellSeparates(other, *this);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool Disk<PointType, LabelType>::separates(const OtherSet& other) const {
+    if (isDegenerate()) {
+        return detail::cellSeparates(other, a());
+    }
+    return detail::diskSeparatesRegion(*this, other);
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherSet& other) const {
+    if (isEmpty()) {
+        return detail::disconnectedOnItsOwn(other);  // nothing is removed
+    }
+    return detail::convexAndRegionSeparate<false>(*this, other);
 }
 
 }  // namespace pgl
