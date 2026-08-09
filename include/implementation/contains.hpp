@@ -3119,4 +3119,174 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::contains(const Shape<Othe
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// One definition per relation, stated over every operand the set outranks: the
+// argument for `A = ⋃ Aᵢ` does not vary from one operand family to the next, and
+// where it does — the one-dimensional operands — the difference is a branch
+// inside, not an overload of its own.
+
+template <class PointType, class LabelType>
+bool PolygonSet<PointType, LabelType>::isPinched() const {
+    if (pinched_ >= 0) {
+        return pinched_ != 0;
+    }
+    pinched_ = 0;
+    for (std::size_t i = 0; i < components_.size() && pinched_ == 0; ++i) {
+        for (std::size_t j = i + 1; j < components_.size(); ++j) {
+            if (!components_[i].bbox().intersects(components_[j].bbox())) {
+                continue;  // the boxes prefilter the quadratic scan
+            }
+            if (components_[i].intersects(components_[j])) {
+                pinched_ = 1;
+                break;
+            }
+        }
+    }
+    return pinched_ != 0;
+}
+
+template <class PointType, class LabelType>
+template <class OtherSegment>
+bool PolygonSet<PointType, LabelType>::segmentIn(const OtherSegment& segment,
+                                                 bool boundaryOnly) const {
+    using ExactNumber = detail::Exact1DNumber<NumberType, typename OtherSegment::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+
+    const ExactSegment probe(ExactPoint(segment.min()), ExactPoint(segment.max()));
+    const auto holds = [this, boundaryOnly](const ExactPoint& point) {
+        return anyComponent([&](const ComponentType& component) {
+            return boundaryOnly ? component.boundaryContains(point) : component.contains(point);
+        });
+    };
+    if (probe.min() == probe.max()) {
+        return holds(probe.min());
+    }
+
+    std::vector<ExactPoint> cuts{probe.min(), probe.max()};
+    for (const auto& component : components_) {
+        for (const auto& edge : component.edges()) {
+            const auto piece = probe.template intersection<ExactNumber>(
+                ExactSegment(ExactPoint(edge.min()), ExactPoint(edge.max())));
+            if (!piece) {
+                continue;
+            }
+            if (const auto* touch = std::get_if<0>(&*piece)) {
+                cuts.push_back(*touch);
+            } else {
+                const auto& overlap = std::get<1>(*piece);
+                cuts.push_back(overlap.min());
+                cuts.push_back(overlap.max());
+            }
+        }
+    }
+    // All the cuts lie on one line, so the lexicographic point order is the
+    // linear order along it — the same argument splitCutSegments uses.
+    std::sort(cuts.begin(), cuts.end());
+    cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+
+    for (const ExactPoint& cut : cuts) {
+        if (!holds(cut)) {
+            return false;
+        }
+    }
+    const ExactNumber two(2);
+    for (std::size_t i = 0; i + 1 < cuts.size(); ++i) {
+        const ExactPoint middle((cuts[i].x() + cuts[i + 1].x()) / two,
+                                (cuts[i].y() + cuts[i + 1].y()) / two);
+        if (!holds(middle)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <class OtherChain>
+bool PolygonSet<PointType, LabelType>::chainIn(const OtherChain& chain, bool boundaryOnly) const {
+    if (chain.size() == 0) {
+        return true;  // an empty chain is contained in everything
+    }
+    if (chain.size() == 1) {
+        return anyComponent([&](const ComponentType& component) {
+            return boundaryOnly ? component.boundaryContains(chain[0]) : component.contains(chain[0]);
+        });
+    }
+    for (const auto& edge : chain.edgesView()) {
+        if (!segmentIn(edge, boundaryOnly)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
+    if constexpr (PointConcept<OtherShape>) {
+        return anyComponent([&](const ComponentType& c) { return c.contains(other); });
+    } else if constexpr (LineConcept<OtherShape>) {
+        return other.isDegenerate() && contains(other.min());
+    } else if constexpr (OrientedLineConcept<OtherShape>) {
+        return other.isDegenerate() && contains(other.source());
+    } else if constexpr (RayConcept<OtherShape>) {
+        return other.isDegenerate() && contains(other.source());
+    } else if constexpr (HalfplaneConcept<OtherShape>) {
+        // A half-plane is unbounded unless it has collapsed onto its own
+        // boundary line, which the line path then settles.
+        return other.isDegenerate() && contains(other.source());
+    } else if constexpr (SegmentConcept<OtherShape> || OrientedSegmentConcept<OtherShape>) {
+        // The one-dimensional case: a single component need not hold the whole
+        // segment even when the set does.
+        if (anyComponent([&](const ComponentType& c) { return c.contains(other); })) {
+            return true;
+        }
+        if (!isPinched() || !intersects(other)) {
+            return false;
+        }
+        return segmentIn(other, /*boundaryOnly=*/false);
+    } else if constexpr (MonotoneChainConcept<OtherShape> || PolylineConcept<OtherShape>) {
+        if (anyComponent([&](const ComponentType& c) { return c.contains(other); })) {
+            return true;
+        }
+        if (!isPinched()) {
+            return false;
+        }
+        return chainIn(other, /*boundaryOnly=*/false);
+    } else {
+        // Every remaining operand stays connected when finitely many points are
+        // removed from it, and the components meet at finitely many points at
+        // most, so it cannot be shared between two of them: one component holds
+        // it or none does. A collapsed one is one-dimensional again and reduces
+        // to its carrier.
+        if (anyComponent([&](const ComponentType& c) { return c.contains(other); })) {
+            return true;
+        }
+        return detail::reduceDegenerate(other,
+                                        [this](const auto& carrier) { return contains(carrier); });
+    }
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::contains(const OtherSet& other) const {
+    // A set operand is the one that need not be connected, so it goes in one
+    // component at a time.
+    for (const auto& component : other) {
+        if (!contains(component)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::contains(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->contains(value); }, other.variant());
+}
+
 }  // namespace pgl

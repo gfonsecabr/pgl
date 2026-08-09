@@ -2076,6 +2076,133 @@ struct PolygonWithHoles {
     [[nodiscard]] constexpr auto distanceLInf(const OtherIntersection& other) const;
 
     // -------------------------------------------------------------------------
+    // A set of regions
+    //
+    // The first shape to outrank a region, and so the first operand a region
+    // forwards the symmetric relations to rather than answering itself. The
+    // asymmetric ones are answered here: a set is the union of its components,
+    // so a region holds it exactly when it holds every one of them.
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool contains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!contains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool boundaryContains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!boundaryContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] constexpr bool interiorContains(const OtherSet& other) const {
+        for (const auto& component : other) {
+            if (!interiorContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected).
+     *
+     * A set of regions is the one target that may already be in several pieces
+     * before anything is removed, so this neither folds over its components nor
+     * answers false for a remover that misses it. See
+     * implementation/separates.hpp.
+     */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool separates(const OtherSet& other) const;
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `intersects` defined only once, on the higher-ranked shape.
+     */
+    template <class OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>)
+    [[nodiscard]] constexpr bool intersects(const OtherShape& other) const {
+        return other.intersects(*this);
+    }
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * Forwards to the other shape's implementation so that each unordered pair
+     * needs `interiorsIntersect` defined only once, on the higher-ranked shape.
+     */
+    template <class OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>)
+    [[nodiscard]] constexpr bool interiorsIntersect(const OtherShape& other) const {
+        return other.interiorsIntersect(*this);
+    }
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <class OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>)
+    [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
+        return other.crosses(*this);
+    }
+
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 (detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>) &&
+                 requires(const OtherShape& o, const PolygonWithHoles& self) {
+                     o.template intersection<ResultNumber>(self);
+                 })
+    [[nodiscard]] constexpr auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires((detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>) &&
+                 requires(const OtherShape& o, const PolygonWithHoles& self) {
+                     o.template squaredDistance<ResultNumber>(self);
+                 })
+    [[nodiscard]] constexpr auto squaredDistance(const OtherShape& other) const {
+        return other.template squaredDistance<ResultNumber>(*this);
+    }
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires((detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>) &&
+                 requires(const OtherShape& o, const PolygonWithHoles& self) {
+                     o.template distanceL1<ResultNumber>(self);
+                 })
+    [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /** @copydoc squaredDistance(const OtherPoint&) const */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires((detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>) &&
+                 requires(const OtherShape& o, const PolygonWithHoles& self) {
+                     o.template distanceLInf<ResultNumber>(self);
+                 })
+    [[nodiscard]] constexpr auto distanceLInf(const OtherShape& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    // -------------------------------------------------------------------------
     // The empty set is a subset of every shape, so its containment relations
     // are true and its intersection relations are false.
 

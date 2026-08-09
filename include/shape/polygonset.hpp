@@ -17,6 +17,30 @@
 
 namespace pgl {
 
+namespace detail {
+
+/**
+ * @brief The shapes a @ref PolygonSet owns the predicate pair with.
+ *
+ * A set outranks every other shape (`shapeRank` 150), so every lower-ranked
+ * shape's own rank-based forwarder sends the symmetric relations here and the
+ * concrete overload is written once. This concept names exactly those operands:
+ * the ranked shapes below a set, leaving out the empty shape and the runtime
+ * @ref Shape wrapper, which each have overloads of their own.
+ *
+ * A set's predicates are stated uniformly over this whole family rather than
+ * one operand at a time, because their correctness argument is uniform — see
+ * the section note in @ref pgl::PolygonSet. The operands that genuinely differ
+ * are split out inside those definitions by shape kind, not by overload.
+ */
+template <class T>
+concept SetOperandConcept =
+    shapeRank<std::remove_cvref_t<T>> >= 0 &&
+    shapeRank<std::remove_cvref_t<T>> < shapeRank<PolygonSet<Point<>, NoLabel>> &&
+    !is_empty_shape_v<T>;
+
+}  // namespace detail
+
 template <class PointType = Point<>, class Label>
 struct PolygonSet;
 
@@ -645,6 +669,305 @@ struct PolygonSet {
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
 
+    // -------------------------------------------------------------------------
+    // Predicates
+    //
+    // With `A = ⋃ Aᵢ`, interiors pairwise disjoint and contacts finite, four of
+    // the five relations fold over the components outright:
+    //
+    //   intersects(x)          ∃i Aᵢ.intersects(x)          — A is the union
+    //   interiorsIntersect(x)  ∃i Aᵢ.interiorsIntersect(x)   — A° = ⋃ Aᵢ°
+    //   interiorContains(x)    ∃i Aᵢ.interiorContains(x)     — see below
+    //   contains(point)        ∃i Aᵢ.contains(point)
+    //
+    // `A° = ⋃ Aᵢ°` is what the no-shared-edge clause of @ref isValid buys, and
+    // it settles `interiorContains` for every operand: the `Aᵢ°` are open and
+    // pairwise disjoint, so a connected operand inside their union is inside one
+    // of them, and every shape but another set is connected.
+    //
+    // `contains` and `boundaryContains` are the two that do not fold, and they
+    // fail for exactly one kind of operand. `∃i` is still necessary and
+    // sufficient whenever the operand stays connected after finitely many points
+    // are removed — every operand with area, and every point — because the
+    // components meet at finitely many points at most. A **one-dimensional**
+    // operand does not: two unit squares meeting corner to corner at the origin
+    // contain the segment from (-1,-1) to (1,1) between them and neither
+    // contains it alone. Those operands are settled by splitting them at every
+    // component-boundary contact and classifying each piece, which is exact and
+    // costs nothing when the components do not touch at all (@ref isPinched).
+
+    /**
+     * @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅).
+     *
+     * The set is the union of its components, so it meets a shape exactly when
+     * one of them does — exact for every operand.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool intersects(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅).
+     *
+     * `A° = ⋃ Aᵢ°` for a valid set, so this too is exact componentwise.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool interiorsIntersect(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether this shape contains the other shape (A ⊇ B).
+     *
+     * Componentwise for every operand but a one-dimensional one, which may run
+     * from one component into another through a point where they touch; see the
+     * section note above.
+     *
+     * Complexity: O(n) over the total vertex count for the componentwise answer,
+     * plus one split of the operand against every component boundary when the
+     * components touch and no single one contains it.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool contains(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
+     *
+     * The component interiors are open and pairwise disjoint, so a connected
+     * operand inside the set's interior is inside one component's — exact
+     * componentwise for every operand.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool interiorContains(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
+     *
+     * `∂A = ⋃ ∂Aᵢ`, which has no area, so only an operand that has collapsed can
+     * lie on it. Like @ref contains, a one-dimensional one may run from one
+     * component's boundary onto another's.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool boundaryContains(const OtherShape& other) const;
+
+    /**
+     * @brief Tests whether removing this shape disconnects the other shape
+     *        (B∖A is disconnected).
+     *
+     * Not componentwise in either direction: removing one component may leave
+     * the operand in one piece while removing them all cuts it. This goes to the
+     * cell engine of implementation/separates.hpp, which assumes nothing about
+     * either operand, with the unbounded ones clipped to a box holding the set
+     * first.
+     */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool separates(const OtherShape& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <detail::SetOperandConcept OtherShape>
+    [[nodiscard]] bool crosses(const OtherShape& other) const;
+
+    // -------------------------------------------------------------------------
+    // The self pair. A set operand is the one operand that need not be
+    // connected, so the relations that lean on the operand's connectedness fold
+    // over *its* components instead of assuming it lies in one piece.
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool intersects(const OtherSet& other) const;
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool interiorsIntersect(const OtherSet& other) const;
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool contains(const OtherSet& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool interiorContains(const OtherSet& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool boundaryContains(const OtherSet& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool separates(const OtherSet& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <PolygonSetConcept OtherSet>
+    [[nodiscard]] bool crosses(const OtherSet& other) const;
+
+    // -------------------------------------------------------------------------
+    // The empty set is a subset of every shape, so its containment relations are
+    // true and its intersection relations are false.
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool contains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool boundaryContains(const EmptyShape<EmptyPoint>&) const {
+        return true;
+    }
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool intersects(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool interiorsIntersect(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool separates(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <class EmptyPoint>
+    [[nodiscard]] constexpr bool crosses(const EmptyShape<EmptyPoint>&) const {
+        return false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Runtime Shape argument: visit the wrapped alternative and re-dispatch to
+    // the matching per-shape overload (defined in the implementation layer).
+
+    /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool contains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool interiorContains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool boundaryContains(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether this shape and the other shape intersect (A ∩ B ≠ ∅). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool intersects(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether the interiors of the shapes intersect (A° ∩ B° ≠ ∅). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool interiorsIntersect(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether removing this shape disconnects the other shape (B∖A is disconnected). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool separates(const Shape<OtherPoint>& other) const;
+
+    /** @brief Tests whether the two shapes mutually separate each other (each disconnects the other). */
+    template <PointConcept OtherPoint>
+    [[nodiscard]] bool crosses(const Shape<OtherPoint>& other) const;
+
+    // -------------------------------------------------------------------------
+    // Distances
+    //
+    // The distance to a union is the minimum of the distances, with no caveat at
+    // all: every one of these is exactly the minimum over the components.
+
+    /**
+     * @brief Computes the squared Euclidean distance to the other shape.
+     *
+     * Zero when the shapes intersect; otherwise the smallest squared distance
+     * between them, which is the smallest over the components. An empty set is
+     * infinitely far from everything and reports zero, having no component to
+     * measure from.
+     *
+     * @tparam ResultNumber Coordinate type of the returned distance (default: @ref division_result_t).
+     *
+     * @warning With an integer @p ResultNumber the exact squared distance is
+     *          generally a fraction, so the internal division truncates and the
+     *          result is inexact. Request a floating-point or pgl::Rational
+     *          result type for an accurate value.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetOperandConcept OtherShape>
+    [[nodiscard]] auto squaredDistance(const OtherShape& other) const;
+
+    /** @copydoc squaredDistance(const OtherShape&) const */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] auto squaredDistance(const OtherSet& other) const;
+
+    /** @copydoc squaredDistance(const OtherShape&) const */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetOperandConcept OtherShape>
+    [[nodiscard]] auto distanceL1(const OtherShape& other) const;
+
+    /** @copydoc squaredDistance(const OtherShape&) const */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] auto distanceL1(const OtherSet& other) const;
+
+    /** @copydoc squaredDistance(const OtherShape&) const */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetOperandConcept OtherShape>
+    [[nodiscard]] auto distanceLInf(const OtherShape& other) const;
+
+    /** @copydoc squaredDistance(const OtherShape&) const */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] auto distanceLInf(const OtherSet& other) const;
+
+    /**
+     * @brief Returns the Manhattan (L1) distance to the given shape, using
+     * symmetry to re-dispatch through the wrapper's own `distanceL1`.
+     */
+    template <class ResultNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceL1(const Shape<OtherPoint>& other) const {
+        return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the Chebyshev (L∞) distance to the given shape, using
+     * symmetry to re-dispatch through the wrapper's own `distanceLInf`.
+     */
+    template <class ResultNumber = double, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto distanceLInf(const Shape<OtherPoint>& other) const {
+        return other.template distanceLInf<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Tests whether two components touch each other anywhere.
+     *
+     * `false` is the cheap exact case: components that stay apart make the set a
+     * disjoint union of closed sets at positive distance, and then every
+     * relation folds componentwise exactly, one-dimensional operands included.
+     * Memoized, since the whole point of it is to be asked before the general
+     * machinery is.
+     *
+     * Complexity: one bounding-box test per component pair, plus one
+     * @ref PolygonWithHoles::intersects per pair whose boxes meet.
+     */
+    [[nodiscard]] bool isPinched() const;
+
+    /**
+     * @brief Tests whether the set is connected as a point set.
+     *
+     * A set of regions is the library's first shape that need not be: two
+     * components that never touch are two pieces. Each component is connected on
+     * its own (@ref PolygonWithHoles is, however its rings meet), so the set is
+     * connected exactly when the graph joining components that intersect is —
+     * and the empty set is connected by convention, having nothing to come apart.
+     *
+     * This is what the cut predicates ask before dismissing a remover that
+     * misses the set: `B ∖ A` is disconnected whenever `B` already was.
+     *
+     * Complexity: one @ref PolygonWithHoles::intersects per component pair whose
+     * bounding boxes meet.
+     */
+    [[nodiscard]] bool isConnected() const;
+
     /**
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
@@ -790,6 +1113,62 @@ struct PolygonSet {
 
   private:
     /**
+     * @brief Invokes @p relation on every component and stops at the first
+     *        `true`.
+     *
+     * The shape of every componentwise predicate above.
+     */
+    template <class ComponentRelation>
+    constexpr bool anyComponent(ComponentRelation&& relation) const {
+        for (const auto& component : components_) {
+            if (relation(component)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @brief Tests whether a segment lies in the set (@p boundaryOnly `false`)
+     *        or on its boundary (@p boundaryOnly `true`).
+     *
+     * This is the one-dimensional case no single component need settle. The
+     * segment is cut at every point where it meets a component boundary; on each
+     * open piece between two consecutive cuts, membership in every component is
+     * constant, so the midpoint speaks for the piece and the cut points speak
+     * for themselves. All the cuts lie on one line, where the lexicographic
+     * order of points is the order along it, so sorting them needs no
+     * projection.
+     *
+     * Exact: the cuts are crossings of two segments and are held over the pair's
+     * exact rational type throughout.
+     */
+    template <class OtherSegment>
+    bool segmentIn(const OtherSegment& segment, bool boundaryOnly) const;
+
+    /**
+     * @brief @ref segmentIn applied to every edge of a chain, a chain being
+     *        exactly the union of its edges.
+     */
+    template <class OtherChain>
+    bool chainIn(const OtherChain& chain, bool boundaryOnly) const;
+
+    /** @brief The smallest value of @p distance over the components. */
+    template <class ResultNumber, class ComponentDistance>
+    ResultNumber minOverComponents(ComponentDistance&& distance) const {
+        ResultNumber best{};
+        bool seeded = false;
+        for (const auto& component : components_) {
+            const ResultNumber current = distance(component);
+            if (!seeded || current < best) {
+                best = current;
+                seeded = true;
+            }
+        }
+        return best;
+    }
+
+    /**
      * @brief Applies a component-to-component transformation to every component,
      *        then re-canonicalizes.
      *
@@ -816,6 +1195,10 @@ struct PolygonSet {
     // union of the components' boxes itself.
     mutable std::optional<Rectangle<PointType>> bbox_{};
 
+    // Tri-state cache for @ref isPinched: -1 not yet computed, 0 no two
+    // components touch, 1 some two do.
+    mutable signed char pinched_ = -1;
+
     // Memoized hash, computed lazily by std::hash<PolygonSet>, with the same
     // sentinel scheme as Polygon and PolygonWithHoles: hashUnset_ means "not yet
     // computed", and the one true hash colliding with it is remapped so the
@@ -830,6 +1213,7 @@ struct PolygonSet {
     constexpr void resetCache() const {
         hash_ = hashUnset_;
         bbox_.reset();
+        pinched_ = -1;
     }
 
     /**

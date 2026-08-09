@@ -1201,4 +1201,30 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::crosses(const Shape<Other
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::crosses(const OtherShape& other) const {
+    if constexpr (PointConcept<OtherShape>) {
+        return false;  // a set never separates a point
+    } else {
+        return separates(other) && other.separates(*this);
+    }
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::crosses(const OtherSet& other) const {
+    return separates(other) && other.separates(*this);
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::crosses(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->crosses(value); }, other.variant());
+}
+
 }  // namespace pgl

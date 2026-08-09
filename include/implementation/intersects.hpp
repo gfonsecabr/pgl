@@ -2146,4 +2146,35 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const Shape<Ot
         other.variant());
 }
 
+
+// ---------------------------------------------------------------------------
+// PolygonSet
+//
+// `A ∩ x ≠ ∅` iff some `Aᵢ ∩ x ≠ ∅`: the union of the components is the set, and
+// that is the whole argument, for every operand and with no exception.
+
+template <class PointType, class LabelType>
+template <detail::SetOperandConcept OtherShape>
+bool PolygonSet<PointType, LabelType>::intersects(const OtherShape& other) const {
+    return anyComponent([&](const ComponentType& component) { return component.intersects(other); });
+}
+
+template <class PointType, class LabelType>
+template <PolygonSetConcept OtherSet>
+bool PolygonSet<PointType, LabelType>::intersects(const OtherSet& other) const {
+    for (const auto& component : other) {
+        if (intersects(component)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class LabelType>
+template <PointConcept OtherPoint>
+bool PolygonSet<PointType, LabelType>::intersects(const Shape<OtherPoint>& other) const {
+    return std::visit([this](const auto& value) { return this->intersects(value); },
+                      other.variant());
+}
+
 }  // namespace pgl
