@@ -177,6 +177,8 @@ For the common exact, overflow-free configuration, `pgl.hpp` defines `E`-prefixe
 | `pgl::EDisk` | `pgl::Disk<pgl::EPoint>` |
 | `pgl::EConvex` | `pgl::Convex<pgl::EPoint>` |
 | `pgl::EPolygon` | `pgl::Polygon<pgl::EPoint>` |
+| `pgl::EPolygonWithHoles` | `pgl::PolygonWithHoles<pgl::EPoint>` |
+| `pgl::EPolygonSet` | `pgl::PolygonSet<pgl::EPoint>` |
 | `pgl::EShape` | `pgl::Shape<pgl::EPoint>` |
 
 The rational example above becomes:

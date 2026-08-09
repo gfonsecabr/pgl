@@ -153,25 +153,37 @@ auto pieces = annulus.intersection(pgl::Segment(-5,5, 15,5));
 
 `PolygonWithHoles` also carries a second `intersection` alongside this one, for
 operands with area, returning regions rather than polygons, because it is the one
-shape whose intersections can have holes. See
+shape whose intersections can have holes; `PolygonSet` carries the same one. See
 [Boolean Operations](#boolean-operations).
 
 ### Boolean Operations
 
 The four boolean set operations on shapes with area all return a
-`std::vector<PolygonWithHoles>`:
+[`PolygonSet`](shapes.md#polygon-set):
 
 | call | result |
 |---|---|
 | `a.difference(b)` | $A \setminus B$, the part of `a` that `b` does not cover |
 | `a.unionWith(b)` | $A \cup B$, the part either covers |
 | `a.symmetricDifference(b)` | $A \mathbin{\triangle} B$, the part exactly one covers |
-| `a.intersection(b)` | $A \cap B$, the part both cover — on `PolygonWithHoles` only, see below |
+| `a.intersection(b)` | $A \cap B$, the part both cover — on `PolygonWithHoles` and `PolygonSet` only, see below |
 
-`difference`, `unionWith` and `symmetricDifference` are defined on `Polygon` and
-`PolygonWithHoles`, against `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle`
-and `Rectangle` — the bounded shapes with area. The union is a keyword in C++,
-hence `unionWith`.
+`difference`, `unionWith` and `symmetricDifference` are defined on `Polygon`,
+`PolygonWithHoles` and `PolygonSet`, against `Polygon`, `PolygonWithHoles`,
+`Convex`, `Triangle`, `Rectangle` — the bounded shapes with area — and, on a
+`PolygonSet` receiver, against another `PolygonSet`. The union is a keyword in
+C++, hence `unionWith`.
+
+That last operand is what makes the family **closed**: the result of an
+operation is a shape the operations take, so it can be fed straight back in
+rather than looped over by the caller.
+
+```c++
+pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
+auto holed  = square.difference(pgl::Rectangle(3,3,7,7));   // a PolygonSet
+auto again  = holed.difference(pgl::Rectangle(0,0,2,2));    // and again
+auto merged = again.unionWith(holed);                       // set against set
+```
 
 Three of the four are symmetric in their operands, and may be written in either
 order. A `Convex`, `Triangle` or `Rectangle` receiver takes `unionWith`,
@@ -184,7 +196,7 @@ stays on the two receivers above.
 ```c++
 pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
 auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
-// pieces.size() == 1, one region whose outer ring is the square
+// pieces.componentCount() == 1, one region whose outer ring is the square
 // and whose single hole is the rectangle
 ```
 
@@ -204,13 +216,16 @@ material with no area never *joins* anything: two shapes meeting at a single
 point come back as two pieces, since a region may not have a self-touching outer
 ring.
 
-The pieces have pairwise disjoint interiors and their union is the result. They
-are **not** nested: an island stranded inside a hole of the result comes back as
-a piece of its own, since this library has no `PolygonSet`.
+The components have pairwise disjoint interiors, share no stretch of edge, and
+their union is the result — which is exactly the `PolygonSet` contract, so the
+engine's own output is a valid set by construction. They are **not** nested: an
+island stranded inside a hole of the result comes back as a component of its
+own.
 
 A `PolygonWithHoles` written by hand can carry a slit of its own, and
-`A.regularized()` is that same regularization offered on its own: it returns the
-pieces of $\mathrm{closure}(A^\circ)$, which is `A` without its slits.
+`A.regularized()` is that same regularization offered on its own: it returns
+$\mathrm{closure}(A^\circ)$, which is `A` without its slits, again as a
+`PolygonSet`.
 `A.isRegular()` says whether there were any. Both are described with the
 [region](shapes.md#polygon-with-holes) itself. Note that this makes `A.unionWith(A)`
 *not* `A` but `A.regularized()`: idempotence holds up to regularization and no
@@ -300,19 +315,23 @@ empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 
 A non-convex operand is where the sum needs a region: sliding a shape around the
 inside of a `C` sweeps out material that closes over a hole neither operand has.
-Those overloads return one `PolygonWithHoles` whenever the nondegenerate case is
-necessarily a single regular region. This covers every `Polygon` overload,
-`PolygonWithHoles` against an area-carrying shape, and `Polyline` against an
-area-carrying convex shape or `Polygon`. A `MonotoneChain` against a convex
-operand is the more specific exception: its sum cannot have holes and returns a
-`Polygon`, as described further down.
+Those overloads return a [`PolygonSet`](shapes.md#polygon-set) — every `Polygon`
+overload, every `PolygonWithHoles` and `Polyline` overload, and a
+`MonotoneChain` against a summand with no area. A `MonotoneChain` against a
+*convex* operand is the more specific exception: its sum cannot have holes and
+returns a `Polygon`, as described further down.
+
+The nondegenerate case is a single component: a shape that is the closure of its
+connected interior, summed with any connected operand, has connected regularized
+interior. A degenerate operand can split the answer, and every piece of it comes
+back.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
 pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
 auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
-// plugged's outer ring is (0,0)--(10,10) and it has one hole,
-// (4,4)--(6,6) — the cavity, stranded once the two-unit cut is closed.
+// plugged has one component, whose outer ring is (0,0)--(10,10) and whose
+// single hole is (4,4)--(6,6) — the cavity, stranded once the cut is closed.
 ```
 
 The two overload sets never overlap: the pairs whose sum fits in a single shape
@@ -322,16 +341,16 @@ again a question about the pair and not about the receiver — a `Segment`,
 non-convex operand forwards to it, so `rectangle.minkowskiSum(polygon)` is
 `polygon.minkowskiSum(rectangle)` and `segment.minkowskiSum(polyline)` is
 `polyline.minkowskiSum(segment)`, while `rectangle.minkowskiSum(triangle)` and
-`segment.minkowskiSum(segment)` are still the single-shape sum. A vector of
-regions remains only for pairs where valid thin or slit geometry can make the
-regularized result genuinely disconnected: `Segment` or `OrientedSegment` with
-`MonotoneChain`, `Polyline`, or `PolygonWithHoles`, and `PolygonWithHoles` with
-`MonotoneChain` or `Polyline` (in either operand order). Like the boolean
+`segment.minkowskiSum(segment)` are still the single-shape sum. Like the boolean
 operations these sums are **regularized**, so a flat operand's sum keeps only
-what has area, and they take the same `ResultNumber` parameter. A single-region
-overload returns an empty region when regularization leaves no area; if a
-degenerate input nevertheless produces several components, it returns the first
-one in canonical order rather than changing the substantive case's return type.
+what has area, and they take the same `ResultNumber` parameter; a sum that
+regularizes to nothing comes back as the empty set.
+
+These overloads used to return a lone `PolygonWithHoles` and silently keep only
+the first component in canonical order when a degenerate operand split the
+answer. A set of regions has room for the rest, so nothing is dropped any more —
+an observable change, and the reason the return type moved.
+
 Every vertex of every convex piece sum is a sum of two input vertices, so those are
 exact; only where two of them cross can a vertex land off the lattice, and that
 arrangement is built over exact rationals and converted once at the end.
