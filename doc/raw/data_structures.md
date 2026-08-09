@@ -46,6 +46,34 @@ Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bou
 </p>
 
 
+### Interval Tree
+
+`IntervalTree<Shape, Axis>` is a mutable one-dimensional index over bounded
+shapes. It stores the closed interval obtained by projecting each shape's
+bounding box onto `Axis`, which is `ProjectionAxis::x` by default or
+`ProjectionAxis::y` when selected explicitly. The stored shapes themselves are
+preserved, but all query decisions are made from those one-dimensional
+intervals: two shapes can match even when they are disjoint in the plane.
+
+- `IntervalTree<Shape>(V)` inserts every shape in container `V`; `insert(s)`
+  and `erase(s)` add and remove one equal stored shape while retaining
+  red-black-tree balance. Equal projected intervals are stored independently.
+
+- `countIntersecting(q)`, `reportIntersecting(q)`, `visitIntersecting(q, f)`,
+  and `emptyIntersecting(q)` match shapes whose projected closed interval meets
+  that of `q`; touching at an endpoint counts as intersection.
+
+- `countContainedIn(q)`, `reportContainedIn(q)`, `visitContainedIn(q, f)`, and
+  `emptyContainedIn(q)` match shapes whose entire projected closed interval is
+  within that of `q`, including shared endpoints.
+
+Like `ShapeTree`, report methods return copies of the stored shapes, visitors
+receive them by const reference and may stop early by returning `true`, and
+`has`, `size`, `empty`, `shapes`, and const iterators provide container-like
+access. The tree is augmented with its subtree endpoint extrema, so irrelevant
+subtrees are pruned during both query families.
+
+
 ### Triangulation
 
 `Triangulation` stores a mutable triangulation of either a polygon or a point set: vertex coordinates never move once added, but new vertices can be inserted (`insert`, `insertDelaunay`) and the connectivity changes through flips.
