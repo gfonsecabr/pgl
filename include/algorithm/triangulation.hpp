@@ -433,7 +433,7 @@ struct Triangulation {
      *      extra points and segments lie inside it (the latter is not checked).
      */
     explicit Triangulation(const Polygon<PointType>& poly) {
-        constructConstrained(poly, std::array<PointType, 0>{}, std::array<SegmentType, 0>{});
+        constructConstrained({poly}, std::array<PointType, 0>{}, std::array<SegmentType, 0>{});
     }
 
     /**
@@ -444,7 +444,7 @@ struct Triangulation {
     template <class PointRange>
         requires PointConcept<typename PointRange::value_type>
     Triangulation(const Polygon<PointType>& poly, const PointRange& points) {
-        constructConstrained(poly, points, std::array<SegmentType, 0>{});
+        constructConstrained({poly}, points, std::array<SegmentType, 0>{});
     }
 
     /**
@@ -456,7 +456,7 @@ struct Triangulation {
     template <class SegmentRange>
         requires SegmentConcept<typename SegmentRange::value_type>
     Triangulation(const Polygon<PointType>& poly, const SegmentRange& segments) {
-        constructConstrained(poly, std::array<PointType, 0>{}, segments);
+        constructConstrained({poly}, std::array<PointType, 0>{}, segments);
     }
 
     /**
@@ -471,7 +471,7 @@ struct Triangulation {
                  SegmentConcept<typename SegmentRange::value_type>
     Triangulation(const Polygon<PointType>& poly, const PointRange& points,
                   const SegmentRange& segments) {
-        constructConstrained(poly, points, segments);
+        constructConstrained({poly}, points, segments);
     }
 
     /**
@@ -496,7 +496,7 @@ struct Triangulation {
      *      points and segments lie in it (neither is checked).
      */
     explicit Triangulation(const PolygonWithHoles<PointType>& region) {
-        constructConstrained(region.outer(), std::array<PointType, 0>{},
+        constructConstrained({region.outer()}, std::array<PointType, 0>{},
                              std::array<SegmentType, 0>{}, region.holes());
     }
 
@@ -508,7 +508,7 @@ struct Triangulation {
     template <class PointRange>
         requires PointConcept<typename PointRange::value_type>
     Triangulation(const PolygonWithHoles<PointType>& region, const PointRange& points) {
-        constructConstrained(region.outer(), points, std::array<SegmentType, 0>{}, region.holes());
+        constructConstrained({region.outer()}, points, std::array<SegmentType, 0>{}, region.holes());
     }
 
     /**
@@ -520,7 +520,7 @@ struct Triangulation {
     template <class SegmentRange>
         requires SegmentConcept<typename SegmentRange::value_type>
     Triangulation(const PolygonWithHoles<PointType>& region, const SegmentRange& segments) {
-        constructConstrained(region.outer(), std::array<PointType, 0>{}, segments, region.holes());
+        constructConstrained({region.outer()}, std::array<PointType, 0>{}, segments, region.holes());
     }
 
     /**
@@ -535,7 +535,68 @@ struct Triangulation {
                  SegmentConcept<typename SegmentRange::value_type>
     Triangulation(const PolygonWithHoles<PointType>& region, const PointRange& points,
                   const SegmentRange& segments) {
-        constructConstrained(region.outer(), points, segments, region.holes());
+        constructConstrained({region.outer()}, points, segments, region.holes());
+    }
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of a set of regions,
+     *        optionally with extra interior points and constraint segments.
+     *
+     * Every ring of every component goes in as constrained edges, and the
+     * out-of-domain flood is seeded both from outside the convex hull and from
+     * inside each component's holes. The domain is then exactly the part of the
+     * set that has area — the gap between two components is reached by the same
+     * flood that carves away the exterior, and a component stranded inside
+     * another's hole is fenced out of that hole's flood by its own outer ring.
+     *
+     * As with a single region, a slit carries no triangle, so the triangulated
+     * domain is `closure(A°)` rather than `A` itself.
+     *
+     * @param set Set of regions to triangulate.
+     * @pre @p set satisfies @ref PolygonSet::isValid, and any extra points and
+     *      segments lie in it (neither is checked).
+     */
+    explicit Triangulation(const PolygonSet<PointType>& set) {
+        constructConstrained(setOuters(set), std::array<PointType, 0>{},
+                             std::array<SegmentType, 0>{}, setHoles(set));
+    }
+
+    /**
+     * @overload
+     * @brief Adds the interior @p points as extra triangulation vertices.
+     * @param points Extra vertices to insert; assumed to lie in @p set.
+     */
+    template <class PointRange>
+        requires PointConcept<typename PointRange::value_type>
+    Triangulation(const PolygonSet<PointType>& set, const PointRange& points) {
+        constructConstrained(setOuters(set), points, std::array<SegmentType, 0>{}, setHoles(set));
+    }
+
+    /**
+     * @overload
+     * @brief Adds the interior @p segments as constrained edges and vertices.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie in @p set.
+     */
+    template <class SegmentRange>
+        requires SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const PolygonSet<PointType>& set, const SegmentRange& segments) {
+        constructConstrained(setOuters(set), std::array<PointType, 0>{}, segments, setHoles(set));
+    }
+
+    /**
+     * @overload
+     * @brief Adds both interior @p points and constraint @p segments.
+     * @param points Extra vertices to insert; assumed to lie in @p set.
+     * @param segments Constraint edges (and their endpoint vertices); assumed to
+     *        lie in @p set.
+     */
+    template <class PointRange, class SegmentRange>
+        requires PointConcept<typename PointRange::value_type> &&
+                 SegmentConcept<typename SegmentRange::value_type>
+    Triangulation(const PolygonSet<PointType>& set, const PointRange& points,
+                  const SegmentRange& segments) {
+        constructConstrained(setOuters(set), points, segments, setHoles(set));
     }
 
     // ---- sizes -----------------------------------------------------------
@@ -3912,21 +3973,54 @@ struct Triangulation {
         domainTriangleCount_ = static_cast<std::size_t>(firstGhost_) - marked;
     }
 
-    // Shared implementation of the polygon constructors. Triangulates the union
-    // of the polygon vertices, the extra interior points, and the constraint
-    // segment endpoints; constrains the polygon boundary and every interior
-    // segment; then marks the exterior (between the polygon and its convex hull)
-    // out of domain. Interior constraints never reach that exterior flood — the
-    // boundary fences it off — so they stay in-domain. @p extraPoints and
-    // @p constraintSegments are assumed to lie inside @p poly (not checked).
+    // The outer rings and, respectively, all the hole rings of a set's
+    // components, flattened for @ref constructConstrained — which asks for the
+    // two ring kinds separately because only holes need a flood seed of their
+    // own.
+    static std::vector<Polygon<PointType>> setOuters(const PolygonSet<PointType>& set) {
+        std::vector<Polygon<PointType>> outers;
+        outers.reserve(set.componentCount());
+        for (const auto& component : set) {
+            outers.push_back(component.outer());
+        }
+        return outers;
+    }
+
+    static std::vector<Polygon<PointType>> setHoles(const PolygonSet<PointType>& set) {
+        std::vector<Polygon<PointType>> holes;
+        holes.reserve(set.holeCount());
+        for (const auto& component : set) {
+            for (const auto& hole : component.holes()) {
+                holes.push_back(hole);
+            }
+        }
+        return holes;
+    }
+
+    // Shared implementation of the polygon, region and region-set constructors.
+    // Triangulates the union of the ring vertices, the extra interior points,
+    // and the constraint segment endpoints; constrains every ring and every
+    // interior segment; then marks the exterior (between the rings and their
+    // convex hull) out of domain, along with each hole. Interior constraints
+    // never reach the exterior flood — the boundary fences it off — so they stay
+    // in-domain. @p extraPoints and @p constraintSegments are assumed to lie in
+    // the domain (not checked).
+    //
+    // @p outers holds one outer ring per piece. Several of them need nothing
+    // extra: the gap between two pieces is reached by the same exterior flood,
+    // which the pieces' own rings fence it out of, and a piece stranded inside
+    // another's hole is fenced out of that hole's flood the same way.
     template <class PointRange, class SegmentRange>
-    void constructConstrained(const Polygon<PointType>& poly, const PointRange& extraPoints,
+    void constructConstrained(const std::vector<Polygon<PointType>>& outers,
+                              const PointRange& extraPoints,
                               const SegmentRange& constraintSegments,
                               const std::vector<Polygon<PointType>>& holes = {}) {
         std::unordered_map<PointType, VertexId> vid;
         const auto idOfPoint = makeVertexInterner(vid);
-        for (std::size_t i = 0; i < poly.size(); ++i) {
-            idOfPoint(poly[i]);
+        for (const auto& outer : outers) {
+            for (std::size_t i = 0; i < outer.size(); ++i) {
+                idOfPoint(outer[i]);
+            }
         }
         for (const auto& hole : holes) {
             for (std::size_t i = 0; i < hole.size(); ++i) {
@@ -3954,10 +4048,15 @@ struct Triangulation {
         for (VertexId i = 1; i < static_cast<VertexId>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
-        std::vector<VertexId> loop;
-        loop.reserve(poly.size());
-        for (std::size_t i = 0; i < poly.size(); ++i) {
-            loop.push_back(vid.at(poly[i]));
+        std::vector<std::vector<VertexId>> outerLoops;
+        outerLoops.reserve(outers.size());
+        for (const auto& outer : outers) {
+            std::vector<VertexId> loop;
+            loop.reserve(outer.size());
+            for (std::size_t i = 0; i < outer.size(); ++i) {
+                loop.push_back(vid.at(outer[i]));
+            }
+            outerLoops.push_back(std::move(loop));
         }
 
         std::vector<std::vector<VertexId>> holeLoops;
@@ -3973,23 +4072,30 @@ struct Triangulation {
 
         // Where rings touch, one ring's vertex can sit inside another ring's
         // edge; splice those in so every constrained edge is unobstructed. Only
-        // a region can produce them, so a lone polygon skips the scan.
-        if (!holes.empty()) {
-            std::vector<VertexId> ringVertices = loop;
+        // several rings can produce them, so a lone polygon skips the scan.
+        if (!holes.empty() || outers.size() > 1) {
+            std::vector<VertexId> ringVertices;
+            for (const auto& ring : outerLoops) {
+                ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
+            }
             for (const auto& ring : holeLoops) {
                 ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
             }
-            loop = expandRing(loop, ringVertices);
+            for (auto& ring : outerLoops) {
+                ring = expandRing(ring, ringVertices);
+            }
             for (auto& ring : holeLoops) {
                 ring = expandRing(ring, ringVertices);
             }
         }
 
-        // Constrain the polygon boundary, every hole ring, and every interior
+        // Constrain every outer ring, every hole ring, and every interior
         // segment, restore the constrained Delaunay property, then carve away
         // the exterior and the hole interiors.
-        for (std::size_t i = 0; i < loop.size(); ++i) {
-            insertConstraint(loop[i], loop[(i + 1) % loop.size()]);
+        for (const auto& ring : outerLoops) {
+            for (std::size_t i = 0; i < ring.size(); ++i) {
+                insertConstraint(ring[i], ring[(i + 1) % ring.size()]);
+            }
         }
         for (const auto& ring : holeLoops) {
             for (std::size_t i = 0; i < ring.size(); ++i) {
@@ -4776,6 +4882,28 @@ Triangulation(const PolygonWithHoles<RegionPoint>&, const PointRange&, const Seg
     -> Triangulation<Triangle<RegionPoint>,
                      Segment<RegionPoint, typename SegmentRange::value_type::LabelType>>;
 
+// Region-set guides, mirroring the region ones above.
+template <class SetPoint>
+Triangulation(const PolygonSet<SetPoint>&) -> Triangulation<Triangle<SetPoint>>;
+
+template <class SetPoint, class PointRange>
+    requires PointConcept<typename PointRange::value_type>
+Triangulation(const PolygonSet<SetPoint>&, const PointRange&)
+    -> Triangulation<Triangle<SetPoint>>;
+
+template <class SetPoint, class SegmentRange>
+    requires SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const PolygonSet<SetPoint>&, const SegmentRange&)
+    -> Triangulation<Triangle<SetPoint>,
+                     Segment<SetPoint, typename SegmentRange::value_type::LabelType>>;
+
+template <class SetPoint, class PointRange, class SegmentRange>
+    requires PointConcept<typename PointRange::value_type> &&
+             SegmentConcept<typename SegmentRange::value_type>
+Triangulation(const PolygonSet<SetPoint>&, const PointRange&, const SegmentRange&)
+    -> Triangulation<Triangle<SetPoint>,
+                     Segment<SetPoint, typename SegmentRange::value_type::LabelType>>;
+
 // Out-of-line: Polygon::triangulation is declared in shape/polygon.hpp (which
 // precedes this header in the layering) but can only be defined once
 // Triangulation and its deduction guides are visible.
@@ -4868,6 +4996,38 @@ template <class PointType_, class TLabel>
 template <class SegmentRange>
 auto PolygonWithHoles<PointType_, TLabel>::triangulation(const SegmentRange& segments) const {
     return Triangulation(*this, segments);
+}
+
+template <class PointType_, class TLabel>
+auto PolygonSet<PointType_, TLabel>::triangulation() const {
+    return Triangulation(*this);
+}
+
+template <class PointType_, class TLabel>
+template <class SegmentRange>
+auto PolygonSet<PointType_, TLabel>::triangulation(const SegmentRange& segments) const {
+    return Triangulation(*this, segments);
+}
+
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> PolygonSet<PointType_, TLabel>::convexPartition() const {
+    return triangulation().convexPartition();
+}
+
+template <class PointType_, class TLabel>
+std::vector<Convex<PointType_>> PolygonSet<PointType_, TLabel>::convexCovering() const {
+    return triangulation().convexCovering();
+}
+
+// A set's interior is the union of its components', so any component's own
+// witness serves — no triangulation of the whole set needed.
+template <class PointType_, class TLabel>
+template <class ResultNumber>
+Point<ResultNumber> PolygonSet<PointType_, TLabel>::pointInside() const {
+    if (components_.empty()) {
+        return Point<ResultNumber>();
+    }
+    return components_.front().template pointInside<ResultNumber>();
 }
 
 // pointInside also lives here rather than in measures.hpp, since a region that

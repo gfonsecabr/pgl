@@ -817,6 +817,55 @@ constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::centroid()
 }
 
 // -----------------------------------------------------------------------------
+// PolygonSet
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::verticesCentroid() const {
+    const std::size_t n = vertexCount();
+    if (n == 0) {
+        return Point<ResultNumber>();
+    }
+    ResultNumber cx{};
+    ResultNumber cy{};
+    for (const auto& component : components_) {
+        const auto componentCentroid = component.template verticesCentroid<ResultNumber>();
+        const auto weight = static_cast<ResultNumber>(component.vertexCount());
+        cx += componentCentroid.x() * weight;
+        cy += componentCentroid.y() * weight;
+    }
+    return Point<ResultNumber>(cx / static_cast<ResultNumber>(n), cy / static_cast<ResultNumber>(n));
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::centroid() const {
+    if (isEmpty()) {
+        return Point<ResultNumber>();
+    }
+    const NumberType netTwiceArea = twiceArea();
+    if (netTwiceArea == NumberType(0)) {
+        // No area to weight by; fall back to the vertex centroid as Polygon and
+        // PolygonWithHoles do.
+        return verticesCentroid<ResultNumber>();
+    }
+
+    // The components have disjoint interiors, so the set's centroid is their
+    // area-weighted mean. Weighting by twice the area keeps the single division
+    // to the very end.
+    ResultNumber cx{};
+    ResultNumber cy{};
+    for (const auto& component : components_) {
+        const auto weight = static_cast<ResultNumber>(component.twiceArea());
+        const auto componentCentroid = component.template centroid<ResultNumber>();
+        cx += componentCentroid.x() * weight;
+        cy += componentCentroid.y() * weight;
+    }
+    const auto denominator = static_cast<ResultNumber>(netTwiceArea);
+    return Point<ResultNumber>(cx / denominator, cy / denominator);
+}
+
+// -----------------------------------------------------------------------------
 // MonotoneChain
 
 template <class PointType, class LabelType, class Storage>
