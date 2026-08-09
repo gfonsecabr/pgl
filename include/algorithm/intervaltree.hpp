@@ -47,11 +47,14 @@ template <class Fn, class Arg>
  * does not imply that the original two-dimensional shapes meet or contain one
  * another.
  *
- * Nodes form a red-black tree ordered by `(low endpoint, high endpoint,
- * insertion serial)`. The serial keeps equal projected intervals distinct.
+ * Nodes form a red-black tree ordered by `(low endpoint, high endpoint, node
+ * ID)`. The ID keeps equal projected intervals distinct.
  * Every node caches the extrema of both endpoints in its subtree. In
  * particular, `maxHigh` is the standard augmented interval-tree value used to
- * prune subtrees lying completely before an intersection query.
+ * prune subtrees lying completely before an intersection query. Query fields
+ * are stored separately from insertion-only parent/color state, and 32-bit
+ * node IDs keep the hot representation compact. Consequently, one tree can
+ * hold at most `2^32 - 1` shapes.
  *
  * @tparam S Shape type exposing a finite `bbox()`.
  * @tparam Axis Coordinate used for the one-dimensional projection.
@@ -69,29 +72,36 @@ class IntervalTree {
     using const_reference = const ShapeType&;
 
   private:
+    using NodeId = std::uint32_t;
+    static constexpr NodeId invalidNode = std::numeric_limits<NodeId>::max();
+
     enum class Color : unsigned char { red, black };
 
-    struct Node {
+    // Fields touched by range queries stay together in a compact array. Node
+    // IDs also index elements_, so no element index or insertion serial is
+    // stored per node.
+    struct QueryNode {
         NumberType low{};
         NumberType high{};
         NumberType minLow{};
         NumberType maxLow{};
         NumberType minHigh{};
         NumberType maxHigh{};
-        std::size_t elementIndex = 0;
-        std::uint64_t serial = 0;
-        std::size_t count = 0;
-        std::ptrdiff_t left = -1;
-        std::ptrdiff_t right = -1;
-        std::ptrdiff_t parent = -1;
+        std::uint32_t count = 0;
+        NodeId left = invalidNode;
+        NodeId right = invalidNode;
+    };
+
+    // Insertion-only state is kept cold so queries do not pull it into cache.
+    struct MutationNode {
+        NodeId parent = invalidNode;
         Color color = Color::black;
     };
 
     std::vector<ShapeType> elements_;
-    std::vector<std::ptrdiff_t> elementNodes_;
-    std::vector<Node> nodes_;
-    std::ptrdiff_t root_ = -1;
-    std::uint64_t nextSerial_ = 0;
+    std::vector<QueryNode> nodes_;
+    std::vector<MutationNode> mutationNodes_;
+    NodeId root_ = invalidNode;
 
     template <class T>
     [[nodiscard]] static bool less(const T& a, const T& b) {
@@ -113,16 +123,24 @@ class IntervalTree {
         return a < b ? b : a;
     }
 
-    [[nodiscard]] const Node& node(std::ptrdiff_t id) const {
+    [[nodiscard]] const QueryNode& node(NodeId id) const {
         return nodes_[static_cast<std::size_t>(id)];
     }
 
-    [[nodiscard]] Node& node(std::ptrdiff_t id) {
+    [[nodiscard]] QueryNode& node(NodeId id) {
         return nodes_[static_cast<std::size_t>(id)];
     }
 
-    [[nodiscard]] static Color colorOf(const IntervalTree& tree, std::ptrdiff_t id) {
-        return id == -1 ? Color::black : tree.node(id).color;
+    [[nodiscard]] const MutationNode& mutationNode(NodeId id) const {
+        return mutationNodes_[static_cast<std::size_t>(id)];
+    }
+
+    [[nodiscard]] MutationNode& mutationNode(NodeId id) {
+        return mutationNodes_[static_cast<std::size_t>(id)];
+    }
+
+    [[nodiscard]] static Color colorOf(const IntervalTree& tree, NodeId id) {
+        return id == invalidNode ? Color::black : tree.mutationNode(id).color;
     }
 
     template <class Shape>
@@ -147,29 +165,30 @@ class IntervalTree {
     }
 
     [[nodiscard]] bool keyLess(const NumberType& low, const NumberType& high,
-                               std::uint64_t serial, const Node& other) const {
+                               NodeId id, NodeId otherId) const {
+        const QueryNode& other = node(otherId);
         if (intervalLess(low, high, other.low, other.high)) {
             return true;
         }
         if (intervalLess(other.low, other.high, low, high)) {
             return false;
         }
-        return serial < other.serial;
+        return id < otherId;
     }
 
-    void update(std::ptrdiff_t id) {
-        if (id == -1) {
+    void update(NodeId id) {
+        if (id == invalidNode) {
             return;
         }
-        Node& n = node(id);
+        QueryNode& n = node(id);
         n.minLow = n.maxLow = n.low;
         n.minHigh = n.maxHigh = n.high;
         n.count = 1;
-        for (const std::ptrdiff_t child : {n.left, n.right}) {
-            if (child == -1) {
+        for (const NodeId child : {n.left, n.right}) {
+            if (child == invalidNode) {
                 continue;
             }
-            const Node& c = node(child);
+            const QueryNode& c = node(child);
             n.minLow = minimum(n.minLow, c.minLow);
             n.maxLow = maximum(n.maxLow, c.maxLow);
             n.minHigh = minimum(n.minHigh, c.minHigh);
@@ -178,125 +197,130 @@ class IntervalTree {
         }
     }
 
-    void updateUpward(std::ptrdiff_t id) {
-        while (id != -1) {
+    void updateUpward(NodeId id) {
+        while (id != invalidNode) {
             update(id);
-            id = node(id).parent;
+            id = mutationNode(id).parent;
         }
     }
 
-    [[nodiscard]] std::ptrdiff_t allocateNode(std::size_t elementIndex, const NumberType& low,
-                                              const NumberType& high) {
-        Node fresh;
+    [[nodiscard]] NodeId allocateNode(const NumberType& low, const NumberType& high) {
+        if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
+            throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
+        }
+
+        QueryNode fresh;
         fresh.low = fresh.minLow = fresh.maxLow = low;
         fresh.high = fresh.minHigh = fresh.maxHigh = high;
-        fresh.elementIndex = elementIndex;
-        fresh.serial = nextSerial_++;
         fresh.count = 1;
-        fresh.color = Color::red;
         nodes_.push_back(std::move(fresh));
-        return static_cast<std::ptrdiff_t>(nodes_.size() - 1);
+        try {
+            mutationNodes_.push_back(MutationNode{invalidNode, Color::red});
+        } catch (...) {
+            nodes_.pop_back();
+            throw;
+        }
+        return static_cast<NodeId>(nodes_.size() - 1);
     }
 
-    void rotateLeft(std::ptrdiff_t x) {
-        const std::ptrdiff_t y = node(x).right;
+    void rotateLeft(NodeId x) {
+        const NodeId y = node(x).right;
         node(x).right = node(y).left;
-        if (node(y).left != -1) {
-            node(node(y).left).parent = x;
+        if (node(y).left != invalidNode) {
+            mutationNode(node(y).left).parent = x;
         }
-        node(y).parent = node(x).parent;
-        if (node(x).parent == -1) {
+        mutationNode(y).parent = mutationNode(x).parent;
+        if (mutationNode(x).parent == invalidNode) {
             root_ = y;
-        } else if (x == node(node(x).parent).left) {
-            node(node(x).parent).left = y;
+        } else if (x == node(mutationNode(x).parent).left) {
+            node(mutationNode(x).parent).left = y;
         } else {
-            node(node(x).parent).right = y;
+            node(mutationNode(x).parent).right = y;
         }
         node(y).left = x;
-        node(x).parent = y;
+        mutationNode(x).parent = y;
         update(x);
         update(y);
     }
 
-    void rotateRight(std::ptrdiff_t x) {
-        const std::ptrdiff_t y = node(x).left;
+    void rotateRight(NodeId x) {
+        const NodeId y = node(x).left;
         node(x).left = node(y).right;
-        if (node(y).right != -1) {
-            node(node(y).right).parent = x;
+        if (node(y).right != invalidNode) {
+            mutationNode(node(y).right).parent = x;
         }
-        node(y).parent = node(x).parent;
-        if (node(x).parent == -1) {
+        mutationNode(y).parent = mutationNode(x).parent;
+        if (mutationNode(x).parent == invalidNode) {
             root_ = y;
-        } else if (x == node(node(x).parent).right) {
-            node(node(x).parent).right = y;
+        } else if (x == node(mutationNode(x).parent).right) {
+            node(mutationNode(x).parent).right = y;
         } else {
-            node(node(x).parent).left = y;
+            node(mutationNode(x).parent).left = y;
         }
         node(y).right = x;
-        node(x).parent = y;
+        mutationNode(x).parent = y;
         update(x);
         update(y);
     }
 
-    void insertFixup(std::ptrdiff_t z) {
-        while (z != root_ && colorOf(*this, node(z).parent) == Color::red) {
-            const std::ptrdiff_t parent = node(z).parent;
-            const std::ptrdiff_t grandparent = node(parent).parent;
+    void insertFixup(NodeId z) {
+        while (z != root_ && colorOf(*this, mutationNode(z).parent) == Color::red) {
+            const NodeId parent = mutationNode(z).parent;
+            const NodeId grandparent = mutationNode(parent).parent;
             if (parent == node(grandparent).left) {
-                std::ptrdiff_t uncle = node(grandparent).right;
+                NodeId uncle = node(grandparent).right;
                 if (colorOf(*this, uncle) == Color::red) {
-                    node(parent).color = Color::black;
-                    node(uncle).color = Color::black;
-                    node(grandparent).color = Color::red;
+                    mutationNode(parent).color = Color::black;
+                    mutationNode(uncle).color = Color::black;
+                    mutationNode(grandparent).color = Color::red;
                     z = grandparent;
                 } else {
                     if (z == node(parent).right) {
                         z = parent;
                         rotateLeft(z);
                     }
-                    node(node(z).parent).color = Color::black;
-                    node(node(node(z).parent).parent).color = Color::red;
-                    rotateRight(node(node(z).parent).parent);
+                    mutationNode(mutationNode(z).parent).color = Color::black;
+                    mutationNode(mutationNode(mutationNode(z).parent).parent).color = Color::red;
+                    rotateRight(mutationNode(mutationNode(z).parent).parent);
                 }
             } else {
-                std::ptrdiff_t uncle = node(grandparent).left;
+                NodeId uncle = node(grandparent).left;
                 if (colorOf(*this, uncle) == Color::red) {
-                    node(parent).color = Color::black;
-                    node(uncle).color = Color::black;
-                    node(grandparent).color = Color::red;
+                    mutationNode(parent).color = Color::black;
+                    mutationNode(uncle).color = Color::black;
+                    mutationNode(grandparent).color = Color::red;
                     z = grandparent;
                 } else {
                     if (z == node(parent).left) {
                         z = parent;
                         rotateRight(z);
                     }
-                    node(node(z).parent).color = Color::black;
-                    node(node(node(z).parent).parent).color = Color::red;
-                    rotateLeft(node(node(z).parent).parent);
+                    mutationNode(mutationNode(z).parent).color = Color::black;
+                    mutationNode(mutationNode(mutationNode(z).parent).parent).color = Color::red;
+                    rotateLeft(mutationNode(mutationNode(z).parent).parent);
                 }
             }
         }
-        node(root_).color = Color::black;
+        mutationNode(root_).color = Color::black;
     }
 
-    void insertExisting(std::size_t elementIndex, const NumberType& low, const NumberType& high) {
-        const std::ptrdiff_t z = allocateNode(elementIndex, low, high);
-        elementNodes_[elementIndex] = z;
+    void insertExisting(const NumberType& low, const NumberType& high) {
+        const NodeId z = allocateNode(low, high);
 
-        std::ptrdiff_t parent = -1;
-        std::ptrdiff_t current = root_;
-        while (current != -1) {
+        NodeId parent = invalidNode;
+        NodeId current = root_;
+        while (current != invalidNode) {
             parent = current;
-            if (keyLess(low, high, node(z).serial, node(current))) {
+            if (keyLess(low, high, z, current)) {
                 current = node(current).left;
             } else {
                 current = node(current).right;
             }
         }
-        node(z).parent = parent;
-        if (parent == -1) {
+        mutationNode(z).parent = parent;
+        if (parent == invalidNode) {
             root_ = z;
-        } else if (keyLess(low, high, node(z).serial, node(parent))) {
+        } else if (keyLess(low, high, z, parent)) {
             node(parent).left = z;
         } else {
             node(parent).right = z;
@@ -308,40 +332,41 @@ class IntervalTree {
 
     void rebuildFromElements() {
         nodes_.clear();
-        elementNodes_.assign(elements_.size(), -1);
-        root_ = -1;
-        nextSerial_ = 0;
+        mutationNodes_.clear();
+        nodes_.reserve(elements_.size());
+        mutationNodes_.reserve(elements_.size());
+        root_ = invalidNode;
         for (std::size_t i = 0; i < elements_.size(); ++i) {
             const auto [low, high] = project(elements_[i]);
-            insertExisting(i, low, high);
+            insertExisting(low, high);
         }
     }
 
-    [[nodiscard]] std::ptrdiff_t minimumNode(std::ptrdiff_t id) const {
-        while (node(id).left != -1) {
+    [[nodiscard]] NodeId minimumNode(NodeId id) const {
+        while (node(id).left != invalidNode) {
             id = node(id).left;
         }
         return id;
     }
 
-    [[nodiscard]] std::ptrdiff_t successor(std::ptrdiff_t id) const {
-        if (node(id).right != -1) {
+    [[nodiscard]] NodeId successor(NodeId id) const {
+        if (node(id).right != invalidNode) {
             return minimumNode(node(id).right);
         }
-        std::ptrdiff_t parent = node(id).parent;
-        while (parent != -1 && id == node(parent).right) {
+        NodeId parent = mutationNode(id).parent;
+        while (parent != invalidNode && id == node(parent).right) {
             id = parent;
-            parent = node(parent).parent;
+            parent = mutationNode(parent).parent;
         }
         return parent;
     }
 
-    [[nodiscard]] std::ptrdiff_t lowerBoundInterval(const NumberType& low,
-                                                    const NumberType& high) const {
-        std::ptrdiff_t id = root_;
-        std::ptrdiff_t result = -1;
-        while (id != -1) {
-            const Node& n = node(id);
+    [[nodiscard]] NodeId lowerBoundInterval(const NumberType& low,
+                                            const NumberType& high) const {
+        NodeId id = root_;
+        NodeId result = invalidNode;
+        while (id != invalidNode) {
+            const QueryNode& n = node(id);
             if (intervalLess(n.low, n.high, low, high)) {
                 id = n.right;
             } else {
@@ -352,76 +377,77 @@ class IntervalTree {
         return result;
     }
 
-    [[nodiscard]] std::ptrdiff_t findEqualNode(const ShapeType& shape, const NumberType& low,
-                                               const NumberType& high) const {
-        for (std::ptrdiff_t id = lowerBoundInterval(low, high); id != -1; id = successor(id)) {
-            const Node& n = node(id);
+    [[nodiscard]] NodeId findEqualNode(const ShapeType& shape, const NumberType& low,
+                                      const NumberType& high) const {
+        for (NodeId id = lowerBoundInterval(low, high); id != invalidNode; id = successor(id)) {
+            const QueryNode& n = node(id);
             if (!equivalent(n.low, low) || !equivalent(n.high, high)) {
                 break;
             }
-            if (elements_[n.elementIndex] == shape) {
+            if (elements_[static_cast<std::size_t>(id)] == shape) {
                 return id;
             }
         }
-        return -1;
+        return invalidNode;
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool intersects(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool intersects(const QueryNode& n, const Low& low, const High& high) {
         return !(n.high < low) && !(high < n.low);
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool mayIntersect(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool mayIntersect(const QueryNode& n, const Low& low, const High& high) {
         return !(n.maxHigh < low) && !(high < n.minLow);
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool allIntersect(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool allIntersect(const QueryNode& n, const Low& low, const High& high) {
         return !(high < n.maxLow) && !(n.minHigh < low);
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool containedIn(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool containedIn(const QueryNode& n, const Low& low, const High& high) {
         return !(n.low < low) && !(high < n.low) && !(high < n.high);
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool mayContain(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool mayContain(const QueryNode& n, const Low& low, const High& high) {
         return !(n.maxLow < low) && !(high < n.minLow) && !(high < n.minHigh);
     }
 
     template <class Low, class High>
-    [[nodiscard]] static bool allContainedIn(const Node& n, const Low& low, const High& high) {
+    [[nodiscard]] static bool allContainedIn(const QueryNode& n, const Low& low, const High& high) {
         return !(n.minLow < low) && !(high < n.maxLow) && !(high < n.maxHigh);
     }
 
     template <class Fn>
-    [[nodiscard]] bool visitAll(std::ptrdiff_t id, Fn& fn) const {
-        if (id == -1) {
+    [[nodiscard]] bool visitAll(NodeId id, Fn& fn) const {
+        if (id == invalidNode) {
             return false;
         }
-        const Node& n = node(id);
-        if (detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+        const QueryNode& n = node(id);
+        if (detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
             return true;
         }
         return visitAll(n.left, fn) || visitAll(n.right, fn);
     }
 
     template <class Low, class High, class Fn>
-    [[nodiscard]] bool visitIntersecting(std::ptrdiff_t id, const Low& low, const High& high,
+    [[nodiscard]] bool visitIntersecting(NodeId id, const Low& low, const High& high,
                                          Fn& fn) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return false;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayIntersect(n, low, high)) {
             return false;
         }
         if (allIntersect(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (intersects(n, low, high) && detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+        if (intersects(n, low, high) &&
+            detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
             return true;
         }
         return visitIntersecting(n.left, low, high, fn) ||
@@ -429,19 +455,20 @@ class IntervalTree {
     }
 
     template <class Low, class High, class Fn>
-    [[nodiscard]] bool visitContainedIn(std::ptrdiff_t id, const Low& low, const High& high,
+    [[nodiscard]] bool visitContainedIn(NodeId id, const Low& low, const High& high,
                                         Fn& fn) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return false;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayContain(n, low, high)) {
             return false;
         }
         if (allContainedIn(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (containedIn(n, low, high) && detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+        if (containedIn(n, low, high) &&
+            detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
             return true;
         }
         return visitContainedIn(n.left, low, high, fn) ||
@@ -453,17 +480,17 @@ class IntervalTree {
     // as ShapeTree. A subtree cannot be accepted wholesale here: matching
     // projections do not imply that the original shapes match.
     template <class Low, class High, class Q, class Fn>
-    [[nodiscard]] bool visitShapeIntersecting(std::ptrdiff_t id, const Low& low, const High& high,
+    [[nodiscard]] bool visitShapeIntersecting(NodeId id, const Low& low, const High& high,
                                               const Q& q, Fn& fn) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return false;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayIntersect(n, low, high)) {
             return false;
         }
-        if (elements_[n.elementIndex].intersects(q) &&
-            detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+        const ShapeType& shape = elements_[static_cast<std::size_t>(id)];
+        if (shape.intersects(q) && detail::invokeIntervalTreeVisitor(fn, shape)) {
             return true;
         }
         return visitShapeIntersecting(n.left, low, high, q, fn) ||
@@ -471,17 +498,17 @@ class IntervalTree {
     }
 
     template <class Low, class High, class Q, class Fn>
-    [[nodiscard]] bool visitShapeContainedIn(std::ptrdiff_t id, const Low& low, const High& high,
+    [[nodiscard]] bool visitShapeContainedIn(NodeId id, const Low& low, const High& high,
                                              const Q& q, Fn& fn) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return false;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayContain(n, low, high)) {
             return false;
         }
-        if (q.contains(elements_[n.elementIndex]) &&
-            detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+        const ShapeType& shape = elements_[static_cast<std::size_t>(id)];
+        if (q.contains(shape) && detail::invokeIntervalTreeVisitor(fn, shape)) {
             return true;
         }
         return visitShapeContainedIn(n.left, low, high, q, fn) ||
@@ -489,12 +516,12 @@ class IntervalTree {
     }
 
     template <class Low, class High>
-    [[nodiscard]] std::size_t countIntersecting(std::ptrdiff_t id, const Low& low,
+    [[nodiscard]] std::size_t countIntersecting(NodeId id, const Low& low,
                                                 const High& high) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return 0;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayIntersect(n, low, high)) {
             return 0;
         }
@@ -506,12 +533,12 @@ class IntervalTree {
     }
 
     template <class Low, class High>
-    [[nodiscard]] std::size_t countContainedIn(std::ptrdiff_t id, const Low& low,
+    [[nodiscard]] std::size_t countContainedIn(NodeId id, const Low& low,
                                                const High& high) const {
-        if (id == -1) {
+        if (id == invalidNode) {
             return 0;
         }
-        const Node& n = node(id);
+        const QueryNode& n = node(id);
         if (!mayContain(n, low, high)) {
             return 0;
         }
@@ -528,6 +555,15 @@ class IntervalTree {
     /** Builds a tree by inserting every shape in @p shapes. */
     template <class Container>
     explicit IntervalTree(const Container& shapes) {
+        if constexpr (requires { shapes.size(); }) {
+            const std::size_t count = static_cast<std::size_t>(shapes.size());
+            if (count > static_cast<std::size_t>(invalidNode)) {
+                throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
+            }
+            elements_.reserve(count);
+            nodes_.reserve(count);
+            mutationNodes_.reserve(count);
+        }
         for (const auto& shape : shapes) {
             insert(shape);
         }
@@ -554,14 +590,17 @@ class IntervalTree {
     /** Inserts @p shape and its selected closed bounding-box interval. */
     void insert(const ShapeType& shape) {
         const auto [low, high] = project(shape);
-        if (nextSerial_ == std::numeric_limits<std::uint64_t>::max()) {
-            throw std::overflow_error("IntervalTree insertion serial exhausted");
+        if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
+            throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
         }
 
-        const std::size_t elementIndex = elements_.size();
         elements_.push_back(shape);
-        elementNodes_.push_back(-1);
-        insertExisting(elementIndex, low, high);
+        try {
+            insertExisting(low, high);
+        } catch (...) {
+            elements_.pop_back();
+            throw;
+        }
     }
 
     /**
@@ -572,7 +611,7 @@ class IntervalTree {
      * augmentation invariants as a freshly constructed tree.
      */
     bool erase(const ShapeType& shape) {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto found = std::find(elements_.begin(), elements_.end(), shape);
@@ -592,17 +631,17 @@ class IntervalTree {
 
     /** Returns whether a shape equal to @p shape is stored. */
     [[nodiscard]] bool has(const ShapeType& shape) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto [low, high] = project(shape);
-        return findEqualNode(shape, low, high) != -1;
+        return findEqualNode(shape, low, high) != invalidNode;
     }
 
     /** Counts shapes whose projected interval intersects the projection of @p q. */
     template <class Q>
     [[nodiscard]] std::size_t countProjectionsIntersecting(const Q& q) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return 0;
         }
         const auto [low, high] = project(q);
@@ -613,7 +652,7 @@ class IntervalTree {
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportProjectionsIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
-        if (root_ != -1) {
+        if (root_ != invalidNode) {
             const auto [low, high] = project(q);
             auto append = [&out](const ShapeType& shape) { out.push_back(shape); };
             (void)visitIntersecting(root_, low, high, append);
@@ -624,7 +663,7 @@ class IntervalTree {
     /** Visits projected-interval intersections, stopping early if @p fn returns true. */
     template <class Q, class Fn>
     bool visitProjectionsIntersecting(const Q& q, Fn fn) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto [low, high] = project(q);
@@ -640,7 +679,7 @@ class IntervalTree {
     /** Counts shapes whose projected interval is contained in the projection of @p q. */
     template <class Q>
     [[nodiscard]] std::size_t countProjectionsContainedIn(const Q& q) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return 0;
         }
         const auto [low, high] = project(q);
@@ -651,7 +690,7 @@ class IntervalTree {
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportProjectionsContainedIn(const Q& q) const {
         std::vector<ShapeType> out;
-        if (root_ != -1) {
+        if (root_ != invalidNode) {
             const auto [low, high] = project(q);
             auto append = [&out](const ShapeType& shape) { out.push_back(shape); };
             (void)visitContainedIn(root_, low, high, append);
@@ -662,7 +701,7 @@ class IntervalTree {
     /** Visits projected intervals contained in @p q, stopping early if @p fn returns true. */
     template <class Q, class Fn>
     bool visitProjectionsContainedIn(const Q& q, Fn fn) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto [low, high] = project(q);
@@ -704,7 +743,7 @@ class IntervalTree {
      */
     template <class Q, class Fn>
     bool visitIntersecting(const Q& q, Fn fn) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto [low, high] = project(q);
@@ -741,7 +780,7 @@ class IntervalTree {
     /** Visits stored shapes geometrically contained in @p q. */
     template <class Q, class Fn>
     bool visitContainedIn(const Q& q, Fn fn) const {
-        if (root_ == -1) {
+        if (root_ == invalidNode) {
             return false;
         }
         const auto [low, high] = project(q);

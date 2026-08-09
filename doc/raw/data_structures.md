@@ -81,7 +81,9 @@ Like `ShapeTree`, report methods return copies of the stored shapes, visitors
 receive them by const reference and may stop early by returning `true`, and
 `has`, `size`, `empty`, `shapes`, and const iterators provide container-like
 access. The tree is augmented with its subtree endpoint extrema, so irrelevant
-subtrees are pruned during both query families.
+subtrees are pruned during both query families. Nodes use 32-bit identifiers
+and keep query data separate from insertion-only state; a tree can therefore
+hold at most `2^32 - 1` shapes.
 
 
 ### Triangulation
