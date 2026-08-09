@@ -52,20 +52,30 @@ Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bou
 shapes. It stores the closed interval obtained by projecting each shape's
 bounding box onto `Axis`, which is `ProjectionAxis::x` by default or
 `ProjectionAxis::y` when selected explicitly. The stored shapes themselves are
-preserved, but all query decisions are made from those one-dimensional
-intervals: two shapes can match even when they are disjoint in the plane.
+preserved. Its projection-prefixed query family makes decisions only from those
+one-dimensional intervals; its unprefixed family uses the projection to prune
+candidates, then applies the corresponding exact two-dimensional predicate.
 
 - `IntervalTree<Shape>(V)` inserts every shape in container `V`; `insert(s)`
   and `erase(s)` add and remove one equal stored shape while retaining
   red-black-tree balance. Equal projected intervals are stored independently.
 
-- `countIntersecting(q)`, `reportIntersecting(q)`, `visitIntersecting(q, f)`,
-  and `emptyIntersecting(q)` match shapes whose projected closed interval meets
-  that of `q`; touching at an endpoint counts as intersection.
+- `countProjectionsIntersecting(q)`, `reportProjectionsIntersecting(q)`,
+  `visitProjectionsIntersecting(q, f)`, and `emptyProjectionsIntersecting(q)`
+  match shapes whose projected closed interval meets that of `q`; touching at
+  an endpoint counts as intersection.
 
-- `countContainedIn(q)`, `reportContainedIn(q)`, `visitContainedIn(q, f)`, and
-  `emptyContainedIn(q)` match shapes whose entire projected closed interval is
-  within that of `q`, including shared endpoints.
+- `countProjectionsContainedIn(q)`, `reportProjectionsContainedIn(q)`,
+  `visitProjectionsContainedIn(q, f)`, and `emptyProjectionsContainedIn(q)`
+  match shapes whose entire projected closed interval is within that of `q`,
+  including shared endpoints.
+
+- `countIntersecting(q)`, `reportIntersecting(q)`, `visitIntersecting(q, f)`,
+  and `emptyIntersecting(q)` first prune by the selected projection and then
+  test `shape.intersects(q)`. `countContainedIn(q)`, `reportContainedIn(q)`,
+  `visitContainedIn(q, f)`, and `emptyContainedIn(q)` similarly test
+  `q.contains(shape)`. These unprefixed methods return the same results as the
+  corresponding `ShapeTree` methods over the same stored shapes.
 
 Like `ShapeTree`, report methods return copies of the stored shapes, visitors
 receive them by const reference and may stop early by returning `true`, and

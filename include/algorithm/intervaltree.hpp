@@ -448,6 +448,46 @@ class IntervalTree {
                visitContainedIn(n.right, low, high, fn);
     }
 
+    // The unqualified public query family uses the interval tree only as a
+    // necessary-condition filter, then applies the same exact shape predicate
+    // as ShapeTree. A subtree cannot be accepted wholesale here: matching
+    // projections do not imply that the original shapes match.
+    template <class Low, class High, class Q, class Fn>
+    [[nodiscard]] bool visitShapeIntersecting(std::ptrdiff_t id, const Low& low, const High& high,
+                                              const Q& q, Fn& fn) const {
+        if (id == -1) {
+            return false;
+        }
+        const Node& n = node(id);
+        if (!mayIntersect(n, low, high)) {
+            return false;
+        }
+        if (elements_[n.elementIndex].intersects(q) &&
+            detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+            return true;
+        }
+        return visitShapeIntersecting(n.left, low, high, q, fn) ||
+               visitShapeIntersecting(n.right, low, high, q, fn);
+    }
+
+    template <class Low, class High, class Q, class Fn>
+    [[nodiscard]] bool visitShapeContainedIn(std::ptrdiff_t id, const Low& low, const High& high,
+                                             const Q& q, Fn& fn) const {
+        if (id == -1) {
+            return false;
+        }
+        const Node& n = node(id);
+        if (!mayContain(n, low, high)) {
+            return false;
+        }
+        if (q.contains(elements_[n.elementIndex]) &&
+            detail::invokeIntervalTreeVisitor(fn, elements_[n.elementIndex])) {
+            return true;
+        }
+        return visitShapeContainedIn(n.left, low, high, q, fn) ||
+               visitShapeContainedIn(n.right, low, high, q, fn);
+    }
+
     template <class Low, class High>
     [[nodiscard]] std::size_t countIntersecting(std::ptrdiff_t id, const Low& low,
                                                 const High& high) const {
@@ -561,7 +601,7 @@ class IntervalTree {
 
     /** Counts shapes whose projected interval intersects the projection of @p q. */
     template <class Q>
-    [[nodiscard]] std::size_t countIntersecting(const Q& q) const {
+    [[nodiscard]] std::size_t countProjectionsIntersecting(const Q& q) const {
         if (root_ == -1) {
             return 0;
         }
@@ -571,7 +611,7 @@ class IntervalTree {
 
     /** Returns copies of shapes whose projected interval intersects that of @p q. */
     template <class Q>
-    [[nodiscard]] std::vector<ShapeType> reportIntersecting(const Q& q) const {
+    [[nodiscard]] std::vector<ShapeType> reportProjectionsIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
         if (root_ != -1) {
             const auto [low, high] = project(q);
@@ -583,7 +623,7 @@ class IntervalTree {
 
     /** Visits projected-interval intersections, stopping early if @p fn returns true. */
     template <class Q, class Fn>
-    bool visitIntersecting(const Q& q, Fn fn) const {
+    bool visitProjectionsIntersecting(const Q& q, Fn fn) const {
         if (root_ == -1) {
             return false;
         }
@@ -593,13 +633,13 @@ class IntervalTree {
 
     /** Returns whether no stored projected interval intersects the projection of @p q. */
     template <class Q>
-    [[nodiscard]] bool emptyIntersecting(const Q& q) const {
-        return visitIntersecting(q, [](const ShapeType&) { return true; }) == false;
+    [[nodiscard]] bool emptyProjectionsIntersecting(const Q& q) const {
+        return visitProjectionsIntersecting(q, [](const ShapeType&) { return true; }) == false;
     }
 
     /** Counts shapes whose projected interval is contained in the projection of @p q. */
     template <class Q>
-    [[nodiscard]] std::size_t countContainedIn(const Q& q) const {
+    [[nodiscard]] std::size_t countProjectionsContainedIn(const Q& q) const {
         if (root_ == -1) {
             return 0;
         }
@@ -609,7 +649,7 @@ class IntervalTree {
 
     /** Returns copies of shapes whose projected interval is contained in that of @p q. */
     template <class Q>
-    [[nodiscard]] std::vector<ShapeType> reportContainedIn(const Q& q) const {
+    [[nodiscard]] std::vector<ShapeType> reportProjectionsContainedIn(const Q& q) const {
         std::vector<ShapeType> out;
         if (root_ != -1) {
             const auto [low, high] = project(q);
@@ -621,7 +661,7 @@ class IntervalTree {
 
     /** Visits projected intervals contained in @p q, stopping early if @p fn returns true. */
     template <class Q, class Fn>
-    bool visitContainedIn(const Q& q, Fn fn) const {
+    bool visitProjectionsContainedIn(const Q& q, Fn fn) const {
         if (root_ == -1) {
             return false;
         }
@@ -631,8 +671,87 @@ class IntervalTree {
 
     /** Returns whether no stored projected interval is contained in that of @p q. */
     template <class Q>
+    [[nodiscard]] bool emptyProjectionsContainedIn(const Q& q) const {
+        return visitProjectionsContainedIn(q, [](const ShapeType&) { return true; }) == false;
+    }
+
+    /**
+     * @brief Counts stored shapes that geometrically intersect @p q.
+     *
+     * The selected projection prunes candidates, then each survivor is tested
+     * with `shape.intersects(q)`, exactly as in @ref ShapeTree.
+     */
+    template <class Q>
+    [[nodiscard]] std::size_t countIntersecting(const Q& q) const {
+        std::size_t count = 0;
+        (void)visitIntersecting(q, [&](const ShapeType&) { ++count; });
+        return count;
+    }
+
+    /** Returns copies of stored shapes that geometrically intersect @p q. */
+    template <class Q>
+    [[nodiscard]] std::vector<ShapeType> reportIntersecting(const Q& q) const {
+        std::vector<ShapeType> out;
+        (void)visitIntersecting(q, [&](const ShapeType& shape) { out.push_back(shape); });
+        return out;
+    }
+
+    /**
+     * @brief Visits stored shapes that geometrically intersect @p q.
+     *
+     * A bool-returning visitor stops when it returns true; a void visitor
+     * examines every geometrically intersecting shape.
+     */
+    template <class Q, class Fn>
+    bool visitIntersecting(const Q& q, Fn fn) const {
+        if (root_ == -1) {
+            return false;
+        }
+        const auto [low, high] = project(q);
+        return visitShapeIntersecting(root_, low, high, q, fn);
+    }
+
+    /** Returns whether no stored shape geometrically intersects @p q. */
+    template <class Q>
+    [[nodiscard]] bool emptyIntersecting(const Q& q) const {
+        return !visitIntersecting(q, [](const ShapeType&) { return true; });
+    }
+
+    /**
+     * @brief Counts stored shapes geometrically contained in @p q.
+     *
+     * The selected projection prunes candidates, then each survivor is tested
+     * with `q.contains(shape)`, exactly as in @ref ShapeTree.
+     */
+    template <class Q>
+    [[nodiscard]] std::size_t countContainedIn(const Q& q) const {
+        std::size_t count = 0;
+        (void)visitContainedIn(q, [&](const ShapeType&) { ++count; });
+        return count;
+    }
+
+    /** Returns copies of stored shapes geometrically contained in @p q. */
+    template <class Q>
+    [[nodiscard]] std::vector<ShapeType> reportContainedIn(const Q& q) const {
+        std::vector<ShapeType> out;
+        (void)visitContainedIn(q, [&](const ShapeType& shape) { out.push_back(shape); });
+        return out;
+    }
+
+    /** Visits stored shapes geometrically contained in @p q. */
+    template <class Q, class Fn>
+    bool visitContainedIn(const Q& q, Fn fn) const {
+        if (root_ == -1) {
+            return false;
+        }
+        const auto [low, high] = project(q);
+        return visitShapeContainedIn(root_, low, high, q, fn);
+    }
+
+    /** Returns whether no stored shape is geometrically contained in @p q. */
+    template <class Q>
     [[nodiscard]] bool emptyContainedIn(const Q& q) const {
-        return visitContainedIn(q, [](const ShapeType&) { return true; }) == false;
+        return !visitContainedIn(q, [](const ShapeType&) { return true; });
     }
 };
 
