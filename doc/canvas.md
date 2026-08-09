@@ -120,6 +120,7 @@ defaults:
 | [`height(double heightPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a8256fca52537707a7288cd82a42f016c "Sets the exported SVG height in pixels.") | Sets the SVG height in pixels. The value must be strictly positive. |
 | [`size(double widthPixels, double heightPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ab56282ffe4990051d30b69a0468e2394 "Sets the exported SVG size in pixels.") | Convenience wrapper for setting width and height together. |
 | [`margin(double marginPixels)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ac5d887cdc706ea1473bebdda02c2390d "Sets the margin reserved around the fitted drawing.") | Reserves blank space around the fitted drawing. Increasing the margin gives the geometry more breathing room inside the image. The value must be non-negative. |
+| [`view(const Rectangle& window)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a6676e76708f678fc3ca476c1cb9db942 "Fits the export to an explicit window of the plane instead of to the inserted geometry.") | Fits the export to an explicit window of the plane instead of to the inserted geometry. Infinite primitives are clipped to the window and geometry outside it falls outside the image. [`scale`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a40b9eaa91fa720483a2999d09e89e47b "Sets the global zoom factor used during SVG export.") and [`margin`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ac5d887cdc706ea1473bebdda02c2390d "Sets the margin reserved around the fitted drawing.") still apply on top, and calling it again replaces the window. |
 | [`borders(bool enabled = true)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a6621826426cfa82bd0b5fd8221b7376b "Enables or disables the optional border around the SVG.") | Enables or disables a thin rectangular frame around the whole SVG. This is especially helpful when debugging clipping and margins. |
 | [`writeSVG(const std::string& path)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#ade8bd4b3d2c895f3659aa101552e3031 "Serializes the canvas to an SVG file.") | Writes the full SVG document to disk. Throws if the output file cannot be opened. |
 | [`toSVG()`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a9d02568a8bf29a1d7c7638a1186a9f14 "Serializes the canvas contents to an SVG string.") | Returns the complete SVG document as a string, which is useful for tests, web responses, or custom output pipelines. |
@@ -133,7 +134,7 @@ defaults:
 
 Canvas fitting is automatic:
 
-- the bounding boxes of all bounded shapes are collected;
+- the bounding boxes of all bounded shapes are collected, unless [`view(window)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a6676e76708f678fc3ca476c1cb9db942 "Fits the export to an explicit window of the plane instead of to the inserted geometry.") set an explicit window, which replaces them;
 - infinite primitives are clipped to the visible viewport;
 - the drawing is uniformly scaled to fit inside the chosen width and height;
 - the aspect ratio is preserved;
@@ -144,6 +145,10 @@ Canvas fitting is automatic:
 
 - [`Canvas`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html "Stores drawable objects and exports them as an SVG image.") is intentionally lightweight. It is a geometry inspection tool, not a
   general plotting framework.
+- An infinite primitive contributes the points that define it to the collected
+  bounding box, so a line defined far from the rest of the drawing stretches the
+  fit. That, and a drawing whose interesting part is much smaller than its
+  bounding box, are what [`view`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html#a6676e76708f678fc3ca476c1cb9db942 "Fits the export to an explicit window of the plane instead of to the inserted geometry.") is for.
 - Shapes are stored in insertion order, and SVG output preserves that order, so
   later shapes are drawn on top of earlier ones.
 - Because style is captured on insertion, it is easy to layer highlights on top
