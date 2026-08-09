@@ -331,6 +331,18 @@ struct PolygonWithHoles {
         return result;
     }
 
+    /**
+     * @brief Returns the region as a one-component set of regions.
+     *
+     * A region with no area covers nothing that survives regularization, so it
+     * gives back the empty set rather than a component without area.
+     *
+     * @return PolygonSet whose only component is this region.
+     */
+    [[nodiscard]] constexpr PolygonSet<PointType> asPolygonSet() const {
+        return PolygonSet<PointType>(*this);
+    }
+
     // -------------------------------------------------------------------------
     // Value semantics
 

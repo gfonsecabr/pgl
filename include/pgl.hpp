@@ -45,6 +45,7 @@
 #include "shape/polygon.hpp"
 #include "shape/halfplaneintersection.hpp"
 #include "shape/polygonwithholes.hpp"
+#include "shape/polygonset.hpp"
 #include "shape/shape.hpp"
 #include "implementation/io.hpp"
 #include "implementation/transformations.hpp"
@@ -101,6 +102,7 @@ using EMonotoneChain   = MonotoneChain<EPoint>;
 using EPolyline        = Polyline<EPoint>;
 using EHalfplaneIntersection = HalfplaneIntersection<EPoint>;
 using EPolygonWithHoles = PolygonWithHoles<EPoint>;
+using EPolygonSet      = PolygonSet<EPoint>;
 using EShape           = Shape<EPoint>;
 
 }  // namespace pgl

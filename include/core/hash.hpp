@@ -321,6 +321,33 @@ namespace std {
     };
 
     /**
+     * @brief Hash support for PolygonSet.
+     *
+     * The components are stored in canonical order, so hashing them in sequence
+     * is independent of the order they were supplied in — as equality requires.
+     */
+    template <class PointType, class LabelType>
+    struct hash<pgl::PolygonSet<PointType, LabelType>> {
+        std::size_t operator()(const pgl::PolygonSet<PointType, LabelType>& set) const {
+            using Shape = pgl::PolygonSet<PointType, LabelType>;
+            if (set.hash_ != Shape::hashUnset_) {
+                return set.hash_;
+            }
+            std::size_t seed = pgl::detail::shapeRank<Shape>;
+            for (const auto& component : set.components()) {
+                pgl::detail::hashCombine(seed, component);
+            }
+            // Never store the sentinel: remap the single colliding value so the
+            // cache can always distinguish "computed" from "not computed".
+            if (seed == Shape::hashUnset_) {
+                seed = Shape::hashUnset_ - 1;
+            }
+            set.hash_ = seed;
+            return seed;
+        }
+    };
+
+    /**
      * @brief Hash support for HalfplaneIntersection.
      */
     template <class PointType, class LabelType>

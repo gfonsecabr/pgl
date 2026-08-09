@@ -2050,6 +2050,33 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
         }
         return PolygonWithHoles<ResultPoint, typename ShapeT::LabelType>(
             ring(shape.outer()), std::move(holes));
+    } else if constexpr (PolygonSetConcept<ShapeT>) {
+        // Every component maps like the region branch above, through its own
+        // non-trusted constructor; the set's normalization then re-sorts the
+        // components, whose relative order an orientation-reversing map can
+        // change, and drops any that a degenerate map has collapsed.
+        using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
+        using ResultRegion = PolygonWithHoles<ResultPoint>;
+        const auto ring = [&point](const auto& source) {
+            std::vector<ResultPoint> pts;
+            pts.reserve(source.size());
+            for (const auto& p : source) {
+                pts.push_back(point(p));
+            }
+            return Polygon<ResultPoint>(std::move(pts));
+        };
+
+        std::vector<ResultRegion> components;
+        components.reserve(shape.componentCount());
+        for (const auto& component : shape) {
+            std::vector<Polygon<ResultPoint>> holes;
+            holes.reserve(component.holeCount());
+            for (const auto& hole : component.holes()) {
+                holes.push_back(ring(hole));
+            }
+            components.emplace_back(ring(component.outer()), std::move(holes));
+        }
+        return PolygonSet<ResultPoint, typename ShapeT::LabelType>(std::move(components));
     } else if constexpr (HalfplaneIntersectionConcept<ShapeT>) {
         // Each stored half-plane maps like the Halfplane branch above,
         // swapping its defining points under a reflection; the non-trusted

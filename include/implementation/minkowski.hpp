@@ -151,6 +151,8 @@ constexpr auto minkowskiTranslated(const ShapeT& shape,
                 return translate(Polyline<ResultPoint, Label>(shape));
             } else if constexpr (is_polygon_with_holes_v<ShapeT>) {
                 return translate(PolygonWithHoles<ResultPoint, Label>(shape));
+            } else if constexpr (is_polygon_set_v<ShapeT>) {
+                return translate(PolygonSet<ResultPoint, Label>(shape));
             } else {
                 static_assert(is_halfplane_intersection_v<ShapeT>,
                               "minkowskiTranslated has no branch for this shape kind: every "
@@ -408,6 +410,7 @@ PGL_DEFINE_MINKOWSKI_SUM(Convex)
 PGL_DEFINE_MINKOWSKI_SUM(Polygon)
 PGL_DEFINE_MINKOWSKI_SUM(Polyline)
 PGL_DEFINE_MINKOWSKI_SUM(PolygonWithHoles)
+PGL_DEFINE_MINKOWSKI_SUM(PolygonSet)
 PGL_DEFINE_MINKOWSKI_SUM(HalfplaneIntersection)
 
 #undef PGL_DEFINE_MINKOWSKI_SUM

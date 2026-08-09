@@ -580,6 +580,19 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the convex polygon as a one-component set of regions.
+     *
+     * A convex polygon with no area covers nothing that survives
+     * regularization, so it gives back the empty set rather than a component
+     * without area.
+     *
+     * @return PolygonSet whose only component is the convex polygon as a region.
+     */
+    [[nodiscard]] constexpr PolygonSet<PointType> asPolygonSet() const {
+        return PolygonSet<PointType>(asPolygonWithHoles());
+    }
+
+    /**
      * @brief Returns the convex polygon as a half-plane intersection.
      *
      * The region is the intersection of the edge half-planes. An empty polygon
