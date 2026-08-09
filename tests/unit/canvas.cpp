@@ -481,6 +481,27 @@ TEST_CASE("Canvas renders a HalfplaneIntersection clipped to the viewport") {
     CHECK(ipe.find("</ipe>") != std::string::npos);
 }
 
+TEST_CASE("Canvas view fits an explicit window instead of the inserted geometry") {
+    using Point = pgl::Point<int>;
+
+    pgl::Canvas canvas;
+    canvas.size(200.0, 200.0).margin(0.0).view(pgl::Rectangle<Point>({0, 0}, {10, 10}));
+    canvas << pgl::pointRadius("0") << Point(5, 5) << Point(1000, 1000);
+    const std::string svg = canvas.toSVG();
+
+    // The window, not the geometry, decides the mapping: the middle of the
+    // window is the middle of the image, and the far point falls outside it.
+    CHECK(svg.find("cx=\"100\" cy=\"100\"") != std::string::npos);
+    CHECK(svg.find("<title>(5,5)</title>") != std::string::npos);
+    CHECK(svg.find("cx=\"19801\"") != std::string::npos);
+
+    // Without the window, the same two points are what gets fitted.
+    pgl::Canvas fitted;
+    fitted.size(200.0, 200.0).margin(0.0);
+    fitted << pgl::pointRadius("0") << Point(5, 5) << Point(1000, 1000);
+    CHECK(fitted.toSVG().find("cx=\"100\" cy=\"100\"") == std::string::npos);
+}
+
 TEST_CASE("Canvas renders a Polyline as an open polyline") {
     const std::string path = "build/tests/output/polyline_canvas.svg";
 

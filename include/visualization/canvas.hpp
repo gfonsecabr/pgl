@@ -189,6 +189,32 @@ class Canvas {
     }
 
     /**
+     * @brief Fits the export to an explicit window of the plane instead of to
+     *        the inserted geometry.
+     *
+     * The window is what the image shows: infinite primitives are clipped to it
+     * and whatever geometry falls outside it falls outside the image. It is the
+     * way to frame a drawing whose interesting part is not its bounding box —
+     * an arrangement whose far-away crossings would shrink everything else, or a
+     * drawing whose bounding box is stretched by the points defining a line.
+     * Calling it again replaces the window, and @ref scale and @ref margin still
+     * apply on top of it.
+     *
+     * @tparam PointType Point type of the window rectangle.
+     * @param window Rectangle of the plane to show.
+     * @return This canvas.
+     */
+    template <class PointType>
+    Canvas& view(const Rectangle<PointType>& window) {
+        const Rectangle<Point<double>> box(window);
+        Bounds bounds;
+        bounds.include(box.min().x(), box.min().y());
+        bounds.include(box.max().x(), box.max().y());
+        view_ = bounds;
+        return *this;
+    }
+
+    /**
      * @brief Sets the margin reserved around the fitted drawing.
      *
      * @param marginPixels Non-negative margin in pixels.
@@ -789,6 +815,10 @@ class Canvas {
     }
 
     Bounds computeBounds() const {
+        if (view_) {
+            return *view_;
+        }
+
         Bounds bounds;
         for (const Element& element : elements_) {
             bounds.include(element.bounds());
@@ -2201,6 +2231,7 @@ class Canvas {
     double heightPixels_ = 1000.0;
     double marginPixels_ = 20.0;
     bool drawBorder_ = false;
+    std::optional<Bounds> view_{};
 
     static constexpr double borderInset_ = 20.0;
 

@@ -140,6 +140,8 @@ void checkInvariants(const Arrangement& arr) {
         if (!start.valid()) {
             CHECK(degree[v] == 0);
             CHECK(outgoing.empty());
+            CHECK(arr.degree(v) == 0);
+            CHECK(arr.originsOf(v).empty());
             continue;
         }
         REQUIRE_FALSE(outgoing.empty());
@@ -156,6 +158,17 @@ void checkInvariants(const Arrangement& arr) {
         } while (h != start);
         CHECK(seen == degree[v]);
         CHECK(outgoing.size() == degree[v]);
+        CHECK(arr.degree(v) == degree[v]);
+
+        // The origins of a vertex are the origins of its incident edges, sorted
+        // and without repetition.
+        std::set<std::uint32_t> incidentOrigins;
+        for (const HalfedgeId outgoingHalfedge : outgoing) {
+            const auto edgeOrigins = arr.originsOf(outgoingHalfedge);
+            incidentOrigins.insert(edgeOrigins.begin(), edgeOrigins.end());
+        }
+        CHECK(arr.originsOf(v) ==
+              std::vector<std::uint32_t>(incidentOrigins.begin(), incidentOrigins.end()));
     }
 
     // The next cycles partition the halfedges, and each is listed exactly once
@@ -974,6 +987,31 @@ TEST_CASE("three lines in general position form seven faces") {
     CHECK(arr.vertexCount() == 3);
     CHECK(arr.edgeCount() == 9);
     CHECK(arr.faceCount() == 7);
+}
+
+TEST_CASE("concurrent lines make one vertex of high degree") {
+    // Three lines through the origin, and a fourth one that misses it.
+    const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0)),
+                                            Line(P(0, -1), P(0, 1)),
+                                            Line(P(-1, -1), P(1, 1)),
+                                            Line(P(3, 0), P(0, 3))});
+    checkInvariants(arr);
+    REQUIRE(arr.vertexCount() == 4);
+
+    std::size_t concurrent = 0;
+    for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
+        const VertexId v(i);
+        if (arr[v] != P(0, 0)) {
+            // An ordinary crossing of two of the lines.
+            CHECK(arr.degree(v) == 4);
+            CHECK(arr.originsOf(v).size() == 2);
+            continue;
+        }
+        ++concurrent;
+        CHECK(arr.degree(v) == 6);  // Three lines, two halfedges each.
+        CHECK(arr.originsOf(v) == std::vector<std::uint32_t>{0, 1, 2});
+    }
+    CHECK(concurrent == 1);
 }
 
 TEST_CASE("overlapping line and ray retain all contributing origins") {

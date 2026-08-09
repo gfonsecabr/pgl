@@ -118,6 +118,7 @@ defaults:
 | `height(double heightPixels)` | Sets the SVG height in pixels. The value must be strictly positive. |
 | `size(double widthPixels, double heightPixels)` | Convenience wrapper for setting width and height together. |
 | `margin(double marginPixels)` | Reserves blank space around the fitted drawing. Increasing the margin gives the geometry more breathing room inside the image. The value must be non-negative. |
+| `view(const Rectangle& window)` | Fits the export to an explicit window of the plane instead of to the inserted geometry. Infinite primitives are clipped to the window and geometry outside it falls outside the image. `scale` and `margin` still apply on top, and calling it again replaces the window. |
 | `borders(bool enabled = true)` | Enables or disables a thin rectangular frame around the whole SVG. This is especially helpful when debugging clipping and margins. |
 | `writeSVG(const std::string& path)` | Writes the full SVG document to disk. Throws if the output file cannot be opened. |
 | `toSVG()` | Returns the complete SVG document as a string, which is useful for tests, web responses, or custom output pipelines. |
@@ -131,7 +132,7 @@ defaults:
 
 Canvas fitting is automatic:
 
-- the bounding boxes of all bounded shapes are collected;
+- the bounding boxes of all bounded shapes are collected, unless `view(window)` set an explicit window, which replaces them;
 - infinite primitives are clipped to the visible viewport;
 - the drawing is uniformly scaled to fit inside the chosen width and height;
 - the aspect ratio is preserved;
@@ -142,6 +143,10 @@ Canvas fitting is automatic:
 
 - `Canvas` is intentionally lightweight. It is a geometry inspection tool, not a
   general plotting framework.
+- An infinite primitive contributes the points that define it to the collected
+  bounding box, so a line defined far from the rest of the drawing stretches the
+  fit. That, and a drawing whose interesting part is much smaller than its
+  bounding box, are what `view` is for.
 - Shapes are stored in insertion order, and SVG output preserves that order, so
   later shapes are drawn on top of earlier ones.
 - Because style is captured on insertion, it is easy to layer highlights on top

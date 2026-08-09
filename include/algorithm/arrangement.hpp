@@ -569,6 +569,31 @@ public:
     }
 
     /**
+     * @brief Returns the number of halfedges leaving a vertex.
+     *
+     * This is the size @ref outgoingHalfedges would return, obtained by walking
+     * the rotational fan without building the vector. An isolated vertex has
+     * degree zero, and every other vertex has one halfedge per incident edge
+     * end, so a vertex where `k` lines cross has degree `2k`.
+     *
+     * @param v Vertex handle.
+     */
+    [[nodiscard]] std::size_t degree(VertexId v) const {
+        assert(v.valid() && v.index() < outgoing_.size());
+        const HalfedgeId start = outgoing_[v.index()];
+        if (!start.valid()) {
+            return 0;
+        }
+        std::size_t count = 0;
+        HalfedgeId h = start;
+        do {
+            ++count;
+            h = next(twin(h));
+        } while (h != start);
+        return count;
+    }
+
+    /**
      * @brief Returns every halfedge leaving a vertex, in clockwise order.
      *
      * The first entry is @ref outgoing(v), and each following entry is
@@ -1141,6 +1166,34 @@ public:
         const std::size_t from = originOffset_[edge];
         const std::size_t to = originOffset_[edge + 1];
         return std::span<const std::uint32_t>(originIndex_.data() + from, to - from);
+    }
+
+    /**
+     * @brief Returns the positions, in the range the arrangement was built from,
+     *        of every input shape passing through a vertex.
+     *
+     * This is the union of @ref originsOf(HalfedgeId) over the edges incident to
+     * the vertex, sorted and without repetition. An isolated vertex is incident
+     * to no edge and has no origins, even when an input point put it there.
+     *
+     * @param v Vertex handle.
+     */
+    [[nodiscard]] std::vector<std::uint32_t> originsOf(VertexId v) const {
+        assert(v.valid() && v.index() < outgoing_.size());
+        std::vector<std::uint32_t> origins;
+        const HalfedgeId start = outgoing_[v.index()];
+        if (!start.valid()) {
+            return origins;
+        }
+        HalfedgeId h = start;
+        do {
+            const std::span<const std::uint32_t> edgeOrigins = originsOf(h);
+            origins.insert(origins.end(), edgeOrigins.begin(), edgeOrigins.end());
+            h = next(twin(h));
+        } while (h != start);
+        std::sort(origins.begin(), origins.end());
+        origins.erase(std::unique(origins.begin(), origins.end()), origins.end());
+        return origins;
     }
 
     // -------------------------------------------------------------------------
