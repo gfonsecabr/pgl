@@ -34,7 +34,6 @@ static pgl::Arrangement<>::FaceId largestFace(const pgl::Arrangement<>& arr) {
 }
 
 int main() {
-    // A square, its two diagonals, and two chords crossing them.
     const std::vector<Segment> segments = {
         Segment(3, 3, 12, 7),  Segment(1, 0, 15, 12), Segment(12, 2, 0, 12),
         Segment(4, 15, 8, 3),  Segment(0, 2, 13, 12), Segment(0, 2, 12, 0),
