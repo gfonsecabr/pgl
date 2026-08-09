@@ -72,33 +72,33 @@ TEST_CASE("IntervalTree indexes closed x and y projections") {
 
     pgl::IntervalTree<Segment> empty;
     CHECK(empty.empty());
-    CHECK(empty.countIntersecting(Rect(0, 0, 1, 1)) == 0);
-    CHECK(empty.reportContainedIn(Rect(0, 0, 1, 1)).empty());
-    CHECK(empty.emptyIntersecting(Rect(0, 0, 1, 1)));
+    CHECK(empty.countProjectionsIntersecting(Rect(0, 0, 1, 1)) == 0);
+    CHECK(empty.reportProjectionsContainedIn(Rect(0, 0, 1, 1)).empty());
+    CHECK(empty.emptyProjectionsIntersecting(Rect(0, 0, 1, 1)));
 
     pgl::IntervalTree xTree(shapes);
     pgl::IntervalTree<Segment, pgl::ProjectionAxis::y> yTree(shapes);
     static_assert(std::is_same_v<decltype(xTree)::ShapeType, Segment>);
 
     const Rect xQuery(2, -100, 10, 100);
-    CHECK(xTree.countIntersecting(xQuery) == 2);  // first touches at x = 2
-    CHECK(xTree.countContainedIn(xQuery) == 1);
-    CHECK_FALSE(xTree.emptyIntersecting(xQuery));
-    CHECK_FALSE(xTree.emptyContainedIn(xQuery));
+    CHECK(xTree.countProjectionsIntersecting(xQuery) == 2);  // first touches at x = 2
+    CHECK(xTree.countProjectionsContainedIn(xQuery) == 1);
+    CHECK_FALSE(xTree.emptyProjectionsIntersecting(xQuery));
+    CHECK_FALSE(xTree.emptyProjectionsContainedIn(xQuery));
 
     const Rect yQuery(0, 5, 0, 15);
-    CHECK(yTree.countIntersecting(yQuery) == 3);  // third touches at y = 5
-    CHECK(yTree.countContainedIn(yQuery) == 1);
+    CHECK(yTree.countProjectionsIntersecting(yQuery) == 3);  // third touches at y = 5
+    CHECK(yTree.countProjectionsContainedIn(yQuery) == 1);
 
-    const auto found = xTree.reportIntersecting(xQuery);
+    const auto found = xTree.reportProjectionsIntersecting(xQuery);
     CHECK(found.size() == 2);
     CHECK(std::find(found.begin(), found.end(), first) != found.end());
     CHECK(std::find(found.begin(), found.end(), second) != found.end());
 
-    const auto contained = xTree.reportContainedIn(xQuery);
+    const auto contained = xTree.reportProjectionsContainedIn(xQuery);
     CHECK(contained == std::vector<Segment>{second});
     std::size_t containedVisited = 0;
-    xTree.visitContainedIn(xQuery, [&](const Segment&) { ++containedVisited; });
+    xTree.visitProjectionsContainedIn(xQuery, [&](const Segment&) { ++containedVisited; });
     CHECK(containedVisited == 1);
 }
 
@@ -108,11 +108,53 @@ TEST_CASE("IntervalTree queries are projections rather than 2D predicates") {
 
     const Point pointOnProjection(5, 0);
     CHECK_FALSE(elevated.intersects(pointOnProjection));
-    CHECK(tree.countIntersecting(pointOnProjection) == 1);
+    CHECK(tree.countProjectionsIntersecting(pointOnProjection) == 1);
+    CHECK(tree.countIntersecting(pointOnProjection) == 0);
+    CHECK(tree.emptyIntersecting(pointOnProjection));
 
     const Rect flatWindow(0, 0, 10, 0);
     CHECK_FALSE(flatWindow.contains(elevated));
-    CHECK(tree.countContainedIn(flatWindow) == 1);
+    CHECK(tree.countProjectionsContainedIn(flatWindow) == 1);
+    CHECK(tree.countContainedIn(flatWindow) == 0);
+    CHECK(tree.emptyContainedIn(flatWindow));
+}
+
+TEST_CASE("IntervalTree exact query family matches ShapeTree") {
+    const Segment contained(Point(1, 1), Point(9, 1));
+    const Segment crossing(Point(-5, 5), Point(5, 5));
+    const Segment projectedOnly(Point(1, 50), Point(9, 50));
+    const Segment outside(Point(20, 0), Point(30, 0));
+    const std::vector<Segment> shapes{contained, crossing, projectedOnly, outside};
+    const Rect query(0, 0, 10, 10);
+
+    const pgl::ShapeTree<Segment> shapeTree(shapes);
+    const pgl::IntervalTree<Segment> xTree(shapes);
+    const pgl::IntervalTree<Segment, pgl::ProjectionAxis::y> yTree(shapes);
+    const auto expectedIntersecting = shapeTree.reportIntersecting(query);
+    const auto expectedContained = shapeTree.reportContainedIn(query);
+
+    const auto checkTree = [&](const auto& tree) {
+        CHECK(tree.countIntersecting(query) == shapeTree.countIntersecting(query));
+        CHECK(tree.countContainedIn(query) == shapeTree.countContainedIn(query));
+        CHECK(tree.emptyIntersecting(query) == shapeTree.emptyIntersecting(query));
+        CHECK(tree.emptyContainedIn(query) == shapeTree.emptyContainedIn(query));
+
+        const auto actualIntersecting = tree.reportIntersecting(query);
+        const auto actualContained = tree.reportContainedIn(query);
+        CHECK(actualIntersecting.size() == expectedIntersecting.size());
+        CHECK(actualContained.size() == expectedContained.size());
+        CHECK(std::is_permutation(actualIntersecting.begin(), actualIntersecting.end(),
+                                  expectedIntersecting.begin(), expectedIntersecting.end()));
+        CHECK(std::is_permutation(actualContained.begin(), actualContained.end(),
+                                  expectedContained.begin(), expectedContained.end()));
+
+        std::size_t visited = 0;
+        tree.visitIntersecting(query, [&](const Segment&) { ++visited; });
+        CHECK(visited == expectedIntersecting.size());
+    };
+    // Both axes must give the same exact result; only their pruning differs.
+    checkTree(xTree);
+    checkTree(yTree);
 }
 
 TEST_CASE("IntervalTree supports duplicate intervals, visitors, and erasure") {
@@ -125,10 +167,10 @@ TEST_CASE("IntervalTree supports duplicate intervals, visitors, and erasure") {
 
     CHECK(tree.size() == 3);
     CHECK(tree.has(duplicate));
-    CHECK(tree.countIntersecting(Rect(3, -1, 3, 10)) == 2);
+    CHECK(tree.countProjectionsIntersecting(Rect(3, -1, 3, 10)) == 2);
 
     std::size_t visited = 0;
-    CHECK(tree.visitIntersecting(Rect(0, -1, 10, 10), [&](const Segment&) {
+    CHECK(tree.visitProjectionsIntersecting(Rect(0, -1, 10, 10), [&](const Segment&) {
         ++visited;
         return true;
     }));
@@ -137,7 +179,7 @@ TEST_CASE("IntervalTree supports duplicate intervals, visitors, and erasure") {
     CHECK(tree.erase(duplicate));
     CHECK(tree.size() == 2);
     CHECK(tree.has(duplicate));
-    CHECK(tree.countIntersecting(Rect(3, -1, 3, 10)) == 1);
+    CHECK(tree.countProjectionsIntersecting(Rect(3, -1, 3, 10)) == 1);
     CHECK(tree.erase(duplicate));
     CHECK_FALSE(tree.has(duplicate));
     CHECK_FALSE(tree.erase(duplicate));
@@ -177,12 +219,12 @@ TEST_CASE("IntervalTree matches brute force through randomized inserts and erase
             const std::size_t xContained = bruteContained<pgl::ProjectionAxis::x>(reference, query);
             const std::size_t yContained = bruteContained<pgl::ProjectionAxis::y>(reference, query);
 
-            CHECK(xTree.countIntersecting(query) == xIntersections);
-            CHECK(yTree.countIntersecting(query) == yIntersections);
-            CHECK(xTree.countContainedIn(query) == xContained);
-            CHECK(yTree.countContainedIn(query) == yContained);
-            CHECK(xTree.emptyIntersecting(query) == (xIntersections == 0));
-            CHECK(yTree.emptyContainedIn(query) == (yContained == 0));
+            CHECK(xTree.countProjectionsIntersecting(query) == xIntersections);
+            CHECK(yTree.countProjectionsIntersecting(query) == yIntersections);
+            CHECK(xTree.countProjectionsContainedIn(query) == xContained);
+            CHECK(yTree.countProjectionsContainedIn(query) == yContained);
+            CHECK(xTree.emptyProjectionsIntersecting(query) == (xIntersections == 0));
+            CHECK(yTree.emptyProjectionsContainedIn(query) == (yContained == 0));
         }
     }
 }
