@@ -589,6 +589,24 @@ PolygonWithHoles<PointType_, TLabel>::regularized() const {
 }
 
 template <class PointType_, class TLabel>
+template <class ResultNumber>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::regularized() const {
+    using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
+    // The components meet at finitely many points at most, so no slit runs
+    // between two of them and each regularizes on its own. The pieces of
+    // different components keep the disjoint interiors their components had.
+    std::vector<PolygonWithHoles<ResultPoint>> pieces;
+    pieces.reserve(components_.size());
+    for (const auto& component : components_) {
+        for (auto& piece : component.template regularized<ResultNumber>()) {
+            pieces.push_back(std::move(piece));
+        }
+    }
+    return PolygonSet<ResultPoint>(std::move(pieces));
+}
+
+template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
 Polygon<PointType_, TLabel>::difference(const OtherPolygon& other) const {

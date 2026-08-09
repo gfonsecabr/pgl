@@ -871,6 +871,47 @@ bool PolygonWithHoles<PointType_, LabelType>::isRegular() const {
     return detail::regionSlits(*this).empty();
 }
 
+// The set's structural contract, beside the region's for the same reason: this
+// is where a reader looks for it.
+template <class PointType_, class LabelType>
+template <class Rational>
+bool PolygonSet<PointType_, LabelType>::isValid() const {
+    // Every component a valid region on its own.
+    for (const auto& component : components_) {
+        if (!component.template isValid<Rational>()) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < components_.size(); ++i) {
+        for (std::size_t j = i + 1; j < components_.size(); ++j) {
+            if (!components_[i].bbox().intersects(components_[j].bbox())) {
+                continue;  // the boxes prefilter the quadratic scan
+            }
+            // Interiors pairwise disjoint. Boundaries meeting at isolated points
+            // is allowed, which is exactly what interiorsIntersect lets through.
+            if (components_[i].interiorsIntersect(components_[j])) {
+                return false;
+            }
+            // And no stretch of edge in common. Two components glued along one
+            // would have interior points belonging to neither component's
+            // interior, which is what the componentwise predicates would then
+            // miss. Interiors being disjoint already, two of their edges can
+            // only meet in a point or overlap along a stretch, so a
+            // segment-valued edge intersection is exactly the case to reject.
+            using ExactSegment = Segment<Point<NumberType>>;
+            for (const auto& first : components_[i].edges()) {
+                for (const auto& second : components_[j].edges()) {
+                    const auto shared = first.template intersection<NumberType>(second);
+                    if (shared && std::holds_alternative<ExactSegment>(*shared)) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 template <class PointType_, class TLabel>
 template <class Rational>
 bool Polyline<PointType_, TLabel>::isSimple() const {

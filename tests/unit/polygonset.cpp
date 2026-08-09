@@ -321,3 +321,177 @@ TEST_CASE("PolygonSet over exact rational coordinates") {
     CHECK((set * pgl::ERational(1, 2)).component(0).outer()[2] ==
           pgl::EPoint(pgl::ERational(1, 2), pgl::ERational(1, 2)));
 }
+
+TEST_CASE("PolygonSet measures") {
+    const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+
+    SUBCASE("area is the sum over components, the interiors being disjoint") {
+        CHECK(set.twiceArea() == 16);
+        CHECK(set.area<double>() == doctest::Approx(8.0));
+        CHECK(RegionSet().twiceArea() == 0);
+    }
+
+    SUBCASE("a component's holes come out of its own area") {
+        const RegionSet withHole{holed()};
+        CHECK(withHole.twiceArea() == 200 - 8);
+    }
+
+    SUBCASE("centroid is area-weighted over the components") {
+        CHECK(set.centroid<double>() == pgl::Point<double>(3.5, 3.5));
+        CHECK(set.verticesCentroid<double>() == pgl::Point<double>(3.5, 3.5));
+    }
+
+    SUBCASE("an unequal pair pulls the centroid toward the larger component") {
+        const RegionSet lopsided(std::vector{
+            Region(PolygonShape({0, 0, 1, 0, 1, 1, 0, 1})),
+            Region(PolygonShape({10, 0, 14, 0, 14, 4, 10, 4}))});
+        // Areas 1 and 16 at x = 0.5 and x = 12.
+        CHECK(lopsided.centroid<double>().x() ==
+              doctest::Approx((1.0 * 0.5 + 16.0 * 12.0) / 17.0));
+    }
+
+    SUBCASE("the empty set has no centroid to weight") {
+        CHECK(RegionSet().centroid<double>() == pgl::Point<double>(0.0, 0.0));
+    }
+
+    SUBCASE("bounding box is the union of the components' boxes") {
+        CHECK(set.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(7, 7)));
+        CHECK(set.fbox<double>() ==
+              pgl::Rectangle<pgl::Point<double>>(pgl::Point<double>(0, 0), pgl::Point<double>(7, 7)));
+        CHECK(RegionSet().bbox() == pgl::Rectangle<Point>());
+    }
+
+    SUBCASE("the cached box follows a mutation") {
+        RegionSet mutated = set;
+        CHECK(mutated.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(7, 7)));
+        mutated.eraseComponent(1);
+        CHECK(mutated.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(2, 2)));
+        mutated += Point(1, 1);
+        CHECK(mutated.bbox() == pgl::Rectangle<Point>(Point(1, 1), Point(3, 3)));
+    }
+
+    SUBCASE("the diameter spans two components") {
+        // Neither component's own diameter reaches from one to the other.
+        CHECK(set.diameter() == pgl::Segment<Point>(Point(0, 0), Point(7, 7)));
+    }
+
+    SUBCASE("pointInside lands in a component's interior") {
+        const auto witness = set.pointInside<double>();
+        CHECK(set.component(0).interiorContains(witness));
+    }
+}
+
+TEST_CASE("PolygonSet structural queries") {
+    SUBCASE("a set of separated components is valid and regular") {
+        const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+        CHECK(set.isValid());
+        CHECK(set.isSimple());
+        CHECK(set.isRegular());
+    }
+
+    SUBCASE("the empty set is valid and regular") {
+        CHECK(RegionSet().isValid());
+        CHECK(RegionSet().isRegular());
+        CHECK(RegionSet().isUndefined());
+        CHECK(RegionSet().isDegenerate());
+    }
+
+    SUBCASE("components touching at a single vertex are valid") {
+        const RegionSet corner(std::vector{
+            Region(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2})),
+            Region(PolygonShape({2, 2, 4, 2, 4, 4, 2, 4}))});
+        CHECK(corner.isValid());
+    }
+
+    SUBCASE("components sharing a stretch of edge are not valid") {
+        // Glued along x = 2: their union has interior points that lie in neither
+        // component's interior, which is what the invariant rules out.
+        const RegionSet glued(std::vector{
+            Region(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2})),
+            Region(PolygonShape({2, 0, 4, 0, 4, 2, 2, 2}))});
+        CHECK(!glued.isValid());
+    }
+
+    SUBCASE("overlapping components are not valid") {
+        const RegionSet overlapping(std::vector{
+            Region(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2})),
+            Region(PolygonShape({1, 1, 3, 1, 3, 3, 1, 3}))});
+        CHECK(!overlapping.isValid());
+    }
+
+    SUBCASE("an island inside another component's hole is valid") {
+        const RegionSet nested(std::vector{
+            Region(bigSquare(), std::vector{PolygonShape({2, 2, 8, 2, 8, 8, 2, 8})}),
+            Region(PolygonShape({4, 4, 6, 4, 6, 6, 4, 6}))});
+        CHECK(nested.isValid());
+        CHECK(nested.twiceArea() == 200 - 72 + 8);
+    }
+
+    SUBCASE("a set is regular exactly when every component is") {
+        // A square whose hole shares an edge with the outer ring pinches shut
+        // along that edge: a slit, so the component is not regular.
+        const Region slit(bigSquare(), std::vector{PolygonShape({0, 2, 4, 2, 4, 4, 0, 4})});
+        REQUIRE(!slit.isRegular());
+        CHECK(!RegionSet{slit}.isRegular());
+        CHECK(!RegionSet(std::vector{slit, Region(squareB())}).isRegular());
+    }
+
+    SUBCASE("regularized returns a set, so it is idempotent in the type system") {
+        const Region slit(bigSquare(), std::vector{PolygonShape({0, 2, 4, 2, 4, 4, 0, 4})});
+        const RegionSet cleaned = RegionSet{slit}.regularized<int>();
+        CHECK(std::is_same_v<decltype(cleaned), const RegionSet>);
+        CHECK(cleaned.isRegular());
+        CHECK(cleaned.twiceArea() == slit.twiceArea());
+        CHECK(cleaned.regularized<int>() == cleaned);
+    }
+
+    SUBCASE("regularized drops a component without area") {
+        const RegionSet degenerate(std::vector{Region(PolygonShape({0, 0, 4, 0, 8, 0}))}, true);
+        REQUIRE(degenerate.componentCount() == 1);
+        CHECK(degenerate.regularized<int>().isEmpty());
+    }
+}
+
+TEST_CASE("PolygonSet decompositions") {
+    SUBCASE("the triangulated domain covers exactly the area of the set") {
+        const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+        const auto mesh = set.triangulation();
+        int twiceArea = 0;
+        for (const auto& triangle : mesh.triangles()) {
+            twiceArea += triangle.twiceArea();
+        }
+        CHECK(twiceArea == set.twiceArea());
+    }
+
+    SUBCASE("a hole and an island inside it are handled together") {
+        const RegionSet nested(std::vector{
+            Region(bigSquare(), std::vector{PolygonShape({2, 2, 8, 2, 8, 8, 2, 8})}),
+            Region(PolygonShape({4, 4, 6, 4, 6, 6, 4, 6}))});
+        const auto mesh = nested.triangulation();
+        int twiceArea = 0;
+        for (const auto& triangle : mesh.triangles()) {
+            twiceArea += triangle.twiceArea();
+        }
+        CHECK(twiceArea == nested.twiceArea());
+    }
+
+    SUBCASE("convexPartition and convexCovering cover the set") {
+        const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+        const auto pieces = set.convexPartition();
+        CHECK(pieces.size() == 2);
+        int twiceArea = 0;
+        for (const auto& piece : pieces) {
+            twiceArea += piece.twiceArea();
+        }
+        CHECK(twiceArea == set.twiceArea());
+        CHECK(set.convexCovering().size() == 2);
+    }
+
+    SUBCASE("triangulation with interior constraint segments") {
+        const RegionSet set{Region(squareA())};
+        const std::vector<pgl::Segment<Point>> constraints{
+            pgl::Segment<Point>(Point(0, 0), Point(2, 2))};
+        const auto mesh = set.triangulation(constraints);
+        CHECK(mesh.numTriangles() == 2);
+    }
+}

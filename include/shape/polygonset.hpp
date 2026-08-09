@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <cassert>
 #include <compare>
+#include <concepts>
 #include <cstddef>
+#include <optional>
 #include <ostream>
 #include <ranges>
 #include <type_traits>
@@ -380,6 +382,270 @@ struct PolygonSet {
     }
 
     /**
+     * @brief Tests whether the set has zero area.
+     *
+     * A canonical set drops its zero-area components, so this is exactly
+     * @ref isEmpty for one; a set adopted with `trusted` may still carry a
+     * component without area, which is why the areas are summed rather than the
+     * components counted.
+     */
+    [[nodiscard]] constexpr bool isDegenerate() const {
+        return twiceArea() == NumberType(0);
+    }
+
+    /**
+     * @brief Tests whether the set covers exactly one point.
+     *
+     * Only a single component can, and only a `trusted` construction can leave
+     * one that does.
+     */
+    [[nodiscard]] constexpr bool isPoint() const {
+        return components_.size() == 1 && components_[0].isPoint();
+    }
+
+    /** @brief Tests whether the set covers exactly one segment of positive length. */
+    [[nodiscard]] constexpr bool isSegment() const {
+        return components_.size() == 1 && components_[0].isSegment();
+    }
+
+    /**
+     * @brief Tests whether the set is degenerate without covering a point or a
+     *        segment (which includes the empty set).
+     */
+    [[nodiscard]] constexpr bool isUndefined() const {
+        return !isPoint() && !isSegment() && isDegenerate();
+    }
+
+    /**
+     * @brief Tests whether every ring of every component is simple.
+     *
+     * This is a per-ring check only; it says nothing about how the rings or the
+     * components sit relative to one another. Use @ref isValid for the
+     * structural contract.
+     *
+     * Complexity: O(n log n) over the total vertex count.
+     */
+    template <class Rational = pgl::Rational<pgl::BigInt>>
+    [[nodiscard]] bool isSimple() const {
+        for (const auto& component : components_) {
+            if (!component.template isSimple<Rational>()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Tests the structural contract: every component valid, component
+     *        interiors pairwise disjoint, no two components sharing a stretch of
+     *        edge.
+     *
+     * The third clause is what the componentwise predicates rest on: it is what
+     * makes `A° = ⋃ Aᵢ°`, and hence what lets a question about the set be
+     * answered one component at a time. Two components glued along an edge have
+     * interior points that lie in no component's interior, and the identity
+     * fails.
+     *
+     * This is a precondition of every other operation, checked on demand rather
+     * than enforced by the constructor — mirroring @ref Polygon and
+     * @ref PolygonWithHoles, which likewise leave their contracts to the caller.
+     *
+     * Complexity: the components' own @ref PolygonWithHoles::isValid, plus one
+     * interior-overlap test and one edge-overlap scan per pair of components
+     * whose bounding boxes meet.
+     */
+    template <class Rational = pgl::Rational<pgl::BigInt>>
+    [[nodiscard]] bool isValid() const;
+
+    /**
+     * @brief Tests whether the set is the closure of its own interior
+     *        (`A = closure(A°)`).
+     *
+     * A valid set is `⋃ Aᵢ` with the components meeting at finitely many points
+     * at most, so the only material with no area beside it is a component's own
+     * **slit** — see @ref PolygonWithHoles::isRegular. The set is therefore
+     * regular exactly when every component is.
+     *
+     * The empty set is regular (`∅ = closure(∅°)`).
+     *
+     * The set must satisfy @ref isValid.
+     *
+     * Complexity: O(n²) over the total vertex count.
+     */
+    [[nodiscard]] bool isRegular() const {
+        for (const auto& component : components_) {
+            if (!component.isRegular()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @brief Returns the set without its slits (`closure(A°)`).
+     *
+     * This is @ref PolygonWithHoles::regularized applied to every component and
+     * the pieces gathered back into a set — which is exactly where a set of
+     * regions starts paying for itself: the result has the type it was called
+     * on, so regularization is idempotent in the type system and not only in
+     * the mathematics. Dropping a component's slits can break it into several
+     * components, and a component without area comes back as nothing at all.
+     *
+     * The set must satisfy @ref isValid.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @return `closure(A°)`, in canonical order.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>> regularized() const;
+
+    // -------------------------------------------------------------------------
+    // Measures
+
+    /**
+     * @brief Computes twice the area of the set.
+     *
+     * `Σ 2·area(Aᵢ)`, exact in @ref NumberType with no division. The components
+     * have pairwise disjoint interiors, so the sum is the area of their union.
+     */
+    [[nodiscard]] constexpr NumberType twiceArea() const {
+        NumberType total{};
+        for (const auto& component : components_) {
+            total += component.twiceArea();
+        }
+        return total;
+    }
+
+    /**
+     * @brief Computes the area of the set.
+     * @warning Uses division by 2.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr auto area() const {
+        ResultNumber result = static_cast<ResultNumber>(twiceArea());
+        return result / ResultNumber(2);
+    }
+
+    /**
+     * @brief Computes the area-weighted centroid of the set.
+     *
+     * The components enter with their own areas as weights. When the total area
+     * is zero the set has no area-weighted centroid and the centroid of the
+     * vertex set is returned instead, matching @ref Polygon::centroid and
+     * @ref PolygonWithHoles::centroid.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @warning Divides coordinates after casting to @p ResultNumber.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr Point<ResultNumber> centroid() const;
+
+    /** @brief Computes the centroid of the vertex set over every ring of every component. */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr Point<ResultNumber> verticesCentroid() const;
+
+    /**
+     * @brief Returns a point strictly inside the set.
+     *
+     * Any component's interior is in the set's, so this is the first component's
+     * own @ref PolygonWithHoles::pointInside.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @return A point guaranteed to be inside the set.
+     * @warning Divides coordinates by 4 (see @ref Triangle::pointInside), so it
+     *          is inexact for integer coordinates not divisible by it. Undefined
+     *          for a set with no area.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] Point<ResultNumber> pointInside() const;
+
+    /**
+     * @brief Returns a segment realizing the diameter (the farthest vertex pair).
+     *
+     * Unlike @ref PolygonWithHoles::diameter, this cannot be delegated to any
+     * one component: the farthest pair generally has its two ends in different
+     * components. Every hole lies inside its own component's outer ring, though,
+     * so only the outer rings can carry the pair, and the diameter is that of
+     * their convex hull.
+     */
+    [[nodiscard]] constexpr Segment<PointType> diameter() const {
+        std::vector<PointType> hullPoints;
+        hullPoints.reserve(vertexCount());
+        for (const auto& component : components_) {
+            for (const auto& vertex : component.outer()) {
+                hullPoints.push_back(vertex);
+            }
+        }
+        return Convex<PointType>(std::move(hullPoints)).diameter();
+    }
+
+    /**
+     * @brief Computes the bounding box of the set.
+     *
+     * The union of the components' boxes, cached — unlike a region, which
+     * delegates to the box its outer ring already caches.
+     */
+    [[nodiscard]] constexpr const Rectangle<PointType>& bbox() const;
+
+    /** @brief Computes the floating-point bounding box of the set. */
+    template <std::floating_point ResultNumber = double>
+    [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
+
+    // -------------------------------------------------------------------------
+    // Decompositions
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this set.
+     *
+     * Equivalent to `Triangulation(*this)`. Every ring of every component
+     * becomes constrained edges; the hole interiors and the gaps between
+     * components are left out of the domain, so the in-domain triangles cover
+     * exactly the part of the set that has area. The set must satisfy
+     * @ref isValid.
+     *
+     * @return A @ref Triangulation whose in-domain triangles cover the set.
+     */
+    auto triangulation() const;
+
+    /**
+     * @brief Builds the constrained Delaunay triangulation of this set with the
+     *        given interior constraint segments.
+     *
+     * Equivalent to `Triangulation(*this, segments)`.
+     *
+     * @tparam SegmentRange Range whose elements are segments.
+     * @param segments Constraint edges, assumed to lie in the set.
+     */
+    template <class SegmentRange>
+    auto triangulation(const SegmentRange& segments) const;
+
+    /**
+     * @brief Cuts this set into convex pieces with disjoint interiors.
+     *
+     * Equivalent to `triangulation().convexPartition()`, with the same
+     * precondition (@ref isValid). What the pieces cover is the part of the set
+     * that has **area** — `closure(interior)` — so the holes and the gaps
+     * between components are where there is no piece, and a slit appears in none
+     * of them.
+     *
+     * @return The convex pieces, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexPartition() const;
+
+    /**
+     * @brief Covers this set with a greedily selected set of convex polygons.
+     *
+     * Equivalent to `triangulation().convexCovering()`, with the same
+     * precondition (@ref isValid). Every piece is contained in this set and
+     * together they cover `closure(interior)`. Unlike @ref convexPartition,
+     * piece interiors may overlap. The returned cover is irredundant, not
+     * necessarily minimum.
+     *
+     * @return The convex covering, in canonical order.
+     */
+    [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a `Point`
@@ -545,6 +811,11 @@ struct PolygonSet {
     std::vector<ComponentType> components_{};
     [[no_unique_address]] mutable LabelType label_{};
 
+    // Cached bounding box. A region reads its own off its outer ring, which
+    // caches one already; a set has no single ring to ask, so it caches the
+    // union of the components' boxes itself.
+    mutable std::optional<Rectangle<PointType>> bbox_{};
+
     // Memoized hash, computed lazily by std::hash<PolygonSet>, with the same
     // sentinel scheme as Polygon and PolygonWithHoles: hashUnset_ means "not yet
     // computed", and the one true hash colliding with it is remapped so the
@@ -558,6 +829,7 @@ struct PolygonSet {
 
     constexpr void resetCache() const {
         hash_ = hashUnset_;
+        bbox_.reset();
     }
 
     /**

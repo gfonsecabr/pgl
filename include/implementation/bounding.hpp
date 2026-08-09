@@ -451,6 +451,32 @@ constexpr Rectangle<Point<ResultNumber>> Polygon<PointType, LabelType>::fbox() c
 }
 
 // ---------------------------------------------------------------------------
+// PolygonSet
+
+template <class PointType, class LabelType>
+constexpr const Rectangle<PointType>& PolygonSet<PointType, LabelType>::bbox() const {
+    if (bbox_) {
+        return *bbox_;
+    }
+    if (components_.empty()) {
+        return bbox_.emplace();
+    }
+    // Every hole lies inside its own component's outer ring, so the components'
+    // own boxes — each of them its outer ring's — already cover every vertex.
+    Rectangle<PointType> box = components_.front().bbox();
+    for (std::size_t i = 1; i < components_.size(); ++i) {
+        box.insert(components_[i].bbox());
+    }
+    return bbox_.emplace(box);
+}
+
+template <class PointType, class LabelType>
+template <std::floating_point ResultNumber>
+constexpr Rectangle<Point<ResultNumber>> PolygonSet<PointType, LabelType>::fbox() const {
+    return bbox().template fbox<ResultNumber>();
+}
+
+// ---------------------------------------------------------------------------
 // MonotoneChain
 
 template <class PointType, class LabelType, class Storage>
