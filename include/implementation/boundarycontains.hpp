@@ -413,18 +413,21 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherHalf
 // Disk
 //
 // Every overload opens with the two degenerate readings. A disk of radius zero
-// is the point a(), and a shape that has dropped below its natural dimension is
-// entirely boundary (doc/raw/shapes.md), so boundaryContains coincides with
-// contains there — it cannot go through the line below, which would be built
-// from two equal points and hold every point of the plane. A disk whose three
-// defining points are collinear but distinct determines no circle and is
-// undefined; reading it as the line through them is one terminating answer
-// among the many the contract allows.
+// is the point a() — never a segment (doc/raw/shapes.md) — and a shape that has
+// dropped below its natural dimension is entirely boundary, so boundaryContains
+// coincides with contains there. Testing a() == b() alone settles it without
+// ever reading c(): a() == b() == c() is that radius-zero disk, and a() == b()
+// with c() elsewhere is undefined, so answering as if it were the point a() is
+// one of the answers the contract allows. A disk whose three defining points
+// are collinear but distinct determines no circle and is likewise undefined;
+// reading it as the line through them is another terminating answer. That line
+// is degenerate when a() == c(), and then holds every point of the plane —
+// still an answer, still terminating, and only ever reached on undefined input.
 
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(point);
     }
     if (isDegenerate()) {
@@ -437,7 +440,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPoint& po
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -449,7 +452,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherSegment& 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -461,7 +464,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedS
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -473,7 +476,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherLine& oth
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -485,7 +488,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherOrientedL
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -497,7 +500,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRay& othe
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherHalfplane& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -509,7 +512,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherHalfplane
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -523,7 +526,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherTriangle&
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -537,7 +540,7 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRectangle
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -550,8 +553,10 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherConvex& o
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
-    if (other.isDegenerate()) {
-        return boundaryContains(Segment<typename OtherDisk::PointType>(other.a(), other.c()));
+    // A collapsed disk is the point a(), never a segment; its boundary circle
+    // has shrunk to that same point.
+    if (other.a() == other.b()) {
+        return boundaryContains(other.a());
     }
     if (isDegenerate()) {
         return false;
@@ -928,7 +933,7 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherPolygon
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -1115,7 +1120,7 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherChain
 template <class PointType, class LabelType>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
@@ -1220,7 +1225,7 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolyl
 template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
-    if (isPoint()) {
+    if (a() == b()) {
         return contains(other);
     }
     if (isDegenerate()) {
