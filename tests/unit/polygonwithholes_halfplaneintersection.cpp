@@ -320,8 +320,8 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
     SUBCASE("a region covered by the operand comes back whole, hole and all") {
         const Intersection covering(RectangleShape(Point(-5, -5), Point(15, 15)));
         const auto pieces = region.intersection<ERational>(covering);
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == ERegion(region));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == ERegion(region));
         CHECK(covering.intersection<ERational>(region) == pieces);
     }
 
@@ -331,9 +331,9 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         const Intersection right(rightOf(5));
         REQUIRE(!right.isBounded());
         const auto pieces = region.intersection<ERational>(right);
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0].holes().empty());
-        CHECK(pieces[0].area<ERational>() == ERational(50 - 8));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0).holes().empty());
+        CHECK(pieces.component(0).area<ERational>() == ERational(50 - 8));
         CHECK(right.intersection<ERational>(region) == pieces);
     }
 
@@ -343,9 +343,9 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         Intersection slab(above(4));
         slab.insert(below(6));
         const auto pieces = region.intersection<ERational>(slab);
-        REQUIRE(pieces.size() == 2);
-        CHECK(pieces[0].area<ERational>() == ERational(6));
-        CHECK(pieces[1].area<ERational>() == ERational(6));
+        REQUIRE(pieces.componentCount() == 2);
+        CHECK(pieces.component(0).area<ERational>() == ERational(6));
+        CHECK(pieces.component(1).area<ERational>() == ERational(6));
         CHECK(slab.intersection<ERational>(region) == pieces);
     }
 
@@ -354,25 +354,25 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         // arrangement is built over rationals, so the area is exact.
         const Intersection tilted(Halfplane(Point(0, 1), Point(3, 0)));
         const auto pieces = region.intersection<ERational>(tilted);
-        REQUIRE(pieces.size() == 1);
-        REQUIRE(pieces[0].holes().size() == 1);
+        REQUIRE(pieces.componentCount() == 1);
+        REQUIRE(pieces.component(0).holes().size() == 1);
         // The whole annulus but the corner triangle (0,0)-(3,0)-(0,1).
-        CHECK(pieces[0].area<ERational>() == ERational(100 - 16) - ERational(3, 2));
+        CHECK(pieces.component(0).area<ERational>() == ERational(100 - 16) - ERational(3, 2));
     }
 
     SUBCASE("nothing with area gives no piece at all") {
         Intersection empty(rightOf(5));
         empty.insert(leftOf(3));
         REQUIRE(empty.isEmpty());
-        CHECK(region.intersection<ERational>(empty).empty());
+        CHECK(region.intersection<ERational>(empty).isEmpty());
 
         Intersection line(above(5));
         line.insert(below(5));
         REQUIRE(line.isDegenerate());
-        CHECK(region.intersection<ERational>(line).empty());
-        CHECK(line.intersection<ERational>(region).empty());
+        CHECK(region.intersection<ERational>(line).isEmpty());
+        CHECK(line.intersection<ERational>(region).isEmpty());
 
         // Missing the region entirely is empty too.
-        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).empty());
+        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).isEmpty());
     }
 }

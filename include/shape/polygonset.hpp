@@ -39,6 +39,19 @@ concept SetOperandConcept =
     shapeRank<std::remove_cvref_t<T>> < shapeRank<PolygonSet<Point<>, NoLabel>> &&
     !is_empty_shape_v<T>;
 
+/**
+ * @brief The operands a @ref PolygonSet's boolean operations accept.
+ *
+ * Exactly what the cell engine takes: a bounded polygonal shape that is not
+ * self-overlapping. Everything else — a half-plane and a half-plane
+ * intersection, which may be unbounded — is clipped to the set's bounding box
+ * first and reaches the engine as a convex polygon, through its own overload.
+ */
+template <class T>
+concept SetBooleanOperandConcept =
+    is_polygon_v<T> || is_convex_v<T> || is_triangle_v<T> || is_rectangle_v<T> ||
+    is_polygon_with_holes_v<T> || is_polygon_set_v<T>;
+
 }  // namespace detail
 
 template <class PointType = Point<>, class Label>
@@ -668,6 +681,93 @@ struct PolygonSet {
      * @return The convex covering, in canonical order.
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    // -------------------------------------------------------------------------
+    // Boolean operations
+    //
+    // This is what the shape is for. `Polygon` and `PolygonWithHoles` already
+    // produce a set of regions from a difference, a union or a symmetric
+    // difference, and now say so in their return type; a set does the same and
+    // takes one back, so the four operations are **closed** and a result can be
+    // fed straight into the next one.
+    //
+    // The engine does not care that a receiver is a set: it is the arrangement
+    // of both operands' boundaries with one witness test per cell, and a set
+    // contributes its components' rings the way a region contributes its own.
+    // In particular the operands go in together rather than being folded over
+    // one component at a time, so one arrangement settles the whole answer.
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * The result is `closure(A° ∖ B)`: the part of this set with area that
+     * survives the removal. See @ref Polygon::difference for the full contract.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to remove.
+     * @return The difference, in canonical order.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetBooleanOperandConcept OtherShape>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    difference(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * The result is `closure(A° ∪ B°)`. A union can close a new hole into being
+     * where the operands wrap round between them, and can join two components
+     * that were apart into one. See @ref Polygon::unionWith for the full
+     * contract.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetBooleanOperandConcept OtherShape>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    unionWith(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * The result is `closure(A° ∩ B°)`: the part both operands cover, with
+     * lower-dimensional leftovers dropped. Like
+     * @ref PolygonWithHoles::intersection(const OtherPolygon&) const, this keeps
+     * the holes of a holed operand, and it can split one component into several.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetBooleanOperandConcept OtherShape>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes (A △ B).
+     *
+     * The result is `closure((A° ∖ B) ∪ (B° ∖ A))`: the part covered by exactly
+     * one of the two operands.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetBooleanOperandConcept OtherShape>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    symmetricDifference(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized intersection of the two shapes (A ∩ B).
+     *
+     * A half-plane and a half-plane intersection may be unbounded, but this set
+     * is not, so the operand is first clipped to a box strictly containing the
+     * bounding rectangle — which leaves `A ∩ B` untouched and makes it a convex
+     * polygon. One with empty interior contributes nothing to a regularized
+     * result.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherIntersection& other) const;
+
+    /** @copydoc intersection(const OtherIntersection&) const */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    intersection(const OtherHalfplane& other) const;
+
+    /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
+    template <class ResultNumber = NumberType, class EmptyPoint>
+    [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
+        return {};
+    }
 
     // -------------------------------------------------------------------------
     // Predicates

@@ -311,7 +311,8 @@ std::vector<PolygonWithHoles<ResultPoint>> decomposedMinkowskiSum(const ShapeA& 
     std::sort(sums.begin(), sums.end());
     sums.erase(std::unique(sums.begin(), sums.end()), sums.end());
 
-    return regularizedUnionOf<ResultPoint>(sums);
+    const auto united = regularizedUnionOf<ResultPoint>(sums);
+    return {united.begin(), united.end()};
 }
 
 // -----------------------------------------------------------------------------
@@ -1596,8 +1597,9 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
             const auto convexRight = minkowskiAsConvex(right);
             auto runs = minkowskiBoundaryRuns(left);
             if (minkowskiBoundaryPays(left, convexRight, runs)) {
-                return regularizedUnionOf<ResultPoint>(
+                const auto united = regularizedUnionOf<ResultPoint>(
                     minkowskiBoundaryPieces<ExactPoint>(left, convexRight, std::move(runs)), true);
+                return {united.begin(), united.end()};
             }
         }
     }
@@ -1606,8 +1608,9 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
             const auto convexLeft = minkowskiAsConvex(left);
             auto runs = minkowskiBoundaryRuns(right);
             if (minkowskiBoundaryPays(right, convexLeft, runs)) {
-                return regularizedUnionOf<ResultPoint>(
+                const auto united = regularizedUnionOf<ResultPoint>(
                     minkowskiBoundaryPieces<ExactPoint>(right, convexLeft, std::move(runs)), true);
+                return {united.begin(), united.end()};
             }
         }
     }
@@ -1635,7 +1638,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedMinkowskiSum(const ShapeA&
             auto pieces = minkowskiOneSidedDecomposesLeft(left, right)
                               ? minkowskiOneSidedPieces<ExactPoint>(left, right)
                               : minkowskiOneSidedPieces<ExactPoint>(right, left);
-            return regularizedUnionOf<ResultPoint>(pieces, true);
+            const auto united = regularizedUnionOf<ResultPoint>(pieces, true);
+            return {united.begin(), united.end()};
         }
     }
 

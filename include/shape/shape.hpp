@@ -1377,6 +1377,14 @@ struct Shape {
                     "Shape::intersection: disconnected result cannot be a single Shape");
             }
             return result.empty() ? ResultShape{} : ResultShape(result.front());
+        } else if constexpr (detail::is_polygon_set_v<Result>) {
+            // A set of regions is not an alternative of the variant, so the same
+            // rule as for a vector applies: one component fits, several do not.
+            if (result.componentCount() > 1) {
+                throw std::logic_error(
+                    "Shape::intersection: disconnected result cannot be a single Shape");
+            }
+            return result.isEmpty() ? ResultShape{} : ResultShape(result.component(0));
         } else {
             return ResultShape(result);
         }

@@ -129,7 +129,7 @@ static void checkAgainstPolyline(const Chain& a, const ShapeB& b) {
         pgl::PolygonWithHoles<EPoint>(mine).template symmetricDifference<pgl::ERational>(
             theirs);
     INFO("chain " << a << " operand " << b << " gave " << mine << " against " << theirs);
-    CHECK(difference.empty());
+    CHECK(difference.isEmpty());
 }
 
 // -----------------------------------------------------------------------------

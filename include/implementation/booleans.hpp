@@ -97,10 +97,10 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
  * excluded. The caller may obtain those decisions from witnesses or by
  * propagating membership across the arrangement's edge history.
  *
- * The returned regions have pairwise disjoint interiors and their union is the
- * result. They are *not* nested: an island stranded inside a hole of the result
- * comes back as a region of its own, which is what a flat list of regions can
- * say (see decision (c): this library has no `PolygonSet`).
+ * The result is a @ref PolygonSet: its components have pairwise disjoint
+ * interiors, share no stretch of edge, and their union is the answer. They are
+ * *not* nested — an island stranded inside a hole of the result comes back as a
+ * component of its own, which is what a flat set of regions says.
  *
  * The extraction is where the @ref Arrangement earns its place. A halfedge is on
  * the result's boundary exactly when the face to its left is kept and the face
@@ -112,7 +112,7 @@ void dropCollinearRingVertices(std::vector<ExactPoint>& ring) {
  * Complexity: linear in the arrangement's faces and halfedges.
  */
 template <class ResultPoint, class ExactPoint>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
+PolygonSet<ResultPoint> regularizedCellsFromKeep(
     const Arrangement<ExactPoint>& arrangement, const std::vector<char>& keep) {
     using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
     using ExactNumber = typename ExactPoint::NumberType;
@@ -245,8 +245,12 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
             result.emplace_back(convert(outers[i].vertices()), std::move(holesOfOuter[i]));
         }
     }
+    // The pieces have pairwise disjoint interiors and share no stretch of edge —
+    // an edge kept on both sides is interior to the result and never reaches the
+    // boundary walk — so they are a canonical PolygonSet once sorted, and the
+    // set adopts them without measuring a single area again.
     std::sort(result.begin(), result.end());
-    return result;
+    return PolygonSet<ResultPoint>(std::move(result), /*trusted=*/true);
 }
 
 /**
@@ -254,7 +258,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCellsFromKeep(
  *        then extracts the selected cells.
  */
 template <class ResultPoint, class ExactPoint, class KeepWitness>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
+PolygonSet<ResultPoint> regularizedCells(
     const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
     using ExactNumber = typename ExactPoint::NumberType;
     using ExactSegment = Segment<ExactPoint>;
@@ -317,8 +321,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedCells(
  * a convex shape, a rectangle, a triangle or a region with holes.
  */
 template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, const ShapeB& b,
-                                                              KeepCell keepCell) {
+PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, KeepCell keepCell) {
     using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
     using ExactPoint = Point<ExactNumber>;
 
@@ -349,7 +352,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedBoolean(const ShapeA& a, c
  *      rules that out; see its `simpleBoundaries` parameter.
  */
 template <class ResultPoint, class ShapeType>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
+PolygonSet<ResultPoint> regularizedUnionByCoverage(
     const std::vector<ShapeType>& distinct) {
     using ShapeNumber = typename ShapeType::NumberType;
     using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
@@ -472,8 +475,8 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionByCoverage(
  *        to assert and not a property read off the type.
  */
 template <class ResultPoint, class ShapeRange>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& shapes,
-                                                              bool simpleBoundaries = false) {
+PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
+                                           bool simpleBoundaries = false) {
     using ShapeType = std::ranges::range_value_t<ShapeRange>;
 
     // What survives to be unioned. A shape with no interior contributes nothing
@@ -514,15 +517,34 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnionOf(const ShapeRange& 
     }
 }
 
+/**
+ * @brief The operand as something @ref appendCutSegments can walk.
+ *
+ * A rectangle, a triangle and a convex polygon each carry their boundary in
+ * their own way, and the cell engine only knows how to ask a `Polygon` or a
+ * region for its edges — which is why @ref pgl::PolygonWithHoles's operations
+ * convert them one overload at a time. A set states its four operations once
+ * over every operand, so it converts here instead.
+ */
+template <class OtherShape>
+constexpr decltype(auto) booleanOperand(const OtherShape& other) {
+    if constexpr (is_rectangle_v<OtherShape> || is_triangle_v<OtherShape> ||
+                  is_convex_v<OtherShape>) {
+        return other.asPolygon();
+    } else {
+        return (other);
+    }
+}
+
 /** @brief The regularized difference `closure(A° ∖ B)`, as a set of regions. */
 template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedDifference(const ShapeA& a, const ShapeB& b) {
+PolygonSet<ResultPoint> regularizedDifference(const ShapeA& a, const ShapeB& b) {
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA && !inB; });
 }
 
 /** @brief The regularized union `closure(A° ∪ B°)`, as a set of regions. */
 template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedUnion(const ShapeA& a, const ShapeB& b) {
+PolygonSet<ResultPoint> regularizedUnion(const ShapeA& a, const ShapeB& b) {
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA || inB; });
 }
 
@@ -544,7 +566,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedUnion(const ShapeA& a, con
  * difference or a union of separated operands still has to return one.
  */
 template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedIntersection(const ShapeA& a, const ShapeB& b) {
+PolygonSet<ResultPoint> regularizedIntersection(const ShapeA& a, const ShapeB& b) {
     if (!a.bbox().interiorsIntersect(b.bbox())) {
         return {};
     }
@@ -556,8 +578,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedIntersection(const ShapeA&
  *        as a set of regions.
  */
 template <class ResultPoint, class ShapeA, class ShapeB>
-std::vector<PolygonWithHoles<ResultPoint>> regularizedSymmetricDifference(const ShapeA& a,
-                                                                          const ShapeB& b) {
+PolygonSet<ResultPoint> regularizedSymmetricDifference(const ShapeA& a, const ShapeB& b) {
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA != inB; });
 }
 
@@ -569,7 +590,7 @@ std::vector<PolygonWithHoles<ResultPoint>> regularizedSymmetricDifference(const 
 
 template <class PointType_, class TLabel>
 template <class ResultNumber>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::regularized() const {
     using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
     // Nothing with area, so closure(A°) is empty and has no pieces at all.
@@ -579,7 +600,7 @@ PolygonWithHoles<PointType_, TLabel>::regularized() const {
     // Already the closure of its own interior: rebuilding it through the
     // arrangement could only cost time and shed collinear vertices.
     if (isRegular()) {
-        return {PolygonWithHoles<ResultPoint>(*this)};
+        return PolygonSet<ResultPoint>(PolygonWithHoles<ResultPoint>(*this));
     }
     // One arrangement over this one boundary. Every cell of it is inside the
     // region or outside it, and a slit — having no cell of its own — survives
@@ -599,8 +620,8 @@ PolygonSet<PointType_, TLabel>::regularized() const {
     std::vector<PolygonWithHoles<ResultPoint>> pieces;
     pieces.reserve(components_.size());
     for (const auto& component : components_) {
-        for (auto& piece : component.template regularized<ResultNumber>()) {
-            pieces.push_back(std::move(piece));
+        for (const auto& piece : component.template regularized<ResultNumber>()) {
+            pieces.push_back(piece);
         }
     }
     return PolygonSet<ResultPoint>(std::move(pieces));
@@ -608,7 +629,7 @@ PolygonSet<PointType_, TLabel>::regularized() const {
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::difference(const OtherPolygon& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
@@ -616,28 +637,28 @@ Polygon<PointType_, TLabel>::difference(const OtherPolygon& other) const {
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::difference(const OtherConvex& other) const {
     return this->template difference<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::difference(const OtherTriangle& other) const {
     return this->template difference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::difference(const OtherRectangle& other) const {
     return this->template difference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::difference(const OtherRegion& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
@@ -645,7 +666,7 @@ Polygon<PointType_, TLabel>::difference(const OtherRegion& other) const {
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherPolygon& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
@@ -653,28 +674,28 @@ PolygonWithHoles<PointType_, TLabel>::difference(const OtherPolygon& other) cons
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherConvex& other) const {
     return this->template difference<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherTriangle& other) const {
     return this->template difference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherRectangle& other) const {
     return this->template difference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherRegion& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
@@ -682,182 +703,182 @@ PolygonWithHoles<PointType_, TLabel>::difference(const OtherRegion& other) const
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
     return this->template unionWith<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
     return this->template unionWith<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
     return this->template unionWith<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
     return this->template unionWith<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
     return this->template unionWith<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
     return this->template unionWith<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::symmetricDifference(const OtherPolygon& other) const {
     return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::symmetricDifference(const OtherConvex& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::symmetricDifference(const OtherRegion& other) const {
     return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherPolygon& other) const {
     return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherConvex& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
     return this->template symmetricDifference<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherRegion& other) const {
     return detail::regularizedSymmetricDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPolygon& other) const {
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherConvex& other) const {
     return this->template intersection<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherTriangle& other) const {
     return this->template intersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRectangle& other) const {
     return this->template intersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRegion& other) const {
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
     using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
     // Neither a region without area nor a half-plane intersection without
@@ -875,8 +896,75 @@ PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& othe
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
-std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
+    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
+}
+
+
+// ---------------------------------------------------------------------------
+// The set of regions, where the four operations close.
+//
+// One definition per operation over every operand the engine takes, another set
+// included. There is nothing per-operand about them: the engine asks a shape for
+// its cut segments and for one containment test per cell, which a set answers
+// like anything else. Note in particular that a set operand goes in whole rather
+// than one component at a time — folding would build one arrangement per step.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::difference(const OtherShape& other) const {
+    return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, detail::booleanOperand(other));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::unionWith(const OtherShape& other) const {
+    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, detail::booleanOperand(other));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherShape& other) const {
+    return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, detail::booleanOperand(other));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::symmetricDifference(const OtherShape& other) const {
+    return detail::regularizedSymmetricDifference<
+        Point<ResultNumber, typename PointType_::LabelType>>(*this, detail::booleanOperand(other));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    // Neither a set without area nor a half-plane intersection without interior
+    // can contribute to closure(A° ∩ B°).
+    if (isDegenerate() || other.isDegenerate()) {
+        return {};
+    }
+    // The clip only has to preserve A ∩ B, and A lies strictly inside the box.
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return {};
+    }
+    return this->template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
     return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
 }
 
