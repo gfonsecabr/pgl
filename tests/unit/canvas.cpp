@@ -3,9 +3,12 @@
 
 #include <cstdio>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "pgl.hpp"
 
@@ -397,6 +400,36 @@ TEST_CASE("Canvas draws runtime Shape alternatives") {
     CHECK(svg.find("<title>[(0,0),(3,2)]</title>") != std::string::npos);
     CHECK(svg.find("<title>&lt;(0,0)(4,0)(0,3)&gt;</title>") != std::string::npos);
     CHECK(svg.find("<title>Convex[(0,0),(5,0),(5,4),(0,4)]</title>") != std::string::npos);
+}
+
+TEST_CASE("Canvas appends variants, optionals, and containers of drawable objects") {
+    const std::string path = "build/tests/output/wrapped_objects_canvas.svg";
+
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Drawable = std::variant<Point, Segment>;
+
+    const Drawable variant = Point(1, 2);
+    const std::optional<Drawable> optional = Segment({3, 4}, {5, 6});
+    const std::optional<Drawable> empty;
+    const std::vector<std::optional<Drawable>> objects = {
+        Drawable(Point(7, 8)),
+        std::nullopt,
+        Drawable(Segment({9, 10}, {11, 12})),
+    };
+
+    pgl::Canvas canvas;
+    canvas << variant << optional << empty << objects;
+    canvas.writeSVG(path);
+
+    std::ifstream input(path);
+    REQUIRE(input.good());
+    const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+
+    CHECK(svg.find("<title>(1,2)</title>") != std::string::npos);
+    CHECK(svg.find("<title>(3,4)--(5,6)</title>") != std::string::npos);
+    CHECK(svg.find("<title>(7,8)</title>") != std::string::npos);
+    CHECK(svg.find("<title>(9,10)--(11,12)</title>") != std::string::npos);
 }
 
 TEST_CASE("Canvas renders a MonotoneChain as an open polyline") {

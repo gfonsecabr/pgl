@@ -43,14 +43,11 @@ int main() {
     // Then you can draw endpoints of s so they stay easy to spot
     canvas << pgl::stroke("black") << pgl::fill("black") << p << q;
 
-    if (s.intersects(t)) {
-        // when they cross, we can highlight the exact intersection
-        pgl::EShape crossing(s.intersection(t)); // exact default for integral inputs
-        canvas << pgl::stroke("crimson")
-               << pgl::fill("none")
-               << pgl::pointRadius("15px")
-               << crossing;
-    }
+    // `intersection` is an optional variant: an absent intersection draws nothing.
+    canvas << pgl::stroke("crimson")
+           << pgl::fill("none")
+           << pgl::pointRadius("15px")
+           << s.intersection(t); // exact default for integral inputs
 
     // We save the files in different formats
     canvas.writeSVG("example1.svg");
@@ -105,6 +102,26 @@ canvas << pgl::stroke("teal")
        << pgl::fillOpacity("0.22")
        << rectangle;
 ```
+
+### Variants, optionals, and ranges
+
+`Canvas` accepts the standard result wrappers used throughout Pangolin. It draws
+the active value of an `std::variant`, draws an `std::optional` only when it has
+a value, and inserts every object in an input range in iteration order. These
+rules compose, so an optional variant or a vector of optional results can be
+drawn directly.
+
+```c++
+pgl::Segment s = {0, 0, 4, 3}, t = {0, 3, 4, 0};
+auto first = s.intersection(t); // std::optional<std::variant<...>>
+std::vector results = {first};
+
+canvas << pgl::stroke("crimson") << first;
+canvas << pgl::stroke("darkorange") << results;
+```
+
+Every inserted object captures the style active when it is reached; empty
+optionals add nothing.
 
 ### Configuration
 
