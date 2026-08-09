@@ -14,6 +14,7 @@
 
 using Point = pgl::Point<int>;
 using Segment = pgl::Segment<Point>;
+using Line = pgl::Line<Point>;
 
 // The bounded face of largest area, which is the one this example picks out.
 static pgl::Arrangement<>::FaceId largestFace(const pgl::Arrangement<>& arr) {
@@ -21,33 +22,32 @@ static pgl::Arrangement<>::FaceId largestFace(const pgl::Arrangement<>& arr) {
     pgl::ERational largestArea(0);
     for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
         const pgl::Arrangement<>::FaceId f(i);
-        if (arr.isUnbounded(f)) {
-            continue;
-        }
-        const pgl::ERational twiceArea = arr.polygonWithHoles(f).twiceArea();
-        if (!largest.valid() || twiceArea > largestArea) {
-            largest = f;
-            largestArea = twiceArea;
+        if (!arr.isUnbounded(f)) {
+            const pgl::ERational twiceArea = arr.polygonWithHoles(f).twiceArea();
+            if (!largest.valid() || twiceArea > largestArea) {
+                largest = f;
+                largestArea = twiceArea;
+            }
         }
     }
     return largest;
 }
 
 int main() {
-    const std::vector<Segment> segments = {
-        Segment(3, 3, 12, 7),  Segment(1, 0, 15, 12), Segment(12, 2, 0, 12),
-        Segment(4, 15, 8, 3),  Segment(0, 2, 13, 12), Segment(0, 2, 12, 0),
+    const std::vector<pgl::Shape<Point>> shapes = {
+        Segment(3, 3, 12, 7),  Segment(1, 0, 15, 12), Line(12, 2, 0, 12),
+        Segment(4, 15, 8, 3),  Segment(0, 2, 13, 12), Line(0, 2, 12, 0),
         Segment(13, 9, 5, 9),  Segment(4, 0, 9, 12),
     };
 
-    const pgl::Arrangement<> arr(segments);
+    const pgl::Arrangement<> arr(shapes);
 
     pgl::Canvas canvas;
 
     // Every edge of the subdivision, one entry per twin pair.
     canvas << pgl::stroke("#334155") << pgl::strokeWidth("1.5px") << pgl::fill("none");
     for (const auto& edge : arr.edges()) {
-        canvas << edge;
+        std::visit([&](const auto& geometry) { canvas << geometry; }, edge);
     }
 
     // Every vertex: the segment endpoints together with every crossing.
@@ -61,7 +61,7 @@ int main() {
     // The segments bounding the chosen face, on top and in another color.
     canvas << pgl::stroke("#e11d48") << pgl::strokeWidth("3px") << pgl::fill("none");
     for (pgl::Arrangement<>::HalfedgeId h : arr.boundaryOf(face)) {
-        canvas << arr[h];
+        canvas << pgl::EShape(arr[h]);
     }
 
     canvas.writeSVG("example_arrangement.svg");

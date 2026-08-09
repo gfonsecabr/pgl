@@ -7,12 +7,12 @@
  * @brief Planar subdivision induced by a set of one-dimensional shapes.
  *
  * An @ref pgl::Arrangement is the decomposition of the plane produced by a
- * collection of segments: its **vertices** are the segment endpoints together
- * with every crossing and overlap end, its **edges** are the pieces the
- * vertices cut the segments into, and its **faces** are the connected
- * components of what is left of the plane. Every point of the plane belongs to
- * exactly one of those cells, which is what makes an arrangement the natural
- * back end of any operation that has to answer "the same question" on each
+ * collection of segments, rays and lines: its finite **vertices** are the
+ * endpoints together with every crossing and overlap end, its **edges** are
+ * the pieces those vertices cut the input into, and its **faces** are the
+ * connected components of what is left of the plane. Every point of the plane
+ * belongs to exactly one of those cells, which is what makes an arrangement
+ * the natural back end of any operation that has to answer "the same question" on each
  * piece of a subdivided plane — the regularized booleans, the Minkowski sums,
  * and the connectivity tests behind `separates` all do exactly that.
  *
@@ -33,12 +33,8 @@
  * parameter. Because arrangement vertices are crossings, the arrangement's own
  * point type normally has to be a rational one (`pgl::EPoint` is the usual
  * choice); an integral point type is only adequate when the input segments
- * meet at their endpoints alone.
- *
- * Unbounded input — lines, rays and half-planes — is not accepted yet. The
- * accessors it will need, @ref pgl::Arrangement::isUnbounded and
- * @ref pgl::Arrangement::isFictitious, are already part of the interface so
- * that supporting it stays an additive change.
+ * meet at their endpoints alone. Unbounded edge ends meet at one symbolic
+ * vertex at infinity; no finite frame and no fictitious edge is introduced.
  */
 
 #include <algorithm>
@@ -48,6 +44,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <ranges>
 #include <set>
 #include <span>
@@ -236,13 +233,12 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
  * **left**, so a bounded face is enclosed by a counterclockwise cycle of `next`
  * and the outer boundary of a connected piece of the input runs clockwise.
  *
- * Face 0 is always the unbounded face, and it is the only face of an empty
- * arrangement.
+ * Face 0 is an unbounded face. Lines and pairs of rays can produce several
+ * unbounded faces; the empty arrangement has just face 0.
  *
- * Construction is exact and takes any range of bounded one-dimensional or
- * polygonal shapes; a @ref Point in the range becomes an isolated vertex, and
- * a shape that is not bounded (a line, a ray, a half-plane) is rejected at
- * compile time.
+ * Construction is exact and takes any range of points, segment-bounded shapes,
+ * lines, oriented lines and rays. A @ref Point becomes an isolated vertex.
+ * Half-planes, disks and other two-dimensional input are rejected.
  */
 template <class PointType_, class TLabel>
 class Arrangement {
@@ -264,10 +260,20 @@ public:
     using NumberType = typename PointType::NumberType;
     /** @brief Label type carried by edges and faces. */
     using LabelType = TLabel;
-    /** @brief Type returned for an edge. */
+    /** @brief Segment alternative returned for a bounded edge. */
     using SegmentType = Segment<PointType, TLabel>;
+    /** @brief Line alternative returned for an edge. */
+    using LineType = Line<PointType, TLabel>;
     /** @brief Type returned for a halfedge. */
     using OrientedSegmentType = OrientedSegment<PointType, TLabel>;
+    /** @brief Oriented-line alternative returned for a halfedge. */
+    using OrientedLineType = OrientedLine<PointType, TLabel>;
+    /** @brief Ray alternative returned for a halfedge. */
+    using RayType = Ray<PointType, TLabel>;
+    /** @brief Geometry of an oriented halfedge. */
+    using HalfedgeType = std::variant<OrientedSegmentType, OrientedLineType, RayType>;
+    /** @brief Geometry of an unoriented edge. */
+    using EdgeType = std::variant<SegmentType, LineType, RayType>;
 
     static_assert(detail::is_point_v<PointType>, "Arrangement requires pgl::Point vertices");
 
@@ -279,14 +285,14 @@ public:
     /**
      * @brief Builds the arrangement of a range of shapes.
      *
-     * Accepted shapes are the bounded ones: a @ref Point (an isolated vertex),
+     * Accepted shapes are a @ref Point (an isolated vertex),
      * a @ref Segment or @ref OrientedSegment, a @ref Polyline or
      * @ref MonotoneChain, a @ref Polygon, @ref Triangle, @ref Rectangle,
-     * @ref Convex or @ref PolygonWithHoles (their boundaries), and a
-     * @ref Shape variant holding any of those. Everything else — a line, a ray,
-     * a half-plane, a disk — is rejected at compile time.
+     * @ref Convex or @ref PolygonWithHoles (their boundaries), a @ref Line,
+     * @ref OrientedLine or @ref Ray, and a @ref Shape variant holding any of
+     * those. Half-planes, disks and other two-dimensional input are rejected.
      *
-     * The input may be as degenerate as it likes short of being unbounded:
+     * The input may be as degenerate as it likes:
      * segments may cross, overlap collinearly, repeat, share endpoints, dangle
      * with a free end, or run vertically. Overlapping and duplicated stretches
      * are merged into a single edge, which then remembers every input shape it
@@ -311,6 +317,9 @@ public:
      * inequality that admits it and not a fallback out of the bound; and `Q` is
      * at most `2E`, a question being one boundary cycle and the cycles being
      * halfedge-disjoint, so `O((E + Q) log E)` is `O(E log E)` either way.
+     * Input containing a ray or line uses the general carrier overlay, which
+     * tests every pair of distinct supporting lines and is quadratic in their
+     * number before the same `O(E log E)` topology construction.
      *
      * @tparam ShapeRange Range of shapes.
      * @param shapes Shapes whose subdivision of the plane to compute.
@@ -318,9 +327,10 @@ public:
     template <std::ranges::input_range ShapeRange>
     explicit Arrangement(const ShapeRange& shapes) {
         std::vector<InputSegment> segments;
+        std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
-        collect(shapes, segments, isolated);
-        build(segments, isolated);
+        collect(shapes, segments, curves, isolated);
+        build(segments, curves, isolated);
     }
 
     /**
@@ -344,18 +354,19 @@ public:
     template <std::ranges::input_range ShapeRange, std::ranges::input_range PointRange>
     Arrangement(const ShapeRange& shapes, const PointRange& points) {
         std::vector<InputSegment> segments;
+        std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
-        collect(shapes, segments, isolated);
+        collect(shapes, segments, curves, isolated);
         for (const auto& point : points) {
             isolated.emplace_back(point);
         }
-        build(segments, isolated);
+        build(segments, curves, isolated);
     }
 
     // -------------------------------------------------------------------------
     // Cells
 
-    /** @brief Returns the number of vertices. */
+    /** @brief Returns the number of finite vertices. */
     [[nodiscard]] std::size_t vertexCount() const {
         return points_.size();
     }
@@ -370,39 +381,70 @@ public:
         return origin_.size() / 2;
     }
 
-    /** @brief Returns the number of faces, the unbounded one included. */
+    /** @brief Returns the number of faces, including every unbounded face. */
     [[nodiscard]] std::size_t faceCount() const {
         return outerCycle_.size();
     }
 
     /**
-     * @brief Returns the position of every vertex, in @ref VertexId index order.
+     * @brief Returns the position of every finite vertex, in @ref VertexId index order.
      *
-     * The vertex of handle `v` is `vertices()[v.index()]`, which is what
-     * `operator[](VertexId)` returns. Build the handles themselves by counting
-     * up to @ref vertexCount when the incidence queries are what is wanted.
+     * The symbolic infinity vertex, when present, has handle index
+     * `vertexCount()` and no position, so it is absent from both this vector and
+     * the count.
      */
     [[nodiscard]] const std::vector<PointType>& vertices() const {
         return points_;
     }
 
-    /**
-     * @brief Returns every edge, each carrying its label, one per twin pair.
-     *
-     * The edge of index `i` is the one the halfedges `2i` and `2i + 1` run
-     * along, so `edges()[h.index() / 2]` is their common, unoriented edge.
-     * Unlike @ref vertices this is built on demand rather than stored, the
-     * topology keeping halfedges rather than edges.
-     */
-    [[nodiscard]] std::vector<SegmentType> edges() const {
+    /** @brief Returns the bounded edges, omitting every ray and line. */
+    [[nodiscard]] std::vector<SegmentType> boundedEdges() const {
         std::vector<SegmentType> result;
         result.reserve(edgeCount());
-        for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
-            SegmentType edge(points_[origin_[h]], points_[origin_[h ^ 1]]);
+        for (std::size_t i = 0; i < edgeGeometry_.size(); ++i) {
+            const EdgeGeometry& geometry = edgeGeometry_[i];
+            if (geometry.kind != EdgeKind::segment) {
+                continue;
+            }
+            SegmentType edge(geometry.a, geometry.b);
             if constexpr (detail::has_label_v<TLabel>) {
-                edge.label() = edgeLabel_[h / 2];
+                edge.label() = edgeLabel_[i];
             }
             result.push_back(std::move(edge));
+        }
+        return result;
+    }
+
+    /**
+     * @brief Returns every edge as a segment, line, or ray.
+     *
+     * The edge at index `i` is the one represented by halfedges `2i` and
+     * `2i + 1`. Lines are unoriented; a ray keeps its unique finite source.
+     */
+    [[nodiscard]] std::vector<EdgeType> edges() const {
+        std::vector<EdgeType> result;
+        result.reserve(edgeCount());
+        for (std::size_t i = 0; i < edgeGeometry_.size(); ++i) {
+            const EdgeGeometry& geometry = edgeGeometry_[i];
+            if (geometry.kind == EdgeKind::segment) {
+                SegmentType edge(geometry.a, geometry.b);
+                if constexpr (detail::has_label_v<TLabel>) {
+                    edge.label() = edgeLabel_[i];
+                }
+                result.emplace_back(std::move(edge));
+            } else if (geometry.kind == EdgeKind::line) {
+                LineType edge(geometry.a, geometry.b);
+                if constexpr (detail::has_label_v<TLabel>) {
+                    edge.label() = edgeLabel_[i];
+                }
+                result.emplace_back(std::move(edge));
+            } else {
+                RayType edge(geometry.a, geometry.b);
+                if constexpr (detail::has_label_v<TLabel>) {
+                    edge.label() = edgeLabel_[i];
+                }
+                result.emplace_back(std::move(edge));
+            }
         }
         return result;
     }
@@ -411,27 +453,49 @@ public:
      * @brief Returns the position of a vertex.
      *
      * @param v Vertex handle.
+     * @throws std::logic_error if @p v is invalid or is the infinity vertex.
      */
     [[nodiscard]] const PointType& operator[](VertexId v) const {
-        assert(v.valid() && v.index() < points_.size());
+        if (!v.valid() || v.index() >= points_.size()) {
+            throw std::logic_error("the fictitious arrangement vertex has no finite position");
+        }
         return points_[v.index()];
     }
 
     /**
-     * @brief Returns the directed segment of a halfedge, carrying the edge label.
+     * @brief Returns the geometry of a halfedge, carrying the edge label.
      *
-     * The returned @ref OrientedSegment runs from @ref source to @ref target.
-     * A twin returns the same geometric edge in the opposite direction.
+     * The result is an @ref OrientedSegment, @ref OrientedLine or @ref Ray.
+     * Segment and line twins reverse orientation. A ray has only one finite
+     * source and therefore returns the same ray for both twins.
      *
      * @param h Halfedge handle.
      */
-    [[nodiscard]] OrientedSegmentType operator[](HalfedgeId h) const {
+    [[nodiscard]] HalfedgeType operator[](HalfedgeId h) const {
         assert(h.valid() && h.index() < origin_.size());
-        OrientedSegmentType segment(points_[origin_[h.index()]], points_[origin_[h.index() ^ 1]]);
-        if constexpr (detail::has_label_v<TLabel>) {
-            segment.label() = edgeLabel_[h.index() / 2];
+        const EdgeGeometry& geometry = edgeGeometry_[h.index() / 2];
+        const TLabel& label = edgeLabel_[h.index() / 2];
+        if (geometry.kind == EdgeKind::segment) {
+            OrientedSegmentType segment(points_[origin_[h.index()]],
+                                        points_[origin_[h.index() ^ 1]]);
+            if constexpr (detail::has_label_v<TLabel>) {
+                segment.label() = label;
+            }
+            return segment;
         }
-        return segment;
+        if (geometry.kind == EdgeKind::line) {
+            OrientedLineType line(h.index() % 2 == 0 ? geometry.a : geometry.b,
+                                  h.index() % 2 == 0 ? geometry.b : geometry.a);
+            if constexpr (detail::has_label_v<TLabel>) {
+                line.label() = label;
+            }
+            return line;
+        }
+        RayType ray(geometry.a, geometry.b);
+        if constexpr (detail::has_label_v<TLabel>) {
+            ray.label() = label;
+        }
+        return ray;
     }
 
     // -------------------------------------------------------------------------
@@ -536,6 +600,7 @@ public:
      *
      * @tparam ResultNumber Coordinate type of the result.
      * @param v Vertex handle.
+     * @throws std::logic_error if @p v is the infinity vertex.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] Point<ResultNumber> witness(VertexId v) const {
@@ -553,8 +618,9 @@ public:
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> witness(HalfedgeId h) const {
         assert(h.valid() && h.index() < origin_.size());
-        const PointType& a = points_[origin_[h.index()]];
-        const PointType& b = points_[origin_[h.index() ^ 1]];
+        const EdgeGeometry& geometry = edgeGeometry_[h.index() / 2];
+        const PointType& a = geometry.a;
+        const PointType& b = geometry.b;
         const ResultNumber two = static_cast<ResultNumber>(NumberType(2));
         return Point<ResultNumber>(
             (static_cast<ResultNumber>(a.x()) + static_cast<ResultNumber>(b.x())) / two,
@@ -761,31 +827,51 @@ public:
     // Faces, continued
 
     /**
-     * @brief Tells whether a face is the unbounded one.
+     * @brief Tells whether the arrangement contains an unbounded edge.
+     *
+     * This tests for the symbolic infinity vertex, not for an unbounded face:
+     * every arrangement has an unbounded face, including the empty arrangement
+     * and arrangements made entirely of segments.
+     */
+    [[nodiscard]] bool isUnbounded() const {
+        return infinity_.valid();
+    }
+
+    /**
+     * @brief Tells whether a halfedge is adjacent to the symbolic vertex at
+     *        infinity.
+     *
+     * Both twins of a ray or line edge are unbounded. A segment halfedge is
+     * bounded, including one obtained by splitting an unbounded input curve
+     * between two finite vertices.
+     *
+     * @param h Halfedge handle.
+     */
+    [[nodiscard]] bool isUnbounded(HalfedgeId h) const {
+        assert(h.valid() && h.index() < origin_.size());
+        return infinity_.valid() &&
+               (source(h) == infinity_ || target(h) == infinity_);
+    }
+
+    /**
+     * @brief Tells whether a face is unbounded.
      *
      * @param f Face handle.
      */
     [[nodiscard]] bool isUnbounded(FaceId f) const {
         assert(f.valid() && f.index() < outerCycle_.size());
-        return f.index() == 0;
+        return unboundedFace_[f.index()];
     }
 
-    /**
-     * @brief Tells whether a halfedge is an artefact of clipping unbounded input.
-     *
-     * Always false: unbounded input is not accepted yet. The accessor exists so
-     * that accepting it later does not change this interface.
-     *
-     * @param h Halfedge handle.
-     */
-    [[nodiscard]] bool isFictitious([[maybe_unused]] HalfedgeId h) const {
-        assert(h.valid() && h.index() < origin_.size());
-        return false;
+    /** @brief Tells whether a vertex is the symbolic point at infinity. */
+    [[nodiscard]] bool isFictitious(VertexId v) const {
+        assert(v.valid() && v.index() < topologicalVertexCount());
+        return infinity_.valid() && v == infinity_;
     }
 
     /**
      * @brief Returns a halfedge of the face's outer boundary cycle, which runs
-     *        counterclockwise, or the invalid handle for the unbounded face.
+     *        counterclockwise, or the invalid handle for an unbounded face.
      *
      * @param f Face handle.
      */
@@ -799,8 +885,8 @@ public:
      *        each of which runs clockwise.
      *
      * An inner cycle is what encloses a hole of the face — either material of
-     * the input stranded inside it, or, for the unbounded face, a whole
-     * connected component of the input.
+     * the input stranded inside it, or a boundary walk through infinity for an
+     * unbounded face.
      *
      * @param f Face handle.
      */
@@ -816,7 +902,7 @@ public:
      *
      * The returned halfedges follow each boundary cycle under @ref next. For a
      * bounded face, its counterclockwise outer cycle comes first, followed by
-     * each clockwise inner cycle. The unbounded face has no outer cycle, so
+     * each clockwise inner cycle. An unbounded face has no outer cycle, so
      * its result consists only of its inner cycles. Consequently, the boundary
      * of the empty arrangement is empty.
      *
@@ -844,7 +930,7 @@ public:
     /**
      * @brief Returns the halfedges of a face's counterclockwise outer boundary.
      *
-     * The halfedges follow one another under @ref next. The unbounded face has
+     * The halfedges follow one another under @ref next. An unbounded face has
      * no outer boundary, so its result is empty.
      *
      * @param f Face handle.
@@ -900,11 +986,11 @@ public:
      *
      * @tparam ResultNumber Coordinate type of the result.
      * @param f Face handle.
-     * @throws std::logic_error if @p f is invalid or names the unbounded face.
+     * @throws std::logic_error if @p f is invalid or names an unbounded face.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] PolygonWithHoles<Point<ResultNumber>> polygonWithHoles(FaceId f) const {
-        if (!f.valid() || f.index() >= outerCycle_.size() || f.index() == 0) {
+        if (!f.valid() || f.index() >= outerCycle_.size() || isUnbounded(f)) {
             throw std::logic_error(
                 "Arrangement::polygonWithHoles is only defined for bounded faces");
         }
@@ -930,6 +1016,70 @@ public:
         }
         const PolygonWithHoles<PointType> exact(std::move(rings.front()), std::move(holes));
         return PolygonWithHoles<Point<ResultNumber>>(exact);
+    }
+
+    /**
+     * @brief Returns the outer boundary constraints of a face as a half-plane
+     *        intersection, ignoring holes.
+     *
+     * For a bounded face, the constraints come from its outer cycle. For an
+     * unbounded face, they come from the boundary cycles that visit the
+     * symbolic vertex at infinity; bounded inner cycles are holes and are
+     * ignored. An edge with the face on both sides is a slit or dangling edge,
+     * not part of the regularized outer boundary, and is ignored as well.
+     * Consequently, the empty arrangement and the unbounded face outside an
+     * isolated bounded component produce the whole plane.
+     *
+     * Each constraint uses the defining coordinates already stored for the
+     * arrangement edge. As for any @ref HalfplaneIntersection, the result is
+     * the intersection of the supporting half-planes; it equals the face with
+     * its holes filled when that outer boundary is convex.
+     *
+     * @tparam ResultNumber Coordinate type of the half-planes' defining points.
+     * @param f Face handle.
+     * @throws std::logic_error if @p f is invalid.
+     */
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] HalfplaneIntersection<Point<ResultNumber>>
+    halfplaneIntersection(FaceId f) const {
+        if (!f.valid() || f.index() >= outerCycle_.size()) {
+            throw std::logic_error(
+                "Arrangement::halfplaneIntersection requires a valid face");
+        }
+
+        using ResultPoint = Point<ResultNumber>;
+        using ResultHalfplane = Halfplane<ResultPoint>;
+        std::vector<ResultHalfplane> halfplanes;
+        const auto appendCycle = [&](HalfedgeId start) {
+            HalfedgeId h = start;
+            do {
+                if (face(twin(h)) != f) {
+                    const EdgeGeometry& geometry = edgeGeometry_[h.index() / 2];
+                    const bool forward = h.index() % 2 == 0;
+                    halfplanes.emplace_back(
+                        ResultPoint(forward ? geometry.a : geometry.b),
+                        ResultPoint(forward ? geometry.b : geometry.a));
+                }
+                h = next(h);
+            } while (h != start);
+        };
+
+        if (outerCycle_[f.index()].valid()) {
+            appendCycle(outerCycle_[f.index()]);
+        } else {
+            for (HalfedgeId start : innerCycles(f)) {
+                bool reachesInfinity = false;
+                HalfedgeId h = start;
+                do {
+                    reachesInfinity = reachesInfinity || isUnbounded(h);
+                    h = next(h);
+                } while (h != start);
+                if (reachesInfinity) {
+                    appendCycle(start);
+                }
+            }
+        }
+        return HalfplaneIntersection<ResultPoint>(std::move(halfplanes));
     }
 
     // -------------------------------------------------------------------------
@@ -1012,10 +1162,28 @@ public:
      */
     [[nodiscard]] FaceId locate(const PointType& p) const {
         const HalfedgeId h = halfedgeLeftOf(p);
-        return h.valid() ? face(h) : FaceId(0);
+        if (h.valid()) {
+            return face(h);
+        }
+        if (infinity_.valid()) {
+            return face(infinityBoundaryAtWest(p));
+        }
+        return FaceId(0);
     }
 
 private:
+    [[nodiscard]] std::size_t topologicalVertexCount() const {
+        return points_.size() + (infinity_.valid() ? 1 : 0);
+    }
+
+    enum class EdgeKind : std::uint8_t { segment, ray, line };
+
+    struct EdgeGeometry {
+        EdgeKind kind;
+        PointType a;
+        PointType b;
+    };
+
     // An input segment, with the position of the shape it came from.
     struct InputSegment {
         Segment<PointType> segment;
@@ -1032,6 +1200,15 @@ private:
         [[no_unique_address]] TLabel label;
     };
 
+    // A segment, ray, or line before collinear inputs are overlaid.
+    struct InputCurve {
+        EdgeKind kind;
+        PointType a;
+        PointType b;
+        std::uint32_t origin;
+        [[no_unique_address]] TLabel label;
+    };
+
     // -------------------------------------------------------------------------
     // Input normalization
 
@@ -1039,20 +1216,21 @@ private:
     // reduces to, keeping each shape's position in the range as its origin.
     template <class ShapeRange>
     static void collect(const ShapeRange& shapes, std::vector<InputSegment>& segments,
-                        std::vector<PointType>& isolated) {
+                        std::vector<InputCurve>& curves, std::vector<PointType>& isolated) {
         std::uint32_t index = 0;
         for (const auto& shape : shapes) {
-            append(shape, index, segments, isolated);
+            append(shape, index, segments, curves, isolated);
             ++index;
         }
     }
 
-    // The shapes the arrangement can be built from: the bounded ones, which are
-    // exactly those whose whole point set is covered by finitely many segments.
+    // The shapes the arrangement can be built from directly or through Shape.
     template <class InputShape>
-    static constexpr bool isBounded =
+    static constexpr bool isSupported =
         detail::is_empty_shape_v<InputShape> || detail::is_point_v<InputShape> ||
         detail::is_segment_v<InputShape> || detail::is_oriented_segment_v<InputShape> ||
+        detail::is_line_v<InputShape> || detail::is_oriented_line_v<InputShape> ||
+        detail::is_ray_v<InputShape> ||
         detail::is_polyline_v<InputShape> || detail::is_monotone_chain_v<InputShape> ||
         detail::is_triangle_v<InputShape> || detail::is_rectangle_v<InputShape> ||
         detail::is_convex_v<InputShape> || detail::is_polygon_v<InputShape> ||
@@ -1061,11 +1239,10 @@ private:
     // Appends the cut segments — and the isolated points — of one input shape.
     template <class InputShape>
     static void append(const InputShape& shape, std::uint32_t index,
-                       std::vector<InputSegment>& segments, std::vector<PointType>& isolated) {
-        static_assert(isBounded<InputShape> || detail::is_shape_v<InputShape>,
-                      "Arrangement accepts bounded shapes only: a point, a segment, a chain, or a "
-                      "shape bounded by segments. Lines, rays, half-planes, disks and their "
-                      "intersections are not supported yet.");
+                       std::vector<InputSegment>& segments, std::vector<InputCurve>& curves,
+                       std::vector<PointType>& isolated) {
+        static_assert(isSupported<InputShape> || detail::is_shape_v<InputShape>,
+                      "Arrangement accepts points, segment-bounded shapes, lines, and rays");
         const auto addSegment = [&](const auto& edge) {
             const PointType a(edge[0]);
             const PointType b(edge[1]);
@@ -1078,16 +1255,20 @@ private:
                 input.label = detail::copyLabel<TLabel>(shape);
             }
             segments.push_back(std::move(input));
+            InputCurve curve{EdgeKind::segment, a < b ? a : b, a < b ? b : a, index, TLabel{}};
+            if constexpr (detail::has_label_v<TLabel>) {
+                curve.label = detail::copyLabel<TLabel>(shape);
+            }
+            curves.push_back(std::move(curve));
         };
 
         if constexpr (detail::is_shape_v<InputShape>) {
             std::visit([&](const auto& alternative) {
-                // Every alternative of the variant is instantiated, so the
-                // unbounded ones can only be rejected at run time.
-                if constexpr (isBounded<std::remove_cvref_t<decltype(alternative)>>) {
-                    append(alternative, index, segments, isolated);
+                if constexpr (isSupported<std::remove_cvref_t<decltype(alternative)>>) {
+                    append(alternative, index, segments, curves, isolated);
                 } else {
-                    assert(false && "Arrangement does not accept an unbounded shape");
+                    throw std::invalid_argument(
+                        "Arrangement accepts only points, segment-bounded shapes, lines, and rays");
                 }
             }, shape.variant());
         } else if constexpr (detail::is_empty_shape_v<InputShape>) {
@@ -1097,6 +1278,21 @@ private:
         } else if constexpr (detail::is_segment_v<InputShape> ||
                              detail::is_oriented_segment_v<InputShape>) {
             addSegment(shape);
+        } else if constexpr (detail::is_line_v<InputShape> ||
+                             detail::is_oriented_line_v<InputShape> ||
+                             detail::is_ray_v<InputShape>) {
+            const PointType a(shape[0]);
+            const PointType b(shape[1]);
+            if (a == b) {
+                isolated.push_back(a);
+                return;
+            }
+            constexpr EdgeKind kind = detail::is_ray_v<InputShape> ? EdgeKind::ray : EdgeKind::line;
+            InputCurve curve{kind, a, b, index, TLabel{}};
+            if constexpr (detail::has_label_v<TLabel>) {
+                curve.label = detail::copyLabel<TLabel>(shape);
+            }
+            curves.push_back(std::move(curve));
         } else if constexpr (detail::is_polygon_with_holes_v<InputShape>) {
             for (const auto& edge : shape.edges()) {
                 addSegment(edge);
@@ -1124,11 +1320,273 @@ private:
     // -------------------------------------------------------------------------
     // Construction
 
-    void build(std::vector<InputSegment>& segments, std::vector<PointType>& isolated) {
+    void build(std::vector<InputSegment>& segments, std::vector<InputCurve>& curves,
+               std::vector<PointType>& isolated) {
+        const bool hasUnbounded = std::ranges::any_of(
+            curves, [](const InputCurve& curve) { return curve.kind != EdgeKind::segment; });
+        if (hasUnbounded) {
+            buildUnbounded(curves, isolated);
+            return;
+        }
         std::vector<Piece> pieces = split(segments, isolated);
         internVertices(pieces, isolated);
         wireHalfedges();
         buildFaces();
+    }
+
+    struct CarrierInterval {
+        std::optional<NumberType> low;
+        std::optional<NumberType> high;
+        std::uint32_t origin;
+        [[no_unique_address]] TLabel label;
+    };
+
+    struct Carrier {
+        PointType a;
+        PointType b;
+        bool usesX;
+        std::vector<CarrierInterval> intervals;
+        std::vector<NumberType> cuts;
+    };
+
+    struct AtomicCurve {
+        std::uint32_t carrier;
+        std::optional<NumberType> low;
+        std::optional<NumberType> high;
+        std::vector<std::uint32_t> origins;
+        [[no_unique_address]] TLabel label;
+    };
+
+    static NumberType parameterOf(const Carrier& carrier, const PointType& point) {
+        return carrier.usesX ? point.x() : point.y();
+    }
+
+    static bool covers(const CarrierInterval& interval,
+                       const std::optional<NumberType>& low,
+                       const std::optional<NumberType>& high) {
+        if (!low.has_value()) {
+            if (interval.low.has_value()) {
+                return false;
+            }
+        } else if (interval.low.has_value() && *low < *interval.low) {
+            return false;
+        }
+        if (!high.has_value()) {
+            if (interval.high.has_value()) {
+                return false;
+            }
+        } else if (interval.high.has_value() && *interval.high < *high) {
+            return false;
+        }
+        return true;
+    }
+
+    static bool covers(const CarrierInterval& interval, const NumberType& value) {
+        return (!interval.low.has_value() || !(value < *interval.low)) &&
+               (!interval.high.has_value() || !(*interval.high < value));
+    }
+
+    static PointType pointAt(const Carrier& carrier, const NumberType& parameter) {
+        if (carrier.usesX) {
+            const NumberType dx = carrier.b.x() - carrier.a.x();
+            const NumberType y = carrier.a.y() +
+                                 (parameter - carrier.a.x()) *
+                                     (carrier.b.y() - carrier.a.y()) / dx;
+            return PointType(parameter, y);
+        }
+        return PointType(carrier.a.x(), parameter);
+    }
+
+    static bool sameCarrier(const Carrier& carrier, const InputCurve& curve) {
+        return orientationSign(carrier.a, carrier.b, curve.a) == 0 &&
+               orientationSign(carrier.a, carrier.b, curve.b) == 0;
+    }
+
+    // General normalization for input containing a ray or a line. Collinear
+    // inputs are overlaid as intervals on one exact carrier; intersections of
+    // distinct carriers then become additional interval endpoints.
+    void buildUnbounded(const std::vector<InputCurve>& curves,
+                        const std::vector<PointType>& isolated) {
+        std::vector<Carrier> carriers;
+        for (const InputCurve& curve : curves) {
+            auto found = std::find_if(carriers.begin(), carriers.end(),
+                                      [&](const Carrier& carrier) {
+                                          return sameCarrier(carrier, curve);
+                                      });
+            if (found == carriers.end()) {
+                PointType a = curve.a;
+                PointType b = curve.b;
+                if (b < a) {
+                    std::swap(a, b);
+                }
+                carriers.push_back(Carrier{a, b, !(a.x() == b.x()), {}, {}});
+                found = std::prev(carriers.end());
+            }
+            Carrier& carrier = *found;
+            const NumberType ta = parameterOf(carrier, curve.a);
+            const NumberType tb = parameterOf(carrier, curve.b);
+            CarrierInterval interval{{}, {}, curve.origin, curve.label};
+            if (curve.kind == EdgeKind::segment) {
+                interval.low = std::min(ta, tb);
+                interval.high = std::max(ta, tb);
+            } else if (curve.kind == EdgeKind::ray) {
+                if (ta < tb) {
+                    interval.low = ta;
+                } else {
+                    interval.high = ta;
+                }
+            }
+            if (interval.low.has_value()) {
+                carrier.cuts.push_back(*interval.low);
+            }
+            if (interval.high.has_value()) {
+                carrier.cuts.push_back(*interval.high);
+            }
+            carrier.intervals.push_back(std::move(interval));
+        }
+
+        for (Carrier& carrier : carriers) {
+            for (const PointType& point : isolated) {
+                if (orientationSign(carrier.a, carrier.b, point) != 0) {
+                    continue;
+                }
+                const NumberType value = parameterOf(carrier, point);
+                if (std::ranges::any_of(carrier.intervals,
+                                        [&](const CarrierInterval& interval) {
+                                            return covers(interval, value);
+                                        })) {
+                    carrier.cuts.push_back(value);
+                }
+            }
+        }
+
+        for (std::size_t i = 0; i < carriers.size(); ++i) {
+            for (std::size_t j = i + 1; j < carriers.size(); ++j) {
+                const Line<PointType> first(carriers[i].a, carriers[i].b);
+                const Line<PointType> second(carriers[j].a, carriers[j].b);
+                const auto intersection = first.template intersection<NumberType>(second);
+                if (!intersection || !std::holds_alternative<PointType>(*intersection)) {
+                    continue;
+                }
+                const PointType& point = std::get<PointType>(*intersection);
+                const NumberType ti = parameterOf(carriers[i], point);
+                const NumberType tj = parameterOf(carriers[j], point);
+                const bool onFirst = std::ranges::any_of(
+                    carriers[i].intervals,
+                    [&](const CarrierInterval& interval) { return covers(interval, ti); });
+                const bool onSecond = std::ranges::any_of(
+                    carriers[j].intervals,
+                    [&](const CarrierInterval& interval) { return covers(interval, tj); });
+                if (onFirst && onSecond) {
+                    carriers[i].cuts.push_back(ti);
+                    carriers[j].cuts.push_back(tj);
+                }
+            }
+        }
+
+        std::vector<AtomicCurve> atoms;
+        for (std::uint32_t c = 0; c < carriers.size(); ++c) {
+            Carrier& carrier = carriers[c];
+            std::sort(carrier.cuts.begin(), carrier.cuts.end());
+            carrier.cuts.erase(std::unique(carrier.cuts.begin(), carrier.cuts.end()),
+                               carrier.cuts.end());
+
+            const auto emit = [&](std::optional<NumberType> low,
+                                  std::optional<NumberType> high) {
+                const CarrierInterval* first = nullptr;
+                std::vector<std::uint32_t> origins;
+                for (const CarrierInterval& interval : carrier.intervals) {
+                    if (!covers(interval, low, high)) {
+                        continue;
+                    }
+                    if (first == nullptr || interval.origin < first->origin) {
+                        first = &interval;
+                    }
+                    origins.push_back(interval.origin);
+                }
+                if (first == nullptr) {
+                    return;
+                }
+                std::sort(origins.begin(), origins.end());
+                origins.erase(std::unique(origins.begin(), origins.end()), origins.end());
+                atoms.push_back(AtomicCurve{c, std::move(low), std::move(high),
+                                            std::move(origins), first->label});
+            };
+
+            if (carrier.cuts.empty()) {
+                emit({}, {});
+                continue;
+            }
+            emit({}, carrier.cuts.front());
+            for (std::size_t i = 0; i + 1 < carrier.cuts.size(); ++i) {
+                if (!(carrier.cuts[i] == carrier.cuts[i + 1])) {
+                    emit(carrier.cuts[i], carrier.cuts[i + 1]);
+                }
+            }
+            emit(carrier.cuts.back(), {});
+        }
+
+        std::unordered_map<PointType, std::uint32_t> vertexOf;
+        const auto idOf = [&](const PointType& point) {
+            const auto found = vertexOf.find(point);
+            if (found != vertexOf.end()) {
+                return found->second;
+            }
+            const auto id = static_cast<std::uint32_t>(points_.size());
+            points_.push_back(point);
+            vertexOf.emplace(point, id);
+            return id;
+        };
+
+        for (const AtomicCurve& atom : atoms) {
+            if (atom.low.has_value()) {
+                idOf(pointAt(carriers[atom.carrier], *atom.low));
+            }
+            if (atom.high.has_value()) {
+                idOf(pointAt(carriers[atom.carrier], *atom.high));
+            }
+        }
+        for (const PointType& point : isolated) {
+            idOf(point);
+        }
+        infinity_ = VertexId(static_cast<std::uint32_t>(points_.size()));
+
+        originOffset_.push_back(0);
+        for (const AtomicCurve& atom : atoms) {
+            const Carrier& carrier = carriers[atom.carrier];
+            if (atom.low.has_value() && atom.high.has_value()) {
+                const PointType a = pointAt(carrier, *atom.low);
+                const PointType b = pointAt(carrier, *atom.high);
+                origin_.push_back(idOf(a));
+                origin_.push_back(idOf(b));
+                edgeGeometry_.push_back({EdgeKind::segment, a, b});
+            } else if (atom.low.has_value() || atom.high.has_value()) {
+                const bool increasing = atom.low.has_value();
+                const PointType sourcePoint = pointAt(
+                    carrier, increasing ? *atom.low : *atom.high);
+                const NumberType dx = carrier.b.x() - carrier.a.x();
+                const NumberType dy = carrier.b.y() - carrier.a.y();
+                const PointType directionPoint(
+                    increasing ? sourcePoint.x() + dx : sourcePoint.x() - dx,
+                    increasing ? sourcePoint.y() + dy : sourcePoint.y() - dy);
+                origin_.push_back(idOf(sourcePoint));
+                origin_.push_back(infinity_.index());
+                edgeGeometry_.push_back({EdgeKind::ray, sourcePoint, directionPoint});
+            } else {
+                origin_.push_back(infinity_.index());
+                origin_.push_back(infinity_.index());
+                edgeGeometry_.push_back({EdgeKind::line, carrier.a, carrier.b});
+            }
+            edgeLabel_.push_back(atom.label);
+            originIndex_.insert(originIndex_.end(), atom.origins.begin(), atom.origins.end());
+            originOffset_.push_back(static_cast<std::uint32_t>(originIndex_.size()));
+        }
+
+        next_.assign(origin_.size(), 0);
+        face_.assign(origin_.size(), 0);
+        outgoing_.assign(topologicalVertexCount(), HalfedgeId());
+        wireHalfedgesUnbounded();
+        buildFacesUnbounded();
     }
 
     /**
@@ -1307,6 +1765,7 @@ private:
         for (std::size_t i = 0; i < pieces.size();) {
             origin_.push_back(idOf(pieces[i].a));
             origin_.push_back(idOf(pieces[i].b));
+            edgeGeometry_.push_back({EdgeKind::segment, pieces[i].a, pieces[i].b});
             edgeLabel_.push_back(pieces[i].label);
             // The pieces of one stretch are adjacent and ordered by their input
             // position, so the same shape is caught by looking one back only.
@@ -1371,6 +1830,218 @@ private:
             }
             outgoing_[v] = HalfedgeId(around.front());
         }
+    }
+
+    struct FanDirection {
+        NumberType dx;
+        NumberType dy;
+        PointType anchor;
+        std::uint32_t halfedge;
+    };
+
+    [[nodiscard]] FanDirection fanDirection(std::uint32_t h) const {
+        const EdgeGeometry& geometry = edgeGeometry_[h / 2];
+        NumberType dx = geometry.b.x() - geometry.a.x();
+        NumberType dy = geometry.b.y() - geometry.a.y();
+        if (geometry.kind == EdgeKind::segment) {
+            const PointType& from = points_[origin_[h]];
+            const PointType& to = points_[origin_[h ^ 1]];
+            dx = to.x() - from.x();
+            dy = to.y() - from.y();
+        } else if (geometry.kind == EdgeKind::line && h % 2 == 0) {
+            dx = -dx;
+            dy = -dy;
+        }
+        return {dx, dy, geometry.a, h};
+    }
+
+    static int directionHalf(const FanDirection& direction) {
+        if (direction.dy > NumberType(0)) {
+            return 0;
+        }
+        if (direction.dy < NumberType(0)) {
+            return 1;
+        }
+        return direction.dx > NumberType(0) ? 0 : 1;
+    }
+
+    static bool fanLess(const FanDirection& left, const FanDirection& right) {
+        const int leftHalf = directionHalf(left);
+        const int rightHalf = directionHalf(right);
+        if (leftHalf != rightHalf) {
+            return leftHalf < rightHalf;
+        }
+        const NumberType cross = left.dx * right.dy - left.dy * right.dx;
+        if (cross != NumberType(0)) {
+            return cross > NumberType(0);
+        }
+        // Parallel ends with the same escape direction meet only at infinity.
+        // Their transverse order is the order of their carriers there; it
+        // reverses automatically at the opposite end of a line.
+        const NumberType offset =
+            left.dx * (right.anchor.y() - left.anchor.y()) -
+            left.dy * (right.anchor.x() - left.anchor.x());
+        if (offset != NumberType(0)) {
+            return offset > NumberType(0);
+        }
+        return left.halfedge < right.halfedge;
+    }
+
+    static bool infinityFanLess(const FanDirection& left, const FanDirection& right) {
+        return fanLess(right, left);
+    }
+
+    void wireHalfedgesUnbounded() {
+        std::vector<std::vector<std::uint32_t>> fan(topologicalVertexCount());
+        for (std::uint32_t h = 0; h < origin_.size(); ++h) {
+            fan[origin_[h]].push_back(h);
+        }
+        for (std::uint32_t v = 0; v < fan.size(); ++v) {
+            std::vector<std::uint32_t>& around = fan[v];
+            if (around.empty()) {
+                continue;
+            }
+            const bool atInfinity = infinity_.valid() && v == infinity_.index();
+            std::sort(around.begin(), around.end(), [&](std::uint32_t left, std::uint32_t right) {
+                return atInfinity
+                    ? infinityFanLess(fanDirection(left), fanDirection(right))
+                    : fanLess(fanDirection(left), fanDirection(right));
+            });
+            const std::size_t degree = around.size();
+            for (std::size_t i = 0; i < degree; ++i) {
+                next_[around[i] ^ 1] = around[(i + degree - 1) % degree];
+            }
+            outgoing_[v] = HalfedgeId(around.front());
+            if (infinity_.valid() && v == infinity_.index()) {
+                infinityFan_ = around;
+            }
+        }
+    }
+
+    [[nodiscard]] HalfedgeId infinityBoundaryAtWest(const PointType& point) const {
+        assert(!infinityFan_.empty());
+        // At an end exactly collinear with the query ray, choose the sector on
+        // its +y side. This is the same symbolic perturbation halfedgeLeftOf
+        // uses at finite vertices.
+        const FanDirection query{NumberType(-1), NumberType(0), point, 0};
+        const auto after = std::upper_bound(
+            infinityFan_.begin(), infinityFan_.end(), query,
+            [&](const FanDirection& value, std::uint32_t halfedge) {
+                return infinityFanLess(value, fanDirection(halfedge));
+            });
+        const std::uint32_t nextDirection =
+            after == infinityFan_.end() ? infinityFan_.front() : *after;
+        return HalfedgeId(nextDirection ^ 1);
+    }
+
+    void buildFacesUnbounded() {
+        constexpr std::uint32_t none = ~std::uint32_t{};
+        const std::uint32_t halfedges = static_cast<std::uint32_t>(origin_.size());
+        std::vector<std::uint32_t> cycleOf(halfedges, none);
+        std::vector<std::uint32_t> representative;
+        std::vector<bool> reachesInfinity;
+        for (std::uint32_t h = 0; h < halfedges; ++h) {
+            if (cycleOf[h] != none) {
+                continue;
+            }
+            const auto id = static_cast<std::uint32_t>(representative.size());
+            representative.push_back(h);
+            bool unbounded = false;
+            std::uint32_t walk = h;
+            do {
+                cycleOf[walk] = id;
+                unbounded = unbounded || origin_[walk] == infinity_.index();
+                walk = next_[walk];
+            } while (walk != h);
+            reachesInfinity.push_back(unbounded);
+        }
+
+        const auto cycles = static_cast<std::uint32_t>(representative.size());
+        std::vector<std::uint32_t> parent(cycles);
+        for (std::uint32_t i = 0; i < cycles; ++i) {
+            parent[i] = i;
+        }
+        const auto root = [&parent](std::uint32_t x) {
+            while (parent[x] != x) {
+                parent[x] = parent[parent[x]];
+                x = parent[x];
+            }
+            return x;
+        };
+
+        std::vector<bool> isOuter(cycles, false);
+        for (std::uint32_t id = 0; id < cycles; ++id) {
+            if (reachesInfinity[id]) {
+                continue;
+            }
+            const std::uint32_t leftmost = leftmostVertexOf(representative[id]);
+            if (turnsLeftEverywhereAt(representative[id], leftmost)) {
+                isOuter[id] = true;
+                continue;
+            }
+            const HalfedgeId left = halfedgeLeftOf(points_[leftmost]);
+            const HalfedgeId other = left.valid() ? left : infinityBoundaryAtWest(points_[leftmost]);
+            parent[root(id)] = root(cycleOf[other.index()]);
+        }
+
+        std::vector<std::uint32_t> infinityCycles;
+        infinityCycles.reserve(cycles);
+        for (std::uint32_t id = 0; id < cycles; ++id) {
+            if (reachesInfinity[id]) {
+                infinityCycles.push_back(id);
+            }
+        }
+        const PointType zero(NumberType(0), NumberType(0));
+        const std::uint32_t westCycle = cycleOf[infinityBoundaryAtWest(zero).index()];
+        const auto west = std::find(infinityCycles.begin(), infinityCycles.end(), westCycle);
+        if (west != infinityCycles.end()) {
+            std::iter_swap(infinityCycles.begin(), west);
+        }
+
+        std::vector<std::uint32_t> faceOfComponent(cycles, none);
+        outerCycle_.clear();
+        unboundedFace_.clear();
+        for (const std::uint32_t id : infinityCycles) {
+            const std::uint32_t component = root(id);
+            if (faceOfComponent[component] != none) {
+                continue;
+            }
+            faceOfComponent[component] = static_cast<std::uint32_t>(outerCycle_.size());
+            outerCycle_.push_back(HalfedgeId());
+            unboundedFace_.push_back(true);
+        }
+        for (std::uint32_t id = 0; id < cycles; ++id) {
+            if (!isOuter[id]) {
+                continue;
+            }
+            const std::uint32_t component = root(id);
+            assert(faceOfComponent[component] == none);
+            faceOfComponent[component] = static_cast<std::uint32_t>(outerCycle_.size());
+            outerCycle_.push_back(HalfedgeId(representative[id]));
+            unboundedFace_.push_back(false);
+        }
+
+        std::vector<std::vector<HalfedgeId>> inner(outerCycle_.size());
+        for (std::uint32_t id = 0; id < cycles; ++id) {
+            const std::uint32_t f = faceOfComponent[root(id)];
+            assert(f != none);
+            if (!isOuter[id]) {
+                inner[f].push_back(HalfedgeId(representative[id]));
+            }
+            std::uint32_t walk = representative[id];
+            do {
+                face_[walk] = f;
+                walk = next_[walk];
+            } while (walk != representative[id]);
+        }
+
+        innerCycle_.clear();
+        innerOffset_.assign(1, 0);
+        for (const std::vector<HalfedgeId>& cyclesOfFace : inner) {
+            innerCycle_.insert(innerCycle_.end(), cyclesOfFace.begin(), cyclesOfFace.end());
+            innerOffset_.push_back(static_cast<std::uint32_t>(innerCycle_.size()));
+        }
+        faceLabel_.assign(outerCycle_.size(), TLabel{});
     }
 
     // Traces the `next` cycles, tells the outer boundary cycles (counterclockwise)
@@ -1472,6 +2143,8 @@ private:
             innerOffset_.push_back(static_cast<std::uint32_t>(innerCycle_.size()));
         }
         faceLabel_.assign(outerCycle_.size(), TLabel{});
+        unboundedFace_.assign(outerCycle_.size(), false);
+        unboundedFace_.front() = true;
     }
 
     // -------------------------------------------------------------------------
@@ -1491,24 +2164,43 @@ private:
         HalfedgeId best;
         NumberType bestNumerator(0);
         NumberType bestDenominator(0);
+        NumberType bestUpX(0);
+        NumberType bestUpY(1);
         for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
-            const PointType& a = points_[origin_[h]];
-            const PointType& b = points_[origin_[h + 1]];
-            const bool aBelow = !(a.y() > p.y());
-            if (aBelow == !(b.y() > p.y())) {
-                continue;  // both ends on the same side: no crossing
+            const EdgeGeometry& geometry = edgeGeometry_[h / 2];
+            const PointType& a = geometry.a;
+            const PointType& b = geometry.b;
+            NumberType dx = b.x() - a.x();
+            NumberType dy = b.y() - a.y();
+            if (dy == NumberType(0)) {
+                continue;
             }
-            const PointType& low = aBelow ? a : b;
-            const PointType& high = aBelow ? b : a;
+            if (geometry.kind == EdgeKind::segment) {
+                const NumberType lowY = std::min(a.y(), b.y());
+                const NumberType highY = std::max(a.y(), b.y());
+                if (p.y() < lowY || !(p.y() < highY)) {
+                    continue;
+                }
+            } else if (geometry.kind == EdgeKind::ray) {
+                if ((dy > NumberType(0) && p.y() < a.y()) ||
+                    (dy < NumberType(0) && !(p.y() < a.y()))) {
+                    continue;
+                }
+            }
             // The crossing abscissa as the fraction numerator / denominator,
             // with a positive denominator; no division, so integer coordinates
             // stay exact.
-            const NumberType denominator = high.y() - low.y();
-            const NumberType numerator =
-                low.x() * denominator + (p.y() - low.y()) * (high.x() - low.x());
+            NumberType denominator = dy;
+            NumberType numerator = a.x() * dy + (p.y() - a.y()) * dx;
+            if (denominator < NumberType(0)) {
+                denominator = -denominator;
+                numerator = -numerator;
+            }
             if (!(numerator < p.x() * denominator)) {
                 continue;  // to the right of the query point, or through it
             }
+            const NumberType upX = dy > NumberType(0) ? dx : -dx;
+            const NumberType upY = dy > NumberType(0) ? dy : -dy;
             if (best.valid()) {
                 const NumberType here = numerator * bestDenominator;
                 const NumberType there = bestNumerator * denominator;
@@ -1516,24 +2208,18 @@ private:
                     continue;
                 }
                 if (here == there) {
-                    // Both edges cross at the same point, so that point is a
-                    // vertex and both leave it upwards. Infinitesimally higher,
-                    // the one leaning further right comes first.
-                    const PointType& bestLow = points_[origin_[best.index() ^ 1]];
-                    const PointType& bestHigh = points_[origin_[best.index()]];
-                    const NumberType cross =
-                        (high.x() - low.x()) * (bestHigh.y() - bestLow.y()) -
-                        (high.y() - low.y()) * (bestHigh.x() - bestLow.x());
-                    if (!(cross > NumberType(0))) {
+                    if (!(upX * bestUpY > bestUpX * upY)) {
                         continue;
                     }
                 }
             }
             // The halfedge running downwards has the crossing's right-hand side,
             // where the query point lies, on its left.
-            best = HalfedgeId(aBelow ? h + 1 : h);
+            best = HalfedgeId(dy < NumberType(0) ? h : h + 1);
             bestNumerator = numerator;
             bestDenominator = denominator;
+            bestUpX = upX;
+            bestUpY = upY;
         }
         return best;
     }
@@ -1634,7 +2320,8 @@ private:
         // log2 of the number of edges, near enough, and without a cast to double.
         const std::uint64_t depth = std::bit_width(edges);
         constexpr std::uint64_t perComparison = 5;
-        if (asked * edges > perComparison * (2 * edges + asked) * depth) {
+        if (!infinity_.valid() &&
+            asked * edges > perComparison * (2 * edges + asked) * depth) {
             return sweepHalfedgesLeftOf(queries);
         }
         std::vector<HalfedgeId> answer;
@@ -1880,17 +2567,21 @@ private:
     }
 
     std::vector<PointType> points_;
+    VertexId infinity_;                            // symbolic vertex, absent for bounded input
     std::vector<HalfedgeId> outgoing_;         // one per vertex; invalid when isolated
     std::vector<std::uint32_t> origin_;        // one per halfedge
     std::vector<std::uint32_t> next_;          // one per halfedge
     std::vector<std::uint32_t> face_;          // one per halfedge
     std::vector<TLabel> edgeLabel_;            // one per edge
+    std::vector<EdgeGeometry> edgeGeometry_;   // finite defining geometry, one per edge
     std::vector<std::uint32_t> originOffset_;  // one per edge, plus a closing entry
     std::vector<std::uint32_t> originIndex_;   // input positions, grouped by edge
-    std::vector<HalfedgeId> outerCycle_;       // one per face; invalid for the unbounded one
+    std::vector<HalfedgeId> outerCycle_;       // one per face; invalid for unbounded faces
     std::vector<std::uint32_t> innerOffset_;   // one per face, plus a closing entry
     std::vector<HalfedgeId> innerCycle_;       // inner cycles, grouped by face
     std::vector<TLabel> faceLabel_;            // one per face
+    std::vector<bool> unboundedFace_;           // one per face
+    std::vector<std::uint32_t> infinityFan_;    // outgoing ends in counterclockwise order
 };
 
 // No deduction guide, deliberately: the vertex type cannot be read off the

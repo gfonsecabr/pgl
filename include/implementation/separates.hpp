@@ -4796,7 +4796,7 @@ template <class ExactPoint>
 std::vector<Segment<ExactPoint>> splitCutSegments(const std::vector<Segment<ExactPoint>>& cuts) {
     // Layering: see the note in @ref cellSeparates.
     const Arrangement<ExactPoint> arrangement(cuts);
-    return arrangement.edges();
+    return arrangement.boundedEdges();
 }
 
 /**
