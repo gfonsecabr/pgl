@@ -39,6 +39,7 @@ The following shapes are supported by Pangolin:
 - [`Convex`](#convex) Convex polygon.
 - [`Polygon`](#polygon) Simple polygon.
 - [`PolygonWithHoles`](#polygon-with-holes) Simple polygon minus a set of disjoint polygonal holes.
+- [`PolygonSet`](#polygon-set) A set of regions with pairwise disjoint interiors.
 - [`HalfplaneIntersection`](#halfplane-intersection) Intersection of half-planes; convex but possibly unbounded or empty.
 
 All shapes are template classes with a parameter that is a `Point` type, with `pgl::Point<int>` as default:
@@ -690,6 +691,63 @@ Against a region of $n$ vertices and an operand of $m$:
 - The predicates against a point take $O(n)$ time, and those against a segment, a line, a ray, or a half-plane take $O(n)$ time as well (`interiorsIntersect` adds $O(c^2)$ for the $c$ boundary crossings the operand makes, and against a half-plane it is $O(n)$ when no rings touch and $O(n^3)$ in the worst case).
 - The predicates against a bounded shape with area take $O(n \cdot m)$ time, and `interiorsIntersect` takes $O(n \log n + n \cdot m)$ when it falls back on the triangulated domain — against another region, where there is no boundary shortcut, $O(n \log n + m \log m + n \cdot m)$.
 - The distances take $O(n)$ edge queries: the region is closed, so whenever it misses the other shape the nearest pair is realized on one of its ring edges.
+
+- Other methods:
+
+
+### Polygon Set
+
+The class template `PolygonSet` represents a set of [`PolygonWithHoles`](#polygon-with-holes) components with pairwise disjoint interiors. The point set is simply their union:
+
+$$A = \bigcup_i A_i.$$
+
+This is what the [boolean operations](shape_methods.md#boolean-operations) produce — a difference, a union or a symmetric difference can come apart into several pieces — and having it as a shape rather than a `std::vector` is what makes those operations **closed**: a result can be fed straight back in, compared, hashed, drawn, transformed and measured.
+
+```C++
+pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
+pgl::PolygonSet<> holed = square.difference(pgl::Rectangle(3,3,7,7));
+std::cout << holed.componentCount() << ' ' << holed.holeCount() << ' ' << holed.area();
+// Output: 1 1 84
+pgl::PolygonSet<> smaller = holed.difference(pgl::Rectangle(0,0,2,2));  // and again
+```
+
+The components are kept sorted by `PolygonWithHoles::operator<=>`, so equality, ordering and hashing do not depend on the order they were given in. A component with no area covers nothing that survives regularization and is dropped, and duplicates are erased. The components are deliberately **not** nested: a component stranded inside another's hole is stored beside it, not within it, which is what the cell engine emits and what a flat set can say.
+
+As with [`Polygon`](#polygon) and [`PolygonWithHoles`](#polygon-with-holes), structural validity is a documented precondition rather than an enforced invariant. A set is valid when every component is, when the component interiors are pairwise disjoint, and when no two components share a stretch of edge — they may meet only at finitely many points. `isValid` checks all three on demand.
+
+That last clause is the one that earns its keep. It is what makes the interior of the set the union of the components' interiors, $A^\circ = \bigcup_i A_i^\circ$, and that identity is what lets a question about the set be answered one component at a time. Two squares glued along an edge would have interior points belonging to neither component's interior, and the componentwise answers would be wrong.
+
+A set `A` with $k$ components and $n$ vertices in total has methods such as:
+
+- `A.componentCount()` / `A.component(i)` / `A.components()`: The components, in canonical (sorted) order. Iterating a set iterates its components. Deliberately not `size` and `operator[]`: `size` counts *defining points* on `Polygon`, `Convex`, `Polyline` and `MonotoneChain`, and a name whose meaning differs per shape is a trap in generic code — the same call `PolygonWithHoles` made for its holes.
+- `A.addComponent(c)`: Adds a component, keeping the canonical order. One with no area, or one already present, is ignored.
+- `A.eraseComponent(i)` / `A.eraseComponent(c)`: Drops a component, by its index in the canonical order or by the region itself, the second returning whether it found one to erase (in $O(\log k)$ comparisons, since the components are sorted).
+- `A.vertexCount()` / `A.vertices()` / `A.edges()` / `A.orientedEdges()`: The totals over every ring of every component, with the same meaning they have on a region.
+- `A.holeCount()` / `A.hasHoles()`: The total number of holes over all components, and whether there are any.
+- `A.isEmpty()`: Returns true if the set has no components at all.
+- `A.isDegenerate()` / `A.isPoint()` / `A.isSegment()` / `A.isUndefined()`: A canonical set drops its zero-area components, so a degenerate set is exactly an empty one; only a set adopted with `trusted` can answer otherwise.
+- `A.isConnected()`: Returns true if the set is connected as a point set. This is the library's first shape that need not be — two components that never touch are two pieces — and it is what the [cut predicates](shape_methods.md#predicates) ask before dismissing a remover that misses the set.
+- `A.isPinched()`: Returns true if two components touch each other anywhere. A set whose components stay apart is a disjoint union of closed sets at positive distance, and then every predicate folds componentwise exactly. Memoized.
+- `A.isValid()`: Tests the whole structural contract above.
+- `A.isRegular()` / `A.regularized()`: A set is regular exactly when every component is, since no slit can run between two components. `regularized()` returns a `PolygonSet`, so the regularization is idempotent in the type system and not only in the mathematics.
+- `A.twiceArea()` / `A.area<ResultNumber>()`: The sum over the components, which is the area of their union because the interiors are disjoint.
+- `A.centroid<ResultNumber>()` / `A.verticesCentroid<ResultNumber>()`: The area-weighted centroid over the components, falling back on the vertex centroid when the total area is zero.
+- `A.diameter()`: Unlike a region's, this cannot be delegated to any one component — the farthest pair generally has its two ends in different ones. Every hole lies inside its own component's outer ring, so it is the diameter of the outer rings' convex hull.
+- `A.bbox()`: The union of the components' boxes, cached — unlike a region, which delegates to the box its outer ring already caches.
+- `A.pointInside<ResultNumber>()`: A point in the first component's interior.
+- `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
+- `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
+- `A.difference(b)` / `A.unionWith(b)` / `A.intersection(b)` / `A.symmetricDifference(b)`: The four [boolean operations](shape_methods.md#boolean-operations), against every bounded shape with area **and against another `PolygonSet`** — which is what closure means.
+
+Four of the five [predicates](shape_methods.md#predicates) fold over the components: `intersects` and `interiorsIntersect` because $A$ and $A^\circ$ are unions, `contains` against a point, and `interiorContains` against everything — the component interiors are open and pairwise disjoint, so a connected operand inside their union is inside one of them.
+
+`contains` and `boundaryContains` are the two that do not, and only for a **one-dimensional** operand. Two unit squares meeting corner to corner at the origin contain the segment from $(-1,-1)$ to $(1,1)$ between them, and neither contains it alone. An operand with area cannot be shared that way — the two components would have to meet along an edge, which the contract rules out — so the general machinery is needed exactly for segments and chains, where the operand is split at every component-boundary contact and each piece classified. A set that is not pinched skips even that.
+
+The cut predicates feel the same difference from the other side. `A.separates(B)` asks whether $B \setminus A$ is disconnected, and a set is the first shape for which that can hold without the remover doing anything: two separated components are already two pieces. A single point does cut a set held together only by a pinch, which is something no point can do to a `PolygonWithHoles`.
+
+Distances are a plain minimum over the components, with no caveat at all: the distance to a union is the smallest of the distances.
+
+`PolygonSet` is deliberately **not** an alternative of the runtime [`Shape`](#polymorphism-with-shape) variant. Drawing one on a `Canvas` draws each component as its own region, which needs no alternative of its own.
 
 - Other methods:
 
