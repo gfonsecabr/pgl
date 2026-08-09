@@ -46,15 +46,11 @@ int main() {
 
     // Every edge of the subdivision, one entry per twin pair.
     canvas << pgl::stroke("#334155") << pgl::strokeWidth("1.5px") << pgl::fill("none");
-    for (const auto& edge : arr.edges()) {
-        std::visit([&](const auto& geometry) { canvas << geometry; }, edge);
-    }
+    canvas << arr.edges();
 
     // Every vertex: the segment endpoints together with every crossing.
     canvas << pgl::stroke("#1d4ed8") << pgl::fill("#1d4ed8") << pgl::pointRadius("4");
-    for (const auto& vertex : arr.vertices()) {
-        canvas << vertex;
-    }
+    canvas << arr.vertices();
 
     const pgl::Arrangement<>::FaceId face = largestFace(arr);
 

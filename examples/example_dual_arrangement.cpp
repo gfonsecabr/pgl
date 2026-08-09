@@ -124,15 +124,11 @@ static void drawDual(const Arrangement& arr, const std::vector<Collinear>& famil
     canvas.view(Window(-4, -4, 4, 4));
 
     canvas << pgl::stroke("#94a3b8") << pgl::strokeWidth("1px") << pgl::fill("none");
-    for (const auto& edge : arr.edges()) {
-        std::visit([&](const auto& geometry) { canvas << geometry; }, edge);
-    }
+    canvas << arr.edges();
 
     // Every crossing of two dual lines, that is, every line through two points.
     canvas << pgl::stroke("#334155") << pgl::fill("#334155") << pgl::pointRadius("3");
-    for (const pgl::EPoint& vertex : arr.vertices()) {
-        canvas << vertex;
-    }
+    canvas << arr.vertices();
 
     // The ones where three or more dual lines meet.
     canvas << pgl::pointRadius("7");

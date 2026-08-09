@@ -60,19 +60,13 @@ static void draw(const std::string &filename,
     canvas << triangulation;
 
     canvas << pgl::stroke("#10b305") << pgl::fill("#10b305") << pgl::fillOpacity(".5");
-    for (auto& s : triangulation.triangles()) {
-        canvas << s;
-    }
+    canvas << triangulation.triangles();
 
     canvas << pgl::stroke("#ff0000") << pgl::fill("#ff0000") << pgl::fillOpacity(".5");
-    for (auto& s : shapes2) {
-        canvas << s;
-    }
+    canvas << shapes2;
 
     canvas << pgl::stroke("#ffff00") << pgl::fill("#ffff00") << pgl::fillOpacity(".3");
-    for (auto& s : shapes3) {
-        canvas << s;
-    }
+    canvas << shapes3;
 
     canvas << pgl::stroke("#1100ff") << pgl::fill("#1100ff") << pgl::fillOpacity(".5");
     canvas << shape;
@@ -97,4 +91,3 @@ int main() {
 
     return 0;
 }
-

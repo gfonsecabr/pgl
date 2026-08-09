@@ -17,12 +17,14 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <variant>
 
 
 namespace pgl {
@@ -544,6 +546,47 @@ class Canvas {
                 *this << value;
             },
             shape.variant());
+        return *this;
+    }
+
+    /** @brief Appends the currently stored alternative of a variant. */
+    template <class... Types>
+        requires (requires(Canvas& canvas, const Types& value) {
+            canvas << value;
+        } && ...)
+    Canvas& operator<<(const std::variant<Types...>& objects) {
+        std::visit(
+            [this](const auto& value) {
+                *this << value;
+            },
+            objects);
+        return *this;
+    }
+
+    /** @brief Appends an optional object when it contains one. */
+    template <class Type>
+        requires requires(Canvas& canvas, const Type& value) {
+            canvas << value;
+        }
+    Canvas& operator<<(const std::optional<Type>& object) {
+        if (object) {
+            *this << *object;
+        }
+        return *this;
+    }
+
+    /** @brief Appends every object in an input range, in iteration order. */
+    template <std::ranges::input_range Range>
+        requires std::ranges::input_range<const Range> && requires(
+            Canvas& canvas,
+            std::ranges::range_reference_t<const Range> object
+        ) {
+            canvas << object;
+        }
+    Canvas& operator<<(const Range& objects) {
+        for (const auto& object : objects) {
+            *this << object;
+        }
         return *this;
     }
 

@@ -127,6 +127,10 @@ pgl::EPoint p = std::get<0>(*isec);
 // p = (3,3)
 ```
 
+For visualization, a [Canvas](canvas.md) accepts these optional and variant
+results directly; an empty intersection simply draws nothing. It also accepts
+ranges of such results, which is convenient for disconnected intersections.
+
 When the intersection can be represented as a `Shape`, you can convert directly:
 
 ```c++

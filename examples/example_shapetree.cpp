@@ -55,14 +55,10 @@ static void draw(const std::string &filename,
     }
 
     canvas << pgl::stroke("#ff0000") << pgl::fill("#ff0000") << pgl::fillOpacity(".5");
-    for (auto& s : shapes2) {
-        canvas << s;
-    }
+    canvas << shapes2;
 
     canvas << pgl::stroke("#ffff00") << pgl::fill("#ffff00") << pgl::fillOpacity(".3");
-    for (auto& s : shapes3) {
-        canvas << s;
-    }
+    canvas << shapes3;
 
     canvas.writeSVG(filename);
 }
