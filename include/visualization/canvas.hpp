@@ -497,6 +497,21 @@ class Canvas {
         return push(PolygonWithHoles<Point<double>>(region), region);
     }
 
+    /**
+     * @brief Appends every component of a polygon set, each as its own region,
+     *        using the current captured style.
+     *
+     * Drawing a set is drawing each component's rings, so the set needs no
+     * drawing of its own — and no alternative in the stored @ref Shape variant.
+     */
+    template <class PointType, class Label>
+    Canvas& operator<<(const PolygonSet<PointType, Label>& set) {
+        for (const auto& component : set) {
+            push(PolygonWithHoles<Point<double>>(component), component);
+        }
+        return *this;
+    }
+
     /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
     template <class PointType, class Label>
     Canvas& operator<<(const MonotoneChain<PointType, Label>& chain) {

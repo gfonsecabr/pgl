@@ -633,6 +633,18 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the rectangle as a one-component set of regions.
+     *
+     * A rectangle with no area covers nothing that survives regularization, so
+     * it gives back the empty set rather than a component without area.
+     *
+     * @return PolygonSet whose only component is the rectangle as a region.
+     */
+    [[nodiscard]] constexpr PolygonSet<PointType> asPolygonSet() const {
+        return PolygonSet<PointType>(asPolygonWithHoles());
+    }
+
+    /**
      * @brief Returns whether a point is one of the rectangle vertices.
      *
      * @tparam OtherPoint Type of the point.

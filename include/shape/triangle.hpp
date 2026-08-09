@@ -510,6 +510,18 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the triangle as a one-component set of regions.
+     *
+     * A collapsed triangle covers nothing that survives regularization, so it
+     * gives back the empty set rather than a component without area.
+     *
+     * @return PolygonSet whose only component is the triangle as a region.
+     */
+    [[nodiscard]] constexpr PolygonSet<PointType> asPolygonSet() const {
+        return PolygonSet<PointType>(asPolygonWithHoles());
+    }
+
+    /**
      * @brief Returns the triangle rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).

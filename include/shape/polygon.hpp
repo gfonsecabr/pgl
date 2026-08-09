@@ -604,6 +604,18 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the polygon as a one-component set of regions.
+     *
+     * A polygon with no area covers nothing that survives regularization, so it
+     * gives back the empty set rather than a component without area.
+     *
+     * @return PolygonSet whose only component is this polygon as a region.
+     */
+    [[nodiscard]] constexpr PolygonSet<PointType> asPolygonSet() const {
+        return PolygonSet<PointType>(asPolygonWithHoles());
+    }
+
+    /**
      * @brief Computes the area-weighted centroid of the polygon.
      * @tparam ResultNumber The number type for the result.
      * @warning Uses division by 3 and the area, so the result may be inexact even for floating-point types.

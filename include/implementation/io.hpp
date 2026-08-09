@@ -287,6 +287,32 @@ std::ostream& operator<<(std::ostream& stream, const PolygonWithHoles<PointType,
 }
 
 // -----------------------------------------------------------------------------
+// PolygonSet
+/**
+ * @brief Streams a set as `PolygonSet[components...]`.
+ *
+ * Every component prints as an ordinary region, in the set's canonical order.
+ *
+ * @param stream Output stream.
+ * @param set Set to print.
+ * @return The output stream.
+ */
+template <class PointType, class LabelType>
+std::ostream& operator<<(std::ostream& stream, const PolygonSet<PointType, LabelType>& set) {
+    stream << "PolygonSet[";
+    bool first = true;
+    for (const auto& component : set) {
+        if (!first) {
+            stream << ",";
+        }
+        first = false;
+        stream << component;
+    }
+    stream << "]";
+    return stream;
+}
+
+// -----------------------------------------------------------------------------
 // MonotoneChain
 /**
  * @brief Streams a MonotoneChain as `MonotoneChain[(P1),(P2),(P3),...]`.
