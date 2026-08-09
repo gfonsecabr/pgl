@@ -16,6 +16,9 @@ namespace {
 using Number = pgl::ERational;
 using Point = pgl::EPoint;
 using Segment = pgl::ESegment;
+using Line = pgl::ELine;
+using OrientedLine = pgl::EOrientedLine;
+using Ray = pgl::ERay;
 // Named PolygonShape, not Polygon: under MSVC, <windows.h> (pulled in
 // transitively by doctest.h) injects a Win32 GDI function called `Polygon`
 // into the global namespace, and an alias of the same name used from
@@ -39,10 +42,23 @@ Segment S(int ax, int ay, int bx, int by) {
     return Segment(P(ax, ay), P(bx, by));
 }
 
+bool hasInfinity(const Arrangement& arr) {
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        if (arr.source(HalfedgeId(i)).index() >= arr.vertexCount()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::size_t topologicalVertexCount(const Arrangement& arr) {
+    return arr.vertexCount() + (hasInfinity(arr) ? 1 : 0);
+}
+
 // Number of connected components of the arrangement seen as a graph, isolated
 // vertices included. This is the C of Euler's formula V - E + F = 1 + C.
 std::size_t componentCount(const Arrangement& arr) {
-    std::vector<std::size_t> parent(arr.vertexCount());
+    std::vector<std::size_t> parent(topologicalVertexCount(arr));
     for (std::size_t i = 0; i < parent.size(); ++i) {
         parent[i] = i;
     }
@@ -71,22 +87,44 @@ void checkInvariants(const Arrangement& arr) {
     REQUIRE(arr.faceCount() >= 1);
     CHECK(arr.isUnbounded(FaceId(0)));
 
+    bool hasUnboundedHalfedge = false;
+
     for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
         const HalfedgeId h(i);
         CHECK(arr.twin(arr.twin(h)) == h);
         CHECK(arr.twin(h) != h);
         CHECK(arr.face(arr.next(h)) == arr.face(h));
         CHECK(arr.source(arr.next(h)) == arr.target(h));
-        CHECK(arr.source(h) != arr.target(h));
-        CHECK_FALSE(arr.isFictitious(h));
-        // A halfedge indexes to the directed segment between the topology's
-        // source and target; its twin has the reverse direction.
-        CHECK(arr[h].source() == arr[arr.source(h)]);
-        CHECK(arr[h].target() == arr[arr.target(h)]);
-        CHECK(arr[h].source() == arr[arr.twin(h)].target());
-        CHECK(arr[h].target() == arr[arr.twin(h)].source());
+        const bool adjacentToInfinity =
+            arr.isFictitious(arr.source(h)) || arr.isFictitious(arr.target(h));
+        CHECK(arr.isUnbounded(h) == adjacentToInfinity);
+        CHECK(arr.isUnbounded(h) == arr.isUnbounded(arr.twin(h)));
+        hasUnboundedHalfedge = hasUnboundedHalfedge || arr.isUnbounded(h);
+        const Arrangement::HalfedgeType geometry = arr[h];
+        const Arrangement::HalfedgeType twinGeometry = arr[arr.twin(h)];
+        if (const auto* segment =
+                std::get_if<Arrangement::OrientedSegmentType>(&geometry)) {
+            const auto& twinSegment =
+                std::get<Arrangement::OrientedSegmentType>(twinGeometry);
+            CHECK(segment->source() == arr[arr.source(h)]);
+            CHECK(segment->target() == arr[arr.target(h)]);
+            CHECK(segment->source() == twinSegment.target());
+            CHECK(segment->target() == twinSegment.source());
+        } else if (const auto* line =
+                       std::get_if<Arrangement::OrientedLineType>(&geometry)) {
+            const auto& twinLine = std::get<Arrangement::OrientedLineType>(twinGeometry);
+            CHECK(arr.isFictitious(arr.source(h)));
+            CHECK(arr.isFictitious(arr.target(h)));
+            CHECK(line->source() == twinLine.target());
+            CHECK(line->target() == twinLine.source());
+        } else {
+            const auto& ray = std::get<Arrangement::RayType>(geometry);
+            CHECK(ray == std::get<Arrangement::RayType>(twinGeometry));
+            CHECK(arr.isFictitious(arr.source(h)) != arr.isFictitious(arr.target(h)));
+        }
         CHECK_FALSE(arr.originsOf(h).empty());
     }
+    CHECK(arr.isUnbounded() == hasUnboundedHalfedge);
 
     // Every halfedge leaving a vertex says so, and the rotational fan reaches
     // all of them.
@@ -95,7 +133,7 @@ void checkInvariants(const Arrangement& arr) {
         const HalfedgeId h(i);
         ++degree[arr.source(h)];
     }
-    for (std::uint32_t i = 0; i < arr.vertexCount(); ++i) {
+    for (std::uint32_t i = 0; i < topologicalVertexCount(arr); ++i) {
         const VertexId v(i);
         const HalfedgeId start = arr.outgoing(v);
         const std::vector<HalfedgeId> outgoing = arr.outgoingHalfedges(v);
@@ -154,18 +192,36 @@ void checkInvariants(const Arrangement& arr) {
     }
     CHECK(listed == cycles);
 
-    // The edge list is one entry per twin pair, and agrees with indexing either
-    // halfedge of the pair.
-    const std::vector<Segment> edges = arr.edges();
+    // The edge list is one variant per twin pair; boundedEdges is its segment
+    // projection in the same order.
+    const std::vector<Arrangement::EdgeType> edges = arr.edges();
+    const std::vector<Segment> boundedEdges = arr.boundedEdges();
     REQUIRE(edges.size() == arr.edgeCount());
-    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
-        const HalfedgeId h(i);
-        CHECK(edges[h.index() / 2] == Segment(arr[h].source(), arr[h].target()));
+    std::size_t bounded = 0;
+    for (std::uint32_t i = 0; i < arr.edgeCount(); ++i) {
+        const Arrangement::HalfedgeType halfedge = arr[HalfedgeId(2 * i)];
+        if (const auto* segment =
+                std::get_if<Arrangement::OrientedSegmentType>(&halfedge)) {
+            const Segment expected(segment->source(), segment->target());
+            CHECK(std::get<Segment>(edges[i]) == expected);
+            REQUIRE(bounded < boundedEdges.size());
+            CHECK(boundedEdges[bounded++] == expected);
+        } else if (const auto* line =
+                       std::get_if<Arrangement::OrientedLineType>(&halfedge)) {
+            CHECK(std::get<Line>(edges[i]) == Line(line->source(), line->target()));
+        } else {
+            CHECK(std::get<Ray>(edges[i]) == std::get<Ray>(halfedge));
+        }
     }
+    CHECK(bounded == boundedEdges.size());
+
     CHECK(arr.vertices().size() == arr.vertexCount());
+    if (hasInfinity(arr)) {
+        CHECK(arr.isFictitious(VertexId(static_cast<std::uint32_t>(arr.vertexCount()))));
+    }
 
     // Euler's formula, over the whole complex.
-    const std::size_t v = arr.vertexCount();
+    const std::size_t v = topologicalVertexCount(arr);
     const std::size_t e = arr.edgeCount();
     const std::size_t f = arr.faceCount();
     CHECK(v + f == e + 1 + componentCount(arr));
@@ -287,6 +343,7 @@ TEST_CASE("empty arrangement has only the unbounded face") {
     CHECK(empty.vertexCount() == 0);
     CHECK(empty.halfedgeCount() == 0);
     CHECK(empty.faceCount() == 1);
+    CHECK_FALSE(empty.isUnbounded());
     CHECK(empty.locate(P(3, 7)) == FaceId(0));
     CHECK(empty.innerCycles(FaceId(0)).empty());
     CHECK(empty.boundaryOf(FaceId(0)).empty());
@@ -339,19 +396,88 @@ TEST_CASE("boundaryOf visits outer and inner face cycles in order") {
     }
 }
 
+TEST_CASE("halfplaneIntersection extracts the outer face constraints") {
+    SUBCASE("a bounded face keeps its outer boundary and ignores its hole") {
+        const Arrangement arr = arrangementOf({S(0, 0, 6, 0), S(6, 0, 6, 6),
+                                               S(6, 6, 0, 6), S(0, 6, 0, 0),
+                                               S(2, 2, 4, 2), S(4, 2, 4, 4),
+                                               S(4, 4, 2, 4), S(2, 4, 2, 2)});
+        const FaceId ring = arr.locate(P(1, 1));
+        const pgl::HalfplaneIntersection<Point> expected(
+            pgl::Rectangle<Point>(P(0, 0), P(6, 6)));
+        CHECK(arr.halfplaneIntersection(ring) == expected);
+        CHECK_THROWS_AS(static_cast<void>(arr.halfplaneIntersection(FaceId())),
+                        std::logic_error);
+    }
+
+    SUBCASE("an unbounded face ignores bounded holes") {
+        const Arrangement empty;
+        CHECK(empty.halfplaneIntersection(FaceId(0)).isPlane());
+
+        const Arrangement square = arrangementOf(
+            {S(0, 0, 4, 0), S(4, 0, 4, 4), S(4, 4, 0, 4), S(0, 4, 0, 0)});
+        CHECK(square.halfplaneIntersection(FaceId(0)).isPlane());
+
+        const Arrangement slit(std::vector<Ray>{Ray(P(0, 0), P(1, 0))});
+        CHECK(slit.halfplaneIntersection(FaceId(0)).isPlane());
+    }
+
+    SUBCASE("the two faces of a line become opposite half-planes") {
+        const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0))});
+        const auto upper = arr.halfplaneIntersection(arr.locate(P(0, 1)));
+        const auto lower = arr.halfplaneIntersection(arr.locate(P(0, -1)));
+        REQUIRE(upper.isHalfplane());
+        REQUIRE(lower.isHalfplane());
+        CHECK(upper.contains(P(0, 1)));
+        CHECK_FALSE(upper.contains(P(0, -1)));
+        CHECK(lower.contains(P(0, -1)));
+        CHECK_FALSE(lower.contains(P(0, 1)));
+    }
+
+    SUBCASE("an unbounded wedge keeps every boundary through infinity") {
+        const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0)),
+                                                Line(P(0, -1), P(0, 1))});
+        const auto upperRight = arr.halfplaneIntersection(arr.locate(P(1, 1)));
+        REQUIRE(upperRight.size() == 2);
+        CHECK(upperRight.contains(P(1, 1)));
+        CHECK_FALSE(upperRight.contains(P(-1, 1)));
+        CHECK_FALSE(upperRight.contains(P(1, -1)));
+    }
+
+    SUBCASE("the result coordinate type can be integral") {
+        using IntegerPoint = pgl::Point<int>;
+        using IntegerSegment = pgl::Segment<IntegerPoint>;
+        const Arrangement arr(std::vector<IntegerSegment>{
+            IntegerSegment(IntegerPoint(0, 0), IntegerPoint(4, 0)),
+            IntegerSegment(IntegerPoint(4, 0), IntegerPoint(4, 4)),
+            IntegerSegment(IntegerPoint(4, 4), IntegerPoint(0, 4)),
+            IntegerSegment(IntegerPoint(0, 4), IntegerPoint(0, 0))});
+        const auto region = arr.halfplaneIntersection<int>(arr.locate(P(1, 1)));
+        static_assert(std::is_same_v<decltype(region),
+                                     const pgl::HalfplaneIntersection<IntegerPoint>>);
+        CHECK(region == pgl::HalfplaneIntersection<IntegerPoint>(
+                            pgl::Rectangle<IntegerPoint>(IntegerPoint(0, 0),
+                                                         IntegerPoint(4, 4))));
+    }
+}
+
 TEST_CASE("a single segment is two vertices, one edge and no bounded face") {
     const Arrangement arr = arrangementOf({S(0, 0, 4, 2)});
     CHECK(arr.vertexCount() == 2);
     CHECK(arr.edgeCount() == 1);
     CHECK(arr.faceCount() == 1);
+    CHECK_FALSE(arr.isUnbounded());
+    CHECK_FALSE(arr.isUnbounded(HalfedgeId(0)));
+    CHECK_FALSE(arr.isUnbounded(HalfedgeId(1)));
     // The two halfedges form a single cycle, an inner cycle of the outer face.
     CHECK(arr.innerCycles(FaceId(0)).size() == 1);
     CHECK(arr.locate(P(2, 1)) == FaceId(0));
 
     const HalfedgeId h = arr.outgoing(VertexId(0));
     CHECK(arr.witness(h) == P(2, 1));
-    CHECK(arr[h].source() == P(0, 0));
-    CHECK(arr[h].target() == P(4, 2));
+    const auto segment = std::get<Arrangement::OrientedSegmentType>(arr[h]);
+    CHECK(segment.source() == P(0, 0));
+    CHECK(segment.target() == P(4, 2));
 }
 
 TEST_CASE("crossing segments are split at their crossing") {
@@ -510,7 +636,8 @@ TEST_CASE("duplicated and overlapping input becomes one edge each") {
         std::map<Segment, std::size_t> origins;
         for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
             const HalfedgeId h(i);
-            origins[Segment(arr[h].source(), arr[h].target())] = arr.originsOf(h).size();
+            const auto segment = std::get<Arrangement::OrientedSegmentType>(arr[h]);
+            origins[Segment(segment.source(), segment.target())] = arr.originsOf(h).size();
         }
         CHECK(origins.size() == 3);
         CHECK(origins[S(0, 0, 2, 0)] == 1);
@@ -676,17 +803,26 @@ TEST_CASE("edges inherit the label of the shape that produced them") {
         const LabeledArrangement::HalfedgeId h(i);
         const std::uint32_t source = arr.originsOf(h).front();
         CHECK(arr.label(h) == (source == 0 ? 7 : 9));
-        CHECK(arr.label(h) == arr[h].label());
+        CHECK(arr.label(h) == std::visit([](const auto& edge) { return edge.label(); }, arr[h]));
     }
 
     // The edge list carries the same labels, one entry per twin pair.
-    const std::vector<LabeledSegment> edges = arr.edges();
+    const std::vector<LabeledSegment> edges = arr.boundedEdges();
     REQUIRE(edges.size() == arr.edgeCount());
     std::multiset<int> labels;
     for (const LabeledSegment& edge : edges) {
         labels.insert(edge.label());
     }
     CHECK(labels == std::multiset<int>{7, 7, 9, 9});
+
+    const std::vector<LabeledArrangement::EdgeType> allEdges = arr.edges();
+    REQUIRE(allEdges.size() == arr.edgeCount());
+    std::multiset<int> variantLabels;
+    for (const auto& edge : allEdges) {
+        variantLabels.insert(
+            std::visit([](const auto& geometry) { return geometry.label(); }, edge));
+    }
+    CHECK(variantLabels == labels);
 
     // A face's label is the caller's to set.
     const LabeledArrangement::FaceId unbounded(0);
@@ -751,4 +887,164 @@ TEST_CASE("handles are distinct, ordered and hashable types") {
     CHECK(ordered.begin()->index() == 1);
     CHECK(std::hash<VertexId>{}(VertexId(6)) ==
           std::hash<VertexId>{}(VertexId(6)));
+}
+
+TEST_CASE("a ray ends at the symbolic vertex at infinity") {
+    const Arrangement arr(std::vector<Ray>{Ray(P(0, 0), P(1, 0))});
+    checkInvariants(arr);
+    REQUIRE(arr.vertexCount() == 1);
+    REQUIRE(arr.edgeCount() == 1);
+    REQUIRE(arr.faceCount() == 1);
+    CHECK(arr.isUnbounded());
+    CHECK(arr.isUnbounded(HalfedgeId(0)));
+    CHECK(arr.isUnbounded(HalfedgeId(1)));
+
+    const VertexId infinity(1);
+    CHECK(arr.isFictitious(infinity));
+    CHECK_THROWS_AS(static_cast<void>(arr[infinity]), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(arr.witness(infinity)), std::logic_error);
+    CHECK(arr.source(HalfedgeId(0)) == VertexId(0));
+    CHECK(arr.target(HalfedgeId(0)) == infinity);
+    CHECK(std::get<Ray>(arr[HalfedgeId(0)]) == std::get<Ray>(arr[HalfedgeId(1)]));
+    CHECK(arr.boundedEdges().empty());
+    REQUIRE(arr.edges().size() == 1);
+    CHECK(std::holds_alternative<Ray>(arr.edges().front()));
+}
+
+TEST_CASE("a line is a loop through infinity with oppositely oriented twins") {
+    const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0))});
+    checkInvariants(arr);
+    REQUIRE(arr.vertexCount() == 0);
+    REQUIRE(arr.edgeCount() == 1);
+    REQUIRE(arr.faceCount() == 2);
+    CHECK(arr.isUnbounded());
+    CHECK(arr.isUnbounded(HalfedgeId(0)));
+    CHECK(arr.isUnbounded(HalfedgeId(1)));
+    CHECK(arr.isUnbounded(FaceId(0)));
+    CHECK(arr.isUnbounded(FaceId(1)));
+
+    const auto forward = std::get<OrientedLine>(arr[HalfedgeId(0)]);
+    const auto backward = std::get<OrientedLine>(arr[HalfedgeId(1)]);
+    CHECK(forward.source() == backward.target());
+    CHECK(forward.target() == backward.source());
+    CHECK(arr.locate(P(0, 1)) != arr.locate(P(0, -1)));
+    CHECK(arr.locate(P(0, 0)) == arr.locate(P(0, 1)));
+    CHECK(arr.boundedEdges().empty());
+    REQUIRE(arr.edges().size() == 1);
+    CHECK(std::holds_alternative<Line>(arr.edges().front()));
+}
+
+TEST_CASE("parallel lines form an ordered fan at infinity") {
+    const Arrangement arr(std::vector<Line>{Line(P(0, -1), P(1, -1)),
+                                            Line(P(0, 1), P(1, 1))});
+    checkInvariants(arr);
+    REQUIRE(arr.vertexCount() == 0);
+    REQUIRE(arr.edgeCount() == 2);
+    REQUIRE(arr.faceCount() == 3);
+    const FaceId below = arr.locate(P(0, -2));
+    const FaceId middle = arr.locate(P(0, 0));
+    const FaceId above = arr.locate(P(0, 2));
+    CHECK(below != middle);
+    CHECK(middle != above);
+    CHECK(below != above);
+    CHECK(arr.locate(P(0, -1)) == middle);
+    CHECK(arr.locate(P(0, 1)) == above);
+}
+
+TEST_CASE("crossing lines are split into four rays") {
+    const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0)),
+                                            Line(P(0, -1), P(0, 1))});
+    checkInvariants(arr);
+    CHECK(arr.vertexCount() == 1);
+    CHECK(arr.edgeCount() == 4);
+    CHECK(arr.faceCount() == 4);
+    for (std::uint32_t h = 0; h < arr.halfedgeCount(); ++h) {
+        CHECK(std::holds_alternative<Ray>(arr[HalfedgeId(h)]));
+    }
+    std::set<FaceId> quadrants{arr.locate(P(-1, -1)), arr.locate(P(-1, 1)),
+                               arr.locate(P(1, -1)), arr.locate(P(1, 1))};
+    CHECK(quadrants.size() == 4);
+}
+
+TEST_CASE("three lines in general position form seven faces") {
+    const Arrangement arr(std::vector<Line>{Line(P(-2, 0), P(2, 0)),
+                                            Line(P(0, -2), P(0, 2)),
+                                            Line(P(-2, -1), P(2, 3))});
+    checkInvariants(arr);
+    CHECK(arr.vertexCount() == 3);
+    CHECK(arr.edgeCount() == 9);
+    CHECK(arr.faceCount() == 7);
+}
+
+TEST_CASE("overlapping line and ray retain all contributing origins") {
+    std::vector<pgl::EShape> shapes{Line(P(-1, 0), P(1, 0)), Ray(P(0, 0), P(1, 0))};
+    const Arrangement arr(shapes);
+    checkInvariants(arr);
+    REQUIRE(arr.edgeCount() == 2);
+    std::vector<std::size_t> originCounts;
+    for (std::uint32_t edge = 0; edge < arr.edgeCount(); ++edge) {
+        originCounts.push_back(arr.originsOf(HalfedgeId(2 * edge)).size());
+    }
+    std::sort(originCounts.begin(), originCounts.end());
+    CHECK(originCounts == std::vector<std::size_t>{1, 2});
+}
+
+TEST_CASE("lines rays and bounded edges share exact finite vertices") {
+    std::vector<pgl::EShape> shapes{Line(P(-2, 0), P(2, 0)), Ray(P(0, -2), P(0, 1)),
+                                    S(-1, -1, 1, 1)};
+    const Arrangement arr(shapes);
+    checkInvariants(arr);
+    CHECK(std::ranges::count(arr.vertices(), P(0, 0)) == 1);
+    CHECK(arr.locate(P(100, 1)) != arr.locate(P(100, -1)));
+    CHECK(arr.locate(P(-100, 1)) != arr.locate(P(-100, -1)));
+    CHECK(arr.boundedEdges().size() == 3);
+}
+
+TEST_CASE("bounded faces and holes coexist with the infinity fan") {
+    SUBCASE("a line outside a square") {
+        std::vector<pgl::EShape> shapes{Line(P(-1, -2), P(1, -2)), S(-1, -1, 1, -1),
+                                        S(1, -1, 1, 1), S(1, 1, -1, 1), S(-1, 1, -1, -1)};
+        const Arrangement arr(shapes);
+        checkInvariants(arr);
+        REQUIRE(arr.faceCount() == 3);
+        std::size_t bounded = 0;
+        for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
+            bounded += !arr.isUnbounded(FaceId(i));
+        }
+        CHECK(bounded == 1);
+        CHECK(arr.polygonWithHoles(arr.locate(P(0, 0))) ==
+              regionOf({P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)}));
+    }
+
+    SUBCASE("a line cuts a square into two bounded faces") {
+        std::vector<pgl::EShape> shapes{Line(P(-2, 0), P(2, 0)), S(-1, -1, 1, -1),
+                                        S(1, -1, 1, 1), S(1, 1, -1, 1), S(-1, 1, -1, -1)};
+        const Arrangement arr(shapes);
+        checkInvariants(arr);
+        REQUIRE(arr.faceCount() == 4);
+        const Point upper(Number(0), Number(1) / Number(2));
+        const Point lower(Number(0), Number(-1) / Number(2));
+        CHECK_FALSE(arr.isUnbounded(arr.locate(upper)));
+        CHECK_FALSE(arr.isUnbounded(arr.locate(lower)));
+        CHECK(arr.locate(upper) != arr.locate(lower));
+    }
+}
+
+TEST_CASE("two rays sharing their finite source bound two unbounded faces") {
+    const Arrangement arr(std::vector<Ray>{Ray(P(0, 0), P(1, 1)),
+                                           Ray(P(0, 0), P(1, -1))});
+    checkInvariants(arr);
+    CHECK(arr.vertexCount() == 1);
+    CHECK(arr.edgeCount() == 2);
+    CHECK(arr.faceCount() == 2);
+    CHECK(arr.locate(P(2, 0)) != arr.locate(P(-2, 0)));
+}
+
+TEST_CASE("parallel rays only sharing infinity do not enclose a face") {
+    const Arrangement arr(std::vector<Ray>{Ray(P(0, 0), P(1, 0)),
+                                           Ray(P(0, 1), P(1, 1))});
+    checkInvariants(arr);
+    CHECK(arr.vertexCount() == 2);
+    CHECK(arr.edgeCount() == 2);
+    CHECK(arr.faceCount() == 1);
 }
