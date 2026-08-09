@@ -103,29 +103,29 @@ TEST_CASE("Polygon difference: a polygon removed from the middle leaves a hole")
     const PolygonShape inner = box(3, 3, 7, 7);
     const auto pieces = outer.difference<int>(inner);
 
-    REQUIRE(pieces.size() == 1);
-    CHECK(pieces[0].outer() == outer);
-    REQUIRE(pieces[0].holeCount() == 1);
-    CHECK(pieces[0].hole(0) == inner);
-    CHECK(pieces[0].twiceArea() == 200 - 32);
-    CHECK(pieces[0].isValid());
+    REQUIRE(pieces.componentCount() == 1);
+    CHECK(pieces.component(0).outer() == outer);
+    REQUIRE(pieces.component(0).holeCount() == 1);
+    CHECK(pieces.component(0).hole(0) == inner);
+    CHECK(pieces.component(0).twiceArea() == 200 - 32);
+    CHECK(pieces.component(0).isValid());
 }
 
 TEST_CASE("Polygon difference: a bite from the side leaves no hole") {
     const auto pieces = square(0, 10).difference<int>(box(3, -1, 7, 4));
 
-    REQUIRE(pieces.size() == 1);
-    CHECK(pieces[0].holeCount() == 0);
-    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(3, 0), Point(3, 4), Point(7, 4),
+    REQUIRE(pieces.componentCount() == 1);
+    CHECK(pieces.component(0).holeCount() == 0);
+    CHECK(pieces.component(0).outer() == PolygonShape({Point(0, 0), Point(3, 0), Point(3, 4), Point(7, 4),
                                         Point(7, 0), Point(10, 0), Point(10, 10), Point(0, 10)}));
 }
 
 TEST_CASE("Polygon difference: a band splits the polygon in two") {
     const auto pieces = square(0, 10).difference<int>(box(-1, 4, 11, 6));
 
-    REQUIRE(pieces.size() == 2);
-    CHECK(pieces[0] == Region(box(0, 0, 10, 4)));
-    CHECK(pieces[1] == Region(box(0, 6, 10, 10)));
+    REQUIRE(pieces.componentCount() == 2);
+    CHECK(pieces.component(0) == Region(box(0, 0, 10, 4)));
+    CHECK(pieces.component(1) == Region(box(0, 6, 10, 10)));
 }
 
 TEST_CASE("Polygon difference: degenerate outcomes") {
@@ -133,33 +133,33 @@ TEST_CASE("Polygon difference: degenerate outcomes") {
 
     SUBCASE("a remover that misses gives the polygon back") {
         const auto pieces = unit.difference<int>(box(50, 50, 60, 60));
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == Region(unit));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == Region(unit));
     }
     SUBCASE("a remover abutting from outside removes nothing") {
         const auto pieces = unit.difference<int>(box(10, 2, 14, 8));
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == Region(unit));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == Region(unit));
     }
     SUBCASE("a remover meeting at one corner removes nothing") {
         const auto pieces = unit.difference<int>(PolygonShape({Point(10, 10), Point(14, 10), Point(14, 14)}));
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == Region(unit));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == Region(unit));
     }
     SUBCASE("removing the polygon itself leaves nothing") {
-        CHECK(unit.difference<int>(unit).empty());
+        CHECK(unit.difference<int>(unit).isEmpty());
     }
     SUBCASE("a remover swallowing the polygon leaves nothing") {
-        CHECK(unit.difference<int>(box(-1, -1, 11, 11)).empty());
+        CHECK(unit.difference<int>(box(-1, -1, 11, 11)).isEmpty());
     }
     SUBCASE("a polygon with no area has nothing to lose") {
-        CHECK(PolygonShape({Point(0, 0), Point(4, 0), Point(2, 0)}).difference<int>(unit).empty());
+        CHECK(PolygonShape({Point(0, 0), Point(4, 0), Point(2, 0)}).difference<int>(unit).isEmpty());
     }
     SUBCASE("a remover with no area removes nothing") {
         const auto pieces = unit.difference<int>(PolygonShape({Point(2, 2), Point(8, 2)}));
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == Region(unit));
-        CHECK(unit.difference<int>(PolygonShape{})[0] == Region(unit));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == Region(unit));
+        CHECK(unit.difference<int>(PolygonShape{}).component(0) == Region(unit));
     }
 }
 
@@ -170,12 +170,12 @@ TEST_CASE("Polygon difference: a hole may touch the outer ring it is cut from") 
     const PolygonShape diamond({Point(0, 5), Point(3, 2), Point(6, 5), Point(3, 8)});
     const auto pieces = square(0, 10).difference<int>(diamond);
 
-    REQUIRE(pieces.size() == 1);
-    CHECK(pieces[0].outer() == square(0, 10));
-    REQUIRE(pieces[0].holeCount() == 1);
-    CHECK(pieces[0].hole(0) == diamond);
-    CHECK(pieces[0].isValid());
-    CHECK(pieces[0].twiceArea() == 200 - 36);
+    REQUIRE(pieces.componentCount() == 1);
+    CHECK(pieces.component(0).outer() == square(0, 10));
+    REQUIRE(pieces.component(0).holeCount() == 1);
+    CHECK(pieces.component(0).hole(0) == diamond);
+    CHECK(pieces.component(0).isValid());
+    CHECK(pieces.component(0).twiceArea() == 200 - 36);
 }
 
 TEST_CASE("Polygon difference: pieces meeting at a point come back separately") {
@@ -185,7 +185,7 @@ TEST_CASE("Polygon difference: pieces meeting at a point come back separately") 
     const auto pieces =
         square(0, 10).difference<int>(PolygonShape({Point(0, 5), Point(5, 0), Point(10, 5), Point(5, 10)}));
 
-    REQUIRE(pieces.size() == 4);
+    REQUIRE(pieces.componentCount() == 4);
     for (const Region& piece : pieces) {
         CHECK(piece.holeCount() == 0);
         CHECK(piece.twiceArea() == 25);
@@ -198,19 +198,19 @@ TEST_CASE("PolygonWithHoles difference: a region loses material around its holes
 
     SUBCASE("a corner bite keeps the hole") {
         const auto pieces = annulus.difference<int>(box(-1, -1, 2, 2));
-        REQUIRE(pieces.size() == 1);
-        REQUIRE(pieces[0].holeCount() == 1);
-        CHECK(pieces[0].hole(0) == box(4, 4, 8, 8));
-        CHECK(pieces[0].twiceArea() == annulus.twiceArea() - 8);
+        REQUIRE(pieces.componentCount() == 1);
+        REQUIRE(pieces.component(0).holeCount() == 1);
+        CHECK(pieces.component(0).hole(0) == box(4, 4, 8, 8));
+        CHECK(pieces.component(0).twiceArea() == annulus.twiceArea() - 8);
     }
     SUBCASE("a band through the hole splits the region and absorbs the hole") {
         const auto pieces = annulus.difference<int>(box(-1, 5, 13, 7));
-        REQUIRE(pieces.size() == 2);
+        REQUIRE(pieces.componentCount() == 2);
         for (const Region& piece : pieces) {
             CHECK(piece.holeCount() == 0);
             CHECK(piece.isValid());
         }
-        CHECK(pieces[0].twiceArea() + pieces[1].twiceArea() == 288 - 32 - 32);
+        CHECK(pieces.component(0).twiceArea() + pieces.component(1).twiceArea() == 288 - 32 - 32);
     }
 }
 
@@ -220,22 +220,22 @@ TEST_CASE("PolygonWithHoles difference: a slit has no area and never survives") 
     const Region notched = fixtures::notched();
     const auto pieces = notched.difference<int>(box(50, 50, 60, 60));
 
-    REQUIRE(pieces.size() == 1);
-    CHECK(pieces[0].holeCount() == 0);
-    CHECK(pieces[0].twiceArea() == notched.twiceArea());
-    CHECK(pieces[0].outer() == PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
+    REQUIRE(pieces.componentCount() == 1);
+    CHECK(pieces.component(0).holeCount() == 0);
+    CHECK(pieces.component(0).twiceArea() == notched.twiceArea());
+    CHECK(pieces.component(0).outer() == PolygonShape({Point(0, 0), Point(12, 0), Point(12, 6), Point(6, 6),
                                         Point(6, 12), Point(0, 12)}));
 }
 
 TEST_CASE("PolygonWithHoles difference: a pinched region comes back in pieces") {
     const auto pieces = fixtures::pinched().difference<int>(box(50, 50, 60, 60));
 
-    REQUIRE(pieces.size() == 2);
+    REQUIRE(pieces.componentCount() == 2);
     for (const Region& piece : pieces) {
         CHECK(piece.holeCount() == 0);
         CHECK(piece.isValid());
     }
-    CHECK(pieces[0].twiceArea() + pieces[1].twiceArea() == fixtures::pinched().twiceArea());
+    CHECK(pieces.component(0).twiceArea() + pieces.component(1).twiceArea() == fixtures::pinched().twiceArea());
 }
 
 TEST_CASE("difference: an island stranded in a lake is a piece of its own") {
@@ -244,9 +244,9 @@ TEST_CASE("difference: an island stranded in a lake is a piece of its own") {
     // hole, and the cavity as a second, nested-looking piece.
     const auto pieces = fixtures::cavity().difference<int>(box(2, 4, 4, 8));
 
-    REQUIRE(pieces.size() == 2);
-    const Region* island = pieces[0].twiceArea() < pieces[1].twiceArea() ? &pieces[0] : &pieces[1];
-    const Region* shell = island == &pieces[0] ? &pieces[1] : &pieces[0];
+    REQUIRE(pieces.componentCount() == 2);
+    const Region* island = pieces.component(0).twiceArea() < pieces.component(1).twiceArea() ? &pieces.component(0) : &pieces.component(1);
+    const Region* shell = island == &pieces.component(0) ? &pieces.component(1) : &pieces.component(0);
 
     CHECK(island->holeCount() == 0);
     CHECK(island->outer() == box(4, 4, 8, 8));
@@ -262,8 +262,8 @@ TEST_CASE("difference: the remover's own hole leaves material behind") {
     const Region ring(box(2, 2, 8, 8), std::vector<PolygonShape>{box(4, 4, 6, 6)});
     const auto pieces = square(0, 10).difference<int>(ring);
 
-    REQUIRE(pieces.size() == 2);
-    const Region* island = pieces[0].twiceArea() < pieces[1].twiceArea() ? &pieces[0] : &pieces[1];
+    REQUIRE(pieces.componentCount() == 2);
+    const Region* island = pieces.component(0).twiceArea() < pieces.component(1).twiceArea() ? &pieces.component(0) : &pieces.component(1);
     CHECK(island->outer() == box(4, 4, 6, 6));
     CHECK(island->holeCount() == 0);
 }
@@ -293,7 +293,7 @@ TEST_CASE("difference: crossings off the lattice need an exact result type") {
 
     // Three pieces: the slab left of x = 3, and the two corners the slanted
     // triangle leaves on the right.
-    REQUIRE(pieces.size() == 3);
+    REQUIRE(pieces.componentCount() == 3);
     pgl::ERational total(0);
     for (const auto& piece : pieces) {
         CHECK(piece.isValid());
@@ -321,8 +321,8 @@ TEST_CASE("difference: exact instantiation over ERational operands") {
                                                          EPoint(4, 8)})});
     const auto pieces = region.difference<pgl::ERational>(
         EPolygon({EPoint(-1, 5), EPoint(13, 5), EPoint(13, 7), EPoint(-1, 7)}));
-    REQUIRE(pieces.size() == 2);
-    CHECK(pieces[0].twiceArea() + pieces[1].twiceArea() == region.twiceArea() - 32);
+    REQUIRE(pieces.componentCount() == 2);
+    CHECK(pieces.component(0).twiceArea() + pieces.component(1).twiceArea() == region.twiceArea() - 32);
 }
 
 // -----------------------------------------------------------------------------
@@ -378,9 +378,9 @@ static int checkAgainstCells(const std::string& name, const Region& region,
     CHECK(twiceArea == 8 * cells);
 
     bool disjoint = true;
-    for (std::size_t i = 0; i < pieces.size(); ++i) {
-        for (std::size_t j = i + 1; j < pieces.size(); ++j) {
-            disjoint = disjoint && !pieces[i].interiorsIntersect(pieces[j]);
+    for (std::size_t i = 0; i < pieces.componentCount(); ++i) {
+        for (std::size_t j = i + 1; j < pieces.componentCount(); ++j) {
+            disjoint = disjoint && !pieces.component(i).interiorsIntersect(pieces.component(j));
         }
     }
     CHECK(disjoint);
@@ -518,12 +518,12 @@ TEST_CASE("difference: removing a piece from the difference leaves the rest") {
         const PolygonShape remover = box(3, 3, 9, 9);
         const auto pieces = region.difference<int>(remover);
         for (const Region& piece : pieces) {
-            CHECK_MESSAGE(piece.difference<int>(piece).empty(), name);
+            CHECK_MESSAGE(piece.difference<int>(piece).isEmpty(), name);
             for (const Region& other : pieces) {
                 if (!(other == piece)) {
                     const auto rest = piece.difference<int>(other);
-                    REQUIRE_MESSAGE(rest.size() == 1, name);
-                    CHECK_MESSAGE(rest[0] == piece, name);
+                    REQUIRE_MESSAGE(rest.componentCount() == 1, name);
+                    CHECK_MESSAGE(rest.component(0) == piece, name);
                 }
             }
         }

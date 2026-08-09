@@ -351,18 +351,18 @@ TEST_CASE("PolygonWithHoles regularized") {
     SUBCASE("a regular region comes back unchanged") {
         const Region region(outerSquare(), std::vector{smallHole(), otherHole()});
         const auto pieces = region.regularized<int>();
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces.front() == region);
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == region);
     }
 
     SUBCASE("a hole open to the outer boundary becomes a notch") {
         const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
         const Region region(outerSquare(), std::vector{slit});
         const auto pieces = region.regularized<int>();
-        REQUIRE(pieces.size() == 1);
-        CHECK(!pieces.front().hasHoles());
-        CHECK(pieces.front().isRegular());
-        CHECK(pieces.front().twiceArea() == region.twiceArea());
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(!pieces.component(0).hasHoles());
+        CHECK(pieces.component(0).isRegular());
+        CHECK(pieces.component(0).twiceArea() == region.twiceArea());
     }
 
     SUBCASE("holes sharing an edge merge into one") {
@@ -370,35 +370,35 @@ TEST_CASE("PolygonWithHoles regularized") {
         const PolygonShape right({5, 2, 8, 2, 8, 8, 5, 8});
         const Region region(outerSquare(), std::vector{left, right});
         const auto pieces = region.regularized<int>();
-        REQUIRE(pieces.size() == 1);
-        REQUIRE(pieces.front().holeCount() == 1);
-        CHECK(pieces.front().hole(0) == PolygonShape({2, 2, 8, 2, 8, 8, 2, 8}));
-        CHECK(pieces.front().isRegular());
-        CHECK(pieces.front().twiceArea() == region.twiceArea());
+        REQUIRE(pieces.componentCount() == 1);
+        REQUIRE(pieces.component(0).holeCount() == 1);
+        CHECK(pieces.component(0).hole(0) == PolygonShape({2, 2, 8, 2, 8, 8, 2, 8}));
+        CHECK(pieces.component(0).isRegular());
+        CHECK(pieces.component(0).twiceArea() == region.twiceArea());
     }
 
     SUBCASE("dropping the slits can take the region apart") {
         const PolygonShape band({0, 4, 10, 4, 10, 6, 0, 6});
         const Region region(outerSquare(), std::vector{band});
         const auto pieces = region.regularized<int>();
-        REQUIRE(pieces.size() == 2);
-        CHECK(pieces[0] == Region(PolygonShape({0, 0, 10, 0, 10, 4, 0, 4})));
-        CHECK(pieces[1] == Region(PolygonShape({0, 6, 10, 6, 10, 10, 0, 10})));
-        CHECK(pieces[0].twiceArea() + pieces[1].twiceArea() == region.twiceArea());
+        REQUIRE(pieces.componentCount() == 2);
+        CHECK(pieces.component(0) == Region(PolygonShape({0, 0, 10, 0, 10, 4, 0, 4})));
+        CHECK(pieces.component(1) == Region(PolygonShape({0, 6, 10, 6, 10, 10, 0, 10})));
+        CHECK(pieces.component(0).twiceArea() + pieces.component(1).twiceArea() == region.twiceArea());
     }
 
     SUBCASE("the empty region has no pieces") {
-        CHECK(Region().regularized<int>().empty());
+        CHECK(Region().regularized<int>().isEmpty());
     }
 
     SUBCASE("the result type follows the requested number type") {
         const PolygonShape slit({0, 2, 4, 2, 4, 6, 0, 6});
         const Region region(outerSquare(), std::vector{slit});
         const auto pieces = region.regularized<double>();
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces.front().area<double>() == doctest::Approx(region.area<double>()));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0).area<double>() == doctest::Approx(region.area<double>()));
         static_assert(
-            std::is_same_v<decltype(pieces.front()),
+            std::is_same_v<decltype(pieces.component(0)),
                            const pgl::PolygonWithHoles<pgl::Point<double>>&>);
     }
 }

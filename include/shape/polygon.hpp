@@ -810,27 +810,27 @@ struct Polygon {
      *       points, and truncates only where they genuinely do not.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     difference(const OtherPolygon& other) const;
 
     /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     difference(const OtherConvex& other) const;
 
     /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     difference(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     difference(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized set difference of the two shapes (A ∖ B). */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     difference(const OtherRegion& other) const;
 
     /**
@@ -859,27 +859,27 @@ struct Polygon {
      *       points, and truncates only where they genuinely do not.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     unionWith(const OtherPolygon& other) const;
 
     /** @brief Returns the regularized union of the two shapes (A ∪ B). */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     unionWith(const OtherConvex& other) const;
 
     /** @brief Returns the regularized union of the two shapes (A ∪ B). */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     unionWith(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized union of the two shapes (A ∪ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     unionWith(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized union of the two shapes (A ∪ B). */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     unionWith(const OtherRegion& other) const;
 
     /**
@@ -901,27 +901,27 @@ struct Polygon {
      *       @p ResultNumber is, and converted only at the end.
      */
     template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherPolygon& other) const;
 
     /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
     template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherConvex& other) const;
 
     /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherRectangle& other) const;
 
     /** @brief Returns the regularized symmetric difference of the two shapes (A △ B). */
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherRegion& other) const;
 
     /**

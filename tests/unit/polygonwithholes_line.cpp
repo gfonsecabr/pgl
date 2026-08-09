@@ -299,8 +299,8 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
         const Halfplane h({0, -5}, {1, -5});  // y >= -5
         const auto pieces = region.intersection<ERational>(h);
 
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == ERegion(region));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == ERegion(region));
         CHECK(h.intersection<ERational>(region) == pieces);
     }
 
@@ -310,9 +310,9 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
         const Halfplane h({0, 5}, {1, 5});
         const auto pieces = region.intersection<ERational>(h);
 
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0].holes().empty());
-        CHECK(pieces[0].area<ERational>() == ERational(50 - 8));
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0).holes().empty());
+        CHECK(pieces.component(0).area<ERational>() == ERational(50 - 8));
         CHECK(h.intersection<ERational>(region) == pieces);
     }
 
@@ -321,18 +321,18 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
         const Halfplane h({0, 1}, {3, 0});
         const auto pieces = region.intersection<ERational>(h);
 
-        REQUIRE(pieces.size() == 1);
-        REQUIRE(pieces[0].holes().size() == 1);
-        CHECK(pieces[0].area<ERational>() == ERational(100 - 16) - ERational(3, 2));
+        REQUIRE(pieces.componentCount() == 1);
+        REQUIRE(pieces.component(0).holes().size() == 1);
+        CHECK(pieces.component(0).area<ERational>() == ERational(100 - 16) - ERational(3, 2));
     }
 
     SUBCASE("a cut missing the region gives nothing") {
-        CHECK(region.intersection<ERational>(Halfplane({20, 1}, {20, 0})).empty());
+        CHECK(region.intersection<ERational>(Halfplane({20, 1}, {20, 0})).isEmpty());
     }
 
     SUBCASE("a cut meeting the region only along an edge has no area") {
         // y >= 10 keeps the top outer edge, which a regularized result drops.
-        CHECK(region.intersection<ERational>(Halfplane({0, 10}, {1, 10})).empty());
+        CHECK(region.intersection<ERational>(Halfplane({0, 10}, {1, 10})).isEmpty());
     }
 
     SUBCASE("a cut can leave several pieces") {
@@ -341,9 +341,9 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
         const Region shape(u);
         const auto pieces = shape.intersection<ERational>(Halfplane({0, 5}, {1, 5}));
 
-        REQUIRE(pieces.size() == 2);
-        CHECK(pieces[0].area<ERational>() == ERational(15));
-        CHECK(pieces[1].area<ERational>() == ERational(15));
+        REQUIRE(pieces.componentCount() == 2);
+        CHECK(pieces.component(0).area<ERational>() == ERational(15));
+        CHECK(pieces.component(1).area<ERational>() == ERational(15));
     }
 
     SUBCASE("without holes the region answers like its outer polygon would") {
@@ -351,8 +351,8 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
         const Region solid(outer);
         const auto pieces = solid.intersection<ERational>(Halfplane({5, 1}, {5, 0}));
 
-        REQUIRE(pieces.size() == 1);
-        CHECK(pieces[0] == ERegion(pgl::Polygon<pgl::Point<ERational>>(
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0) == ERegion(pgl::Polygon<pgl::Point<ERational>>(
                   {pgl::Point<ERational>(5, 0), pgl::Point<ERational>(10, 0),
                    pgl::Point<ERational>(10, 10), pgl::Point<ERational>(5, 10)})));
     }

@@ -313,8 +313,8 @@ TEST_CASE("minkowskiSum: the sweep of a chain is the union of the sweeps of its 
     const auto left = PolylineShape({Point(0, 0), Point(4, 6)}).minkowskiSum<int>(b);
     const auto right = PolylineShape({Point(4, 6), Point(8, 0)}).minkowskiSum<int>(b);
     const auto joined = left.unionWith<int>(right);
-    REQUIRE(joined.size() == 1);
-    CHECK(joined.front() == whole);
+    REQUIRE(joined.componentCount() == 1);
+    CHECK(joined.component(0) == whole);
 
     // Splitting an edge in the middle of its length changes nothing either: the
     // extra vertex adds a piece to the decomposition that covers no new point.

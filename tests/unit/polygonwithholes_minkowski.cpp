@@ -643,11 +643,10 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
             auto runs = pgl::detail::minkowskiBoundaryRuns(receiver);
             auto pieces =
                 pgl::detail::minkowskiBoundaryPieces<EPoint>(receiver, operand, std::move(runs));
-            auto boundary = pgl::detail::regularizedUnionOf<EPoint>(pieces, true);
+            const auto boundary = pgl::detail::regularizedUnionOf<EPoint>(pieces, true);
             auto convex = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
-            std::sort(boundary.begin(), boundary.end());
             std::sort(convex.begin(), convex.end());
-            CHECK(boundary == convex);
+            CHECK(boundary == pgl::PolygonSet<EPoint>(convex));
             // Whichever the dispatcher picks, that is the answer it must give.
             auto dispatched = receiver.template minkowskiSum<pgl::ERational>(summand);
             REQUIRE(convex.size() == 1);
