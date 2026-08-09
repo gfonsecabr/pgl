@@ -97,14 +97,9 @@ static bool inResult(const RegionT& sum, const Point& p) {
     return sum.contains(p);
 }
 
-template <class RegionT>
-static bool inResult(const std::vector<RegionT>& sum, const Point& p) {
-    for (const RegionT& piece : sum) {
-        if (piece.contains(p)) {
-            return true;
-        }
-    }
-    return false;
+template <pgl::PolygonSetConcept SetT>
+static bool inResult(const SetT& sum, const Point& p) {
+    return sum.contains(p);
 }
 
 // Probes every integer point of a box comfortably holding the sum.
@@ -130,10 +125,10 @@ static void checkAgainstDefinition(const ShapeA& a, const ShapeB& b, int lo, int
     if constexpr (pgl::PolygonWithHolesConcept<decltype(sum)>) {
         REQUIRE(sum.isValid());
     } else {
-        for (std::size_t i = 0; i < sum.size(); ++i) {
-            REQUIRE(sum[i].isValid());
-            for (std::size_t j = i + 1; j < sum.size(); ++j) {
-                REQUIRE_FALSE(sum[i].interiorsIntersect(sum[j]));
+        for (std::size_t i = 0; i < sum.componentCount(); ++i) {
+            REQUIRE(sum.component(i).isValid());
+            for (std::size_t j = i + 1; j < sum.componentCount(); ++j) {
+                REQUIRE_FALSE(sum.component(i).interiorsIntersect(sum.component(j)));
             }
         }
     }
@@ -168,14 +163,13 @@ static RegionT sheared(const RegionT& region, int k) {
 
 // The image of a whole answer under the shear, for comparing against the answer
 // computed from the sheared operands.
-template <class RegionT>
-static std::vector<RegionT> sheared(const std::vector<RegionT>& sum, int k) {
-    std::vector<RegionT> mapped;
+template <pgl::PolygonSetConcept SetT>
+static SetT sheared(const SetT& sum, int k) {
+    std::vector<typename SetT::ComponentType> mapped;
     for (const auto& piece : sum) {
         mapped.push_back(sheared(piece, k));
     }
-    std::sort(mapped.begin(), mapped.end());
-    return mapped;
+    return SetT(std::move(mapped));
 }
 
 // -----------------------------------------------------------------------------
@@ -188,9 +182,9 @@ TEST_CASE("minkowskiSum: a plugged cut grows a hole out of nothing") {
     // closes it and strands the cavity. Neither operand has a hole; the sum
     // does, and no `vector<Polygon>` could say which ring is which.
     const auto plugged = c.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 2)));
-    CHECK(plugged.outer() == box(0, 0, 10, 10));
+    CHECK(plugged.component(0).outer() == box(0, 0, 10, 10));
     REQUIRE(plugged.holeCount() == 1);
-    CHECK(plugged.hole(0) == box(4, 4, 6, 6));
+    CHECK(plugged.component(0).hole(0) == box(4, 4, 6, 6));
     CHECK(plugged.twiceArea() == 2 * (100 - 4));
 
     // One unit less and the cut survives, so the sum is simply connected.
@@ -202,7 +196,7 @@ TEST_CASE("minkowskiSum: a notch fills in without leaving a hole") {
     // The U's notch is two units wide and open at the top, so a summand that
     // spans it sweeps the arm across the whole notch rather than capping it.
     const auto sum = uShape().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 1)));
-    CHECK(sum.outer() == box(0, 0, 8, 7));
+    CHECK(sum.component(0).outer() == box(0, 0, 8, 7));
     CHECK(sum.holeCount() == 0);
 }
 
@@ -211,20 +205,20 @@ TEST_CASE("minkowskiSum: a region operand keeps its hole, shrunken") {
 
     // Sliding the annulus right by one erodes the cavity from the left only.
     const auto slid = a.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(1, 0)));
-    CHECK(slid.outer() == box(0, 0, 9, 8));
+    CHECK(slid.component(0).outer() == box(0, 0, 9, 8));
     REQUIRE(slid.holeCount() == 1);
-    CHECK(slid.hole(0) == box(3, 2, 6, 6));
+    CHECK(slid.component(0).hole(0) == box(3, 2, 6, 6));
 
     // A 2×2 square erodes it from every side at once.
     const auto grown = a.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 2)));
-    CHECK(grown.outer() == box(0, 0, 10, 10));
+    CHECK(grown.component(0).outer() == box(0, 0, 10, 10));
     REQUIRE(grown.holeCount() == 1);
-    CHECK(grown.hole(0) == box(4, 4, 6, 6));
+    CHECK(grown.component(0).hole(0) == box(4, 4, 6, 6));
 
     // A summand as wide as the cavity closes it entirely.
     const auto closed = a.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(4, 4)));
     CHECK(closed.holeCount() == 0);
-    CHECK(closed.outer() == box(0, 0, 12, 12));
+    CHECK(closed.component(0).outer() == box(0, 0, 12, 12));
 }
 
 TEST_CASE("minkowskiSum: a slit sweeps out area like anything else") {
@@ -243,9 +237,9 @@ TEST_CASE("minkowskiSum: a slit sweeps out area like anything else") {
     // sides. A decomposition that stopped at the triangulated domain would get
     // both the area and the topology wrong.
     const auto sum = slitted.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(1, 1)));
-    CHECK(sum.outer() == box(0, 0, 9, 9));
+    CHECK(sum.component(0).outer() == box(0, 0, 9, 9));
     REQUIRE(sum.holeCount() == 1);
-    CHECK(sum.hole(0) == box(1, 1, 4, 4));
+    CHECK(sum.component(0).hole(0) == box(1, 1, 4, 4));
 
     CHECK(inResult(sum, Point(0, 4)));
     CHECK(inResult(sum, Point(1, 1)));
@@ -262,11 +256,11 @@ TEST_CASE("minkowskiSum: a segment operand, the thinnest one that still sweeps")
     const Segment up(Point(0, 0), Point(0, 2));
 
     const auto plugged = c.minkowskiSum<int>(up);
-    CHECK(plugged.outer() == box(0, 0, 8, 10));
+    CHECK(plugged.component(0).outer() == box(0, 0, 8, 10));
     REQUIRE(plugged.holeCount() == 1);
     // What is left of the annulus' cavity `(2,6)²` after the sweep erodes it
     // from below: the cut closes at the same moment the cavity stops shrinking.
-    CHECK(plugged.hole(0) == box(2, 4, 6, 6));
+    CHECK(plugged.component(0).hole(0) == box(2, 4, 6, 6));
 
     // The same point set spelled as a flat rectangle or a flat polygon answers
     // alike -- the segment is only the tightest type for it.
@@ -287,18 +281,18 @@ TEST_CASE("minkowskiSum: a segment operand, the thinnest one that still sweeps")
     // A region receiver behaves as it does with any other summand: the outer
     // ring grows by the sweep and the hole is eroded from the one side.
     const auto slid = annulus().minkowskiSum<int>(Segment(Point(0, 0), Point(0, 3)));
-    REQUIRE(slid.size() == 1);
-    CHECK(slid[0].outer() == box(0, 0, 8, 11));
-    REQUIRE(slid[0].holeCount() == 1);
-    CHECK(slid[0].hole(0) == box(2, 5, 6, 6));
+    REQUIRE(slid.componentCount() == 1);
+    CHECK(slid.component(0).outer() == box(0, 0, 8, 11));
+    REQUIRE(slid.component(0).holeCount() == 1);
+    CHECK(slid.component(0).hole(0) == box(2, 5, 6, 6));
 
     // A summand that has collapsed to a point sweeps nothing, and the receiver
     // has area of its own, so the answer is the receiver moved there.
     const auto translated = c.minkowskiSum<int>(Segment(Point(3, 1), Point(3, 1)));
     PolygonShape moved = c;
     moved += Point(3, 1);
-    CHECK(translated.outer() == moved);
-    CHECK(annulus().minkowskiSum<int>(Segment(Point(0, 0), Point(0, 0)))[0] == annulus());
+    CHECK(translated.component(0).outer() == moved);
+    CHECK(annulus().minkowskiSum<int>(Segment(Point(0, 0), Point(0, 0))).component(0) == annulus());
 
     // The empty shape still absorbs, from either side.
     CHECK(PolygonShape().minkowskiSum<int>(up).isEmpty());
@@ -315,11 +309,11 @@ TEST_CASE("minkowskiSum: a slit swept along its own direction is regularized awa
     // while the left one sweeps `[0,2]×[0,4]` and survives.
     const Region slitted = slitRegion();
     const auto swept = slitted.minkowskiSum<int>(Segment(Point(0, 0), Point(2, 0)));
-    REQUIRE(swept.size() == 1);
-    CHECK(swept[0].holeCount() == 0);
+    REQUIRE(swept.componentCount() == 1);
+    CHECK(swept.component(0).holeCount() == 0);
     // The L's body swept right, plus the left slit's band, with the gap between
     // them left open: the bottom slit is what would have filled it.
-    CHECK(swept[0].outer() == PolygonShape({Point(0, 0), Point(2, 0), Point(2, 4), Point(4, 4),
+    CHECK(swept.component(0).outer() == PolygonShape({Point(0, 0), Point(2, 0), Point(2, 4), Point(4, 4),
                                             Point(4, 0), Point(10, 0), Point(10, 8), Point(0, 8)}));
     CHECK(inResult(swept, Point(1, 2)));
     CHECK_FALSE(inResult(swept, Point(3, 2)));
@@ -328,8 +322,8 @@ TEST_CASE("minkowskiSum: a slit swept along its own direction is regularized awa
 
     // Turned across the slits instead, both of them sweep out area.
     const auto up = slitted.minkowskiSum<int>(Segment(Point(0, 0), Point(0, 2)));
-    REQUIRE(up.size() == 1);
-    CHECK(up[0].outer() == PolygonShape({Point(0, 0), Point(8, 0), Point(8, 10), Point(0, 10),
+    REQUIRE(up.componentCount() == 1);
+    CHECK(up.component(0).outer() == PolygonShape({Point(0, 0), Point(8, 0), Point(8, 10), Point(0, 10),
                                          Point(0, 4), Point(4, 4), Point(4, 2), Point(0, 2)}));
 }
 
@@ -426,7 +420,7 @@ TEST_CASE("minkowskiSum: a convex receiver answers as the convex merge does") {
         for (const Convex& summand : summands) {
             const auto sum = polygon.minkowskiSum<int>(summand);
             CHECK(sum.holeCount() == 0);
-            CHECK(sum.outer() == hull.minkowskiSum(summand).asPolygon());
+            CHECK(sum.component(0).outer() == hull.minkowskiSum(summand).asPolygon());
         }
     }
 }
@@ -465,12 +459,12 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     CHECK(translated.holeCount() == 0);
     PolygonShape expected = u;
     expected += Point(3, -1);
-    CHECK(translated.outer() == expected);
+    CHECK(translated.component(0).outer() == expected);
 
     // A summand with no area but some length still sweeps out a region: the U
     // dragged three units upward keeps its notch, three units shallower.
     const auto swept = u.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(0, 3)));
-    CHECK(swept.outer() == PolygonShape({Point(0, 0), Point(6, 0), Point(6, 9), Point(4, 9),
+    CHECK(swept.component(0).outer() == PolygonShape({Point(0, 0), Point(6, 0), Point(6, 9), Point(4, 9),
                                          Point(4, 5), Point(2, 5), Point(2, 9), Point(0, 9)}));
 
     // Two operands that are both flat sum to something flat, which regularizes
@@ -480,7 +474,7 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     REQUIRE(flat.isDegenerate());
     CHECK(flat.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(2, 0)})).isEmpty());
     const auto parallelogram = flat.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(0, 3)}));
-    CHECK(parallelogram.outer() == box(0, 0, 4, 3));
+    CHECK(parallelogram.component(0).outer() == box(0, 0, 4, 3));
 
     // A flat operand against one with area is still the honest sweep.
     const auto sweptC = cShape().minkowskiSum<int>(flat);
@@ -523,17 +517,16 @@ TEST_CASE("minkowskiSum: every operand type, on both receivers") {
     for (const auto& receiver : {Region(u), a}) {
         const auto segmentSum = receiver.minkowskiSum<int>(segment);
         CHECK(segmentSum == receiver.minkowskiSum<int>(OrientedSegment(Point(2, 2), Point(0, 0))));
-        REQUIRE(segmentSum.size() == 1);
-        CHECK(segmentSum.front() == receiver.minkowskiSum<int>(flatConvex));
-        CHECK(segmentSum.front() ==
-              receiver.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(2, 2)})));
+        REQUIRE(segmentSum.componentCount() == 1);
+        CHECK(segmentSum == receiver.minkowskiSum<int>(flatConvex));
+        CHECK(segmentSum == receiver.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(2, 2)})));
     }
 
     // Region against region, and a region against the polygon that spells it.
     CHECK(u.minkowskiSum<int>(a) == a.minkowskiSum<int>(u));
     CHECK(Region(u).minkowskiSum<int>(polygon) == u.minkowskiSum<int>(polygon));
     const auto both = a.minkowskiSum<int>(annulus());
-    CHECK(both.outer() == box(0, 0, 16, 16));
+    CHECK(both.component(0).outer() == box(0, 0, 16, 16));
     // Each cavity is eroded by the other annulus, which reaches everywhere: the
     // sum of two annuli that overlap over their full width has no hole left.
     CHECK(both.holeCount() == 0);
@@ -575,9 +568,9 @@ TEST_CASE("minkowskiSum: exact over rational coordinates") {
     const EPolygon b({EPoint(0, 0), EPoint(1, 0), EPoint(1, 1), EPoint(0, 1)});
 
     const auto sum = a.minkowskiSum<pgl::ERational>(b);
-    CHECK(sum.outer() == EPolygon({EPoint(0, 0), EPoint(9, 0), EPoint(9, 9), EPoint(0, 9)}));
+    CHECK(sum.component(0).outer() == EPolygon({EPoint(0, 0), EPoint(9, 0), EPoint(9, 9), EPoint(0, 9)}));
     REQUIRE(sum.holeCount() == 1);
-    CHECK(sum.hole(0) == EPolygon({EPoint(3, 3), EPoint(6, 3), EPoint(6, 6), EPoint(3, 6)}));
+    CHECK(sum.component(0).hole(0) == EPolygon({EPoint(3, 3), EPoint(6, 3), EPoint(6, 6), EPoint(3, 6)}));
 
     // A slanted summand puts the piece boundaries in general position; the
     // arrangement is built over exact rationals either way, so an answer whose
@@ -599,7 +592,7 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
     const Triangle t(Point(-2, -1), Point(2, 0), Point(0, 2));
 
     const auto exact = u.minkowskiSum<pgl::ERational>(t);
-    const auto& ring = exact.outer().vertices();
+    const auto& ring = exact.component(0).outer().vertices();
     const pgl::Point<pgl::ERational> tip(pgl::ERational(16, 5), pgl::ERational(34, 5));
     CHECK(std::find(ring.begin(), ring.end(), tip) != ring.end());
     CHECK(exact.contains(pgl::Point<pgl::ERational>(3, 7)));
@@ -644,13 +637,11 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
             auto pieces =
                 pgl::detail::minkowskiBoundaryPieces<EPoint>(receiver, operand, std::move(runs));
             const auto boundary = pgl::detail::regularizedUnionOf<EPoint>(pieces, true);
-            auto convex = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
-            std::sort(convex.begin(), convex.end());
-            CHECK(boundary == pgl::PolygonSet<EPoint>(convex));
+            const auto convex = pgl::detail::decomposedMinkowskiSum<EPoint>(receiver, summand);
+            CHECK(boundary == convex);
             // Whichever the dispatcher picks, that is the answer it must give.
-            auto dispatched = receiver.template minkowskiSum<pgl::ERational>(summand);
-            REQUIRE(convex.size() == 1);
-            CHECK(dispatched == convex.front());
+            REQUIRE(convex.componentCount() == 1);
+            CHECK(receiver.template minkowskiSum<pgl::ERational>(summand) == convex);
         }
     };
     agrees(comb);
@@ -671,11 +662,10 @@ TEST_CASE("minkowskiSum: the boundary decomposition agrees with the convex one")
     // outside. The answer still has to come back right, from the other path.
     const Region slit = slitRegion();
     REQUIRE_FALSE(pgl::detail::minkowskiHasSimpleBoundary(slit));
-    auto slitSum = slit.minkowskiSum<pgl::ERational>(summands[0]);
-    auto slitRef = pgl::detail::decomposedMinkowskiSum<EPoint>(slit, summands[0]);
-    std::sort(slitRef.begin(), slitRef.end());
-    REQUIRE(slitRef.size() == 1);
-    CHECK(slitSum == slitRef.front());
+    const auto slitSum = slit.minkowskiSum<pgl::ERational>(summands[0]);
+    const auto slitRef = pgl::detail::decomposedMinkowskiSum<EPoint>(slit, summands[0]);
+    REQUIRE(slitRef.componentCount() == 1);
+    CHECK(slitSum == slitRef);
 }
 
 TEST_CASE("minkowskiSum: monotone runs cover a walk exactly once") {

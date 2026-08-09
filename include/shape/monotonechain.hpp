@@ -2108,7 +2108,7 @@ struct MonotoneChain {
      * @return The pieces of the sum, in canonical order.
      */
     template <class ResultNumber = division_result_t<NumberType>, SegmentConcept OtherSegment>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherSegment& other) const;
 
     /**
@@ -2118,7 +2118,7 @@ struct MonotoneChain {
      * underlying segment, vertex for vertex.
      */
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOriented>
-    [[nodiscard]] std::vector<PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherOriented& other) const;
 
     /**

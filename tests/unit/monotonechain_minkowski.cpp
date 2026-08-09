@@ -17,6 +17,7 @@ using PolygonShape = pgl::Polygon<Point>;
 using PolylineShape = pgl::Polyline<Point>;
 using Chain = pgl::MonotoneChain<Point>;
 using Region = pgl::PolygonWithHoles<Point>;
+using RegionSet = pgl::PolygonSet<Point>;
 
 using EPoint = pgl::EPoint;
 using EPolygon = pgl::EPolygon;
@@ -126,7 +127,7 @@ static void checkAgainstPolyline(const Chain& a, const ShapeB& b) {
     const EPolygon mine = a.template minkowskiSum<pgl::ERational>(b);
     const auto theirs = a.asPolyline().template minkowskiSum<pgl::ERational>(b);
     const auto difference =
-        pgl::PolygonWithHoles<EPoint>(mine).template symmetricDifference<pgl::ERational>(
+        pgl::PolygonWithHoles<EPoint>(mine).asPolygonSet().template symmetricDifference<pgl::ERational>(
             theirs);
     INFO("chain " << a << " operand " << b << " gave " << mine << " against " << theirs);
     CHECK(difference.isEmpty());
@@ -314,11 +315,11 @@ TEST_CASE("minkowskiSum: a summand with no area keeps the region-valued contract
     // these two operands answer with regions like a `Polyline`'s.
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const Segment&>())),
-                                 std::vector<Region>>);
+                                 RegionSet>);
 
     const auto sum = peakChain().minkowskiSum(Segment(Point(0, 0), Point(0, 2)));
-    REQUIRE(sum.size() == 1);
-    CHECK(sum.front().holes().empty());
+    REQUIRE(sum.componentCount() == 1);
+    CHECK(sum.component(0).holes().empty());
     // The same answer the chain gives as a polyline, which is where this pair's
     // contract comes from.
     CHECK(sum == peakChain().asPolyline().minkowskiSum(Segment(Point(0, 0), Point(0, 2))));
@@ -327,7 +328,7 @@ TEST_CASE("minkowskiSum: a summand with no area keeps the region-valued contract
     CHECK(peakChain().minkowskiSum(OrientedSegment(Point(0, 2), Point(0, 0))) == sum);
 
     // Regularized, so a chain summed along its own direction keeps nothing.
-    CHECK(segmentChain().minkowskiSum(Segment(Point(0, 0), Point(2, 0))).empty());
+    CHECK(segmentChain().minkowskiSum(Segment(Point(0, 0), Point(2, 0))).isEmpty());
 
     // And a chain whose parts merely touch after the flat sweep is dropped comes
     // back as more than one region — the answer no polygon could have given.
@@ -360,7 +361,7 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
                                  PolygonShape>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const OrientedSegment&>())),
-                                 std::vector<Region>>);
+                                 RegionSet>);
 
     // The non-convex operands, whose own concavity strands cavities whatever the
     // chain does: they own the pair by rank and answer with regions, from either
@@ -371,7 +372,7 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(summable<Region, Chain>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const PolygonShape&>())),
-                                 Region>);
+                                 RegionSet>);
 
     // Two chains are the pair left out, exactly as two polylines are: neither
     // outranks the other, so neither owns it. `asPolyline()` and the operand's
