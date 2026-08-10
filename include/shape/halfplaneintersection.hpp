@@ -289,13 +289,20 @@ struct HalfplaneIntersection {
      * Complexity: O(n log n) comparisons (plus O(n^2) element moves in the
      * worst case) untrusted, O(n) trusted.
      *
+     * A region is itself a range of half-planes, so this constructor is excluded
+     * for one: copying a region must copy it, and rebuilding it from its stored
+     * half-planes would resurrect an empty region as the whole plane, the
+     * intersection of the no half-planes an empty region stores. Copy
+     * construction and the converting constructor below carry that state over.
+     *
      * @param halfplanes Range of half-planes to intersect.
      * @param trusted Set to true if the half-planes are already sorted by
      * boundary pseudo-angle, mutually non-redundant, feasible, and define a
      * region with nonempty interior.
      */
     template <std::ranges::input_range Range = std::initializer_list<HalfplaneType>>
-        requires std::convertible_to<std::ranges::range_value_t<Range>, HalfplaneType>
+        requires std::convertible_to<std::ranges::range_value_t<Range>, HalfplaneType> &&
+                 (!detail::is_halfplane_intersection_v<Range>)
     constexpr explicit HalfplaneIntersection(Range&& halfplanes, bool trusted = false) {
         if (trusted) {
             for (const auto& h : halfplanes) {
