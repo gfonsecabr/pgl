@@ -277,13 +277,27 @@ struct Rectangle {
      * decides the question and the y axis need not be read. The assertion is
      * what holds a future corner-writing operation to that invariant.
      *
+     * That one representation is also why a rational coordinate can read the
+     * two corners against the canonical constants rather than order them: it
+     * asks the same question without a cross-multiplication.
+     *
      * Complexity: O(1).
      *
      * @return `true` if the rectangle covers no point.
      */
     [[nodiscard]] constexpr bool empty() const {
         assert(!(points_[1].y() < points_[0].y()) || points_[1].x() < points_[0].x());
-        return points_[1].x() < points_[0].x();
+        if constexpr (is_Rational_v<NumberType>) {
+            // Ordering two rationals cross-multiplies, and on an unreduced pair
+            // it reduces first, so the one comparison costs a gcd and two
+            // heap-capable products. Against an integer none of that happens:
+            // `== 0` is the sign of the numerator and `== -1` is the numerator
+            // against `-den`. The zero test leads because it is the cheaper of
+            // the two and it is the one every non-empty rectangle pays for.
+            return points_[0].x() == 0 && points_[1].x() == -1;
+        } else {
+            return points_[1].x() < points_[0].x();
+        }
     }
 
     /**
