@@ -767,3 +767,52 @@ TEST_CASE("Rectangle converts to a half-plane intersection") {
         CHECK(!region.contains(Point(2, 3)));
     }
 }
+
+TEST_CASE("Rectangle unites with Rectangle into a set of regions") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle rect(Point(0, 0), Point(4, 4));
+
+    SUBCASE("two overlapping rectangles make one staircase region") {
+        const auto result = rect.unionWith<int>(Rectangle(Point(2, 2), Point(6, 6)));
+        static_assert(std::is_same_v<decltype(result), const pgl::PolygonSet<Point>>);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(!result.component(0).hasHoles());
+        CHECK(result.twiceArea() == 2 * (16 + 16 - 4));
+        // Two diagonally offset squares meet in a re-entrant step on each side,
+        // so the outline is eight corners and no vertex sits mid-edge.
+        CHECK(result.component(0).outer().size() == 8);
+    }
+
+    SUBCASE("two disjoint rectangles stay two components") {
+        const auto result = rect.unionWith<int>(Rectangle(Point(10, 10), Point(12, 12)));
+        CHECK(result.componentCount() == 2);
+        CHECK(result.twiceArea() == 2 * (16 + 4));
+    }
+
+    SUBCASE("rectangles meeting at a corner stay two components") {
+        // A region may not have a self-touching outer ring, so the pinch splits.
+        const auto result = rect.unionWith<int>(Rectangle(Point(4, 4), Point(6, 6)));
+        CHECK(result.componentCount() == 2);
+        CHECK(result.twiceArea() == 2 * (16 + 4));
+    }
+
+    SUBCASE("a rectangle covering another gives just the cover") {
+        const auto result = rect.unionWith<int>(Rectangle(Point(1, 1), Point(2, 2)));
+        REQUIRE(result.componentCount() == 1);
+        CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(rect.asPolygon()));
+    }
+
+    SUBCASE("a union with itself is idempotent") {
+        const auto result = rect.unionWith<int>(rect);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(rect.asPolygon()));
+    }
+
+    SUBCASE("a rectangle with no area contributes nothing") {
+        const Rectangle flat(Point(0, 0), Point(0, 4));
+        CHECK(flat.unionWith<int>(rect) == rect.asPolygonSet());
+        CHECK(flat.unionWith<int>(flat).isEmpty());
+    }
+}

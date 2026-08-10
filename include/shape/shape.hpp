@@ -772,6 +772,55 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `unionWith` requesting @p ResultNumber
+     * coordinates. See @ref Polygon::unionWith for the contract.
+     *
+     * Unlike @ref intersection this does not re-wrap its answer, because it does
+     * not have to: every pair that has a union at all answers with a
+     * @ref PolygonSet, so the static type is already exact and the caller is
+     * spared an unwrap. Nor can it fail the way an intersection can — a union
+     * that comes apart into several pieces is still one set — so the throw below
+     * is only ever about the pair, never about the result.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to unite with.
+     * @return The pieces of the union, in canonical order.
+     * @throws std::logic_error when the pair selected at run time has no union a
+     *   `PolygonSet` can hold. It succeeds exactly when **both** alternatives are
+     *   @ref PolygonalRegionConcept — a `Rectangle`, `Triangle`, `Convex`,
+     *   `Polygon`, `PolygonWithHoles` or `PolygonSet` — for all thirty-six
+     *   ordered pairs of them, in either order. Every other alternative throws
+     *   whatever it is paired with: an `EmptyShape`, `Point`, `Segment`,
+     *   `OrientedSegment`, `MonotoneChain` or `Polyline` has no area, so the
+     *   union keeps a piece no set of regions can express; a `Line`,
+     *   `OrientedLine`, `Ray`, `Halfplane` or `HalfplaneIntersection` may be
+     *   unbounded; and a `Disk` is round.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> unionWith(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return unionOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return unionOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Visits the stored alternative (and @p other when it is itself a `Shape`)
@@ -1294,6 +1343,26 @@ struct Shape {
             return resultToShape<ResultNumber>(left.template intersection<ResultNumber>(right));
         } else {
             throw std::logic_error("Shape::intersection is not defined for this shape pair");
+        }
+    }
+
+    // Unite two unwrapped alternatives. The probe is SFINAE-safe and
+    // self-maintaining in the same way intersectionOf's is, and here it lands
+    // exactly on the pairs of bounded polygonal regions: those define unionWith
+    // for every ordered pair between them, each on the higher-ranked operand with
+    // the lower-ranked one forwarding, and nothing else defines it at all.
+    //
+    // There is no EmptyShape short circuit as there is above. The empty set is
+    // the identity of a union rather than its absorber, so `empty ∪ A` would have
+    // to answer with A itself — which is only a PolygonSet when A is a region,
+    // and would then be a special case reachable no other way. It takes the
+    // throw with everything else instead.
+    template <class ResultNumber, class Left, class Right>
+    static PolygonSet<Point<ResultNumber, LabelType>> unionOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template unionWith<ResultNumber>(right); }) {
+            return left.template unionWith<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::unionWith is not defined for this shape pair");
         }
     }
 

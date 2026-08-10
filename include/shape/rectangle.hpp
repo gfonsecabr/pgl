@@ -1428,6 +1428,43 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), re-dispatching
+     *        through the wrapper's own `intersection`.
+     *
+     * An intersection is symmetric, so this just calls @p other's own
+     * `intersection`, which visits its wrapped alternative and throws if the
+     * pair is unsupported.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     *
+     * @return The intersection wrapped in a `Shape`, rather than the tighter
+     *   type the concrete pair would answer with: which alternative @p other
+     *   holds is not known until run time, so neither is the result's.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B),
+     *        re-dispatching through the wrapper's own `unionWith`.
+     *
+     * A union is symmetric, so this just calls @p other's own `unionWith`, which
+     * visits its wrapped alternative and throws if the pair is unsupported —
+     * here, whenever @p other turns out to hold anything but a bounded polygonal
+     * region. See @ref Polygon::unionWith for the contract.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto unionWith(const Shape<OtherPoint>& other) const {
+        return other.template unionWith<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the distance to the given shape, using symmetry to
      * re-dispatch through the wrapper's own `distanceL1`.
      *
@@ -1874,6 +1911,25 @@ struct Rectangle {
     [[nodiscard]] auto minkowskiSum(const OtherShape& other) const {
         return other.template minkowskiSum<ResultNumber>(*this);
     }
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * Two rectangles are the one pair of @ref PolygonalRegionConcept operands a
+     * rectangle owns, being the lowest-ranked of them: every other pair is
+     * defined on the higher-ranked operand and reached through the forwarding
+     * overload below. The union of two rectangles is a rectangle only by
+     * coincidence — two that overlap in a corner make an L, and two that are
+     * apart make two pieces — so it answers with a set of regions like every
+     * other union. See @ref Polygon::unionWith for the contract.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The rectangle to unite with.
+     * @return The pieces of the union, in canonical order.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    unionWith(const OtherRectangle& other) const;
 
     /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).

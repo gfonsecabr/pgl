@@ -43,14 +43,13 @@ concept SetOperandConcept =
  * @brief The operands a @ref PolygonSet's boolean operations accept.
  *
  * Exactly what the cell engine takes: a bounded polygonal shape that is not
- * self-overlapping. Everything else — a half-plane and a half-plane
- * intersection, which may be unbounded — is clipped to the set's bounding box
- * first and reaches the engine as a convex polygon, through its own overload.
+ * self-overlapping, which is exactly @ref PolygonalRegionConcept. Everything
+ * else — a half-plane and a half-plane intersection, which may be unbounded — is
+ * clipped to the set's bounding box first and reaches the engine as a convex
+ * polygon, through its own overload.
  */
 template <class T>
-concept SetBooleanOperandConcept =
-    is_polygon_v<T> || is_convex_v<T> || is_triangle_v<T> || is_rectangle_v<T> ||
-    is_polygon_with_holes_v<T> || is_polygon_set_v<T>;
+concept SetBooleanOperandConcept = PolygonalRegionConcept<T>;
 
 /**
  * @brief The operands a @ref PolygonSet's Minkowski sum accepts.
@@ -1065,6 +1064,43 @@ struct PolygonSet {
     /** @copydoc squaredDistance(const OtherShape&) const */
     template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
     [[nodiscard]] auto distanceLInf(const OtherSet& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), re-dispatching
+     *        through the wrapper's own `intersection`.
+     *
+     * An intersection is symmetric, so this just calls @p other's own
+     * `intersection`, which visits its wrapped alternative and throws if the
+     * pair is unsupported.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     *
+     * @return The intersection wrapped in a `Shape`, rather than the tighter
+     *   type the concrete pair would answer with: which alternative @p other
+     *   holds is not known until run time, so neither is the result's.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B),
+     *        re-dispatching through the wrapper's own `unionWith`.
+     *
+     * A union is symmetric, so this just calls @p other's own `unionWith`, which
+     * visits its wrapped alternative and throws if the pair is unsupported —
+     * here, whenever @p other turns out to hold anything but a bounded polygonal
+     * region. See @ref Polygon::unionWith for the contract.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto unionWith(const Shape<OtherPoint>& other) const {
+        return other.template unionWith<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the Manhattan (L1) distance to the given shape, using

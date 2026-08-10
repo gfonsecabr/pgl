@@ -157,3 +157,43 @@ TEST_CASE("Rectangle and Triangle squared Hausdorff distance") {
     CHECK(r.squaredHausdorffDistance<int>(t) == 80);
     CHECK(t.squaredHausdorffDistance<int>(r) == 80);
 }
+
+TEST_CASE("Rectangle unites with Triangle into a set of regions") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Rectangle rect(Point(0, 0), Point(4, 4));
+    // Sits on the rectangle's top edge, so the two fuse into a house shape.
+    const Triangle roof(Point(0, 4), Point(4, 4), Point(2, 6));
+
+    SUBCASE("the union is the same set whichever operand receives it") {
+        const auto fromRect = rect.unionWith<int>(roof);
+        const auto fromTriangle = roof.unionWith<int>(rect);
+        static_assert(std::is_same_v<decltype(fromRect), const pgl::PolygonSet<Point>>);
+        static_assert(std::is_same_v<decltype(fromTriangle), const pgl::PolygonSet<Point>>);
+        CHECK(fromRect == fromTriangle);
+        REQUIRE(fromRect.componentCount() == 1);
+        CHECK(fromRect.twiceArea() == 2 * 16 + 8);
+        // The shared edge is interior to the union and its endpoints are the
+        // rectangle's own top corners, so the outline is the five house corners.
+        CHECK(fromRect.component(0).outer().size() == 5);
+    }
+
+    SUBCASE("a triangle poking out of a corner") {
+        const Triangle corner(Point(2, 2), Point(6, 2), Point(2, 6));
+        const auto result = rect.unionWith<int>(corner);
+        REQUIRE(result.componentCount() == 1);
+        // The triangle's hypotenuse runs through (4,4), so the two share the
+        // whole square [2,4]x[2,4], of twice-area 8.
+        CHECK(result.twiceArea() == 2 * 16 + 16 - 8);
+        CHECK(result == corner.unionWith<int>(rect));
+    }
+
+    SUBCASE("disjoint operands stay two components either way round") {
+        const Triangle away(Point(10, 10), Point(12, 10), Point(10, 12));
+        CHECK(rect.unionWith<int>(away).componentCount() == 2);
+        CHECK(away.unionWith<int>(rect).componentCount() == 2);
+        CHECK(rect.unionWith<int>(away) == away.unionWith<int>(rect));
+    }
+}
