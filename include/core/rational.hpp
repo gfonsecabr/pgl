@@ -639,6 +639,14 @@ public:
             return f > 0 ? std::partial_ordering::less
                          : std::partial_ordering::greater;
 
+        // 0 and ±1 are settled in the integer domain, skipping the BigInt
+        // decomposition below entirely: den > 0, so the answer is the numerator
+        // against 0 or against ±den. (-0.0 compares equal to 0 and is handled
+        // here as the zero it is.)
+        if (f == 0) return compareValues(num, Int(0));
+        if (f == 1) return compareValues(num, den);
+        if (f == -1) return compareValues(num, -den);
+
         // f == sig * 2^E exactly.
         int exponent;
         const Float frac = std::frexp(f, &exponent);
@@ -685,18 +693,71 @@ public:
     // built-in integers to cover a storage type that is not one of them, BigInt
     // being the case that matters here.
 
+    /// @brief Whether an integer argument is exactly -1.
+    ///
+    /// Spelled out rather than written inline so that `-1` is never formed in an
+    /// unsigned type, where it would denote the maximum value and warn under
+    /// -Wsign-compare. An unsigned argument simply never takes the branch.
+    template <class I>
+    static constexpr bool isNegativeOne(const I& n) {
+        if constexpr (std::is_unsigned_v<I>) {
+            return false;
+        } else {
+            return n == -1;
+        }
+    }
+
     /// @brief Exact three-way comparison against an integer value.
+    ///
+    /// The integer is never turned into a Rational to be compared against. Since
+    /// den > 0, `num/den <=> n` is the sign of `num - n*den`, so the whole
+    /// comparison stays in the integer domain; going through `Rational(n)`
+    /// instead would copy the integer, multiply it by the denominator *and*
+    /// multiply the numerator by one — for a BigInt, three heap-capable
+    /// operations where none is needed.
+    ///
+    /// The cases that dominate need no multiplication at all: against 0 the
+    /// answer is the sign of the numerator, against ±1 it is the numerator
+    /// against ±den, and a fraction that is already an integer compares
+    /// directly. Predicates over rational coordinates are full of these — every
+    /// `orientationSign(...) == 0` collinearity test is a comparison against
+    /// zero.
     template <class I>
         requires(pgl::detail::extended_integral<I> || std::same_as<I, Int>)
     constexpr std::strong_ordering operator<=>(const I& n) const {
-        return *this <=> Rational(n);
+        using Wide = pgl::detail::promoted_number_t<Int>;
+
+        // The three constant tests come first: the integer is nearly always a
+        // literal, and then they fold away at compile time along with every
+        // branch not taken.
+        if (n == 0) return compareValues(num, Int(0));
+        if (n == 1) return compareValues(num, den);
+        if (isNegativeOne(n)) return compareValues(num, -den);
+        if (den == 1) return compareValues(num, static_cast<Wide>(n));
+
+        // The general case multiplies through the positive denominator. Only the
+        // integer is cast to the wide type: the denominator widens on its own
+        // inside the product, and naming Wide for it too would copy an
+        // arbitrary-precision denominator for nothing. A deferred fraction is
+        // reduced first only when that product could overflow, exactly as the
+        // Rational-vs-Rational comparison does.
+        if (!normalized_ && comparisonNeedsReduction(num, den)) {
+            Int an, ad;
+            operandParts(an, ad);
+            return compareValues(an, ad * static_cast<Wide>(n));
+        }
+        return compareValues(num, den * static_cast<Wide>(n));
     }
 
     /// @brief Exact equality against an integer value.
+    ///
+    /// Shares every fast path of the three-way comparison above; the orderings
+    /// it returns are settled by the same integer comparison an equality test
+    /// would perform.
     template <class I>
         requires(pgl::detail::extended_integral<I> || std::same_as<I, Int>)
     constexpr bool operator==(const I& n) const {
-        return *this == Rational(n);
+        return (*this <=> n) == 0;
     }
 
     constexpr Rational& operator++() { return *this += 1; }

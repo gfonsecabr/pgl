@@ -156,6 +156,61 @@ TEST_CASE_TEMPLATE("Exact comparison against floating point", Int,
     CHECK(R(7, 2) == 3.5);
 }
 
+TEST_CASE_TEMPLATE("Exact comparison against integers", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    using R = pgl::Rational<Int>;
+
+    // 0, 1 and -1 are answered from the numerator and the denominator alone.
+    CHECK(R(0, 5) == 0);
+    CHECK(R(1, 3) > 0);
+    CHECK(R(-1, 3) < 0);
+    CHECK(R(3, 3) == 1);
+    CHECK(R(2, 3) < 1);
+    CHECK(R(4, 3) > 1);
+    CHECK(R(-3, 3) == -1);
+    CHECK(R(-4, 3) < -1);
+    CHECK(R(-2, 3) > -1);
+
+    // A fraction is never equal to an integer it merely straddles.
+    CHECK_FALSE(R(1, 2) == 0);
+    CHECK_FALSE(R(1, 2) == 1);
+    CHECK_FALSE(R(-1, 2) == -1);
+
+    // Integral values, and fractions that reduce to one.
+    CHECK(R(37) == 37);
+    CHECK(R(37) < 38);
+    CHECK(R(-37) > -38);
+    CHECK(R(74, 2) == 37);
+    CHECK(R(75, 2) > 37);
+    CHECK(R(-75, 2) < -37);
+
+    // The reversed forms, with the integer on the left.
+    CHECK(0 == R(0, 5));
+    CHECK(0 != R(1, 5));
+    CHECK(1 > R(2, 3));
+    CHECK(-1 < R(-2, 3));
+    CHECK(37 == R(74, 2));
+    CHECK(38 > R(74, 2));
+
+    // Fractions whose reduction is still deferred compare by value, on the fast
+    // paths as well as the general one.
+    CHECK(R(2, 3) * R(3, 2) == 1);
+    CHECK(R(2, 3) * R(-3, 2) == -1);
+    CHECK(R(4, 2) * R(6, 3) == 4);
+    const R sixth = R(1, 3) * R(1, 2);
+    CHECK(sixth > 0);
+    CHECK(sixth < 1);
+    CHECK_FALSE(sixth == 0);
+
+    // The argument keeps its own type: a wider integer, and Int itself, are
+    // compared without being turned into a Rational first.
+    CHECK(R(74, 2) == int64_t(37));
+    CHECK(R(74, 2) < int64_t(38));
+    CHECK(R(74, 2) == Int(37));
+    CHECK(R(74, 2) < Int(38));
+    CHECK(Int(37) == R(74, 2));
+}
+
 TEST_CASE("Rational numeric limits and promotion preserve rational types") {
     using SmallRational = pgl::Rational<int16_t>;
     using PromotedSmallRational = pgl::detail::promoted_number_t<SmallRational>;
