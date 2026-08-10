@@ -967,7 +967,7 @@ struct Halfplane {
      * The result type represents the intersection exactly (no coordinate
      * divisions) whatever the configuration: a wedge, a strip, a nested or
      * identical half-plane, a line, or the empty set (see
-     * @ref HalfplaneIntersection::isEmpty) — so no `std::optional` wrapper is
+     * @ref HalfplaneIntersection::empty) — so no `std::optional` wrapper is
      * needed. This concrete overload also keeps the pair away from the
      * reversing fallback below, which would recurse forever.
      */

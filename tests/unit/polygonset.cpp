@@ -24,7 +24,7 @@ static Region holed() { return Region(bigSquare(), std::vector{smallHole()}); }
 TEST_CASE("PolygonSet construction and component access") {
     SUBCASE("default construction is the empty set") {
         const RegionSet set;
-        CHECK(set.isEmpty());
+        CHECK(set.empty());
         CHECK(set.componentCount() == 0);
         CHECK(set.vertexCount() == 0);
         CHECK(set.holeCount() == 0);
@@ -34,7 +34,7 @@ TEST_CASE("PolygonSet construction and component access") {
 
     SUBCASE("single component") {
         const RegionSet set{Region(squareA())};
-        CHECK(!set.isEmpty());
+        CHECK(!set.empty());
         CHECK(set.componentCount() == 1);
         CHECK(set.component(0) == Region(squareA()));
         CHECK(set.vertexCount() == 4);
@@ -42,7 +42,7 @@ TEST_CASE("PolygonSet construction and component access") {
 
     SUBCASE("a zero-area component covers nothing and is dropped") {
         const PolygonShape collapsed({3, 3, 5, 3, 7, 3});
-        CHECK(RegionSet{Region(collapsed)}.isEmpty());
+        CHECK(RegionSet{Region(collapsed)}.empty());
         const RegionSet set(std::vector{Region(collapsed), Region(squareA())});
         CHECK(set.componentCount() == 1);
         CHECK(set.component(0) == Region(squareA()));
@@ -82,7 +82,7 @@ TEST_CASE("PolygonSet construction and component access") {
         const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
         std::size_t seen = 0;
         for (const auto& component : set) {
-            CHECK(!component.isEmpty());
+            CHECK(!component.empty());
             ++seen;
         }
         CHECK(seen == 2);
@@ -233,8 +233,8 @@ TEST_CASE("PolygonSet transformations") {
     }
 
     SUBCASE("a zero scale collapses every component away") {
-        CHECK((set * 0).isEmpty());
-        CHECK(set.scaledUpX(0).isEmpty());
+        CHECK((set * 0).empty());
+        CHECK(set.scaledUpX(0).empty());
     }
 
     SUBCASE("a negative scale re-sorts the components") {
@@ -287,8 +287,8 @@ TEST_CASE("PolygonSet conversions from the area shapes") {
     }
 
     SUBCASE("a shape without area converts to the empty set") {
-        CHECK(pgl::Triangle<Point>(Point(0, 0), Point(2, 0), Point(4, 0)).asPolygonSet().isEmpty());
-        CHECK(pgl::Rectangle<Point>(Point(0, 0), Point(0, 2)).asPolygonSet().isEmpty());
+        CHECK(pgl::Triangle<Point>(Point(0, 0), Point(2, 0), Point(4, 0)).asPolygonSet().empty());
+        CHECK(pgl::Rectangle<Point>(Point(0, 0), Point(0, 2)).asPolygonSet().empty());
     }
 }
 
@@ -466,7 +466,7 @@ TEST_CASE("PolygonSet structural queries") {
     SUBCASE("regularized drops a component without area") {
         const RegionSet degenerate(std::vector{Region(PolygonShape({0, 0, 4, 0, 8, 0}))}, true);
         REQUIRE(degenerate.componentCount() == 1);
-        CHECK(degenerate.regularized<int>().isEmpty());
+        CHECK(degenerate.regularized<int>().empty());
     }
 }
 

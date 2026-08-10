@@ -318,7 +318,7 @@ struct HalfplaneIntersection {
      */
     template <RectangleConcept OtherRectangle>
     constexpr explicit HalfplaneIntersection(const OtherRectangle& rectangle) {
-        if (rectangle.isEmpty()) {
+        if (rectangle.empty()) {
             empty_ = true;
             return;
         }
@@ -462,7 +462,7 @@ struct HalfplaneIntersection {
     template <PointConcept OtherPointType, class OtherLabelType>
         requires(std::constructible_from<PointType, const OtherPointType&>)
     constexpr HalfplaneIntersection(const HalfplaneIntersection<OtherPointType, OtherLabelType>& other)
-        : empty_(other.isEmpty()), degenerate_(other.isEmpty() ? false : other.isDegenerate()) {
+        : empty_(other.empty()), degenerate_(other.empty() ? false : other.isDegenerate()) {
         halfplanes_.reserve(other.size());
         for (const auto& h : other) {
             halfplanes_.push_back(HalfplaneType(h));
@@ -479,7 +479,7 @@ struct HalfplaneIntersection {
         for (const auto& h : other) {
             halfplanes_.push_back(HalfplaneType(h));
         }
-        empty_ = other.isEmpty();
+        empty_ = other.empty();
         degenerate_ = empty_ ? false : other.isDegenerate();
         label_ = detail::copyLabel<LabelType>(other);
         resetCache();
@@ -652,7 +652,7 @@ struct HalfplaneIntersection {
     /**
      * @brief Returns whether the region is the empty set.
      */
-    constexpr bool isEmpty() const {
+    constexpr bool empty() const {
         return empty_;
     }
 
@@ -1783,7 +1783,7 @@ struct HalfplaneIntersection {
      *
      * The result type is closed under this operation and requires no
      * division, so the intersection is exact when `ResultNumber` can represent
-     * the input coordinates. The result may be empty (see @ref isEmpty) —
+     * the input coordinates. The result may be empty (see @ref empty) —
      * no `std::optional` wrapper is needed.
      */
     template <class ResultNumber = NumberType, HalfplaneConcept OtherHalfplane>
@@ -1797,7 +1797,7 @@ struct HalfplaneIntersection {
      * The result type is closed under intersecting with any convex polygonal
      * region and requires no division, so the result is exact when
      * `ResultNumber` can represent the input coordinates. The result may be
-     * empty (see @ref isEmpty) — no `std::optional` wrapper is needed.
+     * empty (see @ref empty) — no `std::optional` wrapper is needed.
      */
     template <class ResultNumber = NumberType, RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr HalfplaneIntersection<Point<ResultNumber, typename PointType::LabelType>>
@@ -2564,7 +2564,7 @@ Polygon<PointType_, TLabel>::getStarShapedKernel() const {
     if (const auto carrier = getIfSegment()) {
         return RegionType(*carrier);
     }
-    if (isEmpty() || isUndefined()) {
+    if (empty() || isUndefined()) {
         // The empty polygon has no point to see it from, and an undefined one
         // has no interior side for its edges to bound. Either way the kernel is
         // empty, which is reported as no kernel at all.
@@ -2579,7 +2579,7 @@ Polygon<PointType_, TLabel>::getStarShapedKernel() const {
             continue;
         }
         kernel.insert(Halfplane<PointType>(source, target));
-        if (kernel.isEmpty()) {
+        if (kernel.empty()) {
             return std::nullopt;
         }
     }

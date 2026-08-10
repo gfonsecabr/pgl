@@ -92,8 +92,8 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
     }
 
     SUBCASE("a set differenced from itself is empty") {
-        CHECK(holed.difference<int>(holed).isEmpty());
-        CHECK(holed.symmetricDifference<int>(holed).isEmpty());
+        CHECK(holed.difference<int>(holed).empty());
+        CHECK(holed.symmetricDifference<int>(holed).empty());
     }
 
     SUBCASE("a union with itself is idempotent") {
@@ -112,11 +112,11 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
     }
 
     SUBCASE("every area operand is accepted") {
-        CHECK(!holed.intersection<int>(pgl::Rectangle<Point>(Point(0, 0), Point(2, 2))).isEmpty());
+        CHECK(!holed.intersection<int>(pgl::Rectangle<Point>(Point(0, 0), Point(2, 2))).empty());
         CHECK(!holed.intersection<int>(pgl::Triangle<Point>(Point(0, 0), Point(2, 0), Point(0, 2)))
-                   .isEmpty());
-        CHECK(!holed.intersection<int>(pgl::Convex<Point>({0, 0, 2, 0, 2, 2, 0, 2})).isEmpty());
-        CHECK(!holed.intersection<int>(Region(square(0, 0, 2))).isEmpty());
+                   .empty());
+        CHECK(!holed.intersection<int>(pgl::Convex<Point>({0, 0, 2, 0, 2, 2, 0, 2})).empty());
+        CHECK(!holed.intersection<int>(Region(square(0, 0, 2))).empty());
     }
 
     SUBCASE("an unbounded operand is clipped to the set first") {
@@ -124,7 +124,7 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
         CHECK(half.componentCount() == 1);
         CHECK(half.twiceArea() == 200 - 32);
         const auto below = holed.intersection<int>(pgl::Halfplane<Point>(Point(1, 0), Point(0, 0)));
-        CHECK(below.isEmpty());
+        CHECK(below.empty());
     }
 
     SUBCASE("a set is accepted as the argument of a union too") {
@@ -147,7 +147,7 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
 
     SUBCASE("a disjoint operand leaves an intersection empty and a difference whole") {
         const PolygonShape elsewhere = square(50, 50, 2);
-        CHECK(holed.intersection<int>(elsewhere).isEmpty());
+        CHECK(holed.intersection<int>(elsewhere).empty());
         CHECK(holed.difference<int>(elsewhere) == holed);
     }
 }

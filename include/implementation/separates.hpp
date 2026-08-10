@@ -311,7 +311,7 @@ constexpr bool Point<Number, Label>::separates(const OtherConvex& other) const {
 template <class Number, class Label>
 template<RectangleConcept OtherRectangle>
 constexpr bool Point<Number, Label>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -409,7 +409,7 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherRay& other) c
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -565,7 +565,7 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherHalfplane&) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -705,7 +705,7 @@ constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherRay& 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -804,7 +804,7 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherRay& other) cons
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Line<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -898,7 +898,7 @@ constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRay& oth
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1030,7 +1030,7 @@ constexpr bool Ray<PointType, LabelType>::separates(const OtherHalfplane& other)
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Ray<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1142,14 +1142,14 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherRectangle& 
         !(other.min().y() < min().y()) &&
         !(max().y() < other.max().y());
     if (splits_horizontally) {
-        return !isEmpty() && !other.isEmpty();
+        return !empty() && !other.empty();
     }
     const bool splits_vertically =
         other.min().y() < min().y() &&
         max().y() < other.max().y() &&
         !(other.min().x() < min().x()) &&
         !(max().x() < other.max().x());
-    return splits_vertically && !isEmpty() && !other.isEmpty();
+    return splits_vertically && !empty() && !other.empty();
 }
 
 template <class PointType, class LabelType>
@@ -1161,7 +1161,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherPoint&) con
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1171,7 +1171,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherLine& other
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherOrientedLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1181,7 +1181,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherOrientedLin
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1193,7 +1193,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherSegment& ot
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherOrientedSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1203,7 +1203,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherOrientedSeg
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherRay& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1215,7 +1215,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherRay& other)
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherHalfplane& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1226,7 +1226,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherHalfplane& 
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherTriangle& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1255,7 +1255,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherTriangle& o
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1273,7 +1273,7 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherConvex& oth
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1358,7 +1358,7 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRay& other)
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1509,7 +1509,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherHalfplane&) co
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1714,7 +1714,7 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherHalfplane&) cons
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1928,7 +1928,7 @@ constexpr bool Line<PointType, LabelType>::separates(const OtherPolygon& other) 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -2332,7 +2332,7 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -2873,7 +2873,7 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Oth
 template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -3038,7 +3038,7 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherChain& othe
 template <class PointType, class LabelType>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherChain& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -3724,7 +3724,7 @@ constexpr bool Polyline<PointType, LabelType>::separates(const OtherHalfplane& o
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polyline<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -3843,7 +3843,7 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherPolyline& o
 template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherPolyline& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -3930,7 +3930,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
     // disconnected exactly when the interval is nonempty and bounded on both
     // sides (an unbounded interval swallows an end of the line, leaving a
     // single ray, and a full-line interval leaves nothing).
-    if (isEmpty() || halfplanes_.empty()) {
+    if (empty() || halfplanes_.empty()) {
         return false;
     }
     const Halfplane<typename OtherLine::PointType> along(other[0], other[1]);
@@ -3950,7 +3950,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
     // As for a line, but the interval additionally must not contain the
     // source (which would leave a single piece ahead of it), and only the
     // forward end has to be bounded.
-    if (isEmpty() || halfplanes_.empty() || contains(other.source())) {
+    if (empty() || halfplanes_.empty() || contains(other.source())) {
         return false;
     }
     const Halfplane<typename OtherRay::PointType> along(other.source(), other.target());
@@ -3973,7 +3973,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
     // half-plane's interior. A bounded region only ever contributes the
     // boundary-line contact (one component), so only unbounded regions can
     // separate a half-plane. Complexity: O(n).
-    if (isEmpty() || halfplanes_.empty() || halfplanes_.size() == 1) {
+    if (empty() || halfplanes_.empty() || halfplanes_.size() == 1) {
         // The whole plane leaves nothing behind, and removing a single
         // half-plane leaves an open half-plane, which is connected.
         return false;
@@ -4018,11 +4018,11 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
-    if (isEmpty()) {
+    if (empty()) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4040,7 +4040,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <TriangleConcept OtherTriangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherTriangle& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4058,7 +4058,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <ConvexConcept OtherConvex>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (isEmpty() || other.size() < 3) {
+    if (empty() || other.size() < 3) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4076,7 +4076,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <DiskConcept OtherDisk>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isEmpty() || other.isDegenerate()) {
+    if (empty() || other.isDegenerate()) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4094,7 +4094,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <PolygonConcept OtherPolygon>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    if (isEmpty() || other.size() < 3) {
+    if (empty() || other.size() < 3) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4115,7 +4115,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
     // The chain is a one-dimensional arc; the convex region removes one
     // connected piece from each edge, so the arc-component test applies with
     // the region as the (convex) remover.
-    if (isEmpty()) {
+    if (empty()) {
         return false;
     }
     return detail::separatesChain(*this, other);
@@ -4124,7 +4124,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <PolylineConcept OtherPolyline>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherPolyline& other) const {
-    if (isEmpty() || other.size() < 2) {
+    if (empty() || other.size() < 2) {
         return false;
     }
     return detail::separates1DSet(*this, other.edgesView());
@@ -4278,7 +4278,7 @@ bool boundedRemoverSeparatesRegion(const Region& region, const Remover& remover)
 // speed and reuse, which is the same predicate).
 template <class Shape2, class Region>
 bool boundedShapeSeparatesRegion(const Shape2& remover, const Region& region) {
-    if (region.isEmpty()) {
+    if (region.empty()) {
         return false;
     }
     if (region.isDegenerate()) {
@@ -4363,7 +4363,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
     // pair takes the shared-box boundary-component count. Both are computed
     // over the exact coordinate type, since exact carriers and boxes are
     // generally not representable in the inputs' own coordinate type.
-    if (isEmpty() || other.isEmpty()) {
+    if (empty() || other.empty()) {
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;
@@ -4397,7 +4397,7 @@ template <class Number, class Label>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Point<Number, Label>::separates(const OtherRegion& other) const {
     // A point has empty interior; it can only sever a one-dimensional carrier.
-    if (other.isEmpty() || !other.isDegenerate()) {
+    if (other.empty() || !other.isDegenerate()) {
         return false;
     }
     return std::visit([this](const auto& carrier) { return this->separates(carrier); },
@@ -4407,7 +4407,7 @@ constexpr bool Point<Number, Label>::separates(const OtherRegion& other) const {
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         return false;
     }
     if (other.isDegenerate()) {
@@ -4435,7 +4435,7 @@ constexpr bool OrientedSegment<PointType, LabelType>::separates(const OtherRegio
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Line<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         return false;
     }
     if (other.isDegenerate()) {
@@ -4456,7 +4456,7 @@ constexpr bool OrientedLine<PointType, LabelType>::separates(const OtherRegion& 
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Ray<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         return false;
     }
     if (other.isDegenerate()) {
@@ -4483,7 +4483,7 @@ constexpr bool Halfplane<PointType, LabelType>::separates(const OtherRegion& oth
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Rectangle<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -4520,7 +4520,7 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherRegion& other)
 template <class PointType, class LabelType, class Storage>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const OtherRegion& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         return false;
     }
     if (other.isDegenerate()) {
@@ -4537,7 +4537,7 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::separates(const Oth
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Polyline<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (other.isEmpty() || size() < 2) {
+    if (other.empty() || size() < 2) {
         return false;
     }
     if (other.isDegenerate()) {
@@ -4880,7 +4880,7 @@ bool convexAndRegionSeparate(const ConvexOperand& convex, const Region& region) 
             return cellSeparates(region, operand);
         }
     };
-    if (clipped.isEmpty()) {
+    if (clipped.empty()) {
         // As in @ref linearAndRegionSeparate: the operand cannot reach the
         // region, so only a region already in several pieces answers true.
         return ConvexIsTarget ? false : disconnectedOnItsOwn(region);
@@ -5325,7 +5325,7 @@ bool PolygonWithHoles<PointType, LabelType>::separates(const OtherHalfplane& oth
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 bool PolygonWithHoles<PointType, LabelType>::separates(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -5499,7 +5499,7 @@ bool Halfplane<PointType, LabelType>::separates(const OtherRegion& other) const 
 template <class PointType, class LabelType>
 template <PolygonWithHolesConcept OtherRegion>
 bool Rectangle<PointType, LabelType>::separates(const OtherRegion& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -5568,7 +5568,7 @@ bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherHoledRegi
     if (!other.hasHoles()) {
         return separates(other.outer());
     }
-    if (isEmpty()) {
+    if (empty()) {
         return false;  // nothing is removed from a connected region
     }
     return detail::convexAndRegionSeparate<false>(*this, other);
@@ -5641,7 +5641,7 @@ bool PolygonSet<PointType, LabelType>::isConnected() const {
 template <class PointType, class LabelType>
 template <detail::SetOperandConcept OtherShape>
 bool PolygonSet<PointType, LabelType>::separates(const OtherShape& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         return false;  // nothing removed, and every operand here is connected
     }
 
@@ -5809,7 +5809,7 @@ bool Disk<PointType, LabelType>::separates(const OtherSet& other) const {
 template <class PointType, class LabelType>
 template <PolygonSetConcept OtherSet>
 bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherSet& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         return detail::disconnectedOnItsOwn(other);  // nothing is removed
     }
     return detail::convexAndRegionSeparate<false>(*this, other);

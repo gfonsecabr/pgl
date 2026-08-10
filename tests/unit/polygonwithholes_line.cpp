@@ -327,12 +327,12 @@ TEST_CASE("PolygonWithHoles intersection with a Halfplane") {
     }
 
     SUBCASE("a cut missing the region gives nothing") {
-        CHECK(region.intersection<ERational>(Halfplane({20, 1}, {20, 0})).isEmpty());
+        CHECK(region.intersection<ERational>(Halfplane({20, 1}, {20, 0})).empty());
     }
 
     SUBCASE("a cut meeting the region only along an edge has no area") {
         // y >= 10 keeps the top outer edge, which a regularized result drops.
-        CHECK(region.intersection<ERational>(Halfplane({0, 10}, {1, 10})).isEmpty());
+        CHECK(region.intersection<ERational>(Halfplane({0, 10}, {1, 10})).empty());
     }
 
     SUBCASE("a cut can leave several pieces") {

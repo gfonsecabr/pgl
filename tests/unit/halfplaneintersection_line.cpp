@@ -284,5 +284,5 @@ TEST_CASE("Halfplane intersection construction chains exactly") {
     const auto twice = once.intersection<int>(xGE0);
     CHECK(twice == Region({yGE0, xGE0}));
     const auto vanished = twice.intersection<int>(Halfplane(1, -1, 0, -1));  // y <= -1
-    CHECK(vanished.isEmpty());
+    CHECK(vanished.empty());
 }

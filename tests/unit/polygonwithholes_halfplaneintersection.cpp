@@ -53,7 +53,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the two extreme regions") 
     SUBCASE("the empty region is contained and meets nothing") {
         Intersection empty(rightOf(5));
         empty.insert(leftOf(3));
-        REQUIRE(empty.isEmpty());
+        REQUIRE(empty.empty());
         CHECK(region.contains(empty));
         CHECK(region.interiorContains(empty));
         CHECK(region.boundaryContains(empty));
@@ -268,7 +268,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: a pinched region") {
     Intersection slabOverTheBand(above(2));
     slabOverTheBand.insert(below(4));
     slabOverTheBand.insert(leftOf(0));  // x <= 0, so only the slit is left
-    REQUIRE(!slabOverTheBand.isEmpty());
+    REQUIRE(!slabOverTheBand.empty());
     CHECK(region.intersects(slabOverTheBand));
     CHECK(!region.interiorsIntersect(slabOverTheBand));
 
@@ -363,16 +363,16 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
     SUBCASE("nothing with area gives no piece at all") {
         Intersection empty(rightOf(5));
         empty.insert(leftOf(3));
-        REQUIRE(empty.isEmpty());
-        CHECK(region.intersection<ERational>(empty).isEmpty());
+        REQUIRE(empty.empty());
+        CHECK(region.intersection<ERational>(empty).empty());
 
         Intersection line(above(5));
         line.insert(below(5));
         REQUIRE(line.isDegenerate());
-        CHECK(region.intersection<ERational>(line).isEmpty());
-        CHECK(line.intersection<ERational>(region).isEmpty());
+        CHECK(region.intersection<ERational>(line).empty());
+        CHECK(line.intersection<ERational>(region).empty());
 
         // Missing the region entirely is empty too.
-        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).isEmpty());
+        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).empty());
     }
 }

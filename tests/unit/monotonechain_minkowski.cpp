@@ -130,7 +130,7 @@ static void checkAgainstPolyline(const Chain& a, const ShapeB& b) {
         pgl::PolygonWithHoles<EPoint>(mine).asPolygonSet().template symmetricDifference<pgl::ERational>(
             theirs);
     INFO("chain " << a << " operand " << b << " gave " << mine << " against " << theirs);
-    CHECK(difference.isEmpty());
+    CHECK(difference.empty());
 }
 
 // -----------------------------------------------------------------------------
@@ -328,7 +328,7 @@ TEST_CASE("minkowskiSum: a summand with no area keeps the region-valued contract
     CHECK(peakChain().minkowskiSum(OrientedSegment(Point(0, 2), Point(0, 0))) == sum);
 
     // Regularized, so a chain summed along its own direction keeps nothing.
-    CHECK(segmentChain().minkowskiSum(Segment(Point(0, 0), Point(2, 0))).isEmpty());
+    CHECK(segmentChain().minkowskiSum(Segment(Point(0, 0), Point(2, 0))).empty());
 
     // And a chain whose parts merely touch after the flat sweep is dropped comes
     // back as more than one region — the answer no polygon could have given.
@@ -419,7 +419,7 @@ TEST_CASE("minkowskiSum: two chains are not a convex pair") {
     // stay in one piece: two parallel chains sweep out nothing.
     CHECK(Chain({Point(0, 0), Point(4, 0)})
               .minkowskiSum(Chain({Point(0, 0), Point(2, 0)}))
-              .isEmpty());
+              .empty());
 }
 
 TEST_CASE("minkowskiSum: a non-convex operand answers as it does for a polyline") {

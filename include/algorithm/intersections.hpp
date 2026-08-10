@@ -818,7 +818,7 @@ template <class PointType_, class LabelType>
 template <class Rational>
 bool PolygonWithHoles<PointType_, LabelType>::isValid() const {
     // The empty region carries no boundary, so it can carry no hole either.
-    if (isEmpty()) {
+    if (empty()) {
         return holes_.empty();
     }
     // Every ring simple on its own. This is also what rules out a zero-length
@@ -860,7 +860,7 @@ template <class PointType_, class LabelType>
 bool PolygonWithHoles<PointType_, LabelType>::isRegular() const {
     // The empty region is the closure of its own (empty) interior; anything else
     // without area is material that no interior comes near.
-    if (isEmpty()) {
+    if (empty()) {
         return true;
     }
     if (isDegenerate()) {

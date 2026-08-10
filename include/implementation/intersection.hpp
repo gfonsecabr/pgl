@@ -991,7 +991,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // Nothing meets the empty set.
         return {};
     }
@@ -1009,7 +1009,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // Nothing meets the empty set.
         return {};
     }
@@ -1027,7 +1027,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherRay& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // Nothing meets the empty set.
         return {};
     }
@@ -1047,7 +1047,7 @@ constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplan
     using ResultConvex = Convex<ResultPoint>;
     using ResultType = std::optional<std::variant<ResultPoint, ResultSegment, ResultConvex>>;
 
-    if (isEmpty()) {
+    if (empty()) {
         // Nothing meets the empty set.
         return ResultType{};
     }
@@ -3102,7 +3102,7 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
                                      Line<Point<ResultNumber, typename PointType::LabelType>>>>
 HalfplaneIntersection<PointType, LabelType>::intersection(const OtherLine& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    if (isEmpty()) {
+    if (empty()) {
         return {};
     }
     if (other.isDegenerate()) {
@@ -3166,7 +3166,7 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
                                      Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 HalfplaneIntersection<PointType, LabelType>::intersection(const OtherSegment& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    if (isEmpty()) {
+    if (empty()) {
         return {};
     }
     if (other.isDegenerate()) {
@@ -3241,7 +3241,7 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
                                      Ray<Point<ResultNumber, typename PointType::LabelType>>>>
 HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRay& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    if (isEmpty()) {
+    if (empty()) {
         return {};
     }
     if (halfplanes_.empty()) {
@@ -3360,7 +3360,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRegion& oth
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultHalfplane = typename HalfplaneIntersection<ResultPoint>::HalfplaneType;
     HalfplaneIntersection<ResultPoint> result(*this);
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // Force emptiness with two contradictory parallel constraints
         // ({x <= 0} and {x >= 1}).
         result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
@@ -3401,7 +3401,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPolygon& ot
     using ExactRegion = HalfplaneIntersection<ExactPoint>;
 
     std::vector<Piece> result;
-    if (isEmpty() || other.size() == 0) {
+    if (empty() || other.size() == 0) {
         return result;
     }
     // The polygon is relabelled into the region's label type so the components
@@ -3443,7 +3443,7 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherPolygon& ot
     for (const auto& halfplane : ExactRegion(exact.bbox())) {
         clipped.insert(halfplane);
     }
-    if (clipped.isEmpty()) {
+    if (clipped.empty()) {
         return result;  // the region misses the polygon's bounding rectangle
     }
     // A full-dimensional region can still meet the bounding rectangle in a

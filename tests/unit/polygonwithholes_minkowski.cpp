@@ -294,8 +294,8 @@ TEST_CASE("minkowskiSum: a segment operand, the thinnest one that still sweeps")
     CHECK(annulus().minkowskiSum<int>(Segment(Point(0, 0), Point(0, 0))) == annulus());
 
     // The empty shape still absorbs, from either side.
-    CHECK(PolygonShape().minkowskiSum<int>(up).isEmpty());
-    CHECK(up.minkowskiSum<int>(PolygonShape()).isEmpty());
+    CHECK(PolygonShape().minkowskiSum<int>(up).empty());
+    CHECK(up.minkowskiSum<int>(PolygonShape()).empty());
 }
 
 TEST_CASE("minkowskiSum: a slit swept along its own direction is regularized away") {
@@ -469,7 +469,7 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     // is a genuine parallelogram.
     const PolygonShape flat({Point(0, 0), Point(4, 0)});
     REQUIRE(flat.isDegenerate());
-    CHECK(flat.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(2, 0)})).isEmpty());
+    CHECK(flat.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(2, 0)})).empty());
     const auto parallelogram = flat.minkowskiSum<int>(PolygonShape({Point(0, 0), Point(0, 3)}));
     CHECK(parallelogram.outer() == box(0, 0, 4, 3));
 
@@ -484,11 +484,11 @@ TEST_CASE("minkowskiSum: degenerate operands") {
 
     // The empty shapes absorb, whichever type carries them and whichever side
     // they are on.
-    CHECK(u.minkowskiSum<int>(PolygonShape()).isEmpty());
-    CHECK(PolygonShape().minkowskiSum<int>(u).isEmpty());
-    CHECK(u.minkowskiSum<int>(Convex()).isEmpty());
-    CHECK(u.minkowskiSum<int>(Region()).isEmpty());
-    CHECK(Region().minkowskiSum<int>(u).isEmpty());
+    CHECK(u.minkowskiSum<int>(PolygonShape()).empty());
+    CHECK(PolygonShape().minkowskiSum<int>(u).empty());
+    CHECK(u.minkowskiSum<int>(Convex()).empty());
+    CHECK(u.minkowskiSum<int>(Region()).empty());
+    CHECK(Region().minkowskiSum<int>(u).empty());
 }
 
 TEST_CASE("minkowskiSum: every operand type, on both receivers") {
@@ -505,7 +505,7 @@ TEST_CASE("minkowskiSum: every operand type, on both receivers") {
     CHECK(u.minkowskiSum<int>(rectangle) == u.minkowskiSum<int>(polygon));
     CHECK(a.minkowskiSum<int>(rectangle) == a.minkowskiSum<int>(convex));
     CHECK(a.minkowskiSum<int>(rectangle) == a.minkowskiSum<int>(polygon));
-    CHECK_FALSE(u.minkowskiSum<int>(triangle).isEmpty());
+    CHECK_FALSE(u.minkowskiSum<int>(triangle).empty());
 
     // A slanted segment and the four other types that spell the same two-point
     // set: the tightest one is only a spelling.

@@ -41,7 +41,7 @@ Region strip() {
 TEST_CASE("Default construction is the whole plane") {
     const Region plane;
     CHECK(plane.isPlane());
-    CHECK(!plane.isEmpty());
+    CHECK(!plane.empty());
     CHECK(!plane.isBounded());
     CHECK(!plane.isDegenerate());
     CHECK(plane.size() == 0);
@@ -99,19 +99,19 @@ TEST_CASE("Insertion order does not matter for full-dimensional regions") {
 TEST_CASE("Emptiness is detected and sticky") {
     Region k({yGE0});
     CHECK(k.insert(Halfplane(1, -1, 0, -1)));  // y <= -1 contradicts y >= 0
-    CHECK(k.isEmpty());
+    CHECK(k.empty());
     CHECK(k.size() == 0);
     CHECK(!k.isPlane());
     CHECK(k.isBounded());  // the empty set is bounded
     CHECK(k.isDegenerate());
     CHECK(!k.contains(Point(0, 0)));
     CHECK(!k.insert(yGE0));  // inserting into the empty region changes nothing
-    CHECK(k.isEmpty());
+    CHECK(k.empty());
 
     SUBCASE("all empty regions are equal") {
         Region other({xGE0});
         other.insert(Halfplane(-1, 0, -1, 1));  // x <= -1
-        CHECK(other.isEmpty());
+        CHECK(other.empty());
         CHECK(k == other);
         CHECK(std::hash<Region>{}(k) == std::hash<Region>{}(other));
     }
@@ -121,7 +121,7 @@ TEST_CASE("Degenerate regions are tracked and behave as sets") {
     SUBCASE("two opposite half-planes give a line") {
         const Region line({yGE0, Halfplane(1, 0, 0, 0)});  // y >= 0 and y <= 0
         CHECK(line.isDegenerate());
-        CHECK(!line.isEmpty());
+        CHECK(!line.empty());
         CHECK(!line.isBounded());
         CHECK(line.vertexCount() == 0);
         CHECK(line.contains(Point(7, 0)));
@@ -179,7 +179,7 @@ TEST_CASE("Constructors from other shapes") {
 
     SUBCASE("an empty convex polygon gives the empty region") {
         const Region k(pgl::Convex<Point>{});
-        CHECK(k.isEmpty());
+        CHECK(k.empty());
     }
 
     SUBCASE("a one-point convex polygon gives a degenerate point region") {
@@ -402,7 +402,7 @@ TEST_CASE("Intersection with a half-plane stays exact and typed") {
     CHECK(cut == triangle());
     // Cutting the whole thing away yields the empty region, not an optional.
     const auto gone = k.intersection<int>(Halfplane(1, -1, 0, -1));  // y <= -1
-    CHECK(gone.isEmpty());
+    CHECK(gone.empty());
 }
 
 TEST_CASE("Exact rational regions work end to end") {
@@ -469,7 +469,7 @@ TEST_CASE("Region contains another region") {
     CHECK(box(0, 6).contains(box(1, 5)));
 
     // The empty region is contained everywhere and contains nothing else.
-    CHECK(emptyRegion().isEmpty());
+    CHECK(emptyRegion().empty());
     CHECK(box(0, 6).contains(emptyRegion()));
     CHECK(emptyRegion().contains(emptyRegion()));
     CHECK(!emptyRegion().contains(box(0, 6)));
@@ -565,9 +565,9 @@ TEST_CASE("Region intersection with another region stays a region") {
     CHECK(!wedgeCut.isBounded());
 
     // Disjoint and empty operands produce the canonical empty region.
-    CHECK(hslab(0, 1).intersection<int>(hslab(3, 4)).isEmpty());
-    CHECK(upper().intersection<int>(emptyRegion()).isEmpty());
-    CHECK(emptyRegion().intersection<int>(upper()).isEmpty());
+    CHECK(hslab(0, 1).intersection<int>(hslab(3, 4)).empty());
+    CHECK(upper().intersection<int>(emptyRegion()).empty());
+    CHECK(emptyRegion().intersection<int>(upper()).empty());
     CHECK(hslab(0, 1).intersection<int>(hslab(3, 4)) == emptyRegion());
 
     // Exactness: the result type promotes on request.

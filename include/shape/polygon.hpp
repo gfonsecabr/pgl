@@ -289,7 +289,7 @@ struct Polygon {
      *
      * @return `true` if the polygon covers no point.
      */
-    [[nodiscard]] constexpr bool isEmpty() const {
+    [[nodiscard]] constexpr bool empty() const {
         return points_.empty();
     }
 
@@ -363,14 +363,14 @@ struct Polygon {
      * whose signed area cancels out (or one that retraces a non-straight path)
      * is degenerate yet covers more than a segment. Such a polygon is the only
      * undefined case; the empty polygon is the well-defined empty set, so use
-     * @ref isEmpty for it.
+     * @ref empty for it.
      *
      * Complexity: O(n).
      */
     [[nodiscard]] constexpr bool isUndefined() const {
         // Ordered so the cheap emptiness and point/segment scans reject the
         // common cases before paying for the full area sum.
-        return !isEmpty() && !isPoint() && !isSegment() && isDegenerate();
+        return !empty() && !isPoint() && !isSegment() && isDegenerate();
     }
 
     /**
@@ -435,7 +435,7 @@ struct Polygon {
      * The answer is only meaningful for a simple polygon (@ref isSimple); as
      * elsewhere in the library, a self-intersecting boundary is outside the
      * contract. Degenerate polygons are handled: one collapsed to a point or a
-     * segment is its own kernel. The empty polygon (@ref isEmpty) and an
+     * segment is its own kernel. The empty polygon (@ref empty) and an
      * undefined one (@ref isUndefined) yield `std::nullopt`.
      *
      * Complexity: O(n log n) for n vertices.

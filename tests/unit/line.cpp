@@ -382,7 +382,7 @@ TEST_CASE("Line converts to a degenerate line half-plane intersection") {
     const Line l(Point(0, 0), Point(2, 2));
     const auto region = l.asHalfplaneIntersection();
     static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
-    CHECK(!region.isEmpty());
+    CHECK(!region.empty());
     CHECK(region.isDegenerate());
     CHECK(!region.isBounded());
     CHECK(region.contains(Point(0, 0)));

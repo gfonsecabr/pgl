@@ -141,8 +141,8 @@ TEST_CASE("A HalfplaneIntersection re-normalizes after an orientation-reversing 
     CHECK(shifted.contains(Point<int>(1, 1)));
     CHECK_FALSE(shifted.contains(Point<int>(0, 0)));
     const Region emptyRegion({Halfplane(0, 0, 1, 0), Halfplane(1, -1, 0, -1)});
-    REQUIRE(emptyRegion.isEmpty());
-    CHECK((Transformation<int>::reflectionX() * emptyRegion).isEmpty());
+    REQUIRE(emptyRegion.empty());
+    CHECK((Transformation<int>::reflectionX() * emptyRegion).empty());
 }
 
 TEST_CASE("The Shape wrapper forwards to the wrapped alternative") {

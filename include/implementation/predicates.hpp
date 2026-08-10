@@ -879,7 +879,7 @@ constexpr std::optional<PointType> Rectangle<PointType, LabelType>::getIfPoint()
 
 template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::isSegment() const {
-    return !isEmpty() && isDegenerate() && !isPoint();
+    return !empty() && isDegenerate() && !isPoint();
 }
 
 template <class PointType, class LabelType>
@@ -919,7 +919,7 @@ constexpr bool Rectangle<PointType, LabelType>::verticesContain(const OtherPoint
     return (point == min() ||
             point == bottomRight() ||
             point == max() ||
-            point == topLeft()) && !isEmpty();
+            point == topLeft()) && !empty();
 }
 
 /**
@@ -1007,7 +1007,7 @@ Convex<PointType, LabelType>::getIfSegment() const {
 
 template <class PointType, class LabelType>
 constexpr bool Convex<PointType, LabelType>::isUndefined() const {
-    // The vertex-free polygon is the empty set, which is defined; see isEmpty.
+    // The vertex-free polygon is the empty set, which is defined; see empty.
     return false;
 }
 
@@ -1137,13 +1137,13 @@ constexpr std::ptrdiff_t Convex<PointType, LabelType>::index(const PointType& po
 /**
  * @section predicates-halfplane-intersection HalfplaneIntersection
  * Shape-recognition predicates: which lower- or full-dimensional shape the
- * region actually is. Together with `isEmpty`, `isPlane` and the ray case,
+ * region actually is. Together with `empty`, `isPlane` and the ray case,
  * these cover every region a half-plane intersection can describe.
  */
 
 template <class PointType, class LabelType>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::isHalfplane() const {
-    return !isEmpty() && size() == 1;
+    return !empty() && size() == 1;
 }
 
 template <class PointType, class LabelType>
@@ -1160,7 +1160,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::isLine() const {
     // Among the degenerate regions only a line has no vertex: a point and a
     // segment are bounded (so every consecutive pair turns), and a ray turns at
     // its source.
-    return !isEmpty() && isDegenerate() && vertexCount() == 0;
+    return !empty() && isDegenerate() && vertexCount() == 0;
 }
 
 template <class PointType, class LabelType>
@@ -1178,7 +1178,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::isRay() const {
     // The unbounded degenerate regions are the ray and the line, and only the
     // ray has a vertex; the bounded ones (point, segment) are excluded by
     // isBounded.
-    return !isEmpty() && isDegenerate() && !isBounded() && vertexCount() > 0;
+    return !empty() && isDegenerate() && !isBounded() && vertexCount() > 0;
 }
 
 template <class PointType, class LabelType>
@@ -1203,7 +1203,7 @@ HalfplaneIntersection<PointType, LabelType>::getIfRay() const {
 
 template <class PointType, class LabelType>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::isPoint() const {
-    if (isEmpty() || !isDegenerate()) {
+    if (empty() || !isDegenerate()) {
         return false;
     }
     using ExactPoint = Point<detail::region_exact_number_t<NumberType>, typename PointType::LabelType>;
@@ -1223,7 +1223,7 @@ HalfplaneIntersection<PointType, LabelType>::getIfPoint() const {
 
 template <class PointType, class LabelType>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::isSegment() const {
-    if (isEmpty() || !isDegenerate()) {
+    if (empty() || !isDegenerate()) {
         return false;
     }
     using ExactPoint = Point<detail::region_exact_number_t<NumberType>, typename PointType::LabelType>;

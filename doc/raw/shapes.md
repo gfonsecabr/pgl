@@ -73,7 +73,7 @@ One type consists of shapes that are well defined, for example, a triangle with 
 
 Other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes as limit cases. The `isUndefined` and `isDegenerate` methods distinguish between these two types. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
-A third state is the **empty set**: `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and `HalfplaneIntersection` can each cover no point at all, which `isEmpty` reports. An empty shape is well defined, not undefined: it behaves exactly as `EmptyShape` in every predicate, so it is contained in every shape (`contains`, `boundaryContains`, and `interiorContains` all accept it), it meets none (`intersects`, `interiorsIntersect`, `separates`, and `crosses` are all `false` for it), and it contains nothing but itself. It has no vertices, so `size()` is `0` and iteration yields nothing; it has zero area, so `isDegenerate` is `true`. The empty state is what lets these shapes answer "no points" without a `std::optional` wrapper.
+A third state is the **empty set**: `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and `HalfplaneIntersection` can each cover no point at all, which `empty` reports. An empty shape is well defined, not undefined: it behaves exactly as `EmptyShape` in every predicate, so it is contained in every shape (`contains`, `boundaryContains`, and `interiorContains` all accept it), it meets none (`intersects`, `interiorsIntersect`, `separates`, and `crosses` are all `false` for it), and it contains nothing but itself. It has no vertices, so `size()` is `0` and iteration yields nothing; it has zero area, so `isDegenerate` is `true`. The empty state is what lets these shapes answer "no points" without a `std::optional` wrapper.
 
 A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. (The one exception to this reading is the polymorphic `Shape`, whose `isPoint` / `getIfPoint` family tests the stored alternative rather than the geometry — see [Polymorphism with `Shape`](#polymorphism-with-shape).)
 
@@ -513,7 +513,7 @@ for(pgl::OrientedSegment s : r.orientedEdges()) std::cout << s << ' ';
 
 A rectangle `r` has methods such as:
 
-- `r.isEmpty()`: Returns true if the rectangle covers no point, that is, if its stored maximum corner falls below its minimum one on either axis. An empty rectangle behaves as `EmptyShape` everywhere: `r.size()` is `0`, iteration over its corners and edges yields nothing, `r.area()` is `0`, and reading `r[i]`, `r.vertices()`, `r.edges()`, `r.centroid()`, or `r.circumcircle()` is a precondition violation.
+- `r.empty()`: Returns true if the rectangle covers no point, that is, if its stored maximum corner falls below its minimum one on either axis. An empty rectangle behaves as `EmptyShape` everywhere: `r.size()` is `0`, iteration over its corners and edges yields nothing, `r.area()` is `0`, and reading `r[i]`, `r.vertices()`, `r.edges()`, `r.centroid()`, or `r.circumcircle()` is a precondition violation.
 - `r.isDegenerate()`: Returns true if the rectangle has null area, which includes the empty one.
 - `r.isPoint()` / `r.getIfPoint()`: Whether the rectangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `r.isSegment()` / `r.getIfSegment()`: Whether the rectangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
@@ -618,7 +618,7 @@ A convex polygon `c` has methods such as:
 - `c.isDegenerate()`: Returns true if the convex polygon has null area.
 - `c.isPoint()` / `c.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `c.isSegment()` / `c.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `c.isEmpty()`: True only for a convex polygon with no vertex, which is the empty set of points: the default-constructed one, the hull of no points, and every convex-valued result that comes back empty.
+- `c.empty()`: True only for a convex polygon with no vertex, which is the empty set of points: the default-constructed one, the hull of no points, and every convex-valued result that comes back empty.
 - `c.isUndefined()`: Always `false`: a degenerate convex polygon is always empty, a point, or a segment.
 - `c.centroid<ResultNumber>()`: Returns the centroid.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
@@ -651,8 +651,8 @@ A polygon `P` has methods such as:
 - `P.isDegenerate()`: Returns true if the polygon has null area.
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `P.isEmpty()`: True only for a polygon with no vertex, which is the empty set of points.
-- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `isEmpty` for it.
+- `P.empty()`: True only for a polygon with no vertex, which is the empty set of points.
+- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `empty` for it.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
@@ -694,7 +694,7 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.vertexCount()`: Returns the total number of vertices over all rings. Deliberately not named `size`: unlike a polygon's, it counts the outer boundary *and* every hole, and a name shared with a shape whose meaning differs would be a trap in generic code. For the same reason a region has no `operator[]`.
 - `A.vertices()` / `A.edges()`: The vertices and the boundary edges of every ring, outer boundary first.
 - `A.orientedEdges()`: The boundary edges directed so the region lies to the left: the outer ring counterclockwise as stored, the hole rings **reversed**, i.e. clockwise.
-- `A.isEmpty()`: Returns true if the region has no outer boundary at all.
+- `A.empty()`: Returns true if the region has no outer boundary at all.
 - `A.isDegenerate()`: Returns true if the region has null area.
 - `A.isPoint()` / `A.isSegment()`: Whether the region covers exactly one point, or exactly one segment of positive length. Zero-area holes are dropped at construction, so both are decided by the outer boundary alone.
 - `A.isUndefined()`: True if the region is degenerate without covering a point or a segment, which includes the empty region.
@@ -748,7 +748,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.eraseComponent(i)` / `A.eraseComponent(c)`: Drops a component, by its index in the canonical order or by the region itself, the second returning whether it found one to erase (in $O(\log k)$ comparisons, since the components are sorted).
 - `A.vertexCount()` / `A.vertices()` / `A.edges()` / `A.orientedEdges()`: The totals over every ring of every component, with the same meaning they have on a region.
 - `A.holeCount()` / `A.hasHoles()`: The total number of holes over all components, and whether there are any.
-- `A.isEmpty()`: Returns true if the set has no components at all.
+- `A.empty()`: Returns true if the set has no components at all.
 - `A.isDegenerate()` / `A.isPoint()` / `A.isSegment()` / `A.isUndefined()`: A canonical set drops its zero-area components, so a degenerate set is exactly an empty one; only a set adopted with `trusted` can answer otherwise.
 - `A.isConnected()`: Returns true if the set is connected as a point set. This is the library's first shape that need not be — two components that never touch are two pieces — and it is what the [cut predicates](shape_methods.md#predicates) ask before dismissing a remover that misses the set.
 - `A.isPinched()`: Returns true if two components touch each other anywhere. A set whose components stay apart is a disjoint union of closed sets at positive distance, and then every predicate folds componentwise exactly. Memoized.
@@ -786,14 +786,14 @@ The half-planes are stored sorted counterclockwise by boundary direction, with n
 A half-plane intersection `k` has methods such as:
 
 - `k.insert(h)`: Intersects the region with one more half-plane. The half-plane is discarded (returning false) when it is redundant or undefined (a degenerate half-plane bounds no side, so it carries no constraint); when it empties the region, the region switches to a sticky empty state; otherwise it is stored and the stored half-planes it makes redundant are removed. Amortized $O(\log n)$ comparisons.
-- `k.isEmpty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
+- `k.empty()`, `k.isPlane()`, `k.isBounded()`, `k.isDegenerate()`: State queries. A degenerate region has empty interior (a line, ray, segment, or point built from touching constraints); it remains fully supported by the predicates.
 - `k.isUndefined()`: Always `false`: `insert` ignores undefined half-planes, so every region — empty, degenerate, or full-dimensional — is well defined.
 - `k.isHalfplane()` / `k.getIfHalfplane()`: Whether the region is exactly one closed half-plane (a single stored constraint), and that half-plane. Exact, no division.
 - `k.isLine()` / `k.getIfLine()`: Whether the region is exactly one line, and that line. A degenerate region is a point, segment, ray, or line, and only the line has no vertex, so this needs no coordinate arithmetic. Exact, no division.
 - `k.isPoint()` / `k.getIfPoint<ResultNumber>()`: Whether the region is a single point, and that point. The test and the default returned point are exact for an integral region, including when the point is not representable in `NumberType`.
 - `k.isSegment()` / `k.getIfSegment<ResultNumber>()`: Whether the region is a segment of positive length, and that segment. The default endpoints are exact for integral constraints.
 - `k.isRay()` / `k.getIfRay<ResultNumber>()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); the default source is exact for integral constraints.
-- Together with `isEmpty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
+- Together with `empty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
 - `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
 - `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.

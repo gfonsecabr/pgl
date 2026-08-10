@@ -294,14 +294,14 @@ constexpr auto Rectangle<PointType, LabelType>::twiceArea() const {
 
 template <class PointType, class LabelType>
 constexpr Segment<PointType> Rectangle<PointType, LabelType>::diameter() const {
-    assert(!isEmpty());
+    assert(!empty());
     return Segment<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::midpoint() const {
-    assert(!isEmpty());
+    assert(!empty());
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
         (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
@@ -315,7 +315,7 @@ constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::centroid() const 
 
 template <class PointType, class LabelType>
 constexpr Disk<PointType, NoLabel> Rectangle<PointType, LabelType>::circumcircle() const {
-    assert(!isEmpty());
+    assert(!empty());
     return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly
 }
 
@@ -792,7 +792,7 @@ constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::verticesCe
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::centroid() const {
-    if (isEmpty()) {
+    if (empty()) {
         return Point<ResultNumber>();
     }
     const NumberType netTwiceArea = twiceArea();
@@ -845,7 +845,7 @@ constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::verticesCentroid
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::centroid() const {
-    if (isEmpty()) {
+    if (empty()) {
         return Point<ResultNumber>();
     }
     const NumberType netTwiceArea = twiceArea();
@@ -1050,7 +1050,7 @@ constexpr Point<ResultNumber> HalfplaneIntersection<PointType, LabelType>::point
     clipped.insert(HalfplaneType(hilo, hi));
     clipped.insert(HalfplaneType(hi, lohi));
     clipped.insert(HalfplaneType(lohi, lo));
-    if (clipped.isEmpty()) {
+    if (clipped.empty()) {
         // The anchor rounding missed the region; fall back to a boundary point.
         return Point<ResultNumber>(static_cast<ResultNumber>(halfplanes_[0].source().x()),
                                    static_cast<ResultNumber>(halfplanes_[0].source().y()));

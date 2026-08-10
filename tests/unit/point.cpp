@@ -427,7 +427,7 @@ TEST_CASE("Point converts to a degenerate point half-plane intersection") {
     const Point p(3, 4);
     const auto region = p.asHalfplaneIntersection();
     static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
-    CHECK(!region.isEmpty());
+    CHECK(!region.empty());
     CHECK(region.isDegenerate());
     CHECK(region.contains(p));
     CHECK(!region.contains(Point(3, 5)));

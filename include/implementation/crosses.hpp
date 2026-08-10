@@ -130,7 +130,7 @@ constexpr bool Triangle<PointType, LabelType>::crosses(const OtherHalfplane&) co
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -378,14 +378,14 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherRectangle& ot
         other.min().y() < min().y() &&
         max().y() < other.max().y();
     if (hor_ver) {
-        return !isEmpty() && !other.isEmpty();
+        return !empty() && !other.empty();
     }
     const bool ver_hor =
         other.min().x() < min().x() &&
         max().x() < other.max().x() &&
         min().y() < other.min().y() &&
         other.max().y() < max().y();
-    return ver_hor && !isEmpty() && !other.isEmpty();
+    return ver_hor && !empty() && !other.empty();
 }
 
 template <class PointType, class LabelType>
@@ -397,7 +397,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherPoint&) const
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -407,7 +407,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherLine& other) 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -417,7 +417,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedLine&
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -427,7 +427,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherSegment& othe
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -437,7 +437,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherOrientedSegme
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherRay& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -447,7 +447,7 @@ constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherRay& other) c
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Rectangle<PointType, LabelType>::crosses(const OtherHalfplane& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -576,7 +576,7 @@ constexpr bool Convex<PointType, LabelType>::crosses(const OtherHalfplane&) cons
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -659,7 +659,7 @@ constexpr bool Polygon<PointType, LabelType>::crosses(const OtherHalfplane&) con
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::crosses(const OtherRectangle&other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -757,7 +757,7 @@ constexpr bool Disk<PointType, LabelType>::crosses(const OtherHalfplane& other) 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -832,7 +832,7 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const Other
 template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -971,7 +971,7 @@ constexpr bool Polyline<PointType, LabelType>::crosses(const OtherHalfplane& oth
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polyline<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1080,7 +1080,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherH
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1193,7 +1193,7 @@ bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherHalfplane& other
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 bool PolygonWithHoles<PointType, LabelType>::crosses(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
