@@ -893,9 +893,8 @@ Rectangle<PointType, LabelType>::getIfSegment() const {
 
 template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::isUndefined() const {
-    return false;
+    return *this != Rectangle<PointType, LabelType>() && points_[1] < points_[0];
 }
-
 
 template <class PointType, class LabelType>
 template <class Left, class Right>
