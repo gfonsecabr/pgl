@@ -311,7 +311,8 @@ below two dimensions is reported the usual way, through the returned `Convex`:
 summing two parallel segments gives a `Convex` satisfying `isSegment()`. The
 empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
 
-Two more pairs stay in a single shape, neither of them convex-with-convex.
+Three more families stay in a single shape, none of them
+bounded-convex-with-bounded-convex.
 
 A **`Halfplane` absorbs anything bounded** and comes back a half-plane. With the
 boundary running from $s$ to $t$ and $d = t - s$, the half-plane is
@@ -343,10 +344,60 @@ a.minkowskiSum<pgl::ERational>(b);     // exact: both operands carry their radiu
 ```
 
 Nothing else a disk meets has a representable sum — a disk and a segment sweep a
-stadium, a disk and a polygon a rounded one — and the other unbounded operands
-(`Line`, `Ray`, `HalfplaneIntersection`, and a half-plane against another
-half-plane) are still refused: their sums need a `HalfplaneIntersection` result,
-which is where a later widening starts.
+stadium, a disk and a polygon a rounded one.
+
+#### Unbounded convex operands
+
+The remaining unbounded operands — `Halfplane`, `Line`, `OrientedLine`, `Ray`
+and `HalfplaneIntersection` — are each an intersection of finitely many closed
+half-planes, and so is the sum of two of them: **the sum of two convex polyhedra
+is a convex polyhedron**. Those pairs therefore return a
+[`HalfplaneIntersection`](shapes.md#halfplane-intersection), whichever of them is
+on either side, and so does one of them against a bounded **convex** shape.
+
+```c++
+pgl::Line l = {0,0, 1,0};                             // the x axis
+l.minkowskiSum(pgl::Triangle(0,0, 3,0, 0,2));         // the slab 0 <= y <= 2
+l.minkowskiSum(pgl::Segment(0,0, 5,0));               // still the x axis
+
+pgl::Ray r = {0,0, 1,0};                              // east from the origin
+r.minkowskiSum(pgl::Ray(0,0, 0,1));                   // the quadrant x,y >= 0
+r.minkowskiSum(pgl::Segment(0,0, 0,2));               // the half-strip x >= 0, 0 <= y <= 2
+
+pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
+up.minkowskiSum(pgl::Halfplane(5,3, 7,3));            // y >= 3
+up.minkowskiSum(pgl::Halfplane(0,9, -1,9));           // the whole plane
+```
+
+Each constraint of the result is one the two operands both bound: writing a
+half-plane as $\\{p : \mathrm{cross}(d, p) \ge c\\}$, the tightest $c$ the sum
+satisfies in a direction $d$ is the sum of the two operands' tightest ones, and a
+direction only one operand bounds is dropped — which is why two half-planes
+facing different ways sum to the whole plane, with no constraint left at all. The
+candidate directions are the operands' own edge directions, since an edge of the
+sum is a sum of faces. A result that turns out to be a half-plane, a line or a
+bounded polygon is still that region, and says so through `getIfHalfplane`,
+`getIfLine` or `asConvex`.
+
+A **non-convex** operand is refused here, and a half-plane is the one unbounded
+shape that does not refuse it: only its support point survives the sum, while
+dragging a `Polygon` along a ray sweeps every notch of it into the answer, which
+is then no more convex than the polygon was.
+
+The construction is exact, and on the lattice for every pair but one: a
+`HalfplaneIntersection` operand has vertices where its stored boundary lines
+cross, which are rational already, so a sum with one carries `ERational`
+coordinates for integer operands — the same type its own `vertex` and
+`getIfPoint` accessors report. A wrapped `Shape` is the one place that shows: a
+`Shape<Point<int>>` holding a region has a sum that no such wrapper can hold, and
+throws `std::logic_error` rather than rounding it.
+
+```c++
+pgl::HalfplaneIntersection region(pgl::Rectangle(0,0, 2,2));
+auto grown = region.minkowskiSum(pgl::Triangle(0,0, 3,0, 0,2));  // ERational coordinates
+grown.isBounded();                                    // true: both operands were
+grown.asConvex<int>();                                // Convex[(0,0),(5,0),(5,2),(2,4),(0,4)]
+```
 
 #### Non-convex operands
 

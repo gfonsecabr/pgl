@@ -301,7 +301,7 @@ TEST_CASE("Shape dispatches on the stored alternatives at run time") {
     CHECK((triangle + segment) == convexSum);
 
     // A pair with no representable sum is only detectable at run time.
-    CHECK_THROWS_AS(triangle.minkowskiSum(disk), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(triangle.minkowskiSum(disk)), std::logic_error);
     CHECK(disk.minkowskiSum(point).isDisk());
 }
 
@@ -379,13 +379,21 @@ TEST_CASE("Two disks sum to a disk, exactly when both carry a centre and a radiu
 TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     using Point = pgl::Point<>;
 
-    // Unbounded convex operands, except a half-plane: the sum of two of these
-    // needs a HalfplaneIntersection, which they do not yet build.
-    static_assert(!summable<pgl::Line<>, pgl::Triangle<>>);
-    static_assert(!summable<pgl::Ray<>, pgl::Ray<>>);
-    static_assert(!summable<pgl::HalfplaneIntersection<>, pgl::Convex<>>);
-    static_assert(!summable<pgl::Halfplane<>, pgl::Line<>>);
-    static_assert(!summable<pgl::Halfplane<>, pgl::Halfplane<>>);
+    // An unbounded convex operand is admitted against another one and against
+    // anything bounded and **convex**; the answer is a HalfplaneIntersection
+    // (see halfplaneintersection_minkowski.cpp). It is not admitted against a
+    // non-convex operand: a half-plane is the one unbounded shape that forgets
+    // its operand's concavity.
+    static_assert(summable<pgl::Line<>, pgl::Triangle<>>);
+    static_assert(summable<pgl::Ray<>, pgl::Ray<>>);
+    static_assert(summable<pgl::HalfplaneIntersection<>, pgl::Convex<>>);
+    static_assert(summable<pgl::Halfplane<>, pgl::Line<>>);
+    static_assert(summable<pgl::Halfplane<>, pgl::Halfplane<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::Polygon<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Ray<>, pgl::Polyline<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::HalfplaneIntersection<>, pgl::PolygonSet<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Line<>, pgl::Disk<>>);
+    static_assert(!summable<pgl::Line<>, pgl::Disk<>>);
 
     // A half-plane against anything **bounded and polygonal** is the exception,
     // and it is a half-plane: it absorbs its operand and moves to its support

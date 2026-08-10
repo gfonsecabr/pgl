@@ -318,6 +318,7 @@ A line `l` has some additional methods such as:
 - `l.polar()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
+- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with any unbounded convex shape `b` — a `Halfplane`, `Line`, `OrientedLine`, `Ray` or `HalfplaneIntersection` — or any bounded convex one — a `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex` — which is a `HalfplaneIntersection`: a line and a bounded operand sweep out the slab the operand spans across the line, and that collapses back to a line for an operand parallel to it. A non-convex operand is not accepted, its concavity surviving the sum. The construction is exact.
 
 - Other methods:
 
@@ -355,6 +356,7 @@ An oriented line `l` has methods such as:
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
+- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with the same operands `Line::minkowskiSum` takes and with the same answer, a `HalfplaneIntersection`: the sum is a point-set operation, and the orientation is not part of the point set.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line without the orientation.
@@ -395,6 +397,7 @@ A ray `l` has methods such as:
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns an `std::optional` with the value of the ray y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns an `std::optional` with the value of the ray x coordinate at the given coordinate `y`.
+- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with the same operands `Line::minkowskiSum` takes, and it is a `HalfplaneIntersection` as well: the operand is swept along the ray, and the cap at the source survives as one more constraint. Two rays sum to the wedge between their directions. The construction is exact.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line containing the ray.
@@ -430,6 +433,7 @@ A half-plane `h` has methods such as:
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
 - `h.slope<ResultNumber>()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
 - `h.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with any bounded polygonal shape `b` — a `Segment`, `Rectangle`, `Triangle`, `Convex`, `Polygon`, `Polyline`, `MonotoneChain`, `PolygonWithHoles` or `PolygonSet` — which is a `Halfplane` again: a half-plane absorbs whatever is bounded, and comes back translated to its operand's support point. The operand's concavity, holes and disconnection make no difference, since a linear function is extremal at a vertex; the construction is exact. A `Disk` operand is not accepted, its support point being irrational in all but four directions.
+- `h.minkowskiSum(u)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with an unbounded convex shape `u` — another `Halfplane`, a `Line`, an `OrientedLine`, a `Ray` or a `HalfplaneIntersection` — which is a `HalfplaneIntersection` rather than a half-plane: two half-planes facing the same way sum to the looser of them, and any other pair of them to the whole plane, since between them they reach every point.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -785,6 +789,7 @@ A half-plane intersection `k` has methods such as:
 - `k.twiceArea<R>()`, `k.area<R>()`, and `k.centroid<R>()`: Measures of a bounded region; they throw when the region is unbounded. Their defaults account for fractional implicit vertices as well as the final area or centroid division.
 - `k.intersection(h)`: Intersecting with a `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection` returns another `HalfplaneIntersection`, so the type is closed under these operations and the result is exact (no coordinate divisions).
 - `k.intersection(P)`: Intersecting with a `Polygon` returns the usual `std::vector` of components — points, polylines, and polygons — since a reflex polygon can meet the convex region in several disjoint pieces. The region is first clipped to the polygon's bounding rectangle, which changes nothing and makes it a convex polygon; a region with empty interior contributes only its carrier, clipped to the polygon. The pieces are cut at crossings of the constraint lines and are generally rational, so an integral receiver returns ERational coordinates by default.
+- `k.minkowskiSum(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum) with any unbounded convex shape `b` — a `Halfplane`, `Line`, `OrientedLine`, `Ray` or another `HalfplaneIntersection` — or any bounded convex one — a `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex`. The sum of two convex polyhedra is a convex polyhedron, so the answer is a `HalfplaneIntersection` again, bounded exactly when both operands are. It is the one Minkowski sum that leaves the operands' lattice: a region's own vertices are crossings of its boundary lines, so an integral receiver answers in ERational coordinates. A non-convex operand is not accepted.
 - `k.intersection(A)`: Intersecting with a `PolygonWithHoles` is the region-valued `intersection` — see [Boolean Operations](shape_methods.md#boolean-operations) — and returns a `std::vector<PolygonWithHoles>`, exact whatever the result type, since a holed operand keeps its holes.
 
 If the region has $n$ half-planes, then:

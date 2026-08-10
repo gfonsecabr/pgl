@@ -1335,10 +1335,13 @@ struct Line {
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
-     * `Point` is a translation, so it returns this shape's own type; two
-     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
-     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
-     * Minkowski sum is defined for.
+     * `Point` is a translation, so it returns this shape's own type. This shape
+     * is unbounded, so its every other sum is unbounded too and comes back as a
+     * @ref HalfplaneIntersection: the operand may be any other unbounded convex
+     * shape (@ref UnboundedConvexConcept) or any bounded **convex** one, and the
+     * sum of two convex polyhedra is a convex polyhedron. A non-convex operand
+     * is refused, its concavity being swept into the answer rather than
+     * absorbed. See @ref MinkowskiSummableConcept.
      *
      * @tparam OtherShape Type of the other shape.
      * @param other Shape to sum with.
