@@ -465,7 +465,43 @@ u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // exact by defau
 u.minkowskiSum<int>(pgl::Triangle(-2,-1, 2,0, 0,2));           // notch tip truncated
 ```
 
-Both operands are convex-edged and integral, but the answer need not land on the integer lattice. The division-capable default preserves the tip at `(16/5,34/5)`; request an integral `ResultNumber` only when truncation is wanted or the sum is known to stay on the lattice.
+Both operands are convex-edged and integral, but the answer need not land on the integer lattice. The division-capable default preserves the tip at `(16/5,34/5)`; request an integral `ResultNumber` only when truncation is wanted or the sum is known to stay on the lattice. Rectilinear operands do stay on it, but for a different reason than in the boolean operations, so it is worth stating rather than assuming.
+
+##### When an integral result type is safe
+
+Two conditions on the *operands* are enough to know that, and both are cheap to
+check:
+
+- **Both operands are convex point sets.** There are no piece sums to cross: the
+  sum is the linear merge of the [bounded convex
+  case](#minkowski-sum) above, whose every vertex is a sum of two input vertices.
+  This is what the implementation tests, not a property of the answer discovered
+  afterwards — a `Polygon` is convex when its own `isConvex` says so, and a
+  region when it has no hole left and its outer ring is convex, so a convex ring
+  written as a `Polygon` reaches the merge and its sum is integral. A `Polyline`
+  and a `MonotoneChain` are never taken as convex.
+- **Both operands are rectilinear**, that is every edge is axis-parallel. Then so
+  is the sum. Each operand cuts into axis-parallel boxes — rectangles for a shape
+  with area, segments for a chain or a `Polyline` — and the sum of two of those
+  is one again, so the answer is a union of axis-parallel boxes and every vertex
+  of it meets a vertical edge against a horizontal one. Its $x$ is a sum of two
+  operand $x$s and its $y$ a sum of two operand $y$s. The crossings are real
+  here, unlike in the convex case; they just land on the lattice anyway, which is
+  what the boolean operations above get for free and this one has to be told.
+
+```c++
+pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
+c.minkowskiSum<int>(pgl::Rectangle(0,0, 2,2));   // exact: both rectilinear
+
+pgl::Polygon<> convex({0,0, 6,0, 7,4, 3,7, 0,5});
+convex.minkowskiSum<int>(pgl::Triangle(-2,-1, 2,0, 0,2));  // exact: both convex
+```
+
+Neither condition is necessary — a sum can land on the lattice without either —
+but they are the two that can be read off the operands. Anything weaker has to be
+read off the answer instead, which the exact default already hands you: take the
+`ERational` result and ask its vertices for a denominator of 1. And *one* convex
+operand is not enough, which is what the `U` above shows.
 
 A region operand needs nothing special for its holes — they are simply where the
 decomposition has no piece — but its **slits** do sweep out area, so they are part
@@ -603,6 +639,27 @@ with the chain: for a chain of $n$ vertices against a rectangle it is some 40
 times faster at $n = 4$ and some 750 times at $n = 256$, for the identical answer.
 
 The sweep is also exact. Every vertex of every piece is a sum of two input vertices, and it decides the boundary with integer determinants, leaving the points where one piece takes over from the next implicit. Only an actual crossing can land off the lattice; that vertex is formed as an exact fraction. The public overload consequently keeps the division-capable default even though a crossing-free result could be represented in `int`. Request `int` explicitly when that property is known and a native-coordinate return type is preferable.
+
+Of the [two conditions](#when-an-integral-result-type-is-safe) that settle this
+for the region-valued sums, only the rectilinear one survives here, since a chain
+is never a convex operand. A chain whose edges are all axis-parallel —
+necessarily an ascending staircase, since a chain stores its vertices in
+lexicographic order and so orders every vertical edge upwards — has an integral
+sum with a rectilinear operand:
+
+```c++
+pgl::MonotoneChain<> stair({0,0, 1,0, 1,1, 2,1, 2,2});
+stair.minkowskiSum<int>(pgl::Rectangle(0,0, 1,1));
+// Polygon[(0,0),(2,0),(2,1),(3,1),(3,3),(2,3),(2,2),(1,2),(1,1),(0,1)] — exact
+```
+
+A chain that is convex, or concave, is no help at all, and shows why the other
+condition does not carry over: a chain has no area, so it cannot absorb its own
+sweep the way a convex body does. Summing one with a rectangle takes the
+pointwise maximum of the chain shifted to the rectangle's two top corners, and
+its minimum over the two bottom ones, and two shifts of the same convex function
+cross exactly once — as do two shifts of a concave one. `peak` above is that
+second crossing, $2-x$ against $x-1$ at $(3/2,1/2)$.
 
 Unlike the sums above this one is **not regularized** — it is the point set — so a
 degenerate operand gives back a degenerate polygon rather than nothing:
