@@ -372,19 +372,54 @@ TEST_CASE("minkowskiSum: the pairs a chain accepts") {
     static_assert(summable<Region, Chain>);
     static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
                                      std::declval<const PolygonShape&>())),
+                                 Region>);
+
+    // A second chain, and a polyline, sum through the region-valued engine like
+    // any other pair with no area between them: both contribute their edges, and
+    // the monotonicity buys nothing, since a second chain is not convex. A
+    // polyline outranks a chain and owns the mixed pair.
+    static_assert(summable<Chain, Chain>);
+    static_assert(summable<Chain, PolylineShape>);
+    static_assert(summable<PolylineShape, Chain>);
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
+                                     std::declval<const Chain&>())),
+                                 RegionSet>);
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum<int>(
+                                     std::declval<const PolylineShape&>())),
                                  RegionSet>);
 
-    // Two chains are the pair left out, exactly as two polylines are: neither
-    // outranks the other, so neither owns it. `asPolyline()` and the operand's
-    // edges are the way through.
-    static_assert(!summable<Chain, Chain>);
-    static_assert(!summable<Chain, PolylineShape>);
-    static_assert(!summable<PolylineShape, Chain>);
-
-    // Unbounded and curved operands are refused as they are everywhere.
-    static_assert(!summable<Chain, pgl::Halfplane<Point>>);
+    // A half-plane absorbs the chain and stays a half-plane; the other unbounded
+    // operands and the curved one are still refused.
+    static_assert(summable<Chain, pgl::Halfplane<Point>>);
+    static_assert(std::is_same_v<decltype(std::declval<const Chain&>().minkowskiSum(
+                                     std::declval<const pgl::Halfplane<Point>&>())),
+                                 pgl::Halfplane<Point>>);
     static_assert(!summable<Chain, pgl::Disk<Point>>);
     static_assert(!summable<Chain, pgl::Line<Point>>);
+}
+
+TEST_CASE("minkowskiSum: two chains are not a convex pair") {
+    // Monotone on both sides buys nothing: the theorem behind the polygon-valued
+    // sums needs a *convex* operand, and a chain is not one. Two monotone chains
+    // can meet a vertical line in several intervals, so this pair goes through
+    // the region-valued engine, and gives what a polyline gives for the same
+    // point set.
+    const Chain a = peakChain();
+    const Chain b({Point(0, 0), Point(1, 2), Point(3, 1)});
+    CHECK(a.minkowskiSum(b) == a.asPolyline().minkowskiSum(b.asPolyline()));
+    CHECK(b.minkowskiSum(a) == a.minkowskiSum(b));
+
+    // A polyline outranks a chain and owns the mixed pair; the answer is the
+    // same whichever spelling reaches it.
+    const PolylineShape bent({Point(0, 0), Point(2, 4), Point(4, 0)});
+    CHECK(a.minkowskiSum(bent) == bent.minkowskiSum(a));
+    CHECK(a.minkowskiSum(bent) == a.asPolyline().minkowskiSum(bent));
+
+    // With no area on either side there is no body and nothing is contracted to
+    // stay in one piece: two parallel chains sweep out nothing.
+    CHECK(Chain({Point(0, 0), Point(4, 0)})
+              .minkowskiSum(Chain({Point(0, 0), Point(2, 0)}))
+              .isEmpty());
 }
 
 TEST_CASE("minkowskiSum: a non-convex operand answers as it does for a polyline") {

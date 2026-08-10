@@ -58,14 +58,24 @@
  * Two consequences worth stating, because they are what tells this entry point
  * apart from the convex-shape-valued one:
  *
- * - **The result is a @ref pgl::PolygonSet.** A sum with a nondegenerate
- *   `Polygon`, or between area-carrying regions, has connected regularized
- *   interior and comes back as a single component; two thin operands, or a
- *   region slit swept by a thin operand, can leave several even for a valid
- *   input. Every one of them is returned. These overloads used to hand back a
- *   lone `PolygonWithHoles` and silently keep only the first component in
- *   canonical order when a degenerate operand split the answer; a set of regions
- *   has room for the rest, so nothing is dropped any more.
+ * - **The result is a @ref pgl::PolygonWithHoles wherever one operand is a
+ *   body**, and a @ref pgl::PolygonSet only where neither is. A body is a shape
+ *   that is the closure of a connected, non-empty interior — a nondegenerate
+ *   `Rectangle`, `Triangle`, `Convex` or `Polygon`, and a `PolygonWithHoles`
+ *   whose slits leave its interior connected. One of those on either side makes
+ *   the regularized sum a single component, whatever the other operand is; see
+ *   @ref pgl::detail::singleRegionMinkowskiSum for the argument. What is left
+ *   over is two **thin** operands — a chain and a segment, say — where a
+ *   direction the two share sweeps out nothing and the answer really can
+ *   scatter, for operands that are in no way degenerate. Those keep the set.
+ *
+ *   The body is a **precondition** where the type asks for one. A degenerate
+ *   operand can split a sum this file promises in one region, and then one
+ *   component of it is what comes back — the sums that take a body are not
+ *   contracted for anything else, exactly as
+ *   @ref pgl::MonotoneChain::minkowskiSum is not.
+ *   @ref pgl::detail::regularizedMinkowskiSum stays total underneath and is what
+ *   a caller with no nondegenerate operand to offer wants.
  * - **The result is regularized**, `closure((A ⊕ B)°)`. That costs nothing when
  *   both operands have area — a simple polygon is the closure of its own
  *   interior, and so is a sum with one — and drops the lower-dimensional parts
@@ -1642,6 +1652,79 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
     return decomposedMinkowskiSum<ResultPoint>(left, right);
 }
 
+/**
+ * @brief The regularized Minkowski sum of a pair one of whose operands is a
+ *        **body**, as the single region it is.
+ *
+ * A body here is a shape that is the closure of a connected, non-empty interior:
+ * a nondegenerate `Rectangle`, `Triangle`, `Convex` or `Polygon`, and a
+ * @ref PolygonWithHoles whose slits leave its interior connected. Whenever one
+ * operand is one, the sum has exactly one component, whatever the other operand
+ * is — it need only be connected, which every shape but a @ref PolygonSet is:
+ *
+ *     A ⊕ B  ⊇  ⋃_{a ∈ A} (a + B°),
+ *
+ * and along any path in `A` the translates `a + B°` vary continuously and
+ * overlap, so that union is connected and open; `A ⊕ B` is its closure, since
+ * every `a + B` is the closure of `a + B°`. So the regularized sum is one
+ * region, and @ref pgl::PolygonWithHoles holds it exactly.
+ *
+ * That is a **precondition, not a test**: this returns the first component in
+ * canonical order, which is the only one when the precondition holds. A
+ * degenerate operand breaks it — a `Rectangle` collapsed to a segment can leave
+ * the sum in pieces, one of which is what comes back — and the sum is not
+ * contracted for one, exactly as @ref MonotoneChain::minkowskiSum is not.
+ * @ref regularizedMinkowskiSum is the total answer for callers who have no
+ * nondegenerate operand to offer.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+PolygonWithHoles<ResultPoint> singleRegionMinkowskiSum(const ShapeA& a, const ShapeB& b) {
+    PolygonSet<ResultPoint> sum = regularizedMinkowskiSum<ResultPoint>(a, b);
+    if (sum.componentCount() == 0) {
+        return PolygonWithHoles<ResultPoint>();
+    }
+    return sum.component(0);
+}
+
+/**
+ * @brief The regularized Minkowski sum of a @ref PolygonSet with another shape.
+ *
+ * The sum distributes over a union and a set is one, so every component is
+ * summed against the operand — against each of its components too, when the
+ * operand is itself a set — and the pieces are united in one arrangement. That
+ * is the whole construction: no component is special, and their disjointness
+ * buys nothing here, since two component sums that were apart can meet.
+ *
+ * The per-component sums are built over the exact type, as the pieces of every
+ * other construction in this file are, so only the final union converts.
+ */
+template <class ResultPoint, class SetT, class ShapeB>
+PolygonSet<ResultPoint> setMinkowskiSum(const SetT& set, const ShapeB& other) {
+    using SumPoint = minkowskiPoint_t<SetT, ShapeB>;
+    using SumNumber = typename SumPoint::NumberType;
+    using ExactPoint = Point<Exact1DNumber<SumNumber, SumNumber>>;
+
+    std::vector<PolygonWithHoles<ExactPoint>> regions;
+    const auto addSum = [&regions](const auto& left, const auto& right) {
+        for (const auto& region : regularizedMinkowskiSum<ExactPoint>(left, right)) {
+            regions.push_back(region);
+        }
+    };
+    for (const auto& component : set) {
+        if constexpr (is_polygon_set_v<ShapeB>) {
+            for (const auto& piece : other) {
+                addSum(component, piece);
+            }
+        } else {
+            addSum(component, other);
+        }
+    }
+    // A component sum is a region and may carry a slit, so the coverage
+    // classifier is not available: this is the witness path, as it is wherever a
+    // region is united rather than a convex piece.
+    return regularizedUnionOf<ResultPoint>(regions);
+}
+
 }  // namespace detail
 
 // -----------------------------------------------------------------------------
@@ -1650,7 +1733,22 @@ PolygonSet<ResultPoint> regularizedMinkowskiSum(const ShapeA& a,
 // precede this header in the layering, but they can only be defined once
 // Triangulation is visible.
 
+// A pair with a body in it is one region — see @ref detail::singleRegionMinkowskiSum
+// for why, and for what a degenerate operand costs.
+
 #define PGL_DEFINE_REGION_MINKOWSKI_SUM(RECEIVER, CONCEPT, OPERAND)                        \
+    template <class PointType_, class TLabel>                                              \
+    template <class ResultNumber, CONCEPT OPERAND>                                         \
+    PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>                  \
+    RECEIVER<PointType_, TLabel>::minkowskiSum(const OPERAND& other) const {               \
+        return detail::singleRegionMinkowskiSum<                                           \
+            Point<ResultNumber, typename PointType_::LabelType>>(*this, other);            \
+    }
+
+// A pair with no body in it, where the regularization can genuinely leave several
+// components for operands that are in no way degenerate.
+
+#define PGL_DEFINE_REGION_SET_MINKOWSKI_SUM(RECEIVER, CONCEPT, OPERAND)                    \
     template <class PointType_, class TLabel>                                              \
     template <class ResultNumber, CONCEPT OPERAND>                                         \
     PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>                        \
@@ -1684,12 +1782,21 @@ PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, PolygonWithHolesConcept, OtherRegion)
 // The thinnest operand any of the three receivers takes. A segment is a single
 // convex piece, so it costs one convex merge per piece of the receiver, and it
 // is the receiver's own shape that decides whether the sweep strands a cavity.
+// The two polygonal receivers are bodies and hold the sum in one region; the
+// polyline is the pair with no body on either side, and stays a set.
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, SegmentConcept, OtherSegment)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(Polygon, OrientedSegmentConcept, OtherOriented)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, SegmentConcept, OtherSegment)
 PGL_DEFINE_REGION_MINKOWSKI_SUM(PolygonWithHoles, OrientedSegmentConcept, OtherOriented)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, SegmentConcept, OtherSegment)
-PGL_DEFINE_REGION_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherOriented)
+PGL_DEFINE_REGION_SET_MINKOWSKI_SUM(Polyline, SegmentConcept, OtherSegment)
+PGL_DEFINE_REGION_SET_MINKOWSKI_SUM(Polyline, OrientedSegmentConcept, OtherOriented)
+
+// Two chains, the pair with the least area of all: both operands decompose into
+// their edges, and a segment operand is the one-edge case of it. A polyline
+// outranks a monotone chain and owns the mixed pair; the chain's own forwarder
+// reaches this definition for it.
+PGL_DEFINE_REGION_SET_MINKOWSKI_SUM(Polyline, PolylineConcept, OtherPolyline)
+PGL_DEFINE_REGION_SET_MINKOWSKI_SUM(Polyline, MonotoneChainConcept, OtherChain)
 
 // The chain's two non-convex pairs, mirrored so that neither spelling is the
 // privileged one, exactly as `Polygon` and `PolygonWithHoles` mirror theirs. The
@@ -1742,7 +1849,41 @@ PGL_DEFINE_CHAIN_MINKOWSKI_SUM(RectangleConcept, OtherRectangle)
 
 PGL_DEFINE_CHAIN_REGULARIZED_SUM(SegmentConcept, OtherSegment)
 PGL_DEFINE_CHAIN_REGULARIZED_SUM(OrientedSegmentConcept, OtherOriented)
+// A second chain is not convex either, so the sweep has nothing to say about it
+// and the region-valued engine answers, as it does for two polylines.
+PGL_DEFINE_CHAIN_REGULARIZED_SUM(MonotoneChainConcept, OtherChain)
 
 #undef PGL_DEFINE_CHAIN_REGULARIZED_SUM
+
+// -----------------------------------------------------------------------------
+// The set receiver: one definition over the whole operand family, since the
+// construction reads none of the operand's shape — it hands each component pair
+// to the engine above and unites what comes back.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetMinkowskiOperandConcept OtherShape>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::minkowskiSum(const OtherShape& other) const {
+    return detail::setMinkowskiSum<Point<ResultNumber, typename PointType_::LabelType>>(*this,
+                                                                                        other);
+}
+
+// The mirror spellings. A set outranks every one of these, so it owns the pair
+// and they hand it straight over — the three receivers that carry no rank-based
+// forwarder of their own, unlike the convex shapes and the chain.
+
+#define PGL_DEFINE_SET_MIRROR_MINKOWSKI_SUM(RECEIVER)                                      \
+    template <class PointType_, class TLabel>                                              \
+    template <class ResultNumber, PolygonSetConcept OtherSet>                              \
+    PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>                        \
+    RECEIVER<PointType_, TLabel>::minkowskiSum(const OtherSet& other) const {              \
+        return other.template minkowskiSum<ResultNumber>(*this);                           \
+    }
+
+PGL_DEFINE_SET_MIRROR_MINKOWSKI_SUM(Polygon)
+PGL_DEFINE_SET_MIRROR_MINKOWSKI_SUM(PolygonWithHoles)
+PGL_DEFINE_SET_MIRROR_MINKOWSKI_SUM(Polyline)
+
+#undef PGL_DEFINE_SET_MIRROR_MINKOWSKI_SUM
 
 }  // namespace pgl

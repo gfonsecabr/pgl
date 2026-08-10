@@ -67,7 +67,11 @@ All shapes contain their boundaries (that is, they are closed in the topological
 
 ### Degeneracies
 
-Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes. Some are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case. However, other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes. The `isUndefined` and `isDegenerate` methods distinguish between these two cases. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
+Shapes may be degenerate, for example when some of their defining points are equal. Degenerate shapes may safely be constructed, and are often constructed by the default constructor that sets all points to the origin. There are different types of degenerate shapes.
+
+One type consists of shapes that are well defined, for example, a triangle with three collinear vertices represents a segment and a disk of radius 0 represents a point. These degeneracies are supported with the expected behavior or the limit case whenever possible and unexpensive. In particular, degenerate shapes that represent points and segments are supported by all predicates. On operations that return a shape, the return shape is one that represents the result with non-degenerate inputs, and is undefined behavior for degenerate cases.
+
+Other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes as limit cases. The `isUndefined` and `isDegenerate` methods distinguish between these two types. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
 A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. (The one exception to this reading is the polymorphic `Shape`, whose `isPoint` / `getIfPoint` family tests the stored alternative rather than the geometry — see [Polymorphism with `Shape`](#polymorphism-with-shape).)
 
@@ -425,6 +429,7 @@ A half-plane `h` has methods such as:
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
 - `h.slope<ResultNumber>()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
+- `h.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with any bounded polygonal shape `b` — a `Segment`, `Rectangle`, `Triangle`, `Convex`, `Polygon`, `Polyline`, `MonotoneChain`, `PolygonWithHoles` or `PolygonSet` — which is a `Halfplane` again: a half-plane absorbs whatever is bounded, and comes back translated to its operand's support point. The operand's concavity, holes and disconnection make no difference, since a linear function is extremal at a vertex; the construction is exact. A `Disk` operand is not accepted, its support point being irrational in all but four directions.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -532,6 +537,7 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.squaredRadius<ResultNumber>()`: Returns  the squared radius.
 - `d.center<ResultNumber>()`: Returns the center point.
 - `d.diameter<ResultNumber>()`: Returns a diameter `Segment`. A center/radius disk uses its stored horizontal diameter; a genuine three-point disk uses one boundary point and its reflection across the center.
+- `d.minkowskiSum<ResultNumber = double>(e)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. This is the one curved sum the library can answer, and the one sum that is not exact by default — each radius is a square root of what a disk stores — which is why the result type defaults to `double` here as it does on `radius`. Two center/radius disks carry both quantities exactly, so their sum with an exact `ResultNumber` is exact. A disk sums with a `Point` (a translation) and with nothing else: a disk and a segment sweep out a stadium, which is not a shape here.
 
 - Other methods:
 
@@ -564,7 +570,7 @@ The monotone structure speeds up several predicates and constructions:
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
 - `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
 - `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
-- `P.minkowskiSum<ResultNumber>(b)`: Returns a `Polygon` when `b` is a `Triangle`, `Rectangle` or `Convex`. A monotone chain is the one non-convex shape whose Minkowski sum with a convex one is always a single polygon and needs no arrangement, although a boundary-piece crossing can still produce a rational vertex. See [Minkowski Sum](shape_methods.md#minkowski-sum).
+- `P.minkowskiSum<ResultNumber>(b)`: Returns a `Polygon` when `b` is a `Triangle`, `Rectangle` or `Convex`. A monotone chain is the one non-convex shape whose Minkowski sum with a nondegenerate convex one is always a single polygon and needs no arrangement, although a boundary-piece crossing can still produce a rational vertex. A flat operand is off that contract — its sum can pinch shut, which no simple polygon may — and belongs to the region-valued `Segment` overload. See [Minkowski Sum](shape_methods.md#minkowski-sum).
 
 
 ### Polyline
@@ -740,6 +746,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
 - `A.difference(b)` / `A.unionWith(b)` / `A.intersection(b)` / `A.symmetricDifference(b)`: The four [boolean operations](shape_methods.md#boolean-operations), against every bounded shape with area **and against another `PolygonSet`** — which is what closure means.
+- `A.minkowskiSum<ResultNumber>(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum), against those same operands plus the ones with no area — a `Segment`, an `OrientedSegment`, a `Polyline` and a `MonotoneChain` — and against another `PolygonSet`. Each component is summed against the operand and the results are united in one arrangement, since the sum distributes over a union and a set is one. It is the one receiver whose answer needs a set whatever its operands are: components that were apart stay apart unless the operand closes the gap. Either spelling reaches it, unlike the boolean operations.
 
 Four of the five [predicates](shape_methods.md#predicates) fold over the components: `intersects` and `interiorsIntersect` because $A$ and $A^\circ$ are unions, `contains` against a point, and `interiorContains` against everything — the component interiors are open and pairwise disjoint, so a connected operand inside their union is inside one of them.
 

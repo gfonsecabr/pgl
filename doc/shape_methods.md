@@ -313,26 +313,72 @@ below two dimensions is reported the usual way, through the returned [`Convex`](
 summing two parallel segments gives a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") satisfying `isSegment()`. The
 empty shape absorbs, and an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") operand gives an empty [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.").
 
+Two more pairs stay in a single shape, neither of them convex-with-convex.
+
+A **[`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.") absorbs anything bounded** and comes back a half-plane. With the
+boundary running from $s$ to $t$ and $d = t - s$, the half-plane is
+$\{p : \mathrm{cross}(d, p - s) \ge 0\}$, and the sum is that same half-plane
+translated to its operand's support point — the operand vertex minimising
+$\mathrm{cross}(d, q)$. A linear function on a bounded polygonal shape is
+extremal at a vertex whether or not the shape is convex, so this works for a
+[`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), a [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect."), a region and a set exactly as it does for a [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices."),
+and it is exact: one input vertex added to each boundary point.
+
+```c++
+pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
+up.minkowskiSum(pgl::Rectangle(2,3, 5,7));            // y >= 3
+up.minkowskiSum(pgl::Polygon({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6}));  // y >= 0
+```
+
+A [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") is the other, and the one curved sum the library can answer: **two disks
+sum to a disk**, centre plus centre and radius plus radius. It is the one sum
+that cannot be exact by default — a disk stores three boundary points, so each
+radius is a square root of a stored quantity — and it therefore carries a
+`ResultNumber` of its own, defaulting to `double` as `radius` and `distance` do.
+A disk *built from a centre and a radius* carries both exactly, so a sum of two
+of those with an exact result type is exact and takes no square root at all.
+
+```c++
+pgl::Disk a(pgl::Point(0,0), 3), b(pgl::Point(4,1), 2);
+a.minkowskiSum(b);                     // centre (4,1), radius 5, as double
+a.minkowskiSum<pgl::ERational>(b);     // exact: both operands carry their radius
+```
+
+Nothing else a disk meets has a representable sum — a disk and a segment sweep a
+stadium, a disk and a polygon a rounded one — and the other unbounded operands
+([`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty."), and a half-plane against another
+half-plane) are still refused: their sums need a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") result,
+which is where a later widening starts.
+
 #### Non-convex operands
 
 A non-convex operand is where the sum needs a region: sliding a shape around the
 inside of a `C` sweeps out material that closes over a hole neither operand has.
-Those overloads return a [`PolygonSet`](shapes.md#polygon-set) — every `Polygon`
-overload, every [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") and [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") overload, and a
-[`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") against a summand with no area. A [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") against a
-*convex* operand is the more specific exception: its sum cannot have holes and
-returns a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), as described further down.
+Those overloads return a [`PolygonWithHoles`](shapes.md#polygon-with-holes) —
+every [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") overload, every [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") overload, and every [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.")
+overload but one. A [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") against a *convex* operand is tighter still:
+its sum cannot have holes either and returns a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), as described further
+down.
 
-The nondegenerate case is a single component: a shape that is the closure of its
-connected interior, summed with any connected operand, has connected regularized
-interior. A degenerate operand can split the answer, and every piece of it comes
-back.
+One region is enough because one operand is a **body**: a shape that is the
+closure of a connected, non-empty interior. Summing one with any connected
+operand covers $\bigcup_{b \in B} (A^\circ + b)$, which is connected and open,
+and the sum is its closure — so the regularized answer is a single component,
+holes and all. **That is a precondition where the type asks for one.** A
+degenerate operand — a [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") collapsed to a segment, a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") with no
+area, a region whose slits cut its interior in two — is off the contract: the sum
+can then fall into pieces, and one of them is what comes back.
+
+Where neither operand is a body, the sum keeps a
+[`PolygonSet`](shapes.md#polygon-set): `Polyline` and `MonotoneChain` against a
+[`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.") or [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.") are the pairs, and they can scatter for operands
+that are in no way degenerate, so nothing there is a precondition to observe.
 
 ```c++
 // The square annulus, cut open through its right wall over y in [3,5].
 pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
 auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
-// plugged has one component, whose outer ring is (0,0)--(10,10) and whose
+// plugged is one region, whose outer ring is (0,0)--(10,10) and whose
 // single hole is (4,4)--(6,6) — the cavity, stranded once the cut is closed.
 ```
 
@@ -348,10 +394,11 @@ operations these sums are **regularized**, so a flat operand's sum keeps only
 what has area, and they take the same `ResultNumber` parameter; a sum that
 regularizes to nothing comes back as the empty set.
 
-These overloads used to return a lone [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") and silently keep only
-the first component in canonical order when a degenerate operand split the
-answer. A set of regions has room for the rest, so nothing is dropped any more —
-an observable change, and the reason the return type moved.
+These overloads returned a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") for a while, so that a degenerate
+operand's split answer could come back whole. The type is a region again: the
+simplest one that holds every sum the contract covers, with degeneracy stated as
+a precondition rather than paid for by every caller. The two thin-operand pairs,
+where the split needs no degeneracy at all, are what still return a set.
 
 Every vertex of every convex piece sum is a sum of two input vertices, so those are
 exact; only where two of them cross can a vertex land off the lattice, and that
@@ -390,7 +437,7 @@ It is also the cheapest: a segment is one convex piece, so the sum costs one
 convex merge per piece of the receiver's decomposition. An [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label.")
 answers identically — an orientation is not part of a point set.
 
-A [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") carries the same second `minkowskiSum`, against the same seven
+A [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") carries the same second `minkowskiSum`, against those same seven
 operands: [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") and [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."),
 every bounded shape with area to sweep, plus [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.") and [`OrientedSegment`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedSegment.html "Directed segment preserving source-to-target order plus optional segment label."),
 which have none. The chain has none of its own either, and the sum still needs a
@@ -428,8 +475,10 @@ A [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unorie
 the chain's own edges are what sweep: an edge *parallel* to the segment sweeps a
 segment, which is dropped. A closed square chain summed with a vertical segment
 therefore comes back as **two** disjoint bands — the sum of two connected shapes
-is connected, but $\mathrm{closure}((A \oplus B)^\circ)$ need not be, which is the
-other reason this entry point returns a set of regions rather than one.
+is connected, but $\mathrm{closure}((A \oplus B)^\circ)$ need not be. Neither
+operand is degenerate, so no precondition rules this out, and it is exactly why
+the two thin-operand pairs return a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") where every other pair returns
+one region.
 
 ```c++
 pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});
@@ -437,8 +486,39 @@ square.minkowskiSum(pgl::Segment(0,0, 2,1));   // one region, one hole
 square.minkowskiSum(pgl::Segment(0,0, 0,3));   // two regions, (0,0)--(8,3) and (0,8)--(8,11)
 ```
 
-Those seven are the whole list. `polyline + polyline` is not a pair — sum the
-edges of one against the other if you want it.
+A second chain is the ninth operand, and the last: two [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.")s, two
+[`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.")s, or one of each. Both sides contribute their edges, each pair of
+edges spanning a parallelogram unless the two are parallel, and a [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label.")
+operand is simply the one-edge case of it. Neither operand brings a body, so this
+pair keeps the set-valued contract too, and two parallel chains come back empty.
+
+```c++
+pgl::Polyline l({0,0, 6,0, 6,6}), v({0,0, 4,6, 8,0});
+l.minkowskiSum(v);                                  // == v.minkowskiSum(l)
+l.minkowskiSum(pgl::Polyline({0,0, 2,1}));          // == l.minkowskiSum(pgl::Segment(0,0, 2,1))
+```
+
+A [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") sums the same way and through the same overload — its
+monotonicity buys nothing against an operand that is not convex, and a [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.")
+outranks it, so the polyline owns the mixed pair.
+
+Finally, a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") sums with every one of those operands and with another
+set. The sum distributes over a union and a set *is* one, so each component is
+summed against the operand — against each of *its* components too, when the
+operand is a set — and the results are united in a single arrangement. This is
+the one receiver with no precondition to observe and the one whose answer needs
+a set however nondegenerate its operands are: components that were apart stay
+apart unless the operand is wide enough to close the gap.
+
+```c++
+pgl::PolygonSet<> two = square.unionWith(pgl::Rectangle(10,0, 14,4));
+two.minkowskiSum(pgl::Rectangle(0,0, 1,1));   // still two components
+two.minkowskiSum(pgl::Rectangle(0,0, 6,1));   // one: the gap is closed
+```
+
+Either spelling works — `polygon.minkowskiSum(set)` is `set.minkowskiSum(polygon)`
+— which is where the sum differs from the boolean operations, whose set operand
+must be written on the left.
 
 #### A monotone chain, whose sum is one polygon
 

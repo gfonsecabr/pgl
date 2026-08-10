@@ -53,6 +53,22 @@ concept SetBooleanOperandConcept =
     is_polygon_with_holes_v<T> || is_polygon_set_v<T>;
 
 /**
+ * @brief The operands a @ref PolygonSet's Minkowski sum accepts.
+ *
+ * The boolean operands plus the three that carry no area — a `Segment`, an
+ * `OrientedSegment` and the two chains — which a boolean operation has no use
+ * for and a sum does: dragging a set along one sweeps out area exactly as
+ * dragging it along a rectangle does. What is left out is what is left out
+ * everywhere: an unbounded operand, whose sum with a set is unbounded and so
+ * fits in no set, and a `Disk`, whose sum is round. A `Point` is not here
+ * either — that sum is a translation and belongs to the single-shape overload.
+ */
+template <class T>
+concept SetMinkowskiOperandConcept =
+    SetBooleanOperandConcept<T> || is_segment_v<T> || is_oriented_segment_v<T> ||
+    is_polyline_v<T> || is_monotone_chain_v<T>;
+
+/**
  * @brief The operands a @ref PolygonSet can measure an L1 distance to.
  *
  * A set measures whatever its components measure, and no more, so the question
@@ -1105,9 +1121,9 @@ struct PolygonSet {
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a `Point`
      * is a translation, so it gives back a set over the promoted coordinate
      * type — this is the reading `set + point` has always had. A set of regions
-     * is not convex, so @ref MinkowskiSummableConcept admits nothing else here,
-     * exactly as it admits nothing else for a @ref Polygon or a
-     * @ref PolygonWithHoles.
+     * is not convex, so @ref MinkowskiSummableConcept admits nothing else here;
+     * a `Halfplane` operand, which absorbs the set and gives a half-plane, is
+     * the one exception it does admit.
      *
      * @tparam OtherShape Type of the other shape.
      * @param other Shape to sum with.
@@ -1116,6 +1132,41 @@ struct PolygonSet {
     template <class OtherShape>
         requires MinkowskiSummableConcept<PolygonSet<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B),
+     *        as a set of regions.
+     *
+     * The sum distributes over a union, and a set *is* a union:
+     *
+     *     (⋃ᵢ Aᵢ) ⊕ B = ⋃ᵢ (Aᵢ ⊕ B),
+     *
+     * so this sums each component against the operand — against each of *its*
+     * components too, when the operand is a set — and unites the results in a
+     * single arrangement rather than one per step. Each component sum is the
+     * region-valued construction of `implementation/minkowskisum.hpp`; see
+     * @ref Polygon::minkowskiSum for what it does and what it costs.
+     *
+     * **This is the one receiver with no precondition to observe**, and the one
+     * whose answer needs a set however nondegenerate its operands are: the
+     * components of a set are disjoint, and an operand small relative to the
+     * gaps between them leaves them disjoint. What a body-shaped operand does
+     * buy is that each *component's* sum is a single region — components merge
+     * or stay apart, but none of them shatters.
+     *
+     * Complexity: the per-component sums, then one arrangement over all the
+     * regions they leave.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to sum with.
+     * @return The pieces of the sum, in canonical order.
+     * @note The component sums are built over exact rationals and converted to
+     *       @p ResultNumber once, when the union is assembled.
+     */
+    template <class ResultNumber = division_result_t<NumberType>,
+              detail::SetMinkowskiOperandConcept OtherShape>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    minkowskiSum(const OtherShape& other) const;
 
     // -------------------------------------------------------------------------
     // Transformations

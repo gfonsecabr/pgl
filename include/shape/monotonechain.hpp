@@ -2041,14 +2041,19 @@ struct MonotoneChain {
      * same question for a chain that may bend back on itself and therefore has
      * to return a `PolygonWithHoles` region.
      *
-     * The result is **not regularized**: it is the sum's point set exactly, so an
-     * operand that has collapsed to a segment or a point — a degenerate operand,
-     * as everywhere in the library — gives back a degenerate polygon rather than
-     * nothing. An operand with area gives a simple one. The two operands that
-     * legitimately have no area, `Segment` and @ref OrientedSegment, are not in
-     * this set for that reason: their sums can pinch shut, which no polygon may
-     * do, so they keep the region-valued contract — see
-     * @ref minkowskiSum(const OtherSegment&) const.
+     * **The operand must be a body**: the closure of a connected, non-empty
+     * interior, which for these three types is exactly *nondegenerate*. That is
+     * what makes one polygon the right answer rather than a lucky one. The
+     * result is otherwise **not regularized** — it is the sum's point set
+     * exactly — and an operand that has collapsed to a segment or a point is off
+     * the contract for that reason and not merely by convention: the sum of a
+     * chain with a flat operand can pinch shut where two of its parts merely
+     * touch, and what comes back then is a ring that touches itself, which is
+     * not a simple polygon. The two operands that legitimately have no area,
+     * `Segment` and @ref OrientedSegment, are kept out of this overload set on
+     * the same grounds and keep the region-valued contract — see
+     * @ref minkowskiSum(const OtherSegment&) const, which is also the overload a
+     * flat operand's point set is available from.
      *
      * Complexity: one convex merge per chain edge, `O(nm)` for a chain of `n`
      * vertices and an operand of `m`, then one sweep merging the pieces' arcs
@@ -2059,6 +2064,7 @@ struct MonotoneChain {
      * @tparam ResultNumber The number type for the result.
      * @param other The shape to sum with.
      * @return The sum, as one polygon.
+     * @pre The operand is nondegenerate.
      * @note Every vertex of every piece sum is a sum of two input vertices, and
      *       the sweep decides everything with integer determinants, so an
      *       integral sum whose boundary has no crossing comes back exactly, with
@@ -2120,6 +2126,25 @@ struct MonotoneChain {
     template <class ResultNumber = division_result_t<NumberType>, OrientedSegmentConcept OtherOriented>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     minkowskiSum(const OtherOriented& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski sum of the two chains (A ⊕ B).
+     *
+     * Monotone on both sides and it still buys nothing: the theorem that makes a
+     * chain's sum with a convex shape one polygon needs a *convex* operand, and
+     * a second chain is not one — two monotone chains sum to a set that a
+     * vertical line can meet in several intervals. So this is the plain
+     * region-valued construction, with both operands contributing their edges,
+     * exactly as @ref Polyline::minkowskiSum(const OtherPolyline&) const runs it
+     * for two chains that need not be sorted at all.
+     *
+     * Neither operand has area, so there is no body and no precondition: an
+     * edge direction the two share sweeps out nothing, and the answer can come
+     * back in pieces or empty for perfectly valid chains.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, MonotoneChainConcept OtherChain>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    minkowskiSum(const OtherChain& other) const;
 
     /**
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
