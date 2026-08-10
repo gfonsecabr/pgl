@@ -1681,3 +1681,51 @@ TEST_CASE("Convex converts to a half-plane intersection") {
         CHECK(region.isEmpty());
     }
 }
+
+TEST_CASE("Convex unites with Convex into a set of regions") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+
+    const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    SUBCASE("two overlapping squares make one staircase region") {
+        const auto result =
+            square.unionWith<int>(Convex(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}}));
+        static_assert(std::is_same_v<decltype(result), const pgl::PolygonSet<Point>>);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(!result.component(0).hasHoles());
+        CHECK(result.twiceArea() == 2 * (16 + 16 - 4));
+        CHECK(result.component(0).outer().size() == 8);
+    }
+
+    SUBCASE("the union of two convex shapes need not be convex") {
+        const auto result =
+            square.unionWith<int>(Convex(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}}));
+        REQUIRE(result.componentCount() == 1);
+        // The staircase is strictly inside its own hull, which is what makes a
+        // set of regions rather than a Convex the only type that holds it.
+        const Convex hull(pgl::convexHull(result.component(0).outer().vertices()), /*trusted=*/true);
+        CHECK(result.twiceArea() < hull.twiceArea());
+        CHECK(hull.contains(Point(5, 1)));       // in the hull of the two squares
+        CHECK(!result.contains(Point(5, 1)));    // and in neither of them
+    }
+
+    SUBCASE("two disjoint squares stay two components") {
+        const auto result =
+            square.unionWith<int>(Convex(std::vector<Point>{{10, 10}, {13, 10}, {13, 13}, {10, 13}}));
+        CHECK(result.componentCount() == 2);
+        CHECK(result.twiceArea() == 2 * (16 + 9));
+    }
+
+    SUBCASE("a union with itself is idempotent") {
+        const auto result = square.unionWith<int>(square);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(square.asPolygon()));
+    }
+
+    SUBCASE("a convex shape with no area contributes nothing") {
+        const Convex flat(std::vector<Point>{{0, 0}, {2, 0}, {4, 0}});
+        CHECK(flat.unionWith<int>(square) == square.asPolygonSet());
+        CHECK(flat.unionWith<int>(flat).isEmpty());
+    }
+}

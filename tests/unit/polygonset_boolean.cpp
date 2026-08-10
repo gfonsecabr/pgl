@@ -127,6 +127,24 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
         CHECK(below.isEmpty());
     }
 
+    SUBCASE("a set is accepted as the argument of a union too") {
+        // The pair is defined on the set, and the lower-ranked receiver hands it
+        // over, so the answer does not depend on which side the set is.
+        const PolygonShape cap = square(0, 0, 10);
+        const auto fromPolygon = cap.unionWith<int>(holed);
+        CHECK(std::is_same_v<decltype(fromPolygon), const RegionSet>);
+        CHECK(fromPolygon == holed.unionWith<int>(cap));
+        CHECK(fromPolygon.twiceArea() == 200);  // the hole is filled back in
+
+        const Region region(square(0, 0, 4), std::vector{square(1, 1, 2)});
+        const auto fromRegion = region.unionWith<int>(holed);
+        CHECK(std::is_same_v<decltype(fromRegion), const RegionSet>);
+        CHECK(fromRegion == holed.unionWith<int>(region));
+        // The region's own hole [1,3]x[1,3] is covered by the set, and all the
+        // region adds is the corner [3,4]x[3,4] of the set's hole.
+        CHECK(fromRegion.twiceArea() == 200 - 32 + 2 * 1);
+    }
+
     SUBCASE("a disjoint operand leaves an intersection empty and a difference whole") {
         const PolygonShape elsewhere = square(50, 50, 2);
         CHECK(holed.intersection<int>(elsewhere).isEmpty());

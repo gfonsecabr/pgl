@@ -883,6 +883,22 @@ struct Polygon {
     unionWith(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     *
+     * A set of regions is the one @ref PolygonalRegionConcept operand ranked
+     * above a polygon, and it states its operations over every operand at once,
+     * so this hands the pair back to it rather than restating it. A union is
+     * symmetric, so the order costs nothing — and going through the set is what
+     * puts every component into one arrangement instead of folding the polygon
+     * over them one at a time. See @ref unionWith(const OtherPolygon&) const for
+     * the contract.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] auto unionWith(const OtherSet& other) const {
+        return other.template unionWith<ResultNumber>(*this);
+    }
+
+    /**
      * @brief Returns the regularized symmetric difference of the two shapes
      *        (A △ B).
      *
@@ -2087,6 +2103,43 @@ struct Polygon {
                      })
     [[nodiscard]] constexpr auto distanceL1(const OtherShape& other) const {
         return other.template distanceL1<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), re-dispatching
+     *        through the wrapper's own `intersection`.
+     *
+     * An intersection is symmetric, so this just calls @p other's own
+     * `intersection`, which visits its wrapped alternative and throws if the
+     * pair is unsupported.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     *
+     * @return The intersection wrapped in a `Shape`, rather than the tighter
+     *   type the concrete pair would answer with: which alternative @p other
+     *   holds is not known until run time, so neither is the result's.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
+        return other.template intersection<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized union of the two shapes (A ∪ B),
+     *        re-dispatching through the wrapper's own `unionWith`.
+     *
+     * A union is symmetric, so this just calls @p other's own `unionWith`, which
+     * visits its wrapped alternative and throws if the pair is unsupported —
+     * here, whenever @p other turns out to hold anything but a bounded polygonal
+     * region. See @ref Polygon::unionWith for the contract.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto unionWith(const Shape<OtherPoint>& other) const {
+        return other.template unionWith<ResultNumber>(*this);
     }
 
     /**

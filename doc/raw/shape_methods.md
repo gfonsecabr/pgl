@@ -168,11 +168,21 @@ The four boolean set operations on shapes with area all return a
 | `a.symmetricDifference(b)` | $A \mathbin{\triangle} B$, the part exactly one covers |
 | `a.intersection(b)` | $A \cap B$, the part both cover — on `PolygonWithHoles` and `PolygonSet` only, see below |
 
-`difference`, `unionWith` and `symmetricDifference` are defined on `Polygon`,
-`PolygonWithHoles` and `PolygonSet`, against `Polygon`, `PolygonWithHoles`,
-`Convex`, `Triangle`, `Rectangle` — the bounded shapes with area — and, on a
-`PolygonSet` receiver, against another `PolygonSet`. The union is a keyword in
-C++, hence `unionWith`.
+The six shapes these operate on are `Rectangle`, `Triangle`, `Convex`,
+`Polygon`, `PolygonWithHoles` and `PolygonSet`: exactly the bounded shapes with
+area, and exactly the ones a `PolygonSet` can always represent. The union is a
+keyword in C++, hence `unionWith`.
+
+`unionWith` is defined for **every ordered pair** of those six, since a union of
+two of them is again one of them — a set of regions — however they lie. No other
+pair has a union a `PolygonSet` can hold: a `Point`, a `Segment`, a `Polyline`
+and a `MonotoneChain` leave a dangling piece with no area, a `Halfplane`, a
+`Line`, a `Ray` and a `HalfplaneIntersection` may be unbounded, and a `Disk` is
+round. The runtime [`Shape`](shapes.md#shape) wrapper offers `unionWith` over
+that same grid, deciding at run time and throwing `std::logic_error` for the
+pairs it does not cover. `difference` and `symmetricDifference` are narrower for now: they are
+defined on `Polygon`, `PolygonWithHoles` and `PolygonSet` receivers, against any
+of the six, with `PolygonSet` as an operand only on a `PolygonSet` receiver.
 
 That last operand is what makes the family **closed**: the result of an
 operation is a shape the operations take, so it can be fed straight back in
@@ -186,12 +196,14 @@ auto merged = again.unionWith(holed);                       // set against set
 ```
 
 Three of the four are symmetric in their operands, and may be written in either
-order. A `Convex`, `Triangle` or `Rectangle` receiver takes `unionWith`,
-`symmetricDifference` and `intersection` by forwarding them to the other
-operand, so `triangle.unionWith(polygon)` and `polygon.unionWith(triangle)` are
-the same call — each unordered pair is implemented once, on the shape that can
-represent the answer. `difference` is not symmetric and forwards nowhere: it
-stays on the two receivers above.
+order. Each unordered pair is implemented once, on the higher-ranked of its two
+operands, and the lower-ranked receiver forwards to it — so
+`triangle.unionWith(polygon)` and `polygon.unionWith(triangle)` are the same
+call, and `rectangle.unionWith(triangle)` is `triangle.unionWith(rectangle)`.
+A `Convex`, `Triangle` or `Rectangle` receiver reaches `symmetricDifference` and
+`intersection` the same way, but only for operands above it, which is why those
+two stop short of the full grid `unionWith` covers. `difference` is not
+symmetric and forwards nowhere: it stays on the receivers above.
 
 ```c++
 pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});

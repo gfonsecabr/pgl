@@ -161,3 +161,37 @@ TEST_CASE("Triangle and Convex squared Hausdorff distance") {
     CHECK(sq.squaredHausdorffDistance<int>(t) == 64);
     CHECK(t.squaredHausdorffDistance<int>(sq) == 64);
 }
+
+TEST_CASE("Triangle unites with Convex into a set of regions") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Triangle = pgl::Triangle<Point>;
+
+    const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+    // Sits on the square's top edge, so the two fuse into a house shape.
+    const Triangle roof(Point(0, 4), Point(4, 4), Point(2, 6));
+
+    SUBCASE("the union is the same set whichever operand receives it") {
+        const auto fromTriangle = roof.unionWith<int>(square);
+        const auto fromConvex = square.unionWith<int>(roof);
+        static_assert(std::is_same_v<decltype(fromTriangle), const pgl::PolygonSet<Point>>);
+        static_assert(std::is_same_v<decltype(fromConvex), const pgl::PolygonSet<Point>>);
+        CHECK(fromTriangle == fromConvex);
+        REQUIRE(fromTriangle.componentCount() == 1);
+        CHECK(fromTriangle.twiceArea() == 2 * 16 + 8);
+        CHECK(fromTriangle.component(0).outer().size() == 5);
+    }
+
+    SUBCASE("a triangle inside the square leaves just the square") {
+        const Triangle inner(Point(1, 1), Point(3, 1), Point(2, 3));
+        const auto result = inner.unionWith<int>(square);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(square.asPolygon()));
+    }
+
+    SUBCASE("disjoint operands stay two components either way round") {
+        const Triangle away(Point(10, 10), Point(12, 10), Point(10, 12));
+        CHECK(square.unionWith<int>(away).componentCount() == 2);
+        CHECK(away.unionWith<int>(square) == square.unionWith<int>(away));
+    }
+}

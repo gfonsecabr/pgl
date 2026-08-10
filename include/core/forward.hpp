@@ -370,6 +370,36 @@ concept BoundedPolygonalConcept =
     MonotoneChainConcept<T> || PolygonWithHolesConcept<T> || PolygonSetConcept<T>;
 
 /**
+ * @brief Bounded polygonal regions: exactly the shapes a @ref PolygonSet can
+ *        always represent.
+ *
+ * Each of these is a closed bounded subset of the plane whose boundary is a
+ * finite set of straight edges, so it *is* a set of regions — one component for a
+ * @ref Rectangle, a @ref Triangle, a @ref Convex, a @ref Polygon or a
+ * @ref PolygonWithHoles, and however many the set already carries for a
+ * @ref PolygonSet. That makes them closed under union: `A ∪ B` is again a bounded
+ * polygonal region whenever both operands are, which is what lets `unionWith` be
+ * defined for every ordered pair of them and for no other pair.
+ *
+ * What is left out is left out for one of three reasons. A @ref Point, a
+ * @ref Segment, a @ref Polyline and a @ref MonotoneChain carry no area, so a
+ * union with one keeps a dangling piece no set of regions can hold. A
+ * @ref Halfplane, a @ref Line, a @ref Ray and a @ref HalfplaneIntersection may be
+ * unbounded (the last only sometimes, which is already too often for *always*).
+ * A @ref Disk is bounded and has area, but its boundary is round. @ref EmptyShape
+ * is a region — the empty one — but it is the identity of every union, and the
+ * library keeps it out of the region vocabulary so that its operations stay the
+ * uniform vacuous ones.
+ *
+ * A degenerate operand is admitted and contributes nothing: a rectangle with no
+ * width covers no area, and a regularized union drops what has none.
+ */
+template <class T>
+concept PolygonalRegionConcept =
+    RectangleConcept<T> || TriangleConcept<T> || ConvexConcept<T> ||
+    PolygonConcept<T> || PolygonWithHolesConcept<T> || PolygonSetConcept<T>;
+
+/**
  * @brief Shape pairs whose Minkowski sum Pangolin can represent.
  *
  * The sum `A ⊕ B` is supported when

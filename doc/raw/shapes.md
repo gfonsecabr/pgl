@@ -137,20 +137,25 @@ auto i = pgl::Shape(a.intersection(b)); // point, segment or empty
 `Shape` forwards the common shape interface to the stored alternative by visitation:
 
 - Predicates: `contains`, `boundaryContains`, `interiorContains`, `intersects`, `interiorsIntersect`, `separates`, `crosses`.
-- Constructions and measures: `intersection`, `squaredDistance`, `squaredHausdorffDistance`, `distanceL1`, `distanceLInf`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`, `bbox`.
+- Constructions and measures: `intersection`, `unionWith`, `squaredDistance`, `squaredHausdorffDistance`, `distanceL1`, `distanceLInf`, `hausdorffDistanceL1`, `hausdorffDistanceLInf`, `bbox`.
 - Access: `size`, `get`, `operator[]`, `index`, `isDegenerate`, `empty`, and the per-alternative `is...` / `getIf...` accessors above.
 - Transformations: `+=`, `-=`, `*=`, `/=` (and the corresponding free operators), `rotate90`/`rotated90`, and the axis scaling methods.
 
-Every one of these accepts either another `Shape` or a concrete shape, so the two styles can be mixed freely:
+Every one of these accepts either another `Shape` or a concrete shape, so the two styles can be mixed freely — and the concrete shapes accept a `Shape` in turn, forwarding to the wrapper so the pair is resolved at run time whichever side it is written on:
 
 ```C++
 pgl::Shape r = pgl::Rectangle(1,4,2,9);
 r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
+pgl::Segment(0,0,5,5).intersection(r); // concrete receiver, wrapped argument
 ```
+
+The forwarding direction is where the two differ in one respect. A concrete receiver only takes a `Shape` for an operation it has at all: every shape has an `intersection`, so every one takes the wrapper there, but only the six bounded polygonal regions have a `unionWith`, so `segment.unionWith(shape)` stays a compile error rather than becoming a call that is certain to throw. And the answer comes back in the wrapper's shape, not the receiver's — `segment.intersection(shape)` is a `Shape`, where `segment.intersection(otherSegment)` is the tight `std::optional<std::variant<Point, Segment>>`, because which alternative the argument holds is not known until run time.
 
 Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...). The element accessors throw for the same reason: `size`, `get`, `operator[]` and `index` need one indexable sequence of points, which the `Point` alternative (whose elements are coordinates), the `HalfplaneIntersection` alternative (whose elements are half-planes), the `PolygonWithHoles` alternative (whose vertices are spread over its rings) and the `PolygonSet` alternative (whose vertices are spread over its components) do not have. Reach through with `getIf...` and use the concrete shape's own accessors.
 
 `PolygonSet` is the one alternative whose point set need not be connected, and it is there for what that buys: an `intersection` of two regions that comes apart into several pieces is a single `Shape` again, holding the whole set. A result that stays in one piece is still unwrapped to the tighter `PolygonWithHoles` alternative, so the alternative you get depends on the geometry rather than on the operand types — the same way an intersection of two segments comes back as a `Point` or as a `Segment`.
+
+`unionWith` is the exception to that re-wrapping, and returns a `PolygonSet` rather than a `Shape`. It can afford to: every pair that has a [union](shape_methods.md#boolean-operations) at all answers with a set of regions, so the static type is already exact and there is nothing to unwrap. It succeeds exactly when **both** alternatives are bounded polygonal regions — a `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles` or `PolygonSet` — for all thirty-six ordered pairs of them, and throws `std::logic_error` for every other pair, including one holding an `EmptyShape`: the empty set is a union's identity, so `empty ∪ A` would have to be `A` itself, which is a `PolygonSet` only when `A` is already a region.
 
 - Other methods:
 
@@ -750,7 +755,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
 - `A.difference(b)` / `A.unionWith(b)` / `A.intersection(b)` / `A.symmetricDifference(b)`: The four [boolean operations](shape_methods.md#boolean-operations), against every bounded shape with area **and against another `PolygonSet`** — which is what closure means.
-- `A.minkowskiSum<ResultNumber>(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum), against those same operands plus the ones with no area — a `Segment`, an `OrientedSegment`, a `Polyline` and a `MonotoneChain` — and against another `PolygonSet`. Each component is summed against the operand and the results are united in one arrangement, since the sum distributes over a union and a set is one. It is the one receiver whose answer needs a set whatever its operands are: components that were apart stay apart unless the operand closes the gap. Either spelling reaches it, unlike the boolean operations.
+- `A.minkowskiSum<ResultNumber>(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum), against those same operands plus the ones with no area — a `Segment`, an `OrientedSegment`, a `Polyline` and a `MonotoneChain` — and against another `PolygonSet`. Each component is summed against the operand and the results are united in one arrangement, since the sum distributes over a union and a set is one. It is the one receiver whose answer needs a set whatever its operands are: components that were apart stay apart unless the operand closes the gap. Either spelling reaches it, as it does for `unionWith` and `intersection`, but not for `difference` and `symmetricDifference`, which stay on the set.
 
 Four of the five [predicates](shape_methods.md#predicates) fold over the components: `intersects` and `interiorsIntersect` because $A$ and $A^\circ$ are unions, `contains` against a point, and `interiorContains` against everything — the component interiors are open and pairwise disjoint, so a connected operand inside their union is inside one of them.
 

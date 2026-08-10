@@ -153,3 +153,36 @@ TEST_CASE("Rectangle and Convex squared Hausdorff distance") {
     CHECK(sq.squaredHausdorffDistance<int>(r) == 64);
     CHECK(r.squaredHausdorffDistance<int>(sq) == 64);
 }
+
+TEST_CASE("Rectangle unites with Convex into a set of regions") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Rectangle rect(Point(0, 0), Point(4, 4));
+    const Convex offset(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}});
+
+    SUBCASE("the union is the same set whichever operand receives it") {
+        const auto fromRect = rect.unionWith<int>(offset);
+        const auto fromConvex = offset.unionWith<int>(rect);
+        static_assert(std::is_same_v<decltype(fromRect), const pgl::PolygonSet<Point>>);
+        static_assert(std::is_same_v<decltype(fromConvex), const pgl::PolygonSet<Point>>);
+        CHECK(fromRect == fromConvex);
+        REQUIRE(fromRect.componentCount() == 1);
+        CHECK(fromRect.twiceArea() == 2 * (16 + 16 - 4));
+        CHECK(fromRect.component(0).outer().size() == 8);
+    }
+
+    SUBCASE("a covered rectangle leaves just the cover") {
+        const Convex big(std::vector<Point>{{-1, -1}, {9, -1}, {9, 9}, {-1, 9}});
+        const auto result = rect.unionWith<int>(big);
+        REQUIRE(result.componentCount() == 1);
+        CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(big.asPolygon()));
+    }
+
+    SUBCASE("disjoint operands stay two components either way round") {
+        const Convex away(std::vector<Point>{{10, 10}, {13, 10}, {13, 13}, {10, 13}});
+        CHECK(rect.unionWith<int>(away).componentCount() == 2);
+        CHECK(away.unionWith<int>(rect) == rect.unionWith<int>(away));
+    }
+}

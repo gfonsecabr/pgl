@@ -701,6 +701,55 @@ PolygonWithHoles<PointType_, TLabel>::difference(const OtherRegion& other) const
                                                                                               other);
 }
 
+// The three bounded convex regions unite among themselves through the polygon
+// engine, each pair on the higher-ranked of its two operands. The union of two
+// convex shapes is not convex in general, so there is nothing a convex operand
+// could contribute that its outline does not; going through `asPolygon` is the
+// same conversion `detail::booleanOperand` makes for a set's operands, and it
+// costs nothing, the vertices already being in canonical polygon order.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
+    return asPolygon().template unionWith<ResultNumber>(other);
+}
+
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
