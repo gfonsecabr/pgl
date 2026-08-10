@@ -271,12 +271,24 @@ struct Shape {
     }
 
     /**
-     * @brief Tests whether the wrapper holds the empty shape.
+     * @brief Tests whether the wrapped shape covers no point at all.
      *
-     * @return `true` for a default-constructed (empty) shape.
+     * The `EmptyShape` alternative of a default-constructed wrapper is always
+     * empty. Every other alternative that has an empty state of its own --
+     * `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`,
+     * `HalfplaneIntersection`, `Polyline`, and `MonotoneChain` -- answers its
+     * own `empty()`, so a wrapper holding an empty `Rectangle` is empty as
+     * well. An alternative that is defined by points it always covers is never
+     * empty and answers `false`.
+     *
+     * This is a question about the stored geometry, not about which alternative
+     * is stored; `holdsAlternative<EmptyShape<PointType>>()` asks the latter.
+     *
+     * @return `true` when the wrapped shape is the empty set of points.
      */
     [[nodiscard]] constexpr bool empty() const {
-        return std::holds_alternative<EmptyShape<PointType>>(value_);
+        return std::visit([](const auto& value) { return detail::coversNoPoint(value); },
+                          value_);
     }
 
     /**
@@ -514,7 +526,9 @@ struct Shape {
      *
      * `getIf...` returns a pointer into the stored variant, `nullptr` when
      * another alternative is active. The `EmptyShape` alternative has no such
-     * pair; use @ref empty().
+     * pair; use `holdsAlternative<EmptyShape<PointType>>()`, since @ref empty()
+     * asks the geometric question and is also true for, say, an empty
+     * `Rectangle`.
      */
     ///@{
 #define PGL_SHAPE_ALTERNATIVE(Name, Type)                        \
