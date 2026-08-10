@@ -176,3 +176,7 @@ Canvas fitting is automatic:
   ring, so its holes are punched out of the fill rather than painted over: SVG
   asks for `fill-rule="evenodd"`, and the PDF and Ipe backends get the same
   result from winding each hole against the outer ring.
+- A [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") is drawn the same way, as **one** path carrying every ring of
+  every component. The whole set is a single element, so it has one style and
+  one `<title>`, and a set that comes apart into several pieces stays one drawn
+  object.

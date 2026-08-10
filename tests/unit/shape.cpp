@@ -1025,9 +1025,15 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
               .intersection<int>(shape) == half);
     CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection<int>(shape) == half);
 
-    // An intersection that comes apart has no single-Shape answer; neither has
-    // a pair with no overload at all, such as a Disk.
-    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Rectangle({-1, 2}, {7, 4}))), std::logic_error);
+    // An intersection that comes apart is no longer without an answer: the
+    // strip across the annulus meets it left and right of the hole, and the
+    // two pieces come back together as the PolygonSet alternative.
+    using RegionSet = pgl::PolygonSet<Point>;
+    const Shape split = shape.intersection<int>(Shape(Rectangle({-1, 2}, {7, 4})));
+    REQUIRE(split.holdsAlternative<RegionSet>());
+    CHECK(RegionSet(split).componentCount() == 2);
+    CHECK(RegionSet(split).twiceArea() == 2 * 8);
+    // A pair with no overload at all, such as a Disk, still throws.
     CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
@@ -1077,6 +1083,169 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
                     std::logic_error);
 }
 
+TEST_CASE("Shape wraps a PolygonSet") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using RegionSet = pgl::PolygonSet<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // Two squares that never touch: the one shape in the variant whose point
+    // set need not be connected.
+    const RegionSet pair(std::vector<Region>{Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})),
+                                             Region(Polygon({4, 0, 6, 0, 6, 2, 4, 2}))});
+    const Shape shape = pair;
+    REQUIRE(shape.holdsAlternative<RegionSet>());
+    CHECK(shape.getIf<RegionSet>() != nullptr);
+    CHECK(*shape.getIf<RegionSet>() == pair);
+    CHECK_FALSE(shape.isDegenerate());
+    CHECK(shape.bbox() == Rectangle({0, 0}, {6, 2}));
+
+    // The vertices are spread over the components rather than forming one
+    // indexable sequence, so the element accessors are not defined for it.
+    CHECK_THROWS_AS((void)shape.size(), std::logic_error);
+    CHECK_THROWS_AS((void)shape.get(0), std::logic_error);
+    CHECK_THROWS_AS((void)shape[0], std::logic_error);
+    CHECK_THROWS_AS((void)shape.index(Point(0, 0)), std::logic_error);
+
+    // An empty set covers nothing, and a set of collapsed components drops them.
+    CHECK(Shape(RegionSet()).isDegenerate());
+    CHECK(Shape(RegionSet(Region(Polygon({0, 0, 4, 0})))).isDegenerate());
+
+    std::ostringstream stream;
+    stream << shape;
+    CHECK(stream.str() ==
+          "PolygonSet[PolygonWithHoles[Polygon[(0,0),(2,0),(2,2),(0,2)]],"
+          "PolygonWithHoles[Polygon[(4,0),(6,0),(6,2),(4,2)]]]");
+
+    // A one-component set and the region it holds are different alternatives,
+    // so they are different shapes.
+    const Shape single = RegionSet(Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})));
+    CHECK_FALSE(single == Shape(Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2}))));
+
+    std::unordered_set<Shape> shapes;
+    shapes.insert(shape);
+    shapes.insert(Shape(RegionSet(std::vector<Region>{Region(Polygon({4, 0, 6, 0, 6, 2, 4, 2})),
+                                                      Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2}))})));
+    shapes.insert(single);
+    CHECK(shapes.size() == 2);  // the components are stored in canonical order
+
+    std::set<Shape> ordered;
+    ordered.insert(shape);
+    ordered.insert(single);
+    CHECK(ordered.size() == 2);
+}
+
+TEST_CASE("Shape dispatches predicates, intersection, and distances through a PolygonSet") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using RegionSet = pgl::PolygonSet<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const RegionSet pair(std::vector<Region>{Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})),
+                                             Region(Polygon({4, 0, 6, 0, 6, 2, 4, 2}))});
+    const Shape shape = pair;
+    const Shape crossing = Segment({-1, 1}, {7, 1});
+    const Shape gap = Point(3, 1);
+
+    CHECK(shape.contains(Shape(Point(1, 1))));
+    CHECK_FALSE(shape.contains(gap));  // the space between components is not material
+    CHECK(shape.boundaryContains(Shape(Point(0, 1))));
+    CHECK_FALSE(shape.interiorContains(Shape(Point(0, 1))));
+    CHECK(shape.intersects(crossing));
+    CHECK(crossing.intersects(shape));
+    CHECK_FALSE(shape.intersects(Shape(Segment({0, 5}, {6, 5}))));
+    CHECK(shape.interiorsIntersect(crossing));
+    CHECK(shape.separates(crossing));
+    CHECK(crossing.separates(shape));
+    CHECK(shape.crosses(crossing));
+
+    // The concrete set accepts the wrapper directly on every predicate.
+    CHECK(pair.contains(Shape(Point(1, 1))));
+    CHECK_FALSE(pair.contains(gap));
+    CHECK(pair.boundaryContains(Shape(Point(0, 1))));
+    CHECK(pair.intersects(crossing));
+    CHECK(pair.interiorsIntersect(crossing));
+    CHECK(pair.separates(crossing));
+    CHECK(pair.crosses(crossing));
+
+    // The self pair dispatches through the wrapper too.
+    const Shape shifted = pair + Point(1, 0);
+    CHECK(shape.intersects(shifted));
+    CHECK(shape.interiorsIntersect(shifted));
+    CHECK_FALSE(shape.contains(shifted));
+    CHECK(shape.contains(Shape(pair)));
+
+    // Intersecting with an area operand keeps the whole set when it stays in
+    // several pieces, and unwraps to the tighter region alternative when the
+    // answer is a single one.
+    const Shape band = shape.intersection<int>(Shape(Rectangle({-1, 0}, {7, 1})));
+    REQUIRE(band.holdsAlternative<RegionSet>());
+    CHECK(RegionSet(band).componentCount() == 2);
+    CHECK(RegionSet(band).twiceArea() == 2 * 4);
+    const Shape one = shape.intersection<int>(Shape(Rectangle({0, 0}, {2, 2})));
+    REQUIRE(one.holdsAlternative<Region>());
+    CHECK(Region(one) == Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})));
+    // The self pair, and a region operand, answer through the wrapper too.
+    CHECK(shape.intersection<int>(Shape(pair)) == shape);
+    CHECK(shape.intersection<int>(Shape(Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})))) == one);
+    // A pair with no intersection overload at all still throws, and so does one
+    // against a one-dimensional operand, which a set has no overload for.
+    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 1), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.intersection<int>(crossing), std::logic_error);
+
+    // Distances are the minimum over the components, and dispatch both ways.
+    const Shape farPoint = Point(10, 1);
+    CHECK(shape.squaredDistance<int>(farPoint) == 16);
+    CHECK(farPoint.squaredDistance<int>(shape) == 16);
+    CHECK(shape.distanceL1<int>(farPoint) == 4);
+    CHECK(shape.distanceLInf<int>(farPoint) == 4);
+    CHECK(pair.distanceL1<int>(farPoint) == 4);  // concrete set, Shape argument
+    CHECK(pair.distanceLInf<int>(farPoint) == 4);
+    CHECK(shape.squaredDistance<int>(Shape(pair + Point(20, 0))) == 196);
+    // An L1 or L-infinity distance to a Disk is nowhere defined in the library,
+    // and neither is any Hausdorff distance to a set.
+    CHECK_THROWS_AS((void)shape.distanceL1<int>(Shape(Disk(Point(20, 1), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.squaredHausdorffDistance<int>(farPoint), std::logic_error);
+
+    // Transformations preserve the alternative.
+    Shape moved = shape;
+    moved += Point(1, 1);
+    REQUIRE(moved.holdsAlternative<RegionSet>());
+    CHECK(RegionSet(moved) == pair + Point(1, 1));
+    CHECK((shape + Point(1, 1)) == moved);
+    CHECK((moved - Point(1, 1)) == shape);
+    CHECK((shape * 2).holdsAlternative<RegionSet>());
+    CHECK(RegionSet(shape * 2) == pair * 2);
+    CHECK(((shape * 2) / 2) == shape);
+    CHECK(shape.rotated90(2).holdsAlternative<RegionSet>());
+    CHECK(RegionSet(shape.rotated90(2)) == pair.rotated90(2));
+    CHECK(shape.scaledUpX(2).holdsAlternative<RegionSet>());
+    CHECK(RegionSet(shape.scaledUpX(2).scaledDownX(2)) == pair);
+
+    // An affine map takes the set through the wrapper as well; the shear keeps
+    // every area, so the components stay two and keep their size.
+    const pgl::Transformation<int> shear(1, 0, 1, 1, 0, 0);
+    const Shape sheared = shear * shape;
+    REQUIRE(sheared.holdsAlternative<RegionSet>());
+    CHECK(RegionSet(sheared).componentCount() == 2);
+    CHECK(RegionSet(sheared).twiceArea() == pair.twiceArea());
+
+    // Summing with a Point is a translation and stays a set; nothing else is a
+    // single-Shape sum, a set of regions being anything but convex.
+    const Shape summed = shape.minkowskiSum(Shape(Point(1, 1)));
+    REQUIRE(summed.holdsAlternative<RegionSet>());
+    CHECK(RegionSet(summed) == pair + Point(1, 1));
+    CHECK_THROWS_AS((void)shape.minkowskiSum(Shape(Triangle({0, 0}, {1, 0}, {0, 1}))),
+                    std::logic_error);
+}
+
 TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
@@ -1121,6 +1290,9 @@ TEST_CASE("Shape exposes named is/getIf accessors for every alternative") {
               .isHalfplaneIntersection());
     CHECK(Shape(pgl::PolygonWithHoles<Point>(pgl::Polygon<Point>({0, 0, 4, 0, 4, 4, 0, 4})))
               .isPolygonWithHoles());
+    CHECK(Shape(pgl::PolygonSet<Point>(
+                    pgl::PolygonWithHoles<Point>(pgl::Polygon<Point>({0, 0, 4, 0, 4, 4, 0, 4}))))
+              .isPolygonSet());
 
     // The test is on the stored alternative, not on the geometry: a triangle
     // collapsed to a point is still the Triangle alternative.

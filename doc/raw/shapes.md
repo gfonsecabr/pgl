@@ -104,7 +104,7 @@ if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
 auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
 ```
 
-Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, and `isPolygonWithHoles`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
+Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, `isPolygonWithHoles`, and `isPolygonSet`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
 
 ```C++
 pgl::Shape s = pgl::Segment(1,4,2,9);
@@ -144,7 +144,9 @@ pgl::Shape r = pgl::Rectangle(1,4,2,9);
 r.intersects(pgl::Segment(0,0,5,5));   // concrete argument
 ```
 
-Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...). The element accessors throw for the same reason: `size`, `get`, `operator[]` and `index` need one indexable sequence of points, which the `Point` alternative (whose elements are coordinates), the `HalfplaneIntersection` alternative (whose elements are half-planes) and the `PolygonWithHoles` alternative (whose vertices are spread over its rings) do not have. Reach through with `getIf...` and use the concrete shape's own accessors.
+Because the alternative pair is only known at run time, operations that do not exist for every pair report failure at run time rather than at compile time. For example, `bbox` throws `std::logic_error` for unbounded alternatives (`Line`, `Halfplane`...). The element accessors throw for the same reason: `size`, `get`, `operator[]` and `index` need one indexable sequence of points, which the `Point` alternative (whose elements are coordinates), the `HalfplaneIntersection` alternative (whose elements are half-planes), the `PolygonWithHoles` alternative (whose vertices are spread over its rings) and the `PolygonSet` alternative (whose vertices are spread over its components) do not have. Reach through with `getIf...` and use the concrete shape's own accessors.
+
+`PolygonSet` is the one alternative whose point set need not be connected, and it is there for what that buys: an `intersection` of two regions that comes apart into several pieces is a single `Shape` again, holding the whole set. A result that stays in one piece is still unwrapped to the tighter `PolygonWithHoles` alternative, so the alternative you get depends on the geometry rather than on the operand types — the same way an intersection of two segments comes back as a `Point` or as a `Segment`.
 
 - Other methods:
 
@@ -747,7 +749,7 @@ The cut predicates feel the same difference from the other side. `A.separates(B)
 
 Distances are a plain minimum over the components, with no caveat at all: the distance to a union is the smallest of the distances.
 
-`PolygonSet` is deliberately **not** an alternative of the runtime [`Shape`](#polymorphism-with-shape) variant. Drawing one on a `Canvas` draws each component as its own region, which needs no alternative of its own.
+`PolygonSet` is an alternative of the runtime [`Shape`](#polymorphism-with-shape) variant, and the only one whose point set need not be connected. That is what lets a `Shape`-valued `intersection` of two regions survive coming apart: the whole set comes back in one `Shape`, where a result that stays in one piece is still unwrapped to the tighter `PolygonWithHoles`. Drawing one on a [`Canvas`](canvas.md) draws the whole set as a single path over every ring of every component, so it is one element with one style and one title.
 
 - Other methods:
 

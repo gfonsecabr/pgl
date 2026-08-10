@@ -293,18 +293,36 @@ TEST_CASE("PolygonSet conversions from the area shapes") {
 }
 
 TEST_CASE("PolygonSet drawing") {
-    SUBCASE("a set draws one region per component") {
+    const auto count = [](const std::string& text, const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = text.find(needle); at != std::string::npos;
+             at = text.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+
+    SUBCASE("a set draws as one even-odd path, one subpath per ring") {
         pgl::Canvas canvas;
         canvas << RegionSet(std::vector{holed(), Region(squareB())});
         const std::string svg = canvas.toSVG();
-        // One <path> per component: the holed one and the plain square.
+        // The whole set is one element, so one <path> carrying every ring of
+        // every component: the holed one's outer ring and hole, and the plain
+        // square. The even-odd rule is what punches the hole out.
         CHECK(svg.find("fill-rule=\"evenodd\"") != std::string::npos);
-        std::size_t paths = 0;
-        for (std::size_t at = svg.find("<path"); at != std::string::npos;
-             at = svg.find("<path", at + 1)) {
-            ++paths;
-        }
-        CHECK(paths == 2);
+        CHECK(count(svg, "<path") == 1);
+        CHECK(count(svg, "M ") == 3);
+        CHECK(count(svg, " Z") == 3);
+        CHECK(svg.find("<title>PolygonSet[") != std::string::npos);
+    }
+
+    SUBCASE("a set drawn through the runtime Shape wrapper draws the same") {
+        const RegionSet set(std::vector{holed(), Region(squareB())});
+        pgl::Canvas direct;
+        direct << set;
+        pgl::Canvas wrapped;
+        wrapped << pgl::Shape<Point>(set);
+        CHECK(direct.toSVG() == wrapped.toSVG());
     }
 
     SUBCASE("the empty set draws nothing") {

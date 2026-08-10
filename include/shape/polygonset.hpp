@@ -52,6 +52,29 @@ concept SetBooleanOperandConcept =
     is_polygon_v<T> || is_convex_v<T> || is_triangle_v<T> || is_rectangle_v<T> ||
     is_polygon_with_holes_v<T> || is_polygon_set_v<T>;
 
+/**
+ * @brief The operands a @ref PolygonSet can measure an L1 distance to.
+ *
+ * A set measures whatever its components measure, and no more, so the question
+ * is asked of a component rather than answered by a list here. The one operand
+ * this excludes is a @ref Disk: an L1 or L∞ distance to a circle is nowhere
+ * defined in the library beyond the pair `Disk`-`Point`, and a set that declared
+ * the overload anyway would offer the runtime @ref Shape wrapper a member whose
+ * body does not compile.
+ */
+template <class ResultNumber, class Component, class Operand>
+concept ComponentDistanceL1Concept =
+    requires(const Component& component, const Operand& operand) {
+        component.template distanceL1<ResultNumber>(operand);
+    };
+
+/** @brief The L∞ counterpart of @ref ComponentDistanceL1Concept. */
+template <class ResultNumber, class Component, class Operand>
+concept ComponentDistanceLInfConcept =
+    requires(const Component& component, const Operand& operand) {
+        component.template distanceLInf<ResultNumber>(operand);
+    };
+
 }  // namespace detail
 
 template <class PointType = Point<>, class Label>
@@ -1003,16 +1026,24 @@ struct PolygonSet {
     template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
     [[nodiscard]] auto squaredDistance(const OtherSet& other) const;
 
-    /** @copydoc squaredDistance(const OtherShape&) const */
+    /**
+     * @copydoc squaredDistance(const OtherShape&) const
+     *
+     * A set measures whatever its components measure, and no more; see
+     * @ref detail::ComponentDistanceL1Concept for the one operand that leaves
+     * out.
+     */
     template <class ResultNumber = division_result_t<NumberType>, detail::SetOperandConcept OtherShape>
+        requires detail::ComponentDistanceL1Concept<ResultNumber, PolygonWithHoles<PointType_>, OtherShape>
     [[nodiscard]] auto distanceL1(const OtherShape& other) const;
 
     /** @copydoc squaredDistance(const OtherShape&) const */
     template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
     [[nodiscard]] auto distanceL1(const OtherSet& other) const;
 
-    /** @copydoc squaredDistance(const OtherShape&) const */
+    /** @copydoc distanceL1(const OtherShape&) const */
     template <class ResultNumber = division_result_t<NumberType>, detail::SetOperandConcept OtherShape>
+        requires detail::ComponentDistanceLInfConcept<ResultNumber, PolygonWithHoles<PointType_>, OtherShape>
     [[nodiscard]] auto distanceLInf(const OtherShape& other) const;
 
     /** @copydoc squaredDistance(const OtherShape&) const */
@@ -1253,9 +1284,18 @@ struct PolygonSet {
     template <class OtherChain>
     bool chainIn(const OtherChain& chain, bool boundaryOnly) const;
 
-    /** @brief The smallest value of @p distance over the components. */
-    template <class ResultNumber, class ComponentDistance>
-    ResultNumber minOverComponents(ComponentDistance&& distance) const {
+    /**
+     * @brief The smallest value of @p distance over the components.
+     *
+     * The minimum is held in whatever type a component answers in, which is not
+     * always the type the caller requested: a distance to a @ref Disk is
+     * realized on a circle, so @ref PolygonWithHoles reports it in
+     * `detail::floating_result_t<ResultNumber>`, and converting that back here
+     * would be both lossy and, for an exact @p ResultNumber, ill-formed.
+     */
+    template <class ComponentDistance>
+    auto minOverComponents(ComponentDistance&& distance) const {
+        using ResultNumber = std::decay_t<decltype(distance(std::declval<const ComponentType&>()))>;
         ResultNumber best{};
         bool seeded = false;
         for (const auto& component : components_) {

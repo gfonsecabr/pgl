@@ -1564,8 +1564,9 @@ constexpr auto PolygonWithHoles<PointType, LabelType>::distanceLInf(const OtherI
 
 template <class PointType, class LabelType>
 template <class ResultNumber, detail::SetOperandConcept OtherShape>
+    requires detail::ComponentDistanceLInfConcept<ResultNumber, PolygonWithHoles<PointType>, OtherShape>
 auto PolygonSet<PointType, LabelType>::distanceLInf(const OtherShape& other) const {
-    return minOverComponents<ResultNumber>([&other](const ComponentType& component) {
+    return minOverComponents([&other](const ComponentType& component) {
         return component.template distanceLInf<ResultNumber>(other);
     });
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "shape/polygonwithholes.hpp"
+#include "shape/polygonset.hpp"
 
 /**
  * @file shape.hpp
@@ -79,6 +79,9 @@ struct is_shape_alternative<PointType, HalfplaneIntersection<PointType, Label>> 
 
 template <class PointType, class Label>
 struct is_shape_alternative<PointType, PolygonWithHoles<PointType, Label>> : std::true_type {};
+
+template <class PointType, class Label>
+struct is_shape_alternative<PointType, PolygonSet<PointType, Label>> : std::true_type {};
 
 template <class PointType, class T>
 inline constexpr bool is_shape_alternative_v = is_shape_alternative<PointType, std::remove_cvref_t<T>>::value;
@@ -180,7 +183,8 @@ struct Shape {
         Polyline<PointType>,
         Polygon<PointType>,
         HalfplaneIntersection<PointType>,
-        PolygonWithHoles<PointType>>;
+        PolygonWithHoles<PointType>,
+        PolygonSet<PointType>>;
 
     /**
      * @brief Creates a point-valued default shape.
@@ -322,16 +326,21 @@ struct Shape {
      * Dispatches to the alternative's `size()` so the result matches the
      * valid range of its `operator[]`.
      *
-     * @throws std::logic_error for the `PolygonWithHoles` alternative, which has
-     * no single indexable sequence: its vertices are spread over the outer ring
-     * and the holes. Reach through with `getIfPolygonWithHoles()` and use
-     * `vertexCount()`, `outer()`, or `holes()`.
+     * @throws std::logic_error for the `PolygonWithHoles` and `PolygonSet`
+     * alternatives, neither of which has a single indexable sequence: a region's
+     * vertices are spread over its outer ring and its holes, and a set's over
+     * its components. Reach through with `getIfPolygonWithHoles()` and use
+     * `vertexCount()`, `outer()`, or `holes()`; with `getIfPolygonSet()` and use
+     * `vertexCount()`, `componentCount()`, or `component()`.
      */
     [[nodiscard]] constexpr std::size_t size() const {
         return std::visit(
             [](const auto& value) -> std::size_t {
-                if constexpr (detail::is_polygon_with_holes_v<std::decay_t<decltype(value)>>) {
+                using S = std::decay_t<decltype(value)>;
+                if constexpr (detail::is_polygon_with_holes_v<S>) {
                     throw std::logic_error("Shape::size is not defined for the PolygonWithHoles alternative");
+                } else if constexpr (detail::is_polygon_set_v<S>) {
+                    throw std::logic_error("Shape::size is not defined for the PolygonSet alternative");
                 } else {
                     return value.size();
                 }
@@ -346,8 +355,9 @@ struct Shape {
      * defined for alternatives whose `get` yields a `PointType_` — i.e.,
      * every alternative except `Point` itself, whose `get` yields a
      * coordinate, `HalfplaneIntersection`, whose `get` yields a
-     * half-plane, and `PolygonWithHoles`, which has no single indexable
-     * vertex sequence. Throws `std::logic_error` for those three alternatives.
+     * half-plane, and `PolygonWithHoles` and `PolygonSet`, which have no single
+     * indexable vertex sequence. Throws `std::logic_error` for those four
+     * alternatives.
      */
     [[nodiscard]] constexpr PointType_ get(std::ptrdiff_t index) const {
         return std::visit(
@@ -359,6 +369,8 @@ struct Shape {
                     throw std::logic_error("Shape::get is not defined for the HalfplaneIntersection alternative");
                 } else if constexpr (detail::is_polygon_with_holes_v<S>) {
                     throw std::logic_error("Shape::get is not defined for the PolygonWithHoles alternative");
+                } else if constexpr (detail::is_polygon_set_v<S>) {
+                    throw std::logic_error("Shape::get is not defined for the PolygonSet alternative");
                 } else {
                     return value.get(index);
                 }
@@ -373,9 +385,9 @@ struct Shape {
      * Only defined for alternatives whose `operator[]` yields a
      * `PointType_` — i.e., every alternative except `Point` itself, whose
      * `operator[]` yields a coordinate, `HalfplaneIntersection`, whose
-     * `operator[]` yields a half-plane, and `PolygonWithHoles`, which has no
-     * single indexable vertex sequence. Throws `std::logic_error` for those
-     * three alternatives.
+     * `operator[]` yields a half-plane, and `PolygonWithHoles` and `PolygonSet`,
+     * which have no single indexable vertex sequence. Throws
+     * `std::logic_error` for those four alternatives.
      */
     [[nodiscard]] constexpr PointType_ operator[](std::size_t index) const {
         return std::visit(
@@ -387,6 +399,8 @@ struct Shape {
                     throw std::logic_error("Shape::operator[] is not defined for the HalfplaneIntersection alternative");
                 } else if constexpr (detail::is_polygon_with_holes_v<S>) {
                     throw std::logic_error("Shape::operator[] is not defined for the PolygonWithHoles alternative");
+                } else if constexpr (detail::is_polygon_set_v<S>) {
+                    throw std::logic_error("Shape::operator[] is not defined for the PolygonSet alternative");
                 } else {
                     return value[index];
                 }
@@ -403,8 +417,8 @@ struct Shape {
      * — whose `operator[]` yields a coordinate, handled by the
      * @ref index(const NumberType&) overload. Throws `std::logic_error` if the
      * wrapped value is a `Point`, a `HalfplaneIntersection`, whose elements
-     * are half-planes rather than points, or a `PolygonWithHoles`, which has no
-     * single indexable vertex sequence.
+     * are half-planes rather than points, or a `PolygonWithHoles` or a
+     * `PolygonSet`, neither of which has a single indexable vertex sequence.
      */
     [[nodiscard]] constexpr std::ptrdiff_t index(const PointType_& point) const {
         return std::visit(
@@ -416,6 +430,8 @@ struct Shape {
                     throw std::logic_error("Shape::index(Point) is not defined for the HalfplaneIntersection alternative");
                 } else if constexpr (detail::is_polygon_with_holes_v<S>) {
                     throw std::logic_error("Shape::index(Point) is not defined for the PolygonWithHoles alternative");
+                } else if constexpr (detail::is_polygon_set_v<S>) {
+                    throw std::logic_error("Shape::index(Point) is not defined for the PolygonSet alternative");
                 } else {
                     return value.index(point);
                 }
@@ -528,6 +544,7 @@ struct Shape {
     PGL_SHAPE_ALTERNATIVE(Polygon, Polygon<PointType>)
     PGL_SHAPE_ALTERNATIVE(HalfplaneIntersection, HalfplaneIntersection<PointType>)
     PGL_SHAPE_ALTERNATIVE(PolygonWithHoles, PolygonWithHoles<PointType>)
+    PGL_SHAPE_ALTERNATIVE(PolygonSet, PolygonSet<PointType>)
 
 #undef PGL_SHAPE_ALTERNATIVE
     ///@}
@@ -710,26 +727,29 @@ struct Shape {
      * @param other Shape to intersect with.
      * @return The intersection wrapped in a `Shape<Point<ResultNumber, LabelType>>`.
      * @throws std::logic_error when the result cannot be represented by a single
-     *   `Shape` — i.e. a disconnected (multi-component) intersection, or a pair
-     *   whose intersection is unsupported (anything against a `Disk`, and a
-     *   `HalfplaneIntersection` against a `MonotoneChain` or `Polyline`). Two
+     *   `Shape` — i.e. a disconnected intersection with no single alternative to
+     *   hold it, or a pair whose intersection is unsupported (anything against a
+     *   `Disk`, and a `HalfplaneIntersection` against a `MonotoneChain` or
+     *   `Polyline`). Two
      *   `Halfplane`s, and a `HalfplaneIntersection` against a `Halfplane`,
      *   `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection`,
      *   wrap their (possibly unbounded or empty) `HalfplaneIntersection`
      *   result. A `HalfplaneIntersection` against a `Polygon` wraps the single
      *   component of its component vector, in either order. A
-     *   `PolygonWithHoles` against a `Rectangle`, `Triangle`, `Convex`,
-     *   `Polygon`, `Halfplane`, `HalfplaneIntersection`, or another
-     *   `PolygonWithHoles` wraps
-     *   the single component of its regularized `PolygonWithHoles` result, and
-     *   throws when that intersection comes apart into several pieces. That
-     *   pair answers in either order except with a `Polygon` on the left, whose
+     *   `PolygonWithHoles` or a `PolygonSet` against a `Rectangle`, `Triangle`,
+     *   `Convex`, `Polygon`, `Halfplane`, `HalfplaneIntersection`,
+     *   `PolygonWithHoles`, or `PolygonSet` wraps its regularized region-valued
+     *   result: the single component when the intersection stays in one piece,
+     *   and the whole `PolygonSet` when it comes apart into several — which is
+     *   the reason a set is an alternative here at all. Those pairs answer in
+     *   either order except with a `Polygon` on the left, whose
      *   own `Polygon`-valued `intersection` leaves no rank forwarder to reach
      *   the region's. Against a one-dimensional alternative — a `Point`,
      *   `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`,
      *   `MonotoneChain` or `Polyline` — a `PolygonWithHoles` wraps the single
-     *   point-or-segment piece instead, in either order, and a hole is exactly
-     *   what makes several pieces likely there.
+     *   point-or-segment piece instead, in either order, and throws when there
+     *   are several, a hole being exactly what makes that likely; a `PolygonSet`
+     *   has no such overload and always throws there.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
@@ -807,7 +827,8 @@ struct Shape {
      * @return The squared Hausdorff distance as @p ResultNumber.
      * @throws std::logic_error when `squaredHausdorffDistance` is undefined for
      *   the pair selected at runtime. `Line`, `OrientedLine`, `Ray`, `Halfplane`,
-     *   `Disk`, `MonotoneChain`, `Polyline`, and `Polygon` never define it
+     *   `Disk`, `MonotoneChain`, `Polyline`, `Polygon`, `HalfplaneIntersection`,
+     *   `PolygonWithHoles`, and `PolygonSet` never define it
      *   (unbounded shapes have a generally infinite Hausdorff distance; the
      *   others simply have no overload yet), so any pair involving one of those
      *   always throws.
@@ -921,7 +942,8 @@ struct Shape {
      *   pair selected at runtime. Defined only for `Point`, `Segment`,
      *   `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`; any pair
      *   involving `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Disk`,
-     *   `MonotoneChain`, `Polyline`, or `Polygon` always throws.
+     *   `MonotoneChain`, `Polyline`, `Polygon`, `HalfplaneIntersection`,
+     *   `PolygonWithHoles`, or `PolygonSet` always throws.
      *
      * @warning With an integer @p ResultNumber the exact distance is generally a
      *   fraction, so the internal division truncates. Request a floating-point
@@ -1378,13 +1400,16 @@ struct Shape {
             }
             return result.empty() ? ResultShape{} : ResultShape(result.front());
         } else if constexpr (detail::is_polygon_set_v<Result>) {
-            // A set of regions is not an alternative of the variant, so the same
-            // rule as for a vector applies: one component fits, several do not.
-            if (result.componentCount() > 1) {
-                throw std::logic_error(
-                    "Shape::intersection: disconnected result cannot be a single Shape");
+            // A set of regions is an alternative of its own, so unlike a vector
+            // it survives coming apart. A single component is still unwrapped to
+            // the tighter `PolygonWithHoles` alternative, which is the answer
+            // this pair has always given when the intersection stayed in one
+            // piece.
+            if (result.isEmpty()) {
+                return ResultShape{};
             }
-            return result.isEmpty() ? ResultShape{} : ResultShape(result.component(0));
+            return result.componentCount() == 1 ? ResultShape(result.component(0))
+                                                : ResultShape(result);
         } else {
             return ResultShape(result);
         }
