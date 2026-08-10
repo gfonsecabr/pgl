@@ -1035,10 +1035,18 @@ struct HalfplaneIntersection {
      * @brief Returns the Minkowski sum of this shape and another (A ⊕ B).
      *
      * The sum is the point set `{a + b : a ∈ A, b ∈ B}`. Summing with a
-     * `Point` is a translation, so it returns this shape's own type; two
-     * bounded convex shapes sum to a @ref Convex, or to a @ref Rectangle when
-     * both are rectangles. See @ref MinkowskiSummableConcept for the pairs a
-     * Minkowski sum is defined for.
+     * `Point` is a translation, so it returns this shape's own type. Every other
+     * sum comes back as a @ref HalfplaneIntersection again: the operand may be
+     * any unbounded convex shape (@ref UnboundedConvexConcept) or any bounded
+     * **convex** one, and the sum of two convex polyhedra is a convex
+     * polyhedron — bounded here only when both operands are. A non-convex
+     * operand is refused, its concavity being swept into the answer rather than
+     * absorbed. See @ref MinkowskiSummableConcept.
+     *
+     * A region is also the one operand whose sum is not on the operands' own
+     * lattice: its vertices are crossings of stored boundary lines, so the
+     * result carries @ref division_result_t coordinates, exactly as @ref vertex
+     * and @ref getIfPoint report one.
      *
      * @tparam OtherShape Type of the other shape.
      * @param other Shape to sum with.

@@ -22,17 +22,26 @@
  *   vertices, computed in `O(m + n)` by merging the two edge-direction
  *   sequences. Two `Rectangle`s are the one non-trivial pair closed under the
  *   sum, and return a `Rectangle`.
+ * - A `Halfplane` and anything bounded and polygonal sum to that same
+ *   half-plane, translated to the operand's support point: a half-plane absorbs
+ *   whatever is bounded, whether or not it is convex.
+ * - Two **convex polyhedra**, at least one of them unbounded (`Halfplane`,
+ *   `Line`, `OrientedLine`, `Ray`, `HalfplaneIntersection`, and on the other
+ *   side those or any bounded convex shape) sum to a convex polyhedron, returned
+ *   as a `HalfplaneIntersection`. See @ref pgl::detail::minkowskiPolyhedralSum.
  *
  * Every vertex of the result is a sum of two input vertices, so the whole
  * construction is exact in the operands' coordinate type: integers in,
- * integers out.
+ * integers out. The one operand that is not on the lattice to begin with is a
+ * `HalfplaneIntersection`, whose vertices are line crossings; a sum with one is
+ * exact over @ref pgl::division_result_t coordinates instead, the same type that
+ * shape's own accessors report a vertex in.
  *
  * @ref pgl::detail::minkowskiSumOf is the single dispatcher, and
  * @ref pgl::MinkowskiSummableConcept the single gate: widening the set of pairs
- * whose sum is one shape — an unbounded one over
- * @ref pgl::HalfplaneIntersection, say — means relaxing that concept and adding
- * one branch to the dispatcher. Nothing else here, and no shape header, encodes
- * which pairs are allowed.
+ * whose sum is one shape means relaxing that concept and adding one branch to
+ * the dispatcher. Nothing else here, and no shape header, encodes which pairs
+ * are allowed.
  *
  * The **non-convex** sums are not here, and are not a widening of that concept:
  * a sum that can enclose a hole needs a `PolygonWithHoles` region result, so it
@@ -43,6 +52,8 @@
  */
 
 #include <algorithm>
+#include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -71,6 +82,24 @@ using minkowskiPoint_t = Point<
     std::common_type_t<typename minkowskiPointOf_t<A>::NumberType,
                        typename minkowskiPointOf_t<B>::NumberType>,
     typename minkowskiPointOf_t<A>::LabelType>;
+
+/**
+ * @brief Vertex type of a Minkowski sum returned as a @ref HalfplaneIntersection.
+ *
+ * Every other sum in this file puts its result on the lattice the operands
+ * live on, because every vertex of it is a sum of two input vertices. A
+ * @ref HalfplaneIntersection operand is the one exception: its own vertices are
+ * crossings of stored boundary lines, so the point that attains its support in
+ * an operand-supplied direction is generally rational, and the sum asks for a
+ * coordinate type that can hold one — @ref division_result_t, exactly as that
+ * shape's own `vertex` and `getIfPoint` accessors do.
+ */
+template <class A, class B>
+using minkowskiRegionPoint_t = Point<
+    std::conditional_t<is_halfplane_intersection_v<A> || is_halfplane_intersection_v<B>,
+                       division_result_t<typename minkowskiPoint_t<A, B>::NumberType>,
+                       typename minkowskiPoint_t<A, B>::NumberType>,
+    typename minkowskiPoint_t<A, B>::LabelType>;
 
 template <class A, class B>
     requires MinkowskiSummableConcept<A, B>
@@ -262,6 +291,291 @@ constexpr auto minkowskiHalfplaneSum(const HalfplaneT& halfplane, const ShapeT& 
 }
 
 /**
+ * @brief A convex operand reduced to what a Minkowski sum asks of it.
+ *
+ * The sum of two convex polyhedra is read off their **support functions**, which
+ * simply add: writing a closed half-plane as `{p : cross(d, p) >= c}` for a
+ * boundary direction `d`, the tightest such constraint a set `S` satisfies has
+ * `c = inf_{p in S} cross(d, p)`, and the tightest one `A ⊕ B` satisfies has
+ * `c_A(d) + c_B(d)`. So the sum is the intersection, over every candidate
+ * direction, of the constraint whose two infima are both finite. That is all
+ * three fields here are for:
+ *
+ * - @ref directions are the candidate directions this operand contributes. Only
+ *   they and the other operand's are needed: an edge of the sum is a sum of
+ *   faces, so its direction is an edge direction of one of the two operands.
+ * - @ref anchors are points of the operand where a finite infimum is attained,
+ *   which is what turns the number `c_A(d) + c_B(d)` back into a `Halfplane`:
+ *   the sum of the two attaining points is on the boundary of the constraint.
+ *   A linear function attains its minimum over a polyhedron at a face, so the
+ *   vertices — plus a point of each unbounded edge for a polyhedron that has no
+ *   vertex at all — are enough.
+ * - @ref recessions generate the recession cone, the directions the operand runs
+ *   off in. The infimum is finite exactly when `cross(d, r) >= 0` for every one
+ *   of them, which is the whole of the `-∞` test.
+ */
+template <class ResultPoint>
+struct MinkowskiPolyhedron {
+    /** @brief Boundary directions this operand can contribute to the sum. */
+    std::vector<ResultPoint> directions;
+    /** @brief Points of the operand attaining a finite infimum. */
+    std::vector<ResultPoint> anchors;
+    /** @brief Generators of the recession cone. */
+    std::vector<ResultPoint> recessions;
+    /** @brief The operand is the empty set, which absorbs. */
+    bool empty = false;
+};
+
+/** @brief Cross product of two vectors written as points. */
+template <class ResultPoint>
+constexpr typename ResultPoint::NumberType minkowskiCross(const ResultPoint& u,
+                                                          const ResultPoint& v) {
+    return u.x() * v.y() - u.y() * v.x();
+}
+
+/**
+ * @brief Reduces a convex operand to its @ref MinkowskiPolyhedron.
+ *
+ * Every branch answers in the result's coordinate type, so the caller's
+ * arithmetic never sees the operands' own. Only a @ref HalfplaneIntersection
+ * needs that type to be divisible: its vertices are crossings of stored boundary
+ * lines and are rational even when every half-plane is integral, which is why
+ * the pairs involving one carry a rational result while all the others stay on
+ * the lattice.
+ *
+ * @pre The operand is not undefined: a degenerate `Line`, `Ray` or `Halfplane`
+ *      has no direction and bounds nothing, as everywhere in the library.
+ */
+template <class ResultPoint, class ShapeT>
+constexpr MinkowskiPolyhedron<ResultPoint> minkowskiPolyhedronOf(const ShapeT& shape) {
+    using ResultNumber = typename ResultPoint::NumberType;
+
+    MinkowskiPolyhedron<ResultPoint> polyhedron;
+    const ResultNumber zero{};
+    const auto cast = [](const auto& point) {
+        return ResultPoint(static_cast<ResultNumber>(point.x()),
+                           static_cast<ResultNumber>(point.y()));
+    };
+    const auto reversed = [](const ResultPoint& vector) {
+        return ResultPoint(-vector.x(), -vector.y());
+    };
+
+    if constexpr (is_point_v<ShapeT>) {
+        // A single point bounds every direction and recedes in none. The
+        // dispatcher translates instead of coming here, so this is only for
+        // completeness.
+        polyhedron.anchors.push_back(cast(shape));
+    } else if constexpr (is_line_v<ShapeT> || is_oriented_line_v<ShapeT> || is_ray_v<ShapeT> ||
+                         is_halfplane_v<ShapeT>) {
+        const ResultPoint source = cast(shape[0]);
+        const ResultPoint target = cast(shape[1]);
+        const ResultPoint forward(target.x() - source.x(), target.y() - source.y());
+        polyhedron.anchors.push_back(source);
+        if constexpr (is_halfplane_v<ShapeT>) {
+            // One constraint, and a recession cone that is the half-plane
+            // itself: it runs off along its boundary both ways and inward along
+            // the normal, so `cross(d, ·) >= 0` on those three holds exactly for
+            // the positive multiples of the boundary direction.
+            polyhedron.directions.push_back(forward);
+            polyhedron.recessions.push_back(forward);
+            polyhedron.recessions.push_back(reversed(forward));
+            polyhedron.recessions.emplace_back(-forward.y(), forward.x());
+        } else if constexpr (is_ray_v<ShapeT>) {
+            // Two constraints pin the ray to its supporting line and one caps it
+            // at the source; the cap's boundary direction is the source-ward
+            // normal, since `cross((dy, -dx), p)` is `dot(d, p)`.
+            polyhedron.directions.push_back(forward);
+            polyhedron.directions.push_back(reversed(forward));
+            polyhedron.directions.emplace_back(forward.y(), -forward.x());
+            polyhedron.recessions.push_back(forward);
+        } else {
+            // A line is capped nowhere and recedes both ways, so a direction
+            // bounds it only when it is parallel to it.
+            polyhedron.directions.push_back(forward);
+            polyhedron.directions.push_back(reversed(forward));
+            polyhedron.recessions.push_back(forward);
+            polyhedron.recessions.push_back(reversed(forward));
+        }
+    } else if constexpr (is_halfplane_intersection_v<ShapeT>) {
+        if (shape.isEmpty()) {
+            polyhedron.empty = true;
+            return polyhedron;
+        }
+        const std::size_t n = shape.size();
+        if (n == 0) {
+            // The whole plane constrains nothing and recedes everywhere.
+            const ResultNumber one = static_cast<ResultNumber>(1);
+            polyhedron.anchors.emplace_back(zero, zero);
+            polyhedron.recessions.emplace_back(one, zero);
+            polyhedron.recessions.emplace_back(-one, zero);
+            polyhedron.recessions.emplace_back(zero, one);
+            polyhedron.recessions.emplace_back(zero, -one);
+            return polyhedron;
+        }
+
+        std::vector<ResultPoint> sources;
+        std::vector<ResultNumber> offsets;
+        sources.reserve(n);
+        offsets.reserve(n);
+        polyhedron.directions.reserve(n);
+        for (const auto& halfplane : shape) {
+            const ResultPoint source = cast(halfplane.source());
+            const ResultPoint target = cast(halfplane.target());
+            const ResultPoint direction(target.x() - source.x(), target.y() - source.y());
+            sources.push_back(source);
+            polyhedron.directions.push_back(direction);
+            offsets.push_back(minkowskiCross(direction, source));
+        }
+        if (n == 1) {
+            // One stored constraint *is* a half-plane, and its recession cone is
+            // two-dimensional, which no pair of edge directions would report.
+            const ResultPoint& forward = polyhedron.directions.front();
+            polyhedron.anchors.push_back(sources.front());
+            polyhedron.recessions.push_back(forward);
+            polyhedron.recessions.push_back(reversed(forward));
+            polyhedron.recessions.emplace_back(-forward.y(), forward.x());
+            return polyhedron;
+        }
+
+        // The stored half-planes are sorted by boundary direction, and a
+        // cyclically consecutive pair meets in a vertex exactly when it turns
+        // left. Where it does not, the region's boundary runs off to infinity
+        // between them: forward along the first edge, backward along the second.
+        for (std::size_t i = 0; i < n; ++i) {
+            const std::size_t next = (i + 1) % n;
+            const ResultPoint& here = polyhedron.directions[i];
+            const ResultPoint& there = polyhedron.directions[next];
+            const ResultNumber turn = minkowskiCross(here, there);
+            if (turn > zero) {
+                // Cramer's rule on the two boundary lines.
+                polyhedron.anchors.emplace_back(
+                    (offsets[i] * there.x() - offsets[next] * here.x()) / turn,
+                    (offsets[i] * there.y() - offsets[next] * here.y()) / turn);
+            } else {
+                polyhedron.recessions.push_back(here);
+                polyhedron.recessions.push_back(reversed(there));
+            }
+        }
+        if (polyhedron.anchors.empty()) {
+            // No vertex at all, with two or more constraints: the region is a
+            // slab or a line, and each stored boundary line lies in it whole.
+            polyhedron.anchors = std::move(sources);
+        }
+    } else {
+        // Bounded and convex: the hull vertices, counterclockwise and with the
+        // collinear ones dropped, are both the anchors and the edge directions.
+        std::vector<ResultPoint> vertices = minkowskiVertices<ResultPoint>(shape);
+        if (vertices.empty()) {
+            polyhedron.empty = true;
+            return polyhedron;
+        }
+        if (vertices.size() >= 2) {
+            // A shape that collapsed to a segment contributes both directions,
+            // as the two edges of the degenerate polygon it is.
+            polyhedron.directions.reserve(vertices.size());
+            for (std::size_t i = 0; i < vertices.size(); ++i) {
+                const ResultPoint& from = vertices[i];
+                const ResultPoint& to = vertices[(i + 1) % vertices.size()];
+                polyhedron.directions.emplace_back(to.x() - from.x(), to.y() - from.y());
+            }
+        }
+        polyhedron.anchors = std::move(vertices);
+    }
+    return polyhedron;
+}
+
+/**
+ * @brief Returns a point of the operand minimizing `cross(direction, ·)`.
+ *
+ * @return The attaining point, or `std::nullopt` when the infimum is `-∞` — that
+ * is, when the operand recedes in a direction the constraint does not bound.
+ *
+ * @pre The operand is not empty.
+ */
+template <class ResultPoint>
+constexpr std::optional<ResultPoint> minkowskiInfimumPoint(
+    const MinkowskiPolyhedron<ResultPoint>& polyhedron, const ResultPoint& direction) {
+    using ResultNumber = typename ResultPoint::NumberType;
+    const ResultNumber zero{};
+
+    for (const auto& recession : polyhedron.recessions) {
+        if (minkowskiCross(direction, recession) < zero) {
+            return std::nullopt;
+        }
+    }
+    const ResultPoint* best = nullptr;
+    ResultNumber least{};
+    for (const auto& anchor : polyhedron.anchors) {
+        const ResultNumber value = minkowskiCross(direction, anchor);
+        if (best == nullptr || value < least) {
+            best = &anchor;
+            least = value;
+        }
+    }
+    if (best == nullptr) {
+        return std::nullopt;
+    }
+    return *best;
+}
+
+/**
+ * @brief Returns the Minkowski sum of two convex polyhedra, one of them
+ *        unbounded, as a @ref HalfplaneIntersection.
+ *
+ * Each candidate direction contributed by either operand
+ * (@ref MinkowskiPolyhedron) is clamped once: the two operands' infima in it are
+ * looked up, and when both are finite the constraint through the sum of their
+ * attaining points is inserted. A direction only one operand bounds is dropped,
+ * which is how the sum loses the constraints the other one runs off through —
+ * two half-planes facing different ways sum to the whole plane, and nothing at
+ * all is inserted.
+ *
+ * The insertion does the rest: @ref HalfplaneIntersection::insert discards a
+ * redundant constraint, keeps the tighter of two sharing a direction, and
+ * notices when the region it has left is lower-dimensional. So a sum that
+ * happens to be a half-plane, a line or a bounded polygon comes back as exactly
+ * that region, recognizable through `getIfHalfplane`, `getIfLine` or
+ * `asConvex`.
+ *
+ * Complexity: `O((n + m)^2)` in the two operands' constraint counts.
+ */
+template <class A, class B>
+constexpr auto minkowskiPolyhedralSum(const A& a, const B& b) {
+    using ResultPoint = minkowskiRegionPoint_t<A, B>;
+    using Region = HalfplaneIntersection<ResultPoint>;
+
+    const MinkowskiPolyhedron<ResultPoint> left = minkowskiPolyhedronOf<ResultPoint>(a);
+    const MinkowskiPolyhedron<ResultPoint> right = minkowskiPolyhedronOf<ResultPoint>(b);
+    if (left.empty || right.empty) {
+        // Nothing to add to anything: the empty convex polygon is the region
+        // constructor that spells the empty region.
+        return Region(Convex<ResultPoint>());
+    }
+
+    Region region;
+    const auto clamp = [&region, &left, &right](const ResultPoint& direction) {
+        const std::optional<ResultPoint> here = minkowskiInfimumPoint(left, direction);
+        if (!here) {
+            return;
+        }
+        const std::optional<ResultPoint> there = minkowskiInfimumPoint(right, direction);
+        if (!there) {
+            return;
+        }
+        const ResultPoint base(here->x() + there->x(), here->y() + there->y());
+        region.insert(Halfplane<ResultPoint>(
+            base, ResultPoint(base.x() + direction.x(), base.y() + direction.y())));
+    };
+    for (const auto& direction : left.directions) {
+        clamp(direction);
+    }
+    for (const auto& direction : right.directions) {
+        clamp(direction);
+    }
+    return region;
+}
+
+/**
  * @brief Orders two nonzero direction vectors by angle.
  *
  * The angle is measured counterclockwise from the positive x axis over
@@ -412,12 +726,16 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         using ResultShape = Shape<ResultPoint>;
         // Only the pair of stored alternatives decides whether the sum exists,
         // and that is not known until run time.
+        // The constructibility is part of the test, not a consequence of it: a
+        // pair whose sum is a HalfplaneIntersection over rational coordinates
+        // has an answer, but not one a wrapper over integral points can hold.
         const auto sum = [](const auto& left, const auto& right) -> ResultShape {
-            if constexpr (requires { minkowskiSumOf(left, right); }) {
+            if constexpr (requires { ResultShape(minkowskiSumOf(left, right)); }) {
                 return ResultShape(minkowskiSumOf(left, right));
             } else {
                 throw std::logic_error(
-                    "Shape::minkowskiSum is not defined for this pair of alternatives");
+                    "Shape::minkowskiSum is not defined for this pair of alternatives, or its "
+                    "result does not fit the wrapper's point type");
             }
         };
         if constexpr (is_shape_v<A> && is_shape_v<B>) {
@@ -438,11 +756,15 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         // the sum: opposite corners simply add.
         return Rectangle<ResultPoint>(minkowskiSumOf(a.min(), b.min()),
                                       minkowskiSumOf(a.max(), b.max()));
-    } else if constexpr (is_halfplane_v<A>) {
+    } else if constexpr (is_halfplane_v<A> && !UnboundedConvexConcept<B>) {
         // A half-plane absorbs anything bounded, convex or not, and stays one.
         return minkowskiHalfplaneSum(a, b);
-    } else if constexpr (is_halfplane_v<B>) {
+    } else if constexpr (is_halfplane_v<B> && !UnboundedConvexConcept<A>) {
         return minkowskiHalfplaneSum(b, a);
+    } else if constexpr (UnboundedConvexConcept<A> || UnboundedConvexConcept<B>) {
+        // One operand at least is stored as constraints rather than as
+        // vertices, and so is their sum.
+        return minkowskiPolyhedralSum(a, b);
     } else {
         return minkowskiConvexSum(a, b);
     }

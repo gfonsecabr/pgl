@@ -336,6 +336,25 @@ concept BoundedConvexConcept =
     RectangleConcept<T> || TriangleConcept<T> || ConvexConcept<T>;
 
 /**
+ * @brief Unbounded convex polyhedral primitives.
+ *
+ * A half-plane, a line, a ray and a @ref HalfplaneIntersection are each the
+ * intersection of finitely many closed half-planes, so each is convex and each
+ * is closed under the Minkowski sum with any of the others and with any bounded
+ * convex shape: the sum of two convex polyhedra is a convex polyhedron. None of
+ * them is bounded (a @ref HalfplaneIntersection may happen to be, and is still
+ * one of these), which is exactly why their sums answer with a
+ * @ref HalfplaneIntersection rather than a @ref Convex.
+ *
+ * A @ref Disk is convex and is *not* one of these: it is not polyhedral, so its
+ * sums leave the shape vocabulary in every direction but four.
+ */
+template <class T>
+concept UnboundedConvexConcept =
+    HalfplaneConcept<T> || LineConcept<T> || OrientedLineConcept<T> ||
+    RayConcept<T> || HalfplaneIntersectionConcept<T>;
+
+/**
  * @brief Bounded polygonal primitives, convex or not.
  *
  * Exactly the shapes that are the convex hull of finitely many vertices their
@@ -361,24 +380,30 @@ concept BoundedPolygonalConcept =
  * - one is a `Halfplane` and the other is bounded polygonal
  *   (@ref BoundedPolygonalConcept), convex or not: a half-plane absorbs
  *   everything bounded and comes back a half-plane, translated to its operand's
- *   support point.
+ *   support point, or
+ * - one is unbounded convex (@ref UnboundedConvexConcept) and the other is
+ *   unbounded convex or bounded **convex**: two convex polyhedra sum to a convex
+ *   polyhedron, returned as a `HalfplaneIntersection`.
  *
  * A runtime-polymorphic @ref Shape on either side is always accepted; the pair
  * of stored alternatives is only checked when the sum is evaluated.
  *
- * Unbounded convex operands (`Halfplane`, `Line`, `Ray`,
- * `HalfplaneIntersection`), curved ones (`Disk`) and non-convex ones
- * (`Polygon`, `Polyline`, `MonotoneChain`) are excluded beyond translation:
- * their sums are either not representable by any shape (a rounded polygon, a
- * polygon with holes) or not exact in the operands' coordinate type.
+ * A non-convex operand is excluded from the unbounded case, and only from it: a
+ * half-plane is the one unbounded shape whose sum forgets its operand's
+ * concavity, because only its support point survives. Drag a `Polygon` along a
+ * ray instead and every notch of it is swept into the answer, which is then no
+ * more convex than the polygon was. Curved operands (`Disk`) are excluded beyond
+ * translation for the other reason: their support point is not on the lattice,
+ * so their sums are inexact rather than unrepresentable, and the two pairs that
+ * do have an answer carry a `ResultNumber` of their own instead of appearing
+ * here.
  *
  * This concept is the only place that decides which pairs give back a **single
- * shape**, so it is where a later widening starts — an unbounded sum over
- * `HalfplaneIntersection`, say. The non-convex case is not a widening of it: a
- * sum that can enclose a hole needs a `PolygonWithHoles` region result, so
- * `Polygon::minkowskiSum`, `PolygonWithHoles::minkowskiSum` and
- * `Polyline::minkowskiSum` carry it as an overload set of their own, over exactly
- * the pairs this concept rejects. See `implementation/minkowskisum.hpp`.
+ * shape**. The non-convex case is not a widening of it: a sum that can enclose a
+ * hole needs a `PolygonWithHoles` region result, so `Polygon::minkowskiSum`,
+ * `PolygonWithHoles::minkowskiSum` and `Polyline::minkowskiSum` carry it as an
+ * overload set of their own, over exactly the pairs this concept rejects. See
+ * `implementation/minkowskisum.hpp`.
  */
 template <class A, class B>
 concept MinkowskiSummableConcept =
@@ -389,7 +414,10 @@ concept MinkowskiSummableConcept =
      PointConcept<A> || PointConcept<B> ||
      (BoundedConvexConcept<A> && BoundedConvexConcept<B>) ||
      (HalfplaneConcept<A> && BoundedPolygonalConcept<B>) ||
-     (BoundedPolygonalConcept<A> && HalfplaneConcept<B>));
+     (BoundedPolygonalConcept<A> && HalfplaneConcept<B>) ||
+     (UnboundedConvexConcept<A> && UnboundedConvexConcept<B>) ||
+     (UnboundedConvexConcept<A> && BoundedConvexConcept<B>) ||
+     (BoundedConvexConcept<A> && UnboundedConvexConcept<B>));
 
 namespace detail {
 
