@@ -1064,7 +1064,7 @@ TEST_CASE("The empty polygon is the well-defined empty set") {
     const PolygonShape empty;
     const PolygonShape square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
 
-    CHECK(empty.isEmpty());
+    CHECK(empty.empty());
     CHECK(empty.size() == 0);
     CHECK(empty.isDegenerate());
     CHECK_FALSE(empty.isUndefined());
@@ -1075,7 +1075,7 @@ TEST_CASE("The empty polygon is the well-defined empty set") {
     // vertexless polygon is the empty set.
     const PolygonShape bowtie(std::vector<Point>{{0, 0}, {2, 0}, {1, 1}, {2, 0}});
     CHECK(bowtie.isUndefined());
-    CHECK_FALSE(bowtie.isEmpty());
+    CHECK_FALSE(bowtie.empty());
 
     CHECK(empty.contains(empty));
     CHECK(square.contains(empty));
@@ -1083,7 +1083,7 @@ TEST_CASE("The empty polygon is the well-defined empty set") {
     CHECK_FALSE(empty.intersects(square));
     CHECK_FALSE(square.intersects(empty));
 
-    CHECK(empty.bbox().isEmpty());
-    CHECK(empty.asPolygonSet().isEmpty());
-    CHECK(Rectangle().asPolygon().isEmpty());
+    CHECK(empty.bbox().empty());
+    CHECK(empty.asPolygonSet().empty());
+    CHECK(Rectangle().asPolygon().empty());
 }

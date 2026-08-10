@@ -484,7 +484,7 @@ TEST_CASE("PolygonWithHoles reverse containment: degenerate regions") {
 
     SUBCASE("the empty region is inside everything") {
         const Region empty;
-        REQUIRE(empty.isEmpty());
+        REQUIRE(empty.empty());
         CHECK(Point(0, 0).contains(empty));
         CHECK(Point(0, 0).boundaryContains(empty));
         CHECK(Point(0, 0).interiorContains(empty));

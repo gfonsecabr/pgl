@@ -249,13 +249,13 @@ TEST_CASE("intersection: the holes of both operands are holes of the result") {
 }
 
 TEST_CASE("intersection: touching without overlapping is empty, being regularized") {
-    CHECK(Region(square(0, 10)).intersection<int>(box(10, 0, 20, 10)).isEmpty());
-    CHECK(Region(square(0, 10)).intersection<int>(box(10, 10, 20, 20)).isEmpty());
-    CHECK(Region(square(0, 10)).intersection<int>(box(20, 20, 30, 30)).isEmpty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(10, 0, 20, 10)).empty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(10, 10, 20, 20)).empty());
+    CHECK(Region(square(0, 10)).intersection<int>(box(20, 20, 30, 30)).empty());
 
     // A shape lying entirely in a hole meets the region only along the rim.
-    CHECK(fixtures::annulus().intersection<int>(box(5, 5, 7, 7)).isEmpty());
-    CHECK(fixtures::annulus().intersection<int>(box(4, 4, 8, 8)).isEmpty());
+    CHECK(fixtures::annulus().intersection<int>(box(5, 5, 7, 7)).empty());
+    CHECK(fixtures::annulus().intersection<int>(box(4, 4, 8, 8)).empty());
 }
 
 TEST_CASE("intersection: a cut can split the result in two") {
@@ -293,9 +293,9 @@ TEST_CASE("symmetric difference: the part exactly one operand covers") {
 
 TEST_CASE("symmetric difference: a shape against itself is empty") {
     for (const auto& [fixture, region] : fixtures::all()) {
-        CHECK_MESSAGE(region.symmetricDifference<int>(region).isEmpty(), fixture);
+        CHECK_MESSAGE(region.symmetricDifference<int>(region).empty(), fixture);
     }
-    CHECK(square(0, 10).symmetricDifference<int>(square(0, 10)).isEmpty());
+    CHECK(square(0, 10).symmetricDifference<int>(square(0, 10)).empty());
 }
 
 TEST_CASE("symmetric difference: a region against its own outer polygon is its holes") {
@@ -351,10 +351,10 @@ TEST_CASE("boolean operations accept every bounded shape with area") {
     CHECK(polygon.symmetricDifference<int>(convex) == polygon.symmetricDifference<int>(rectangle));
 
     // The triangle is half of it, so it is a different answer, not the same one.
-    CHECK(!region.intersection<int>(triangle).isEmpty());
+    CHECK(!region.intersection<int>(triangle).empty());
     CHECK(region.intersection<int>(triangle) != region.intersection<int>(convex));
-    CHECK(!polygon.unionWith<int>(triangle).isEmpty());
-    CHECK(!polygon.symmetricDifference<int>(triangle).isEmpty());
+    CHECK(!polygon.unionWith<int>(triangle).empty());
+    CHECK(!polygon.symmetricDifference<int>(triangle).empty());
 
     // Region operands, on both receivers.
     CHECK(polygon.unionWith<int>(region) == Region(polygon).unionWith<int>(region));
@@ -624,7 +624,7 @@ TEST_CASE("boolean operations: a shape against itself gives its regularization")
         const auto self = regularized(region);
         CHECK(region.unionWith<int>(region) == self);
         CHECK(region.intersection<int>(region) == self);
-        CHECK(region.symmetricDifference<int>(region).isEmpty());
+        CHECK(region.symmetricDifference<int>(region).empty());
 
         // Regularization never changes the area, only the point set: what it
         // drops has none. It can change the *number* of pieces, though, and on

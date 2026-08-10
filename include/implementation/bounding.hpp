@@ -186,7 +186,7 @@ constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Orient
 
 template <class PointType, class LabelType>
 constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rectangle<PointType, LabelType>::vertices() const {
-    assert(!isEmpty());
+    assert(!empty());
     return {
         min(),
         bottomRight(),
@@ -197,7 +197,7 @@ constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rec
 
 template <class PointType, class LabelType>
 constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edges() const {
-    assert(!isEmpty());
+    assert(!empty());
     return {
         boundaryAt<false>(0),
         boundaryAt<false>(1),
@@ -208,7 +208,7 @@ constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edg
 
 template <class PointType, class LabelType>
 constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType, LabelType>::orientedEdges() const {
-    assert(!isEmpty());
+    assert(!empty());
     return {
         boundaryAt<true>(0),
         boundaryAt<true>(1),
@@ -312,7 +312,7 @@ constexpr void Rectangle<PointType, LabelType>::insert(const OtherPoint& point) 
     const NumberType x = static_cast<NumberType>(point.x());
     const NumberType y = static_cast<NumberType>(point.y());
 
-    if (isEmpty()) {
+    if (empty()) {
         // The empty rectangle bounds nothing, so it cannot be grown: it becomes
         // the inserted point outright.
         points_[0] = points_[1] = makeCorner(x, y);
@@ -351,7 +351,7 @@ constexpr void Rectangle<PointType, LabelType>::insert(const OtherPoint& point) 
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr void Rectangle<PointType, LabelType>::insert(const OtherRectangle& other) {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // Its corners are inverted placeholders, not points to enclose.
         return;
     }
@@ -537,7 +537,7 @@ template <class ResultNumber>
 constexpr Rectangle<Point<ResultNumber, typename PointType::LabelType>>
 HalfplaneIntersection<PointType, LabelType>::bbox() const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
-    if (isEmpty() || !isBounded()) {
+    if (empty() || !isBounded()) {
         throw std::logic_error("HalfplaneIntersection::bbox is only defined for a nonempty bounded region");
     }
     using C = detail::promoted_number_t<detail::promoted_number_t<NumberType>>;

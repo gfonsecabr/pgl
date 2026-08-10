@@ -246,13 +246,14 @@ def _cpp_accumulate(method: str) -> str:
         # pieces (Polygon/Polyline/MonotoneChain vs a non-Point operand), and a
         # bare HalfplaneIntersection for the pairs closed under intersection
         # (HalfplaneIntersection vs Rectangle/Triangle/Convex/Halfplane/region).
-        # Count a non-empty result the same way for all three. A generic
-        # lambda makes the argument dependent so `if constexpr` actually
-        # discards the branches that don't apply (a plain `if constexpr` in
-        # the non-template main() would still type-check every branch).
+        # Count a non-empty result the same way for all three: the shape and
+        # the vector both answer `empty()`, so only the optional needs a case
+        # of its own. A generic lambda makes the argument dependent so
+        # `if constexpr` actually discards the branch that doesn't apply (a
+        # plain `if constexpr` in the non-template main() would still
+        # type-check both).
         return ("count += [](const auto& r) {"
                 " if constexpr (requires { r.has_value(); }) return r.has_value() ? 1 : 0;"
-                " else if constexpr (requires { r.isEmpty(); }) return r.isEmpty() ? 0 : 1;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
     if method in {"unionWith", "difference", "symmetricDifference"}:

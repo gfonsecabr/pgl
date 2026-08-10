@@ -152,7 +152,7 @@ std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelT
     }
     // The corners of an empty rectangle are inverted placeholders, so printing
     // them would read as a rectangle it is not.
-    if (rectangle.isEmpty()) {
+    if (rectangle.empty()) {
         return stream << "[]";
     }
     return stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
@@ -378,7 +378,7 @@ std::ostream& operator<<(std::ostream& stream, const HalfplaneIntersection<Point
         stream << region.label() << ":";
     }
     stream << "HalfplaneIntersection[";
-    if (region.isEmpty()) {
+    if (region.empty()) {
         stream << "empty";
     } else if (region.isPlane()) {
         stream << "plane";

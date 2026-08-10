@@ -189,21 +189,21 @@ TEST_CASE("Empty and full operands absorb") {
     const Triangle triangle(Point(0, 0), Point(3, 0), Point(0, 2));
 
     // An empty convex polygon has no point to add.
-    CHECK(xAxis.minkowskiSum(Convex()).isEmpty());
+    CHECK(xAxis.minkowskiSum(Convex()).empty());
 
     Region empty;
     empty.insert(Halfplane(Point(0, 0), Point(1, 0)));
     empty.insert(Halfplane(Point(0, -1), Point(-1, -1)));
-    REQUIRE(empty.isEmpty());
-    CHECK(empty.minkowskiSum(triangle).isEmpty());
-    CHECK(empty.minkowskiSum(xAxis).isEmpty());
-    CHECK(triangle.minkowskiSum(empty).isEmpty());
+    REQUIRE(empty.empty());
+    CHECK(empty.minkowskiSum(triangle).empty());
+    CHECK(empty.minkowskiSum(xAxis).empty());
+    CHECK(triangle.minkowskiSum(empty).empty());
 
     // The whole plane absorbs every non-empty operand.
     CHECK(Region().minkowskiSum(triangle).isPlane());
     CHECK(Region().minkowskiSum(xAxis).isPlane());
     CHECK(Region().minkowskiSum(Region()).isPlane());
-    CHECK(Region().minkowskiSum(Convex()).isEmpty());
+    CHECK(Region().minkowskiSum(Convex()).empty());
 
     // The empty shape still outranks everything.
     CHECK(xAxis.minkowskiSum(pgl::EmptyShape<Point>{}) == pgl::EmptyShape<Point>{});
@@ -328,7 +328,7 @@ TEST_CASE("Random unbounded sums agree with the definition") {
             const Point along = direction();
             region.insert(Halfplane(on, Point(on.x() + along.x(), on.y() + along.y())));
         }
-        if (region.isEmpty()) {
+        if (region.empty()) {
             continue;
         }
 

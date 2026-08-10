@@ -414,7 +414,7 @@ TEST_CASE("Halfplane intersection with another halfplane is a HalfplaneIntersect
         CHECK(!line.contains(Point(5, 1)));
 
         const Halfplane belowMinus1(1, -1, 0, -1);  // y <= -1
-        CHECK(upper.intersection<int>(belowMinus1).isEmpty());
+        CHECK(upper.intersection<int>(belowMinus1).empty());
     }
 
     SUBCASE("the result stays exact with a rational result type") {

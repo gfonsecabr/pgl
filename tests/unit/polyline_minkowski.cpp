@@ -395,7 +395,7 @@ TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cav
     // sum keeps nothing, across it the sweep is a parallelogram.
     const PolygonShape flat({Point(0, 0), Point(4, 0)});
     REQUIRE(flat.isDegenerate());
-    CHECK(PolylineShape({Point(0, 0), Point(3, 0)}).minkowskiSum<int>(flat).isEmpty());
+    CHECK(PolylineShape({Point(0, 0), Point(3, 0)}).minkowskiSum<int>(flat).empty());
     const auto crossed = vertical.minkowskiSum<int>(flat);
     CHECK(crossed.outer() == box(0, 0, 4, 3));
 
@@ -407,8 +407,8 @@ TEST_CASE("minkowskiSum: a polygon summand, whose own concavity also strands cav
     CHECK(first.holeCount() == 0);
 
     // The empty polygon absorbs from either side.
-    CHECK(chain.minkowskiSum<int>(PolygonShape()).isEmpty());
-    CHECK(PolygonShape().minkowskiSum<int>(chain).isEmpty());
+    CHECK(chain.minkowskiSum<int>(PolygonShape()).empty());
+    CHECK(PolygonShape().minkowskiSum<int>(chain).empty());
 }
 
 TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") {
@@ -476,8 +476,8 @@ TEST_CASE("minkowskiSum: a region summand keeps its hole and sweeps its slits") 
     CHECK(inResult(vertical, Point(2, 0)));
 
     // The empty region absorbs from either side.
-    CHECK(unitChain.minkowskiSum<int>(Region()).isEmpty());
-    CHECK(Region().minkowskiSum<int>(unitChain).isEmpty());
+    CHECK(unitChain.minkowskiSum<int>(Region()).empty());
+    CHECK(Region().minkowskiSum<int>(unitChain).empty());
 }
 
 TEST_CASE("minkowskiSum: agrees with the definition over a probe grid") {
@@ -665,7 +665,7 @@ TEST_CASE("minkowskiSum: a segment summand, where neither operand has area") {
 
     // A summand collapsed to a point leaves nothing at all: a chain has no area
     // to translate, so this is empty rather than the moved chain.
-    CHECK(square.minkowskiSum<int>(Segment(Point(3, 3), Point(3, 3))).isEmpty());
+    CHECK(square.minkowskiSum<int>(Segment(Point(3, 3), Point(3, 3))).empty());
 
     // The definition settles every probe as long as no edge of the chain runs
     // parallel to the segment -- where one does, the sum is genuinely not the
@@ -683,13 +683,13 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     // A chain has no area, so a summand with none either leaves nothing for the
     // regularization to keep. A point summand is the sharpest case: the sum is
     // the chain translated, a perfectly good `Polyline` and not a region at all.
-    CHECK(v.minkowskiSum<int>(RectangleShape(Point(3, 3), Point(3, 3))).isEmpty());
-    CHECK(v.minkowskiSum<int>(Triangle(Point(1, 1), Point(1, 1), Point(1, 1))).isEmpty());
+    CHECK(v.minkowskiSum<int>(RectangleShape(Point(3, 3), Point(3, 3))).empty());
+    CHECK(v.minkowskiSum<int>(Triangle(Point(1, 1), Point(1, 1), Point(1, 1))).empty());
 
     // A flat summand parallel to a straight chain is the same story; across it,
     // the sweep is a genuine parallelogram.
     const PolylineShape straight({Point(0, 0), Point(4, 0)});
-    CHECK(straight.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 0))).isEmpty());
+    CHECK(straight.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 0))).empty());
     const auto crossed = straight.minkowskiSum<int>(RectangleShape(Point(0, 0), Point(0, 3)));
     CHECK(crossed.outer() == box(0, 0, 4, 3));
 
@@ -710,9 +710,9 @@ TEST_CASE("minkowskiSum: degenerate operands") {
     CHECK(repeated.outer() == box(0, 0, 5, 1));
 
     // The empty operands absorb, whichever side they are on.
-    CHECK(PolylineShape().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 2))).isEmpty());
-    CHECK(v.minkowskiSum<int>(Convex()).isEmpty());
-    CHECK(Convex().minkowskiSum<int>(v).isEmpty());
+    CHECK(PolylineShape().minkowskiSum<int>(RectangleShape(Point(0, 0), Point(2, 2))).empty());
+    CHECK(v.minkowskiSum<int>(Convex()).empty());
+    CHECK(Convex().minkowskiSum<int>(v).empty());
 }
 
 TEST_CASE("minkowskiSum: exact over rational coordinates") {
@@ -787,7 +787,7 @@ TEST_CASE("minkowskiSum: two chains, with no area between them") {
     // parallel chains sweep out nothing at all.
     CHECK(PolylineShape({Point(0, 0), Point(4, 0)})
               .minkowskiSum<int>(PolylineShape({Point(0, 0), Point(2, 0)}))
-              .isEmpty());
+              .empty());
 
     // A monotone chain is a polyline that happens to be sorted, and sums as one
     // from either side — the chain's forwarder reaches the polyline's overload.

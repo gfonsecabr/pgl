@@ -358,7 +358,7 @@ namespace std {
                 return region.hash_;
             }
             std::size_t seed = pgl::detail::shapeRank<Shape>;
-            pgl::detail::hashCombine(seed, region.isEmpty());
+            pgl::detail::hashCombine(seed, region.empty());
             for (const auto& halfplane : region) {
                 pgl::detail::hashCombine(seed, halfplane);
             }

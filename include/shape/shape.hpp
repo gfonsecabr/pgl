@@ -1474,7 +1474,7 @@ struct Shape {
             // the tighter `PolygonWithHoles` alternative, which is the answer
             // this pair has always given when the intersection stayed in one
             // piece.
-            if (result.isEmpty()) {
+            if (result.empty()) {
                 return ResultShape{};
             }
             return result.componentCount() == 1 ? ResultShape(result.component(0))

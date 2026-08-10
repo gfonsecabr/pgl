@@ -863,7 +863,7 @@ constexpr void Ray<PointType, LabelType>::scaleDownY(const OtherNumber scalar) {
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator+=(const OtherPoint& translation) {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to move.
         return *this;
     }
@@ -875,7 +875,7 @@ constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::oper
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr Rectangle<PointType, LabelType>& Rectangle<PointType, LabelType>::operator-=(const OtherPoint& translation) {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to move.
         return *this;
     }
@@ -908,7 +908,7 @@ template <class PointType, class LabelType, class TranslationNumber, class Trans
 constexpr auto operator-(const Rectangle<PointType, LabelType>& rectangle, const Point<TranslationNumber, TranslationLabel>& translation) {
     const auto first = rectangle.min() - translation;
     using ResultRectangle = Rectangle<std::decay_t<decltype(first)>, LabelType>;
-    if (rectangle.isEmpty()) {
+    if (rectangle.empty()) {
         // The empty set has no points to transform.
         return ResultRectangle();
     }
@@ -921,7 +921,7 @@ template <class PointType, class LabelType, class Scalar>
 constexpr auto operator*(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() * scalar;
     using ResultRectangle = Rectangle<std::decay_t<decltype(first)>, LabelType>;
-    if (rectangle.isEmpty()) {
+    if (rectangle.empty()) {
         // The empty set has no points to transform.
         return ResultRectangle();
     }
@@ -940,7 +940,7 @@ template <class PointType, class LabelType, class Scalar>
 constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const Scalar& scalar) {
     const auto first = rectangle.min() / scalar;
     using ResultRectangle = Rectangle<std::decay_t<decltype(first)>, LabelType>;
-    if (rectangle.isEmpty()) {
+    if (rectangle.empty()) {
         // The empty set has no points to transform.
         return ResultRectangle();
     }
@@ -950,7 +950,7 @@ constexpr auto operator/(const Rectangle<PointType, LabelType>& rectangle, const
 
 template <class PointType, class LabelType>
 constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::rotated90(int k) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to transform.
         return Rectangle();
     }
@@ -967,7 +967,7 @@ constexpr void Rectangle<PointType, LabelType>::rotate90(int k) {
 template <class PointType, class LabelType>
 template <class OtherNumber>
 constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledUpX(const OtherNumber scalar) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to transform.
         return Rectangle();
     }
@@ -985,7 +985,7 @@ constexpr void Rectangle<PointType, LabelType>::scaleUpX(const OtherNumber scala
 template <class PointType, class LabelType>
 template <class OtherNumber>
 constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledUpY(const OtherNumber scalar) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to transform.
         return Rectangle();
     }
@@ -1003,7 +1003,7 @@ constexpr void Rectangle<PointType, LabelType>::scaleUpY(const OtherNumber scala
 template <class PointType, class LabelType>
 template <class OtherNumber>
 constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledDownX(const OtherNumber scalar) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to transform.
         return Rectangle();
     }
@@ -1021,7 +1021,7 @@ constexpr void Rectangle<PointType, LabelType>::scaleDownX(const OtherNumber sca
 template <class PointType, class LabelType>
 template <class OtherNumber>
 constexpr Rectangle<PointType, LabelType> Rectangle<PointType, LabelType>::scaledDownY(const OtherNumber scalar) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set has no points to transform.
         return Rectangle();
     }
@@ -2129,7 +2129,7 @@ constexpr auto operator*(const Transformation<Number>& transformation, const Sha
         using ResultPoint = decltype(point(std::declval<typename ShapeT::PointType>()));
         using ResultRegion = HalfplaneIntersection<ResultPoint, typename ShapeT::LabelType>;
         using ResultHalfplane = typename ResultRegion::HalfplaneType;
-        if (shape.isEmpty()) {
+        if (shape.empty()) {
             ResultRegion result;
             result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
             result.insert(ResultHalfplane(ResultPoint(1, 1), ResultPoint(1, 0)));

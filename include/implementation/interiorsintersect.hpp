@@ -198,7 +198,7 @@ constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherHal
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -551,7 +551,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherRe
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -567,7 +567,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherLi
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherOrientedLine& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -583,7 +583,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherOr
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -596,7 +596,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherSe
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherOrientedSegment& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -609,7 +609,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherOr
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherRay& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -626,7 +626,7 @@ constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherRa
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Rectangle<PointType, LabelType>::interiorsIntersect(const OtherHalfplane& other) const {
-    if (isEmpty()) {
+    if (empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -894,7 +894,7 @@ constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherHalfp
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1158,7 +1158,7 @@ constexpr bool polygonAreaInteriorsIntersect(const Poly& poly, const Area& area)
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1503,7 +1503,7 @@ constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherHalfpla
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1699,7 +1699,7 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(
 template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -1946,7 +1946,7 @@ constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherHal
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polyline<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -2161,7 +2161,7 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(c
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
@@ -2597,7 +2597,7 @@ bool PolygonWithHoles<PointType, LabelType>::areaInteriorsIntersect(const OtherA
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const OtherRectangle& other) const {
-    if (other.isEmpty()) {
+    if (other.empty()) {
         // The empty set meets nothing and disconnects nothing.
         return false;
     }

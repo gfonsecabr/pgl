@@ -452,7 +452,7 @@ struct PolygonSet {
     // State queries
 
     /** @brief Tests whether the set has no components at all. */
-    [[nodiscard]] constexpr bool isEmpty() const {
+    [[nodiscard]] constexpr bool empty() const {
         return components_.empty();
     }
 
@@ -460,7 +460,7 @@ struct PolygonSet {
      * @brief Tests whether the set has zero area.
      *
      * A canonical set drops its zero-area components, so this is exactly
-     * @ref isEmpty for one; a set adopted with `trusted` may still carry a
+     * @ref empty for one; a set adopted with `trusted` may still carry a
      * component without area, which is why the areas are summed rather than the
      * components counted.
      */

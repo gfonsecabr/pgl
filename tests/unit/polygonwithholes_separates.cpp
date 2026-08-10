@@ -257,7 +257,7 @@ TEST_CASE("PolygonWithHoles vs Halfplane and HalfplaneIntersection") {
     SUBCASE("the empty intersection removes nothing") {
         Intersection empty(Halfplane(Point(0, 0), Point(1, 0)));
         empty.insert(Halfplane(Point(1, -1), Point(0, -1)));
-        REQUIRE(empty.isEmpty());
+        REQUIRE(empty.empty());
         CHECK_FALSE(empty.separates(region));
     }
 }

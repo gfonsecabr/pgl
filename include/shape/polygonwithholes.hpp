@@ -379,7 +379,7 @@ struct PolygonWithHoles {
     // State queries
 
     /** @brief Tests whether the region has no outer boundary at all. */
-    [[nodiscard]] constexpr bool isEmpty() const {
+    [[nodiscard]] constexpr bool empty() const {
         return outer_.size() == 0;
     }
 

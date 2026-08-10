@@ -383,7 +383,7 @@ struct Convex {
      *
      * @return `true` if the convex polygon covers no point.
      */
-    [[nodiscard]] constexpr bool isEmpty() const {
+    [[nodiscard]] constexpr bool empty() const {
         return size() == 0;
     }
 
@@ -445,7 +445,7 @@ struct Convex {
      * collapsing to a point or to a segment.
      *
      * A convex polygon is never undefined: a degenerate one is always empty, a
-     * point, or a segment, so this always returns `false`. Use @ref isEmpty to
+     * point, or a segment, so this always returns `false`. Use @ref empty to
      * detect the one that covers nothing. Provided for uniformity with the
      * other shapes.
      *

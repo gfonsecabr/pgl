@@ -147,13 +147,13 @@ TEST_CASE("Polygon difference: degenerate outcomes") {
         CHECK(pieces.component(0) == Region(unit));
     }
     SUBCASE("removing the polygon itself leaves nothing") {
-        CHECK(unit.difference<int>(unit).isEmpty());
+        CHECK(unit.difference<int>(unit).empty());
     }
     SUBCASE("a remover swallowing the polygon leaves nothing") {
-        CHECK(unit.difference<int>(box(-1, -1, 11, 11)).isEmpty());
+        CHECK(unit.difference<int>(box(-1, -1, 11, 11)).empty());
     }
     SUBCASE("a polygon with no area has nothing to lose") {
-        CHECK(PolygonShape({Point(0, 0), Point(4, 0), Point(2, 0)}).difference<int>(unit).isEmpty());
+        CHECK(PolygonShape({Point(0, 0), Point(4, 0), Point(2, 0)}).difference<int>(unit).empty());
     }
     SUBCASE("a remover with no area removes nothing") {
         const auto pieces = unit.difference<int>(PolygonShape({Point(2, 2), Point(8, 2)}));
@@ -518,7 +518,7 @@ TEST_CASE("difference: removing a piece from the difference leaves the rest") {
         const PolygonShape remover = box(3, 3, 9, 9);
         const auto pieces = region.difference<int>(remover);
         for (const Region& piece : pieces) {
-            CHECK_MESSAGE(piece.difference<int>(piece).isEmpty(), name);
+            CHECK_MESSAGE(piece.difference<int>(piece).empty(), name);
             for (const Region& other : pieces) {
                 if (!(other == piece)) {
                     const auto rest = piece.difference<int>(other);

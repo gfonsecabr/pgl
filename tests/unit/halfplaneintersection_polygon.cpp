@@ -190,7 +190,7 @@ TEST_CASE("Region intersection with a polygon: the empty and degenerate regions"
     // An empty region meets nothing.
     Region empty(Halfplane(0, 0, 1, 0));
     empty.insert(Halfplane(1, -1, 0, -1));
-    REQUIRE(empty.isEmpty());
+    REQUIRE(empty.empty());
     CHECK(empty.intersection<ERational>(cShape()).empty());
 
     // A region that has collapsed onto a line is that line, and the polygon

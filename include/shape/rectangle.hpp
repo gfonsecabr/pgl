@@ -114,7 +114,7 @@ struct Rectangle {
      *
      * The maximum corner falls below the minimum one, which no pair of opposite
      * corners normalizes to, so the rectangle covers no point at all and
-     * behaves as @ref EmptyShape everywhere. See @ref isEmpty.
+     * behaves as @ref EmptyShape everywhere. See @ref empty.
      */
     constexpr Rectangle() : points_(emptyCorners()) {}
 
@@ -281,16 +281,16 @@ struct Rectangle {
      *
      * @return `true` if the rectangle covers no point.
      */
-    [[nodiscard]] constexpr bool isEmpty() const {
+    [[nodiscard]] constexpr bool empty() const {
         assert(!(points_[1].y() < points_[0].y()) || points_[1].x() < points_[0].x());
         return points_[1].x() < points_[0].x();
     }
 
     /**
-     * @brief Returns the number of corners: `4`, or `0` when @ref isEmpty.
+     * @brief Returns the number of corners: `4`, or `0` when @ref empty.
      */
     [[nodiscard]] constexpr std::size_t size() const {
-        return isEmpty() ? 0 : 4;
+        return empty() ? 0 : 4;
     }
 
     /**
@@ -301,7 +301,7 @@ struct Rectangle {
      * is a precondition violation.
      */
     constexpr PointType get(std::ptrdiff_t index) const {
-        assert(!isEmpty());
+        assert(!empty());
         const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
         return (*this)[static_cast<std::size_t>(((index % n) + n) % n)];
     }
@@ -325,7 +325,7 @@ struct Rectangle {
      * @brief Returns the minimum corner `(min x, min y)`.
      *
      * The corners of an empty rectangle are inverted placeholders, not points
-     * the rectangle covers; see @ref isEmpty.
+     * the rectangle covers; see @ref empty.
      *
      * @return Reference to the minimum corner.
      */
@@ -337,7 +337,7 @@ struct Rectangle {
      * @brief Returns the maximum corner `(max x, max y)`.
      *
      * The corners of an empty rectangle are inverted placeholders, not points
-     * the rectangle covers; see @ref isEmpty.
+     * the rectangle covers; see @ref empty.
      *
      * @return Reference to the maximum corner.
      */
@@ -348,21 +348,21 @@ struct Rectangle {
     /**
      * @brief Returns the rectangle width.
      *
-     * @return `max x - min x`, or `0` when @ref isEmpty.
+     * @return `max x - min x`, or `0` when @ref empty.
      */
     [[nodiscard]] constexpr auto width() const {
         using Result = decltype(max().x() - min().x());
-        return isEmpty() ? Result(0) : Result(max().x() - min().x());
+        return empty() ? Result(0) : Result(max().x() - min().x());
     }
 
     /**
      * @brief Returns the rectangle height.
      *
-     * @return `max y - min y`, or `0` when @ref isEmpty.
+     * @return `max y - min y`, or `0` when @ref empty.
      */
     [[nodiscard]] constexpr auto height() const {
         using Result = decltype(max().y() - min().y());
-        return isEmpty() ? Result(0) : Result(max().y() - min().y());
+        return empty() ? Result(0) : Result(max().y() - min().y());
     }
 
     /**
@@ -503,7 +503,7 @@ struct Rectangle {
      * @brief Returns the rectangle area.
      *
      * @tparam ResultNumber Result type (default: NumberType).
-     * @return `width * height`, which is `0` when @ref isEmpty.
+     * @return `width * height`, which is `0` when @ref empty.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber area() const;
@@ -520,7 +520,7 @@ struct Rectangle {
      *
      * The empty rectangle has no area either, so it is degenerate.
      *
-     * @return `true` when width or height is zero, or when @ref isEmpty.
+     * @return `true` when width or height is zero, or when @ref empty.
      */
     [[nodiscard]] constexpr bool isDegenerate() const;
 
@@ -589,7 +589,7 @@ struct Rectangle {
      * @brief Returns a bounding box of the rectangle with floating point coordinates.
      *
      * @tparam ResultNumber Floating point type.
-     * @return A rectangle that contains the rectangle, empty when @ref isEmpty.
+     * @return A rectangle that contains the rectangle, empty when @ref empty.
      */
     template <std::floating_point ResultNumber = double>
     [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
@@ -638,7 +638,7 @@ struct Rectangle {
      * @return Convex polygon with the same corners.
      */
     [[nodiscard]] constexpr explicit operator Convex<PointType>() const {
-        if (isEmpty()) {
+        if (empty()) {
             return Convex<PointType>();
         }
         return Convex<PointType>(*this, !isDegenerate());
@@ -676,7 +676,7 @@ struct Rectangle {
      * @return Polygon with the same corners.
      */
     [[nodiscard]] constexpr explicit operator Polygon<PointType>() const {
-        if (isEmpty()) {
+        if (empty()) {
             return Polygon<PointType>();
         }
         return Polygon<PointType>(*this, !isDegenerate());

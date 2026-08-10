@@ -34,7 +34,7 @@ TEST_CASE("Area of a bounded region") {
 TEST_CASE("Empty and unbounded measures") {
     Region empty({Halfplane(0, 0, 1, 0)});
     empty.insert(Halfplane(1, -1, 0, -1));   // y <= -1 makes it empty
-    CHECK(empty.isEmpty());
+    CHECK(empty.empty());
     CHECK(empty.twiceArea<long long>() == 0);
     CHECK(empty.area<double>() == doctest::Approx(0.0));
 

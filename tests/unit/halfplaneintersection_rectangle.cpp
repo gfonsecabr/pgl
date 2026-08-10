@@ -59,7 +59,7 @@ TEST_CASE("Intersection with a rectangle stays a region") {
     CHECK(clip.isBounded());
     CHECK(clip.twiceArea<long long>() == 8);   // 2 x 2 box
     const Region miss = k.intersection<int>(RectangleShape(Point(10, 10), Point(12, 12)));
-    CHECK(miss.isEmpty());
+    CHECK(miss.empty());
 }
 
 TEST_CASE("Separation and crossing with a rectangle") {

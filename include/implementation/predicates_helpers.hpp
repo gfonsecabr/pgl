@@ -269,7 +269,7 @@ constexpr bool regionStrictlyOnBothSides(const Region& region, const FirstPoint&
  * @brief The point set of a degenerate (empty-interior, nonempty) region as a
  * typed shape with exact coordinates: a point, a segment, a ray, or a line.
  *
- * Precondition: `region.isDegenerate() && !region.isEmpty()`.
+ * Precondition: `region.isDegenerate() && !region.empty()`.
  */
 template <class Region>
 constexpr auto degenerateRegionCarrier(const Region& region) {

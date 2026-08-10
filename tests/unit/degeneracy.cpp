@@ -130,16 +130,15 @@ TEST_CASE_TEMPLATE("Vertex-list shapes classify degeneracy", Point, pgl::Point<i
     const std::vector<Point> proper{Point(0, 0), Point(4, 0), Point(0, 4)};
     const Segment spanned(Point(0, 0), Point(2, 2));
 
-    const auto check = [&](const auto& empty_shape, const auto& point_shape,
+    // Every vertex-list shape reports the vertexless case with empty(), but they
+    // disagree on what it means: Convex and Polygon call it the well-defined
+    // empty set, while Polyline and MonotoneChain still call it undefined. The
+    // caller says which, since the shapes no longer differ in their interface.
+    const auto check = [&](bool empty_is_undefined,
+                           const auto& empty_shape, const auto& point_shape,
                            const auto& segment_shape, const auto& proper_shape) {
-        // Convex and Polygon classify the vertexless shape as the well-defined
-        // empty set; Polyline and MonotoneChain still classify it as undefined.
-        if constexpr (requires { empty_shape.isEmpty(); }) {
-            CHECK(empty_shape.isEmpty());
-            CHECK_FALSE(empty_shape.isUndefined());
-        } else {
-            CHECK(empty_shape.isUndefined());
-        }
+        CHECK(empty_shape.empty());
+        CHECK(empty_shape.isUndefined() == empty_is_undefined);
         CHECK_FALSE(empty_shape.isPoint());
         CHECK_FALSE(empty_shape.isSegment());
         CHECK_FALSE(empty_shape.getIfPoint().has_value());
@@ -161,24 +160,24 @@ TEST_CASE_TEMPLATE("Vertex-list shapes classify degeneracy", Point, pgl::Point<i
     };
 
     SUBCASE("Convex") {
-        check(pgl::Convex<Point>(none), pgl::Convex<Point>(repeated),
+        check(false, pgl::Convex<Point>(none), pgl::Convex<Point>(repeated),
               pgl::Convex<Point>(collinear), pgl::Convex<Point>(proper));
     }
 
     SUBCASE("Polygon") {
-        check(pgl::Polygon<Point>(none), pgl::Polygon<Point>(repeated),
+        check(false, pgl::Polygon<Point>(none), pgl::Polygon<Point>(repeated),
               pgl::Polygon<Point>(collinear), pgl::Polygon<Point>(proper));
     }
 
     SUBCASE("Polyline") {
-        check(pgl::Polyline<Point>(none), pgl::Polyline<Point>(repeated),
+        check(true, pgl::Polyline<Point>(none), pgl::Polyline<Point>(repeated),
               pgl::Polyline<Point>(collinear), pgl::Polyline<Point>(proper));
     }
 
     SUBCASE("MonotoneChain") {
         // A monotone chain must be x-monotone, so the proper case zig-zags in y.
         const std::vector<Point> monotone_proper{Point(0, 0), Point(1, 3), Point(2, 0)};
-        check(pgl::MonotoneChain<Point>(none), pgl::MonotoneChain<Point>(repeated),
+        check(true, pgl::MonotoneChain<Point>(none), pgl::MonotoneChain<Point>(repeated),
               pgl::MonotoneChain<Point>(collinear), pgl::MonotoneChain<Point>(monotone_proper));
     }
 }
@@ -262,7 +261,7 @@ TEST_CASE("HalfplaneIntersection recognizes the shape it describes") {
     SUBCASE("the empty region is none of them") {
         Region r{Point(0, 0)};
         r.insert(Halfplane(Point(1, 1), Point(1, 0)));  // x >= 1, misses the origin
-        REQUIRE(r.isEmpty());
+        REQUIRE(r.empty());
         expect(r, false, false, false, false, false);
     }
 
@@ -323,7 +322,7 @@ TEST_CASE("HalfplaneIntersection recognizes the shape it describes") {
         Region r{pgl::Line<Point>(Point(0, 0), Point(1, 0))};
         r.insert(Halfplane(Point(0, 0), Point(0, 1)));  // clamp to x <= 0
         REQUIRE(r.isDegenerate());
-        REQUIRE_FALSE(r.isEmpty());
+        REQUIRE_FALSE(r.empty());
         expect(r, false, false, true, false, false);
 
         const auto ray = r.getIfRay();

@@ -20,7 +20,7 @@ static PolygonShape otherHole() { return PolygonShape({6, 6, 8, 6, 8, 8, 6, 8});
 TEST_CASE("PolygonWithHoles construction and ring access") {
     SUBCASE("default construction is the empty region") {
         const Region region;
-        CHECK(region.isEmpty());
+        CHECK(region.empty());
         CHECK(!region.hasHoles());
         CHECK(region.holeCount() == 0);
         CHECK(region.vertexCount() == 0);
@@ -30,7 +30,7 @@ TEST_CASE("PolygonWithHoles construction and ring access") {
 
     SUBCASE("outer boundary only") {
         const Region region(outerSquare());
-        CHECK(!region.isEmpty());
+        CHECK(!region.empty());
         CHECK(!region.hasHoles());
         CHECK(region.outer() == outerSquare());
         CHECK(region.vertexCount() == 4);
@@ -388,7 +388,7 @@ TEST_CASE("PolygonWithHoles regularized") {
     }
 
     SUBCASE("the empty region has no pieces") {
-        CHECK(Region().regularized<int>().isEmpty());
+        CHECK(Region().regularized<int>().empty());
     }
 
     SUBCASE("the result type follows the requested number type") {

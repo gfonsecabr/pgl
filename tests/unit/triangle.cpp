@@ -632,7 +632,7 @@ TEST_CASE("Triangle converts to a half-plane intersection") {
     const Triangle t(Point(0, 0), Point(4, 0), Point(0, 4));
     const auto region = t.asHalfplaneIntersection();
     static_assert(std::is_same_v<decltype(region), const pgl::HalfplaneIntersection<Point>>);
-    CHECK(!region.isEmpty());
+    CHECK(!region.empty());
     CHECK(!region.isDegenerate());
     CHECK(region.isBounded());
     CHECK(region.interiorContains(Point(1, 1)));
@@ -684,6 +684,6 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
     SUBCASE("a collinear triangle contributes nothing") {
         const Triangle flat(Point(0, 0), Point(2, 0), Point(4, 0));
         CHECK(flat.unionWith<int>(lower) == lower.asPolygonSet());
-        CHECK(flat.unionWith<int>(flat).isEmpty());
+        CHECK(flat.unionWith<int>(flat).empty());
     }
 }

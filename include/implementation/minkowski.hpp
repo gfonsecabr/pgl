@@ -403,7 +403,7 @@ constexpr MinkowskiPolyhedron<ResultPoint> minkowskiPolyhedronOf(const ShapeT& s
             polyhedron.recessions.push_back(reversed(forward));
         }
     } else if constexpr (is_halfplane_intersection_v<ShapeT>) {
-        if (shape.isEmpty()) {
+        if (shape.empty()) {
             polyhedron.empty = true;
             return polyhedron;
         }
@@ -761,7 +761,7 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         // Two axis-aligned rectangles are the one non-trivial pair closed under
         // the sum: opposite corners simply add, minima to minima and maxima to
         // maxima. Sweeping anything over the empty set covers nothing.
-        if (a.isEmpty() || b.isEmpty()) {
+        if (a.empty() || b.empty()) {
             return Rectangle<ResultPoint>();
         }
         return Rectangle<ResultPoint>(minkowskiSumOf(a.min(), b.min()),
