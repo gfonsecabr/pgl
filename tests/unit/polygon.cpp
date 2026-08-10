@@ -1042,7 +1042,7 @@ TEST_CASE("Polygon star-shaped kernel") {
         CHECK_FALSE(segment.getStarShapedKernel()->contains(Point(2, 1)));
     }
 
-    SUBCASE("undefined polygons have no kernel") {
+    SUBCASE("empty and undefined polygons have no kernel") {
         CHECK_FALSE(Poly({}).isStarShaped());
         CHECK_FALSE(Poly({}).getStarShapedKernel().has_value());
     }
@@ -1054,4 +1054,36 @@ TEST_CASE("Polygon star-shaped kernel") {
         CHECK(kernel->contains(Point(2, 2)));
         CHECK_FALSE(kernel->contains(Point(5, 2)));
     }
+}
+
+TEST_CASE("The empty polygon is the well-defined empty set") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const PolygonShape empty;
+    const PolygonShape square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    CHECK(empty.isEmpty());
+    CHECK(empty.size() == 0);
+    CHECK(empty.isDegenerate());
+    CHECK_FALSE(empty.isUndefined());
+    CHECK_FALSE(empty.isPoint());
+    CHECK_FALSE(empty.isSegment());
+
+    // A boundary that retraces itself stays the undefined case; only the
+    // vertexless polygon is the empty set.
+    const PolygonShape bowtie(std::vector<Point>{{0, 0}, {2, 0}, {1, 1}, {2, 0}});
+    CHECK(bowtie.isUndefined());
+    CHECK_FALSE(bowtie.isEmpty());
+
+    CHECK(empty.contains(empty));
+    CHECK(square.contains(empty));
+    CHECK_FALSE(empty.contains(square));
+    CHECK_FALSE(empty.intersects(square));
+    CHECK_FALSE(square.intersects(empty));
+
+    CHECK(empty.bbox().isEmpty());
+    CHECK(empty.asPolygonSet().isEmpty());
+    CHECK(Rectangle().asPolygon().isEmpty());
 }

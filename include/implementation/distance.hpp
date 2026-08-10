@@ -16,6 +16,7 @@
  */
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <ranges>
@@ -465,6 +466,9 @@ constexpr auto Rectangle<PointType, LabelType>::axisDistance(const Left& first_m
 template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherPoint& point) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), point.x(), point.x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), point.y(), point.y()));
     return dx * dx + dy * dy;
@@ -473,6 +477,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherPoint
 template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherLine& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -492,12 +499,18 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherLine&
 template <class PointType, class LabelType>
 template <class ResultNumber, OrientedLineConcept OtherOrientedLine>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedLine& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     return this->template squaredDistance<ResultNumber>(other.asLine());
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherSegment& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -522,12 +535,18 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherSegme
 template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherOrientedSegment& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     return this->template squaredDistance<ResultNumber>(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRay& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -547,6 +566,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRay& 
 template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherHalfplane& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     if (intersects(other)) {
         return ResultNumber{};
     }
@@ -556,6 +578,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherHalfp
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRectangle& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     const ResultNumber dx = static_cast<ResultNumber>(axisDistance(min().x(), max().x(), other.min().x(), other.max().x()));
     const ResultNumber dy = static_cast<ResultNumber>(axisDistance(min().y(), max().y(), other.min().y(), other.max().y()));
     return dx * dx + dy * dy;
@@ -564,6 +589,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredDistance(const OtherRecta
 template <class PointType, class LabelType>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherRectangle& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -572,12 +600,18 @@ constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const O
 template <class PointType, class LabelType>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherPoint& point) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     return detail::maxVertexSquaredDistance<ResultNumber>(*this, point);
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherSegment& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;
@@ -586,6 +620,9 @@ constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const O
 template <class PointType, class LabelType>
 template <class ResultNumber, OrientedSegmentConcept OtherOrientedSegment>
 constexpr auto Rectangle<PointType, LabelType>::squaredHausdorffDistance(const OtherOrientedSegment& other) const {
+    // There is no nearest point of the empty set, so it has no distance to
+    // anything; asking for one is a precondition violation.
+    assert(!isEmpty());
     const auto worst_from_this = detail::maxVertexSquaredDistance<ResultNumber>(*this, other);
     const auto worst_from_other = detail::maxVertexSquaredDistance<ResultNumber>(other, *this);
     return worst_from_this > worst_from_other ? worst_from_this : worst_from_other;

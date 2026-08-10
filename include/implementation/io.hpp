@@ -139,7 +139,7 @@ std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& 
 // Rectangle
 
 /**
- * @brief Streams a rectangle as `[min,max]`.
+ * @brief Streams a rectangle as `[min,max]`, or as `[]` when it is empty.
  *
  * @param stream Output stream.
  * @param rectangle Rectangle to print.
@@ -148,11 +148,14 @@ std::ostream& operator<<(std::ostream& stream, const Ray<PointType, LabelType>& 
 template <class PointType, class LabelType>
 std::ostream& operator<<(std::ostream& stream, const Rectangle<PointType, LabelType>& rectangle) {
     if constexpr (detail::has_label_v<LabelType>) {
-        stream << rectangle.label() << ":[" << rectangle.min() << ',' << rectangle.max() << "]";
-    } else {
-        stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
+        stream << rectangle.label() << ':';
     }
-    return stream;
+    // The corners of an empty rectangle are inverted placeholders, so printing
+    // them would read as a rectangle it is not.
+    if (rectangle.isEmpty()) {
+        return stream << "[]";
+    }
+    return stream << '[' << rectangle.min() << ',' << rectangle.max() << ']';
 }
 
 // -----------------------------------------------------------------------------

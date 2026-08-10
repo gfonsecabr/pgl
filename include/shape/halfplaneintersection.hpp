@@ -311,12 +311,17 @@ struct HalfplaneIntersection {
     /**
      * @brief Creates the region of a rectangle as four half-planes.
      *
-     * A degenerate rectangle produces the corresponding degenerate region: a
-     * zero-area rectangle collapses to the segment between its extreme corners,
-     * and a single-point rectangle to that point.
+     * An empty rectangle produces the empty region. A degenerate one produces
+     * the corresponding degenerate region: a zero-area rectangle collapses to
+     * the segment between its extreme corners, and a single-point rectangle to
+     * that point.
      */
     template <RectangleConcept OtherRectangle>
     constexpr explicit HalfplaneIntersection(const OtherRectangle& rectangle) {
+        if (rectangle.isEmpty()) {
+            empty_ = true;
+            return;
+        }
         const PointType lo(rectangle.min());
         const PointType hi(rectangle.max());
         if (lo == hi) {
@@ -2559,7 +2564,10 @@ Polygon<PointType_, TLabel>::getStarShapedKernel() const {
     if (const auto carrier = getIfSegment()) {
         return RegionType(*carrier);
     }
-    if (isUndefined()) {
+    if (isEmpty() || isUndefined()) {
+        // The empty polygon has no point to see it from, and an undefined one
+        // has no interior side for its edges to bound. Either way the kernel is
+        // empty, which is reported as no kernel at all.
         return std::nullopt;
     }
     RegionType kernel;

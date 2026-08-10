@@ -859,6 +859,8 @@ constexpr Halfplane<PointType> Ray<PointType, LabelType>::leftHalfplane() const 
 
 template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::isDegenerate() const {
+    // The inverted corners of an empty rectangle already fail both tests, so
+    // the empty set is reported as degenerate without a separate check.
     return !(min().x() < max().x()) || !(min().y() < max().y());
 }
 
@@ -877,7 +879,7 @@ constexpr std::optional<PointType> Rectangle<PointType, LabelType>::getIfPoint()
 
 template <class PointType, class LabelType>
 constexpr bool Rectangle<PointType, LabelType>::isSegment() const {
-    return isDegenerate() && !isPoint();
+    return !isEmpty() && isDegenerate() && !isPoint();
 }
 
 template <class PointType, class LabelType>
@@ -910,10 +912,14 @@ constexpr bool Rectangle<PointType, LabelType>::intervalsOverlapStrict(const Lef
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Rectangle<PointType, LabelType>::verticesContain(const OtherPoint& point) const {
-    return point == min() ||
-           point == bottomRight() ||
-           point == max() ||
-           point == topLeft();
+    // The one case here that does need an emptiness test: the corners of the
+    // empty rectangle are points like any other, and `(0,0)` is one of them, so
+    // a match has to be rejected afterwards rather than trusted. Only a match
+    // pays for it, and most calls do not match.
+    return (point == min() ||
+            point == bottomRight() ||
+            point == max() ||
+            point == topLeft()) && !isEmpty();
 }
 
 /**
@@ -1001,7 +1007,8 @@ Convex<PointType, LabelType>::getIfSegment() const {
 
 template <class PointType, class LabelType>
 constexpr bool Convex<PointType, LabelType>::isUndefined() const {
-    return size() == 0;
+    // The vertex-free polygon is the empty set, which is defined; see isEmpty.
+    return false;
 }
 
 template <class PointType, class LabelType>

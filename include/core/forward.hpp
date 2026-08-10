@@ -519,6 +519,34 @@ constexpr bool reduceDegenerateGuarded(const Other& other, Predicate predicate) 
 }
 
 /**
+ * @brief Tests whether a shape covers no point at all.
+ *
+ * Only some shapes have an empty state: the ones that say so themselves
+ * (@ref Rectangle, @ref Convex, @ref Polygon, @ref PolygonWithHoles,
+ * @ref PolygonSet, @ref HalfplaneIntersection) and the vertex containers that
+ * are empty when they hold nothing (@ref Polyline, @ref MonotoneChain). Every
+ * other shape is defined by points it covers, so it is never empty.
+ * @ref EmptyShape needs no case here: it answers every relation itself and
+ * never reaches a caller of this.
+ *
+ * The `size()` fallback serves only the second group. It is safe for the rest
+ * because a shape whose `size()` is a fixed count -- the two coordinates of a
+ * @ref Point, the three defining points of a @ref Triangle or @ref Disk -- can
+ * never report `0`. A new shape that spends `size()` on something else, and can
+ * spend nothing, would need its own `isEmpty` rather than this fallback.
+ */
+template <class TShape>
+constexpr bool coversNoPoint(const TShape& shape) {
+    if constexpr (requires { shape.isEmpty(); }) {
+        return shape.isEmpty();
+    } else if constexpr (requires { shape.size(); }) {
+        return shape.size() == 0;
+    } else {
+        return false;
+    }
+}
+
+/**
  * @brief The @ref reduceDegenerate variant for a predicate that only a
  * point-collapsed argument can satisfy.
  *

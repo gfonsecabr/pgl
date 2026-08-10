@@ -165,7 +165,7 @@ constexpr typename Rectangle<PointType, LabelType>::PointType Rectangle<PointTyp
 template <class PointType, class LabelType>
 template <bool Oriented>
 constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Oriented> Rectangle<PointType, LabelType>::boundaryAt(std::size_t index) const {
-    assert(index < edgeCount);
+    assert(index < size());
 
     const auto bottom_left = min();
     const auto bottom_right = bottomRight();
@@ -186,6 +186,7 @@ constexpr typename Rectangle<PointType, LabelType>::template BoundaryType<Orient
 
 template <class PointType, class LabelType>
 constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rectangle<PointType, LabelType>::vertices() const {
+    assert(!isEmpty());
     return {
         min(),
         bottomRight(),
@@ -196,6 +197,7 @@ constexpr std::array<typename Rectangle<PointType, LabelType>::PointType, 4> Rec
 
 template <class PointType, class LabelType>
 constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edges() const {
+    assert(!isEmpty());
     return {
         boundaryAt<false>(0),
         boundaryAt<false>(1),
@@ -206,6 +208,7 @@ constexpr std::array<Segment<PointType>, 4> Rectangle<PointType, LabelType>::edg
 
 template <class PointType, class LabelType>
 constexpr std::array<OrientedSegment<PointType>, 4> Rectangle<PointType, LabelType>::orientedEdges() const {
+    assert(!isEmpty());
     return {
         boundaryAt<true>(0),
         boundaryAt<true>(1),
@@ -306,11 +309,18 @@ constexpr std::array<OrientedSegment<PointType>, 3> Triangle<PointType, LabelTyp
 template <class PointType, class LabelType>
 template <PointConcept OtherPoint>
 constexpr void Rectangle<PointType, LabelType>::insert(const OtherPoint& point) {
-    const PointType old_min = min();
-    const PointType old_max = max();
-
     const NumberType x = static_cast<NumberType>(point.x());
     const NumberType y = static_cast<NumberType>(point.y());
+
+    if (isEmpty()) {
+        // The empty rectangle bounds nothing, so it cannot be grown: it becomes
+        // the inserted point outright.
+        points_[0] = points_[1] = makeCorner(x, y);
+        return;
+    }
+
+    const PointType old_min = min();
+    const PointType old_max = max();
 
     NumberType min_x = old_min.x();
     NumberType min_y = old_min.y();
@@ -341,6 +351,10 @@ constexpr void Rectangle<PointType, LabelType>::insert(const OtherPoint& point) 
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr void Rectangle<PointType, LabelType>::insert(const OtherRectangle& other) {
+    if (other.isEmpty()) {
+        // Its corners are inverted placeholders, not points to enclose.
+        return;
+    }
     insert(other.min());
     insert(other.max());
 }
@@ -349,9 +363,7 @@ template <class PointType, class LabelType>
 template <class TShape>
     requires(!detail::is_point_v<TShape> && !RectangleConcept<TShape> && requires(const TShape& shape) { shape.bbox(); })
 constexpr void Rectangle<PointType, LabelType>::insert(const TShape& shape) {
-    const auto box = shape.bbox();
-    insert(box.min());
-    insert(box.max());
+    insert(shape.bbox());
 }
 
 

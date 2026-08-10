@@ -132,7 +132,14 @@ TEST_CASE_TEMPLATE("Vertex-list shapes classify degeneracy", Point, pgl::Point<i
 
     const auto check = [&](const auto& empty_shape, const auto& point_shape,
                            const auto& segment_shape, const auto& proper_shape) {
-        CHECK(empty_shape.isUndefined());
+        // Convex and Polygon classify the vertexless shape as the well-defined
+        // empty set; Polyline and MonotoneChain still classify it as undefined.
+        if constexpr (requires { empty_shape.isEmpty(); }) {
+            CHECK(empty_shape.isEmpty());
+            CHECK_FALSE(empty_shape.isUndefined());
+        } else {
+            CHECK(empty_shape.isUndefined());
+        }
         CHECK_FALSE(empty_shape.isPoint());
         CHECK_FALSE(empty_shape.isSegment());
         CHECK_FALSE(empty_shape.getIfPoint().has_value());

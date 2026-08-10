@@ -567,9 +567,11 @@ TEST_CASE("Convex::contains(Convex) across nested, disjoint, and degenerate case
 
     SUBCASE("empty polygon") {
         const Convex empty;
+        CHECK(empty.isEmpty());
+        CHECK_FALSE(empty.isUndefined());     // the empty set is well defined
         CHECK(sq.contains(empty));            // a polygon contains the empty set
         CHECK_FALSE(empty.contains(sq));      // the empty set contains nothing
-        CHECK_FALSE(empty.contains(empty));   // ... not even itself
+        CHECK(empty.contains(empty));         // ... except itself
     }
 
     SUBCASE("single-point polygon") {
@@ -1728,4 +1730,34 @@ TEST_CASE("Convex unites with Convex into a set of regions") {
         CHECK(flat.unionWith<int>(square) == square.asPolygonSet());
         CHECK(flat.unionWith<int>(flat).isEmpty());
     }
+}
+
+TEST_CASE("The empty convex polygon is the well-defined empty set") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    const Convex empty;
+    const Convex square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    CHECK(empty.isEmpty());
+    CHECK(empty.size() == 0);
+    CHECK(empty.isDegenerate());
+    CHECK_FALSE(empty.isUndefined());
+    CHECK_FALSE(empty.isPoint());
+    CHECK_FALSE(empty.isSegment());
+
+    // The hull of no points is the empty set rather than a shape without one.
+    CHECK(Convex(std::vector<Point>{}).isEmpty());
+
+    CHECK(empty.contains(empty));
+    CHECK(square.contains(empty));
+    CHECK_FALSE(empty.contains(square));
+    CHECK_FALSE(empty.intersects(square));
+    CHECK_FALSE(square.intersects(empty));
+
+    CHECK(empty.bbox().isEmpty());
+    CHECK(empty.asPolygonSet().isEmpty());
+    CHECK(empty.asHalfplaneIntersection().isEmpty());
+    CHECK(Rectangle().asConvex().isEmpty());
 }

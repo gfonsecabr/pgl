@@ -1625,6 +1625,7 @@ class Canvas {
                     }
                 }
             } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                if (shape.isEmpty()) return;
                 const float x = static_cast<float>(viewport.mapX(shape.min().x()));
                 const float y = pdfYFromSVG(viewport.mapY(shape.min().y()));
                 const float width = static_cast<float>(std::abs(viewport.mapX(shape.max().x()) - viewport.mapX(shape.min().x())));
@@ -1856,6 +1857,7 @@ class Canvas {
                 }
                 out << "</g>";
             } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                if (shape.isEmpty()) return {};
                 const double minX = viewport.mapX(shape.min().x());
                 const double maxX = viewport.mapX(shape.max().x());
                 const double minY = viewport.mapY(shape.max().y());
@@ -2258,6 +2260,7 @@ class Canvas {
                         ipeStrokeAttributes(style));
                 }
             } else if constexpr (std::same_as<S, Rectangle<PT>>) {
+                if (shape.isEmpty()) return;
                 const double minX = viewport.mapX(shape.min().x());
                 const double maxX = viewport.mapX(shape.max().x());
                 const double minY = pdfYFromSVG(viewport.mapY(shape.max().y()));

@@ -191,6 +191,10 @@ constexpr bool Triangle<PointType, LabelType>::intersects(const OtherHalfplane& 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (other.contains(a()) || other.contains(b()) || other.contains(c())) {
         return true;
     }
@@ -470,19 +474,31 @@ constexpr bool Ray<PointType, LabelType>::intersects(const Shape<PointType>& oth
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherPoint& other) const {
+    // The empty set meets nothing, and it needs no case of its own: it contains
+    // no point, so the test below is already false for it.
     return contains(other);
 }
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    // The empty set meets nothing, and the inverted corners of an empty
+    // rectangle can pass both interval tests, so emptiness has to be ruled out
+    // before answering true. It trails the geometry rather than guarding the
+    // function because false is the common answer, and that path then never
+    // pays for the check.
     return intervalsOverlap(min().x(), max().x(), other.min().x(), other.max().x()) &&
-           intervalsOverlap(min().y(), max().y(), other.min().y(), other.max().y());
+           intervalsOverlap(min().y(), max().y(), other.min().y(), other.max().y()) &&
+           !isEmpty() && !other.isEmpty();
 }
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherLine& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (other.isDegenerate()) {
         return contains(other.min());
     }
@@ -492,6 +508,10 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherLine& othe
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedLine& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (other.isDegenerate()) {
         return contains(other.source());
     }
@@ -501,6 +521,10 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedLi
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherSegment& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (contains(other.min()) || contains(other.max())) {
         return true;
     }
@@ -516,6 +540,10 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherSegment& o
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedSegment& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (contains(other.source()) || contains(other.target())) {
         return true;
     }
@@ -531,6 +559,10 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedSe
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherRay& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (contains(other.source())) {
         return true;
     }
@@ -546,6 +578,10 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherRay& other
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    if (isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (other.isDegenerate()) {
         return contains(other.source());
     }
@@ -739,6 +775,10 @@ constexpr bool Convex<PointType, LabelType>::intersects(const OtherRay& other) c
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (size() == 0 || !bbox().intersects(other)) {
         return false;
     }
@@ -1030,6 +1070,10 @@ constexpr bool Polygon<PointType, LabelType>::intersects(const OtherHalfplane& o
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (size() == 0) {
         return false;
     }
@@ -1232,6 +1276,10 @@ constexpr bool Disk<PointType, LabelType>::intersects(const OtherHalfplane& othe
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     // A rectangle edge meeting the closed disk covers every case except the disk
     // lying entirely inside the rectangle: an edge meets the disk whenever it
     // crosses it or has an endpoint in it, so a rectangle corner inside the disk
@@ -1401,6 +1449,10 @@ constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const Ot
 template <class PointType, class LabelType, class Storage>
 template<RectangleConcept OtherRectangle>
 constexpr bool MonotoneChain<PointType, LabelType, Storage>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (empty()) {
         return false;
     }
@@ -1639,6 +1691,10 @@ constexpr bool Polyline<PointType, LabelType>::intersects(const OtherHalfplane& 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polyline<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     if (size() > 1 && !bbox().intersects(other)) {
         return false;
     }
@@ -1840,6 +1896,10 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const Oth
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     // The intersection with a convex region is itself a half-plane
     // intersection; the two shapes meet exactly when it is nonempty.
     return !this->template intersection<NumberType>(other).isEmpty();
@@ -2048,6 +2108,10 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::areaIntersects(const Othe
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool PolygonWithHoles<PointType, LabelType>::intersects(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set meets nothing and disconnects nothing.
+        return false;
+    }
     return areaIntersects(other);
 }
 

@@ -991,6 +991,10 @@ template <class PointType, class LabelType>
 template <class ResultNumber, LineConcept OtherLine>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherLine& other) const {
+    if (isEmpty()) {
+        // Nothing meets the empty set.
+        return {};
+    }
     return detail::rectangleLineIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
@@ -1005,6 +1009,10 @@ template <class PointType, class LabelType>
 template <class ResultNumber, SegmentConcept OtherSegment>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherSegment& other) const {
+    if (isEmpty()) {
+        // Nothing meets the empty set.
+        return {};
+    }
     return detail::rectangleSegmentIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
@@ -1019,6 +1027,10 @@ template <class PointType, class LabelType>
 template <class ResultNumber, RayConcept OtherRay>
 constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::LabelType>, Segment<Point<ResultNumber, typename PointType::LabelType>>>>
 Rectangle<PointType, LabelType>::intersection(const OtherRay& other) const {
+    if (isEmpty()) {
+        // Nothing meets the empty set.
+        return {};
+    }
     return detail::rectangleRayIntersection<ResultNumber, typename PointType::LabelType>(*this, other);
 }
 
@@ -1030,6 +1042,15 @@ Rectangle<PointType, LabelType>::intersection(const OtherRay& other) const {
 template <class PointType, class LabelType>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplane& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultSegment = Segment<ResultPoint>;
+    using ResultConvex = Convex<ResultPoint>;
+    using ResultType = std::optional<std::variant<ResultPoint, ResultSegment, ResultConvex>>;
+
+    if (isEmpty()) {
+        // Nothing meets the empty set.
+        return ResultType{};
+    }
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using ResultSegment = Segment<ResultPoint>;
     using ResultConvex = Convex<ResultPoint>;

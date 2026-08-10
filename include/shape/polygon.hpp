@@ -278,7 +278,25 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns whether the polygon is the empty set of points.
+     *
+     * A polygon with no vertices covers nothing, which is the state of a
+     * default-constructed one and of every polygon-valued result that comes
+     * back empty. It behaves as @ref EmptyShape: every predicate reads it as
+     * the empty set.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the polygon covers no point.
+     */
+    [[nodiscard]] constexpr bool isEmpty() const {
+        return points_.empty();
+    }
+
+    /**
      * @brief Checks if the polygon is degenerate (has zero area).
+     *
+     * The empty polygon has no area either, so it is degenerate.
      */
     constexpr bool isDegenerate() const {
         return twiceArea() == NumberType(0);
@@ -343,15 +361,16 @@ struct Polygon {
      *
      * Zero area does not imply collinear vertices: a self-overlapping boundary
      * whose signed area cancels out (or one that retraces a non-straight path)
-     * is degenerate yet covers more than a segment. Such a polygon, and the
-     * empty one, are the undefined cases.
+     * is degenerate yet covers more than a segment. Such a polygon is the only
+     * undefined case; the empty polygon is the well-defined empty set, so use
+     * @ref isEmpty for it.
      *
      * Complexity: O(n).
      */
     [[nodiscard]] constexpr bool isUndefined() const {
-        // Ordered so the cheap point/segment scans reject the common cases
-        // before paying for the full area sum.
-        return !isPoint() && !isSegment() && isDegenerate();
+        // Ordered so the cheap emptiness and point/segment scans reject the
+        // common cases before paying for the full area sum.
+        return !isEmpty() && !isPoint() && !isSegment() && isDegenerate();
     }
 
     /**
@@ -416,8 +435,8 @@ struct Polygon {
      * The answer is only meaningful for a simple polygon (@ref isSimple); as
      * elsewhere in the library, a self-intersecting boundary is outside the
      * contract. Degenerate polygons are handled: one collapsed to a point or a
-     * segment is its own kernel. An undefined polygon (@ref isUndefined, which
-     * includes the vertexless one) yields `std::nullopt`.
+     * segment is its own kernel. The empty polygon (@ref isEmpty) and an
+     * undefined one (@ref isUndefined) yield `std::nullopt`.
      *
      * Complexity: O(n log n) for n vertices.
      *
