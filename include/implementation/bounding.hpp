@@ -372,14 +372,14 @@ constexpr void Rectangle<PointType, LabelType>::insert(const TShape& shape) {
 
 template <class PointType, class LabelType>
 constexpr const Rectangle<PointType>& Convex<PointType, LabelType>::bbox() const {
-    if (bbox_) {
-        return *bbox_;
+    if (!bbox_.empty()) {
+        return bbox_;
     }
     if (points_.empty()) {
-        return bbox_.emplace();
+        return bbox_ = {};
     }
     if (points_.size() <= 6) {
-        return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+        return bbox_ = Rectangle<PointType>(points_) + translation_;
     }
 
     // Find the peak of a plain unimodal range [first, last): the keys ascend
@@ -412,7 +412,7 @@ constexpr const Rectangle<PointType>& Convex<PointType, LabelType>::bbox() const
             [](const PointType& p) { return p.y(); })->y(),
         points_[0].y());
 
-    return bbox_.emplace(Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_);
+    return bbox_ = Rectangle<PointType>(min_x, min_y, max_x, max_y, true) + translation_;
 }
 
 template <class PointType, class LabelType>
@@ -447,13 +447,13 @@ constexpr void Convex<PointType, LabelType>::insert(const TShape& shape) {
 
 template <class PointType, class LabelType>
 constexpr const Rectangle<PointType>& Polygon<PointType, LabelType>::bbox() const {
-    if (bbox_) {
-        return *bbox_;
+    if (!bbox_.empty()) {
+        return bbox_;
     }
     if (points_.empty()) {
-        return bbox_.emplace();
+        return bbox_ = {};
     }
-    return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+    return bbox_ = Rectangle<PointType>(points_) + translation_;
 }
 
 template <class PointType, class LabelType>
@@ -467,11 +467,11 @@ constexpr Rectangle<Point<ResultNumber>> Polygon<PointType, LabelType>::fbox() c
 
 template <class PointType, class LabelType>
 constexpr const Rectangle<PointType>& PolygonSet<PointType, LabelType>::bbox() const {
-    if (bbox_) {
-        return *bbox_;
+    if (!bbox_.empty()) {
+        return bbox_;
     }
     if (components_.empty()) {
-        return bbox_.emplace();
+        return bbox_ = {};
     }
     // Every hole lies inside its own component's outer ring, so the components'
     // own boxes — each of them its outer ring's — already cover every vertex.
@@ -479,7 +479,7 @@ constexpr const Rectangle<PointType>& PolygonSet<PointType, LabelType>::bbox() c
     for (std::size_t i = 1; i < components_.size(); ++i) {
         box.insert(components_[i].bbox());
     }
-    return bbox_.emplace(box);
+    return bbox_ = box;
 }
 
 template <class PointType, class LabelType>
@@ -493,13 +493,13 @@ constexpr Rectangle<Point<ResultNumber>> PolygonSet<PointType, LabelType>::fbox(
 
 template <class PointType, class LabelType, class Storage>
 constexpr const Rectangle<PointType>& MonotoneChain<PointType, LabelType, Storage>::bbox() const {
-    if (bbox_) {
-        return *bbox_;
+    if (!bbox_.empty()) {
+        return bbox_;
     }
     if (points_.empty()) {
-        return bbox_.emplace();
+        return bbox_ = {};
     }
-    return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+    return bbox_ = Rectangle<PointType>(points_) + translation_;
 }
 
 template <class PointType, class LabelType, class Storage>
@@ -513,13 +513,13 @@ constexpr Rectangle<Point<ResultNumber>> MonotoneChain<PointType, LabelType, Sto
 
 template <class PointType, class LabelType>
 constexpr const Rectangle<PointType>& Polyline<PointType, LabelType>::bbox() const {
-    if (bbox_) {
-        return *bbox_;
+    if (!bbox_.empty()) {
+        return bbox_;
     }
     if (points_.empty()) {
-        return bbox_.emplace();
+        return bbox_ = {};
     }
-    return bbox_.emplace(Rectangle<PointType>(points_) + translation_);
+    return bbox_ = Rectangle<PointType>(points_) + translation_;
 }
 
 template <class PointType, class LabelType>

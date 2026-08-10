@@ -2129,8 +2129,8 @@ struct Polyline {
         // A pure translation merely shifts the bounding box, so update the
         // cached bbox in place rather than discarding it. The hash, however,
         // depends on the absolute vertex positions, so it must be invalidated.
-        if (bbox_) {
-            *bbox_ += translation;
+        if (!bbox_.empty()) {
+            bbox_ += translation;
         }
         hash_ = hashUnset_;
         return *this;
@@ -2144,8 +2144,8 @@ struct Polyline {
     template<PointConcept OtherPoint>
     constexpr Polyline& operator-=(const OtherPoint& translation) {
         translation_ -= translation;
-        if (bbox_) {
-            *bbox_ -= translation;
+        if (!bbox_.empty()) {
+            bbox_ -= translation;
         }
         hash_ = hashUnset_;
         return *this;
@@ -2237,8 +2237,10 @@ struct Polyline {
     [[no_unique_address]] mutable LabelType label_{};
     PointType translation_{};
     // Lazily computed bounding box, invalidated by resetCache() on every
-    // mutation. Empty until first computed.
-    mutable std::optional<Rectangle<PointType>> bbox_{};
+    // mutation. The empty rectangle doubles as "not computed yet": a shape
+    // whose box is genuinely empty has no vertices, so bbox() re-derives it
+    // with one size check rather than any real work.
+    mutable Rectangle<PointType> bbox_{};
 
     // Memoized hash, computed lazily by std::hash<Polyline>. hashUnset_
     // means "not yet computed"; SIZE_MAX is chosen as the sentinel because it
