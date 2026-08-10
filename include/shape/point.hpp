@@ -52,6 +52,39 @@ namespace detail {
 
 
     /**
+     * @brief Label storage that occupies no bytes when the label is @ref NoLabel.
+     *
+     * A bare `[[no_unique_address]] NoLabel` member cannot share an address with
+     * the `NoLabel` subobjects already sitting inside the points a shape stores,
+     * so it lands past them and pads the whole shape out (a two-point shape grows
+     * from 16 bytes to 20). The NoLabel specialization declares no member at all,
+     * so there is nothing to collide with and unlabeled shapes stay tight.
+     *
+     * Only @ref Point needs this: once its points carry no NoLabel subobject, the
+     * plain label members of the other shapes fit by empty-base optimization.
+     *
+     * @tparam Label Label type to store.
+     */
+    template <class Label>
+    struct LabelStorage {
+        [[no_unique_address]] mutable Label value_{};
+
+        constexpr LabelStorage() = default;
+
+        template <class A>
+            requires(std::constructible_from<Label, A&&>)
+        constexpr LabelStorage(A&& label) : value_(std::forward<A>(label)) {}
+    };
+
+    /** @brief Empty storage for unlabeled shapes; absorbs @ref copyLabel's `NoLabel{}`. */
+    template <>
+    struct LabelStorage<NoLabel> {
+        constexpr LabelStorage() = default;
+        constexpr LabelStorage(NoLabel) {}
+    };
+
+
+    /**
      * @brief Checks whether a target label can be built from a source one.
      *
      * @tparam TargetLabel Label type of the destination point.
@@ -188,7 +221,7 @@ struct Point {
     template <class A = LabelType>
         requires(detail::has_label_v<A>)
     constexpr A& label() const {
-        return label_;
+        return label_.value_;
     }
 
     /**
@@ -1279,7 +1312,7 @@ struct Point {
 
   private:
     std::array<NumberType,2> coords_{};
-    [[no_unique_address]] mutable LabelType label_{};
+    [[no_unique_address]] detail::LabelStorage<LabelType> label_{};
 }; // struct Point
 
 /**
