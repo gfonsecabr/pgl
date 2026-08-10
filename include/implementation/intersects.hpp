@@ -647,6 +647,15 @@ constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherRay& other
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Halfplane<PointType, LabelType>::intersects(const OtherHalfplane& other) const {
+    // Crossing boundaries leave a wedge in both, and that wedge can lie
+    // arbitrarily far from either boundary's two defining points, so the four
+    // point tests below decide nothing here. They do decide the parallel case:
+    // two parallel half-planes meet exactly when one boundary point lies in the
+    // other half-plane, whether they are nested or face each other across a
+    // slab.
+    if (!isDegenerate() && !other.isDegenerate() && !asLine().parallel(other.asLine())) {
+        return true;
+    }
     return contains(other.source()) || contains(other.target()) || other.contains(source()) || other.contains(target());
 }
 
