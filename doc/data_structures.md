@@ -48,6 +48,46 @@ Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bou
 </p>
 
 
+### Interval Tree
+
+`IntervalTree<Shape, Axis>` is a mutable one-dimensional index over bounded
+shapes. It stores the closed interval obtained by projecting each shape's
+bounding box onto `Axis`, which is `ProjectionAxis::x` by default or
+`ProjectionAxis::y` when selected explicitly. The stored shapes themselves are
+preserved. Its projection-prefixed query family makes decisions only from those
+one-dimensional intervals; its unprefixed family uses the projection to prune
+candidates, then applies the corresponding exact two-dimensional predicate.
+
+- `IntervalTree<Shape>(V)` inserts every shape in container `V`; [`insert(s)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a2f8d70f5f499a90566d2bf2d3bc4bf54)
+  and [`erase(s)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a5232163e9152216e4602bfee044b5940 "Removes one stored shape equal to shape.") add and remove one equal stored shape while retaining
+  red-black-tree balance. Equal projected intervals are stored independently.
+
+- [`countProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a3e9f0fb15e803efb81b60a27bee3dadc), [`reportProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ae15ed226417c72c9acc097047b1e69eb),
+  [`visitProjectionsIntersecting(q, f)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4dbea883c9595f6b170f03abfba5fbeb), and [`emptyProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4efb73d10446f444b0accf4097530670)
+  match shapes whose projected closed interval meets that of `q`; touching at
+  an endpoint counts as intersection.
+
+- [`countProjectionsContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ae7512c04c575239858fc93b464ccab27), [`reportProjectionsContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#adf6864ce62642b2afab0aa927ab18f6d),
+  [`visitProjectionsContainedIn(q, f)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a573f6fcda1d3678b53909a15fd48b0d9), and [`emptyProjectionsContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#adc67523854627f68ef2c8c992943198e)
+  match shapes whose entire projected closed interval is within that of `q`,
+  including shared endpoints.
+
+- [`countIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a156229167292264d17c76144bb222538 "Counts stored shapes that geometrically intersect q."), [`reportIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ab45e85ab0acaf3990602f9795873cf12), [`visitIntersecting(q, f)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a6b243da0a63efc651e2b37edea4ab737 "Visits stored shapes that geometrically intersect q."),
+  and [`emptyIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a8cd86feabd58f266e7339d8028c92b00) first prune by the selected projection and then
+  test `shape.intersects(q)`. [`countContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ae918a604763091e59b3c6652a4a3fc56 "Counts stored shapes geometrically contained in q."), [`reportContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a139270ac2f3309e47b4015db43d3c30f),
+  [`visitContainedIn(q, f)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a14fa1cca09829a0b0e43099468220637), and [`emptyContainedIn(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a5a39cac11c397647ef15094ac54c4c70) similarly test
+  `q.contains(shape)`. These unprefixed methods return the same results as the
+  corresponding [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") methods over the same stored shapes.
+
+Like [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes."), report methods return copies of the stored shapes, visitors
+receive them by const reference and may stop early by returning `true`, and
+[`has`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ac311ca8d07c24b2f8edc96676aa72dfd), [`size`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ac55a6eeebf7559e1f64933a9a9f45aae), [`empty`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ad88be49dab6c9f09d0d58e40a02df8a0), [`shapes`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4cb6798a11ec9ab0a74ef855e4d60c42), and const iterators provide container-like
+access. The tree is augmented with its subtree endpoint extrema, so irrelevant
+subtrees are pruned during both query families. Nodes use 32-bit identifiers
+and keep query data separate from insertion-only state; a tree can therefore
+hold at most `2^32 - 1` shapes.
+
+
 ### Triangulation
 
 [`Triangulation`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html "Triangulation whose connectivity may change and whose vertex set may grow.") stores a mutable triangulation of either a polygon or a point set: vertex coordinates never move once added, but new vertices can be inserted ([`insert`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#aa8f49fe0459173b962e035688c00fc43 "Inserts p as a new vertex."), [`insertDelaunay`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a68f9c3c737c4d6dbeb79b0d9c54e2b86 "Inserts p as a new vertex and restores the constrained Delaunay property around it.")) and the connectivity changes through flips.
