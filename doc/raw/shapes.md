@@ -100,6 +100,14 @@ e = pgl::Disk<pgl::Point<double>>(...);
 e.empty();                          // false
 ```
 
+- `s.empty()`: Returns true if the wrapped shape covers no point. The `EmptyShape` alternative always does, and every other alternative that has an empty state of its own — `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, `HalfplaneIntersection`, `Polyline`, `MonotoneChain` — answers its own `empty()`, so a `Shape` holding an empty `Rectangle` is empty too. An alternative defined by the points it covers is never empty.
+
+```C++
+pgl::Shape r = pgl::Rectangle<>();  // the empty rectangle
+r.empty();                          // true: the rectangle covers no point
+r.isRectangle();                    // true: the Rectangle alternative is stored
+```
+
 A `Shape` is constructed or assigned from any supported alternative, and the stored value can be inspected or extracted again:
 
 ```C++
@@ -110,7 +118,7 @@ if (const pgl::Segment<> *q = s.getIf<pgl::Segment<>>())
 auto t = static_cast<pgl::Segment<>>(s);       // throws std::bad_variant_access on mismatch
 ```
 
-Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, `isPolygonWithHoles`, and `isPolygonSet`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `empty()`.
+Every alternative also has a named shorthand for that pair, which avoids repeating the type: `isPoint()` / `getIfPoint()`, `isSegment()` / `getIfSegment()`, and likewise `isOrientedSegment`, `isLine`, `isOrientedLine`, `isRay`, `isHalfplane`, `isRectangle`, `isTriangle`, `isDisk`, `isConvex`, `isMonotoneChain`, `isPolyline`, `isPolygon`, `isHalfplaneIntersection`, `isPolygonWithHoles`, and `isPolygonSet`. `getIf...` returns a pointer into the stored variant — `nullptr` when another alternative is active — in a `const` and a mutable overload. The `EmptyShape` alternative has no such pair; use `holdsAlternative<pgl::EmptyShape<>>()` — `empty()` asks the geometric question, and is also true for, say, a stored empty `Rectangle`.
 
 ```C++
 pgl::Shape s = pgl::Segment(1,4,2,9);

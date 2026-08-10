@@ -47,6 +47,74 @@ TEST_CASE("Shape defaults to empty and stores the active alternative") {
     CHECK(convex.get(-1) == Point(0, 4));
 }
 
+TEST_CASE("Shape empty answers the wrapped shape's own emptiness") {
+    using Point = pgl::Point<int>;
+    using EmptyShape = pgl::EmptyShape<Point>;
+    using Segment = pgl::Segment<Point>;
+    using Halfplane = pgl::Halfplane<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Chain = pgl::MonotoneChain<Point>;
+    using Polyline = pgl::Polyline<Point>;
+    using Polygon = pgl::Polygon<Point>;
+    using Halfplanes = pgl::HalfplaneIntersection<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Regions = pgl::PolygonSet<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    // The EmptyShape alternative is empty, and answers so without an empty() of
+    // its own.
+    static_assert(Shape{}.empty());
+    CHECK(Shape{EmptyShape{}}.empty());
+
+    // Every alternative that has an empty state answers its own empty().
+    CHECK(Shape{Rectangle{}}.empty());
+    CHECK(Shape{Convex{}}.empty());
+    CHECK(Shape{Chain{}}.empty());
+    CHECK(Shape{Polyline{}}.empty());
+    CHECK(Shape{Polygon{}}.empty());
+    CHECK(Shape{Region{}}.empty());
+    CHECK(Shape{Regions{}}.empty());
+
+    // The same alternatives, holding points, are not empty.
+    CHECK_FALSE(Shape{Rectangle({0, 0}, {4, 3})}.empty());
+    CHECK_FALSE(Shape{Convex({{0, 0}, {4, 0}, {0, 3}})}.empty());
+    CHECK_FALSE(Shape{Chain({{0, 0}, {2, 1}})}.empty());
+    CHECK_FALSE(Shape{Polyline({{0, 0}, {2, 1}})}.empty());
+    CHECK_FALSE(Shape{Polygon({{0, 0}, {4, 0}, {0, 3}})}.empty());
+    CHECK_FALSE(Shape{Region(Polygon({{0, 0}, {4, 0}, {0, 3}}))}.empty());
+    CHECK_FALSE(Shape{Regions(Region(Polygon({{0, 0}, {4, 0}, {0, 3}})))}.empty());
+
+    // A default-constructed HalfplaneIntersection is the whole plane; an
+    // over-constrained one is empty.
+    CHECK_FALSE(Shape{Halfplanes{}}.empty());
+    Halfplanes overconstrained;
+    overconstrained.insert(Halfplane(0, 1, 1, 1));
+    overconstrained.insert(Halfplane(1, 0, 0, 0));
+    REQUIRE(overconstrained.empty());
+    CHECK(Shape{overconstrained}.empty());
+
+    // An alternative defined by the points it covers is never empty, degenerate
+    // or not.
+    CHECK_FALSE(Shape{Point(1, 2)}.empty());
+    CHECK_FALSE(Shape{Segment({0, 0}, {2, 1})}.empty());
+    CHECK_FALSE(Shape{pgl::OrientedSegment<Point>({2, 1}, {0, 0})}.empty());
+    CHECK_FALSE(Shape{pgl::Line<Point>({0, 0}, {2, 1})}.empty());
+    CHECK_FALSE(Shape{pgl::OrientedLine<Point>({0, 0}, {2, 1})}.empty());
+    CHECK_FALSE(Shape{pgl::Ray<Point>({0, 0}, {2, 1})}.empty());
+    CHECK_FALSE(Shape{Halfplane(0, 0, 2, 1)}.empty());
+    CHECK_FALSE(Shape{Triangle({0, 0}, {4, 0}, {0, 3})}.empty());
+    CHECK_FALSE(Shape{Triangle({1, 1}, {1, 1}, {1, 1})}.empty());
+    CHECK_FALSE(Shape{pgl::Disk<Point>({0, 0}, {2, 0}, {0, 2})}.empty());
+
+    // Emptiness is a question about the geometry, not about the alternative.
+    const Shape emptyRectangle = Rectangle{};
+    CHECK(emptyRectangle.empty());
+    CHECK(emptyRectangle.isRectangle());
+    CHECK_FALSE(emptyRectangle.holdsAlternative<EmptyShape>());
+}
+
 TEST_CASE("Shape streams, compares, and hashes through the wrapped value") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
