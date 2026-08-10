@@ -568,9 +568,7 @@ struct Rectangle {
      * @brief Returns whether the rectangle is degenerate without collapsing to
      * a point or to a segment.
      *
-     * A rectangle is never undefined: a degenerate one is always empty, a
-     * point, or a segment, so this always returns `false`. Provided for
-     * uniformity with the other shapes.
+     * A rectangle is undefined if it is not the empty rectangle but has [0] > [1].
      *
      * Complexity: O(1).
      *
