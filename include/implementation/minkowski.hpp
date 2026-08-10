@@ -200,6 +200,68 @@ constexpr std::vector<ResultPoint> minkowskiVertices(const ShapeT& shape) {
 }
 
 /**
+ * @brief Returns the Minkowski sum of a half-plane and a bounded polygonal
+ *        shape: the half-plane, translated.
+ *
+ * A half-plane absorbs anything bounded. With the boundary running from `s` to
+ * `t` and `d = t − s`, the half-plane is `{p : cross(d, p − s) ≥ 0}`, and
+ * translating it by `q` gives `{p : cross(d, p − s) ≥ cross(d, q)}`. The sum is
+ * the union of those over `q ∈ B`, which is the loosest of them:
+ *
+ *     H ⊕ B = {p : cross(d, p − s) ≥ min_{q ∈ B} cross(d, q)},
+ *
+ * the half-plane translated by the operand's **support point** in `−d`'s normal
+ * direction. That minimum is attained at a vertex, whatever the operand's shape
+ * — a linear function on a bounded polygonal set is extremal at an extreme point
+ * — so the operand's concavity, holes and disconnection are all irrelevant here,
+ * and the answer is exact: one input vertex added to each boundary point.
+ *
+ * A degenerate half-plane bounds no side and is @ref Halfplane::isUndefined, so
+ * as everywhere in the library nothing is promised for one; the comparison picks
+ * an arbitrary support vertex and translates by it.
+ *
+ * @pre The half-plane is defined, and the operand has at least one vertex. An
+ *      empty `Convex`, `Polygon` or `PolygonSet` sums to the empty set, which no
+ *      half-plane represents; the half-plane comes back untranslated.
+ */
+template <class HalfplaneT, class ShapeT>
+constexpr auto minkowskiHalfplaneSum(const HalfplaneT& halfplane, const ShapeT& shape) {
+    using ResultPoint = minkowskiPoint_t<HalfplaneT, ShapeT>;
+    using ResultNumber = typename ResultPoint::NumberType;
+    using ResultHalfplane = Halfplane<ResultPoint, typename HalfplaneT::LabelType>;
+
+    const auto& source = halfplane.source();
+    const auto& target = halfplane.target();
+    const ResultNumber dx = static_cast<ResultNumber>(target.x()) - static_cast<ResultNumber>(source.x());
+    const ResultNumber dy = static_cast<ResultNumber>(target.y()) - static_cast<ResultNumber>(source.y());
+
+    bool found = false;
+    ResultPoint support(ResultNumber{}, ResultNumber{});
+    ResultNumber best{};
+    for (const auto& vertex : shape.vertices()) {
+        const ResultNumber x = static_cast<ResultNumber>(vertex.x());
+        const ResultNumber y = static_cast<ResultNumber>(vertex.y());
+        const ResultNumber side = dx * y - dy * x;  // cross(d, vertex)
+        if (!found || side < best) {
+            found = true;
+            best = side;
+            support = ResultPoint(x, y);
+        }
+    }
+    if (!found) {
+        return ResultHalfplane(ResultPoint(static_cast<ResultNumber>(source.x()),
+                                           static_cast<ResultNumber>(source.y())),
+                               ResultPoint(static_cast<ResultNumber>(target.x()),
+                                           static_cast<ResultNumber>(target.y())));
+    }
+    const auto moved = [&support](const auto& point) {
+        return ResultPoint(static_cast<ResultNumber>(point.x()) + support.x(),
+                           static_cast<ResultNumber>(point.y()) + support.y());
+    };
+    return ResultHalfplane(moved(source), moved(target));
+}
+
+/**
  * @brief Orders two nonzero direction vectors by angle.
  *
  * The angle is measured counterclockwise from the positive x axis over
@@ -376,6 +438,11 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         // the sum: opposite corners simply add.
         return Rectangle<ResultPoint>(minkowskiSumOf(a.min(), b.min()),
                                       minkowskiSumOf(a.max(), b.max()));
+    } else if constexpr (is_halfplane_v<A>) {
+        // A half-plane absorbs anything bounded, convex or not, and stays one.
+        return minkowskiHalfplaneSum(a, b);
+    } else if constexpr (is_halfplane_v<B>) {
+        return minkowskiHalfplaneSum(b, a);
     } else {
         return minkowskiConvexSum(a, b);
     }
@@ -414,6 +481,65 @@ PGL_DEFINE_MINKOWSKI_SUM(PolygonSet)
 PGL_DEFINE_MINKOWSKI_SUM(HalfplaneIntersection)
 
 #undef PGL_DEFINE_MINKOWSKI_SUM
+
+// The one curved pair with an answer: centres add, radii add. It carries a
+// ResultNumber of its own because the radii are square roots of what a disk
+// stores, so this sum leaves the lattice where every other single-shape sum
+// stays on it.
+template <class PointType_, class TLabel>
+template <class ResultNumber, DiskConcept OtherDisk>
+Disk<Point<ResultNumber, typename Disk<PointType_, TLabel>::PointLabelType>>
+Disk<PointType_, TLabel>::minkowskiSum(const OtherDisk& other) const {
+    using ResultPoint = Point<ResultNumber, PointLabelType>;
+
+    const auto leftCenter = center<ResultNumber>();
+    const auto rightCenter = other.template center<ResultNumber>();
+    const ResultNumber radii =
+        radius<ResultNumber>() + other.template radius<ResultNumber>();
+    return Disk<ResultPoint>(ResultPoint(leftCenter.x() + rightCenter.x(),
+                                         leftCenter.y() + rightCenter.y()),
+                             radii);
+}
+
+// The other sum whose support point is not a vertex: a half-plane slides out by
+// the disk's radius along its own unit normal, and both of those are square
+// roots. Same ResultNumber convention as the disk pair.
+template <class PointType_, class TLabel>
+template <class ResultNumber, DiskConcept OtherDisk>
+Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+Halfplane<PointType_, TLabel>::minkowskiSum(const OtherDisk& other) const {
+    using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
+
+    const ResultNumber dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
+    const ResultNumber dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
+    // Reported the way Disk::radius reports it: an exact result type has no
+    // square root to offer, and says so rather than rounding silently.
+    if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
+        throw std::runtime_error("std::sqrt is not available for the requested ResultNumber type");
+    } else {
+        const ResultNumber length = std::sqrt(dx * dx + dy * dy);
+
+        // The outward normal of `{p : cross(d, p - s) >= 0}` is `(dy, -dx)/|d|`,
+        // and the disk's support point in it is its centre moved r that way.
+        const auto center = other.template center<ResultNumber>();
+        const ResultNumber radius = other.template radius<ResultNumber>();
+        const ResultNumber offsetX = center.x() + radius * dy / length;
+        const ResultNumber offsetY = center.y() - radius * dx / length;
+
+        const auto moved = [&offsetX, &offsetY](const auto& point) {
+            return ResultPoint(static_cast<ResultNumber>(point.x()) + offsetX,
+                               static_cast<ResultNumber>(point.y()) + offsetY);
+        };
+        return Halfplane<ResultPoint>(moved(source()), moved(target()));
+    }
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+Halfplane<Point<ResultNumber, typename Disk<PointType_, TLabel>::PointLabelType>>
+Disk<PointType_, TLabel>::minkowskiSum(const OtherHalfplane& other) const {
+    return other.template minkowskiSum<ResultNumber>(*this);
+}
 
 template <class Number, class Label>
 template <class OtherShape>

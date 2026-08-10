@@ -1432,6 +1432,53 @@ struct Disk {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski sum of the two disks (A ⊕ B), a disk.
+     *
+     * The one pair of curved operands the library can answer: the centers add
+     * and so do the radii, since the support function of a disk is
+     * `n·c + r|n|` and support functions add under the sum. Nothing else a disk
+     * meets has a representable sum — a disk and a segment sweep a stadium, a
+     * disk and a polygon a rounded one, and neither is a shape here.
+     *
+     * **This one is not exact by default, and cannot be.** The sum's radius is
+     * `r₁ + r₂`, and a disk stores three boundary points rather than a centre
+     * and a radius, so each `rᵢ` is a square root of a stored quantity: two
+     * integer disks generally have an irrational sum radius, which no exact
+     * coordinate type holds. That is why @p ResultNumber defaults to `double`
+     * here, as it does on @ref radius and @ref distance, rather than to the
+     * exact `division_result_t` the polygonal sums default to.
+     *
+     * The exception is worth knowing because it is common: a disk **built from
+     * a centre and a radius** carries both exactly, so a sum of two such disks
+     * with an exact @p ResultNumber is exact, and no square root is taken.
+     * Ask for an exact type on a disk built from three boundary points and the
+     * square root reports itself the way @ref radius does — by throwing, since
+     * `std::sqrt` is not available for the requested type.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @param other The disk to sum with.
+     * @return The sum, as a disk.
+     * @warning Takes a square root unless both disks were created from a centre
+     *          and a radius.
+     */
+    template <class ResultNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Disk<Point<ResultNumber, PointLabelType>>
+    minkowskiSum(const OtherDisk& other) const;
+
+    /**
+     * @brief Returns the Minkowski sum of this disk and a half-plane (A ⊕ B),
+     *        a half-plane.
+     *
+     * The mirror spelling of @ref Halfplane::minkowskiSum(const OtherDisk&) const,
+     * which carries the contract and the same square root: the boundary keeps
+     * its direction and slides out by this disk's radius along the outward unit
+     * normal. A half-plane absorbs whatever is bounded, a disk included.
+     */
+    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] Halfplane<Point<ResultNumber, PointLabelType>>
+    minkowskiSum(const OtherHalfplane& other) const;
+
+    /**
      * @brief Translates the disk by @p translation in place.
      * @return Reference to this disk.
      */

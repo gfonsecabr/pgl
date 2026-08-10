@@ -305,18 +305,119 @@ TEST_CASE("Shape dispatches on the stored alternatives at run time") {
     CHECK(disk.minkowskiSum(point).isDisk());
 }
 
+// The definition read as a query: `p ∈ A ⊕ B` exactly when `A` meets the
+// reflected copy of `B` placed at `p`, since a 180° rotation about the origin
+// *is* the negation. It settles unbounded receivers as readily as bounded ones.
+template <class A, class B, class Point>
+static bool inSumByDefinition(const A& a, const B& b, const Point& p) {
+    auto placed = b.rotated90(2);
+    placed += p;
+    return a.intersects(placed);
+}
+
+TEST_CASE("A half-plane absorbs a bounded operand and stays a half-plane") {
+    using Point = pgl::Point<int>;
+    // y >= 0: the boundary runs left to right, the region is on its left.
+    const pgl::Halfplane<Point> up(Point(0, 0), Point(1, 0));
+
+    // The half-plane slides down to the operand's lowest point, and no further.
+    CHECK(up.minkowskiSum(pgl::Rectangle<Point>(Point(2, 3), Point(5, 7))) ==
+          pgl::Halfplane<Point>(Point(2, 3), Point(3, 3)));
+    CHECK(up.minkowskiSum(pgl::Segment<Point>(Point(0, -3), Point(2, -1))) ==
+          pgl::Halfplane<Point>(Point(0, -3), Point(1, -3)));
+
+    // Which vertex is the support point is all the operand contributes, so its
+    // concavity, its holes and its edges are beside the point.
+    const pgl::Polygon<Point> u({Point(0, 0), Point(6, 0), Point(6, 6), Point(4, 6),
+                                 Point(4, 2), Point(2, 2), Point(2, 6), Point(0, 6)});
+    CHECK(up.minkowskiSum(u) == up);
+    CHECK(u.minkowskiSum(up) == up.minkowskiSum(u));   // and it commutes
+
+    SUBCASE("against the definition, on a probe grid") {
+        const pgl::Polyline<Point> chain({Point(1, 1), Point(3, -2), Point(6, 4)});
+        for (const auto& halfplane :
+             {pgl::Halfplane<Point>(Point(0, 0), Point(1, 0)),
+              pgl::Halfplane<Point>(Point(0, 0), Point(0, 1)),
+              pgl::Halfplane<Point>(Point(3, -2), Point(-1, 4)),
+              pgl::Halfplane<Point>(Point(5, 5), Point(2, 1))}) {
+            const auto polygonSum = halfplane.minkowskiSum(u);
+            const auto chainSum = halfplane.minkowskiSum(chain);
+            for (int x = -14; x <= 14; ++x) {
+                for (int y = -14; y <= 14; ++y) {
+                    const Point p(x, y);
+                    INFO("probe " << p << " against " << halfplane);
+                    CHECK(polygonSum.contains(p) == inSumByDefinition(halfplane, u, p));
+                    CHECK(chainSum.contains(p) == inSumByDefinition(halfplane, chain, p));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Two disks sum to a disk, exactly when both carry a centre and a radius") {
+    using Point = pgl::Point<int>;
+    const pgl::Disk<Point> a(Point(0, 0), 3);
+    const pgl::Disk<Point> b(Point(4, 1), 2);
+
+    // Centres add and radii add.
+    const auto sum = a.minkowskiSum(b);
+    CHECK(sum.center() == pgl::Point<double>(4, 1));
+    CHECK(sum.radius() == doctest::Approx(5.0));
+    CHECK(b.minkowskiSum(a) == sum);
+
+    // Both operands store their radius, so nothing here is a square root and an
+    // exact result type is exact.
+    const auto exact = a.minkowskiSum<pgl::ERational>(b);
+    CHECK(exact.radius<pgl::ERational>() == pgl::ERational(5));
+
+    // Built from three boundary points, the radius is √8 and the sum is not on
+    // the lattice — which is why this pair asks for its result type.
+    const pgl::Disk<Point> corner(Point(0, 0), Point(4, 0), Point(0, 4));
+    CHECK(corner.minkowskiSum(a).radius() == doctest::Approx(2.8284271247461903 + 3.0));
+}
+
 TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     using Point = pgl::Point<>;
 
-    // Unbounded convex operands: the sum needs a HalfplaneIntersection.
-    static_assert(!summable<pgl::Halfplane<>, pgl::Segment<>>);
+    // Unbounded convex operands, except a half-plane: the sum of two of these
+    // needs a HalfplaneIntersection, which they do not yet build.
     static_assert(!summable<pgl::Line<>, pgl::Triangle<>>);
     static_assert(!summable<pgl::Ray<>, pgl::Ray<>>);
     static_assert(!summable<pgl::HalfplaneIntersection<>, pgl::Convex<>>);
+    static_assert(!summable<pgl::Halfplane<>, pgl::Line<>>);
+    static_assert(!summable<pgl::Halfplane<>, pgl::Halfplane<>>);
 
-    // Curved operands: the sum is not a disk and not exactly representable.
-    static_assert(!summable<pgl::Disk<>, pgl::Disk<>>);
+    // A half-plane against anything **bounded and polygonal** is the exception,
+    // and it is a half-plane: it absorbs its operand and moves to its support
+    // point, which is a vertex whether or not the operand is convex.
+    static_assert(summable<pgl::Halfplane<>, pgl::Segment<>>);
+    static_assert(summable<pgl::Halfplane<>, pgl::Polygon<>>);
+    static_assert(summable<pgl::Polygon<>, pgl::Halfplane<>>);
+    static_assert(summable<pgl::Halfplane<>, pgl::PolygonSet<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Halfplane<>&>().minkowskiSum(
+                           std::declval<const pgl::Polygon<>&>())),
+                       pgl::Halfplane<Point>>);
+
+    // Curved operands: a disk sums with a disk, and with nothing else — a
+    // stadium and a rounded polygon are not shapes here. That pair is not on
+    // this concept either, since it needs a ResultNumber of its own.
     static_assert(!summable<pgl::Disk<>, pgl::Triangle<>>);
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Disk<>, pgl::Disk<>>);
+    // A half-plane absorbs a disk too, at the price of a square root: the
+    // support point is on the circle rather than at a vertex, so this pair
+    // carries a ResultNumber of its own and is not on that concept either.
+    static_assert(!pgl::MinkowskiSummableConcept<pgl::Halfplane<>, pgl::Disk<>>);
+    static_assert(summable<pgl::Halfplane<>, pgl::Disk<>>);
+    static_assert(summable<pgl::Disk<>, pgl::Halfplane<>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const pgl::Halfplane<>&>().minkowskiSum(
+                           std::declval<const pgl::Disk<>&>())),
+                       pgl::Halfplane<pgl::Point<double>>>);
+    static_assert(summable<pgl::Disk<>, pgl::Disk<>>);
+    static_assert(std::is_same_v<decltype(std::declval<const pgl::Disk<>&>().minkowskiSum(
+                                     std::declval<const pgl::Disk<>&>())),
+                                 pgl::Disk<pgl::Point<double>>>);
 
     // A `MonotoneChain` is not convex, so this concept rejects it as it rejects
     // every other chain; its sums are the third overload set, on the chain itself
@@ -326,8 +427,10 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(summable<pgl::MonotoneChain<>, pgl::Triangle<>>);
     static_assert(summable<pgl::MonotoneChain<>, pgl::Segment<>>);
 
-    // The one pair of chains the region-valued set leaves out.
-    static_assert(!summable<pgl::Polyline<>, pgl::Polyline<>>);
+    // Two chains sum through the region-valued set, like everything else with
+    // no area: both operands contribute their edges.
+    static_assert(summable<pgl::Polyline<>, pgl::Polyline<>>);
+    static_assert(summable<pgl::MonotoneChain<>, pgl::MonotoneChain<>>);
 
     // A non-convex operand summed with one that *has* area is the exception, and
     // it is not a widening of this concept: the sum can enclose a hole, so it is
@@ -340,7 +443,7 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polygon<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Triangle<>&>())),
-                       pgl::PolygonSet<Point>>);
+                       pgl::PolygonWithHoles<Point>>);
     static_assert(!pgl::MinkowskiSummableConcept<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Triangle<>>);
     static_assert(summable<pgl::Polyline<>, pgl::Rectangle<>>);
@@ -348,14 +451,15 @@ TEST_CASE("Pairs with no representable sum are rejected at compile time") {
     static_assert(
         std::is_same_v<decltype(std::declval<const pgl::Polyline<>&>().minkowskiSum<int>(
                            std::declval<const pgl::Rectangle<>&>())),
-                       pgl::PolygonSet<Point>>);
+                       pgl::PolygonWithHoles<Point>>);
     // The non-convex summands have area to sweep, so they are admitted too, and
     // from either side since both carry the mirror overload.
     static_assert(summable<pgl::Polyline<>, pgl::Polygon<>>);
     static_assert(summable<pgl::Polygon<>, pgl::Polyline<>>);
     static_assert(summable<pgl::Polyline<>, pgl::PolygonWithHoles<>>);
     static_assert(summable<pgl::PolygonWithHoles<>, pgl::Polyline<>>);
-    static_assert(!summable<pgl::Polyline<>, pgl::MonotoneChain<>>);
+    static_assert(summable<pgl::Polyline<>, pgl::MonotoneChain<>>);
+    static_assert(summable<pgl::MonotoneChain<>, pgl::Polyline<>>);
 
     // A `Segment` or `OrientedSegment` has no area either, and the sum of one
     // with any of the three non-convex receivers still does: the segment sweeps

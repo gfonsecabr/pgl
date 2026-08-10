@@ -336,13 +336,32 @@ concept BoundedConvexConcept =
     RectangleConcept<T> || TriangleConcept<T> || ConvexConcept<T>;
 
 /**
+ * @brief Bounded polygonal primitives, convex or not.
+ *
+ * Exactly the shapes that are the convex hull of finitely many vertices their
+ * `vertices()` accessor lists, which is what a support function needs: the
+ * extreme point of one of these in any direction is one of its vertices, found
+ * exactly by comparing cross products. @ref DiskConcept is bounded and is *not*
+ * one of these — its support point is off the lattice in every direction but
+ * four.
+ */
+template <class T>
+concept BoundedPolygonalConcept =
+    BoundedConvexConcept<T> || PolygonConcept<T> || PolylineConcept<T> ||
+    MonotoneChainConcept<T> || PolygonWithHolesConcept<T> || PolygonSetConcept<T>;
+
+/**
  * @brief Shape pairs whose Minkowski sum Pangolin can represent.
  *
  * The sum `A ⊕ B` is supported when
  * - either operand is the empty shape (which absorbs), or
  * - either operand is a `Point`, so the sum is a translation of the other and
  *   every shape kind is closed under it, or
- * - both operands are bounded convex (@ref BoundedConvexConcept).
+ * - both operands are bounded convex (@ref BoundedConvexConcept), or
+ * - one is a `Halfplane` and the other is bounded polygonal
+ *   (@ref BoundedPolygonalConcept), convex or not: a half-plane absorbs
+ *   everything bounded and comes back a half-plane, translated to its operand's
+ *   support point.
  *
  * A runtime-polymorphic @ref Shape on either side is always accepted; the pair
  * of stored alternatives is only checked when the sum is evaluated.
@@ -368,7 +387,9 @@ concept MinkowskiSummableConcept =
     (ShapeConcept<A> || ShapeConcept<B> ||
      EmptyShapeConcept<A> || EmptyShapeConcept<B> ||
      PointConcept<A> || PointConcept<B> ||
-     (BoundedConvexConcept<A> && BoundedConvexConcept<B>));
+     (BoundedConvexConcept<A> && BoundedConvexConcept<B>) ||
+     (HalfplaneConcept<A> && BoundedPolygonalConcept<B>) ||
+     (BoundedPolygonalConcept<A> && HalfplaneConcept<B>));
 
 namespace detail {
 

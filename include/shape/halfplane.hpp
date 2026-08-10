@@ -1208,6 +1208,36 @@ struct Halfplane {
         requires MinkowskiSummableConcept<Halfplane<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
+    /**
+     * @brief Returns the Minkowski sum of this half-plane and a disk (A ⊕ B),
+     *        a half-plane.
+     *
+     * A half-plane absorbs anything bounded, a disk included: the boundary keeps
+     * its direction and slides out by the disk's radius, so the sum is this
+     * half-plane translated by `c − r·n̂`, with `c` the disk's centre and `n̂` the
+     * outward unit normal.
+     *
+     * That normal is where the exactness goes. Every other operand's support
+     * point is a **vertex**, found by comparing cross products with no division
+     * anywhere; a disk's is a point of its circle, and reaching it needs both the
+     * radius (a square root of what a disk stores) and the boundary direction's
+     * length. So this overload carries a @p ResultNumber of its own and defaults
+     * it to `double`, exactly as @ref Disk::minkowskiSum(const OtherDisk&) const
+     * does and for the same reason — and unlike that one, this sum is irrational
+     * even for a disk that carries an exact centre and radius, unless the
+     * boundary direction happens to be a unit vector.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @param other The disk to sum with.
+     * @return The sum, as a half-plane.
+     * @pre The half-plane is defined (a degenerate one bounds no side).
+     * @warning Takes a square root, and is exact for no integer input worth
+     *          relying on.
+     */
+    template <class ResultNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+    minkowskiSum(const OtherDisk& other) const;
+
     /** @brief Translates the half-plane by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Halfplane& operator+=(const OtherPoint& translation);
