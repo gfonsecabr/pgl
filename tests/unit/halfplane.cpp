@@ -232,6 +232,15 @@ TEST_CASE("Halfplane interior intersection distinguishes true overlap from bound
 
     CHECK(left.intersects(right));
     CHECK_FALSE(left.interiorsIntersect(right));
+    // Crossing boundaries always leave a wedge in both half-planes, however far
+    // it is from either boundary's defining points.
+    CHECK(rising.intersects(falling));
+    CHECK(Halfplane({4, 5}, {2, 1}).intersects(Halfplane({-5, -3}, {-8, 1})));
+    // Parallel boundaries facing away meet only where the slab between them is
+    // not empty.
+    CHECK(left.intersects(stricter_left));
+    CHECK(left.intersects(Halfplane({-1, 1}, {-1, -1})));
+    CHECK_FALSE(left.intersects(Halfplane({3, 1}, {3, -1})));
     CHECK(left.interiorsIntersect(wider_left));
     CHECK(left.interiorsIntersect(same_left));
     CHECK(left.interiorsIntersect(stricter_left));
