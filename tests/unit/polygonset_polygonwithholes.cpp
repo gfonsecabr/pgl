@@ -33,9 +33,9 @@ TEST_CASE("PolygonSet and PolygonWithHoles predicates") {
     }
 
     SUBCASE("distances fold to the nearest pair") {
-        const Region far(PolygonShape({20, 20, 22, 20, 22, 22, 20, 22}));
-        CHECK(set.squaredDistance<double>(far) == doctest::Approx(13.0 * 13.0 * 2.0));
-        CHECK(far.squaredDistance<double>(set) == doctest::Approx(13.0 * 13.0 * 2.0));
+        const Region distant(PolygonShape({20, 20, 22, 20, 22, 22, 20, 22}));
+        CHECK(set.squaredDistance<double>(distant) == doctest::Approx(13.0 * 13.0 * 2.0));
+        CHECK(distant.squaredDistance<double>(set) == doctest::Approx(13.0 * 13.0 * 2.0));
     }
 }
 
@@ -53,9 +53,9 @@ TEST_CASE("PolygonSet and PolygonWithHoles cut predicates") {
     }
 
     SUBCASE("a region that misses a set in one piece cuts nothing") {
-        const Region far(PolygonShape({20, 20, 22, 20, 22, 22, 20, 22}));
-        CHECK(!far.separates(RegionSet{Region(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2}))}));
+        const Region distant(PolygonShape({20, 20, 22, 20, 22, 22, 20, 22}));
+        CHECK(!distant.separates(RegionSet{Region(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2}))}));
         // But a set already in two pieces stays in two.
-        CHECK(far.separates(apart()));
+        CHECK(distant.separates(apart()));
     }
 }
