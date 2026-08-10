@@ -1420,7 +1420,7 @@ struct PolygonSet {
     // Cached bounding box. A region reads its own off its outer ring, which
     // caches one already; a set has no single ring to ask, so it caches the
     // union of the components' boxes itself.
-    mutable std::optional<Rectangle<PointType>> bbox_{};
+    mutable Rectangle<PointType> bbox_{};
 
     // Tri-state cache for @ref isPinched: -1 not yet computed, 0 no two
     // components touch, 1 some two do.
@@ -1439,7 +1439,7 @@ struct PolygonSet {
 
     constexpr void resetCache() const {
         hash_ = hashUnset_;
-        bbox_.reset();
+        bbox_ = {};
         pinched_ = -1;
     }
 

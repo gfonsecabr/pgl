@@ -2919,8 +2919,10 @@ struct Convex {
     [[no_unique_address]] mutable LabelType label_{};
     PointType translation_{};
     // Lazily computed caches, invalidated by resetCache() on every mutation.
-    // bbox_ is empty and maxIndex_ is -1 until first computed.
-    mutable std::optional<Rectangle<PointType>> bbox_{};
+    // maxIndex_ is -1 until first computed; bbox_ uses the empty rectangle as
+    // its "not computed yet", which only a vertexless polygon can also mean,
+    // and that case costs one size check to re-derive.
+    mutable Rectangle<PointType> bbox_{};
     mutable std::ptrdiff_t maxIndex_ = -1;
 
     // Memoized hash, computed lazily by std::hash<Convex>. hashUnset_ means "not

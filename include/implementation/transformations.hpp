@@ -1343,8 +1343,8 @@ constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator+=
     // translation-invariant) and merely shifts the bounding box, so update the
     // cached bbox in place rather than discarding it. The hash, however, depends
     // on the absolute vertex positions, so it must be invalidated.
-    if (bbox_) {
-        *bbox_ += translation;
+    if (!bbox_.empty()) {
+        bbox_ += translation;
     }
     hash_ = hashUnset_;
     return *this;
@@ -1354,8 +1354,8 @@ template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr Convex<PointType, LabelType>& Convex<PointType, LabelType>::operator-=(const OtherPoint& translation) {
     translation_ -= translation;
-    if (bbox_) {
-        *bbox_ -= translation;
+    if (!bbox_.empty()) {
+        bbox_ -= translation;
     }
     hash_ = hashUnset_;
     return *this;
