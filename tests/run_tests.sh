@@ -5,6 +5,17 @@ set -eu
 CXX="${CXX:-c++}"
 CXXFLAGS="${CXXFLAGS:--std=c++20 -Wall -Wextra -pedantic}"
 
+# Force-included into every test build so g++ and clang reject the Windows
+# identifier traps -- `far`/`near`, the wingdi.h function names -- that otherwise
+# only the MSVC job can see, half an hour after a push. Kept out of CXXFLAGS on
+# purpose: overriding the flags to try another standard or optimization level
+# must not silently switch the check off. Set PGL_NO_WINDOWS_TRAPS=1 for that.
+# See tests/unit/windows_traps.hpp.
+windows_traps=""
+if [ "${PGL_NO_WINDOWS_TRAPS:-0}" != "1" ]; then
+    windows_traps="-include windows_traps.hpp"
+fi
+
 mkdir -p build/tests/bin build/tests/reports build/tests/output
 
 # Records the source path of every test that fails. Written by run_one_test
@@ -38,7 +49,7 @@ run_one_test() {
     report="build/tests/reports/$test_name.junit.xml"
 
     echo "::group::Build $test_name"
-    if ! $CXX $CXXFLAGS -Iinclude -Itests/unit "$source" -o "$binary"; then
+    if ! $CXX $CXXFLAGS -Iinclude -Itests/unit $windows_traps "$source" -o "$binary"; then
         echo "::endgroup::"
         printf '%s\n' "$source" >> "$failures_file"
         return 1
