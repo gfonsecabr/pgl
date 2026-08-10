@@ -1975,7 +1975,7 @@ PolygonWithHoles<PointType, LabelType>::squaredDistance(const OtherDisk& other) 
 template <class PointType, class LabelType>
 template <class ResultNumber, detail::SetOperandConcept OtherShape>
 auto PolygonSet<PointType, LabelType>::squaredDistance(const OtherShape& other) const {
-    return minOverComponents<ResultNumber>([&other](const ComponentType& component) {
+    return minOverComponents([&other](const ComponentType& component) {
         return component.template squaredDistance<ResultNumber>(other);
     });
 }

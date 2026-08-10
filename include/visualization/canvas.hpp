@@ -500,18 +500,15 @@ class Canvas {
     }
 
     /**
-     * @brief Appends every component of a polygon set, each as its own region,
+     * @brief Appends a polygon set (one subpath per ring of every component)
      *        using the current captured style.
      *
-     * Drawing a set is drawing each component's rings, so the set needs no
-     * drawing of its own — and no alternative in the stored @ref Shape variant.
+     * The whole set is a single element: it carries one title and one style, and
+     * a set that comes apart into several pieces stays one drawn object.
      */
     template <class PointType, class Label>
     Canvas& operator<<(const PolygonSet<PointType, Label>& set) {
-        for (const auto& component : set) {
-            push(PolygonWithHoles<Point<double>>(component), component);
-        }
-        return *this;
+        return push(PolygonSet<Point<double>>(set), set);
     }
 
     /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
@@ -678,6 +675,13 @@ class Canvas {
                     // alone bounds the region.
                     for (const auto& vertex : value.outer()) {
                         b.include(vertex.x(), vertex.y());
+                    }
+                } else if constexpr (std::same_as<V, PolygonSet<Point<double>>>) {
+                    // Same argument, one component at a time.
+                    for (const auto& component : value) {
+                        for (const auto& vertex : component.outer()) {
+                            b.include(vertex.x(), vertex.y());
+                        }
                     }
                 } else {
                     for (std::size_t i = 0; i < value.size(); ++i) {
@@ -1302,6 +1306,24 @@ class Canvas {
         return rings;
     }
 
+    // The rings of a set: every component's, one after another. The components
+    // have pairwise disjoint interiors and each one's holes lie inside its own
+    // outer ring, so no ring of one component ever falls inside another's and
+    // the concatenation fills as the set under both rules, exactly as the list
+    // above does for a single region.
+    template <class MapPoint>
+    static auto regionRings(const PolygonSet<Point<double>>& set, MapPoint map) {
+        using Mapped = std::decay_t<decltype(map(std::declval<const Point<double>&>()))>;
+        std::vector<std::vector<Mapped>> rings;
+        rings.reserve(set.componentCount() + set.holeCount());
+        for (const auto& component : set) {
+            for (auto& ring : regionRings(component, map)) {
+                rings.push_back(std::move(ring));
+            }
+        }
+        return rings;
+    }
+
     // One `m … l … h` run per ring, so that a single filled path carries the
     // whole region.
     static std::vector<pdfgen::pdf_path_operation> polygonPathOperations(
@@ -1639,7 +1661,7 @@ class Canvas {
                     points.push_back(mapPDFPoint(vertex, viewport));
                 }
                 addPath(pdf, page, points, true, style);
-            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>> || std::same_as<S, PolygonSet<PT>>) {
                 addPath(
                     pdf,
                     page,
@@ -1873,7 +1895,7 @@ class Canvas {
                 out << "\""
                     << styleAttributes(element.style) << ">"
                     << titleTag << "</polygon>";
-            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>> || std::same_as<S, PolygonSet<PT>>) {
                 // A <path> with one closed subpath per ring: the holes are the
                 // odd-crossing part of it, so the fill rule has to be even-odd
                 // rather than the SVG default.
@@ -2255,7 +2277,7 @@ class Canvas {
                     points.push_back(mapIPEPoint(vertex, viewport));
                 }
                 appendIPEPath(out, points, true, attrs);
-            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>>) {
+            } else if constexpr (std::same_as<S, PolygonWithHoles<PT>> || std::same_as<S, PolygonSet<PT>>) {
                 appendIPEPath(
                     out,
                     regionRings(shape, [&](const PT& vertex) { return mapIPEPoint(vertex, viewport); }),

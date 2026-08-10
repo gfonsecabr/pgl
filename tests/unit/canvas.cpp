@@ -714,3 +714,97 @@ TEST_CASE("Canvas renders a PolygonWithHoles as one even-odd path per ring") {
     CHECK(pdfSigns[1] == -pdfSigns[0]);
     CHECK(pdfSigns[2] == -pdfSigns[0]);
 }
+
+TEST_CASE("Canvas renders a PolygonSet as one path over every ring of every component") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using RegionSet = pgl::PolygonSet<Point>;
+
+    // A holed component and a plain one: three rings in all, and the hole
+    // belongs to the first component only.
+    const RegionSet set(std::vector<Region>{
+        Region(PolygonShape({0, 0, 8, 0, 8, 8, 0, 8}),
+               std::vector<PolygonShape>{PolygonShape({2, 2, 4, 2, 4, 4, 2, 4})}),
+        Region(PolygonShape({12, 0, 16, 0, 16, 4, 12, 4}))});
+
+    pgl::Canvas canvas;
+    canvas << pgl::stroke("navy") << pgl::fill("skyblue") << set;
+    const std::string svg = canvas.toSVG();
+
+    const auto count = [](const std::string& text, const std::string& needle) {
+        std::size_t total = 0;
+        for (std::size_t at = text.find(needle); at != std::string::npos;
+             at = text.find(needle, at + 1)) {
+            ++total;
+        }
+        return total;
+    };
+
+    // The whole set is a single element: one <path>, one title, three subpaths.
+    CHECK(count(svg, "<path") == 1);
+    CHECK(count(svg, "M ") == 3);
+    CHECK(count(svg, " Z") == 3);
+    CHECK(svg.find("fill-rule=\"evenodd\"") != std::string::npos);
+    CHECK(svg.find("<polygon") == std::string::npos);
+    CHECK(svg.find("<title>PolygonSet[PolygonWithHoles[Polygon[(0,0),(8,0),(8,8),(0,8)],"
+                   "Polygon[(2,2),(4,2),(4,4),(2,4)]],"
+                   "PolygonWithHoles[Polygon[(12,0),(16,0),(16,4),(12,4)]]]</title>") !=
+          std::string::npos);
+
+    // The subpath windings, recovered from each run's signed area. Only the hole
+    // winds against the rest: the second component's outer ring must wind *with*
+    // the first's, or the nonzero rule the PDF and Ipe backends use would punch
+    // it out as if it were a hole of the other component.
+    const std::size_t dStart = svg.find("<path d=\"") + std::string("<path d=\"").size();
+    const std::string data = svg.substr(dStart, svg.find('"', dStart) - dStart);
+    std::vector<int> signs;
+    for (std::size_t from = 0; from < data.size();) {
+        const std::size_t stop = data.find('Z', from);
+        if (stop == std::string::npos) break;
+        std::vector<double> values;
+        const std::string run = data.substr(from, stop - from);
+        std::size_t pos = 0;
+        while (pos < run.size()) {
+            const std::size_t start = run.find_first_of("-0123456789.", pos);
+            if (start == std::string::npos) break;
+            std::size_t end = start;
+            while (end < run.size() && (std::isdigit(static_cast<unsigned char>(run[end])) != 0 ||
+                                        run[end] == '-' || run[end] == '.')) {
+                ++end;
+            }
+            values.push_back(std::stod(run.substr(start, end - start)));
+            pos = end;
+        }
+        REQUIRE(values.size() >= 6);
+        REQUIRE(values.size() % 2 == 0);
+        double twiceArea = 0.0;
+        for (std::size_t i = 0; i + 1 < values.size(); i += 2) {
+            const std::size_t j = (i + 2) % values.size();
+            twiceArea += values[i] * values[j + 1] - values[j] * values[i + 1];
+        }
+        signs.push_back(twiceArea > 0.0 ? 1 : -1);
+        from = stop + 1;
+    }
+    REQUIRE(signs.size() == 3);
+    CHECK(signs[1] == -signs[0]);
+    CHECK(signs[2] == signs[0]);
+
+    // The wrapper draws the set exactly as the concrete shape does.
+    pgl::Canvas wrapped;
+    wrapped << pgl::stroke("navy") << pgl::fill("skyblue") << pgl::Shape<Point>(set);
+    CHECK(wrapped.toSVG() == svg);
+
+    // Ipe and PDF take the set too, as one path with three closed subpaths.
+    const std::string ipe = canvas.toIPE();
+    CHECK(count(ipe, "<path") == 1);
+    CHECK(count(ipe, "\nh\n") == 3);
+    const std::string pdf = canvas.toPDF();
+    CHECK(pdf.rfind("%PDF-", 0) == 0);
+    CHECK(count(pdf, "h\r\n") == 3);
+
+    // The empty set draws nothing at all.
+    pgl::Canvas emptyCanvas;
+    emptyCanvas << Point(0, 0) << RegionSet();
+    CHECK(emptyCanvas.toSVG().find("<path") == std::string::npos);
+}
