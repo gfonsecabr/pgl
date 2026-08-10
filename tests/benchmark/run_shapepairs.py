@@ -257,10 +257,13 @@ def _cpp_accumulate(method: str) -> str:
                 " }(a.template intersection<N>(b));")
     if method in {"unionWith", "difference", "symmetricDifference"}:
         # The regularized boolean operations. Each returns the pieces of the
-        # result as regions, and only Polygon and PolygonWithHoles define them —
-        # the lower-ranked shapes just forward to the higher-ranked operand, and
+        # result as a PolygonSet. `unionWith` is defined for every ordered pair
+        # of the six shapes that are bounded polygonal regions, each pair on the
+        # higher-ranked of its operands with the lower-ranked one forwarding.
         # `difference` is not symmetric, so it has no forwarders at all and only
-        # appears with a polygon or a region as operand A.
+        # appears with a polygon, a region or a set as operand A;
+        # `symmetricDifference` forwards but is not defined among the three
+        # bounded convex shapes.
         #
         # Counting non-empty results the way `intersection` does would be
         # useless here: A ∪ B is never empty, so the aggregate would be the same
@@ -270,9 +273,8 @@ def _cpp_accumulate(method: str) -> str:
         # a different vertex — and it has to materialize the whole result, so
         # the compiler cannot delete the construction.
         return ("count += [](const auto& pieces) {"
-                " long long n = (long long)pieces.size();"
-                " for (const auto& piece : pieces) n += (long long)piece.vertexCount();"
-                " return n;"
+                " return (long long)pieces.componentCount()"
+                "      + (long long)pieces.vertexCount();"
                 f" }}(a.template {method}<N>(b));")
     if method == "minkowskiSum":
         # The non-convex overloads return a vector of regions, while translations
