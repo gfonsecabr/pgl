@@ -65,7 +65,12 @@ constexpr bool Point<Number, Label>::boundaryContains(const OtherHalfplane&) con
 
 template <class Number, class Label>
 template<RectangleConcept OtherRectangle>
-constexpr bool Point<Number, Label>::boundaryContains(const OtherRectangle&) const {
+constexpr bool Point<Number, Label>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     return false;
 }
 
@@ -159,6 +164,11 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherHalfp
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     if (!other.isDegenerate()) {
         return false;
     }
@@ -255,6 +265,8 @@ constexpr bool Ray<PointType, LabelType>::boundaryContains(const OtherPoint& poi
 template <class PointType, class LabelType>
 template<PointConcept OtherPoint>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPoint& point) const {
+    // The empty set has no boundary, and it needs no case of its own: it
+    // contains no point, so the rejection below already fires for it.
     if (!contains(point)) {
         return false;
     }
@@ -267,44 +279,79 @@ constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPoin
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherSegment& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return detail::polygonBoundaryContainsSegment(*this, other);
 }
 
 template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherOrientedSegment& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return boundaryContains(static_cast<Segment<typename OtherOrientedSegment::PointType>>(other));
 }
 
 template <class PointType, class LabelType>
 template<LineConcept OtherLine>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherLine& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return other.isDegenerate() && boundaryContains(other.min());
 }
 
 template <class PointType, class LabelType>
 template<OrientedLineConcept OtherOrientedLine>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherOrientedLine& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return other.isDegenerate() && boundaryContains(other.source());
 }
 
 template <class PointType, class LabelType>
 template<RayConcept OtherRay>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRay& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return other.isDegenerate() && boundaryContains(other.source());
 }
 
 template <class PointType, class LabelType>
 template<HalfplaneConcept OtherHalfplane>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherHalfplane& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return other.isDegenerate() && boundaryContains(other.source());
 }
 
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    // A boundary is a curve, so only a degenerate operand can lie on one. That
+    // rejection is the common answer and comes first; an empty operand has
+    // inverted corners, hence is degenerate, and survives it to be answered
+    // below. An empty *this needs no case of its own: it covers no point, so
+    // the point and segment cases already answer false, which is the right
+    // answer for every non-empty operand.
     if (!other.isDegenerate()) {
         return false;
+    }
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
     }
     if (other.min() == other.max()) {
         return boundaryContains(other.min());
@@ -315,6 +362,10 @@ constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRect
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherTriangle& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     if (!other.isDegenerate()) {
         return false;
     }
@@ -327,6 +378,10 @@ constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherTria
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherConvex& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     if (other.size() == 0) {
         return true;
     }
@@ -387,6 +442,11 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRay&
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     return other.isDegenerate() &&
            boundaryContains(other.min()) &&
            boundaryContains(other.max());
@@ -526,6 +586,11 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherTriangle&
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     if (a() == b()) {
         return contains(other);
     }
@@ -717,6 +782,11 @@ constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherHalfpla
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Convex<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     if (!other.isDegenerate()) {
         return false;
     }
@@ -845,6 +915,11 @@ constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherHalfpl
 template <class PointType, class LabelType>
 template<RectangleConcept OtherRectangle>
 constexpr bool Polygon<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     if (!other.isDegenerate()) {
         return false;
     }
@@ -965,12 +1040,20 @@ constexpr bool Triangle<PointType, LabelType>::boundaryContains(const OtherPolyg
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPolygon& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return asConvex().boundaryContains(other);
 }
 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherDisk& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return other[0] == other[1] && other[1]==other[2] && boundaryContains(other[0]);
 }
 
@@ -1108,6 +1191,10 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherChai
 template <class PointType, class LabelType>
 template<MonotoneChainConcept OtherChain>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherChain& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return asConvex().boundaryContains(other);
 }
 
@@ -1213,6 +1300,10 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherPoly
 template <class PointType, class LabelType>
 template<PolylineConcept OtherPolyline>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherPolyline& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return asConvex().boundaryContains(other);
 }
 
@@ -1365,6 +1456,11 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(con
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     // Only a degenerate rectangle — the segment between its corners — can lie
     // on the at most one-dimensional boundary.
     if (!other.isDegenerate()) {
@@ -1596,6 +1692,10 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRegi
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     if (other.isEmpty()) {
         return true;
     }
@@ -1773,6 +1873,11 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::areaBoundaryContains(cons
 template <class PointType, class LabelType>
 template <RectangleConcept OtherRectangle>
 constexpr bool PolygonWithHoles<PointType, LabelType>::boundaryContains(const OtherRectangle& other) const {
+    if (other.isEmpty()) {
+        // The empty set is a subset of every shape, its boundary and its
+        // interior alike.
+        return true;
+    }
     return areaBoundaryContains(other);
 }
 
@@ -1916,6 +2021,10 @@ constexpr bool Halfplane<PointType, LabelType>::boundaryContains(const OtherRegi
 template <class PointType, class LabelType>
 template <PolygonWithHolesConcept OtherRegion>
 constexpr bool Rectangle<PointType, LabelType>::boundaryContains(const OtherRegion& other) const {
+    if (isEmpty()) {
+        // The empty set is a subset of itself and of nothing else.
+        return detail::coversNoPoint(other);
+    }
     return detail::boundaryContainsHoledRegion(*this, other);
 }
 

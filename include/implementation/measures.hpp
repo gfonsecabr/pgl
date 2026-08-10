@@ -281,6 +281,8 @@ constexpr bool Ray<PointType, LabelType>::pointInsideInteriorContainedIn(const O
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Rectangle<PointType, LabelType>::area() const {
+    // width() and height() already report 0 for the empty rectangle, so its
+    // inverted corners never reach the product.
     return static_cast<ResultNumber>(width()) * static_cast<ResultNumber>(height());
 }
 
@@ -292,12 +294,14 @@ constexpr auto Rectangle<PointType, LabelType>::twiceArea() const {
 
 template <class PointType, class LabelType>
 constexpr Segment<PointType> Rectangle<PointType, LabelType>::diameter() const {
+    assert(!isEmpty());
     return Segment<PointType>(min(), max());
 }
 
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::midpoint() const {
+    assert(!isEmpty());
     return Point<ResultNumber>(
         (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
         (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
@@ -311,6 +315,7 @@ constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::centroid() const 
 
 template <class PointType, class LabelType>
 constexpr Disk<PointType, NoLabel> Rectangle<PointType, LabelType>::circumcircle() const {
+    assert(!isEmpty());
     return Disk<PointType, NoLabel>(min(), bottomRight(), max()); //Choosen arbitrarly
 }
 

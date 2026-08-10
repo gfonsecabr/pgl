@@ -73,6 +73,8 @@ One type consists of shapes that are well defined, for example, a triangle with 
 
 Other degenerate shapes have no meaningful behavior and are called **undefined**. For example, a line defined by two equal points has no reasonable interpretation, and a disk defined by 3 different collinear points could represent two different halfplanes as limit cases. The `isUndefined` and `isDegenerate` methods distinguish between these two types. If `isUndefined` returns true, then every geometric operation is undefined behavior (any value may be returned, but no segmentation fault or infinite loop).
 
+A third state is the **empty set**: `Rectangle`, `Convex`, `Polygon`, `PolygonWithHoles`, `PolygonSet`, and `HalfplaneIntersection` can each cover no point at all, which `isEmpty` reports. An empty shape is well defined, not undefined: it behaves exactly as `EmptyShape` in every predicate, so it is contained in every shape (`contains`, `boundaryContains`, and `interiorContains` all accept it), it meets none (`intersects`, `interiorsIntersect`, `separates`, and `crosses` are all `false` for it), and it contains nothing but itself. It has no vertices, so `size()` is `0` and iteration yields nothing; it has zero area, so `isDegenerate` is `true`. The empty state is what lets these shapes answer "no points" without a `std::optional` wrapper.
+
 A shape satisfying `isPoint` covers exactly a point and `getIfPoint()` returns the point. Similarly a shape satisfying `isSegment` covers exactly the point set of a segment that is obtained with `getIfSegment()`. Degenerate shapes that dropped below their natural dimension are **entirely boundary with empty interior**. So `boundaryContains` on a collapsed shape coincides with `contains`, while `interiorContains` and `interiorsIntersect` are always `false`. (The one exception to this reading is the polymorphic `Shape`, whose `isPoint` / `getIfPoint` family tests the stored alternative rather than the geometry — see [Polymorphism with `Shape`](#polymorphism-with-shape).)
 
 ### Polymorphism with `Shape`
@@ -490,6 +492,8 @@ It knows how to convert itself to:
 
 The class template `Rectangle` represents an axis-aligned rectangle. While it is stored internally as only two vertices (minimum and maximum x and y coordinates), it behaves as a polygon with four vertices. It can be constructed for any number of points in a container and will construct the bounding box rectangle. If only two points are given, the container is optional. If the two points are respectively the minimum x and y and the maximum x and y, then an optional argument set to true avoids the bounding box calculation.
 
+A default-constructed rectangle is **empty**: it stores the corners `(0,0)` and `(-1,-1)`, so its maximum falls below its minimum and it covers no point. Normalizing two opposite corners never reaches that state, so it is produced only by `Rectangle()`, by the `minmax` constructor given inverted corners (which normalizes any such pair to the one canonical empty value), and by the operations that answer with a rectangle covering nothing — the bounding box of an empty range or of an empty shape, for instance. Inserting into an empty rectangle does not grow those placeholder corners: `r.insert(p)` makes `r` the single point `p`.
+
 ```C++
 pgl::Rectangle r({{1,3},{2,4},{3,1},{5,4},{2,3}});
 // Same as pgl::Rectangle r({1,1},{5,4}) or pgl::Rectangle r({1,4},{5,1});
@@ -509,18 +513,19 @@ for(pgl::OrientedSegment s : r.orientedEdges()) std::cout << s << ' ';
 
 A rectangle `r` has methods such as:
 
-- `r.isDegenerate()`: Returns true if the rectangle has null area.
+- `r.isEmpty()`: Returns true if the rectangle covers no point, that is, if its stored maximum corner falls below its minimum one on either axis. An empty rectangle behaves as `EmptyShape` everywhere: `r.size()` is `0`, iteration over its corners and edges yields nothing, `r.area()` is `0`, and reading `r[i]`, `r.vertices()`, `r.edges()`, `r.centroid()`, or `r.circumcircle()` is a precondition violation.
+- `r.isDegenerate()`: Returns true if the rectangle has null area, which includes the empty one.
 - `r.isPoint()` / `r.getIfPoint()`: Whether the rectangle collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `r.isSegment()` / `r.getIfSegment()`: Whether the rectangle collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `r.isUndefined()`: Always `false`: a degenerate rectangle is always a point or a segment.
+- `r.isUndefined()`: Always `false`: a degenerate rectangle is always empty, a point, or a segment.
 - `r.centroid<ResultNumber>()`: Returns the centroid.
 - `r.circumcircle()`: Returns the circumcircle.
 - `r.insert(s)`: Enlarges the rectangle in order to contain a finite shape `s`. The shape must expose `bbox()`.
 - `r.insert(points)`: Enlarges the rectangle in order to contain every point in the input range.
 
 It knows how to convert itself to:
-- `(pgl::Polygon) r` or `r.asPolygon()`: Returns the polygon representation of the rectangle.
-- `(pgl::Convex) r` or `r.asConvex()`: Returns the convex polygon representation of the rectangle.
+- `(pgl::Polygon) r` or `r.asPolygon()`: Returns the polygon representation of the rectangle; an empty rectangle gives the empty polygon.
+- `(pgl::Convex) r` or `r.asConvex()`: Returns the convex polygon representation of the rectangle; an empty rectangle gives the empty convex polygon.
 - `r.asPolygonWithHoles()`: Returns the rectangle as a hole-free `PolygonWithHoles` region.
 
 - Other methods:
@@ -613,7 +618,8 @@ A convex polygon `c` has methods such as:
 - `c.isDegenerate()`: Returns true if the convex polygon has null area.
 - `c.isPoint()` / `c.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `c.isSegment()` / `c.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `c.isUndefined()`: True only for an empty convex polygon, which has no vertex.
+- `c.isEmpty()`: True only for a convex polygon with no vertex, which is the empty set of points: the default-constructed one, the hull of no points, and every convex-valued result that comes back empty.
+- `c.isUndefined()`: Always `false`: a degenerate convex polygon is always empty, a point, or a segment.
 - `c.centroid<ResultNumber>()`: Returns the centroid.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
@@ -645,7 +651,8 @@ A polygon `P` has methods such as:
 - `P.isDegenerate()`: Returns true if the polygon has null area.
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polygon collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
-- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment: an empty polygon, or one whose zero area comes from a self-overlapping boundary rather than from collinear vertices.
+- `P.isEmpty()`: True only for a polygon with no vertex, which is the empty set of points.
+- `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `isEmpty` for it.
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.

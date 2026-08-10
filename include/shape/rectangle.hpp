@@ -110,9 +110,13 @@ struct Rectangle {
     using OrientedEdgeIterator = BoundaryIterator<true>;
 
     /**
-     * @brief Creates the degenerate rectangle `[(0,0),(0,0)]`.
+     * @brief Creates the empty rectangle `[(0,0),(-1,-1)]`.
+     *
+     * The maximum corner falls below the minimum one, which no pair of opposite
+     * corners normalizes to, so the rectangle covers no point at all and
+     * behaves as @ref EmptyShape everywhere. See @ref isEmpty.
      */
-    constexpr Rectangle() = default;
+    constexpr Rectangle() : points_(emptyCorners()) {}
 
     /**
      * @brief Creates an axis-aligned rectangle from two opposite corners.
@@ -121,14 +125,25 @@ struct Rectangle {
      * points, their labels are preserved. Otherwise synthesized corners use
      * default-constructed labels.
      *
+     * Passing @p minmax stores the corners as given, which is also the only way
+     * to build an empty rectangle other than @ref Rectangle(): corners that
+     * invert on either axis are not swapped back but read as the empty set, and
+     * normalized to its one canonical representation so that all empty
+     * rectangles compare equal.
+     *
      * @param first First opposite corner.
      * @param second Second opposite corner.
      * @param minmax True if we know that first.x() < second.x() and first.y() < second.y()
      */
     constexpr Rectangle(PointType first, PointType second, bool minmax = false) {
         if (minmax) {
-            points_[0] = first;
-            points_[1] = second;
+            if (second.x() < first.x() || second.y() < first.y()) {
+                points_ = emptyCorners();
+                return;
+            }
+            points_[0] = std::move(first);
+            points_[1] = std::move(second);
+            return;
         }
 
         const NumberType min_x = second.x() < first.x() ? second.x() : first.x();
@@ -185,23 +200,19 @@ struct Rectangle {
     }
 
     /**
-     * @brief Creates the bounding box of a non-empty range of points.
+     * @brief Creates the bounding box of a range of points.
      *
      * The rectangle corners are the componentwise minimum and maximum points
-     * found in the range.
+     * found in the range. An empty range encloses nothing, so it gives the
+     * empty rectangle.
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of points to enclose.
-     * @throws std::invalid_argument If the range is empty.
      */
     template<std::ranges::input_range Range = std::initializer_list<PointType>>
     requires std::ranges::common_range<Range> &&
              std::convertible_to<std::ranges::range_value_t<Range>, PointType>
-    constexpr explicit Rectangle(Range&& points) {
-        if (points.begin() == points.end()) {
-            throw std::invalid_argument("Rectangle bounding box requires at least one point");
-        }
-        points_[0] = points_[1] = static_cast<PointType>(*points.begin());
+    constexpr explicit Rectangle(Range&& points) : Rectangle() {
         for(const auto &p : points) {
             insert(p);
         }
@@ -209,22 +220,18 @@ struct Rectangle {
 
 
     /**
-     * @brief Creates the bounding box of a non-empty range of bounded shapes.
+     * @brief Creates the bounding box of a range of bounded shapes.
      *
      * The rectangle corners are the componentwise minimum and maximum points
-     * found in the range.
+     * found in the range. An empty range, or one whose shapes are all empty,
+     * encloses nothing and gives the empty rectangle.
      *
      * @tparam Range Input range whose elements can be converted to @ref PointType.
      * @param points Range of points to enclose.
-     * @throws std::invalid_argument If the range is empty.
      */
     template <std::ranges::input_range Range>
         requires(!detail::is_point_v<typename std::ranges::range_value_t<Range>> && requires(const typename std::ranges::range_value_t<Range>& shape) { shape.bbox(); })
-    constexpr explicit Rectangle(Range&& shapes) {
-        if (shapes.begin() == shapes.end()) {
-            throw std::invalid_argument("Rectangle bounding box requires at least one point");
-        }
-        points_[0] = points_[1] = static_cast<PointType>(shapes.begin()->bbox().min());
+    constexpr explicit Rectangle(Range&& shapes) : Rectangle() {
         for(const auto &s : shapes) {
             insert(s);
         }
@@ -237,6 +244,9 @@ struct Rectangle {
      * minimum corner: `min`, `bottomRight`, `max`, `topLeft`. Two of the
      * four corners are synthesized from the stored `min`/`max`, so the
      * result is returned by value.
+     *
+     * The empty rectangle has no corners, so @ref size is `0` and every index
+     * is out of range; the assertion is the only check.
      *
      * @param index Corner index.
      * @return The selected corner.
@@ -252,17 +262,46 @@ struct Rectangle {
     }
 
     /**
-     * @brief Returns the number of corners (always 4).
+     * @brief Returns whether the rectangle is the empty set of points.
+     *
+     * A rectangle is empty when its stored maximum corner falls below its
+     * minimum one. Normalizing two opposite corners never produces that state,
+     * so it is reached only by @ref Rectangle(), by the `minmax` constructor,
+     * and by the operations that answer with a rectangle covering nothing --
+     * all of which store the one canonical empty pair `(0,0),(-1,-1)`. An empty
+     * rectangle behaves as @ref EmptyShape: it has no vertices, no area, and
+     * every predicate reads it as the empty set.
+     *
+     * Because the empty set has exactly that one representation, and because
+     * every rectangle covering a point has `min x <= max x`, the x axis alone
+     * decides the question and the y axis need not be read. The assertion is
+     * what holds a future corner-writing operation to that invariant.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the rectangle covers no point.
      */
-    static constexpr std::size_t size() {
-        return 4;
+    [[nodiscard]] constexpr bool isEmpty() const {
+        assert(!(points_[1].y() < points_[0].y()) || points_[1].x() < points_[0].x());
+        return points_[1].x() < points_[0].x();
+    }
+
+    /**
+     * @brief Returns the number of corners: `4`, or `0` when @ref isEmpty.
+     */
+    [[nodiscard]] constexpr std::size_t size() const {
+        return isEmpty() ? 0 : 4;
     }
 
     /**
      * @brief Cyclic access: same as @ref operator[] but `index` is taken
      * modulo @ref size(); negative indices wrap from the end.
+     *
+     * The empty rectangle has no corners to wrap around, so calling this on one
+     * is a precondition violation.
      */
     constexpr PointType get(std::ptrdiff_t index) const {
+        assert(!isEmpty());
         const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
         return (*this)[static_cast<std::size_t>(((index % n) + n) % n)];
     }
@@ -270,6 +309,8 @@ struct Rectangle {
     /**
      * @brief Returns the smallest index `i` with `(*this)[i] == point`, or
      * `-1` if no corner equals `point`.
+     *
+     * The empty rectangle has no corners, so it always answers `-1`.
      */
     constexpr std::ptrdiff_t index(const PointType& point) const {
         for (std::ptrdiff_t i = 0; i < static_cast<std::ptrdiff_t>(size()); ++i) {
@@ -283,6 +324,9 @@ struct Rectangle {
     /**
      * @brief Returns the minimum corner `(min x, min y)`.
      *
+     * The corners of an empty rectangle are inverted placeholders, not points
+     * the rectangle covers; see @ref isEmpty.
+     *
      * @return Reference to the minimum corner.
      */
     constexpr const PointType& min() const {
@@ -291,6 +335,9 @@ struct Rectangle {
 
     /**
      * @brief Returns the maximum corner `(max x, max y)`.
+     *
+     * The corners of an empty rectangle are inverted placeholders, not points
+     * the rectangle covers; see @ref isEmpty.
      *
      * @return Reference to the maximum corner.
      */
@@ -301,19 +348,21 @@ struct Rectangle {
     /**
      * @brief Returns the rectangle width.
      *
-     * @return `max x - min x`.
+     * @return `max x - min x`, or `0` when @ref isEmpty.
      */
     [[nodiscard]] constexpr auto width() const {
-        return max().x() - min().x();
+        using Result = decltype(max().x() - min().x());
+        return isEmpty() ? Result(0) : Result(max().x() - min().x());
     }
 
     /**
      * @brief Returns the rectangle height.
      *
-     * @return `max y - min y`.
+     * @return `max y - min y`, or `0` when @ref isEmpty.
      */
     [[nodiscard]] constexpr auto height() const {
-        return max().y() - min().y();
+        using Result = decltype(max().y() - min().y());
+        return isEmpty() ? Result(0) : Result(max().y() - min().y());
     }
 
     /**
@@ -371,14 +420,14 @@ struct Rectangle {
      * @brief Returns an iterator past the last corner.
      */
     constexpr CornerIterator end() const {
-        return CornerIterator(this, 4);
+        return CornerIterator(this, size());
     }
 
     /**
      * @brief Returns an iterator past the last corner.
      */
     constexpr CornerIterator cend() const {
-        return CornerIterator(this, 4);
+        return CornerIterator(this, size());
     }
 
     /**
@@ -398,7 +447,7 @@ struct Rectangle {
      * @return Sentinel iterator for @ref edgesBegin().
      */
     constexpr EdgeIterator edgesEnd() const {
-        return EdgeIterator(this, edgeCount);
+        return EdgeIterator(this, size());
     }
 
     /**
@@ -418,7 +467,7 @@ struct Rectangle {
      * @return Sentinel iterator for @ref orientedEdgesBegin().
      */
     constexpr OrientedEdgeIterator orientedEdgesEnd() const {
-        return OrientedEdgeIterator(this, edgeCount);
+        return OrientedEdgeIterator(this, size());
     }
 
     /**
@@ -454,7 +503,7 @@ struct Rectangle {
      * @brief Returns the rectangle area.
      *
      * @tparam ResultNumber Result type (default: NumberType).
-     * @return `width * height`.
+     * @return `width * height`, which is `0` when @ref isEmpty.
      */
     template <class ResultNumber = NumberType>
     [[nodiscard]] constexpr ResultNumber area() const;
@@ -469,7 +518,9 @@ struct Rectangle {
     /**
      * @brief Returns whether the rectangle has empty interior.
      *
-     * @return `true` when width or height is zero.
+     * The empty rectangle has no area either, so it is degenerate.
+     *
+     * @return `true` when width or height is zero, or when @ref isEmpty.
      */
     [[nodiscard]] constexpr bool isDegenerate() const;
 
@@ -517,9 +568,9 @@ struct Rectangle {
      * @brief Returns whether the rectangle is degenerate without collapsing to
      * a point or to a segment.
      *
-     * A rectangle is never undefined: a degenerate one is always a point or a
-     * segment, so this always returns `false`. Provided for uniformity with the
-     * other shapes.
+     * A rectangle is never undefined: a degenerate one is always empty, a
+     * point, or a segment, so this always returns `false`. Provided for
+     * uniformity with the other shapes.
      *
      * Complexity: O(1).
      *
@@ -538,7 +589,7 @@ struct Rectangle {
      * @brief Returns a bounding box of the rectangle with floating point coordinates.
      *
      * @tparam ResultNumber Floating point type.
-     * @return A rectangle that contains the rectangle.
+     * @return A rectangle that contains the rectangle, empty when @ref isEmpty.
      */
     template <std::floating_point ResultNumber = double>
     [[nodiscard]] constexpr Rectangle<Point<ResultNumber>> fbox() const;
@@ -546,7 +597,9 @@ struct Rectangle {
     /**
      * @brief Returns the four vertices in counterclockwise order.
      *
-     * The first vertex is the minimum corner.
+     * The first vertex is the minimum corner. The empty rectangle has no
+     * vertices, so calling this on one is a precondition violation; iterate
+     * with @ref begin / @ref end to handle it.
      *
      * @return Vertices `(xmin,ymin)`, `(xmax,ymin)`, `(xmax,ymax)`, `(xmin,ymax)`.
      */
@@ -555,12 +608,20 @@ struct Rectangle {
     /**
      * @brief Returns the four edges as unordered segments.
      *
+     * The empty rectangle has no edges, so calling this on one is a
+     * precondition violation; iterate with @ref edgesBegin / @ref edgesEnd to
+     * handle it.
+     *
      * @return Bottom, right, top, and left edges.
      */
     [[nodiscard]] constexpr std::array<Segment<PointType>, 4> edges() const;
 
     /**
      * @brief Returns the four boundary edges in counterclockwise order.
+     *
+     * The empty rectangle has no edges, so calling this on one is a
+     * precondition violation; iterate with @ref orientedEdgesBegin /
+     * @ref orientedEdgesEnd to handle it.
      *
      * @return Bottom, right, top, and left oriented edges.
      */
@@ -571,11 +632,15 @@ struct Rectangle {
      *
      * The four corners already follow the canonical convex order
      * (counterclockwise, lexicographically smallest first), and degenerate
-     * rectangles collapse to their hull.
+     * rectangles collapse to their hull. An empty rectangle gives the empty
+     * convex polygon, which has no vertices.
      *
      * @return Convex polygon with the same corners.
      */
     [[nodiscard]] constexpr explicit operator Convex<PointType>() const {
+        if (isEmpty()) {
+            return Convex<PointType>();
+        }
         return Convex<PointType>(*this, !isDegenerate());
     }
 
@@ -593,7 +658,7 @@ struct Rectangle {
      *
      * The region is the intersection of the four edge half-planes. A degenerate
      * rectangle produces the corresponding degenerate region (a segment or a
-     * point).
+     * point), and an empty one the empty region.
      *
      * @return Half-plane intersection whose point set is this rectangle.
      */
@@ -605,11 +670,15 @@ struct Rectangle {
      * @brief Converts the rectangle to a simple polygon.
      *
      * The four corners already follow the canonical polygon order
-     * (counterclockwise, lexicographically smallest first).
+     * (counterclockwise, lexicographically smallest first). An empty rectangle
+     * gives the empty polygon, which has no vertices.
      *
      * @return Polygon with the same corners.
      */
     [[nodiscard]] constexpr explicit operator Polygon<PointType>() const {
+        if (isEmpty()) {
+            return Polygon<PointType>();
+        }
         return Polygon<PointType>(*this, !isDegenerate());
     }
 
@@ -1290,6 +1359,11 @@ struct Rectangle {
      * The closest point of an axis-aligned rectangle has integer coordinate
      * gaps, so this overload involves no division and is exact.
      *
+     * The empty rectangle has no nearest point, so no distance is defined from
+     * it; this holds for every distance on this shape, Euclidean, L1, LInf, and
+     * Hausdorff alike, and calling one on an empty rectangle is a precondition
+     * violation.
+     *
      * @tparam ResultNumber Coordinate type of the returned distance (default: NumberType).
      * @tparam OtherPoint Type of the point.
      *
@@ -1686,6 +1760,10 @@ struct Rectangle {
      * Existing corner labels are preserved when their coordinates do not
      * change. Newly synthesized corners use default-constructed labels.
      *
+     * An empty rectangle bounds nothing and so cannot be grown: it becomes the
+     * inserted point outright, rather than stretching to reach its inverted
+     * placeholder corners.
+     *
      * @tparam OtherPoint Type of the point.
      *
      * @param point Point to insert.
@@ -1695,6 +1773,9 @@ struct Rectangle {
 
     /**
      * @brief Enlarges the rectangle so that it contains another rectangle.
+     *
+     * Inserting an empty rectangle changes nothing; inserting into an empty one
+     * makes it a copy of @p other.
      *
      * @tparam OtherNumber Coordinate type of the other rectangle.
      * @tparam OtherPoint::LabelType Label type of the other rectangle.
@@ -1708,7 +1789,8 @@ struct Rectangle {
      *
      * The shape must expose `bbox()`. Infinite shapes such as lines, rays, and
      * halfplanes do not have a finite bounding box and are intentionally not
-     * accepted by this overload.
+     * accepted by this overload. A shape whose bounding box is empty
+     * contributes nothing.
      *
      * @tparam Shape Shape type exposing `bbox()`.
      * @param shape Shape to insert.
@@ -1761,7 +1843,8 @@ struct Rectangle {
     /**
      * @brief Returns a segment defining a diameter.
      *
-     * For a rectangle, a diagonal is a diameter.
+     * For a rectangle, a diagonal is a diameter. The empty rectangle has no
+     * diagonal, so calling this on one is a precondition violation.
      *
      * @return The diagonal from `min()` to `max()`.
      */
@@ -1769,6 +1852,9 @@ struct Rectangle {
 
     /**
      * @brief Returns the midpoint of the rectangle.
+     *
+     * The empty rectangle has no point to be the middle of, so calling this on
+     * one is a precondition violation.
      *
      * @tparam ResultNumber Coordinate type of the midpoint.
      * @return Midpoint with no label.
@@ -1790,7 +1876,8 @@ struct Rectangle {
     /**
      * @brief Returns the circumcircle of the rectangle.
      *
-     * The returned disk passes through the rectangle corners.
+     * The returned disk passes through the rectangle corners. The empty
+     * rectangle has none, so calling this on one is a precondition violation.
      *
      * @return Disk passing through three rectangle corners.
      */
@@ -1808,7 +1895,9 @@ struct Rectangle {
     /**
      * @brief Returns a point inside the rectangle.
      *
-     * This is the midpoint, even for degenerate rectangles.
+     * This is the midpoint, even for degenerate rectangles. The empty rectangle
+     * has no point inside it, so calling this on one is a precondition
+     * violation.
      *
      * @tparam ResultNumber Coordinate type of the midpoint.
      * @return Midpoint with the rectangle coordinate type.
@@ -2057,6 +2146,17 @@ struct Rectangle {
 
     static constexpr PointType makeCorner(const NumberType& x, const NumberType& y) {
         return Point<NumberType, typename PointType::LabelType>(x, y, typename PointType::LabelType{});
+    }
+
+    /**
+     * @brief The one representation every empty rectangle normalizes to.
+     *
+     * Equality, ordering, and hashing all read the stored corners, so the empty
+     * set needs a single value rather than any pair that happens to invert.
+     */
+    static constexpr std::array<PointType, 2> emptyCorners() {
+        return {makeCorner(NumberType(0), NumberType(0)),
+                makeCorner(NumberType(-1), NumberType(-1))};
     }
 
     /**

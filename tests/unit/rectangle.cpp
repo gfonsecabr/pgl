@@ -30,13 +30,15 @@ TEST_CASE_TEMPLATE("Rectangle normalizes corners and iterates over min then max"
         }
     };
 
-    const Rectangle degenerate;
+    const Rectangle empty;
+    CHECK(empty.isEmpty());
+    CHECK(empty.size() == 0);
     if constexpr (requires { Point(Number{}, Number{}, "tag"); }) {
-        CHECK(degenerate.min() == Point(Number{}, Number{}, ""));
-        CHECK(degenerate.max() == Point(Number{}, Number{}, ""));
+        CHECK(empty.min() == Point(Number{}, Number{}, ""));
+        CHECK(empty.max() == Point(Number(-1), Number(-1), ""));
     } else {
-        CHECK(degenerate.min() == Point(Number{}, Number{}));
-        CHECK(degenerate.max() == Point(Number{}, Number{}));
+        CHECK(empty.min() == Point(Number{}, Number{}));
+        CHECK(empty.max() == Point(Number(-1), Number(-1)));
     }
 
     const Rectangle rectangle(
@@ -121,7 +123,7 @@ TEST_CASE("Class template argument deduction allows object declarations without 
     CHECK(point == pgl::Point<int>(0, 0));
     CHECK(segment.min() == pgl::Point<int>(0, 0));
     CHECK(oriented_segment.source() == pgl::Point<int>(0, 0));
-    CHECK(rectangle.max() == pgl::Point<int>(0, 0));
+    CHECK(rectangle.isEmpty());
 }
 
 TEST_CASE("Rectangle can be built from a non-empty range of points using its bounding box") {
@@ -201,12 +203,16 @@ TEST_CASE("Construct rectangles from containers and lists of points") {
 
 }
 
-TEST_CASE("Rectangle bounding-box constructor rejects an empty range") {
+TEST_CASE("Rectangle bounding-box constructor turns an empty range into the empty rectangle") {
     using Point = pgl::Point<int>;
     using Rectangle = pgl::Rectangle<Point>;
 
     const std::vector<Point> empty_points;
-    CHECK_THROWS_AS((void)Rectangle(empty_points), std::invalid_argument);
+    CHECK(Rectangle(empty_points).isEmpty());
+
+    // A range of shapes that are themselves empty encloses nothing either.
+    const std::vector<Rectangle> empty_boxes{Rectangle(), Rectangle()};
+    CHECK(Rectangle(empty_boxes).isEmpty());
 }
 
 TEST_CASE("Rectangle streams, scales, translates, and exposes vertices and edges") {
@@ -814,5 +820,189 @@ TEST_CASE("Rectangle unites with Rectangle into a set of regions") {
         const Rectangle flat(Point(0, 0), Point(0, 4));
         CHECK(flat.unionWith<int>(rect) == rect.asPolygonSet());
         CHECK(flat.unionWith<int>(flat).isEmpty());
+    }
+}
+
+TEST_CASE("The empty rectangle is the empty set of points") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using SegmentShape = pgl::Segment<Point>;
+    using TriangleShape = pgl::Triangle<Point>;
+
+    const Rectangle empty;
+    const Rectangle rect(0, 0, 4, 4);
+    const TriangleShape triangle(Point(0, 0), Point(4, 0), Point(0, 4));
+    const SegmentShape segment(Point(1, 1), Point(3, 3));
+
+    SUBCASE("it is reached by default construction and by inverted corners") {
+        CHECK(empty.isEmpty());
+        CHECK(empty.min() == Point(0, 0));
+        CHECK(empty.max() == Point(-1, -1));
+
+        // Every inverted pair normalizes to the one canonical empty value, so
+        // equality, ordering, and hashing keep working.
+        CHECK(Rectangle(Point(5, 5), Point(1, 1), true) == empty);
+        CHECK(Rectangle(3, 7, 3, 2, true) == empty);
+        CHECK(std::hash<Rectangle>{}(Rectangle(Point(5, 5), Point(1, 1), true)) ==
+              std::hash<Rectangle>{}(empty));
+
+        // Without the minmax flag the corners are normalized instead, so the
+        // ordinary constructors can never produce it by accident.
+        CHECK_FALSE(Rectangle(Point(5, 5), Point(1, 1)).isEmpty());
+    }
+
+    SUBCASE("it has no vertices, no extent, and no area") {
+        CHECK(empty.size() == 0);
+        CHECK(empty.begin() == empty.end());
+        CHECK(empty.edgesBegin() == empty.edgesEnd());
+        CHECK(empty.orientedEdgesBegin() == empty.orientedEdgesEnd());
+        CHECK(empty.index(Point(0, 0)) == -1);
+        CHECK_FALSE(empty.verticesContain(Point(0, 0)));
+        CHECK(empty.width() == 0);
+        CHECK(empty.height() == 0);
+        CHECK(empty.area() == 0);
+        CHECK(empty.twiceArea() == 0);
+    }
+
+    SUBCASE("it is degenerate but well defined, and neither a point nor a segment") {
+        CHECK(empty.isDegenerate());
+        CHECK_FALSE(empty.isUndefined());
+        CHECK_FALSE(empty.isPoint());
+        CHECK_FALSE(empty.isSegment());
+        CHECK_FALSE(empty.getIfPoint().has_value());
+        CHECK_FALSE(empty.getIfSegment().has_value());
+    }
+
+    SUBCASE("it contains nothing but itself") {
+        CHECK_FALSE(empty.contains(Point(0, 0)));
+        CHECK_FALSE(empty.contains(segment));
+        CHECK_FALSE(empty.contains(triangle));
+        CHECK_FALSE(empty.contains(rect));
+        CHECK_FALSE(empty.boundaryContains(Point(0, 0)));
+
+        CHECK(empty.contains(empty));
+        CHECK(empty.boundaryContains(empty));
+        CHECK(empty.interiorContains(empty));
+    }
+
+    SUBCASE("every shape contains it, and none meets it") {
+        CHECK(rect.contains(empty));
+        CHECK(rect.boundaryContains(empty));
+        CHECK(rect.interiorContains(empty));
+        CHECK(triangle.contains(empty));
+        CHECK(segment.contains(empty));
+        CHECK(Point(0, 0).contains(empty));
+
+        CHECK_FALSE(rect.intersects(empty));
+        CHECK_FALSE(rect.interiorsIntersect(empty));
+        CHECK_FALSE(rect.separates(empty));
+        CHECK_FALSE(rect.crosses(empty));
+
+        CHECK_FALSE(empty.intersects(rect));
+        CHECK_FALSE(empty.intersects(triangle));
+        CHECK_FALSE(empty.intersects(segment));
+        CHECK_FALSE(empty.interiorsIntersect(rect));
+        CHECK_FALSE(empty.separates(triangle));
+        CHECK_FALSE(empty.crosses(triangle));
+    }
+
+    SUBCASE("it leaves an already-split set of regions split") {
+        // separates asks whether B minus A is disconnected. A set of regions is
+        // the one target that can already be in pieces, so removing the empty
+        // set from it still answers true -- exactly as any remover that misses
+        // it does.
+        const Rectangle far_away(10, 10, 12, 12);
+        const auto two_pieces = rect.unionWith<int>(far_away);
+        CHECK(empty.separates(two_pieces));
+        CHECK_FALSE(empty.separates(rect.asPolygonSet()));
+
+        // The empty set as the target is never disconnected by anything.
+        CHECK_FALSE(rect.separates(pgl::PolygonSet<Point>()));
+    }
+
+    SUBCASE("inserting a point turns it into that point") {
+        Rectangle box;
+        box.insert(Point(3, 4));
+        CHECK_FALSE(box.isEmpty());
+        CHECK(box.isPoint());
+        CHECK(box.min() == Point(3, 4));
+        CHECK(box.max() == Point(3, 4));
+
+        // ... rather than growing the placeholder corners into a box.
+        box.insert(Point(5, 1));
+        CHECK(box == Rectangle(3, 1, 5, 4));
+    }
+
+    SUBCASE("inserting the empty rectangle changes nothing") {
+        Rectangle box(rect);
+        box.insert(Rectangle());
+        CHECK(box == rect);
+
+        Rectangle still_empty;
+        still_empty.insert(Rectangle());
+        CHECK(still_empty.isEmpty());
+
+        // A shape whose bounding box is empty contributes nothing either.
+        still_empty.insert(pgl::Polygon<Point>());
+        CHECK(still_empty.isEmpty());
+    }
+
+    SUBCASE("it converts to the empty Convex, Polygon, and region") {
+        CHECK(empty.asConvex().isEmpty());
+        CHECK(empty.asPolygon().isEmpty());
+        CHECK(empty.asPolygonWithHoles().isEmpty());
+        CHECK(empty.asPolygonSet().isEmpty());
+        CHECK(empty.asHalfplaneIntersection().isEmpty());
+    }
+
+    SUBCASE("it is its own bounding box, and the bounding box of empty shapes") {
+        CHECK(empty.bbox() == empty);
+        CHECK(empty.fbox<double>().isEmpty());
+        CHECK(pgl::Convex<Point>().bbox().isEmpty());
+        CHECK(pgl::Polygon<Point>().bbox().isEmpty());
+    }
+
+    SUBCASE("transformations leave it empty and canonical") {
+        CHECK((empty + Point(5, 5)) == empty);
+        CHECK((empty - Point(5, 5)) == empty);
+        CHECK((empty * 3) == empty);
+        CHECK((empty / 2) == empty);
+        CHECK(empty.rotated90() == empty);
+        CHECK(empty.scaledUpX(3) == empty);
+        CHECK(empty.scaledUpY(3) == empty);
+        CHECK(empty.scaledDownX(2) == empty);
+        CHECK(empty.scaledDownY(2) == empty);
+
+        Rectangle box;
+        box += Point(7, 7);
+        CHECK(box == empty);
+    }
+
+    SUBCASE("intersecting with it is empty, uniting with it is the other shape") {
+        CHECK_FALSE(empty.intersection(rect).has_value());
+        CHECK_FALSE(rect.intersection(empty).has_value());
+        CHECK_FALSE(empty.intersection(segment).has_value());
+        CHECK_FALSE(empty.intersection(Point(0, 0)).has_value());
+
+        CHECK(empty.unionWith<int>(rect) == rect.asPolygonSet());
+        CHECK(rect.unionWith<int>(empty) == rect.asPolygonSet());
+        CHECK(empty.unionWith<int>(empty).isEmpty());
+
+        CHECK(empty.minkowskiSum(rect).isEmpty());
+        CHECK(rect.minkowskiSum(empty).isEmpty());
+        CHECK(empty.minkowskiSum(Point(3, 3)).isEmpty());
+    }
+
+    SUBCASE("it streams as an empty box") {
+        std::ostringstream out;
+        out << empty;
+        CHECK(out.str() == "[]");
+    }
+
+    SUBCASE("it behaves the same wrapped in a Shape") {
+        const pgl::Shape<Point> wrapped(empty);
+        CHECK_FALSE(wrapped.contains(Point(0, 0)));
+        CHECK_FALSE(wrapped.intersects(rect));
+        CHECK(pgl::Shape<Point>(rect).contains(wrapped));
     }
 }

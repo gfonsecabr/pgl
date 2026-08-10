@@ -372,7 +372,26 @@ struct Convex {
     constexpr auto area() const;
 
     /**
+     * @brief Returns whether the convex polygon is the empty set of points.
+     *
+     * A convex polygon with no vertices covers nothing, which is the state of a
+     * default-constructed one, of the hull of no points, and of every
+     * convex-valued result that comes back empty. It behaves as
+     * @ref EmptyShape: every predicate reads it as the empty set.
+     *
+     * Complexity: O(1).
+     *
+     * @return `true` if the convex polygon covers no point.
+     */
+    [[nodiscard]] constexpr bool isEmpty() const {
+        return size() == 0;
+    }
+
+    /**
      * @brief Checks if the convex polygon is degenerate (has zero area).
+     *
+     * The empty convex polygon has no area either, so it is degenerate.
+     *
      * @return True if the convex polygon is degenerate, false otherwise.
      */
     constexpr bool isDegenerate() const;
@@ -425,11 +444,14 @@ struct Convex {
      * @brief Returns whether the convex polygon is degenerate without
      * collapsing to a point or to a segment.
      *
-     * True only for the empty polygon, which has no defining point.
+     * A convex polygon is never undefined: a degenerate one is always empty, a
+     * point, or a segment, so this always returns `false`. Use @ref isEmpty to
+     * detect the one that covers nothing. Provided for uniformity with the
+     * other shapes.
      *
      * Complexity: O(1).
      *
-     * @return `true` if the polygon has no vertices.
+     * @return `false`.
      */
     [[nodiscard]] constexpr bool isUndefined() const;
 

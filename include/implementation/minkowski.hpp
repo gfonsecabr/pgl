@@ -153,7 +153,9 @@ constexpr auto minkowskiTranslated(const ShapeT& shape,
         } else if constexpr (is_halfplane_v<ShapeT>) {
             return Halfplane<ResultPoint, Label>(moved(shape.source()), moved(shape.target()));
         } else if constexpr (is_rectangle_v<ShapeT>) {
-            return Rectangle<ResultPoint, Label>(moved(shape.min()), moved(shape.max()));
+            // Translation preserves the corner order, so the result needs no
+            // normalizing -- and an empty rectangle stays empty.
+            return Rectangle<ResultPoint, Label>(moved(shape.min()), moved(shape.max()), true);
         } else if constexpr (is_triangle_v<ShapeT>) {
             return Triangle<ResultPoint, Label>(moved(shape.a()), moved(shape.b()), moved(shape.c()));
         } else if constexpr (is_disk_v<ShapeT>) {
@@ -220,7 +222,11 @@ constexpr std::vector<ResultPoint> minkowskiVertices(const ShapeT& shape) {
     } else {
         // At most four vertices, and any of them may be degenerate (a flat
         // triangle, a zero-width rectangle, a collapsed segment), so the scan
-        // both orders them and drops what collapsed.
+        // both orders them and drops what collapsed. An empty shape has no
+        // vertices to read, and its caller absorbs the empty list.
+        if (coversNoPoint(shape)) {
+            return vertices;
+        }
         for (const auto& vertex : shape.vertices()) {
             append(vertex);
         }
@@ -753,9 +759,13 @@ constexpr auto minkowskiSumOf(const A& a, const B& b) {
         return minkowskiTranslated(b, a);
     } else if constexpr (is_rectangle_v<A> && is_rectangle_v<B>) {
         // Two axis-aligned rectangles are the one non-trivial pair closed under
-        // the sum: opposite corners simply add.
+        // the sum: opposite corners simply add, minima to minima and maxima to
+        // maxima. Sweeping anything over the empty set covers nothing.
+        if (a.isEmpty() || b.isEmpty()) {
+            return Rectangle<ResultPoint>();
+        }
         return Rectangle<ResultPoint>(minkowskiSumOf(a.min(), b.min()),
-                                      minkowskiSumOf(a.max(), b.max()));
+                                      minkowskiSumOf(a.max(), b.max()), true);
     } else if constexpr (is_halfplane_v<A> && !UnboundedConvexConcept<B>) {
         // A half-plane absorbs anything bounded, convex or not, and stays one.
         return minkowskiHalfplaneSum(a, b);
