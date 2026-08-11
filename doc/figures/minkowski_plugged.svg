@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <polygon points="23,707.391 354.826,707.391 354.826,582.957 271.87,582.957 271.87,624.435 105.957,624.435 105.957,458.522 271.87,458.522 271.87,500 354.826,500 354.826,375.565 23,375.565" stroke="royalblue" fill="royalblue" fill-opacity="0.24" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Polygon[(0,0),(8,0),(8,3),(6,3),(6,2),(2,2),(2,6),(6,6),(6,5),(8,5),(8,8),(0,8)]</title></polygon>
+  <path d="M 562.217,707.391 977,707.391 977,292.609 562.217,292.609 Z M 728.13,458.522 811.087,458.522 811.087,541.478 728.13,541.478 Z" fill-rule="evenodd" stroke="darkorange" fill="darkorange" fill-opacity="0.24" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>PolygonWithHoles[Polygon[(13,0),(23,0),(23,10),(13,10)],Polygon[(17,4),(19,4),(19,6),(17,6)]]</title></path>
+</svg>

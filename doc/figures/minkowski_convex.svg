@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <polygon points="102.5,977 897.5,977 897.5,500 420.5,23 102.5,23" stroke="darkorange" fill="orange" fill-opacity="0.22" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Convex[(0,0),(5,0),(5,3),(2,6),(0,6)]</title></polygon>
+  <polygon points="102.5,977 420.5,977 420.5,500 102.5,500" stroke="royalblue" fill="royalblue" fill-opacity="0.32" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Convex[(0,0),(2,0),(2,3),(0,3)]</title></polygon>
+  <polygon points="102.5,977 579.5,977 102.5,500" stroke="seagreen" fill="seagreen" fill-opacity="0.32" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>&lt;(0,0)(3,0)(0,3)&gt;</title></polygon>
+</svg>
