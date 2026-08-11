@@ -130,6 +130,7 @@ ALL_METHODS = [
     "collinear",
     "parallel",
     "intersection",
+    "regularizedIntersection",
     "regularizedUnion",
     "difference",
     "symmetricDifference",
@@ -154,7 +155,8 @@ N_SHAPES = 100
 # sample instead. The generators are deterministic, so this is the first
 # N_CONSTRUCTION_SHAPES of the same shapes every other method sees.
 N_CONSTRUCTION_SHAPES = 20
-_CONSTRUCTION_METHODS = {"regularizedUnion", "difference", "symmetricDifference"}
+_CONSTRUCTION_METHODS = {"regularizedIntersection", "regularizedUnion", "difference",
+                         "symmetricDifference"}
 
 # Wall-clock ceiling on the measured loop of a single generated program. The
 # cost per call spans six orders of magnitude across the cube — tens of ns for
@@ -243,7 +245,8 @@ def _cpp_accumulate(method: str) -> str:
     if method == "intersection":
         # intersection returns std::optional for most shape pairs,
         # std::vector for the ones whose result can have several disjoint
-        # pieces (Polygon/Polyline/MonotoneChain vs a non-Point operand), and a
+        # pieces (Polygon/Polyline/MonotoneChain/PolygonWithHoles/PolygonSet
+        # vs a non-Point operand), and a
         # bare HalfplaneIntersection for the pairs closed under intersection
         # (HalfplaneIntersection vs Rectangle/Triangle/Convex/Halfplane/region).
         # Count a non-empty result the same way for all three: the shape and
@@ -256,7 +259,8 @@ def _cpp_accumulate(method: str) -> str:
                 " if constexpr (requires { r.has_value(); }) return r.has_value() ? 1 : 0;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
-    if method in {"regularizedUnion", "difference", "symmetricDifference"}:
+    if method in {"regularizedIntersection", "regularizedUnion", "difference",
+                  "symmetricDifference"}:
         # The regularized boolean operations. Each returns the pieces of the
         # result as a PolygonSet. `regularizedUnion` is defined for every ordered pair
         # of the six shapes that are bounded polygonal regions, each pair on the
@@ -264,7 +268,9 @@ def _cpp_accumulate(method: str) -> str:
         # `difference` is not symmetric, so it has no forwarders at all and only
         # appears with a polygon, a region or a set as operand A;
         # `symmetricDifference` forwards but is not defined among the three
-        # bounded convex shapes.
+        # bounded convex shapes. `regularizedIntersection` needs a
+        # PolygonWithHoles or a PolygonSet on one side, and takes an unbounded
+        # operand — a Halfplane or a HalfplaneIntersection — on the other.
         #
         # Counting non-empty results the way `intersection` does would be
         # useless here: A ∪ B is never empty, so the aggregate would be the same
