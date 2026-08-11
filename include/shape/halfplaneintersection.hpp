@@ -1846,9 +1846,9 @@ struct HalfplaneIntersection {
      * returns — @ref Point for an isolated boundary touch, @ref Polyline for a
      * shared stretch of boundary with no area beside it, @ref Polygon for a
      * filled piece — in no particular order. No component has a hole: both
-     * operands have a connected complement (see
-     * @ref PolygonWithHoles::intersection(const OtherPolygon&) const for the
-     * one shape that does not).
+     * operands have a connected complement. See
+     * @ref PolygonWithHoles::regularizedIntersection(const OtherPolygon&) const
+     * for the corresponding operation when a holed region participates.
      *
      * The polygon is bounded, so the region is first clipped to the polygon's
      * bounding rectangle; that leaves `A ∩ B` untouched — the polygon lies
@@ -1891,6 +1891,17 @@ struct HalfplaneIntersection {
                   })
     [[nodiscard]] auto intersection(const OtherShape& other) const {
         return other.template intersection<ResultNumber>(*this);
+    }
+
+    /** @brief Forwards a regularized intersection to the shape that owns it. */
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<HalfplaneIntersection>)
+                  && requires(const OtherShape& o, const HalfplaneIntersection& self) {
+                         o.template regularizedIntersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] auto regularizedIntersection(const OtherShape& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
     }
 
     // --- distances (defined in the implementation layer) ---
@@ -2040,6 +2051,12 @@ struct HalfplaneIntersection {
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
         return other.template intersection<ResultNumber>(*this);
+    }
+
+    /** @brief Re-dispatches a regularized intersection through a runtime shape. */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto regularizedIntersection(const Shape<OtherPoint>& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
     }
 
     /**

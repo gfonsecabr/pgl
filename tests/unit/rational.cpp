@@ -84,7 +84,7 @@ TEST_CASE("Narrowing conversions divide before they narrow") {
     // value below came back as -1.
     //
     // The geometry that found it: an arrangement's vertices are exactly such
-    // deferred fractions, so `region.intersection<int>(halfplane)` and
+    // deferred fractions, so `region.regularizedIntersection<int>(halfplane)` and
     // `region.difference<int>(halfplane)` reported vertices that were nowhere
     // near the crossings.
     SUBCASE("over BigInt") {
@@ -324,7 +324,6 @@ TEST_CASE_TEMPLATE("Arithmetic operations", Int, int32_t, int64_t, pgl::int128) 
         CHECK((a*b).denominator() == 36);
     }
 }
-
 
 
 

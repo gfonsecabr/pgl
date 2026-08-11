@@ -993,6 +993,17 @@ struct Halfplane {
         return other.template intersection<ResultNumber>(*this);
     }
 
+    /** @brief Forwards a regularized intersection to the shape that owns it. */
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Halfplane>)
+                  && requires(const OtherShape& o, const Halfplane& self) {
+                         o.template regularizedIntersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto regularizedIntersection(const OtherShape& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
+    }
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
@@ -1129,6 +1140,12 @@ struct Halfplane {
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto intersection(const Shape<OtherPoint>& other) const {
         return other.template intersection<ResultNumber>(*this);
+    }
+
+    /** @brief Re-dispatches a regularized intersection through a runtime shape. */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto regularizedIntersection(const Shape<OtherPoint>& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
     }
 
     /**

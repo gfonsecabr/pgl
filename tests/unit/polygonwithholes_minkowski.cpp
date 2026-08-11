@@ -583,7 +583,7 @@ TEST_CASE("minkowskiSum: a non-integral crossing needs an exact result type") {
     // the sum of its right arm with T. That vertex is a genuine feature of the
     // answer, not an artefact of the method -- no decomposition puts it anywhere
     // else -- so an integral result type has nowhere to put it and truncates,
-    // exactly as `difference` and `unionWith` document.
+    // exactly as `difference` and `regularizedUnion` document.
     const PolygonShape u = uShape();
     const Triangle t(Point(-2, -1), Point(2, 0), Point(0, 2));
 

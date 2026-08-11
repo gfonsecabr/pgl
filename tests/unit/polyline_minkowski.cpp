@@ -327,7 +327,7 @@ TEST_CASE("minkowskiSum: the sweep of a chain is the union of the sweeps of its 
     const auto whole = v.minkowskiSum<int>(b);
     const auto left = PolylineShape({Point(0, 0), Point(4, 6)}).minkowskiSum<int>(b);
     const auto right = PolylineShape({Point(4, 6), Point(8, 0)}).minkowskiSum<int>(b);
-    const auto joined = left.unionWith<int>(right);
+    const auto joined = left.regularizedUnion<int>(right);
     REQUIRE(joined.componentCount() == 1);
     CHECK(joined.component(0) == whole);
 
@@ -781,7 +781,7 @@ TEST_CASE("minkowskiSum: two chains, with no area between them") {
     const auto whole = l.minkowskiSum<int>(v);
     const auto left = l.minkowskiSum<int>(PolylineShape({Point(0, 0), Point(4, 6)}));
     const auto right = l.minkowskiSum<int>(PolylineShape({Point(4, 6), Point(8, 0)}));
-    CHECK(left.unionWith<int>(right) == whole);
+    CHECK(left.regularizedUnion<int>(right) == whole);
 
     // Nothing here is a body, so nothing is contracted to stay in one piece: two
     // parallel chains sweep out nothing at all.

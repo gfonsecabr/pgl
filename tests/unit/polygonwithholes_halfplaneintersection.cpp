@@ -307,22 +307,23 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the symmetric predicates")
     }
 }
 
-// A half-plane intersection operand pulls in the region-valued `intersection`,
+// A half-plane intersection operand supports the region-valued
+// `regularizedIntersection`,
 // the one that keeps holes -- so this pair answers with regions rather than with
 // the component vector `HalfplaneIntersection::intersection(Polygon)` returns,
 // and it answers the same in either order.
 
-TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps holes") {
+TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: regularized intersection keeps holes") {
     const Region region = annulus();
     using EPoint = pgl::Point<ERational>;
     using ERegion = pgl::PolygonWithHoles<EPoint>;
 
     SUBCASE("a region covered by the operand comes back whole, hole and all") {
         const Intersection covering(RectangleShape(Point(-5, -5), Point(15, 15)));
-        const auto pieces = region.intersection<ERational>(covering);
+        const auto pieces = region.regularizedIntersection<ERational>(covering);
         REQUIRE(pieces.componentCount() == 1);
         CHECK(pieces.component(0) == ERegion(region));
-        CHECK(covering.intersection<ERational>(region) == pieces);
+        CHECK(covering.regularizedIntersection<ERational>(region) == pieces);
     }
 
     SUBCASE("an unbounded operand is clipped to the region") {
@@ -330,11 +331,11 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         // by the hole into a single outer ring with a notch.
         const Intersection right(rightOf(5));
         REQUIRE(!right.isBounded());
-        const auto pieces = region.intersection<ERational>(right);
+        const auto pieces = region.regularizedIntersection<ERational>(right);
         REQUIRE(pieces.componentCount() == 1);
         CHECK(pieces.component(0).holes().empty());
         CHECK(pieces.component(0).area<ERational>() == ERational(50 - 8));
-        CHECK(right.intersection<ERational>(region) == pieces);
+        CHECK(right.regularizedIntersection<ERational>(region) == pieces);
     }
 
     SUBCASE("the operand can come apart into several pieces") {
@@ -342,18 +343,18 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         // the annulus in it is the two bars beside the hole.
         Intersection slab(above(4));
         slab.insert(below(6));
-        const auto pieces = region.intersection<ERational>(slab);
+        const auto pieces = region.regularizedIntersection<ERational>(slab);
         REQUIRE(pieces.componentCount() == 2);
         CHECK(pieces.component(0).area<ERational>() == ERational(6));
         CHECK(pieces.component(1).area<ERational>() == ERational(6));
-        CHECK(slab.intersection<ERational>(region) == pieces);
+        CHECK(slab.regularizedIntersection<ERational>(region) == pieces);
     }
 
     SUBCASE("the crossings are exact whatever the coordinates look like") {
         // The line through (0,1) and (3,0) meets the outer ring at thirds; the
         // arrangement is built over rationals, so the area is exact.
         const Intersection tilted(Halfplane(Point(0, 1), Point(3, 0)));
-        const auto pieces = region.intersection<ERational>(tilted);
+        const auto pieces = region.regularizedIntersection<ERational>(tilted);
         REQUIRE(pieces.componentCount() == 1);
         REQUIRE(pieces.component(0).holes().size() == 1);
         // The whole annulus but the corner triangle (0,0)-(3,0)-(0,1).
@@ -364,16 +365,16 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         Intersection empty(rightOf(5));
         empty.insert(leftOf(3));
         REQUIRE(empty.empty());
-        CHECK(region.intersection<ERational>(empty).empty());
+        CHECK(region.regularizedIntersection<ERational>(empty).empty());
 
         Intersection line(above(5));
         line.insert(below(5));
         REQUIRE(line.isDegenerate());
-        CHECK(region.intersection<ERational>(line).empty());
-        CHECK(line.intersection<ERational>(region).empty());
+        CHECK(region.regularizedIntersection<ERational>(line).empty());
+        CHECK(line.regularizedIntersection<ERational>(region).empty());
 
         // Missing the region entirely is empty too.
-        CHECK(region.intersection<ERational>(Intersection(rightOf(20))).empty());
+        CHECK(region.regularizedIntersection<ERational>(Intersection(rightOf(20))).empty());
     }
 }
 
@@ -392,7 +393,7 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the difference removes it"
         for (const Halfplane& h : {rightOf(5), above(4), leftOf(3), below(6),
                                    Halfplane(Point(0, 1), Point(3, 0))}) {
             const auto removed = region.difference<ERational>(h);
-            const auto kept = region.intersection<ERational>(h);
+            const auto kept = region.regularizedIntersection<ERational>(h);
             CHECK(removed.twiceArea() + kept.twiceArea() == ERational(2 * (100 - 16)));
             // and removing the opposite half-plane is keeping this one.
             CHECK(region.difference<ERational>(h.opposite()).twiceArea() == kept.twiceArea());

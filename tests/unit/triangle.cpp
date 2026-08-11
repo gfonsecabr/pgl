@@ -692,7 +692,7 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
     const Triangle upper(Point(0, 0), Point(4, 4), Point(0, 4));
 
     SUBCASE("two halves of a square fuse back into the square") {
-        const auto result = lower.unionWith<int>(upper);
+        const auto result = lower.regularizedUnion<int>(upper);
         static_assert(std::is_same_v<decltype(result), const pgl::PolygonSet<Point>>);
         REQUIRE(result.componentCount() == 1);
         CHECK(!result.component(0).hasHoles());
@@ -703,13 +703,13 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
     }
 
     SUBCASE("two disjoint triangles stay two components") {
-        const auto result = lower.unionWith<int>(Triangle(Point(10, 10), Point(12, 10), Point(10, 12)));
+        const auto result = lower.regularizedUnion<int>(Triangle(Point(10, 10), Point(12, 10), Point(10, 12)));
         CHECK(result.componentCount() == 2);
         CHECK(result.twiceArea() == 16 + 4);
     }
 
     SUBCASE("a union with itself is idempotent") {
-        const auto result = lower.unionWith<int>(lower);
+        const auto result = lower.regularizedUnion<int>(lower);
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(lower.asPolygon()));
     }
@@ -717,7 +717,7 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
     SUBCASE("two triangles never wrap a hole round between them") {
         // Enclosing a hole takes an operand that wraps, which no convex shape
         // does, so a union of two of them is never holed however they overlap.
-        const auto result = lower.unionWith<int>(Triangle(Point(0, 0), Point(4, 0), Point(0, 4)));
+        const auto result = lower.regularizedUnion<int>(Triangle(Point(0, 0), Point(4, 0), Point(0, 4)));
         REQUIRE(result.componentCount() == 1);
         CHECK(!result.component(0).hasHoles());
         CHECK(result.twiceArea() == 16 + 16 - 8);  // they share the lower-left half
@@ -725,7 +725,7 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
 
     SUBCASE("a collinear triangle contributes nothing") {
         const Triangle flat(Point(0, 0), Point(2, 0), Point(4, 0));
-        CHECK(flat.unionWith<int>(lower) == lower.asPolygonSet());
-        CHECK(flat.unionWith<int>(flat).empty());
+        CHECK(flat.regularizedUnion<int>(lower) == lower.asPolygonSet());
+        CHECK(flat.regularizedUnion<int>(flat).empty());
     }
 }
