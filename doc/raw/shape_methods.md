@@ -126,8 +126,8 @@ The intersection of two `pgl::Polygon` objects may produce multiple pieces of di
     <td valign="top" width="60%">
 
 ```c++
-pgl::Polygon<> a({0,0, 12,0, 12,2, 0,2});
-pgl::Polygon<> b({1,1, 3,1, 3,5, 5,5, 6,2, 7,5, 9,5, 9,2, 11,2, 11,5, 12,5, 12,6, 0,6, 0,5, 1,5});
+pgl::Rectangle<> a({0,0, 12,2});
+pgl::Polygon<> b({1,1, 3,1, 3,5, 5,5, 6,2, 7,5, 9,5, 9,2, 11,2, 11,6, 1,6});
 auto pieces = a.intersection(b);
 for (pgl::EShape piece : pieces)
     std::cout << piece << '\n';
