@@ -529,10 +529,20 @@ public:
      * `__int128_t`), and otherwise derives the ordering from `<` for types that
      * lack three-way comparison (e.g. Boost.Multiprecision numbers, used as the
      * int128 fallback).
+     *
+     * The three-way operator is taken only when it is exact, which is what
+     * requiring a `std::strong_ordering` result checks. A mixed comparison of a
+     * built-in integer against the Boost int128 fallback would otherwise be
+     * answered by the `int128`-versus-`double` operator declared in numeric.hpp
+     * (found as a reversed candidate, with the integer converted to `double`):
+     * it reports `std::partial_ordering`, and it rounds. Such a pair falls back
+     * to `<`, which Boost defines exactly for every mixed integer operand.
      */
     template <class A, class B>
     static constexpr std::strong_ordering compareValues(const A& a, const B& b) {
-        if constexpr (requires { a <=> b; }) {
+        if constexpr (requires {
+                          { a <=> b } -> std::same_as<std::strong_ordering>;
+                      }) {
             return a <=> b;
         } else {
             if (a < b)
