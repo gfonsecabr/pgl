@@ -41,8 +41,8 @@ SIZE_ORDER = ["small", "large", "n/a"]
 METHOD_ORDER = ["contains", "interiorContains", "boundaryContains",
                 "pointInsideInteriorContainedIn",
                 "intersects", "interiorsIntersect", "separates", "crosses",
-                "collinear", "parallel", "intersection", "regularizedUnion",
-                "difference", "symmetricDifference", "minkowskiSum",
+                "collinear", "parallel", "intersection", "regularizedIntersection",
+                "regularizedUnion", "difference", "symmetricDifference", "minkowskiSum",
                 "squaredDistance", "distanceL1", "distanceLInf",
                 "squaredHausdorffDistance", "hausdorffDistanceL1",
                 "hausdorffDistanceLInf"]
