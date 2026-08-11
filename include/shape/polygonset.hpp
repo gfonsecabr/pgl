@@ -12,6 +12,7 @@
 #include <ranges>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 
@@ -823,6 +824,53 @@ struct PolygonSet {
     template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     regularizedIntersection(const OtherHalfplane& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * The literal point set `A ∩ B`, as its connected pieces — the regions
+     * @ref regularizedIntersection(const OtherShape&) const returns plus the
+     * lower-dimensional material it drops. See
+     * @ref PolygonWithHoles::intersection(const OtherPolygon&) const for the full
+     * contract; a set reaches the same engine as any other operand, and goes in
+     * whole rather than one component at a time.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to intersect with.
+     * @return The pieces of the intersection: isolated points first, then
+     *         strands, then the areas in canonical order.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, detail::SetBooleanOperandConcept OtherShape>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * A half-plane and a half-plane intersection may be unbounded, but this set
+     * is not, so the operand is first clipped to a box strictly containing the
+     * bounding rectangle — which leaves `A ∩ B` untouched and makes it a convex
+     * polygon. Unlike
+     * @ref regularizedIntersection(const OtherIntersection&) const, a clip with
+     * empty interior is not the end of it: the set can still meet the carrier it
+     * collapsed to in points and segments.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherIntersection& other) const;
+
+    /** @copydoc intersection(const OtherIntersection&) const */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherHalfplane& other) const;
 
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>

@@ -754,9 +754,13 @@ struct Shape {
      *   `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`,
      *   `MonotoneChain` or `Polyline` — a `PolygonWithHoles` wraps the single
      *   point-or-segment piece instead, in either order, and throws when there
-     *   are several, a hole being exactly what makes that likely; a `PolygonSet`
-     *   has no literal overload and always throws. Region-valued intersections
-     *   use the separately named @ref regularizedIntersection.
+     *   are several, a hole being exactly what makes that likely. A
+     *   `PolygonWithHoles` or a `PolygonSet` against an area alternative wraps
+     *   the single piece of its literal intersection the same way, and throws
+     *   just as readily: an intersection of regions comes apart into a piece per
+     *   area component *plus* one per stretch of shared boundary. Reach for the
+     *   separately named @ref regularizedIntersection when only the areas are
+     *   wanted — it answers with a `PolygonSet` and so never has to throw.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
