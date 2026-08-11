@@ -136,13 +136,18 @@ uset.insert(s);
 
 <img align="right" src="doc/figures/example_triangulation.svg" width="200"/>
 
-Pangolin includes [fundamental algorithms](doc/algorithms.md) and [data structures](doc/data_structures.md) such as:
+Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 - Convex hull: computed with Graham scan.
 - Line segment intersection: Bentley-Ottmann sweep line using rational numbers.
 - Sort points: by angle or Hilbert order.
+- Minkowski sum and boolean operations.
+
+ and [data structures](doc/data_structures.md):
+
 - Kd-tree: for points and a generalization for other bounded shapes.
 - Triangulation: including Delaunay and constrained Delaunay triangulations for points and polygons.
+- Arrangement of lines, line segments, and rays.
 
 ## Comparison to CGAL
 
