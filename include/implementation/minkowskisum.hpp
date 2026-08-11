@@ -886,7 +886,6 @@ void chainDropRepeated(std::vector<ResultPoint>& walk) {
  */
 template <class ResultPoint>
 void chainDropCollinear(std::vector<ResultPoint>& walk) {
-    using Number = typename ResultPoint::NumberType;
     if (walk.size() < 3) {
         return;
     }
@@ -896,10 +895,12 @@ void chainDropCollinear(std::vector<ResultPoint>& walk) {
         const ResultPoint& previous = walk[(index + walk.size() - 1) % walk.size()];
         const ResultPoint& vertex = walk[index];
         const ResultPoint& next = walk[(index + 1) % walk.size()];
+        // Only the sign of that dot product is wanted — whether the walk carries
+        // on in the same direction or doubles back — so dotSign answers it,
+        // computing in the promoted coordinate type instead of one that a long
+        // stretch of the walk can overflow.
         const bool straight = collinear(previous, vertex, next) &&
-                              (vertex.x() - previous.x()) * (next.x() - vertex.x()) +
-                                      (vertex.y() - previous.y()) * (next.y() - vertex.y()) >
-                                  Number{};
+                              dotSign(vertex - previous, next - vertex) > 0;
         if (!straight) {
             kept.push_back(vertex);
         }
