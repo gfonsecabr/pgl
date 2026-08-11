@@ -1405,6 +1405,124 @@ TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-
     }
 }
 
+TEST_CASE("Shape dispatches difference and symmetricDifference over the same grid") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Rectangle = pgl::Rectangle<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using RegionSet = pgl::PolygonSet<Point>;
+    using Shape = pgl::Shape<Point>;
+
+    const Rectangle rect({0, 0}, {4, 4});
+    const Rectangle offset({2, 2}, {6, 6});
+    const Triangle roof({0, 4}, {4, 4}, {2, 6});
+    const Convex square(std::vector<Point>{{0, 0}, {3, 0}, {3, 3}, {0, 3}});
+    const PolygonShape big({0, 0, 8, 0, 8, 8, 0, 8});
+    const Region holed(big, std::vector{PolygonShape({2, 2, 6, 2, 6, 6, 2, 6})});
+    const RegionSet set(holed);
+
+    SUBCASE("the answer is a PolygonSet, not a re-wrapped Shape") {
+        const auto result = Shape(rect).difference<int>(Shape(offset));
+        CHECK(std::is_same_v<decltype(result), const RegionSet>);
+        CHECK(result.twiceArea() == 2 * (16 - 4));
+        CHECK(result == rect.difference<int>(offset));
+    }
+
+    SUBCASE("a bare alternative is accepted on either side") {
+        CHECK(Shape(roof).difference<int>(rect) == roof.difference<int>(rect));
+        CHECK(Shape(rect).symmetricDifference<int>(roof) ==
+              Shape(roof).symmetricDifference<int>(rect));
+    }
+
+    SUBCASE("the receiver decides which shape is removed from which") {
+        // The one of the three that is not symmetric, so the wrapper's two
+        // orders are genuinely different answers.
+        CHECK(Shape(rect).difference<int>(Shape(offset)) != Shape(offset).difference<int>(Shape(rect)));
+        CHECK(Shape(big).difference<int>(Shape(rect)).twiceArea() == 2 * (64 - 16));
+        CHECK(Shape(rect).difference<int>(Shape(big)).empty());
+    }
+
+    SUBCASE("every ordered pair of the six region alternatives answers") {
+        const std::vector<Shape> regions{Shape(rect), Shape(roof), Shape(square),
+                                         Shape(big),  Shape(holed), Shape(set)};
+        for (const Shape& a : regions) {
+            for (const Shape& b : regions) {
+                CHECK_NOTHROW((void)a.difference<int>(b));
+                CHECK_NOTHROW((void)a.symmetricDifference<int>(b));
+                // A difference keeps no more than the receiver had.
+                CHECK(a.difference<int>(b).twiceArea() <= a.unionWith<int>(a).twiceArea());
+                // A symmetric difference does not depend on the order, and is
+                // the union of the two differences.
+                CHECK(a.symmetricDifference<int>(b) == b.symmetricDifference<int>(a));
+                CHECK(a.symmetricDifference<int>(b) ==
+                      a.difference<int>(b).unionWith<int>(b.difference<int>(a)));
+                // A shape against itself leaves nothing, either way round.
+                CHECK(a.difference<int>(a).empty());
+                CHECK(a.symmetricDifference<int>(a).empty());
+            }
+        }
+    }
+
+    SUBCASE("an unbounded region can be removed from a bounded one, but only that way") {
+        // `A ∖ B` is inside `A`, so it is bounded whenever the *receiver* is,
+        // however far `B` reaches. The wrapper follows the concrete shapes in
+        // taking those pairs — and in taking them one way only.
+        const std::vector<Shape> regions{Shape(rect), Shape(big), Shape(set)};
+        const std::vector<Shape> unbounded{Shape(pgl::Halfplane<Point>({0, 0}, {1, 0})),
+                                           Shape(pgl::HalfplaneIntersection<Point>(rect))};
+
+        for (const Shape& a : unbounded) {
+            for (const Shape& b : regions) {
+                CHECK_NOTHROW((void)b.difference<int>(a));
+                CHECK(b.difference<int>(a).twiceArea() <= b.unionWith<int>(b).twiceArea());
+                // The other way round is unbounded, and the symmetric ones are
+                // unbounded in either order.
+                CHECK_THROWS_AS((void)a.difference<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)a.symmetricDifference<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)b.symmetricDifference<int>(a), std::logic_error);
+                CHECK_THROWS_AS((void)a.unionWith<int>(b), std::logic_error);
+            }
+        }
+
+        // Removing a half-plane and removing its opposite partition the
+        // receiver, since the two cover the plane and share only their line.
+        const Shape upper(pgl::Halfplane<Point>({0, 2}, {1, 2}));
+        const Shape lower(pgl::Halfplane<Point>({1, 2}, {0, 2}));
+        CHECK(Shape(rect).difference<int>(upper).twiceArea() +
+                  Shape(rect).difference<int>(lower).twiceArea() ==
+              Shape(rect).unionWith<int>(rect).twiceArea());
+    }
+
+    SUBCASE("an alternative with no area, or a round one, throws either way") {
+        const std::vector<Shape> regions{Shape(rect), Shape(big), Shape(set)};
+        const std::vector<Shape> others{
+            Shape(pgl::EmptyShape<Point>{}),
+            Shape(Point(1, 1)),
+            Shape(pgl::Segment<Point>({0, 0}, {1, 1})),
+            Shape(pgl::Line<Point>({0, 0}, {1, 1})),
+            Shape(pgl::Disk<Point>({0, 0}, 2)),
+            Shape(pgl::Polyline<Point>({0, 0, 1, 1}))};
+
+        for (const Shape& a : others) {
+            for (const Shape& b : regions) {
+                CHECK_THROWS_AS((void)a.difference<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)b.difference<int>(a), std::logic_error);
+                CHECK_THROWS_AS((void)a.symmetricDifference<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)b.symmetricDifference<int>(a), std::logic_error);
+            }
+        }
+    }
+
+    SUBCASE("the default result type follows the wrapper's coordinate type") {
+        const auto exact = Shape(rect).difference(Shape(offset));
+        CHECK(std::is_same_v<decltype(exact),
+                             const pgl::PolygonSet<pgl::Point<pgl::division_result_t<int>>>>);
+        CHECK(exact.twiceArea() == 2 * (16 - 4));
+    }
+}
+
 namespace {
 
 // A concrete type is not dependent, so a bare requires-expression naming a
@@ -1415,6 +1533,13 @@ concept HasUnionWith = requires(const A& a, const B& b) { a.unionWith(b); };
 
 template <class A, class B>
 concept HasIntersection = requires(const A& a, const B& b) { a.intersection(b); };
+
+template <class A, class B>
+concept HasDifference = requires(const A& a, const B& b) { a.difference(b); };
+
+template <class A, class B>
+concept HasSymmetricDifference =
+    requires(const A& a, const B& b) { a.symmetricDifference(b); };
 
 }  // namespace
 
@@ -1495,6 +1620,82 @@ TEST_CASE("A concrete shape takes a Shape argument on intersection and unionWith
         static_assert(HasIntersection<Segment, Shape>);
         static_assert(HasIntersection<Disk, Shape>);
         static_assert(HasIntersection<pgl::Line<Point>, Shape>);
+    }
+
+    SUBCASE("difference and symmetricDifference take the wrapper too") {
+        // The symmetric one hands the pair to the wrapper as the union does.
+        // The difference cannot — `A ∖ B` is not `B ∖ A` — so it wraps the
+        // receiver instead and lets the wrapper visit both sides; either way
+        // the answer is the concrete one.
+        CHECK(rect.difference<int>(Shape(offset)) == rect.difference<int>(offset));
+        CHECK(rect.difference<int>(Shape(offset)) == Shape(rect).difference<int>(offset));
+        CHECK(rect.difference<int>(Shape(offset)) != offset.difference<int>(Shape(rect)));
+        CHECK(big.difference<int>(Shape(rect)) == Shape(big).difference<int>(rect));
+        CHECK(Region(big).difference<int>(Shape(rect)) == Region(big).difference<int>(rect));
+        CHECK(RegionSet(Region(big)).difference<int>(Shape(rect)) ==
+              RegionSet(Region(big)).difference<int>(rect));
+
+        CHECK(rect.symmetricDifference<int>(Shape(offset)) == rect.symmetricDifference<int>(offset));
+        CHECK(std::is_same_v<decltype(rect.difference<int>(Shape(offset))), RegionSet>);
+        CHECK(std::is_same_v<decltype(rect.symmetricDifference<int>(Shape(offset))), RegionSet>);
+    }
+
+    SUBCASE("difference and symmetricDifference throw on a non-region alternative") {
+        CHECK_THROWS_AS((void)rect.difference<int>(Shape(diagonal)), std::logic_error);
+        CHECK_THROWS_AS((void)big.difference<int>(Shape(Disk({0, 0}, 2))), std::logic_error);
+        CHECK_THROWS_AS((void)rect.symmetricDifference<int>(Shape(diagonal)), std::logic_error);
+    }
+
+    SUBCASE("only the six receivers with area gain the two forwarders") {
+        static_assert(!HasDifference<Segment, Shape>);
+        static_assert(!HasDifference<Disk, Shape>);
+        static_assert(!HasDifference<pgl::Halfplane<Point>, Shape>);
+        static_assert(!HasSymmetricDifference<Segment, Shape>);
+        static_assert(!HasSymmetricDifference<pgl::Polyline<Point>, Shape>);
+        static_assert(HasDifference<Rectangle, Shape>);
+        static_assert(HasDifference<pgl::Triangle<Point>, Shape>);
+        static_assert(HasDifference<Convex, Shape>);
+        static_assert(HasDifference<PolygonShape, Shape>);
+        static_assert(HasDifference<Region, Shape>);
+        static_assert(HasDifference<RegionSet, Shape>);
+        static_assert(HasSymmetricDifference<Rectangle, Shape>);
+        static_assert(HasSymmetricDifference<Convex, Shape>);
+        static_assert(HasSymmetricDifference<RegionSet, Shape>);
+
+        // And the concrete grid itself: every ordered pair of the six, for both.
+        static_assert(HasDifference<Rectangle, Rectangle>);
+        static_assert(HasDifference<Rectangle, RegionSet>);
+        static_assert(HasDifference<pgl::Triangle<Point>, Rectangle>);
+        static_assert(HasDifference<Convex, pgl::Triangle<Point>>);
+        static_assert(HasDifference<PolygonShape, RegionSet>);
+        static_assert(HasDifference<Region, RegionSet>);
+        static_assert(HasSymmetricDifference<Rectangle, Rectangle>);
+        static_assert(HasSymmetricDifference<pgl::Triangle<Point>, Rectangle>);
+        static_assert(HasSymmetricDifference<Convex, Convex>);
+        static_assert(HasSymmetricDifference<PolygonShape, RegionSet>);
+        static_assert(HasSymmetricDifference<Region, RegionSet>);
+        // and nothing without area, on either side.
+        static_assert(!HasDifference<Rectangle, Segment>);
+        static_assert(!HasDifference<Rectangle, Disk>);
+        static_assert(!HasSymmetricDifference<Rectangle, Segment>);
+
+        // An unbounded region can be removed from a bounded one — the result is
+        // inside the receiver, so it is bounded — but not the other way round,
+        // and never symmetrically.
+        using Halfplane = pgl::Halfplane<Point>;
+        using HalfplaneIntersection = pgl::HalfplaneIntersection<Point>;
+        static_assert(HasDifference<Rectangle, Halfplane>);
+        static_assert(HasDifference<Rectangle, HalfplaneIntersection>);
+        static_assert(HasDifference<pgl::Triangle<Point>, Halfplane>);
+        static_assert(HasDifference<Convex, HalfplaneIntersection>);
+        static_assert(HasDifference<PolygonShape, Halfplane>);
+        static_assert(HasDifference<Region, Halfplane>);
+        static_assert(HasDifference<RegionSet, HalfplaneIntersection>);
+        static_assert(!HasDifference<Halfplane, Rectangle>);
+        static_assert(!HasDifference<HalfplaneIntersection, Rectangle>);
+        static_assert(!HasSymmetricDifference<Rectangle, Halfplane>);
+        static_assert(!HasSymmetricDifference<Region, HalfplaneIntersection>);
+        static_assert(!HasUnionWith<Rectangle, Halfplane>);
     }
 
     SUBCASE("a concrete argument does not reach the Shape overload by conversion") {

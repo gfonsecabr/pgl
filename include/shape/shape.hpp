@@ -835,6 +835,94 @@ struct Shape {
     }
 
     /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `difference` requesting @p ResultNumber
+     * coordinates. See @ref Polygon::difference for the contract.
+     *
+     * Like @ref unionWith and unlike @ref intersection this does not re-wrap its
+     * answer: every pair that has a difference at all answers with a
+     * @ref PolygonSet, so the static type is already exact.
+     *
+     * This is the one of the three that is **not** symmetric, and the one whose
+     * grid is therefore not square. `A ∖ B` is contained in `A`, so it is
+     * bounded as soon as the *receiver* is, however far `B` reaches — which is
+     * why an unbounded subtrahend is accepted here where @ref unionWith cannot
+     * take one on either side.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other Shape to remove.
+     * @return The pieces of the difference, in canonical order.
+     * @throws std::logic_error when the pair selected at run time has no
+     *   difference a `PolygonSet` can hold. The **left** alternative must be
+     *   @ref PolygonalRegionConcept — a `Rectangle`, `Triangle`, `Convex`,
+     *   `Polygon`, `PolygonWithHoles` or `PolygonSet` — and the right one must
+     *   be one of those or a `Halfplane` or `HalfplaneIntersection`, which have
+     *   area but need not be bounded. Everything else throws: an alternative
+     *   with no area would leave the whole of `A` behind rather than remove
+     *   anything, and a `Disk` is round.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> difference(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return differenceOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return differenceOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B).
+     *
+     * Visits the stored alternative (and @p other when it is itself a `Shape`)
+     * and delegates to the concrete `symmetricDifference` requesting
+     * @p ResultNumber coordinates. See @ref Polygon::symmetricDifference for the
+     * contract. It answers with a @ref PolygonSet on the same grid, and throws
+     * off it, exactly as @ref unionWith and @ref difference do.
+     *
+     * @tparam ResultNumber Coordinate type of the result (defaults to
+     *   @ref division_result_t for this wrapper's coordinate type).
+     * @tparam Other `Shape` or a supported alternative type.
+     * @param other The other shape.
+     * @return The pieces of the symmetric difference, in canonical order.
+     * @throws std::logic_error when the pair selected at run time has no
+     *   symmetric difference a `PolygonSet` can hold, which is the same set of
+     *   pairs @ref unionWith throws on.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> symmetricDifference(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return symmetricDifferenceOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return symmetricDifferenceOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
      * @brief Returns the squared Euclidean distance to the given shape.
      *
      * Visits the stored alternative (and @p other when it is itself a `Shape`)
@@ -1377,6 +1465,36 @@ struct Shape {
             return left.template unionWith<ResultNumber>(right);
         } else {
             throw std::logic_error("Shape::unionWith is not defined for this shape pair");
+        }
+    }
+
+    // Remove one unwrapped alternative from another, and take the same
+    // regularized parts as the two above. The probe lands on the same grid of
+    // bounded polygonal regions unionOf's does, but by a different route: a
+    // difference is not symmetric, so nothing forwards, and every one of the
+    // thirty-six ordered pairs is stated on its own receiver.
+    //
+    // The empty set is no more a special case here than it is above, and for a
+    // sharper reason: `A ∖ empty` is A, which is a PolygonSet only when A is a
+    // region, and `empty ∖ A` is the empty shape rather than the empty set of
+    // regions. Both take the throw.
+    template <class ResultNumber, class Left, class Right>
+    static PolygonSet<Point<ResultNumber, LabelType>> differenceOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template difference<ResultNumber>(right); }) {
+            return left.template difference<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::difference is not defined for this shape pair");
+        }
+    }
+
+    // The symmetric difference of two unwrapped alternatives, probed as above.
+    template <class ResultNumber, class Left, class Right>
+    static PolygonSet<Point<ResultNumber, LabelType>> symmetricDifferenceOf(const Left& left,
+                                                                            const Right& right) {
+        if constexpr (requires { left.template symmetricDifference<ResultNumber>(right); }) {
+            return left.template symmetricDifference<ResultNumber>(right);
+        } else {
+            throw std::logic_error("Shape::symmetricDifference is not defined for this shape pair");
         }
     }
 
