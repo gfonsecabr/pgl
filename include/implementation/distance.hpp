@@ -107,12 +107,12 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& 
     const auto bp = p - b;
     const auto squared_length = ab * ab;
 
-    if (squared_length == ResultNumber{}) {
+    if (squared_length == 0) {
         return a.template squaredDistance<ResultNumber>(p);
     }
 
     const ResultNumber projection_numerator = ap * ab;
-    if (projection_numerator <= ResultNumber{}) {
+    if (projection_numerator <= 0) {
         return static_cast<ResultNumber>(ap * ap);
     }
 
@@ -304,12 +304,12 @@ constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherPoint& poin
     const auto ap = p - a;
     const auto squared_length = ab * ab;
 
-    if (squared_length == ResultNumber{}) {
+    if (squared_length == 0) {
         return static_cast<ResultNumber>(ap * ap);
     }
 
     const ResultNumber projection_numerator = ap * ab;
-    if (projection_numerator <= ResultNumber{}) {
+    if (projection_numerator <= 0) {
         return static_cast<ResultNumber>(ap * ap);
     }
 
