@@ -315,14 +315,23 @@ public:
         return static_cast<long double>(num) / static_cast<long double>(den);
     }
 
-    /// @brief Convert to int
+    /// @brief Convert (truncating toward zero) to `int`.
+    ///
+    /// The division happens in `Int` and only the quotient is narrowed. Doing it
+    /// the other way round — narrowing `num` and `den` and dividing those —
+    /// would be wrong for every fraction stored unreduced: normalization is
+    /// deferred, so a value as ordinary as 5 can be carried as a ratio of two
+    /// numbers far past `int`, and narrowing each of them independently turns
+    /// the quotient into noise. The exact value fits or it does not; the parts
+    /// it happens to be written with are not the caller's business.
     explicit constexpr operator int() const {
-        return static_cast<int>(num) / static_cast<int>(den);
+        return static_cast<int>(num / den);
     }
 
-    /// @brief Convert to int64_t
+    /// @brief Convert (truncating toward zero) to `int64_t`. Divides first, for
+    /// the reason given on @ref operator int() const.
     explicit constexpr operator int64_t() const {
-        return static_cast<int64_t>(num) / static_cast<int64_t>(den);
+        return static_cast<int64_t>(num / den);
     }
 
     /// @brief Convert (truncating toward zero) to the numerator integer type,

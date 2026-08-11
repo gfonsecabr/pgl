@@ -76,6 +76,44 @@ TEST_CASE("Constructor from a BigInt numerator and truncating conversion back") 
     }
 }
 
+TEST_CASE("Narrowing conversions divide before they narrow") {
+    // Normalization is deferred, so a value as ordinary as 5 can be carried as
+    // a ratio of two numbers far past `int`. The conversion has to divide in the
+    // stored type and narrow the quotient; narrowing the parts first and
+    // dividing those turns the answer into noise, and did -- the `int` of the
+    // value below came back as -1.
+    //
+    // The geometry that found it: an arrangement's vertices are exactly such
+    // deferred fractions, so `region.intersection<int>(halfplane)` and
+    // `region.difference<int>(halfplane)` reported vertices that were nowhere
+    // near the crossings.
+    SUBCASE("over BigInt") {
+        using R = pgl::Rational<pgl::BigInt>;
+        const R five = R(pgl::BigInt(1), pgl::BigInt(3000000000LL)) *
+                       R(pgl::BigInt(15000000000LL), pgl::BigInt(1));
+        REQUIRE(five == 5);
+        CHECK(static_cast<int>(five) == 5);
+        CHECK(static_cast<int64_t>(five) == 5);
+        CHECK(static_cast<pgl::BigInt>(five) == 5);
+        CHECK(static_cast<double>(five) == doctest::Approx(5.0));
+
+        // and it still truncates toward zero, not away from it or downward.
+        const R negative = R(pgl::BigInt(-7), pgl::BigInt(3000000000LL)) *
+                           R(pgl::BigInt(3000000000LL), pgl::BigInt(2));
+        REQUIRE(negative == pgl::Rational<pgl::BigInt>(pgl::BigInt(-7), pgl::BigInt(2)));
+        CHECK(static_cast<int>(negative) == -3);
+        CHECK(static_cast<int64_t>(negative) == -3);
+    }
+
+    SUBCASE("over a fixed-width Int, where the parts outrun int but not the store") {
+        using R = pgl::Rational<int64_t>;
+        const R five = R(1, 3000000000LL) * R(15000000000LL, 1);
+        REQUIRE(five == 5);
+        CHECK(static_cast<int>(five) == 5);
+        CHECK(static_cast<int64_t>(five) == 5);
+    }
+}
+
 TEST_CASE_TEMPLATE("Constructors from double", Int, int32_t, int64_t, pgl::int128) {
     {
         pgl::Rational<Int> a(0.0);
