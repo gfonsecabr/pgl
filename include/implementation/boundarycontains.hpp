@@ -2131,7 +2131,7 @@ bool PolygonSet<PointType, LabelType>::boundaryContains(const OtherShape& other)
             return true;
         }
         return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+            other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
     }
 }
 

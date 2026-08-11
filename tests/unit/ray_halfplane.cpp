@@ -15,7 +15,6 @@ TEST_CASE("Halfplane containment of Ray") {
     const Ray inside({1, 1}, {3, 2});
     const Ray leaving({1, 1}, {3, 0});
     const Ray entering({1, -2}, {3, 1});
-    const Ray outside_parallel({1, -1}, {3, -1});
     const Ray boundary({1, 0}, {3, 0});
 
     CHECK_MESSAGE(upper.contains(inside), upper, " contains ", inside);

@@ -8,7 +8,6 @@
 TEST_CASE("Rectangle containment of OrientedSegment, and OrientedSegment containment of Rectangle") {
     using Point = pgl::Point<int>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
-    using Segment = pgl::Segment<Point>;
     using Rectangle = pgl::Rectangle<Point>;
 
     const Rectangle rect({0, 0}, {4, 3});

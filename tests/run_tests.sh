@@ -3,7 +3,7 @@
 set -eu
 
 CXX="${CXX:-c++}"
-CXXFLAGS="${CXXFLAGS:--std=c++20 -Wall -Wextra -pedantic}"
+CXXFLAGS="${CXXFLAGS:--std=c++20 -Wall -Wextra -Werror -pedantic}"
 
 # Force-included into every test build so g++ and clang reject the Windows
 # identifier traps -- `far`/`near`, the wingdi.h function names -- that otherwise
@@ -20,7 +20,7 @@ mkdir -p build/tests/bin build/tests/reports build/tests/output
 
 # Records the source path of every test that fails. Written by run_one_test
 # (possibly from several parallel processes via the --run-one entry point) and
-# read once at the end to print a summary when not running under CI.
+# read once at the end to print a summary.
 failures_file="build/tests/output/failures.txt"
 
 usage() {
@@ -47,20 +47,18 @@ run_one_test() {
     test_name="$(basename "$source" .cpp)"
     binary="build/tests/bin/$test_name"
     report="build/tests/reports/$test_name.junit.xml"
+    build_output="build/tests/output/$test_name.build.log"
+    run_output="build/tests/output/$test_name.run.log"
 
-    echo "::group::Build $test_name"
-    if ! $CXX $CXXFLAGS -Iinclude -Itests/unit $windows_traps "$source" -o "$binary"; then
-        echo "::endgroup::"
+    if ! $CXX $CXXFLAGS -Iinclude -Itests/unit $windows_traps "$source" -o "$binary" >"$build_output" 2>&1; then
         printf '%s\n' "$source" >> "$failures_file"
+        printf 'FAIL %s (build; see %s)\n' "$source" "$build_output"
         return 1
     fi
-    echo "::endgroup::"
 
-    echo "::group::Run $test_name"
-    if ! "./$binary" --order-by=name --duration=true --no-breaks=true; then
+    if ! "./$binary" --order-by=name --duration=true --no-breaks=true >"$run_output" 2>&1; then
         status=1
     fi
-    echo "::endgroup::"
 
     if ! "./$binary" --reporters=junit --out="$report" >/dev/null 2>&1; then
         status=1
@@ -68,6 +66,9 @@ run_one_test() {
 
     if [ "$status" -ne 0 ]; then
         printf '%s\n' "$source" >> "$failures_file"
+        printf 'FAIL %s (run; see %s)\n' "$source" "$run_output"
+    else
+        printf 'PASS %s\n' "$source"
     fi
 
     return "$status"
@@ -169,16 +170,15 @@ else
     done
 fi
 
-# Outside CI, end with a plain list of the test files that failed. The
-# GITHUB_ACTIONS guard keeps the Action's log output byte-for-byte unchanged.
-if [ "${GITHUB_ACTIONS:-}" != "true" ]; then
-    if [ -s "$failures_file" ]; then
-        echo
-        echo "Failed test files:"
-        sort -u "$failures_file" | while IFS= read -r failed_source; do
-            printf '  %s\n' "$failed_source"
-        done
-    fi
+passed_count=$((source_count - $(sort -u "$failures_file" | sed '/^$/d' | wc -l)))
+failed_count="$(sort -u "$failures_file" | sed '/^$/d' | wc -l)"
+failed_tests="$(sort -u "$failures_file" | sed '/^$/d' | paste -sd, -)"
+if [ "$failed_count" -gt 0 ]; then
+    printf 'Summary: %s passed, %s failed, %s total (failed: %s)\n' \
+        "$passed_count" "$failed_count" "$source_count" "$failed_tests"
+else
+    printf 'Summary: %s passed, %s failed, %s total\n' \
+        "$passed_count" "$failed_count" "$source_count"
 fi
 
 exit "$overall_status"
