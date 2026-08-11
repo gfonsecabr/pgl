@@ -470,19 +470,19 @@ struct Halfplane {
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
         return detail::reduceDegenerateGuarded(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+            other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
         return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+            other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
         return detail::reduceDegenerate(
-            other, [this](const auto& carrier) { return boundaryContains(carrier); });
+            other, [this](const auto& carrier) { return this->boundaryContains(carrier); });
     }
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */

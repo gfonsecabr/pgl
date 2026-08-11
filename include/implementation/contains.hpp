@@ -3408,7 +3408,7 @@ bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
             return true;
         }
         return detail::reduceDegenerate(other,
-                                        [this](const auto& carrier) { return contains(carrier); });
+                                        [this](const auto& carrier) { return this->contains(carrier); });
     }
 }
 

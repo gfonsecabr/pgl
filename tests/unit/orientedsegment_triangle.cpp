@@ -14,7 +14,6 @@ TEST_CASE("Triangle containment of OrientedSegment, and OrientedSegment containm
     const OrientedSegment inner({1, 1}, {2, 2});           // strictly inside
     const OrientedSegment on_edge({3, 0}, {1, 0});         // on the base edge
     const OrientedSegment crossing({5, 2}, {-1, 2});       // crosses the triangle
-    const OrientedSegment sub({0, 0}, {3, 0});             // along edge, includes vertex
 
     SUBCASE("Triangle contains and interiorContains a wholly interior OrientedSegment") {
         CHECK_MESSAGE(tri.contains(inner), tri, " contains ", inner);

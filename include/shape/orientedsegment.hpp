@@ -556,13 +556,13 @@ struct OrientedSegment {
     template<SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherSegment& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool boundaryContains(const OtherOrientedSegment& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<LineConcept OtherLine>
@@ -580,31 +580,31 @@ struct OrientedSegment {
     template<RectangleConcept OtherRectangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherRectangle& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<TriangleConcept OtherTriangle>
     [[nodiscard]] constexpr bool boundaryContains(const OtherTriangle& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<ConvexConcept OtherConvex>
     [[nodiscard]] constexpr bool boundaryContains(const OtherConvex& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<PolygonConcept OtherPolygon>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolygon& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template<DiskConcept OtherDisk>
     [[nodiscard]] constexpr bool boundaryContains(const OtherDisk& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
 
     /**
@@ -1026,7 +1026,7 @@ struct OrientedSegment {
     template<MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr bool boundaryContains(const OtherChain& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
@@ -1045,7 +1045,7 @@ struct OrientedSegment {
     template<PolylineConcept OtherPolyline>
     [[nodiscard]] constexpr bool boundaryContains(const OtherPolyline& other) const {
         return detail::reduceDegenerateToPoint(
-            other, [this](const auto& vertex) { return boundaryContains(vertex); });
+            other, [this](const auto& vertex) { return this->boundaryContains(vertex); });
     }
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */

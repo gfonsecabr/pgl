@@ -8,7 +8,6 @@
 TEST_CASE("Convex containment of OrientedSegment, and OrientedSegment containment of Convex") {
     using Point = pgl::Point<int>;
     using OrientedSegment = pgl::OrientedSegment<Point>;
-    using Segment = pgl::Segment<Point>;
     using Convex = pgl::Convex<Point>;
 
     // Unit square [0,4]x[0,4]
