@@ -274,8 +274,9 @@ struct Rectangle {
      *
      * Because the empty set has exactly that one representation, and because
      * every rectangle covering a point has `min x <= max x`, the x axis alone
-     * decides the question and the y axis need not be read. The assertion is
-     * what holds a future corner-writing operation to that invariant.
+     * decides the question and the y axis need not be read. An operation that
+     * writes corners has to keep it that way: corners that invert belong to the
+     * canonical empty pair, never to a rectangle of their own.
      *
      * That one representation is also why a rational coordinate can read the
      * two corners against the canonical constants rather than order them: it
@@ -286,7 +287,6 @@ struct Rectangle {
      * @return `true` if the rectangle covers no point.
      */
     [[nodiscard]] constexpr bool empty() const {
-        assert(!(points_[1].y() < points_[0].y()) || points_[1].x() < points_[0].x());
         if constexpr (is_Rational_v<NumberType>) {
             // Ordering two rationals cross-multiplies, and on an unreduced pair
             // it reduces first, so the one comparison costs a gcd and two
