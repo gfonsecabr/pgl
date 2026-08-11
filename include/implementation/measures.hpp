@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "implementation/minkowski.hpp"
+#include "implementation/orientation.hpp"
 
 /**
  * @file measures.hpp
@@ -423,12 +424,18 @@ constexpr bool Triangle<PointType, LabelType>::isRectangle() const {
 
     const auto ab = b() - a();
     const auto ac = c() - a();
-    const auto ba = a() - b();
     const auto bc = c() - b();
-    const auto ca = a() - c();
-    const auto cb = b() - c();
 
-    return (ab * ac) == 0 || (ba * bc) == 0 || (ca * cb) == 0;
+    // dotSign promotes the coordinates before multiplying; the plain dot
+    // product operator* does not, and overflows the coordinate type well
+    // inside its range (a dot product of 2^32 wraps an int to zero, reporting
+    // a right angle where there is none).
+    //
+    // Three difference vectors carry all three angles: the vectors this test
+    // used to build for b and c are just negations of these, and negating one
+    // operand of a dot product only flips its sign. ba·bc = -(ab·bc) and
+    // ca·cb = ac·bc, and a test against zero cannot tell a sign flip apart.
+    return dotSign(ab, ac) == 0 || dotSign(ab, bc) == 0 || dotSign(ac, bc) == 0;
 }
 
 template <class PointType, class LabelType>
@@ -439,19 +446,27 @@ constexpr bool Triangle<PointType, LabelType>::isObtuse() const {
 
     const auto ab = b() - a();
     const auto ac = c() - a();
-    const auto ba = a() - b();
     const auto bc = c() - b();
-    const auto ca = a() - c();
-    const auto cb = b() - c();
 
-    return (ab * ac) < 0 || (ba * bc) < 0 || (ca * cb) < 0;
+    // Promoted like isRectangle above, and sharing its three difference
+    // vectors. Here the sign does matter: ba·bc = -(ab·bc), so the obtuse
+    // angle at b shows up as a *positive* ab·bc, while ca·cb = ac·bc keeps
+    // its sign.
+    return dotSign(ab, ac) < 0 || dotSign(ab, bc) > 0 || dotSign(ac, bc) < 0;
 }
 
 template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::isIsosceles() const {
-    const auto ab = a().template squaredDistance<NumberType>(b());
-    const auto bc = b().template squaredDistance<NumberType>(c());
-    const auto ca = c().template squaredDistance<NumberType>(a());
+    // Squared lengths need the promoted coordinate type for the same reason
+    // the dot products above do: |ab|^2 overflows an int coordinate at around
+    // 46341, and two sides that merely agree modulo the wrap would be reported
+    // as equal. The caller never names this type, so the choice is ours to get
+    // right rather than a precision the user asked for.
+    using Squared = detail::promoted_number_t<NumberType>;
+
+    const auto ab = a().template squaredDistance<Squared>(b());
+    const auto bc = b().template squaredDistance<Squared>(c());
+    const auto ca = c().template squaredDistance<Squared>(a());
     return ab == bc || bc == ca || ca == ab;
 }
 
