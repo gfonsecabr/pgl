@@ -3574,8 +3574,12 @@ struct Triangulation {
                 return true;
             }
             if (side == 0) {  // collinear: inside iff strictly between u and w
-                return (pts[p] - pts[u]) * (pts[w] - pts[u]) > 0 &&
-                       (pts[p] - pts[w]) * (pts[u] - pts[w]) > 0;
+                // Betweenness only reads the signs of the two dot products, and
+                // dotSign takes them in the promoted coordinate type — the bare
+                // dot product multiplies in the coordinate type, where a wrap
+                // would silently corrupt the triangulation.
+                return dotSign(pts[p] - pts[u], pts[w] - pts[u]) > 0 &&
+                       dotSign(pts[p] - pts[w], pts[u] - pts[w]) > 0;
             }
             return false;
         };

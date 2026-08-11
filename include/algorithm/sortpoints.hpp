@@ -56,8 +56,10 @@ void sortAround(std::vector<Point<Number, Label>>& points,
         if (side < 0)
             return 1;
         // Collinear with the reference ray: split angle 0 from angle pi by the
-        // sign of the dot product between the two directions.
-        return (reference - p) * (q - p) >= 0 ? 0 : 1;
+        // sign of the dot product between the two directions. Only that sign is
+        // read, so dotSign supplies it in the promoted coordinate type; the bare
+        // dot product would multiply in the coordinate type and could wrap.
+        return dotSign(reference - p, q - p) >= 0 ? 0 : 1;
     };
 
     std::sort(points.begin(), points.end(),
