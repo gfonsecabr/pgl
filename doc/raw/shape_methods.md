@@ -16,17 +16,77 @@
 
 ## Methods Common to Most Shapes
 
+The following methods apply to many shapes and fall into several groups:
+
+- [Operators](#operators) translate and scale shapes with arithmetic syntax.
+- [Transformations](#transformations) apply and compose affine maps.
+- [Predicates](#predicates) test geometric relationships between shapes.
+- [Intersection](#intersection) constructs literal point-set intersections.
+- [Boolean Operations](#boolean-operations) construct regularized operations on regions.
+- [Minkowski Sum](#minkowski-sum) adds every point of one shape to every point of another.
+- [Other Methods for Shapes](#other-methods-for-shapes) covers measurements, bounding boxes, rotations, and related helpers.
+- [Iterating](#iterating) traverses vertices and edges, including through [indexed access](#indexed-access).
+
+### Operators
+
+Shapes are translated by adding or subtracting a point. The point coordinates are added to, or subtracted from, every defining point of the shape.
+
+```c++
+pgl::Point p = {2,3}, q = {4,5};
+pgl::Segment s = {p, q},    //  s = (2,3)--(4,5)
+             t1 = p + s,    // t1 = (4,6)--(6,8)
+             t2 = s - p;    // t2 = (0,0)--(2,2)
+```
+
+Adding a point is the special case of adding two shapes, which is their [Minkowski sum](#minkowski-sum), described later.
+
+In-place translations use `+=` and `-=`. Scaling around the origin uses the operator `*` or `*=` with a scalar.
+
+```c++
+pgl::Segment s = {2, 3, 4, 5};    //  s = (2,3)--(4,5)
+s += pgl::Point(1,2);             //  s = (3,5)--(5,7)
+s *= 10;                          //  s = (30,50)--(50,70)
+```
+
+If we want to scale around a particular point `p`, we can use a combination of the previous operators:
+
+```c++
+pgl::Segment s = {2,3,4,5};        // s = (2,3)--(4,5)
+auto exactMidpoint = s.midpoint(); // Point<ERational>(3,4) by default
+pgl::Point p = s.midpoint<int>();  // safe here because this midpoint is integral
+pgl::Segment t = 3*(s-p) + p;      // t = (0,1)--(6,7)
+```
+
+### Transformations
+
+`pgl::Transformation<Number>` stores a general affine map as a 2x3 matrix containing a 2x2 linear part and a translation. The operator `*` applies it to a shape or composes it with another transformation, so `t1 * t2 * shape` applies the right-hand transformation first.
+
+```c++
+pgl::Segment s = {0,0,5,5};
+auto t = pgl::Transformation<int>::rotation90(1) * pgl::Transformation<int>::translation(2,0);
+auto rotated = t * s;
+std::cout << rotated; // Prints (-5,7)--(0,2)
+```
+
+Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees), `shearX(k)`, `shearY(k)`, `reflectionX()`, and `reflectionY()`. An arbitrary-angle `rotation<ResultNumber=double>(radians)` is also available but, unlike `rotation90`, returns a floating-point transformation since a general angle is generally irrational.
+
+`determinant()` is negative exactly when the transformation reverses orientation, as a reflection does. Shapes with a winding or normalization invariant (`Triangle`, `Convex`, `MonotoneChain`, and `Polygon`) renormalize automatically through their own constructors, and `Halfplane` swaps its source and target to keep the transformed interior on the correct side.
+
+`inverse<ResultNumber>()` returns the inverse transformation. Integral transformations therefore return an exact `Transformation<ERational>` by default; floating-point and rational matrix types retain their own number type. An explicitly requested integral `ResultNumber` can still truncate the division by `determinant()`.
+
+`Transformation` is applied to every concrete shape except `Rectangle` and `Disk`: a general affine map turns a rectangle into a parallelogram and a disk into an ellipse, and neither class can represent that. Applying a transformation to a runtime `Shape` that holds either unsupported alternative throws `std::logic_error`.
+
 ### Predicates
 
-Any two shapes `A`,`B` support the following [predicates](#predicates), where $\partial A$ denotes the manifold boundary of $A$. Notice that the boundary of a one-dimensional shape is defined as its endpoints (see also [shapes](shapes.md)).
+Many pairs of shapes `A` and `B` support the following predicates, where $\partial A$ denotes the manifold boundary of $A$, and $A^\circ = A \setminus \partial A$ is the relative interior. The boundary of a one-dimensional shape consists of its endpoints (see also [shapes](shapes.md)).
 
 | Predicate | Definition | Question |
 | --------- | ---------- | --------- |
 | `A.contains(B)` | $A \supseteq B$ | Does `A` contain `B`? |
 | `A.boundaryContains(B)` | $\partial A \supseteq B$ | Does the boundary of `A` contain `B`? |
-| `A.interiorContains(B)` | $(A \setminus \partial A) \supseteq B$ | Does the interior of `A` contain `B`? |
+| `A.interiorContains(B)` | $A^\circ \supseteq B$ | Does the interior of `A` contain `B`? |
 | `A.intersects(B)` | $A \cap B \neq \emptyset$ | Do `A` and `B` intersect? |
-| `A.interiorsIntersect(B)` | $(A \setminus \partial A) \cap (B \setminus \partial B) \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
+| `A.interiorsIntersect(B)` | $A^\circ \cap B^\circ \neq \emptyset$ | Do the interiors of `A` and `B` intersect? |
 | `A.separates(B)` | $B \setminus A$ disconnected | Does the removal of `A` separate `B`? |
 | `A.crosses(B)` | $A \setminus B$ and $B \setminus A$ disconnected | Does the removal of each of `A` and `B` separate the other? |
 
@@ -46,352 +106,107 @@ The following table illustrates the result of the predicates for a triangle and 
 | `B.separates(A)`          | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `A.crosses(B)`            | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-All predicates are calculated exactly for integers (except for possible overflows detailed in [types](types.md)).
-
-
-### Operators
-
-Shapes are translated by adding or subtracting a point. The point coordinates
-are added to, or subtracted from, every defining point of the shape.
-
-```c++
-pgl::Point p = {2,3}, q = {4,5};
-pgl::Segment s = {p, q},    //  s = (2,3)--(4,5)
-             t1 = p + s,    // t1 = (4,6)--(6,8)
-             t2 = s - p;    // t2 = (0,0)--(2,2)
-```
-
-Adding a point is the special case of adding two shapes, which is their
-[Minkowski sum](#minkowski-sum).
-
-In-place translations use `+=` and `-=`.
-Scaling around the origin uses the operator `*` or `*=` with a scalar.
-
-```c++
-pgl::Segment s = {2, 3, 4, 5};    //  s = (2,3)--(4,5)
-s += pgl::Point(1,2);             //  s = (3,5)--(5,7)
-s *= 10;                          //  s = (30,50)--(50,70)
-```
-
-If we want to scale around a particular point `p`, we can use a combination of the previous operators:
-
-```c++
-pgl::Segment s = {2,3,4,5};   // s = (2,3)--(4,5)
-auto exactMidpoint = s.midpoint(); // Point<ERational>(3,4) by default
-pgl::Point p = s.midpoint<int>();  // safe here because this midpoint is integral
-pgl::Segment t = 3*(s-p) + p; // t = (0,1)--(6,7)
-```
-
-### Transformations
-
-`pgl::Transformation<Number>` stores a general affine map — a 2x2 linear part
-plus a translation — as a 2x3 matrix. It is applied to a point or shape, and
-composed with another transformation, with the same operator `*`, so
-`t1 * t2 * shape` both composes and applies left to right (applying the
-right-hand transformation first).
-
-```c++
-pgl::Segment s = {0,0,5,5};
-auto t = pgl::Transformation<int>::rotation90(1) * pgl::Transformation<int>::translation(2,0);
-auto rotated = t * s;
-```
-
-Factories cover the common exact cases: `identity()`, `translation(dx,dy)`, `scaling(sx,sy=sx)`, `rotation90(k=1)` (exact multiples of 90 degrees), `shearX(k)`, `shearY(k)`, `reflectionX()`, `reflectionY()`. An arbitrary-angle `rotation<ResultNumber=double>(radians)` is also available but, unlike `rotation90`, returns a floating-point transformation since a general angle is generally irrational. The default is `double`; an explicitly requested result type must also be floating-point.
-
-`determinant()` is negative exactly when the transformation reverses
-orientation (a reflection, or an odd number of shears/reflections composed
-together). Shapes with a winding or normalization invariant (`Triangle`,
-`Convex`, `MonotoneChain`, `Polygon`) renormalize automatically through their
-own constructors, and `Halfplane` swaps its source and target to keep the same
-interior, mirroring the existing negative-scalar handling already used by
-`scaledUpX`.
-
-`inverse<ResultNumber>()` returns the inverse transformation. Integral transformations therefore return an exact `Transformation<ERational>` by default; floating-point and rational matrix types retain their own number type. An explicitly requested integral `ResultNumber` can still truncate the division by `determinant()`.
-
-`Transformation` is applied to every shape except `Rectangle` and `Disk`: a
-general affine map turns a rectangle into a parallelogram and a disk into an
-ellipse, and neither class can represent that, so there is no such overload —
-applying one is a compile error.
+All predicates are calculated exactly for integers, except for possible overflows detailed in [types](types.md).
 
 ### Intersection
 
-Literal intersections use the tightest return type that can represent the
-answer. An [`std::optional`](https://en.cppreference.com/w/cpp/utility/optional.html)
-represents a result with at most one component, and an
-[`std::variant`](https://en.cppreference.com/w/cpp/utility/variant.html) is used
-when that component can have different dimensions. For example, the
-intersection of two segments may be a point or a segment. Some shapes, such as
-simple polygons, may have disconnected intersections; those overloads return an
-[`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) of components.
+The `intersection` method computes the intersection of two shapes. The return type depends on the exact pair, but it can be sent directly to a [`Canvas`](canvas.md). A `pgl::Shape` can also be constructed directly from a non-range result. The return type is typically an `std::optional` containing an `std::variant` when the result is guaranteed to be connected, and an `std::vector` of `std::variant` when the result may have multiple components. The intersection of integer shapes often has non-integer coordinates, so rational coordinates are commonly returned.
 
 ```c++
-pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
-auto isec(s.intersection(t));
-// The type is std::optional<std::variant<pgl::EPoint,pgl::ESegment>>:
-// an integral receiver widens a construction that may divide to ERational.
-pgl::EPoint p = std::get<0>(*isec);
-// p = (3,3)
+pgl::Segment s = {0,0,4,3}, t = {1,3,3,0};
+std::optional<std::variant<pgl::EPoint,pgl::ESegment>> isec = s.intersection(t);
+pgl::EPoint p = std::get<0>(*isec);        // p = (2,3/2)
+pgl::EShape p_shape(s.intersection(t));    // A Shape storing (2,3/2)
 ```
 
-For visualization, a [Canvas](canvas.md) accepts these optional and variant
-results directly; an empty intersection simply draws nothing. It also accepts
-ranges of such results, which is convenient for disconnected intersections.
+The intersection of two `pgl::Polygon` objects may produce multiple pieces of different dimensions. One-dimensional components are returned as `Polyline` objects, including when a component is a single segment.
 
-When the intersection can be represented as a `Shape`, you can convert directly:
+<table>
+  <tr>
+    <td valign="top" width="60%">
 
 ```c++
-pgl::Segment s = {0,0,5,5}, t = {0,3,5,3};
-pgl::EShape isec(s.intersection(t));
-pgl::EPoint p(isec);
-// p = (3,3)
+pgl::Polygon<> a({0,0, 12,0, 12,2, 0,2});
+pgl::Polygon<> b({1,1, 3,1, 3,5, 5,5, 6,2, 7,5, 9,5, 9,2, 11,2, 11,5, 12,5, 12,6, 0,6, 0,5, 1,5});
+auto pieces = a.intersection(b);
+for (pgl::EShape piece : pieces)
+    std::cout << piece << '\n';
+
+// Output (order is unspecified):
+// (6,2)
+// Polyline[(9,2),(11,2)]
+// Polygon[(1,1),(3,1),(3,2),(1,2)]
 ```
 
-A region clips a one-dimensional operand — a point, a segment, a line, a ray, a
-polyline, a monotone chain — exactly as a polygon does, into the pieces the two
-share, holes taken out and every ring kept:
+  </td>
+    <td valign="top" width="40%">
+      <img src="figures/polygon_intersection_components.svg" alt="Two polygons whose intersection contains a point, a polyline, and a polygon" width="100%"/>
+    </td>
+  </tr>
+</table>
 
-```c++
-pgl::Polygon<> hole({3,3, 7,3, 7,7, 3,7});
-pgl::PolygonWithHoles<> annulus(square, std::vector{hole});
-auto pieces = annulus.intersection(pgl::Segment(-5,5, 15,5));
-// pieces == { Segment(0,5, 3,5), Segment(7,5, 10,5) } — the hole is out
-```
-
-For operands with area, `PolygonWithHoles` and `PolygonSet` instead offer
-`regularizedIntersection`, returning regions and explicitly dropping
-lower-dimensional leftovers. See [Boolean Operations](#boolean-operations).
 
 ### Boolean Operations
 
-The four boolean set operations on shapes with area all return a
-[`PolygonSet`](shapes.md#polygon-set):
+The `intersection` method above may produce pieces of different dimensions. The following methods operate on two-dimensional polygonal regions and always return a [`PolygonSet`](shapes.md#polygon-set). They regularize their results by retaining the appropriate two-dimensional cells and taking their closure, thereby removing lower-dimensional pieces:
 
 | call | result |
 |---|---|
-| `a.difference(b)` | $A \setminus B$, the part of `a` that `b` does not cover |
-| `a.regularizedUnion(b)` | $\mathrm{closure}(A^\circ \cup B^\circ)$, the regularized area either covers |
-| `a.symmetricDifference(b)` | $A \mathbin{\triangle} B$, the part exactly one covers |
-| `a.regularizedIntersection(b)` | $\mathrm{closure}(A^\circ \cap B^\circ)$, the area both cover — when a `PolygonWithHoles` or `PolygonSet` participates, see below |
-
-The six shapes these operate on are `Rectangle`, `Triangle`, `Convex`,
-`Polygon`, `PolygonWithHoles` and `PolygonSet`: exactly the bounded shapes with
-area, and exactly the ones a `PolygonSet` can always represent. The name
-`regularizedUnion` both avoids the C++ keyword `union` and makes the
-regularization explicit.
-
-`regularizedUnion`, `difference` and `symmetricDifference` are each defined for
-**every ordered pair** of those six, since each of the three answers with a set
-of regions whenever both operands are one, however they lie. No other pair has
-a union or a symmetric difference a `PolygonSet` can hold: a `Point`, a
-`Segment`, a `Polyline` and a `MonotoneChain` leave a dangling piece with no
-area, a `Halfplane`, a `Line`, a `Ray` and a `HalfplaneIntersection` may be
-unbounded, and a `Disk` is round.
-
-`difference` reaches past that grid on its right-hand side alone, and the
-asymmetry is the reason. $A \setminus B$ is contained in $A$, so it is bounded as
-soon as the **receiver** is, however far $B$ reaches — which makes a `Halfplane`
-or a `HalfplaneIntersection` a perfectly good thing to remove even though it is
-not one to unite with:
+| `a.regularizedIntersection(b)` | $\mathrm{closure}(A^\circ \cap B^\circ)$, the area both cover |
+| `a.regularizedUnion(b)` | $\mathrm{closure}(A^\circ \cup B^\circ)$, the area either covers |
+| `a.difference(b)` | $\mathrm{closure}(A^\circ \setminus B)$, the area of `a` that `b` does not cover |
+| `a.symmetricDifference(b)` | $\mathrm{closure}((A^\circ \setminus B) \cup (B^\circ \setminus A))$, the area exactly one covers |
 
 ```c++
 pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
-auto lower = square.difference(pgl::Halfplane(0,5, 1,5));  // the half below y=5
+pgl::EPolygonSet holed  = square.difference(pgl::Rectangle(3,3,7,7));
+pgl::EPolygonSet again  = holed.difference(pgl::Rectangle(0,0,2,2));
+pgl::EPolygonSet merged = again.regularizedUnion(holed);
 ```
 
-Written the other way round it does not compile: `halfplane.difference(square)`
-would be unbounded, so it does not exist, on that receiver or any other. The
-runtime [`Shape`](shapes.md#shape) wrapper offers all three over the same grids,
-deciding at run time and throwing `std::logic_error` for the pairs it does not
-cover — including `difference` written the wrong way round.
-`regularizedIntersection` is the narrower operation, and for a reason of its
-own: see [below](#why-regularizedintersection-is-separate).
-
-That last operand is what makes the family **closed**: the result of an
-operation is a shape the operations take, so it can be fed straight back in
-rather than looped over by the caller.
-
-```c++
-pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
-auto holed  = square.difference(pgl::Rectangle(3,3,7,7));   // a PolygonSet
-auto again  = holed.difference(pgl::Rectangle(0,0,2,2));    // and again
-auto merged = again.regularizedUnion(holed);                // set against set
-```
-
-Three of the four are symmetric in their operands, and may be written in either
-order. Each unordered pair is implemented once, on the higher-ranked of its two
-operands, and the lower-ranked receiver forwards to it — so
-`triangle.regularizedUnion(polygon)` and
-`polygon.regularizedUnion(triangle)` are the same call, and
-`rectangle.regularizedUnion(triangle)` is
-`triangle.regularizedUnion(rectangle)`. `symmetricDifference` and
-`regularizedIntersection` are reached the same way.
-
-`difference` is the one that is not symmetric, and it forwards nowhere: `A ∖ B`
-is not `B ∖ A`, so there is no higher-ranked operand to hand the pair to and
-each of the ordered pairs is stated on its own receiver. A `Convex`, `Triangle`
-or `Rectangle` receiver states them all at once, through the polygon spelling of
-itself that the engine takes anyway.
-
-```c++
-pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
-auto pieces = square.difference(pgl::Rectangle(3,3,7,7));
-// pieces.componentCount() == 1, one region whose outer ring is the square
-// and whose single hole is the rectangle
-```
-
-This is the family `PolygonWithHoles` exists for: removing a shape from the
-middle of another one leaves a hole, and no other shape can say so. A union
-creates one out of nothing just as readily — a `U` united with the bar that caps
-it encloses a hole neither operand has — and a symmetric difference, being the
-union of two differences, inherits holes from both.
-
-Every one of them returns the **regularized** result, the closure of the
-operation applied to the *interiors*: $\mathrm{closure}(A^\circ \setminus B)$,
-$\mathrm{closure}(A^\circ \cup B^\circ)$, and so on. Lower-dimensional leftovers
-are dropped — a stretch of boundary the operands share without either covering
-it, an isolated contact point, and a slit, which has no area to begin with.
-Without that, the answer would not be a set of regions at all. It also means
-material with no area never *joins* anything: two shapes meeting at a single
-point come back as two pieces, since a region may not have a self-touching outer
-ring.
-
-The components have pairwise disjoint interiors, share no stretch of edge, and
-their union is the result — which is exactly the `PolygonSet` contract, so the
-engine's own output is a valid set by construction. They are **not** nested: an
-island stranded inside a hole of the result comes back as a component of its
-own.
-
-A `PolygonWithHoles` written by hand can carry a slit of its own, and
-`A.regularized()` is that same regularization offered on its own: it returns
-$\mathrm{closure}(A^\circ)$, which is `A` without its slits, again as a
-`PolygonSet`.
-`A.isRegular()` says whether there were any. Both are described with the
-[region](shapes.md#polygon-with-holes) itself. Note that this makes `A.regularizedUnion(A)`
-*not* `A` but `A.regularized()`: idempotence holds up to regularization and no
-further.
-
-The boundaries can cross at non-integral points, so all four take the usual `ResultNumber` parameter. Integral receivers return ERational regions by default; an explicit override such as `a.difference<int>(b)` requests conversion back to the lattice. The arrangement itself is always built over exact rationals and converted only at the end, so an explicitly integral result type is exact whenever the crossings are integral.
-
-#### Why `regularizedIntersection` is separate
-
-The literal `intersection`, described [above](#intersection), preserves every
-part of $A \cap B$, including isolated points, shared segments and slits.
-`regularizedIntersection` instead returns
-$\mathrm{closure}(A^\circ \cap B^\circ)$ as a `PolygonSet`, so anything without
-area is deliberately absent. Giving these contracts different names makes the
-choice explicit rather than selecting different meanings of `intersection`
-from the operand types.
-
-The region-valued form is needed because no component of the intersection of two *polygons* can
-have a hole: a closed curve inside a closed set with a connected complement
-bounds a disk inside it, so a curve in $A \cap B$ bounds a disk in each operand
-and hence in the intersection. Thus the two-dimensional components of
-`Polygon::intersection(Polygon)` need only plain polygons. A
-`PolygonWithHoles` or `PolygonSet`, however, may preserve holes already present
-in an operand, so its area-valued result genuinely needs regions:
-
-```c++
-pgl::Polygon<> hole({4,4, 8,4, 8,8, 4,8});
-pgl::PolygonWithHoles<> annulus(square, std::vector{hole});
-auto pieces = annulus.regularizedIntersection(pgl::Rectangle(-5,-5, 20,20));
-// pieces.componentCount() == 1, and pieces.component(0) == annulus — hole and all
-```
-
-A `PolygonWithHoles` or `PolygonSet` operand makes this operation available in
-whichever order the pair is written, so
-`polygon.regularizedIntersection(region)` forwards to
-`region.regularizedIntersection(polygon)`. A `Halfplane` or
-`HalfplaneIntersection` works the same way when the other operand is a region.
-Being unbounded is no obstacle: the bounded region clips it to a bounding box
-first, which changes nothing in the result. `difference` takes an unbounded
-operand for the same reason and by the same clip, on its right-hand side;
-`regularizedUnion` and `symmetricDifference` would give back an unbounded answer and
-take none.
-
-A one-dimensional operand only has literal `intersection`:
-`closure(A° ∩ B°)` is empty for everything without area, so a regularized
-answer would always be nothing.
-`region.intersection(segment)` therefore returns the point-and-segment pieces
-shown [above](#intersection), the same ones `polygon.intersection(segment)`
-returns.
-
-One further difference is worth knowing: `Polygon::intersection` computes each crossing directly in the result type, so an explicitly integral type can alter the reported geometry. The region operations instead build the arrangement in exact rationals and only convert the finished vertices to the requested type.
+The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`. `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a `Halfplane`, or a `HalfplaneIntersection` as its argument. `regularizedIntersection` is available when a `PolygonWithHoles` or `PolygonSet` participates; the other operand may be any of the six bounded region types, a `Halfplane`, or a `HalfplaneIntersection`. These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
 
 ### Minkowski Sum
 
-The Minkowski sum of two shapes is the set of all sums of a point of the first
-and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is
-written `a.minkowskiSum(b)`, or `a + b`.
+The Minkowski sum of two shapes is the set of all sums of a point of the first and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is written `a.minkowskiSum(b)`, or `a + b`. Adding a `Point` is a translation, so it returns the other operand's own type and is defined for every shape.
+
+The Minkowski sum of two bounded, polygonal convex shapes is convex. Every vertex of the result is a sum of two input vertices, so the construction is exact for integers. A result that drops below two dimensions is reported through the returned `Convex`: summing two parallel segments gives a `Convex` satisfying `isSegment()`.
+
+<table>
+  <tr>
+    <td valign="top" width="75%">
 
 ```c++
 pgl::Segment s = {0,0,2,0}, t = {0,0,0,3};
 pgl::Convex box = s + t;
 // box = Convex[(0,0),(2,0),(2,3),(0,3)]
+pgl::Triangle tri = {0,0,3,0,0,3};
+pgl::Convex convex = tri + box;
 ```
 
-Adding a `Point` is a translation, so it returns the other operand's own type
-and is defined for every shape — that is the reading `shape + point` has always
-had. Two bounded convex shapes (`Point`, `Segment`, `OrientedSegment`,
-`Rectangle`, `Triangle`, `Convex`) sum to a `Convex`, computed in linear time by
-merging the two boundaries' edge directions. Two rectangles are the one
-non-trivial pair closed under the sum and give back a `Rectangle`.
+  </td>
+    <td valign="top" width="25%">
+      <img src="figures/minkowski_convex.svg" alt="A rectangle and triangle with their convex Minkowski sum" width="100%"/>
+    </td>
+  </tr>
+</table>
 
-```c++
-pgl::Triangle t = {0,0,3,0,0,3};
-pgl::Convex hexagon = t + pgl::Triangle(0,0,-1,0,0,-1);   // 6 vertices
-pgl::Rectangle r = pgl::Rectangle(1,2,4,6) + pgl::Rectangle(-1,0,2,1);
-// r = (0,2)--(6,7)
-```
-
-Every vertex of the result is a sum of two input vertices, so the construction
-is exact: integer coordinates in, integer coordinates out. A result that drops
-below two dimensions is reported the usual way, through the returned `Convex`:
-summing two parallel segments gives a `Convex` satisfying `isSegment()`. The
-empty shape absorbs, and an empty `Convex` operand gives an empty `Convex`.
-
-Three more families stay in a single shape, none of them
-bounded-convex-with-bounded-convex.
-
-A **`Halfplane` absorbs anything bounded** and comes back a half-plane. With the
-boundary running from $s$ to $t$ and $d = t - s$, the half-plane is
-$\{p : \mathrm{cross}(d, p - s) \ge 0\}$, and the sum is that same half-plane
-translated to its operand's support point — the operand vertex minimising
-$\mathrm{cross}(d, q)$. A linear function on a bounded polygonal shape is
-extremal at a vertex whether or not the shape is convex, so this works for a
-`Polygon`, a `Polyline`, a region and a set exactly as it does for a `Triangle`,
-and it is exact: one input vertex added to each boundary point.
+Other sums also have tighter return types. A `Halfplane` absorbs every supported bounded operand and comes back as a halfplane.
 
 ```c++
 pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
 up.minkowskiSum(pgl::Rectangle(2,3, 5,7));            // y >= 3
-up.minkowskiSum(pgl::Polygon({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6}));  // y >= 0
 ```
 
-A `Disk` is the other, and the one curved sum the library can answer: **two disks
-sum to a disk**, centre plus centre and radius plus radius. It is the one sum
-that cannot be exact by default — a disk stores three boundary points, so each
-radius is a square root of a stored quantity — and it therefore carries a
-`ResultNumber` of its own, defaulting to `double` as `radius` and `distance` do.
-A disk *built from a centre and a radius* carries both exactly, so a sum of two
-of those with an exact result type is exact and takes no square root at all.
+A `Disk` is another, and the one curved sum the library can answer: two disks sum to a disk whose radius is the sum of the two radii. The operation is exact for disks built from a center and a radius but requires square roots for disks built from three boundary points.
 
 ```c++
 pgl::Disk a(pgl::Point(0,0), 3), b(pgl::Point(4,1), 2);
-a.minkowskiSum(b);                     // centre (4,1), radius 5, as double
+a.minkowskiSum(b);                     // center (4,1), radius 5, as double
 a.minkowskiSum<pgl::ERational>(b);     // exact: both operands carry their radius
 ```
 
-Nothing else a disk meets has a representable sum — a disk and a segment sweep a
-stadium, a disk and a polygon a rounded one.
-
-#### Unbounded convex operands
-
-The remaining unbounded operands — `Halfplane`, `Line`, `OrientedLine`, `Ray`
-and `HalfplaneIntersection` — are each an intersection of finitely many closed
-half-planes, and so is the sum of two of them: **the sum of two convex polyhedra
-is a convex polyhedron**. Those pairs therefore return a
-[`HalfplaneIntersection`](shapes.md#halfplane-intersection), whichever of them is
-on either side, and so does one of them against a bounded **convex** shape.
+The remaining unbounded operands (`Halfplane`, `Line`, `OrientedLine`, `Ray`, and `HalfplaneIntersection`) are each an intersection of finitely many closed halfplanes. The sum of two convex polyhedra is also a convex polyhedron, so sums between these operands return a [`HalfplaneIntersection`](shapes.md#halfplane-intersection), whichever operand is written first.
 
 ```c++
 pgl::Line l = {0,0, 1,0};                             // the x axis
@@ -407,28 +222,7 @@ up.minkowskiSum(pgl::Halfplane(5,3, 7,3));            // y >= 3
 up.minkowskiSum(pgl::Halfplane(0,9, -1,9));           // the whole plane
 ```
 
-Each constraint of the result is one the two operands both bound: writing a
-half-plane as $\\{p : \mathrm{cross}(d, p) \ge c\\}$, the tightest $c$ the sum
-satisfies in a direction $d$ is the sum of the two operands' tightest ones, and a
-direction only one operand bounds is dropped — which is why two half-planes
-facing different ways sum to the whole plane, with no constraint left at all. The
-candidate directions are the operands' own edge directions, since an edge of the
-sum is a sum of faces. A result that turns out to be a half-plane, a line or a
-bounded polygon is still that region, and says so through `getIfHalfplane`,
-`getIfLine` or `asConvex`.
-
-A **non-convex** operand is refused here, and a half-plane is the one unbounded
-shape that does not refuse it: only its support point survives the sum, while
-dragging a `Polygon` along a ray sweeps every notch of it into the answer, which
-is then no more convex than the polygon was.
-
-The construction is exact, and on the lattice for every pair but one: a
-`HalfplaneIntersection` operand has vertices where its stored boundary lines
-cross, which are rational already, so a sum with one carries `ERational`
-coordinates for integer operands — the same type its own `vertex` and
-`getIfPoint` accessors report. A wrapped `Shape` is the one place that shows: a
-`Shape<Point<int>>` holding a region has a sum that no such wrapper can hold, and
-throws `std::logic_error` rather than rounding it.
+`Line`, `OrientedLine`, `Ray`, and `HalfplaneIntersection` may also be summed with bounded convex polygonal shapes, but they reject nonconvex operands. `Halfplane` is broader: it also accepts bounded nonconvex polygonal shapes and `Disk`.
 
 ```c++
 pgl::HalfplaneIntersection region(pgl::Rectangle(0,0, 2,2));
@@ -437,408 +231,93 @@ grown.isBounded();                                    // true: both operands wer
 grown.asConvex<int>();                                // Convex[(0,0),(5,0),(5,2),(2,4),(0,4)]
 ```
 
-#### Non-convex operands
+A connected, bounded polygonal sum involving a nonconvex operand generally needs a [`PolygonWithHoles`](shapes.md#polygon-with-holes). One exception is a `MonotoneChain` summed with a nondegenerate convex operand, which returns a `Polygon`; a `PolygonSet` operand instead requires a `PolygonSet` result.
 
-A non-convex operand is where the sum needs a region: sliding a shape around the
-inside of a `C` sweeps out material that closes over a hole neither operand has.
-Those overloads return a [`PolygonWithHoles`](shapes.md#polygon-with-holes) —
-every `Polygon` overload, every `PolygonWithHoles` overload, and every `Polyline`
-overload but one. A `MonotoneChain` against a *convex* operand is tighter still:
-its sum cannot have holes either and returns a `Polygon`, as described further
-down.
+One region is guaranteed when at least one operand is a body: the closure of a connected, nonempty interior. A polygon with holes can fail that condition when a hole shares edges with the outer polygon and creates slits. A degenerate operand, such as a `Rectangle` collapsed to a segment, is permitted when the other operand satisfies the body condition; if neither operand does, the single-region guarantee does not apply.
 
-One region is enough because one operand is a **body**: a shape that is the
-closure of a connected, non-empty interior. Summing one with any connected
-operand covers $\bigcup_{b \in B} (A^\circ + b)$, which is connected and open,
-and the sum is its closure — so the regularized answer is a single component,
-holes and all. **That is a precondition where the type asks for one.** A
-degenerate operand — a `Rectangle` collapsed to a segment, a `Polygon` with no
-area, a region whose slits cut its interior in two — is off the contract: the sum
-can then fall into pieces, and one of them is what comes back.
-
-Where neither operand is a body, the sum keeps a
-[`PolygonSet`](shapes.md#polygon-set): `Polyline` and `MonotoneChain` against a
-`Segment` or `OrientedSegment` are the pairs, and they can scatter for operands
-that are in no way degenerate, so nothing there is a precondition to observe.
-
-```c++
-// The square annulus, cut open through its right wall over y in [3,5].
-pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
-auto plugged = c.minkowskiSum(pgl::Rectangle(0,0, 2,2));
-// plugged is one region, whose outer ring is (0,0)--(10,10) and whose
-// single hole is (4,4)--(6,6) — the cavity, stranded once the cut is closed.
-```
-
-The two overload sets never overlap: the pairs whose sum fits in a single shape
-are exactly the pairs listed above, and these take the rest. Which one answers is
-again a question about the pair and not about the receiver — a `Segment`,
-`OrientedSegment`, `Convex`, `Triangle` or `Rectangle` written on the left of a
-non-convex operand forwards to it, so `rectangle.minkowskiSum(polygon)` is
-`polygon.minkowskiSum(rectangle)` and `segment.minkowskiSum(polyline)` is
-`polyline.minkowskiSum(segment)`, while `rectangle.minkowskiSum(triangle)` and
-`segment.minkowskiSum(segment)` are still the single-shape sum. Like the boolean
-operations these sums are **regularized**, so a flat operand's sum keeps only
-what has area, and they take the same `ResultNumber` parameter; a sum that
-regularizes to nothing comes back as the empty set.
-
-These overloads returned a `PolygonSet` for a while, so that a degenerate
-operand's split answer could come back whole. The type is a region again: the
-simplest one that holds every sum the contract covers, with degeneracy stated as
-a precondition rather than paid for by every caller. The two thin-operand pairs,
-where the split needs no degeneracy at all, are what still return a set.
-
-Every vertex of every convex piece sum is a sum of two input vertices, so those are
-exact; only where two of them cross can a vertex land off the lattice, and that
-arrangement is built over exact rationals and converted once at the end.
-
-That last point is worth more attention here than it gets in the boolean
-operations, because it bites sooner. There the crossings that land off the
-lattice are crossings of the *operands'* boundaries, which rectilinear integer
-input never has; here they are crossings between two piece sums, which two
-perfectly ordinary integer operands can produce on their own:
-
-```c++
-pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});    // a U
-u.minkowskiSum(pgl::Triangle(-2,-1, 2,0, 0,2));                // exact by default
-u.minkowskiSum<int>(pgl::Triangle(-2,-1, 2,0, 0,2));           // notch tip truncated
-```
-
-Both operands are convex-edged and integral, but the answer need not land on the integer lattice. The division-capable default preserves the tip at `(16/5,34/5)`; request an integral `ResultNumber` only when truncation is wanted or the sum is known to stay on the lattice. Rectilinear operands do stay on it, but for a different reason than in the boolean operations, so it is worth stating rather than assuming.
-
-##### When an integral result type is safe
-
-Two conditions on the *operands* are enough to know that, and both are cheap to
-check:
-
-- **Both operands are convex point sets.** There are no piece sums to cross: the
-  sum is the linear merge of the [bounded convex
-  case](#minkowski-sum) above, whose every vertex is a sum of two input vertices.
-  This is what the implementation tests, not a property of the answer discovered
-  afterwards — a `Polygon` is convex when its own `isConvex` says so, and a
-  region when it has no hole left and its outer ring is convex, so a convex ring
-  written as a `Polygon` reaches the merge and its sum is integral. A `Polyline`
-  and a `MonotoneChain` are never taken as convex.
-- **Both operands are rectilinear**, that is every edge is axis-parallel. Then so
-  is the sum. Each operand cuts into axis-parallel boxes — rectangles for a shape
-  with area, segments for a chain or a `Polyline` — and the sum of two of those
-  is one again, so the answer is a union of axis-parallel boxes and every vertex
-  of it meets a vertical edge against a horizontal one. Its $x$ is a sum of two
-  operand $x$s and its $y$ a sum of two operand $y$s. The crossings are real
-  here, unlike in the convex case; they just land on the lattice anyway, which is
-  what the boolean operations above get for free and this one has to be told.
-
-```c++
-pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
-c.minkowskiSum<int>(pgl::Rectangle(0,0, 2,2));   // exact: both rectilinear
-
-pgl::Polygon<> convex({0,0, 6,0, 7,4, 3,7, 0,5});
-convex.minkowskiSum<int>(pgl::Triangle(-2,-1, 2,0, 0,2));  // exact: both convex
-```
-
-Neither condition is necessary — a sum can land on the lattice without either —
-but they are the two that can be read off the operands. Anything weaker has to be
-read off the answer instead, which the exact default already hands you: take the
-`ERational` result and ask its vertices for a denominator of 1. And *one* convex
-operand is not enough, which is what the `U` above shows.
-
-A region operand needs nothing special for its holes — they are simply where the
-decomposition has no piece — but its **slits** do sweep out area, so they are part
-of the decomposition too.
-
-A `Segment` is the thinnest operand of the set, and the one that shows plainest
-that it is the *receiver's* concavity, not the summand's size, that calls for a
-region. It has no area at all, and dragging a non-convex shape along one sweeps a
-band that closes a cut exactly as a wider summand does:
-
-```c++
-pgl::Polygon<> c({0,0, 8,0, 8,3, 6,3, 6,2, 2,2, 2,6, 6,6, 6,5, 8,5, 8,8, 0,8});
-auto plugged = c.minkowskiSum(pgl::Segment(0,0, 0,2));
-// plugged has outer ring (0,0)--(8,10) and one hole, (2,4)--(6,6)
-```
-
-It is also the cheapest: a segment is one convex piece, so the sum costs one
-convex merge per piece of the receiver's decomposition. An `OrientedSegment`
-answers identically — an orientation is not part of a point set.
-
-A `Polyline` carries the same second `minkowskiSum`, against those same seven
-operands: `Polygon`, `PolygonWithHoles`, `Convex`, `Triangle` and `Rectangle`,
-every bounded shape with area to sweep, plus `Segment` and `OrientedSegment`,
-which have none. The chain has none of its own either, and the sum still needs a
-region: dragging a shape along a chain that comes back on itself closes the swept
-material over a hole, and a closed chain is the plainest example there is.
-
-```c++
-pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});   // the boundary, traced once
-auto frame = square.minkowskiSum(pgl::Rectangle(0,0, 1,1));
-// frame's outer ring is (0,0)--(9,9) and it has one hole,
-// (1,1)--(8,8) — the cavity the chain encloses, eroded by the summand.
-```
-
-The two non-convex operands are where *both* sides may be concave, so either one's
-concavity can strand a cavity; either order spells the same call, since `Polygon`
-and `PolygonWithHoles` carry the mirror overload:
-
-```c++
-pgl::Polygon<> u({0,0, 6,0, 6,6, 4,6, 4,2, 2,2, 2,6, 0,6});   // a U
-auto swept = square.minkowskiSum(u);            // == u.minkowskiSum(square)
-// swept has outer ring (0,0)--(14,14) and one hole, (6,6)--(8,8)
-```
-
-A region operand behaves here as it does on the receivers above — its holes are
-where its decomposition has no piece, and its slits sweep out area along the chain
-like anything else. That is where the regularization becomes visible, because a
-chain can drag a slit *along its own direction*: the sweep is then a segment, part
-of $A \oplus B$ that no region may keep, so the answer is smaller than the point
-set. The same contract shows up more plainly still in a summand with no area at
-all, which leaves nothing to keep:
-`polyline.minkowskiSum(pgl::Rectangle(3,3, 3,3))` comes back **empty** rather than
-as the translated chain, which is what the single-shape `polyline + point` is for.
-
-A `Segment` summand is where that regularization is easiest to trip over, since
-the chain's own edges are what sweep: an edge *parallel* to the segment sweeps a
-segment, which is dropped. A closed square chain summed with a vertical segment
-therefore comes back as **two** disjoint bands — the sum of two connected shapes
-is connected, but $\mathrm{closure}((A \oplus B)^\circ)$ need not be. Neither
-operand is degenerate, so no precondition rules this out, and it is exactly why
-the two thin-operand pairs return a `PolygonSet` where every other pair returns
-one region.
-
-```c++
-pgl::Polyline<> square({0,0, 8,0, 8,8, 0,8, 0,0});
-square.minkowskiSum(pgl::Segment(0,0, 2,1));   // one region, one hole
-square.minkowskiSum(pgl::Segment(0,0, 0,3));   // two regions, (0,0)--(8,3) and (0,8)--(8,11)
-```
-
-A second chain is the ninth operand, and the last: two `Polyline`s, two
-`MonotoneChain`s, or one of each. Both sides contribute their edges, each pair of
-edges spanning a parallelogram unless the two are parallel, and a `Segment`
-operand is simply the one-edge case of it. Neither operand brings a body, so this
-pair keeps the set-valued contract too, and two parallel chains come back empty.
-
-```c++
-pgl::Polyline l({0,0, 6,0, 6,6}), v({0,0, 4,6, 8,0});
-l.minkowskiSum(v);                                  // == v.minkowskiSum(l)
-l.minkowskiSum(pgl::Polyline({0,0, 2,1}));          // == l.minkowskiSum(pgl::Segment(0,0, 2,1))
-```
-
-A `MonotoneChain` sums the same way and through the same overload — its
-monotonicity buys nothing against an operand that is not convex, and a `Polyline`
-outranks it, so the polyline owns the mixed pair.
-
-Finally, a `PolygonSet` sums with every one of those operands and with another
-set. The sum distributes over a union and a set *is* one, so each component is
-summed against the operand — against each of *its* components too, when the
-operand is a set — and the results are united in a single arrangement. This is
-the one receiver with no precondition to observe and the one whose answer needs
-a set however nondegenerate its operands are: components that were apart stay
-apart unless the operand is wide enough to close the gap.
-
-```c++
-pgl::PolygonSet<> two = square.regularizedUnion(pgl::Rectangle(10,0, 14,4));
-two.minkowskiSum(pgl::Rectangle(0,0, 1,1));   // still two components
-two.minkowskiSum(pgl::Rectangle(0,0, 6,1));   // one: the gap is closed
-```
-
-Either spelling works — `polygon.minkowskiSum(set)` is `set.minkowskiSum(polygon)`
-— which is where the sum differs from the boolean operations, whose set operand
-must be written on the left.
-
-#### A monotone chain, whose sum is one polygon
-
-A `MonotoneChain` is the one non-convex receiver whose sum does not need a region
-at all. Fix a vertical line $x = c$ and look at the pairs landing on it,
-$S = \\{(a,b) \in A \times B : a_x + b_x = c\\}$. The chain is sorted, so it is
-parametrized with $a_x$ non-decreasing and the parameters with a non-empty fibre
-form an interval; $B$ is convex, so each fibre is a segment moving continuously.
-$S$ is connected, hence so is its image under $a_y + b_y$. **Every vertical line
-therefore meets $A \oplus B$ in a single interval**: it is the region between two
-x-monotone chains — one polygon, never holed, never in pieces, with nothing to
-regularize.
-
-So `chain.minkowskiSum(b)` returns a `Polygon` for the three convex operands with
-area, and computes it without building an arrangement or triangulating anything:
-one convex merge per chain edge, then a sweep merging the pieces' boundaries into
-the sum's two, which the chain hands over already sorted along x.
-
-```c++
-pgl::MonotoneChain<> peak({0,0, 1,1, 2,0});
-peak.minkowskiSum(pgl::Rectangle(0,0, 1,1));
-// Polygon[(0,0),(1,0),(3/2,1/2),(2,0),(3,0),(3,1),(2,2),(1,2),(0,1)]
-peak.minkowskiSum<int>(pgl::Rectangle(0,0, 1,1));
-// Polygon[(0,0),(3,0),(3,1),(2,2),(1,2),(0,1)] — the notch under the apex lands
-// at (3/2,1/2), and an integral result type truncates it away
-```
-
-That sweep is where the chain's monotonicity is worth the most. The region-valued
-sum of the same pair costs a quadratic number of segment intersections plus a
-constrained triangulation of their arrangement, all over `Rational<BigInt>`; this
-one is linear in the pieces for every input anyone writes down, so the gap widens
-with the chain: for a chain of $n$ vertices against a rectangle it is some 40
-times faster at $n = 4$ and some 750 times at $n = 256$, for the identical answer.
-
-The sweep is also exact. Every vertex of every piece is a sum of two input vertices, and it decides the boundary with integer determinants, leaving the points where one piece takes over from the next implicit. Only an actual crossing can land off the lattice; that vertex is formed as an exact fraction. The public overload consequently keeps the division-capable default even though a crossing-free result could be represented in `int`. Request `int` explicitly when that property is known and a native-coordinate return type is preferable.
-
-Of the [two conditions](#when-an-integral-result-type-is-safe) that settle this
-for the region-valued sums, only the rectilinear one survives here, since a chain
-is never a convex operand. A chain whose edges are all axis-parallel —
-necessarily an ascending staircase, since a chain stores its vertices in
-lexicographic order and so orders every vertical edge upwards — has an integral
-sum with a rectilinear operand:
-
-```c++
-pgl::MonotoneChain<> stair({0,0, 1,0, 1,1, 2,1, 2,2});
-stair.minkowskiSum<int>(pgl::Rectangle(0,0, 1,1));
-// Polygon[(0,0),(2,0),(2,1),(3,1),(3,3),(2,3),(2,2),(1,2),(1,1),(0,1)] — exact
-```
-
-A chain that is convex, or concave, is no help at all, and shows why the other
-condition does not carry over: a chain has no area, so it cannot absorb its own
-sweep the way a convex body does. Summing one with a rectangle takes the
-pointwise maximum of the chain shifted to the rectangle's two top corners, and
-its minimum over the two bottom ones, and two shifts of the same convex function
-cross exactly once — as do two shifts of a concave one. `peak` above is that
-second crossing, $2-x$ against $x-1$ at $(3/2,1/2)$.
-
-Unlike the sums above this one is **not regularized** — it is the point set — so a
-degenerate operand gives back a degenerate polygon rather than nothing:
-`chain.minkowskiSum(pgl::Rectangle(3,3, 3,3))` is the translated chain, traced out
-and back. The two operands that legitimately have no area, `Segment` and
-`OrientedSegment`, are not on this contract for the same reason: their sums can
-pinch shut, which no polygon may do, so they answer with regions like a
-`Polyline`'s. So do `Polygon` and `PolygonWithHoles` operands, whose own concavity
-strands cavities however monotone the chain is. Two chains are not a pair, exactly
-as two polylines are not.
-
-The remaining pairs are a compile error rather than an approximation: `Disk` sums
-to a rounded shape, and an unbounded operand (`Line`, `Ray`, `Halfplane`,
-`HalfplaneIntersection`) to an unbounded region, neither of which is
-representable. Since $\mathrm{hull}(A \oplus B) = \mathrm{hull}(A) \oplus
-\mathrm{hull}(B)$, a caller who wants the convex approximation can ask for it
-explicitly by summing the hulls. On the polymorphic `Shape` the operand pair is
-only known at run time, so an unsupported pair throws `std::logic_error`
-instead — and so does a pair whose sum is a set of regions, which no single
-`Shape` alternative can hold.
 
 ### Other Methods for Shapes
 
 Methods that construct coordinates or return numeric measurements use one of three result-number defaults:
 
-- `ResultNumber = NumberType` when the operation needs no division, such as Point–Point distance or rectangle area;
+- `ResultNumber = NumberType` when the operation needs no division, such as rectangle area or Point–Point squared, L1, and LInf distances;
 - `ResultNumber = division_result_t<NumberType>` when the operation may divide. Integral and `BigInt` receivers widen to `ERational`, while floating-point and already-rational receivers retain their coordinate type; and
 - `ResultNumber = double` when a supported result may be irrational, such as a disk radius or a distance involving a disk.
 
-The policy is receiver-only: mixed-coordinate calls use the receiver's default. An explicit result template argument overrides it. Explicit integral results can truncate an operation that divides; for disk computations, a non-floating request is served in `double` because an exact rational result is not generally available.
+The policy is receiver-only: mixed-coordinate calls use the receiver's default. An explicit result template argument overrides it. Explicit integral results can truncate an operation that divides. Disk distance operations fall back to `double` for non-floating requests, while other disk operations may reject an exact type when they require a square root.
 
-- `rotated90(int k = 1)`: Returns the shape rotated by `90k` degrees around the
-  origin.
+- `rotated90(int k = 1)`: Returns the shape rotated by `90k` degrees around the origin.
 
 - `rotate90(int k = 1)`: Rotates the shape by `90k` degrees around the origin.
 
-- `scaledUpX(Number)`: Returns the shape with the x-coordinate multiplied by a
-  number.
+- `scaledUpX(Number)`: Returns the shape with the x-coordinate multiplied by a number.
 
 - `scaleUpX(Number)`: Multiplies the x-coordinate by a number.
 
-- `scaledUpY(Number)`: Returns the shape with the y-coordinate multiplied by a
-  number.
+- `scaledUpY(Number)`: Returns the shape with the y-coordinate multiplied by a number.
 
 - `scaleUpY(Number)`: Multiplies the y-coordinate by a number.
 
-- `scaledDownX(Number)`: Returns the shape with the x-coordinate divided by a
-  number.
+- `scaledDownX(Number)`: Returns the shape with the x-coordinate divided by a number.
 
 - `scaleDownX(Number)`: Divides the x-coordinate by a number.
 
-- `scaledDownY(Number)`: Returns the shape with the y-coordinate divided by a
-  number.
+- `scaledDownY(Number)`: Returns the shape with the y-coordinate divided by a number.
 
 - `scaleDownY(Number)`: Divides the y-coordinate by a number.
 
-- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance, computed in `ResultNumber`. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; pairs involving `Disk`, and calls through a runtime `Shape`, default to `double`. An explicitly integral result truncates any projection division.
+- `squaredDistance<ResultNumber>(Shape)`: Returns the squared distance using the result policy selected by `ResultNumber`. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`; pairs involving `Disk`, and calls through a runtime `Shape`, default to `double`. An explicitly integral result truncates any projection division, while a disk pair falls back to `double` for a non-floating request.
 
 - `squaredHausdorffDistance<ResultNumber>(Shape)`: Returns the squared Hausdorff distance. Pair-specific defaults are native when the extrema only reuse stored vertices and `division_result_t<NumberType>` when an edge projection may be needed; runtime `Shape` uses the latter. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex` — all bounded, convex shapes, so the directed distance in either direction is always attained at a vertex. Not defined for `Line`, `OrientedLine`, `Ray`, `Halfplane`, or `HalfplaneIntersection` (unbounded, or possibly unbounded, so the Hausdorff distance to or from them is generally infinite), nor yet for `Disk`, `MonotoneChain`, or `Polygon`.
 
-- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus `Disk`-`Point`. Disk distances default to `double`, since there is no closed form for the distance from a point to a circle under either metric and it is instead found with a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and `Disk`-`Disk`) are not yet implemented — see [todo](todo.md).
+- `distanceL1<ResultNumber>(Shape)` / `distanceLInf<ResultNumber>(Shape)`: Return the Manhattan (L1) or Chebyshev (LInf) distance to the given shape. Point–Point and the axis-aligned rectangle cases default to `NumberType`; pairs that may project onto an edge default to `division_result_t<NumberType>`. Point–Point is templated too, so mixed-coordinate callers can explicitly choose the arithmetic type. Defined for every pair among `Point`, `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`, `Halfplane`, `Rectangle`, `Triangle`, `Convex`, `MonotoneChain`, `Polygon`, and `HalfplaneIntersection`, plus Disk–Point. Disk distances default to `double` because the implementation uses a numeric search; an explicitly requested floating-point type is preserved. The remaining `Disk` pairs (`Disk` against any shape other than `Point`, and Disk–Disk) are not yet implemented — see [todo](todo.md).
 
-- `hausdorffDistanceL1(Shape)` / `hausdorffDistanceLInf(Shape)`: Return the
-  L1 or LInf Hausdorff distance, with the same `ResultNumber` convention as
-  `distanceL1` / `distanceLInf`. Defined for the same pairs as
-  `squaredHausdorffDistance`: `Point`, `Segment`, `OrientedSegment`,
-  `Rectangle`, `Triangle`, and `Convex`.
+- `hausdorffDistanceL1(Shape)` / `hausdorffDistanceLInf(Shape)`: Return the L1 or LInf Hausdorff distance, with the same `ResultNumber` convention as `distanceL1` / `distanceLInf`. Defined for the same pairs as `squaredHausdorffDistance`: `Point`, `Segment`, `OrientedSegment`, `Rectangle`, `Triangle`, and `Convex`.
 
-- `bbox()`: Returns the minimum bounding box in the stored point type for ordinary shapes and for runtime `Shape`. `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()`, because its implicit vertices may be fractional.
+- `bbox()`: Returns an axis-aligned bounding box in the stored point type that contains the bounded shape. It is tight for the polygonal shapes; a disk built from three boundary points may return a larger exact-coordinate box. Runtime `Shape` dispatches to this method and throws `std::logic_error` for an unbounded alternative, `EmptyShape`, or an empty `HalfplaneIntersection`. A bounded, nonempty `HalfplaneIntersection` instead exposes `bbox<ResultNumber = division_result_t<NumberType>>()` because its implicit vertices may be fractional.
 
-- `fbox<T>()`: Returns a bounding box of the shape using floating point coordinates of type `T`. The bounding box may not be minimum but must contain the entire shape. The `min` coordinates are rounded down and the `max` are rounded up to the nearest floating point. If `!s1.fbox().intersects(s2.fbox()))` then `!s1.bbox().intersects(s2.bbox()))`. Also, if `s1.fbox().crosses(s2.fbox()))` then `s1.bbox().crosses(s2.bbox()))`.
+- `fbox<T>()`: Returns a floating-point bounding box with coordinates of type `T`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
 
-- `area<ResultNumber>()`: Returns the area. Rectangle and one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; `Disk` defaults to `double` because its area contains π.
+- `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; `Disk` defaults to `double` because its area contains π.
 
 - `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. `HalfplaneIntersection` uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.
 
 - `diameter()`: Returns a segment that defines the diameter in native coordinates. `Disk` instead exposes `diameter<ResultNumber = division_result_t<NumberType>>()`, since finding the center of a three-point disk may divide.
 
-- `pointInside<ResultNumber>()`: Returns a point strictly in the interior of the shape. Forms that divide by a power of two default to `division_result_t<NumberType>`; forms that simply select a stored point default to `NumberType`.
+- `pointInside<ResultNumber>()`: Returns a point in the relative interior of the shape. Forms that divide by a power of two default to `division_result_t<NumberType>`; forms that simply select a stored point default to `NumberType`.
 
-- `pointInsideInteriorContainedIn(other)`: Returns true if some point in this
-  shape's relative interior lies in the strict interior of the argument `other`.
-  It uses the `pointInside()` witness, scaling both shapes to keep the witness
-  exact when integer truncation would round it onto the boundary.
+- `pointInsideInteriorContainedIn(other)`: Returns true if the `pointInside()` witness from this shape's relative interior lies in the strict interior of `other`. It scales both shapes when necessary to keep the witness exact instead of letting integer truncation round it onto the boundary.
 
-- `verticesContain(p)`: Returns true if there exists a value `i` such that `s[i] == p` for the shape `s`. Notice that two shapes (for example lines) may be equal (according to `==`) but still behave differently for verticesContain if they are defined by different points.
+- `verticesContain(p)`: Returns true if there is an index `i` such that `s[i] == p` for the shape `s`. Two shapes, such as lines, may be equal according to `==` but behave differently for `verticesContain` when they are defined by different points.
 
-- `convexPartition()` (`Polygon` and `PolygonWithHoles`): Returns the shape cut
-  into `Convex` pieces with pairwise disjoint interiors whose union is the shape,
-  within a factor of four of the fewest possible. Shorthand for
-  `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation).
-  A convex shape comes back as a single piece. On a region the pieces cover only
-  what has area, so the holes are where there is no piece and a slit — having no
-  area — appears in none of them.
+- `convexPartition()` (`Polygon` and `PolygonWithHoles`): Returns the shape cut into `Convex` pieces with pairwise disjoint interiors whose union is the shape, using at most four times the fewest possible pieces. It is shorthand for `triangulation().convexPartition()`; see [Triangulation](data_structures.md#triangulation). A convex shape comes back as a single piece. On a region, the pieces cover only what has area, so the holes are where there is no piece, and a slit—having no area—appears in none of them.
 
-- `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant
-  covering by `Convex` pieces. The pieces may overlap and the covering is not
-  necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form
-  a full-visibility subgraph using the paper's dual-graph BFS, a DSATUR vertex
-  clique cover groups them, and every clique becomes one convex hull. For
-  `PolygonWithHoles`, the method remains a shorthand for
-  `triangulation().convexCovering()` because clique hulls can surround holes and
-  require an additional splitting step. On a region the covering leaves holes
-  and slits uncovered.
+- `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant covering by `Convex` pieces. The pieces may overlap, and the covering is not necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form a full-visibility subgraph using the paper's dual-graph BFS, a DSATUR vertex clique cover groups them, and every clique becomes one convex hull. For `PolygonWithHoles`, the method remains shorthand for `triangulation().convexCovering()` because clique hulls can surround holes and require an additional splitting step. On a region, the covering leaves holes and slits uncovered.
+
 
 ## Iterating
 
-There are several methods to iterate through vertices, edges, or oriented
-edges. An [`std::array`](https://en.cppreference.com/w/cpp/container/array.html)
-is used for shapes of constant size and an
-[`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) is
-used otherwise.
+Several methods iterate through vertices, edges, or oriented edges. An [`std::array`](https://en.cppreference.com/w/cpp/container/array.html) is used for shapes of constant size, and an [`std::vector`](https://en.cppreference.com/w/cpp/container/vector.html) is used otherwise.
 
 - `vertices()`: Returns an `std::array` or an `std::vector` of the stored `Point` type for ordinary shapes. `HalfplaneIntersection` exposes `vertices<ResultNumber>()` because its vertices are derived from line intersections.
 
-- `edges()`: Returns an `std::array` or an `std::vector` of `Segment` that are
-  the edges.
+- `edges()`: Returns an `std::array` or an `std::vector` of `Segment` objects representing the edges.
 
-- `orientedEdges()`: Returns an `std::array` or an `std::vector` of
-  `OrientedSegment` that are the edges in counterclockwise order. Not defined
-  for `Disk`.
+- `orientedEdges()`: Returns an `std::array` or an `std::vector` of `OrientedSegment` objects. Boundary shapes return them in counterclockwise order. This method is not defined for `Disk`.
 
-- `begin()`, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`,
-  `orientedEdgesEnd()`: Same as `vertices()`, `edges()`, and
-  `orientedEdges()` above, but for iterators that take `O(1)` time per element
-  visited.
+- `begin()`, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`, and `orientedEdgesEnd()`: Provide iterator access corresponding to `vertices()`, `edges()`, and `orientedEdges()` above, with `O(1)` work per element visited.
 
 ### Indexed access
 
-Every shape exposes a uniform indexed-access interface over its defining
-points (or, for `Point`, its two coordinates):
+Most concrete shapes expose indexed access over their defining points. `Point` instead indexes its two coordinates, and `HalfplaneIntersection` indexes its stored halfplanes. `PolygonWithHoles` and `PolygonSet` deliberately have no single indexed sequence.
 
 - `size()`: Returns the number of indexable elements.
 
 - `s[i]`: Returns the `i`-th element.
 
-- `s.get(i)`: Same as `s[i]` but `i` is taken modulo `s.size()`, so negative
-  values wrap from the end.
+- `s.get(i)`: Same as `s[i]`, but `i` is taken modulo `s.size()`, so negative values wrap from the end.
 
-- `s.index(p)`: Returns the smallest index `i` such that `s[i] == p`, or -1
-  if no such index exists.
+- `s.index(p)`: Returns the smallest index `i` such that `s[i] == p`, or -1 if no such index exists.
 
 ```c++
 pgl::Convex c({{0,0},{4,0},{4,3},{0,3}});
@@ -849,7 +328,4 @@ c.index({4,3}); // 2 since c[2] == {4,3}
 ```
 
 
-The runtime `Shape` wrapper exposes `size()`, `operator[]`, and `get()` that
-dispatch to the wrapped alternative. Because `Point`'s
-indexed access yields a coordinate rather than a `Point`, `Shape::operator[]`
-and `Shape::get` throw `std::logic_error` if the wrapped value is a `Point`.
+The runtime `Shape` wrapper exposes `size()`, `operator[]`, `get()`, and `index()` by dispatching to the wrapped alternative. `size()` throws `std::logic_error` for `PolygonWithHoles` and `PolygonSet`. Point-valued access through `operator[]`, `get()`, or `index(Point)` also throws for `Point`, whose elements are coordinates; for `HalfplaneIntersection`, whose elements are halfplanes; and for `PolygonWithHoles` and `PolygonSet`, which have no single indexable sequence. The `Point` alternative instead supports `index(NumberType)`.
