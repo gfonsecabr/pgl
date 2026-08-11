@@ -42,7 +42,7 @@ constexpr ResultNumber segmentLikeDistanceLInf(const Point<ResultNumber>& a, con
     const ResultNumber px = q.x() - a.x();
     const ResultNumber py = q.y() - a.y();
 
-    if (dx == ResultNumber{} && dy == ResultNumber{}) {
+    if (dx == 0 && dy == 0) {
         const ResultNumber ax = pgl::detail::abs(px);
         const ResultNumber ay = pgl::detail::abs(py);
         return ax > ay ? ax : ay;
@@ -70,10 +70,16 @@ constexpr ResultNumber segmentLikeDistanceLInf(const Point<ResultNumber>& a, con
 
     const ResultNumber cross = dx * py - dy * px;
     const auto considerCrossing = [&](const ResultNumber& n, const ResultNumber& d) {
-        if (d == ResultNumber{}) {
+        if (d == 0) {
             return;
         }
-        if (boundedLow && n * d < ResultNumber{}) {
+        // The low bound rejects t = n/d < 0, i.e. n and d of opposite signs.
+        // Read off the two signs rather than forming n*d: for an exact rational
+        // the product is a multiplication plus a normalization, while comparing
+        // against the literal 0 is the sign of a numerator. d is nonzero here,
+        // so d > 0 splits the cases exhaustively, and n == 0 correctly fails
+        // both branches.
+        if (boundedLow && (d > 0 ? n < 0 : n > 0)) {
             return;
         }
         if (boundedHigh && n * d > d * d) {

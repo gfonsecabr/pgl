@@ -460,7 +460,7 @@ class ShapeTree {
                 if (bestIndex == -1 || d < bestDist) {
                     bestDist = d;
                     bestIndex = static_cast<std::ptrdiff_t>(i);
-                    if (d == ResultNumber{}) {
+                    if (d == 0) {
                         return;  // Exact hit: nothing can be nearer than zero.
                     }
                 }
