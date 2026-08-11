@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <polygon points="28,736 972,736 972,578.667 28,578.667" stroke="royalblue" fill="royalblue" fill-opacity="0.18" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Polygon[(0,0),(12,0),(12,2),(0,2)]</title></polygon>
+  <polygon points="28,342.667 106.667,342.667 106.667,657.333 264,657.333 264,342.667 421.333,342.667 500,578.667 578.667,342.667 736,342.667 736,578.667 893.333,578.667 893.333,342.667 972,342.667 972,264 28,264" stroke="seagreen" fill="seagreen" fill-opacity="0.18" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Polygon[(0,5),(1,5),(1,1),(3,1),(3,5),(5,5),(6,2),(7,5),(9,5),(9,2),(11,2),(11,5),(12,5),(12,6),(0,6)]</title></polygon>
+  <circle cx="500" cy="578.667" r="8px" stroke="crimson" fill="crimson" fill-opacity="0.65" stroke-opacity="1" stroke-width="4px" vector-effect="non-scaling-stroke"><title>(6,2)</title></circle>
+  <polyline points="736,578.667 893.333,578.667" stroke="crimson" fill="none" fill-opacity="0.65" stroke-opacity="1" stroke-width="4px" vector-effect="non-scaling-stroke"><title>Polyline[(9,2),(11,2)]</title></polyline>
+  <polygon points="106.667,657.333 264,657.333 264,578.667 106.667,578.667" stroke="crimson" fill="crimson" fill-opacity="0.65" stroke-opacity="1" stroke-width="4px" vector-effect="non-scaling-stroke"><title>Polygon[(1,1),(3,1),(3,2),(1,2)]</title></polygon>
+</svg>
