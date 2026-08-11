@@ -781,7 +781,7 @@ TEST_CASE("Rectangle unites with Rectangle into a set of regions") {
     const Rectangle rect(Point(0, 0), Point(4, 4));
 
     SUBCASE("two overlapping rectangles make one staircase region") {
-        const auto result = rect.unionWith<int>(Rectangle(Point(2, 2), Point(6, 6)));
+        const auto result = rect.regularizedUnion<int>(Rectangle(Point(2, 2), Point(6, 6)));
         static_assert(std::is_same_v<decltype(result), const pgl::PolygonSet<Point>>);
         REQUIRE(result.componentCount() == 1);
         CHECK(!result.component(0).hasHoles());
@@ -792,34 +792,34 @@ TEST_CASE("Rectangle unites with Rectangle into a set of regions") {
     }
 
     SUBCASE("two disjoint rectangles stay two components") {
-        const auto result = rect.unionWith<int>(Rectangle(Point(10, 10), Point(12, 12)));
+        const auto result = rect.regularizedUnion<int>(Rectangle(Point(10, 10), Point(12, 12)));
         CHECK(result.componentCount() == 2);
         CHECK(result.twiceArea() == 2 * (16 + 4));
     }
 
     SUBCASE("rectangles meeting at a corner stay two components") {
         // A region may not have a self-touching outer ring, so the pinch splits.
-        const auto result = rect.unionWith<int>(Rectangle(Point(4, 4), Point(6, 6)));
+        const auto result = rect.regularizedUnion<int>(Rectangle(Point(4, 4), Point(6, 6)));
         CHECK(result.componentCount() == 2);
         CHECK(result.twiceArea() == 2 * (16 + 4));
     }
 
     SUBCASE("a rectangle covering another gives just the cover") {
-        const auto result = rect.unionWith<int>(Rectangle(Point(1, 1), Point(2, 2)));
+        const auto result = rect.regularizedUnion<int>(Rectangle(Point(1, 1), Point(2, 2)));
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(rect.asPolygon()));
     }
 
     SUBCASE("a union with itself is idempotent") {
-        const auto result = rect.unionWith<int>(rect);
+        const auto result = rect.regularizedUnion<int>(rect);
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(rect.asPolygon()));
     }
 
     SUBCASE("a rectangle with no area contributes nothing") {
         const Rectangle flat(Point(0, 0), Point(0, 4));
-        CHECK(flat.unionWith<int>(rect) == rect.asPolygonSet());
-        CHECK(flat.unionWith<int>(flat).empty());
+        CHECK(flat.regularizedUnion<int>(rect) == rect.asPolygonSet());
+        CHECK(flat.regularizedUnion<int>(flat).empty());
     }
 }
 
@@ -912,7 +912,7 @@ TEST_CASE("The empty rectangle is the empty set of points") {
         // set from it still answers true -- exactly as any remover that misses
         // it does.
         const Rectangle far_away(10, 10, 12, 12);
-        const auto two_pieces = rect.unionWith<int>(far_away);
+        const auto two_pieces = rect.regularizedUnion<int>(far_away);
         CHECK(empty.separates(two_pieces));
         CHECK_FALSE(empty.separates(rect.asPolygonSet()));
 
@@ -984,9 +984,9 @@ TEST_CASE("The empty rectangle is the empty set of points") {
         CHECK_FALSE(empty.intersection(segment).has_value());
         CHECK_FALSE(empty.intersection(Point(0, 0)).has_value());
 
-        CHECK(empty.unionWith<int>(rect) == rect.asPolygonSet());
-        CHECK(rect.unionWith<int>(empty) == rect.asPolygonSet());
-        CHECK(empty.unionWith<int>(empty).empty());
+        CHECK(empty.regularizedUnion<int>(rect) == rect.asPolygonSet());
+        CHECK(rect.regularizedUnion<int>(empty) == rect.asPolygonSet());
+        CHECK(empty.regularizedUnion<int>(empty).empty());
 
         CHECK(empty.minkowskiSum(rect).empty());
         CHECK(rect.minkowskiSum(empty).empty());

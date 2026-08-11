@@ -378,7 +378,7 @@ concept BoundedPolygonalConcept =
  * @ref Rectangle, a @ref Triangle, a @ref Convex, a @ref Polygon or a
  * @ref PolygonWithHoles, and however many the set already carries for a
  * @ref PolygonSet. That makes them closed under union: `A ∪ B` is again a bounded
- * polygonal region whenever both operands are, which is what lets `unionWith` be
+ * polygonal region whenever both operands are, which is what lets `regularizedUnion` be
  * defined for every ordered pair of them and for no other pair.
  *
  * What is left out is left out for one of three reasons. A @ref Point, a

@@ -1025,7 +1025,7 @@ TEST_CASE("Shape wraps a PolygonWithHoles") {
     CHECK_FALSE(filled == Shape(Polygon({0, 0, 6, 0, 6, 6, 0, 6})));
 }
 
-TEST_CASE("Shape dispatches predicates, intersection, and distances through a PolygonWithHoles") {
+TEST_CASE("Shape dispatches predicates, regularized intersection, and distances through a PolygonWithHoles") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
     using Polygon = pgl::Polygon<Point>;
@@ -1079,33 +1079,32 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
     CHECK(box.interiorContains(shape));
     CHECK_FALSE(shape.contains(box));
 
-    // Intersecting with an area operand yields a region again, holes and all —
-    // the one intersection no vector<Polygon> could express.
-    const Shape clipped = shape.intersection<int>(box);
-    REQUIRE(clipped.holdsAlternative<Region>());
-    CHECK(Region(clipped) == annulus);
-    const Shape half = shape.intersection<int>(Shape(Rectangle({0, 0}, {6, 3})));
-    REQUIRE(half.holdsAlternative<Region>());
-    CHECK(Region(half).twiceArea() == 2 * (18 - 2));  // the lower half, minus half the hole
+    // Regularized intersection with an area operand yields a set of regions,
+    // holes and all.
+    using RegionSet = pgl::PolygonSet<Point>;
+    const RegionSet clipped = shape.regularizedIntersection<int>(box);
+    REQUIRE(clipped.componentCount() == 1);
+    CHECK(clipped.component(0) == annulus);
+    const RegionSet half = shape.regularizedIntersection<int>(Shape(Rectangle({0, 0}, {6, 3})));
+    REQUIRE(half.componentCount() == 1);
+    CHECK(half.twiceArea() == 2 * (18 - 2));  // the lower half, minus half the hole
 
     // The rank forwarders answer the same pair the other way round. A Polygon
     // on the left forwards too, even though its own Polygon-valued
     // intersection would otherwise have answered a lower-ranked operand.
-    CHECK(Shape(Rectangle({0, 0}, {6, 3})).intersection<int>(shape) == half);
+    CHECK(Shape(Rectangle({0, 0}, {6, 3})).regularizedIntersection<int>(shape) == half);
     CHECK(Shape(pgl::Convex<Point>(std::vector<Point>{{0, 0}, {6, 0}, {6, 3}, {0, 3}}))
-              .intersection<int>(shape) == half);
-    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).intersection<int>(shape) == half);
+              .regularizedIntersection<int>(shape) == half);
+    CHECK(Shape(Polygon({0, 0, 6, 0, 6, 3, 0, 3})).regularizedIntersection<int>(shape) == half);
 
     // An intersection that comes apart is no longer without an answer: the
     // strip across the annulus meets it left and right of the hole, and the
     // two pieces come back together as the PolygonSet alternative.
-    using RegionSet = pgl::PolygonSet<Point>;
-    const Shape split = shape.intersection<int>(Shape(Rectangle({-1, 2}, {7, 4})));
-    REQUIRE(split.holdsAlternative<RegionSet>());
-    CHECK(RegionSet(split).componentCount() == 2);
-    CHECK(RegionSet(split).twiceArea() == 2 * 8);
+    const RegionSet split = shape.regularizedIntersection<int>(Shape(Rectangle({-1, 2}, {7, 4})));
+    CHECK(split.componentCount() == 2);
+    CHECK(split.twiceArea() == 2 * 8);
     // A pair with no overload at all, such as a Disk, still throws.
-    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.regularizedIntersection<int>(Shape(Disk(Point(3, 3), 1))), std::logic_error);
 
     // Distances dispatch both ways, with the explicit ResultNumber probe.
     const Shape farPoint = Point(20, 3);
@@ -1208,7 +1207,7 @@ TEST_CASE("Shape wraps a PolygonSet") {
     CHECK(ordered.size() == 2);
 }
 
-TEST_CASE("Shape dispatches predicates, intersection, and distances through a PolygonSet") {
+TEST_CASE("Shape dispatches predicates, regularized intersection, and distances through a PolygonSet") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
     using Polygon = pgl::Polygon<Point>;
@@ -1256,20 +1255,19 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
     // Intersecting with an area operand keeps the whole set when it stays in
     // several pieces, and unwraps to the tighter region alternative when the
     // answer is a single one.
-    const Shape band = shape.intersection<int>(Shape(Rectangle({-1, 0}, {7, 1})));
-    REQUIRE(band.holdsAlternative<RegionSet>());
-    CHECK(RegionSet(band).componentCount() == 2);
-    CHECK(RegionSet(band).twiceArea() == 2 * 4);
-    const Shape one = shape.intersection<int>(Shape(Rectangle({0, 0}, {2, 2})));
-    REQUIRE(one.holdsAlternative<Region>());
-    CHECK(Region(one) == Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})));
+    const RegionSet band = shape.regularizedIntersection<int>(Shape(Rectangle({-1, 0}, {7, 1})));
+    CHECK(band.componentCount() == 2);
+    CHECK(band.twiceArea() == 2 * 4);
+    const RegionSet one = shape.regularizedIntersection<int>(Shape(Rectangle({0, 0}, {2, 2})));
+    REQUIRE(one.componentCount() == 1);
+    CHECK(one.component(0) == Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})));
     // The self pair, and a region operand, answer through the wrapper too.
-    CHECK(shape.intersection<int>(Shape(pair)) == shape);
-    CHECK(shape.intersection<int>(Shape(Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})))) == one);
+    CHECK(shape.regularizedIntersection<int>(Shape(pair)) == pair);
+    CHECK(shape.regularizedIntersection<int>(Shape(Region(Polygon({0, 0, 2, 0, 2, 2, 0, 2})))) == one);
     // A pair with no intersection overload at all still throws, and so does one
     // against a one-dimensional operand, which a set has no overload for.
-    CHECK_THROWS_AS((void)shape.intersection<int>(Shape(Disk(Point(3, 1), 1))), std::logic_error);
-    CHECK_THROWS_AS((void)shape.intersection<int>(crossing), std::logic_error);
+    CHECK_THROWS_AS((void)shape.regularizedIntersection<int>(Shape(Disk(Point(3, 1), 1))), std::logic_error);
+    CHECK_THROWS_AS((void)shape.regularizedIntersection<int>(crossing), std::logic_error);
 
     // Distances are the minimum over the components, and dispatch both ways.
     const Shape farPoint = Point(10, 1);
@@ -1317,7 +1315,7 @@ TEST_CASE("Shape dispatches predicates, intersection, and distances through a Po
                     std::logic_error);
 }
 
-TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-valued union") {
+TEST_CASE("Shape dispatches regularizedUnion and throws for the pairs that have no set-valued union") {
     using Point = pgl::Point<int>;
     using PolygonShape = pgl::Polygon<Point>;
     using Rectangle = pgl::Rectangle<Point>;
@@ -1336,20 +1334,20 @@ TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-
     const RegionSet set(holed);
 
     SUBCASE("the answer is a PolygonSet, not a re-wrapped Shape") {
-        const auto result = Shape(rect).unionWith<int>(Shape(offset));
+        const auto result = Shape(rect).regularizedUnion<int>(Shape(offset));
         CHECK(std::is_same_v<decltype(result), const RegionSet>);
         CHECK(result.twiceArea() == 2 * (16 + 16 - 4));
         // and it is the same answer the concrete call gives
-        CHECK(result == rect.unionWith<int>(offset));
+        CHECK(result == rect.regularizedUnion<int>(offset));
     }
 
     SUBCASE("a bare alternative is accepted on either side") {
-        CHECK(Shape(roof).unionWith<int>(rect) == roof.unionWith<int>(rect));
-        CHECK(Shape(rect).unionWith<int>(roof) == Shape(roof).unionWith<int>(rect));
+        CHECK(Shape(roof).regularizedUnion<int>(rect) == roof.regularizedUnion<int>(rect));
+        CHECK(Shape(rect).regularizedUnion<int>(roof) == Shape(roof).regularizedUnion<int>(rect));
     }
 
     SUBCASE("the default result type follows the wrapper's coordinate type") {
-        const auto exact = Shape(rect).unionWith(Shape(offset));
+        const auto exact = Shape(rect).regularizedUnion(Shape(offset));
         CHECK(std::is_same_v<decltype(exact),
                              const pgl::PolygonSet<pgl::Point<pgl::division_result_t<int>>>>);
         CHECK(exact.twiceArea() == 2 * (16 + 16 - 4));
@@ -1360,11 +1358,11 @@ TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-
                                          Shape(big),  Shape(holed), Shape(set)};
         for (const Shape& a : regions) {
             for (const Shape& b : regions) {
-                CHECK_NOTHROW((void)a.unionWith<int>(b));
+                CHECK_NOTHROW((void)a.regularizedUnion<int>(b));
                 // A union covers at least as much as either operand alone.
-                CHECK(a.unionWith<int>(b).twiceArea() >= a.unionWith<int>(a).twiceArea());
+                CHECK(a.regularizedUnion<int>(b).twiceArea() >= a.regularizedUnion<int>(a).twiceArea());
                 // and does not depend on which side the wrapper visits first.
-                CHECK(a.unionWith<int>(b) == b.unionWith<int>(a));
+                CHECK(a.regularizedUnion<int>(b) == b.regularizedUnion<int>(a));
             }
         }
     }
@@ -1387,11 +1385,11 @@ TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-
 
         for (const Shape& a : others) {
             for (const Shape& b : regions) {
-                CHECK_THROWS_AS((void)a.unionWith<int>(b), std::logic_error);
-                CHECK_THROWS_AS((void)b.unionWith<int>(a), std::logic_error);
+                CHECK_THROWS_AS((void)a.regularizedUnion<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)b.regularizedUnion<int>(a), std::logic_error);
             }
             for (const Shape& b : others) {
-                CHECK_THROWS_AS((void)a.unionWith<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)a.regularizedUnion<int>(b), std::logic_error);
             }
         }
     }
@@ -1400,7 +1398,7 @@ TEST_CASE("Shape dispatches unionWith and throws for the pairs that have no set-
         // A union's identity is the empty set, so `empty ∪ A` is A — which is a
         // PolygonSet only when A is a region. It takes the throw rather than
         // becoming a special case reachable no other way.
-        CHECK_THROWS_AS((void)Shape(pgl::EmptyShape<Point>{}).unionWith<int>(Shape(rect)),
+        CHECK_THROWS_AS((void)Shape(pgl::EmptyShape<Point>{}).regularizedUnion<int>(Shape(rect)),
                         std::logic_error);
     }
 }
@@ -1452,12 +1450,12 @@ TEST_CASE("Shape dispatches difference and symmetricDifference over the same gri
                 CHECK_NOTHROW((void)a.difference<int>(b));
                 CHECK_NOTHROW((void)a.symmetricDifference<int>(b));
                 // A difference keeps no more than the receiver had.
-                CHECK(a.difference<int>(b).twiceArea() <= a.unionWith<int>(a).twiceArea());
+                CHECK(a.difference<int>(b).twiceArea() <= a.regularizedUnion<int>(a).twiceArea());
                 // A symmetric difference does not depend on the order, and is
                 // the union of the two differences.
                 CHECK(a.symmetricDifference<int>(b) == b.symmetricDifference<int>(a));
                 CHECK(a.symmetricDifference<int>(b) ==
-                      a.difference<int>(b).unionWith<int>(b.difference<int>(a)));
+                      a.difference<int>(b).regularizedUnion<int>(b.difference<int>(a)));
                 // A shape against itself leaves nothing, either way round.
                 CHECK(a.difference<int>(a).empty());
                 CHECK(a.symmetricDifference<int>(a).empty());
@@ -1476,13 +1474,13 @@ TEST_CASE("Shape dispatches difference and symmetricDifference over the same gri
         for (const Shape& a : unbounded) {
             for (const Shape& b : regions) {
                 CHECK_NOTHROW((void)b.difference<int>(a));
-                CHECK(b.difference<int>(a).twiceArea() <= b.unionWith<int>(b).twiceArea());
+                CHECK(b.difference<int>(a).twiceArea() <= b.regularizedUnion<int>(b).twiceArea());
                 // The other way round is unbounded, and the symmetric ones are
                 // unbounded in either order.
                 CHECK_THROWS_AS((void)a.difference<int>(b), std::logic_error);
                 CHECK_THROWS_AS((void)a.symmetricDifference<int>(b), std::logic_error);
                 CHECK_THROWS_AS((void)b.symmetricDifference<int>(a), std::logic_error);
-                CHECK_THROWS_AS((void)a.unionWith<int>(b), std::logic_error);
+                CHECK_THROWS_AS((void)a.regularizedUnion<int>(b), std::logic_error);
             }
         }
 
@@ -1492,7 +1490,7 @@ TEST_CASE("Shape dispatches difference and symmetricDifference over the same gri
         const Shape lower(pgl::Halfplane<Point>({1, 2}, {0, 2}));
         CHECK(Shape(rect).difference<int>(upper).twiceArea() +
                   Shape(rect).difference<int>(lower).twiceArea() ==
-              Shape(rect).unionWith<int>(rect).twiceArea());
+              Shape(rect).regularizedUnion<int>(rect).twiceArea());
     }
 
     SUBCASE("an alternative with no area, or a round one, throws either way") {
@@ -1529,10 +1527,14 @@ namespace {
 // member it does not have is a hard error rather than a false result. Going
 // through a concept makes the operands dependent and the probe well-formed.
 template <class A, class B>
-concept HasUnionWith = requires(const A& a, const B& b) { a.unionWith(b); };
+concept HasRegularizedUnion = requires(const A& a, const B& b) { a.regularizedUnion(b); };
 
 template <class A, class B>
 concept HasIntersection = requires(const A& a, const B& b) { a.intersection(b); };
+
+template <class A, class B>
+concept HasRegularizedIntersection =
+    requires(const A& a, const B& b) { a.regularizedIntersection(b); };
 
 template <class A, class B>
 concept HasDifference = requires(const A& a, const B& b) { a.difference(b); };
@@ -1543,7 +1545,7 @@ concept HasSymmetricDifference =
 
 }  // namespace
 
-TEST_CASE("A concrete shape takes a Shape argument on intersection and unionWith") {
+TEST_CASE("A concrete shape takes a Shape argument on intersections and regularizedUnion") {
     using Point = pgl::Point<int>;
     using Segment = pgl::Segment<Point>;
     using PolygonShape = pgl::Polygon<Point>;
@@ -1569,11 +1571,22 @@ TEST_CASE("A concrete shape takes a Shape argument on intersection and unionWith
         CHECK(Rectangle(result) == Rectangle({2, 2}, {4, 4}));
     }
 
-    SUBCASE("intersection forwards from every receiver that has one") {
+    SUBCASE("literal intersection forwards from every receiver that has one") {
         CHECK(diagonal.intersection<int>(Shape(rect)) == Shape(rect).intersection<int>(diagonal));
         CHECK(big.intersection<int>(Shape(rect)) == Shape(rect).intersection<int>(big));
-        CHECK(Region(big).intersection<int>(Shape(rect)) ==
-              Shape(rect).intersection<int>(Region(big)));
+    }
+
+    SUBCASE("regularized intersection forwards separately") {
+        CHECK(Region(big).regularizedIntersection<int>(Shape(rect)) ==
+              Shape(rect).regularizedIntersection<int>(Region(big)));
+        static_assert(!HasIntersection<Rectangle, Region>);
+        static_assert(!HasIntersection<Region, Rectangle>);
+        static_assert(!HasIntersection<Region, Region>);
+        static_assert(!HasIntersection<RegionSet, RegionSet>);
+        static_assert(HasRegularizedIntersection<Rectangle, Region>);
+        static_assert(HasRegularizedIntersection<Region, Rectangle>);
+        static_assert(HasRegularizedIntersection<Region, Region>);
+        static_assert(HasRegularizedIntersection<RegionSet, RegionSet>);
     }
 
     SUBCASE("an unsupported pair throws instead of failing to compile") {
@@ -1588,33 +1601,33 @@ TEST_CASE("A concrete shape takes a Shape argument on intersection and unionWith
         CHECK(std::is_same_v<decltype(result), const pgl::EmptyShape<Point>>);
     }
 
-    SUBCASE("unionWith forwards and answers as a PolygonSet") {
-        const auto result = rect.unionWith<int>(Shape(offset));
+    SUBCASE("regularizedUnion forwards and answers as a PolygonSet") {
+        const auto result = rect.regularizedUnion<int>(Shape(offset));
         CHECK(std::is_same_v<decltype(result), const RegionSet>);
-        CHECK(result == rect.unionWith<int>(offset));          // same as the concrete call
-        CHECK(result == Shape(rect).unionWith<int>(offset));   // and as the wrapper's own
-        CHECK(big.unionWith<int>(Shape(rect)) == Shape(rect).unionWith<int>(big));
+        CHECK(result == rect.regularizedUnion<int>(offset));          // same as the concrete call
+        CHECK(result == Shape(rect).regularizedUnion<int>(offset));   // and as the wrapper's own
+        CHECK(big.regularizedUnion<int>(Shape(rect)) == Shape(rect).regularizedUnion<int>(big));
     }
 
-    SUBCASE("unionWith throws when the wrapper turns out to hold a non-region") {
-        CHECK_THROWS_AS((void)rect.unionWith<int>(Shape(diagonal)), std::logic_error);
-        CHECK_THROWS_AS((void)big.unionWith<int>(Shape(Disk({0, 0}, 2))), std::logic_error);
+    SUBCASE("regularizedUnion throws when the wrapper turns out to hold a non-region") {
+        CHECK_THROWS_AS((void)rect.regularizedUnion<int>(Shape(diagonal)), std::logic_error);
+        CHECK_THROWS_AS((void)big.regularizedUnion<int>(Shape(Disk({0, 0}, 2))), std::logic_error);
     }
 
     SUBCASE("only the receivers that have a union at all gain the forwarder") {
         // A shape with no area can never have a set-valued union, whatever the
         // wrapper holds, so that stays a compile error rather than becoming a
         // call that is guaranteed to throw.
-        static_assert(!HasUnionWith<Segment, Shape>);
-        static_assert(!HasUnionWith<Disk, Shape>);
-        static_assert(!HasUnionWith<pgl::Halfplane<Point>, Shape>);
-        static_assert(!HasUnionWith<pgl::Polyline<Point>, Shape>);
-        static_assert(HasUnionWith<Rectangle, Shape>);
-        static_assert(HasUnionWith<pgl::Triangle<Point>, Shape>);
-        static_assert(HasUnionWith<Convex, Shape>);
-        static_assert(HasUnionWith<PolygonShape, Shape>);
-        static_assert(HasUnionWith<Region, Shape>);
-        static_assert(HasUnionWith<RegionSet, Shape>);
+        static_assert(!HasRegularizedUnion<Segment, Shape>);
+        static_assert(!HasRegularizedUnion<Disk, Shape>);
+        static_assert(!HasRegularizedUnion<pgl::Halfplane<Point>, Shape>);
+        static_assert(!HasRegularizedUnion<pgl::Polyline<Point>, Shape>);
+        static_assert(HasRegularizedUnion<Rectangle, Shape>);
+        static_assert(HasRegularizedUnion<pgl::Triangle<Point>, Shape>);
+        static_assert(HasRegularizedUnion<Convex, Shape>);
+        static_assert(HasRegularizedUnion<PolygonShape, Shape>);
+        static_assert(HasRegularizedUnion<Region, Shape>);
+        static_assert(HasRegularizedUnion<RegionSet, Shape>);
         // Every receiver with an intersection takes the wrapper, including the
         // ones whose only supported pair is a Point.
         static_assert(HasIntersection<Segment, Shape>);
@@ -1695,14 +1708,14 @@ TEST_CASE("A concrete shape takes a Shape argument on intersection and unionWith
         static_assert(!HasDifference<HalfplaneIntersection, Rectangle>);
         static_assert(!HasSymmetricDifference<Rectangle, Halfplane>);
         static_assert(!HasSymmetricDifference<Region, HalfplaneIntersection>);
-        static_assert(!HasUnionWith<Rectangle, Halfplane>);
+        static_assert(!HasRegularizedUnion<Rectangle, Halfplane>);
     }
 
     SUBCASE("a concrete argument does not reach the Shape overload by conversion") {
         // Shape's converting constructor is implicit, so the point type is
         // deduced from an actual Shape to keep a concrete pair on its own
         // overload — which still answers with the tight type, not a wrapper.
-        CHECK(std::is_same_v<decltype(rect.unionWith<int>(offset)), RegionSet>);
+        CHECK(std::is_same_v<decltype(rect.regularizedUnion<int>(offset)), RegionSet>);
         CHECK(std::is_same_v<decltype(rect.intersection<int>(offset)), std::optional<Rectangle>>);
     }
 }

@@ -130,7 +130,7 @@ ALL_METHODS = [
     "collinear",
     "parallel",
     "intersection",
-    "unionWith",
+    "regularizedUnion",
     "difference",
     "symmetricDifference",
     "minkowskiSum",
@@ -154,7 +154,7 @@ N_SHAPES = 100
 # sample instead. The generators are deterministic, so this is the first
 # N_CONSTRUCTION_SHAPES of the same shapes every other method sees.
 N_CONSTRUCTION_SHAPES = 20
-_CONSTRUCTION_METHODS = {"unionWith", "difference", "symmetricDifference"}
+_CONSTRUCTION_METHODS = {"regularizedUnion", "difference", "symmetricDifference"}
 
 # Wall-clock ceiling on the measured loop of a single generated program. The
 # cost per call spans six orders of magnitude across the cube — tens of ns for
@@ -256,9 +256,9 @@ def _cpp_accumulate(method: str) -> str:
                 " if constexpr (requires { r.has_value(); }) return r.has_value() ? 1 : 0;"
                 " else return r.empty() ? 0 : 1;"
                 " }(a.template intersection<N>(b));")
-    if method in {"unionWith", "difference", "symmetricDifference"}:
+    if method in {"regularizedUnion", "difference", "symmetricDifference"}:
         # The regularized boolean operations. Each returns the pieces of the
-        # result as a PolygonSet. `unionWith` is defined for every ordered pair
+        # result as a PolygonSet. `regularizedUnion` is defined for every ordered pair
         # of the six shapes that are bounded polygonal regions, each pair on the
         # higher-ranked of its operands with the lower-ranked one forwarding.
         # `difference` is not symmetric, so it has no forwarders at all and only

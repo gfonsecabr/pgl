@@ -172,8 +172,8 @@ TEST_CASE("Triangle unites with Convex into a set of regions") {
     const Triangle roof(Point(0, 4), Point(4, 4), Point(2, 6));
 
     SUBCASE("the union is the same set whichever operand receives it") {
-        const auto fromTriangle = roof.unionWith<int>(square);
-        const auto fromConvex = square.unionWith<int>(roof);
+        const auto fromTriangle = roof.regularizedUnion<int>(square);
+        const auto fromConvex = square.regularizedUnion<int>(roof);
         static_assert(std::is_same_v<decltype(fromTriangle), const pgl::PolygonSet<Point>>);
         static_assert(std::is_same_v<decltype(fromConvex), const pgl::PolygonSet<Point>>);
         CHECK(fromTriangle == fromConvex);
@@ -184,14 +184,14 @@ TEST_CASE("Triangle unites with Convex into a set of regions") {
 
     SUBCASE("a triangle inside the square leaves just the square") {
         const Triangle inner(Point(1, 1), Point(3, 1), Point(2, 3));
-        const auto result = inner.unionWith<int>(square);
+        const auto result = inner.regularizedUnion<int>(square);
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(square.asPolygon()));
     }
 
     SUBCASE("disjoint operands stay two components either way round") {
         const Triangle away(Point(10, 10), Point(12, 10), Point(10, 12));
-        CHECK(square.unionWith<int>(away).componentCount() == 2);
-        CHECK(away.unionWith<int>(square) == square.unionWith<int>(away));
+        CHECK(square.regularizedUnion<int>(away).componentCount() == 2);
+        CHECK(away.regularizedUnion<int>(square) == square.regularizedUnion<int>(away));
     }
 }

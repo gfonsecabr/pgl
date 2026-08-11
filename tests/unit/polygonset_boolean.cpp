@@ -34,7 +34,7 @@ TEST_CASE("The boolean operations return a PolygonSet") {
     }
 
     SUBCASE("a union of separated shapes keeps both") {
-        const auto result = outer.unionWith<int>(square(20, 20, 2));
+        const auto result = outer.regularizedUnion<int>(square(20, 20, 2));
         CHECK(result.componentCount() == 2);
         CHECK(result.twiceArea() == 200 + 8);
     }
@@ -46,7 +46,7 @@ TEST_CASE("The boolean operations return a PolygonSet") {
 
     SUBCASE("a region's own operations answer the same way") {
         const Region region(outer, std::vector{inner});
-        const auto result = region.unionWith<int>(inner);
+        const auto result = region.regularizedUnion<int>(inner);
         CHECK(std::is_same_v<decltype(result), const RegionSet>);
         REQUIRE(result.componentCount() == 1);
         CHECK(!result.component(0).hasHoles());
@@ -55,7 +55,7 @@ TEST_CASE("The boolean operations return a PolygonSet") {
 
     SUBCASE("the region-valued intersection") {
         const Region region(outer, std::vector{inner});
-        const auto result = region.intersection<int>(square(-1, -1, 20));
+        const auto result = region.regularizedIntersection<int>(square(-1, -1, 20));
         CHECK(std::is_same_v<decltype(result), const RegionSet>);
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == region);
@@ -80,7 +80,7 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
 
     SUBCASE("a set against a set") {
         const RegionSet other = square(8, 8, 10).difference<int>(square(11, 11, 4));
-        const auto united = holed.unionWith<int>(other);
+        const auto united = holed.regularizedUnion<int>(other);
         CHECK(std::is_same_v<decltype(united), const RegionSet>);
         CHECK(united.componentCount() == 1);
         // The two overlap on [8,10]x[8,10], which neither of them holes out.
@@ -88,7 +88,7 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
     }
 
     SUBCASE("a set intersected with itself is itself") {
-        CHECK(holed.intersection<int>(holed) == holed);
+        CHECK(holed.regularizedIntersection<int>(holed) == holed);
     }
 
     SUBCASE("a set differenced from itself is empty") {
@@ -97,12 +97,12 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
     }
 
     SUBCASE("a union with itself is idempotent") {
-        CHECK(holed.unionWith<int>(holed) == holed);
+        CHECK(holed.regularizedUnion<int>(holed) == holed);
     }
 
     SUBCASE("a multi-component receiver goes in whole") {
         const RegionSet apart(std::vector{Region(square(0, 0, 2)), Region(square(5, 5, 2))});
-        const auto shifted = apart.unionWith<int>(square(1, 0, 2));
+        const auto shifted = apart.regularizedUnion<int>(square(1, 0, 2));
         // The first component grows and the second is untouched.
         REQUIRE(shifted.componentCount() == 2);
         CHECK(shifted.twiceArea() == 2 * (4 + 2 + 4));
@@ -112,18 +112,18 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
     }
 
     SUBCASE("every area operand is accepted") {
-        CHECK(!holed.intersection<int>(pgl::Rectangle<Point>(Point(0, 0), Point(2, 2))).empty());
-        CHECK(!holed.intersection<int>(pgl::Triangle<Point>(Point(0, 0), Point(2, 0), Point(0, 2)))
+        CHECK(!holed.regularizedIntersection<int>(pgl::Rectangle<Point>(Point(0, 0), Point(2, 2))).empty());
+        CHECK(!holed.regularizedIntersection<int>(pgl::Triangle<Point>(Point(0, 0), Point(2, 0), Point(0, 2)))
                    .empty());
-        CHECK(!holed.intersection<int>(pgl::Convex<Point>({0, 0, 2, 0, 2, 2, 0, 2})).empty());
-        CHECK(!holed.intersection<int>(Region(square(0, 0, 2))).empty());
+        CHECK(!holed.regularizedIntersection<int>(pgl::Convex<Point>({0, 0, 2, 0, 2, 2, 0, 2})).empty());
+        CHECK(!holed.regularizedIntersection<int>(Region(square(0, 0, 2))).empty());
     }
 
     SUBCASE("an unbounded operand is clipped to the set first") {
-        const auto half = holed.intersection<int>(pgl::Halfplane<Point>(Point(0, 0), Point(1, 0)));
+        const auto half = holed.regularizedIntersection<int>(pgl::Halfplane<Point>(Point(0, 0), Point(1, 0)));
         CHECK(half.componentCount() == 1);
         CHECK(half.twiceArea() == 200 - 32);
-        const auto below = holed.intersection<int>(pgl::Halfplane<Point>(Point(1, 0), Point(0, 0)));
+        const auto below = holed.regularizedIntersection<int>(pgl::Halfplane<Point>(Point(1, 0), Point(0, 0)));
         CHECK(below.empty());
     }
 
@@ -131,15 +131,15 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
         // The pair is defined on the set, and the lower-ranked receiver hands it
         // over, so the answer does not depend on which side the set is.
         const PolygonShape cap = square(0, 0, 10);
-        const auto fromPolygon = cap.unionWith<int>(holed);
+        const auto fromPolygon = cap.regularizedUnion<int>(holed);
         CHECK(std::is_same_v<decltype(fromPolygon), const RegionSet>);
-        CHECK(fromPolygon == holed.unionWith<int>(cap));
+        CHECK(fromPolygon == holed.regularizedUnion<int>(cap));
         CHECK(fromPolygon.twiceArea() == 200);  // the hole is filled back in
 
         const Region region(square(0, 0, 4), std::vector{square(1, 1, 2)});
-        const auto fromRegion = region.unionWith<int>(holed);
+        const auto fromRegion = region.regularizedUnion<int>(holed);
         CHECK(std::is_same_v<decltype(fromRegion), const RegionSet>);
-        CHECK(fromRegion == holed.unionWith<int>(region));
+        CHECK(fromRegion == holed.regularizedUnion<int>(region));
         // The region's own hole [1,3]x[1,3] is covered by the set, and all the
         // region adds is the corner [3,4]x[3,4] of the set's hole.
         CHECK(fromRegion.twiceArea() == 200 - 32 + 2 * 1);
@@ -147,7 +147,7 @@ TEST_CASE("The boolean operations are closed over PolygonSet") {
 
     SUBCASE("a disjoint operand leaves an intersection empty and a difference whole") {
         const PolygonShape elsewhere = square(50, 50, 2);
-        CHECK(holed.intersection<int>(elsewhere).empty());
+        CHECK(holed.regularizedIntersection<int>(elsewhere).empty());
         CHECK(holed.difference<int>(elsewhere) == holed);
     }
 }

@@ -1258,6 +1258,17 @@ struct Triangle {
         return other.template intersection<ResultNumber>(*this);
     }
 
+    /** @brief Forwards a regularized intersection to the shape that owns it. */
+    template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
+        requires (!PointConcept<OtherShape>
+                  && (detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
+                  && requires(const OtherShape& o, const Triangle& self) {
+                         o.template regularizedIntersection<ResultNumber>(self);
+                     })
+    [[nodiscard]] constexpr auto regularizedIntersection(const OtherShape& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
+    }
+
     /** @brief Returns the intersection of the two shapes (A ∩ B), empty when they are disjoint. */
     template <class ResultNumber = NumberType, class EmptyPoint>
     [[nodiscard]] constexpr EmptyShape<EmptyPoint> intersection(const EmptyShape<EmptyPoint>&) const {
@@ -1411,28 +1422,34 @@ struct Triangle {
         return other.template intersection<ResultNumber>(*this);
     }
 
+    /** @brief Re-dispatches a regularized intersection through a runtime shape. */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto regularizedIntersection(const Shape<OtherPoint>& other) const {
+        return other.template regularizedIntersection<ResultNumber>(*this);
+    }
+
     /**
      * @brief Returns the regularized union of the two shapes (A ∪ B),
-     *        re-dispatching through the wrapper's own `unionWith`.
+     *        re-dispatching through the wrapper's own `regularizedUnion`.
      *
-     * A union is symmetric, so this just calls @p other's own `unionWith`, which
+     * A union is symmetric, so this just calls @p other's own `regularizedUnion`, which
      * visits its wrapped alternative and throws if the pair is unsupported —
      * here, whenever @p other turns out to hold anything but a bounded polygonal
-     * region. See @ref Polygon::unionWith for the contract.
+     * region. See @ref Polygon::regularizedUnion for the contract.
      *
      * The point type is deduced from @p other so a plain concrete shape cannot
      * reach this overload through an implicit conversion to `Shape`.
      */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
-    [[nodiscard]] auto unionWith(const Shape<OtherPoint>& other) const {
-        return other.template unionWith<ResultNumber>(*this);
+    [[nodiscard]] auto regularizedUnion(const Shape<OtherPoint>& other) const {
+        return other.template regularizedUnion<ResultNumber>(*this);
     }
 
     /**
      * @brief Returns the regularized set difference of the two shapes (A ∖ B),
      *        re-dispatching through the wrapper's own `difference`.
      *
-     * A difference is not symmetric, so unlike @ref unionWith this cannot be
+     * A difference is not symmetric, so unlike @ref regularizedUnion this cannot be
      * handed to @p other as it stands. It wraps this shape instead and lets the
      * wrapper visit both sides, which throws if the pair is unsupported — here,
      * whenever @p other turns out to hold anything without area, or a `Disk`.
@@ -1725,7 +1742,7 @@ struct Triangle {
      * — so it answers with a set of regions like every other union. A triangle
      * owns this pair and the one with a @ref Rectangle, being the higher-ranked
      * of the two; the pairs with an operand above it are defined there and
-     * reached through the forwarding overload below. See @ref Polygon::unionWith
+     * reached through the forwarding overload below. See @ref Polygon::regularizedUnion
      * for the contract.
      *
      * @tparam ResultNumber The number type for the result.
@@ -1734,34 +1751,34 @@ struct Triangle {
      */
     template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
-    unionWith(const OtherTriangle& other) const;
+    regularizedUnion(const OtherTriangle& other) const;
 
     /** @brief Returns the regularized union of the two shapes (A ∪ B). */
     template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
-    unionWith(const OtherRectangle& other) const;
+    regularizedUnion(const OtherRectangle& other) const;
 
     /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * Forwards to the other shape's implementation so that each unordered pair
-     * needs `unionWith` defined only once, on the higher-ranked shape. See
-     * @ref Polygon::unionWith for the contract.
+     * needs `regularizedUnion` defined only once, on the higher-ranked shape. See
+     * @ref Polygon::regularizedUnion for the contract.
      */
     template <class ResultNumber = division_result_t<NumberType>, typename OtherShape>
         requires ((detail::shapeRank<OtherShape> > detail::shapeRank<Triangle>)
                   && requires(const OtherShape& o, const Triangle& self) {
-                         o.template unionWith<ResultNumber>(self);
+                         o.template regularizedUnion<ResultNumber>(self);
                      })
-    [[nodiscard]] auto unionWith(const OtherShape& other) const {
-        return other.template unionWith<ResultNumber>(*this);
+    [[nodiscard]] auto regularizedUnion(const OtherShape& other) const {
+        return other.template regularizedUnion<ResultNumber>(*this);
     }
 
     /**
      * @brief Returns the regularized set difference of the two shapes (A ∖ B).
      *
      * A difference is not symmetric, so there is no higher-ranked operand to
-     * hand the pair to the way @ref unionWith does: a triangle has to state it
+     * hand the pair to the way @ref regularizedUnion does: a triangle has to state it
      * against every region itself. It states it once, over all six of them, by
      * going through its polygon spelling — the same conversion every other
      * operation makes, and one that costs nothing, the three vertices already
@@ -1780,7 +1797,7 @@ struct Triangle {
      * @brief Returns the regularized set difference of the two shapes (A ∖ B).
      *
      * A half-plane intersection may be unbounded, which stops it being a
-     * @ref unionWith operand but not a subtrahend: `A ∖ B` is bounded whenever
+     * @ref regularizedUnion operand but not a subtrahend: `A ∖ B` is bounded whenever
      * `A` is, however far `B` reaches, so a `PolygonSet` can hold it. See
      * @ref PolygonWithHoles::difference(const OtherIntersection&) const for the
      * clip that bounds it and for the rest of the contract.

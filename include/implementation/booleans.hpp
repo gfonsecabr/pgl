@@ -885,112 +885,112 @@ Convex<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Rectangle<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Rectangle<PointType_, TLabel>::regularizedUnion(const OtherRectangle& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Triangle<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Triangle<PointType_, TLabel>::regularizedUnion(const OtherTriangle& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Triangle<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Triangle<PointType_, TLabel>::regularizedUnion(const OtherRectangle& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Convex<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Convex<PointType_, TLabel>::regularizedUnion(const OtherConvex& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Convex<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Convex<PointType_, TLabel>::regularizedUnion(const OtherTriangle& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Convex<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
-    return asPolygon().template unionWith<ResultNumber>(other);
+Convex<PointType_, TLabel>::regularizedUnion(const OtherRectangle& other) const {
+    return asPolygon().template regularizedUnion<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Polygon<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
+Polygon<PointType_, TLabel>::regularizedUnion(const OtherPolygon& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Polygon<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
-    return this->template unionWith<ResultNumber>(other.asPolygon());
+Polygon<PointType_, TLabel>::regularizedUnion(const OtherConvex& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Polygon<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
-    return this->template unionWith<ResultNumber>(other.asConvex());
+Polygon<PointType_, TLabel>::regularizedUnion(const OtherTriangle& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Polygon<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
-    return this->template unionWith<ResultNumber>(other.asConvex());
+Polygon<PointType_, TLabel>::regularizedUnion(const OtherRectangle& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-Polygon<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
+Polygon<PointType_, TLabel>::regularizedUnion(const OtherRegion& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherPolygon& other) const {
+PolygonWithHoles<PointType_, TLabel>::regularizedUnion(const OtherPolygon& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherConvex& other) const {
-    return this->template unionWith<ResultNumber>(other.asPolygon());
+PolygonWithHoles<PointType_, TLabel>::regularizedUnion(const OtherConvex& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherTriangle& other) const {
-    return this->template unionWith<ResultNumber>(other.asConvex());
+PolygonWithHoles<PointType_, TLabel>::regularizedUnion(const OtherTriangle& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRectangle& other) const {
-    return this->template unionWith<ResultNumber>(other.asConvex());
+PolygonWithHoles<PointType_, TLabel>::regularizedUnion(const OtherRectangle& other) const {
+    return this->template regularizedUnion<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
+PolygonWithHoles<PointType_, TLabel>::regularizedUnion(const OtherRegion& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
@@ -1114,42 +1114,42 @@ PolygonWithHoles<PointType_, TLabel>::symmetricDifference(const OtherRegion& oth
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPolygon& other) const {
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherPolygon& other) const {
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, ConvexConcept OtherConvex>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherConvex& other) const {
-    return this->template intersection<ResultNumber>(other.asPolygon());
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherConvex& other) const {
+    return this->template regularizedIntersection<ResultNumber>(other.asPolygon());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, TriangleConcept OtherTriangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherTriangle& other) const {
-    return this->template intersection<ResultNumber>(other.asConvex());
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherTriangle& other) const {
+    return this->template regularizedIntersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, RectangleConcept OtherRectangle>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRectangle& other) const {
-    return this->template intersection<ResultNumber>(other.asConvex());
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherRectangle& other) const {
+    return this->template regularizedIntersection<ResultNumber>(other.asConvex());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRegion& other) const {
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherRegion& other) const {
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherIntersection& other) const {
     using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
     // Neither a region without area nor a half-plane intersection without
     // interior can contribute to closure(A° ∩ B°).
@@ -1161,14 +1161,14 @@ PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& othe
     if (clipped.isDegenerate()) {
         return {};
     }
-    return this->template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+    return this->template regularizedIntersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonWithHoles<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
-    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
+PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return this->template regularizedIntersection<ResultNumber>(other.asHalfplaneIntersection());
 }
 
 
@@ -1192,7 +1192,7 @@ PolygonSet<PointType_, TLabel>::difference(const OtherShape& other) const {
 template <class PointType_, class TLabel>
 template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonSet<PointType_, TLabel>::unionWith(const OtherShape& other) const {
+PolygonSet<PointType_, TLabel>::regularizedUnion(const OtherShape& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(
         *this, detail::booleanOperand(other));
 }
@@ -1200,7 +1200,7 @@ PolygonSet<PointType_, TLabel>::unionWith(const OtherShape& other) const {
 template <class PointType_, class TLabel>
 template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonSet<PointType_, TLabel>::intersection(const OtherShape& other) const {
+PolygonSet<PointType_, TLabel>::regularizedIntersection(const OtherShape& other) const {
     return detail::regularizedIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
         *this, detail::booleanOperand(other));
 }
@@ -1216,7 +1216,7 @@ PolygonSet<PointType_, TLabel>::symmetricDifference(const OtherShape& other) con
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonSet<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+PolygonSet<PointType_, TLabel>::regularizedIntersection(const OtherIntersection& other) const {
     using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
     // Neither a set without area nor a half-plane intersection without interior
     // can contribute to closure(A° ∩ B°).
@@ -1228,14 +1228,14 @@ PolygonSet<PointType_, TLabel>::intersection(const OtherIntersection& other) con
     if (clipped.isDegenerate()) {
         return {};
     }
-    return this->template intersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
+    return this->template regularizedIntersection<ResultNumber>(clipped.template asConvex<ExactNumber>());
 }
 
 template <class PointType_, class TLabel>
 template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
-PolygonSet<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
-    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
+PolygonSet<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
+    return this->template regularizedIntersection<ResultNumber>(other.asHalfplaneIntersection());
 }
 
 }  // namespace pgl

@@ -750,20 +750,13 @@ struct Shape {
      *   wrap their (possibly unbounded or empty) `HalfplaneIntersection`
      *   result. A `HalfplaneIntersection` against a `Polygon` wraps the single
      *   component of its component vector, in either order. A
-     *   `PolygonWithHoles` or a `PolygonSet` against a `Rectangle`, `Triangle`,
-     *   `Convex`, `Polygon`, `Halfplane`, `HalfplaneIntersection`,
-     *   `PolygonWithHoles`, or `PolygonSet` wraps its regularized region-valued
-     *   result: the single component when the intersection stays in one piece,
-     *   and the whole `PolygonSet` when it comes apart into several — which is
-     *   the reason a set is an alternative here at all. Those pairs answer in
-     *   either order except with a `Polygon` on the left, whose
-     *   own `Polygon`-valued `intersection` leaves no rank forwarder to reach
-     *   the region's. Against a one-dimensional alternative — a `Point`,
+     *   `PolygonWithHoles` against a one-dimensional alternative — a `Point`,
      *   `Segment`, `OrientedSegment`, `Line`, `OrientedLine`, `Ray`,
      *   `MonotoneChain` or `Polyline` — a `PolygonWithHoles` wraps the single
      *   point-or-segment piece instead, in either order, and throws when there
      *   are several, a hole being exactly what makes that likely; a `PolygonSet`
-     *   has no such overload and always throws there.
+     *   has no literal overload and always throws. Region-valued intersections
+     *   use the separately named @ref regularizedIntersection.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
@@ -786,11 +779,42 @@ struct Shape {
     }
 
     /**
-     * @brief Returns the regularized union of the two shapes (A ∪ B).
+     * @brief Returns the regularized intersection of two region-valued shapes.
+     *
+     * Visits the stored alternative and delegates to the concrete
+     * `regularizedIntersection`. The result is
+     * `closure(A° ∩ B°)` as a @ref PolygonSet; lower-dimensional contacts
+     * are discarded. See @ref PolygonWithHoles::regularizedIntersection for the
+     * full contract.
+     *
+     * @throws std::logic_error when the selected pair has no region-valued
+     * regularized intersection.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class Other>
+        requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersection(const Other& other) const {
+        if constexpr (detail::is_shape_v<Other>) {
+            return std::visit(
+                [](const auto& left, const auto& right) {
+                    return regularizedIntersectionOf<ResultNumber>(left, right);
+                },
+                value_,
+                other.variant());
+        } else {
+            return std::visit(
+                [&other](const auto& left) {
+                    return regularizedIntersectionOf<ResultNumber>(left, other);
+                },
+                value_);
+        }
+    }
+
+    /**
+     * @brief Returns the regularized union `closure(A° ∪ B°)`.
      *
      * Visits the stored alternative (and @p other when it is itself a `Shape`)
-     * and delegates to the concrete `unionWith` requesting @p ResultNumber
-     * coordinates. See @ref Polygon::unionWith for the contract.
+     * and delegates to the concrete `regularizedUnion` requesting @p ResultNumber
+     * coordinates. See @ref Polygon::regularizedUnion for the contract.
      *
      * Unlike @ref intersection this does not re-wrap its answer, because it does
      * not have to: every pair that has a union at all answers with a
@@ -817,18 +841,18 @@ struct Shape {
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
-    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> unionWith(const Other& other) const {
+    [[nodiscard]] PolygonSet<Point<ResultNumber, LabelType>> regularizedUnion(const Other& other) const {
         if constexpr (detail::is_shape_v<Other>) {
             return std::visit(
                 [](const auto& left, const auto& right) {
-                    return unionOf<ResultNumber>(left, right);
+                    return regularizedUnionOf<ResultNumber>(left, right);
                 },
                 value_,
                 other.variant());
         } else {
             return std::visit(
                 [&other](const auto& left) {
-                    return unionOf<ResultNumber>(left, other);
+                    return regularizedUnionOf<ResultNumber>(left, other);
                 },
                 value_);
         }
@@ -841,14 +865,14 @@ struct Shape {
      * and delegates to the concrete `difference` requesting @p ResultNumber
      * coordinates. See @ref Polygon::difference for the contract.
      *
-     * Like @ref unionWith and unlike @ref intersection this does not re-wrap its
+     * Like @ref regularizedUnion and unlike @ref intersection this does not re-wrap its
      * answer: every pair that has a difference at all answers with a
      * @ref PolygonSet, so the static type is already exact.
      *
      * This is the one of the three that is **not** symmetric, and the one whose
      * grid is therefore not square. `A ∖ B` is contained in `A`, so it is
      * bounded as soon as the *receiver* is, however far `B` reaches — which is
-     * why an unbounded subtrahend is accepted here where @ref unionWith cannot
+     * why an unbounded subtrahend is accepted here where @ref regularizedUnion cannot
      * take one on either side.
      *
      * @tparam ResultNumber Coordinate type of the result (defaults to
@@ -892,7 +916,7 @@ struct Shape {
      * and delegates to the concrete `symmetricDifference` requesting
      * @p ResultNumber coordinates. See @ref Polygon::symmetricDifference for the
      * contract. It answers with a @ref PolygonSet on the same grid, and throws
-     * off it, exactly as @ref unionWith and @ref difference do.
+     * off it, exactly as @ref regularizedUnion and @ref difference do.
      *
      * @tparam ResultNumber Coordinate type of the result (defaults to
      *   @ref division_result_t for this wrapper's coordinate type).
@@ -901,7 +925,7 @@ struct Shape {
      * @return The pieces of the symmetric difference, in canonical order.
      * @throws std::logic_error when the pair selected at run time has no
      *   symmetric difference a `PolygonSet` can hold, which is the same set of
-     *   pairs @ref unionWith throws on.
+     *   pairs @ref regularizedUnion throws on.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
@@ -1448,11 +1472,26 @@ struct Shape {
         }
     }
 
+    // Compute a regularized region intersection. Unlike literal intersection,
+    // the empty shape is not a specially supported operand: this dispatcher
+    // mirrors the concrete regularizedIntersection overload grid exactly.
+    template <class ResultNumber, class Left, class Right>
+    static PolygonSet<Point<ResultNumber, LabelType>> regularizedIntersectionOf(
+        const Left& left, const Right& right) {
+        if constexpr (requires { left.template regularizedIntersection<ResultNumber>(right); }) {
+            return left.template regularizedIntersection<ResultNumber>(right);
+        } else {
+            throw std::logic_error(
+                "Shape::regularizedIntersection is not defined for this shape pair");
+        }
+    }
+
     // Unite two unwrapped alternatives. The probe is SFINAE-safe and
     // self-maintaining in the same way intersectionOf's is, and here it lands
-    // exactly on the pairs of bounded polygonal regions: those define unionWith
-    // for every ordered pair between them, each on the higher-ranked operand with
-    // the lower-ranked one forwarding, and nothing else defines it at all.
+    // exactly on the pairs of bounded polygonal regions: those define
+    // regularizedUnion for every ordered pair between them, each on the
+    // higher-ranked operand with the lower-ranked one forwarding, and nothing
+    // else defines it at all.
     //
     // There is no EmptyShape short circuit as there is above. The empty set is
     // the identity of a union rather than its absorber, so `empty ∪ A` would have
@@ -1460,19 +1499,19 @@ struct Shape {
     // and would then be a special case reachable no other way. It takes the
     // throw with everything else instead.
     template <class ResultNumber, class Left, class Right>
-    static PolygonSet<Point<ResultNumber, LabelType>> unionOf(const Left& left, const Right& right) {
-        if constexpr (requires { left.template unionWith<ResultNumber>(right); }) {
-            return left.template unionWith<ResultNumber>(right);
+    static PolygonSet<Point<ResultNumber, LabelType>> regularizedUnionOf(const Left& left, const Right& right) {
+        if constexpr (requires { left.template regularizedUnion<ResultNumber>(right); }) {
+            return left.template regularizedUnion<ResultNumber>(right);
         } else {
-            throw std::logic_error("Shape::unionWith is not defined for this shape pair");
+            throw std::logic_error("Shape::regularizedUnion is not defined for this shape pair");
         }
     }
 
     // Remove one unwrapped alternative from another, and take the same
     // regularized parts as the two above. The probe lands on the same grid of
-    // bounded polygonal regions unionOf's does, but by a different route: a
-    // difference is not symmetric, so nothing forwards, and every one of the
-    // thirty-six ordered pairs is stated on its own receiver.
+    // bounded polygonal regions regularizedUnionOf's does, but by a different
+    // route: a difference is not symmetric, so nothing forwards, and every one
+    // of the thirty-six ordered pairs is stated on its own receiver.
     //
     // The empty set is no more a special case here than it is above, and for a
     // sharper reason: `A ∖ empty` is A, which is a PolygonSet only when A is a

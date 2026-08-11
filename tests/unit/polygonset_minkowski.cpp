@@ -105,13 +105,13 @@ TEST_CASE("A set receiver sums component by component") {
     // union of the component sums — which is also the whole construction.
     const PolygonShape left({0, 0, 4, 0, 4, 4, 0, 4});
     const PolygonShape right({10, 0, 14, 0, 14, 4, 10, 4});
-    const auto set = left.unionWith<int>(right);
+    const auto set = left.regularizedUnion<int>(right);
     REQUIRE(set.componentCount() == 2);
 
     const RectangleShape unit(Point(0, 0), Point(1, 1));
     const auto grown = set.minkowskiSum<int>(unit);
     CHECK(std::is_same_v<decltype(grown), const RegionSet>);
-    CHECK(grown == left.minkowskiSum<int>(unit).unionWith<int>(right.minkowskiSum<int>(unit)));
+    CHECK(grown == left.minkowskiSum<int>(unit).regularizedUnion<int>(right.minkowskiSum<int>(unit)));
     CHECK(grown.twiceArea() == 2 * 2 * 25);
 
     SUBCASE("components stay apart or merge, on the operand's size alone") {
@@ -164,7 +164,7 @@ TEST_CASE("A Minkowski sum feeds back into the boolean operations") {
     }
 
     SUBCASE("and it can be grown again") {
-        const auto twice = grown.difference<int>(square).unionWith<int>(square);
+        const auto twice = grown.difference<int>(square).regularizedUnion<int>(square);
         REQUIRE(twice.componentCount() == 1);
         CHECK(twice.component(0) == grown);
     }

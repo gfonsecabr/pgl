@@ -163,8 +163,8 @@ TEST_CASE("Rectangle unites with Convex into a set of regions") {
     const Convex offset(std::vector<Point>{{2, 2}, {6, 2}, {6, 6}, {2, 6}});
 
     SUBCASE("the union is the same set whichever operand receives it") {
-        const auto fromRect = rect.unionWith<int>(offset);
-        const auto fromConvex = offset.unionWith<int>(rect);
+        const auto fromRect = rect.regularizedUnion<int>(offset);
+        const auto fromConvex = offset.regularizedUnion<int>(rect);
         static_assert(std::is_same_v<decltype(fromRect), const pgl::PolygonSet<Point>>);
         static_assert(std::is_same_v<decltype(fromConvex), const pgl::PolygonSet<Point>>);
         CHECK(fromRect == fromConvex);
@@ -175,14 +175,14 @@ TEST_CASE("Rectangle unites with Convex into a set of regions") {
 
     SUBCASE("a covered rectangle leaves just the cover") {
         const Convex big(std::vector<Point>{{-1, -1}, {9, -1}, {9, 9}, {-1, 9}});
-        const auto result = rect.unionWith<int>(big);
+        const auto result = rect.regularizedUnion<int>(big);
         REQUIRE(result.componentCount() == 1);
         CHECK(result.component(0) == pgl::PolygonWithHoles<Point>(big.asPolygon()));
     }
 
     SUBCASE("disjoint operands stay two components either way round") {
         const Convex away(std::vector<Point>{{10, 10}, {13, 10}, {13, 13}, {10, 13}});
-        CHECK(rect.unionWith<int>(away).componentCount() == 2);
-        CHECK(away.unionWith<int>(rect) == rect.unionWith<int>(away));
+        CHECK(rect.regularizedUnion<int>(away).componentCount() == 2);
+        CHECK(away.regularizedUnion<int>(rect) == rect.regularizedUnion<int>(away));
     }
 }
