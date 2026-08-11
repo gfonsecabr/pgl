@@ -1579,10 +1579,12 @@ TEST_CASE("A concrete shape takes a Shape argument on intersections and regulari
     SUBCASE("regularized intersection forwards separately") {
         CHECK(Region(big).regularizedIntersection<int>(Shape(rect)) ==
               Shape(rect).regularizedIntersection<int>(Region(big)));
-        static_assert(!HasIntersection<Rectangle, Region>);
-        static_assert(!HasIntersection<Region, Rectangle>);
-        static_assert(!HasIntersection<Region, Region>);
-        static_assert(!HasIntersection<RegionSet, RegionSet>);
+        // A region pair answers under both names: the literal one keeps the
+        // lower-dimensional contacts the regularized one drops.
+        static_assert(HasIntersection<Rectangle, Region>);
+        static_assert(HasIntersection<Region, Rectangle>);
+        static_assert(HasIntersection<Region, Region>);
+        static_assert(HasIntersection<RegionSet, RegionSet>);
         static_assert(HasRegularizedIntersection<Rectangle, Region>);
         static_assert(HasRegularizedIntersection<Region, Rectangle>);
         static_assert(HasRegularizedIntersection<Region, Region>);

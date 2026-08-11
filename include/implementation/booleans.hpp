@@ -47,12 +47,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <cstddef>
 #include <limits>
 #include <map>
 #include <ranges>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace pgl {
@@ -254,24 +256,23 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
 }
 
 /**
- * @brief Builds an arrangement of cuts, classifies its bounded faces by witness,
- *        then extracts the selected cells.
+ * @brief The arrangement of the cuts together with a box strictly containing
+ *        them.
+ *
+ * The box makes the region around the operands a face like any other rather
+ * than the unbounded one. The arrangement no longer needs it — the unbounded
+ * face is never kept, every operand being bounded — but it costs four edges and
+ * one classifier call, and keeping it leaves the engine's behaviour exactly as
+ * it was. Nothing on the box can belong to any answer: it misses every operand.
+ *
+ * @pre @p cuts is not empty.
  */
-template <class ResultPoint, class ExactPoint, class KeepWitness>
-PolygonSet<ResultPoint> regularizedCells(
-    const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
+template <class ExactPoint>
+Arrangement<ExactPoint> framedArrangement(const std::vector<Segment<ExactPoint>>& cuts) {
     using ExactNumber = typename ExactPoint::NumberType;
     using ExactSegment = Segment<ExactPoint>;
 
-    if (cuts.empty()) {
-        return {};  // no operand has an edge, so none has area
-    }
-
-    // A box strictly containing every operand, so that the region around them is
-    // a face like any other rather than the unbounded one. The arrangement no
-    // longer needs it — the unbounded face is never kept, every operand being
-    // bounded — but it costs four edges and one classifier call, and keeping it
-    // leaves the engine's behaviour exactly as it was.
+    assert(!cuts.empty());
     ExactNumber loX = cuts.front().min().x();
     ExactNumber loY = cuts.front().min().y();
     ExactNumber hiX = loX;
@@ -292,8 +293,23 @@ PolygonSet<ResultPoint> regularizedCells(
     for (std::size_t i = 0; i < corners.size(); ++i) {
         segments.emplace_back(corners[i], corners[(i + 1) % corners.size()]);
     }
+    return Arrangement<ExactPoint>(segments);
+}
 
-    const Arrangement<ExactPoint> arrangement(segments);
+/**
+ * @brief Builds an arrangement of cuts, classifies its bounded faces by witness,
+ *        then extracts the selected cells.
+ */
+template <class ResultPoint, class ExactPoint, class KeepWitness>
+PolygonSet<ResultPoint> regularizedCells(
+    const std::vector<Segment<ExactPoint>>& cuts, KeepWitness keepWitness) {
+    using ExactNumber = typename ExactPoint::NumberType;
+
+    if (cuts.empty()) {
+        return {};  // no operand has an edge, so none has area
+    }
+
+    const Arrangement<ExactPoint> arrangement = framedArrangement(cuts);
     using FaceId = typename Arrangement<ExactPoint>::FaceId;
     std::vector<char> keep(arrangement.faceCount(), 0);
     for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
@@ -571,6 +587,215 @@ PolygonSet<ResultPoint> regularizedIntersection(const ShapeA& a, const ShapeB& b
         return {};
     }
     return regularizedBoolean<ResultPoint>(a, b, [](bool inA, bool inB) { return inA && inB; });
+}
+
+/**
+ * @brief The literal (unregularized) intersection `A ∩ B` of two bounded
+ *        polygonal operands, as its connected pieces.
+ *
+ * Where @ref regularizedIntersection answers `closure(A° ∩ B°)` and drops
+ * everything of lower dimension, this answers the point set itself: the regions
+ * the regularized form returns, *plus* the stretches of shared boundary neither
+ * operand covers on both sides and the isolated points where the two boundaries
+ * only touch. It is the counterpart, one dimension up in its operands, of
+ * @ref pgl::Polygon::intersection(const OtherPolygon&) const — and the reason
+ * its area pieces are regions rather than polygons is the one that header note
+ * gives: a component of `A ∩ B` gains a hole exactly when an operand has one.
+ *
+ * The engine is the same cell decomposition the regularized operations use, read
+ * for all three dimensions at once. In the @ref pgl::Arrangement of both
+ * boundaries, membership in each operand is constant on every face, so
+ *
+ * - a **face** belongs to the answer when its witness lies in both operands, and
+ *   the faces that do are exactly the regularized result;
+ * - an **edge** contributes material no region piece already holds exactly when
+ *   its midpoint lies in both operands and *neither* face beside it is kept —
+ *   with one side kept the edge is on a region piece's boundary, with both it is
+ *   interior to one;
+ * - a **vertex** is an isolated contact point when it lies in both operands and
+ *   neither a kept face nor such an edge touches it.
+ *
+ * The surviving edges are then assembled into polylines: the open strands are
+ * peeled from their loose ends, and whatever closes up on itself comes back as a
+ * polyline repeating its first vertex last. A strand hanging off a region piece
+ * is a piece of its own, as it is for two polygons.
+ *
+ * Everything is computed over exact rationals and converted once, so an integral
+ * answer comes back integral however the intermediate crossings looked.
+ */
+template <class ResultPoint, class ShapeA, class ShapeB>
+std::vector<std::variant<ResultPoint, Polyline<ResultPoint>, PolygonWithHoles<ResultPoint>>>
+literalIntersection(const ShapeA& a, const ShapeB& b) {
+    using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    using ResultPolyline = Polyline<ResultPoint>;
+    using ResultRegion = PolygonWithHoles<ResultPoint>;
+    using Piece = std::variant<ResultPoint, ResultPolyline, ResultRegion>;
+
+    std::vector<Piece> pieces;
+    // Boxes that miss each other settle the whole answer, this time including
+    // the boundaries: the boxes are closed, so a shared point of the operands
+    // would be a shared point of them.
+    if (a.empty() || b.empty() || !a.bbox().intersects(b.bbox())) {
+        return pieces;
+    }
+
+    std::vector<Segment<ExactPoint>> cuts;
+    appendCutSegments<ExactPoint>(a, cuts);
+    const std::size_t cutsOfA = cuts.size();
+    appendCutSegments<ExactPoint>(b, cuts);
+    // An operand whose every edge has zero length has collapsed onto a single
+    // point — its own bounding box — which the arrangement below would never see
+    // as a vertex, there being no edge to carry it.
+    if (cutsOfA == 0) {
+        const ExactPoint vertex(a.bbox().min());
+        if (b.contains(vertex)) {
+            pieces.emplace_back(ResultPoint(vertex));
+        }
+        return pieces;
+    }
+    if (cuts.size() == cutsOfA) {
+        const ExactPoint vertex(b.bbox().min());
+        if (a.contains(vertex)) {
+            pieces.emplace_back(ResultPoint(vertex));
+        }
+        return pieces;
+    }
+
+    const Arrangement<ExactPoint> arrangement = framedArrangement(cuts);
+    using FaceId = typename Arrangement<ExactPoint>::FaceId;
+    using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
+    using VertexId = typename Arrangement<ExactPoint>::VertexId;
+
+    std::vector<char> keep(arrangement.faceCount(), 0);
+    for (std::uint32_t i = 0; i < arrangement.faceCount(); ++i) {
+        const FaceId f(i);
+        if (!arrangement.isUnbounded(f)) {
+            const ExactPoint witness = arrangement.template witness<ExactNumber>(f);
+            keep[f.index()] = static_cast<char>(a.contains(witness) && b.contains(witness));
+        }
+    }
+
+    // The strands, as an undirected graph on the arrangement's own vertices.
+    std::vector<std::uint32_t> strandDegree(arrangement.vertexCount(), 0);
+    std::vector<std::vector<std::uint32_t>> adjacency(arrangement.vertexCount());
+    for (std::uint32_t i = 0; i < arrangement.edgeCount(); ++i) {
+        const HalfedgeId h(2 * i);
+        if (keep[arrangement.face(h).index()] != 0 ||
+            keep[arrangement.face(arrangement.twin(h)).index()] != 0) {
+            continue;
+        }
+        const ExactPoint witness = arrangement.template witness<ExactNumber>(h);
+        if (!a.contains(witness) || !b.contains(witness)) {
+            continue;
+        }
+        const std::uint32_t source = arrangement.source(h).index();
+        const std::uint32_t target = arrangement.target(h).index();
+        adjacency[source].push_back(target);
+        adjacency[target].push_back(source);
+        ++strandDegree[source];
+        ++strandDegree[target];
+    }
+
+    // The isolated contact points. A vertex beside a kept face is in that
+    // region piece already, and the rotational fan the DCEL carries answers that
+    // without building a vector per vertex.
+    for (std::uint32_t i = 0; i < arrangement.vertexCount(); ++i) {
+        if (strandDegree[i] != 0) {
+            continue;
+        }
+        const VertexId v(i);
+        const HalfedgeId start = arrangement.outgoing(v);
+        assert(start.valid());  // every vertex here is an endpoint of some cut
+        bool besideKept = false;
+        HalfedgeId h = start;
+        do {
+            besideKept = keep[arrangement.face(h).index()] != 0;
+            h = arrangement.next(arrangement.twin(h));
+        } while (h != start && !besideKept);
+        if (besideKept) {
+            continue;
+        }
+        const ExactPoint& position = arrangement[v];
+        if (a.contains(position) && b.contains(position)) {
+            pieces.emplace_back(ResultPoint(position));
+        }
+    }
+
+    // Peel the open strands from their loose ends, then take whatever is left —
+    // every vertex of which now carries at least two strand edges — as closed
+    // walks. Peeling cannot strand a new loose end: a walk runs on through every
+    // vertex it leaves with one edge, and stops only at a junction or at nothing.
+    const auto takeEdge = [&adjacency](std::uint32_t from, std::uint32_t to) {
+        auto& out = adjacency[from];
+        out.erase(std::find(out.begin(), out.end(), to));
+        auto& back = adjacency[to];
+        back.erase(std::find(back.begin(), back.end(), from));
+    };
+    const auto walkFrom = [&](std::uint32_t start, bool stopAtJunctions) {
+        std::vector<std::uint32_t> walk{start};
+        std::uint32_t current = start;
+        while (!adjacency[current].empty() &&
+               (!stopAtJunctions || adjacency[current].size() == 1)) {
+            const std::uint32_t next = adjacency[current].front();
+            takeEdge(current, next);
+            walk.push_back(next);
+            current = next;
+        }
+        return walk;
+    };
+    std::vector<std::vector<std::uint32_t>> strands;
+    for (std::uint32_t i = 0; i < adjacency.size(); ++i) {
+        if (adjacency[i].size() == 1) {
+            strands.push_back(walkFrom(i, /*stopAtJunctions=*/true));
+        }
+    }
+    for (std::uint32_t i = 0; i < adjacency.size(); ++i) {
+        while (!adjacency[i].empty()) {
+            strands.push_back(walkFrom(i, /*stopAtJunctions=*/false));
+        }
+    }
+
+    // A vertex the arrangement put in the middle of a straight stretch says
+    // nothing about the strand, exactly as in a ring of the region pieces. Only
+    // one of strand degree two may go: a junction is shared with another strand.
+    const auto removable = [&](std::uint32_t before, std::uint32_t at, std::uint32_t after) {
+        return strandDegree[at] == 2 &&
+               collinear(arrangement[VertexId(before)], arrangement[VertexId(at)],
+                         arrangement[VertexId(after)]);
+    };
+    for (std::vector<std::uint32_t>& walk : strands) {
+        if (walk.size() > 2 && walk.front() == walk.back()) {
+            // A closed strand has no distinguished first vertex, so put one that
+            // survives the simplification there before simplifying.
+            walk.pop_back();
+            std::size_t corner = 0;
+            while (corner < walk.size() &&
+                   removable(walk[(corner + walk.size() - 1) % walk.size()], walk[corner],
+                             walk[(corner + 1) % walk.size()])) {
+                ++corner;
+            }
+            std::rotate(walk.begin(),
+                        walk.begin() + static_cast<std::ptrdiff_t>(corner % walk.size()),
+                        walk.end());
+            walk.push_back(walk.front());
+        }
+        std::vector<ResultPoint> vertices;
+        vertices.reserve(walk.size());
+        vertices.emplace_back(arrangement[VertexId(walk.front())]);
+        for (std::size_t i = 1; i + 1 < walk.size(); ++i) {
+            if (!removable(walk[i - 1], walk[i], walk[i + 1])) {
+                vertices.emplace_back(arrangement[VertexId(walk[i])]);
+            }
+        }
+        vertices.emplace_back(arrangement[VertexId(walk.back())]);
+        pieces.emplace_back(ResultPolyline(std::move(vertices)));
+    }
+
+    for (const ResultRegion& region : regularizedCellsFromKeep<ResultPoint>(arrangement, keep)) {
+        pieces.emplace_back(region);
+    }
+    return pieces;
 }
 
 /**
@@ -1172,6 +1397,88 @@ PolygonWithHoles<PointType_, TLabel>::regularizedIntersection(const OtherHalfpla
 }
 
 
+// The literal intersection: the one operation here that keeps what
+// regularization drops. It takes the same operand grid as
+// regularizedIntersection and makes the same reductions onto the engine's own
+// shapes — a bounded convex operand goes in as its polygon, an unbounded one is
+// clipped against this region first — and differs only in the engine it calls.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonConcept OtherPolygon>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherPolygon& other) const {
+    return detail::literalIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherConvex& other) const {
+    return this->template intersection<ResultNumber>(other.asPolygon());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherTriangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRectangle& other) const {
+    return this->template intersection<ResultNumber>(other.asConvex());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherRegion& other) const {
+    return detail::literalIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    if (empty() || other.empty()) {
+        return {};
+    }
+    // The clip only has to preserve A ∩ B, and A lies strictly inside the box.
+    // A clip that comes back without interior is kept and handed to the engine
+    // as the segment or point it collapsed to: unlike the regularized answer,
+    // a contact of that dimension is a piece of this one.
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    return detail::literalIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, clipped.template asConvex<ExactNumber>());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonWithHoles<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
+    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
+}
+
+
 // ---------------------------------------------------------------------------
 // The set of regions, where the four operations close.
 //
@@ -1236,6 +1543,43 @@ template <class ResultNumber, HalfplaneConcept OtherHalfplane>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonSet<PointType_, TLabel>::regularizedIntersection(const OtherHalfplane& other) const {
     return this->template regularizedIntersection<ResultNumber>(other.asHalfplaneIntersection());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, detail::SetBooleanOperandConcept OtherShape>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherShape& other) const {
+    return detail::literalIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, detail::booleanOperand(other));
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    if (empty() || other.empty()) {
+        return {};
+    }
+    // The clip only has to preserve A ∩ B, and A lies strictly inside the box.
+    // A clip without interior still carries pieces of this answer; see
+    // PolygonWithHoles::intersection(const OtherIntersection&) const.
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    return detail::literalIntersection<Point<ResultNumber, typename PointType_::LabelType>>(
+        *this, clipped.template asConvex<ExactNumber>());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+std::vector<std::variant<Point<ResultNumber, typename PointType_::LabelType>,
+                         Polyline<Point<ResultNumber, typename PointType_::LabelType>>,
+                         PolygonWithHoles<Point<ResultNumber, typename PointType_::LabelType>>>>
+PolygonSet<PointType_, TLabel>::intersection(const OtherHalfplane& other) const {
+    return this->template intersection<ResultNumber>(other.asHalfplaneIntersection());
 }
 
 }  // namespace pgl

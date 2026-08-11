@@ -12,6 +12,7 @@
 #include <ranges>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 
@@ -909,6 +910,100 @@ struct PolygonWithHoles {
      */
     template <class ResultNumber = division_result_t<NumberType>, MonotoneChainConcept OtherChain>
     [[nodiscard]] constexpr auto intersection(const OtherChain& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * The literal point set `A ∩ B`, as its connected pieces: the regions
+     * @ref regularizedIntersection(const OtherPolygon&) const returns, plus the
+     * lower-dimensional material that one drops — a stretch of shared boundary
+     * with no area on either side of it, and an isolated point where the two
+     * boundaries only touch. An empty vector means the two are disjoint.
+     *
+     * This is @ref Polygon::intersection(const OtherPolygon&) const one dimension
+     * up in its operands, and its area pieces are regions rather than polygons
+     * for the reason given there: a component of `A ∩ B` gains a hole exactly
+     * when an operand has one. A strand of boundary hanging off an area piece is
+     * a piece of its own, as it is for two polygons, and a strand that closes up
+     * on itself comes back as a polyline repeating its first vertex last.
+     *
+     * @tparam ResultNumber The number type for the result.
+     * @param other The shape to intersect with.
+     * @return The pieces of the intersection: isolated points first, then
+     *         strands, then the areas in canonical order.
+     * @note The arrangement is built over exact rationals whatever
+     *       @p ResultNumber is, and converted only at the end. This is what
+     *       @ref Polygon::intersection(const OtherPolygon&) const does not do:
+     *       it computes in the result type, so an integral one truncates every
+     *       crossing.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonConcept OtherPolygon>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherPolygon& other) const;
+
+    /** @copydoc intersection(const OtherPolygon&) const */
+    template <class ResultNumber = division_result_t<NumberType>, ConvexConcept OtherConvex>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherConvex& other) const;
+
+    /** @copydoc intersection(const OtherPolygon&) const */
+    template <class ResultNumber = division_result_t<NumberType>, TriangleConcept OtherTriangle>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherTriangle& other) const;
+
+    /** @copydoc intersection(const OtherPolygon&) const */
+    template <class ResultNumber = division_result_t<NumberType>, RectangleConcept OtherRectangle>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRectangle& other) const;
+
+    /** @copydoc intersection(const OtherPolygon&) const */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * A half-plane intersection may be unbounded, but this region is not, so
+     * only the part of it near this region matters: it is first clipped to a box
+     * strictly containing the bounding rectangle, which leaves `A ∩ B` untouched
+     * and makes it a convex polygon. Unlike
+     * @ref regularizedIntersection(const OtherIntersection&) const, a clip with
+     * empty interior is not the end of it — the region can still meet the
+     * carrier it collapsed to in points and segments, and those are pieces of
+     * this answer. See @ref intersection(const OtherPolygon&) const for the
+     * contract of the result.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherIntersection& other) const;
+
+    /**
+     * @brief Returns the intersection of the two shapes (A ∩ B), empty when they
+     *        are disjoint.
+     *
+     * A half-plane is the one-constraint half-plane intersection, and is handled
+     * as one: see @ref intersection(const OtherIntersection&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] std::vector<std::variant<Point<ResultNumber, typename PointType::LabelType>,
+                                           Polyline<Point<ResultNumber, typename PointType::LabelType>>,
+                                           PolygonWithHoles<Point<ResultNumber, typename PointType::LabelType>>>>
+    intersection(const OtherHalfplane& other) const;
 
     /**
      * @brief Returns the regularized intersection of the two shapes (A ∩ B).
@@ -2257,6 +2352,17 @@ struct PolygonWithHoles {
                  detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>)
     [[nodiscard]] constexpr bool crosses(const OtherShape& other) const {
         return other.crosses(*this);
+    }
+
+    /** @brief Forwards an intersection to the higher-ranked shape. */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires(!PointConcept<OtherShape> &&
+                 (detail::shapeRank<OtherShape> > detail::shapeRank<PolygonWithHoles>) &&
+                 requires(const OtherShape& o, const PolygonWithHoles& self) {
+                     o.template intersection<ResultNumber>(self);
+                 })
+    [[nodiscard]] auto intersection(const OtherShape& other) const {
+        return other.template intersection<ResultNumber>(*this);
     }
 
     /** @brief Forwards a regularized intersection to the higher-ranked shape. */
