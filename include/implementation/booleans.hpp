@@ -665,6 +665,14 @@ Polygon<PointType_, TLabel>::difference(const OtherRegion& other) const {
 }
 
 template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonSetConcept OtherSet>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::difference(const OtherSet& other) const {
+    return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
+                                                                                              other);
+}
+
+template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherPolygon& other) const {
@@ -699,6 +707,172 @@ PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::difference(const OtherRegion& other) const {
     return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
                                                                                               other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonSetConcept OtherSet>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonWithHoles<PointType_, TLabel>::difference(const OtherSet& other) const {
+    return detail::regularizedDifference<Point<ResultNumber, typename PointType_::LabelType>>(*this,
+                                                                                              other);
+}
+
+// The three bounded convex regions take a difference against every region
+// through their polygon spelling. Unlike the symmetric three, a difference has
+// no higher-ranked operand to forward to — `A ∖ B` is not `B ∖ A` — so each of
+// them states it against all six, and `asPolygon` is what hands the pair to the
+// engine. The conversion costs nothing, the vertices already being in canonical
+// polygon order, and it is the same one `detail::booleanOperand` makes for a
+// set's operands.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonalRegionConcept OtherRegion>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::difference(const OtherRegion& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonalRegionConcept OtherRegion>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::difference(const OtherRegion& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, PolygonalRegionConcept OtherRegion>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::difference(const OtherRegion& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+// ---------------------------------------------------------------------------
+// The unbounded subtrahends.
+//
+// A union or a symmetric difference with an unbounded operand is unbounded, and
+// no set of regions can hold it. A *difference* against one is not: `A ∖ B` is
+// contained in `A`, so it is bounded whenever the receiver is, whatever `B`
+// covers — which is why these overloads exist where the symmetric ones cannot.
+// The latitude is one-sided, and visibly so: it is the receiver that has to be
+// bounded, so `halfplane.difference(polygon)` is nowhere to be found.
+//
+// Being bounded is also what makes them computable. Only the part of `B` near
+// `A` can matter, so `B` is clipped to a box strictly containing `A` — which
+// leaves `A ∖ B` untouched, `A` being inside the box — and what comes back is a
+// convex polygon the engine already takes. The two shortcuts below are the cases
+// where the clip leaves nothing with area: a subtrahend with empty interior
+// removes nothing, since `A° ∖ B` is dense in `A°` when `B` is nowhere dense, so
+// the answer is `closure(A°)`, which is exactly @ref PolygonWithHoles::regularized.
+//
+// Everything else forwards: the convex three through their polygon spelling as
+// they do for a bounded operand, and a polygon through the region spelling of
+// itself, so the clip is written once.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonWithHoles<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    // Nothing with area to keep, and no bounding rectangle to clip against.
+    if (isDegenerate()) {
+        return {};
+    }
+    if (other.isDegenerate()) {
+        return this->template regularized<ResultNumber>();
+    }
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return this->template regularized<ResultNumber>();
+    }
+    return this->template difference<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonWithHoles<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return this->template difference<ResultNumber>(other.asHalfplaneIntersection());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    using ExactNumber = detail::region_exact_number_t<typename OtherIntersection::NumberType>;
+    if (isDegenerate()) {
+        return {};
+    }
+    if (other.isDegenerate()) {
+        return this->template regularized<ResultNumber>();
+    }
+    const auto clipped = detail::regionClippedToBox(other, bbox());
+    if (clipped.isDegenerate()) {
+        return this->template regularized<ResultNumber>();
+    }
+    return this->template difference<ResultNumber>(clipped.template asConvex<ExactNumber>());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+PolygonSet<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return this->template difference<ResultNumber>(other.asHalfplaneIntersection());
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    return asPolygonWithHoles().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Polygon<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return asPolygonWithHoles().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneIntersectionConcept OtherIntersection>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::difference(const OtherIntersection& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, HalfplaneConcept OtherHalfplane>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::difference(const OtherHalfplane& other) const {
+    return asPolygon().template difference<ResultNumber>(other);
 }
 
 // The three bounded convex regions unite among themselves through the polygon
@@ -818,6 +992,53 @@ template <class ResultNumber, PolygonWithHolesConcept OtherRegion>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 PolygonWithHoles<PointType_, TLabel>::unionWith(const OtherRegion& other) const {
     return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+}
+
+// A symmetric difference is symmetric, so the three convex regions own exactly
+// the same pairs among themselves that they own for the union — each on the
+// higher-ranked of its two operands — and reach everything above them through
+// the same rank forwarder. The polygon spelling is the engine's operand here too.
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Rectangle<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Triangle<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, ConvexConcept OtherConvex>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::symmetricDifference(const OtherConvex& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, TriangleConcept OtherTriangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::symmetricDifference(const OtherTriangle& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
+}
+
+template <class PointType_, class TLabel>
+template <class ResultNumber, RectangleConcept OtherRectangle>
+PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+Convex<PointType_, TLabel>::symmetricDifference(const OtherRectangle& other) const {
+    return asPolygon().template symmetricDifference<ResultNumber>(other);
 }
 
 template <class PointType_, class TLabel>

@@ -376,3 +376,111 @@ TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the intersection keeps hol
         CHECK(region.intersection<ERational>(Intersection(rightOf(20))).empty());
     }
 }
+
+TEST_CASE("PolygonWithHoles vs HalfplaneIntersection: the difference removes it") {
+    // A union or a symmetric difference with an unbounded operand is unbounded
+    // and fits in no set of regions. A difference is not: `A ∖ B` sits inside
+    // `A`, so it stays bounded however far `B` reaches, and that is what the
+    // overloads here are. The latitude is one-sided -- it is the *receiver* that
+    // has to be bounded -- so there is no `intersection.difference(region)` to
+    // check against, and each answer is checked against the intersection it
+    // complements instead.
+    const Region region = annulus();
+
+    SUBCASE("what the difference removes is what the intersection keeps") {
+        // The two partition the region, since B and its complement do.
+        for (const Halfplane& h : {rightOf(5), above(4), leftOf(3), below(6),
+                                   Halfplane(Point(0, 1), Point(3, 0))}) {
+            const auto removed = region.difference<ERational>(h);
+            const auto kept = region.intersection<ERational>(h);
+            CHECK(removed.twiceArea() + kept.twiceArea() == ERational(2 * (100 - 16)));
+            // and removing the opposite half-plane is keeping this one.
+            CHECK(region.difference<ERational>(h.opposite()).twiceArea() == kept.twiceArea());
+        }
+    }
+
+    SUBCASE("an unbounded operand is clipped, and can leave several pieces") {
+        // The horizontal slab 4 <= y <= 6 crosses the hole; removing it cuts the
+        // annulus into the part below it and the part above it.
+        Intersection slab(above(4));
+        slab.insert(below(6));
+        REQUIRE(!slab.isBounded());
+        const auto pieces = region.difference<ERational>(slab);
+        REQUIRE(pieces.componentCount() == 2);
+        CHECK(pieces.twiceArea() == ERational(2 * (100 - 16 - 12)));
+    }
+
+    SUBCASE("a bounded operand in the middle opens a hole") {
+        // Removing a rectangle strictly inside the square leaves a region with
+        // a hole, exactly as removing the polygon spelling of it does.
+        const Intersection middle(RectangleShape(Point(2, 2), Point(8, 8)));
+        const auto pieces = region.difference<ERational>(middle);
+        REQUIRE(pieces.componentCount() == 1);
+        CHECK(pieces.component(0).holes().size() == 1);
+        CHECK(pieces.twiceArea() == ERational(2 * (100 - 36)));
+        CHECK(pieces == region.difference<ERational>(RectangleShape(Point(2, 2), Point(8, 8))));
+    }
+
+    SUBCASE("an operand covering the region leaves nothing") {
+        const Intersection covering(RectangleShape(Point(-5, -5), Point(15, 15)));
+        CHECK(region.difference<ERational>(covering).empty());
+        CHECK(region.difference<ERational>(Intersection{}).empty());  // the whole plane
+    }
+
+    SUBCASE("nothing with area removes nothing, and gives the regularization") {
+        Intersection empty(rightOf(5));
+        empty.insert(leftOf(3));
+        REQUIRE(empty.empty());
+        CHECK(region.difference<ERational>(empty) == region.regularized<ERational>());
+
+        Intersection line(above(5));
+        line.insert(below(5));
+        REQUIRE(line.isDegenerate());
+        CHECK(region.difference<ERational>(line) == region.regularized<ERational>());
+
+        // Missing the region entirely removes nothing either.
+        CHECK(region.difference<ERational>(Intersection(rightOf(20))) ==
+              region.regularized<ERational>());
+        CHECK(region.difference<ERational>(rightOf(20)) == region.regularized<ERational>());
+    }
+
+    SUBCASE("every bounded receiver takes both spellings") {
+        const RectangleShape rectangle(Point(0, 0), Point(10, 10));
+        const pgl::Triangle<Point> triangle(Point(0, 0), Point(10, 0), Point(10, 10));
+        const pgl::Convex<Point> convex(
+            std::vector<Point>{Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10)});
+        const PolygonShape polygon({0, 0, 10, 0, 10, 10, 0, 10});
+        const pgl::PolygonSet<Point> set(region);
+        const Halfplane top = above(5);
+        const Intersection topIntersection(top);
+
+        // A half-plane is the one-constraint half-plane intersection, on every
+        // one of them.
+        CHECK(rectangle.difference<ERational>(top) ==
+              rectangle.difference<ERational>(topIntersection));
+        CHECK(triangle.difference<ERational>(top) ==
+              triangle.difference<ERational>(topIntersection));
+        CHECK(convex.difference<ERational>(top) == convex.difference<ERational>(topIntersection));
+        CHECK(polygon.difference<ERational>(top) == polygon.difference<ERational>(topIntersection));
+        CHECK(region.difference<ERational>(top) == region.difference<ERational>(topIntersection));
+        CHECK(set.difference<ERational>(top) == set.difference<ERational>(topIntersection));
+
+        // The convex spellings of one square all answer alike, and the set
+        // answers like the region it holds.
+        CHECK(rectangle.difference<ERational>(top) == convex.difference<ERational>(top));
+        CHECK(rectangle.difference<ERational>(top) == polygon.difference<ERational>(top));
+        CHECK(set.difference<ERational>(top) == region.difference<ERational>(top));
+        CHECK(triangle.difference<ERational>(top).twiceArea() == ERational(75));
+    }
+
+    SUBCASE("an integral result is exact where the cut is on the lattice") {
+        // The engine builds the arrangement over rationals whatever the result
+        // type is, so an `int` request that lands on the lattice is not an
+        // approximation of the answer but the answer.
+        const auto exact = region.difference<ERational>(above(5));
+        const auto integral = region.difference<int>(above(5));
+        CHECK(integral.twiceArea() == 2 * (50 - 8));
+        CHECK(exact.twiceArea() == ERational(2 * (50 - 8)));
+        CHECK(pgl::PolygonSet<pgl::Point<ERational>>(integral) == exact);
+    }
+}

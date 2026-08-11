@@ -853,6 +853,42 @@ struct Polygon {
     difference(const OtherRegion& other) const;
 
     /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * A difference is not symmetric, so this pair stays here rather than going
+     * to the higher-ranked set the way @ref unionWith(const OtherSet&) const
+     * does. It costs no more for it: the set goes into the one arrangement
+     * whole, exactly as it would have on the other side. See
+     * @ref difference(const OtherPolygon&) const for the contract.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    difference(const OtherSet& other) const;
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * A half-plane intersection may be unbounded, which stops it being a
+     * @ref unionWith operand but not a subtrahend: `A ∖ B` is bounded whenever
+     * `A` is, however far `B` reaches, so a `PolygonSet` can hold it. See
+     * @ref PolygonWithHoles::difference(const OtherIntersection&) const for the
+     * clip that bounds it and for the rest of the contract.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneIntersectionConcept OtherIntersection>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    difference(const OtherIntersection& other) const;
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B).
+     *
+     * A half-plane is the one-constraint half-plane intersection, and is handled
+     * as one: see @ref difference(const OtherIntersection&) const.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
+    difference(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the regularized union of the two shapes (A ∪ B).
      *
      * The result is `closure(A° ∪ B°)`, as a set of regions with pairwise
@@ -958,6 +994,21 @@ struct Polygon {
     template <class ResultNumber = division_result_t<NumberType>, PolygonWithHolesConcept OtherRegion>
     [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType::LabelType>>
     symmetricDifference(const OtherRegion& other) const;
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B).
+     *
+     * A set of regions is the one @ref PolygonalRegionConcept operand ranked
+     * above a polygon, and it states its operations over every operand at once,
+     * so this hands the pair back to it rather than restating it, exactly as
+     * @ref unionWith(const OtherSet&) const does. See
+     * @ref symmetricDifference(const OtherPolygon&) const for the contract.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PolygonSetConcept OtherSet>
+    [[nodiscard]] auto symmetricDifference(const OtherSet& other) const {
+        return other.template symmetricDifference<ResultNumber>(*this);
+    }
 
     /**
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
@@ -2159,6 +2210,43 @@ struct Polygon {
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] auto unionWith(const Shape<OtherPoint>& other) const {
         return other.template unionWith<ResultNumber>(*this);
+    }
+
+    /**
+     * @brief Returns the regularized set difference of the two shapes (A ∖ B),
+     *        re-dispatching through the wrapper's own `difference`.
+     *
+     * A difference is not symmetric, so unlike @ref unionWith this cannot be
+     * handed to @p other as it stands. It wraps this shape instead and lets the
+     * wrapper visit both sides, which throws if the pair is unsupported — here,
+     * whenever @p other turns out to hold anything without area, or a `Disk`.
+     * An unbounded alternative is fine on this side, the result being contained
+     * in this shape either way. See @ref difference(const OtherPolygon&) const for the contract.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto difference(const Shape<OtherPoint>& other) const {
+        return Shape<OtherPoint>(*this).template difference<ResultNumber>(other);
+    }
+
+    /**
+     * @brief Returns the regularized symmetric difference of the two shapes
+     *        (A △ B), re-dispatching through the wrapper's own
+     *        `symmetricDifference`.
+     *
+     * A symmetric difference is symmetric, so this just calls @p other's own,
+     * which visits its wrapped alternative and throws if the pair is
+     * unsupported. See @ref symmetricDifference(const OtherPolygon&) const for
+     * the contract.
+     *
+     * The point type is deduced from @p other so a plain concrete shape cannot
+     * reach this overload through an implicit conversion to `Shape`.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
+    [[nodiscard]] auto symmetricDifference(const Shape<OtherPoint>& other) const {
+        return other.template symmetricDifference<ResultNumber>(*this);
     }
 
     /**

@@ -175,16 +175,32 @@ The six shapes these operate on are [`Rectangle`](https://gfonsecabr.github.io/p
 area, and exactly the ones a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") can always represent. The union is a
 keyword in C++, hence `unionWith`.
 
-`unionWith` is defined for **every ordered pair** of those six, since a union of
-two of them is again one of them — a set of regions — however they lie. No other
-pair has a union a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") can hold: a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), a [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label."), a [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.")
-and a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") leave a dangling piece with no area, a [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), a
-[`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), a [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label.") and a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") may be unbounded, and a [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") is
-round. The runtime [`Shape`](shapes.md#shape) wrapper offers `unionWith` over
-that same grid, deciding at run time and throwing `std::logic_error` for the
-pairs it does not cover. `difference` and `symmetricDifference` are narrower for now: they are
-defined on [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") and [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") receivers, against any
-of the six, with [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") as an operand only on a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") receiver.
+`unionWith`, `difference` and `symmetricDifference` are each defined for **every
+ordered pair** of those six, since each of the three answers with a set of
+regions whenever both operands are one, however they lie. No other pair has a
+union or a symmetric difference a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") can hold: a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload."), a [`Segment`](https://gfonsecabr.github.io/pgl/structpgl_1_1Segment.html "Unoriented closed segment between two endpoints plus optional segment label."),
+a [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") and a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") leave a dangling piece with no area, a
+[`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), a [`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), a [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label.") and a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") may be unbounded,
+and a [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") is round.
+
+`difference` reaches past that grid on its right-hand side alone, and the
+asymmetry is the reason. $A \setminus B$ is contained in $A$, so it is bounded as
+soon as the **receiver** is, however far $B$ reaches — which makes a [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.")
+or a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") a perfectly good thing to remove even though it is
+not one to unite with:
+
+```c++
+pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
+auto lower = square.difference(pgl::Halfplane(0,5, 1,5));  // the half below y=5
+```
+
+Written the other way round it does not compile: `halfplane.difference(square)`
+would be unbounded, so it does not exist, on that receiver or any other. The
+runtime [`Shape`](shapes.md#shape) wrapper offers all three over the same grids,
+deciding at run time and throwing `std::logic_error` for the pairs it does not
+cover — including `difference` written the wrong way round. `intersection` is
+the one that is narrower, and for a reason of its own: see
+[below](#why-intersection-is-different).
 
 That last operand is what makes the family **closed**: the result of an
 operation is a shape the operations take, so it can be fed straight back in
@@ -202,10 +218,13 @@ order. Each unordered pair is implemented once, on the higher-ranked of its two
 operands, and the lower-ranked receiver forwards to it — so
 `triangle.unionWith(polygon)` and `polygon.unionWith(triangle)` are the same
 call, and `rectangle.unionWith(triangle)` is `triangle.unionWith(rectangle)`.
-A [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.") or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") receiver reaches `symmetricDifference` and
-`intersection` the same way, but only for operands above it, which is why those
-two stop short of the full grid `unionWith` covers. `difference` is not
-symmetric and forwards nowhere: it stays on the receivers above.
+`symmetricDifference` and `intersection` are reached the same way.
+
+`difference` is the one that is not symmetric, and it forwards nowhere: `A ∖ B`
+is not `B ∖ A`, so there is no higher-ranked operand to hand the pair to and
+each of the ordered pairs is stated on its own receiver. A [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices.")
+or [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") receiver states them all at once, through the polygon spelling of
+itself that the engine takes anyway.
 
 ```c++
 pgl::Polygon<> square({0,0, 10,0, 10,10, 0,10});
@@ -280,9 +299,10 @@ gives back regions rather than components. The same goes for a [`Halfplane`](htt
 shapes' own `intersection` against a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") is the general, component-valued
 one. Being unbounded is no obstacle: a region is bounded, so `h` is clipped to
 its bounding rectangle first, which changes nothing, and a half-plane is handled
-as the one-constraint half-plane intersection it is. This is the only boolean
-operation that takes an unbounded operand; `difference`, `unionWith` and
-`symmetricDifference` would give back an unbounded answer and do not accept one.
+as the one-constraint half-plane intersection it is. `difference` takes an
+unbounded operand for the same reason and by the same clip, on its right-hand
+side; `unionWith` and `symmetricDifference` give back an unbounded answer and
+take none.
 
 A one-dimensional operand gets the general one instead, on either side, since it
 is the only one there is: `closure(A° ∩ B°)` is empty for everything without

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using Point = pgl::Point<int>;
@@ -362,11 +363,13 @@ TEST_CASE("boolean operations accept every bounded shape with area") {
 }
 
 TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region side") {
-    // The operations are symmetric, but only `Polygon` and `PolygonWithHoles`
-    // implement them. A shape of lower `shapeRank` -- a convex polygon, a
-    // triangle, a rectangle -- takes them by forwarding to the other operand,
-    // exactly as `intersection` does, so that writing the pair in either order
-    // is the same call.
+    // The symmetric three are implemented once per unordered pair, on the
+    // higher-ranked of its two operands. A shape of lower `shapeRank` -- a
+    // convex polygon, a triangle, a rectangle -- takes the pair by forwarding
+    // to the other operand, exactly as `intersection` does, so that writing it
+    // in either order is the same call. (`difference` is not symmetric and
+    // forwards nowhere; every one of its ordered pairs is stated on its own
+    // receiver, which the grid test below covers.)
     const Region region = fixtures::annulus();
     const PolygonShape polygon = box(2, 2, 10, 10);
     const Convex convex(std::vector<Point>{Point(2, 2), Point(10, 2), Point(10, 10),
@@ -399,6 +402,96 @@ TEST_CASE("boolean operations: a lower-ranked receiver forwards to the region si
     CHECK(triangle.unionWith<pgl::ERational>(region) == region.unionWith<pgl::ERational>(triangle));
     static_assert(std::is_same_v<decltype(triangle.unionWith<pgl::ERational>(region)),
                                  pgl::PolygonSet<EPoint>>);
+
+    // The three convex regions own their pairs among themselves, for the
+    // symmetric difference exactly as for the union: each pair on the
+    // higher-ranked operand, with the lower-ranked one forwarding to it.
+    CHECK(rectangle.symmetricDifference<int>(triangle) ==
+          triangle.symmetricDifference<int>(rectangle));
+    CHECK(rectangle.symmetricDifference<int>(convex) == convex.symmetricDifference<int>(rectangle));
+    CHECK(triangle.symmetricDifference<int>(convex) == convex.symmetricDifference<int>(triangle));
+    CHECK(rectangle.symmetricDifference<int>(rectangle).empty());
+    CHECK(triangle.symmetricDifference<int>(triangle).empty());
+    CHECK(convex.symmetricDifference<int>(convex).empty());
+    // The convex spelling and the polygon spelling of one shape answer alike.
+    CHECK(rectangle.symmetricDifference<int>(triangle) ==
+          rectangle.asPolygon().symmetricDifference<int>(triangle));
+}
+
+// Both operations, on one ordered pair, checked against the identities that tie
+// them to the union rather than against a table of coordinates -- so the same
+// checks apply to every pair of the grid whatever the shapes are.
+template <class Left, class Right>
+static void checkBooleanPair(const Left& left, const Right& right) {
+    const auto difference = left.template difference<int>(right);
+    const auto symmetric = left.template symmetricDifference<int>(right);
+    static_assert(std::is_same_v<decltype(difference), const RegionSet>);
+    static_assert(std::is_same_v<decltype(symmetric), const RegionSet>);
+
+    // A △ B does not depend on the order, and is the union of the two
+    // differences -- which is what makes it need both of them defined.
+    CHECK(symmetric == right.template symmetricDifference<int>(left));
+    CHECK(symmetric == difference.template unionWith<int>(right.template difference<int>(left)));
+
+    // |A ∖ B| = |A| - |A ∩ B| and |A △ B| = |A ∪ B| - |A ∩ B|, with every area
+    // taken on the regularization the operations return: `A ∪ A` is `A`
+    // regularized, and the identities hold there and not on the operands as
+    // written, a slit having area on neither side.
+    const auto both = left.template unionWith<int>(right);
+    const int leftArea = left.template unionWith<int>(left).twiceArea();
+    const int rightArea = right.template unionWith<int>(right).twiceArea();
+    const int shared = leftArea + rightArea - both.twiceArea();
+    CHECK(difference.twiceArea() == leftArea - shared);
+    CHECK(symmetric.twiceArea() == both.twiceArea() - shared);
+}
+
+template <class Left, class... Rights>
+static void checkBooleanRow(const Left& left, const Rights&... rights) {
+    (checkBooleanPair(left, rights), ...);
+}
+
+TEST_CASE("boolean operations: the difference and the symmetric difference cover the grid") {
+    // All thirty-six ordered pairs of the six bounded shapes with area, which
+    // is the grid `unionWith` covers and which the other two now match. A
+    // difference is not symmetric, so none of these pairs can be reached by
+    // forwarding: each is a definition of its own.
+    // Every edge is axis-parallel or at 45 degrees with an even intercept, so
+    // the boundaries cross only at lattice points and an `int` result is the
+    // exact one -- which is what lets the identities be checked on the nose.
+    const RectangleShape rectangle(Point(0, 0), Point(12, 12));
+    const Triangle triangle(Point(0, 0), Point(12, 0), Point(12, 12));
+    const Convex convex(std::vector<Point>{Point(6, 0), Point(12, 6), Point(6, 12), Point(0, 6)});
+    const PolygonShape polygon = box(4, 0, 8, 12);
+    const Region region = fixtures::annulus();
+    const RegionSet set = box(0, 0, 5, 5).unionWith<int>(box(7, 7, 12, 12));
+    REQUIRE(set.componentCount() == 2);
+
+    const auto row = [&](const auto& left) {
+        checkBooleanRow(left, rectangle, triangle, convex, polygon, region, set);
+    };
+    row(rectangle);
+    row(triangle);
+    row(convex);
+    row(polygon);
+    row(region);
+    row(set);
+
+    // A convex operand and the polygon spelling of it answer alike, on either
+    // side of a difference.
+    const PolygonShape spelled = triangle.asPolygon();
+    CHECK(rectangle.difference<int>(triangle) == rectangle.difference<int>(spelled));
+    CHECK(triangle.difference<int>(rectangle) == spelled.difference<int>(rectangle));
+
+    // Removing the whole of the receiver leaves nothing, and removing nothing
+    // leaves its regularization.
+    CHECK(triangle.difference<int>(rectangle).empty());
+    CHECK(convex.difference<int>(PolygonShape{}) == convex.unionWith<int>(convex));
+
+    // A set operand goes into the one arrangement whole rather than being
+    // folded over, which is the same answer removing its components one at a
+    // time gives.
+    CHECK(region.difference<int>(set) ==
+          region.difference<int>(set.component(0)).difference<int>(set.component(1)));
 }
 
 TEST_CASE("boolean operations: exact instantiation over ERational operands") {
