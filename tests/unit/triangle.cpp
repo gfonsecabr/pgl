@@ -217,6 +217,48 @@ TEST_CASE("Triangle exposes its longest side and basic angle classification help
     CHECK(isosceles_triangle.isIsosceles());
 }
 
+TEST_CASE("Triangle angle classification promotes past the coordinate type") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    // Every dot product below overflows a 32-bit coordinate, so each of these
+    // answers is wrong if the classification multiplies in the coordinate type
+    // rather than the promoted one.
+
+    // All three angles are strictly acute; the dot product at (0,0) is
+    // 3.6e9, which wraps negative and would report an obtuse angle.
+    const Triangle acute(0, 0, 60000, 30000, 30000, 60000);
+    CHECK_FALSE(acute.isDegenerate());
+    CHECK_FALSE(acute.isObtuse());
+    CHECK_FALSE(acute.isRectangle());
+
+    // No angle is right: the dot product at (0,0) is exactly 2^32, which
+    // wraps to zero and would report a right angle. Neither |ab|^2 nor
+    // |ac|^2 is 2^32, so the other two angles are not right either.
+    const Triangle near_degenerate_corner(0, 0, 65536, 1, 65535, 65536);
+    CHECK_FALSE(near_degenerate_corner.isDegenerate());
+    CHECK_FALSE(near_degenerate_corner.isRectangle());
+
+    // A right angle far from the origin still registers.
+    const Triangle big_right(0, 0, 60000, 0, 0, 45000);
+    CHECK(big_right.isRectangle());
+    CHECK_FALSE(big_right.isObtuse());
+
+    // An obtuse angle far from the origin still registers.
+    const Triangle big_obtuse(0, 0, 60000, 0, 59999, 1);
+    CHECK(big_obtuse.isObtuse());
+    CHECK_FALSE(big_obtuse.isRectangle());
+
+    // |ab|^2 = 2^32 + 25 and |ca|^2 = 25 agree modulo the wrap but describe
+    // wildly different sides.
+    const Triangle scalene(0, 0, 65536, 5, 3, 4);
+    CHECK_FALSE(scalene.isIsosceles());
+
+    // A genuine isosceles pair beyond the wrap is still detected.
+    const Triangle big_isosceles(0, 0, 60000, 0, 30000, 50000);
+    CHECK(big_isosceles.isIsosceles());
+}
+
 TEST_CASE("Triangle point predicates distinguish vertices, boundary, interior, exterior, and degenerate cases") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
