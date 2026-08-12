@@ -74,8 +74,11 @@ BANNER = ("<!-- AUTO-GENERATED from {src} by doc/raw/doxylink.py — do not edit
 MENTION_RE = re.compile(
     r"^(pgl::)?(?:([A-Za-z_]\w*)\.)?([A-Za-z_]\w*)(\(.*\))?$")
 
-# Inline code spans not already wrapped in a markdown link.
-SPAN_RE = re.compile(r"(?<!\[)`([^`]+)`(?:\{([A-Za-z_]\w*)\})?")
+# Inline code spans not already wrapped in a markdown link. The lookbehind
+# excludes the opening backtick in [`label`](url); the lookahead excludes that
+# label's closing backtick, so it cannot be mistaken for the start of a span
+# that runs through the next backtick on the same line.
+SPAN_RE = re.compile(r"(?<!\[)`(?!\]\()([^`]+)`(?:\{([A-Za-z_]\w*)\})?")
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 

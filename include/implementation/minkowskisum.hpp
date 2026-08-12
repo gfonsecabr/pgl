@@ -26,7 +26,7 @@
  * triangulated domain, plus the pieces of it that have no area beside them (a
  * degenerate operand is its own boundary, and a region carries slits). Each
  * `Aᵢ ⊕ Bⱼ` is then the linear convex merge, and the union of the `|A|·|B|`
- * results is one call to @ref pgl::detail::regularizedUnionOf — the cell engine
+ * results is one call to @ref pgl::regularizedUnionOf — the cell engine
  * of `booleans.hpp`, which increment 11 observed was already n-ary in everything
  * but its signature. That is @ref pgl::detail::decomposedMinkowskiSum, and it
  * costs `Θ(a²b²)`.

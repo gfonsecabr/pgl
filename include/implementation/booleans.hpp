@@ -487,6 +487,8 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
     return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
 }
 
+}  // namespace detail
+
 /**
  * @brief The regularized union of arbitrarily many shapes, as a set of regions.
  *
@@ -504,6 +506,7 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
  *        meets its own simplicity precondition, and a @ref PolygonWithHoles is
  *        one exactly when it carries no slit — which is why this is the caller's
  *        to assert and not a property read off the type.
+ * @return The pieces of the union, in canonical order.
  */
 template <class ResultPoint, class ShapeRange>
 PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
@@ -528,25 +531,27 @@ PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
         return {};
     }
 
-    if constexpr (is_convex_v<ShapeType>) {
-        return regularizedUnionByCoverage<ResultPoint>(distinct);
+    if constexpr (detail::is_convex_v<ShapeType>) {
+        return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
     } else {
         using ShapeNumber = typename ShapeType::NumberType;
-        using ExactPoint = Point<Exact1DNumber<ShapeNumber, ShapeNumber>>;
+        using ExactPoint = Point<detail::Exact1DNumber<ShapeNumber, ShapeNumber>>;
 
         if (simpleBoundaries) {
-            return regularizedUnionByCoverage<ResultPoint>(distinct);
+            return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
         }
         std::vector<Segment<ExactPoint>> cuts;
         for (const ShapeType& shape : distinct) {
-            appendCutSegments<ExactPoint>(shape, cuts);
+            detail::appendCutSegments<ExactPoint>(shape, cuts);
         }
-        return regularizedCells<ResultPoint>(cuts, [&distinct](const ExactPoint& witness) {
+        return detail::regularizedCells<ResultPoint>(cuts, [&distinct](const ExactPoint& witness) {
             return std::ranges::any_of(
                 distinct, [&witness](const ShapeType& shape) { return shape.contains(witness); });
         });
     }
 }
+
+namespace detail {
 
 /**
  * @brief The operand as something @ref appendCutSegments can walk.
@@ -846,7 +851,7 @@ PolygonWithHoles<PointType_, TLabel>::regularized() const {
     // region or outside it, and a slit — having no cell of its own — survives
     // in neither.
     const std::array<PolygonWithHoles, 1> self{*this};
-    return detail::regularizedUnionOf<ResultPoint>(self);
+    return regularizedUnionOf<ResultPoint>(self);
 }
 
 template <class PointType_, class TLabel>
