@@ -2770,6 +2770,15 @@ constexpr bool Rectangle<PointType, LabelType>::contains(const OtherRegion& othe
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Triangle<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (const auto vertex = getIfPoint()) {
+        return vertex->contains(other);
+    }
+    if (const auto carrier = getIfSegment()) {
+        return carrier->contains(other);
+    }
     // Vertices are counterclockwise when non-degenerate, so each edge's
     // half-plane has the interior on its left.
     return detail::regionInsideHalfplane(other, Halfplane<PointType>(a(), b())) &&

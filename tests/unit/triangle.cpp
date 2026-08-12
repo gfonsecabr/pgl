@@ -513,6 +513,22 @@ TEST_CASE("Triangle predicates against another triangle") {
         CHECK_FALSE(base.interiorContains(base));                               // own vertices on boundary
     }
 
+    SUBCASE("contains HalfplaneIntersection when degenerate") {
+        using Region = pgl::HalfplaneIntersection<Point>;
+
+        const Triangle point_triangle({0, 2}, {0, 2}, {0, 2});
+        const Region point_elsewhere(Point(0, 0));
+        const Region same_point(Point(0, 2));
+        const Region empty{Rectangle{}};
+
+        CHECK_FALSE(point_triangle.contains(point_elsewhere));
+        CHECK_FALSE(point_triangle.interiorContains(point_elsewhere));
+        CHECK(point_triangle.contains(same_point));
+        CHECK_FALSE(point_triangle.interiorContains(same_point));
+        CHECK(point_triangle.contains(empty));
+        CHECK(point_triangle.interiorContains(empty));
+    }
+
     SUBCASE("intersects") {
         CHECK(base.intersects(Triangle({2, 2}, {8, 2}, {2, 8})));   // overlapping area
         CHECK(base.intersects(Triangle({6, 0}, {8, 0}, {8, 2})));   // touch only at the vertex (6,0)
