@@ -335,18 +335,33 @@ PolygonSet<ResultPoint> regularizedCells(
  * Both operands must be bounded and polygonal, and neither may be
  * self-overlapping; nothing else is asked of them, so either may be a polygon,
  * a convex shape, a rectangle, a triangle or a region with holes.
+ *
+ * An operand **without area is read as the empty set**, and both halves of that
+ * matter. It is what regularization means — the result is `closure(A° op B°)`,
+ * and a shape with empty interior contributes nothing to it. And it is what
+ * keeps the cell classification sound: a zero-area operand has no edge, so
+ * @ref appendCutSegments contributes no cut for it and it does not subdivide the
+ * cells, yet `contains` still answers true on the points it covers. One witness
+ * landing on it would then classify a whole cell by a single point of a set that
+ * covers no area — which is exactly how `A ∖ point` and `A △ point` came back
+ * empty instead of `A` when the arrangement happened to pick that point as the
+ * witness for A's interior.
  */
 template <class ResultPoint, class ShapeA, class ShapeB, class KeepCell>
 PolygonSet<ResultPoint> regularizedBoolean(const ShapeA& a, const ShapeB& b, KeepCell keepCell) {
     using ExactNumber = Exact1DNumber<typename ShapeA::NumberType, typename ShapeB::NumberType>;
     using ExactPoint = Point<ExactNumber>;
 
+    const bool aHasArea = !a.isDegenerate();
+    const bool bHasArea = !b.isDegenerate();
+
     std::vector<Segment<ExactPoint>> cuts;
     appendCutSegments<ExactPoint>(a, cuts);
     appendCutSegments<ExactPoint>(b, cuts);
-    return regularizedCells<ResultPoint>(cuts, [&a, &b, &keepCell](const ExactPoint& witness) {
-        return keepCell(a.contains(witness), b.contains(witness));
-    });
+    return regularizedCells<ResultPoint>(
+        cuts, [&a, &b, aHasArea, bHasArea, &keepCell](const ExactPoint& witness) {
+            return keepCell(aHasArea && a.contains(witness), bHasArea && b.contains(witness));
+        });
 }
 
 /**
