@@ -142,6 +142,7 @@ Pangolin includes [fundamental algorithms](doc/algorithms.md):
 - Line segment intersection: Bentley-Ottmann sweep line using rational numbers.
 - Sort points: by angle or Hilbert order.
 - Minkowski sum and boolean operations.
+- Smallest enclosing disk.
 
  and [data structures](doc/data_structures.md):
 
