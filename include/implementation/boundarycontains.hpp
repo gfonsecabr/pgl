@@ -623,11 +623,15 @@ constexpr bool Disk<PointType, LabelType>::boundaryContains(const OtherDisk& oth
     if (other.a() == other.b()) {
         return boundaryContains(other.a());
     }
-    if (isDegenerate()) {
-        return false;
-    }
-
-    return boundaryContains(other.a()) && boundaryContains(other.b()) && boundaryContains(other.c());
+    // Any disk that has not collapsed covers area, and a circle covers none, so
+    // no boundary holds it -- not even the circle bounding it. Testing that the
+    // three points of `other` lie on this circle would only say the two disks
+    // share a boundary, which is not the same as the filled `other` lying on it:
+    // a disk is never a subset of its own boundary. An undefined `other` -- three
+    // collinear but distinct points, read elsewhere as the line through them --
+    // determines no circle either, and false is one of the answers its contract
+    // allows.
+    return false;
 }
 
 template <class PointType, class LabelType>
