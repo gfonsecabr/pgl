@@ -1131,7 +1131,12 @@ constexpr auto Polygon<PointType_, TLabel>::distanceL1(const OtherChain& other) 
 template <class PointType, class LabelType, class Storage>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber MonotoneChain<PointType, LabelType, Storage>::edgeMinDistanceL1(const OtherShape& other) const {
-    assert(size() >= 2);
+    assert(size() >= 1);
+    if (size() == 1) {
+        // A chain collapsed to a single vertex has no edge to measure from;
+        // its distance is the distance from that vertex.
+        return (*this)[0].template distanceL1<ResultNumber>(other);
+    }
     ResultNumber best = this->template boundaryAt<false>(0).template distanceL1<ResultNumber>(other);
     for (std::size_t index = 1; index + 1 < size(); ++index) {
         const ResultNumber current =
@@ -1248,7 +1253,12 @@ constexpr auto MonotoneChain<PointType, LabelType, Storage>::distanceL1(const Ot
 template <class PointType, class LabelType>
 template <class ResultNumber, class OtherShape>
 constexpr ResultNumber Polyline<PointType, LabelType>::edgeMinDistanceL1(const OtherShape& other) const {
-    assert(size() >= 2);
+    assert(size() >= 1);
+    if (size() == 1) {
+        // A polyline collapsed to a single vertex has no edge to measure from;
+        // its distance is the distance from that vertex.
+        return (*this)[0].template distanceL1<ResultNumber>(other);
+    }
     ResultNumber best = this->template boundaryAt<false>(0).template distanceL1<ResultNumber>(other);
     for (std::size_t index = 1; index + 1 < size(); ++index) {
         const ResultNumber current =
