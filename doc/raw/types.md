@@ -105,6 +105,8 @@ Hence, it is safe to use coordinates of the following values.
 
 For disks, the inCircle test promotes numbers twice to avoid overflows.
 
+When that doubly promoted type is an arbitrary precision one — which is the case for `int64_t`, `pgl::int128` and `pgl::BigInt` coordinates, and for any `pgl::Rational<pgl::BigInt>` — the inCircle *sign* is first attempted in floating point, carrying an error bound alongside the value. The sign is reported from that attempt only when the bound proves it, and the exact determinant is computed otherwise, so the answer is the same either way; near-degenerate and exactly cocircular inputs pay for the attempt on top of what they always cost. That trade is a good one by a wide margin: a Delaunay triangulation over `pgl::ERational` coordinates builds twice as fast, while an input the filter can never decide — four exactly cocircular points — makes the predicate some 20% dearer. Coordinates whose determinant already fits in a machine integer skip the attempt entirely, their exact arithmetic being cheaper than the filter.
+
 
 ### Rational Numbers
 

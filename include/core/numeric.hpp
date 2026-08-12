@@ -313,6 +313,23 @@ template <typename T>
 using promoted_number_t = typename _promote<T>::type;
 
 /**
+ * @brief Whether a number type grows to hold its values instead of wrapping.
+ *
+ * True for @ref BigInt and for any @ref Rational built on one. These are the
+ * types whose arithmetic allocates and runs in time proportional to the operand
+ * size, rather than compiling to a fixed handful of machine instructions, which
+ * is what makes a floating-point pre-check worth attempting before them.
+ */
+template <class T>
+inline constexpr bool arbitraryPrecision = false;
+
+template <>
+inline constexpr bool arbitraryPrecision<pgl::BigInt> = true;
+
+template <class Int>
+inline constexpr bool arbitraryPrecision<pgl::Rational<Int>> = arbitraryPrecision<Int>;
+
+/**
  * @brief The floating-point type an inexact measurement reports its result in.
  *
  * A few measurements have no closed form in the coordinate type — every
