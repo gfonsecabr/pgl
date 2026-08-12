@@ -338,9 +338,12 @@ constexpr std::remove_cvref_t<Region> regionClippedToBox(const Region& region, c
     // region's own. For an integral N this is what the toward-zero cast
     // already did.
     const auto roundOutward = [](const auto& value, bool up) -> N {
-        if constexpr (requires { value.numerator(); value.denominator(); }) {
-            const auto numerator = value.numerator();
-            const auto denominator = value.denominator();   // always positive
+        if constexpr (pgl::is_Rational_v<std::remove_cvref_t<decltype(value)>>) {
+            // Both parts are wanted, so reduce once and read them off that copy:
+            // numerator() and denominator() each run their own gcd otherwise.
+            const auto reduced = value.simplified();
+            const auto numerator = reduced.numerator();
+            const auto denominator = reduced.denominator();  // always positive
             auto quotient = numerator / denominator;        // truncates toward zero
             const bool exact = quotient * denominator == numerator;
             if (!exact && (numerator < 0) == !up) {

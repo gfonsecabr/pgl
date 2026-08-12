@@ -74,33 +74,6 @@ private:
     bool normalized_ = true; ///< False when gcd(|num|, den) may exceed 1
 
     /**
-     * @brief Reduce the stored fraction to lowest terms (den stays > 0).
-     *
-     * Only ever called on a value being constructed/assigned, never on a const
-     * object, so Rational stays usable in constant expressions.
-     */
-    constexpr void normalize() {
-        if (normalized_) {
-            return;
-        }
-        normalized_ = true;
-        assert(den != 0);
-
-        if (num == 0) {
-            den = 1;
-            return;
-        }
-
-        if (den == 1 || num == 1) {
-            return;
-        }
-
-        Int g = pgl::detail::gcd(pgl::detail::abs(num), den);
-        num /= g;
-        den /= g;
-    }
-
-    /**
      * @brief How many heap limbs a deferred fraction may reach, once it is off
      * the inline store, before @ref reductionUrgent stops tolerating it.
      *
@@ -195,8 +168,16 @@ public:
 
     /**
      * @brief Construct from another Rational.
+     *
+     * The source is taken by value and simplified once, rather than read through
+     * `numerator()` and `denominator()`: those each run their own gcd over the
+     * same deferred pair, so reading both that way reduces it twice.
      */
-    constexpr Rational(RationalConcept auto n) : num(n.numerator()), den(n.denominator()) {}
+    constexpr Rational(RationalConcept auto n) : num(0), den(1) {
+        n.simplify();
+        num = Int(n.numerator());
+        den = Int(n.denominator());
+    }
 
     /**
      * @brief Construct from integer.
@@ -274,7 +255,7 @@ public:
             num = Int(negative ? -den * f : den * f);
 
             normalized_ = false;
-            normalize();
+            simplify();
         } else {
             // Int has no floating-point multiply (e.g. pgl::BigInt). A float's
             // significand always fits in a 128-bit integer, so build the value
@@ -298,6 +279,117 @@ public:
     constexpr Int denominator() const noexcept {
         if (normalized_) return den;
         return den / pgl::detail::gcd(pgl::detail::abs(num), den);
+    }
+
+    /**
+     * @brief Reduces the stored fraction to lowest terms in place (den stays > 0).
+     *
+     * The reduction this type defers is normally recomputed and thrown away at
+     * every read: @ref numerator and @ref denominator each run their own gcd and
+     * keep nothing, so a value read `k` times pays for `k` reductions — and twice
+     * that when both parts are wanted. Calling this once, on a value that is
+     * about to be read repeatedly (hashed into a container, compared across a
+     * sweep, carried through a chain of predicates), collapses all of it to a
+     * single gcd; every later read then takes the already-normalized fast path.
+     *
+     * Being non-const is the whole point: the result is stored, which is what
+     * a const read cannot do. Nothing about the *value* changes, so this is
+     * only ever a performance decision, never a semantic one.
+     *
+     * @see simplified() for the const version, which returns the reduced value
+     *      instead of storing it.
+     */
+    constexpr void simplify() {
+        if (normalized_) {
+            return;
+        }
+        normalized_ = true;
+        assert(den != 0);
+
+        if (num == 0) {
+            den = 1;
+            return;
+        }
+
+        if (den == 1 || num == 1) {
+            return;
+        }
+
+        Int g = pgl::detail::gcd(pgl::detail::abs(num), den);
+        num /= g;
+        den /= g;
+    }
+
+    /**
+     * @brief Returns this value reduced to lowest terms.
+     *
+     * The const counterpart of @ref simplify: for a value that cannot be
+     * modified — one reached through a const reference, a container element, a
+     * function parameter — this hands back a copy the caller can store and read
+     * freely. It is also the cheap way to obtain *both* parts of a deferred
+     * fraction, since `numerator()` and `denominator()` each run their own gcd
+     * over the same pair, and this one runs it once.
+     *
+     * @return An equal value whose stored parts satisfy `gcd(|num|, den) == 1`.
+     */
+    [[nodiscard]] constexpr Rational simplified() const {
+        if (normalized_) {
+            return *this;
+        }
+        if (num == 0) {
+            return Rational(Int(0), Int(1), true);
+        }
+        if (den == 1 || num == 1) {
+            return Rational(num, den, true);
+        }
+        const Int g = pgl::detail::gcd(pgl::detail::abs(num), den);
+        return Rational(num / g, den / g, true);
+    }
+
+    /**
+     * @brief Reduces in place, but only when the stored parts have already grown
+     * wide enough that the next arithmetic step would reduce them anyway.
+     *
+     * The no-regression form of @ref simplify. Arithmetic on a deferred fraction
+     * reduces its operands whenever they have grown wide — see
+     * @ref operandParts — and throws that reduced form away with the expression's
+     * locals, so a wide value feeding many operations is reduced once per
+     * operation. This runs that same reduction a single time and *keeps* it,
+     * under exactly the same width test the arithmetic itself applies. A value
+     * below that width is left alone, because nothing downstream would have
+     * reduced it either.
+     *
+     * So it never spends a gcd the library was not going to spend, which makes
+     * it safe to apply to a stored value whose use is not known in advance. What
+     * it will not do is reduce a *narrow* fraction to keep everything computed
+     * from it narrower; that is a bet on later use, and only @ref simplify makes
+     * it. Where the values are known to be read many times over — the vertices
+     * an arrangement interns, say — that bet pays, and @ref simplify is the right
+     * call even though it costs reductions this one would skip.
+     *
+     * @see simplifiedIfLarge() for the const version.
+     */
+    constexpr void simplifyIfLarge() {
+        if (!normalized_ && reductionUrgent(num, den)) {
+            simplify();
+        }
+    }
+
+    /**
+     * @brief Returns this value reduced, but only when it is already wide enough
+     * that the next arithmetic step would reduce it anyway.
+     *
+     * The const counterpart of @ref simplifyIfLarge, on the same width test, for
+     * a value that cannot be modified in place. Returns an equal value either
+     * way — reduced when the test fires, and an unchanged copy when it does not.
+     *
+     * @return A value equal to this one, in lowest terms when it was wide.
+     */
+    [[nodiscard]] constexpr Rational simplifiedIfLarge() const {
+        if (!normalized_ && reductionUrgent(num, den)) {
+            return simplified();
+        }
+        return *this;
     }
 
     /// @brief Convert to float

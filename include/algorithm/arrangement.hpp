@@ -1792,6 +1792,22 @@ private:
     // overlapping and duplicated input of the same stretch — become one edge
     // remembering every input shape that produced it.
     void internVertices(std::vector<Piece>& pieces, const std::vector<PointType>& isolated) {
+        // A rational coordinate arrives here unreduced: it is a crossing, built
+        // by @ref split as a fraction whose normalization this type defers. Every
+        // read of one then reduces it again and keeps nothing — and each piece
+        // endpoint is about to be read many times over, by the sort below, by the
+        // hash lookups that follow, and by every predicate downstream of them.
+        // Reducing each endpoint once here pays a single gcd apiece and leaves
+        // every one of those reads on the already-normalized fast path.
+        if constexpr (pgl::is_Rational_v<typename PointType::NumberType>) {
+            for (Piece& piece : pieces) {
+                piece.a.x().simplify();
+                piece.a.y().simplify();
+                piece.b.x().simplify();
+                piece.b.y().simplify();
+            }
+        }
+
         std::sort(pieces.begin(), pieces.end(), [](const Piece& left, const Piece& right) {
             if (!(left.a == right.a)) {
                 return left.a < right.a;
