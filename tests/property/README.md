@@ -135,8 +135,8 @@ reach is an accident of the draw — one missing overload fails the same propert
 across dozens of pairs, and a fresh seed finds pairs an earlier one missed. With
 exact pairs only, every new seed reported a handful of "new" signatures that were
 not new problems, and still 1–7 new per seed. Collapsing the thirteen properties
-whose failures were all traced to one cause brings the shipped list to 49 entries
-over 200 observed signatures, and fresh seeds that contributed nothing to it come
+whose failures were all traced to one cause brings the shipped list to 42 entries
+over 193 observed signatures, and fresh seeds that contributed nothing to it come
 out clean at 20000 cases each. That is what makes the exit code mean something.
 The tail is long, though: roughly one seed in five still reaches a new *pair* of an
 already-known cause, so triage means comparing the witness against the list above
@@ -147,7 +147,7 @@ sh tests/property/run.sh --cases 20000 --update-baseline   # rewrite from one ru
 ```
 
 That writes exact pairs only, so the wildcards are a maintainer's judgement to
-reapply by hand. The shipped list is the union over seeds 1–16 at 20000 cases.
+reapply by hand. The shipped list is the union over seeds 1–24 at 20000 cases.
 
 ## What it currently finds
 
@@ -156,10 +156,10 @@ standalone program, so each is a real reachable case and not a harness artefact.
 
 ### Fixed
 
-Six of the original findings have been fixed in the library. The harness went from
-590 signatures over sixteen seeds to 200, and the baseline from 81 entries to 49.
-The properties that caught them are still in place, so a regression comes back as
-a failure rather than as a memory.
+Eight of the original findings have been fixed in the library. The harness went
+from 590 signatures to 193, and the baseline from 81 entries to 42. The properties
+that caught them are still in place, so a regression comes back as a failure rather
+than as a memory.
 
 - **`distanceL1` / `distanceLInf` aborted on a one-vertex `MonotoneChain` or
   `Polyline`.** `edgeMinDistanceL1` asserted `size() >= 2`, but a one-vertex chain
@@ -199,33 +199,45 @@ a failure rather than as a memory.
   *equivalent* while `operator==` correctly reported them unequal — leaving `<`,
   `==` and `>` all false and breaking `std::set<Disk>`. It now computes both in
   `division_result_t`, where equivalence means the same thing as `operator==`.
+- **`contains` rejected a radius-zero `Disk` on the receiver's boundary.** The area
+  shapes decide disk containment with two tests that stay in integer arithmetic and
+  so avoid the disk's rational centre and radius: no edge passes through the *open*
+  disk, and a point strictly inside the disk is *interior* to the receiver. A
+  radius-zero disk has an empty interior, so `pointInsideInteriorContainedIn` had
+  only the disk's own point to offer and the interior test then rejected it on the
+  boundary — `Rectangle[(0,0),(10,10)].contains(Disk(P(0,4),0))` was false although
+  the rectangle contains `Point(0,4)`. It broke `boundaryContains ⟹ contains` too,
+  since `boundaryContains` answered true for that pair.
+  `Halfplane::interiorContains(Disk)` already carried a `getIfPoint()` guard for
+  exactly this reason; `contains` now carries it as well, in `Rectangle`,
+  `Triangle`, `Convex`, `Halfplane` and `HalfplaneIntersection` (`Polygon` and
+  `PolygonWithHoles` had one already). `Convex` and `Triangle` answer through their
+  own `contains(Point)` rather than through the edge half-planes, because a
+  degenerate hull has no opposing pair of bounding half-planes to cut its carrier
+  line back down to the point or segment it actually is.
+- **`Disk::boundaryContains(itself)` was true at positive radius.** It tested that
+  the other disk's three defining points lie on this circle, which answers *the two
+  disks share a boundary* — not *the filled disk lies on the boundary*. A disk of
+  positive radius covers area and a circle covers none, so only a collapsed disk
+  can lie on one; that collapsed reading was already right and is what the overload
+  now keeps.
 
 ### Still open
 
-These are triaged but unfixed. The first six are all about shapes that are
+These are triaged but unfixed. The first four are all about shapes that are
 degenerate but defined, which is where most of what this harness finds lives.
 
-1. **`contains` mishandles a radius-zero `Disk`.**
-   `Rectangle[(0,0),(0,0)].contains(Disk(P(0,0),0))` is false although both are
-   exactly the point `(0,0)`, and each contains `Point(0,0)`. Same for
-   `Halfplane` and `Triangle`. `boundaryContains` answers true for the same pair,
-   so it also breaks `boundaryContains ⟹ contains`.
-
-2. **`Disk::boundaryContains(itself)` is true at positive radius.** The boundary
-   is the circle and the disk is filled, so it cannot lie in it. Correct at radius
-   zero. `Disk(P(0,0),1).boundaryContains(itself)`.
-
-3. **A degenerate `Segment` contains an unbounded region.**
+1. **A degenerate `Segment` contains an unbounded region.**
    `Segment((3,3),(3,3)).contains(HalfplaneIntersection[...])` is true; a point
    cannot contain a quarter-plane. `intersects` correctly answers false.
 
-4. **`intersection` invents a point for a zero-length operand.**
+2. **`intersection` invents a point for a zero-length operand.**
    `OrientedSegment (0,1)->(0,1)` against `Segment (0,0)--(1,1)` returns the point
    `(0,1)`, which lies on neither operand — `intersects` correctly answers false.
    Same for a two-equal-vertex `Polyline`, and a degenerate `Triangle` returns a
    whole segment that is not inside the other operand.
 
-5. **`crosses` is true where both `separates` are false, for degenerate area
+3. **`crosses` is true where both `separates` are false, for degenerate area
    shapes.** `Convex[(-1,0),(1,0)].crosses(Rectangle[(0,-1),(0,1)])` is true while
    `separates` is false both ways — violating the documented
    `crosses == A.separates(B) && B.separates(A)`. The identical geometry as two
@@ -234,19 +246,19 @@ degenerate but defined, which is where most of what this harness finds lives.
    `sandbox/todo.md`: the guards make `separates` too strict, and `crosses` does
    not go through `separates` for these pairs, so the two disagree.
 
-6. **Bentley–Ottmann double-reports with a zero-length segment.** For
+4. **Bentley–Ottmann double-reports with a zero-length segment.** For
    `{(0,0)--(0,0), (0,-1)--(0,0)}`, `findIntersections` returns 2 pairs and
    `bruteForceIntersections` returns 1. A zero-length segment is defined
    (`isUndefined()` is false), so it is legitimate input.
 
 ### Unbounded regions
 
-7. **Predicates throw on an unbounded `HalfplaneIntersection`.** `separates` and
+5. **Predicates throw on an unbounded `HalfplaneIntersection`.** `separates` and
     `crosses` against a `Polyline` throw
     `HalfplaneIntersection::bbox is only defined for a nonempty bounded region`.
     A predicate is documented to answer, not to throw.
 
-8. **`squaredDistance` returns 0 for a non-intersecting pair when instantiated at
+6. **`squaredDistance` returns 0 for a non-intersecting pair when instantiated at
     `double`.** For `HalfplaneIntersection[^-(0,-2)--(-2,-3)-^,^-(0,0)--(1,-1)-^]`
     against `Line -(-1,-1)--(1,0)-`, the `double` instantiation answers 0 while
     the default exact one answers 9/5, and `intersects` answers false. Translating
@@ -257,7 +269,7 @@ degenerate but defined, which is where most of what this harness finds lives.
 
 These may be deliberate, but the sibling operations disagree about their domain:
 
-9. **`regularizedIntersection` throws for all 16 ordered pairs among
+7. **`regularizedIntersection` throws for all 16 ordered pairs among
     `Rectangle`, `Triangle`, `Convex` and `Polygon`**, while `regularizedUnion`,
     `difference` and `symmetricDifference` all work for exactly those pairs. It
     succeeds only when an operand is a `PolygonWithHoles` or a `PolygonSet`. The
@@ -267,12 +279,12 @@ These may be deliberate, but the sibling operations disagree about their domain:
     sends the caller to `regularizedIntersection` on the grounds that it "answers
     with a `PolygonSet` and so never has to throw".
 
-10. **`distanceL1` and `distanceLInf` are undefined for every pair involving a
+8. **`distanceL1` and `distanceLInf` are undefined for every pair involving a
     `Disk`**, while `squaredDistance` is defined for all of them.
 
 ### A documented guarantee that does not hold
 
-11. **`sortAround` does not always trace a simple polygon.** Its documentation
+9. **`sortAround` does not always trace a simple polygon.** Its documentation
     promises that "connecting the sorted points in order traces a simple,
     star-shaped polygon whose kernel contains `p`". With centre `(0,1)` and points
     `(-1,0), (0,-1), (0,0), (1,0)` it returns the ring
