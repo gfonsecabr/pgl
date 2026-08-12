@@ -174,6 +174,16 @@ auto merged = pgl::regularizedUnionOf<pgl::EPoint>(polygons);
 
 The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`. `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a `Halfplane`, or a `HalfplaneIntersection` as its argument. `regularizedIntersection` is available when a `PolygonWithHoles` or `PolygonSet` participates; the other operand may be any of the six bounded region types, a `Halfplane`, or a `HalfplaneIntersection`. These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
 
+Every pair outside those grids throws `std::logic_error`, and the one gap worth knowing is that the four operations are **not** interchangeable: `regularizedIntersection` is the only one undefined for a pair drawn just from `Rectangle`, `Triangle`, `Convex` and `Polygon`, so `rectangle.regularizedIntersection(triangle)` throws where `regularizedUnion`, `difference` and `symmetricDifference` all answer. Calling [`asPolygonWithHoles`](shapes.md#polygon-with-holes) on either operand first reaches it:
+
+```c++
+pgl::Rectangle<> rect(0,0, 4,4);
+pgl::Triangle<> tri(0,0, 6,0, 0,6);
+auto area = rect.asPolygonWithHoles().regularizedIntersection(tri);  // rect.regularizedIntersection(tri) throws
+```
+
+For the literal point set, including its lower-dimensional pieces, `intersection` is defined for that pair as it stands.
+
 ### Minkowski Sum
 
 The Minkowski sum of two shapes is the set of all sums of a point of the first and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is written `a.minkowskiSum(b)`, or `a + b`. Adding a `Point` is a translation, so it returns the other operand's own type and is defined for every shape.
