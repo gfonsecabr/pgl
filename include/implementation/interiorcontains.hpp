@@ -2095,6 +2095,12 @@ constexpr bool Rectangle<PointType, LabelType>::interiorContains(const OtherRegi
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Triangle<PointType, LabelType>::interiorContains(const OtherRegion& other) const {
+    if (other.empty()) {
+        return true;
+    }
+    if (isDegenerate()) {
+        return false;
+    }
     return detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(a(), b())) &&
            detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(b(), c())) &&
            detail::regionInsideHalfplaneInterior(other, Halfplane<PointType>(c(), a()));
