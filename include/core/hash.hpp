@@ -61,9 +61,14 @@ namespace std {
     template <class Int>
     struct hash<pgl::Rational<Int>> {
         size_t operator()(const pgl::Rational<Int>& r) const noexcept {
+            // Equal values must hash equally, and a Rational may hold its value
+            // unreduced, so the hash has to be taken over the reduced parts.
+            // Simplify once and read both from that: asking the value itself for
+            // numerator() and denominator() would run the same gcd twice.
+            const pgl::Rational<Int> reduced = r.simplified();
             std::size_t seed = 1;
-            pgl::detail::hashCombine(seed, r.numerator());
-            pgl::detail::hashCombine(seed, r.denominator());
+            pgl::detail::hashCombine(seed, reduced.numerator());
+            pgl::detail::hashCombine(seed, reduced.denominator());
             return seed;
         }
     };

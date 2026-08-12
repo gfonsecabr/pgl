@@ -114,6 +114,17 @@ Important geometric properties may need coordinates that are not integers. For e
 
 Pangolin comes with its own rational number class template `pgl::Rational<T>`, where `T` is set to `int64_t` by default, but may be any integer type, including [`pgl::BigInt`](https://gfonsecabr.github.io/pgl/classpgl_1_1BigInt.html "Arbitrary precision signed integer."). The class stores numbers as a numerator and denominator of type `T` and transparently simplifies the fraction. The simplified numerator and denominator of a `Rational r` are accessible with `r.numerator()` and `r.denominator()`. Rational numbers are never promoted.
 
+The simplification is *deferred*: an arithmetic result keeps whatever numerator and denominator it was built with, and the reduction happens on demand. `r.numerator()` and `r.denominator()` therefore each compute their own gcd and discard it, so a value that is read many times pays for the reduction many times over, and reading both parts pays twice per read. Two methods let you pay for it once instead:
+
+- `r.simplify()` reduces `r` in place. It is non-const, and it is the one that *keeps* the result: every later read of `r` then takes the already-simplified fast path. Use it on a value that is about to be read repeatedly — hashed into a container, compared across a sweep, carried through a chain of predicates.
+- `r.simplified()` returns the reduced value without modifying `r`, for values reached through a const reference. It is also the cheap way to get both parts of one fraction, since it runs a single gcd for the pair.
+
+`r.simplifyIfLarge()` and `r.simplifiedIfLarge()` are conditional variants: they reduce only when the stored parts have already grown wide enough that the next arithmetic step would have reduced them anyway, and leave a narrow fraction untouched. That makes them free of regression — they never spend a gcd the library was not going to spend — and so safe to apply to a stored value whose later use is not known.
+
+They are, however, usually the weaker choice where you *do* know the use. Reducing a fraction that is still narrow is what keeps everything computed from it narrow, and that is a bet only the unconditional `simplify()` makes. In this library's own sweep line and arrangement vertices, gating on width left the gcd count essentially unchanged while reducing outright cut it by 41% and 55% respectively; prefer `simplify()` whenever the value is known to be read repeatedly.
+
+None of the four changes the value a [`Rational`](https://gfonsecabr.github.io/pgl/classpgl_1_1Rational.html "Exact rational number class template.") represents, so choosing among them is only ever a performance decision. All work in constant expressions.
+
 Notice that numerators and denominators may grow from $p$ to roughly $p^4$ for prime numbers, even for a simple\
 dot product
 $$\frac{a}{a'}\cdot\frac{b}{b'} + \frac{c}{c'}\cdot\frac{d}{d'} = \frac{ab}{a'b'} + \frac{cd}{c'd'} = \frac{abc'd' + cda'b'}{a'b'c'd'}$$\

@@ -389,6 +389,9 @@ inline constexpr auto abs(auto value) {
  */
 template <typename Int>
 constexpr pgl::Rational<Int> abs(pgl::Rational<Int> value) {
+    // The parameter is a copy, so simplify it in place and read both parts from
+    // the reduced form; numerator() and denominator() would each reduce it anew.
+    value.simplify();
     return pgl::Rational(pgl::detail::abs(value.numerator()), value.denominator(), true);
 }
 

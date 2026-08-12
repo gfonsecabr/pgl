@@ -348,3 +348,158 @@ TEST_CASE_TEMPLATE("Arithmetic operations", Int, int32_t, int64_t, pgl::int128) 
 
 
 
+
+TEST_CASE_TEMPLATE("simplify and simplified reduce to lowest terms", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    // A fraction built from parts is stored unreduced: the normalization is
+    // deferred. Both methods produce the reduced form; only simplify() keeps it.
+    {
+        const pgl::Rational<Int> a(6, 8);
+        const pgl::Rational<Int> b = a.simplified();
+        CHECK(b.numerator() == 3);
+        CHECK(b.denominator() == 4);
+        CHECK(b == a);          // simplifying never changes the value
+        CHECK(a.numerator() == 3);
+        CHECK(a.denominator() == 4);
+
+        pgl::Rational<Int> c(6, 8);
+        c.simplify();
+        CHECK(c.numerator() == 3);
+        CHECK(c.denominator() == 4);
+        CHECK(c == a);
+    }
+    {   // negative numerators keep the sign on top, denominator stays positive
+        pgl::Rational<Int> a(-6, 8);
+        CHECK(a.simplified().numerator() == -3);
+        CHECK(a.simplified().denominator() == 4);
+        a.simplify();
+        CHECK(a.numerator() == -3);
+        CHECK(a.denominator() == 4);
+
+        pgl::Rational<Int> b(6, Int(-8));
+        b.simplify();
+        CHECK(b.numerator() == -3);
+        CHECK(b.denominator() == 4);
+    }
+    {   // zero normalizes to 0/1 whatever denominator it was written over
+        pgl::Rational<Int> a(0, 7);
+        CHECK(a.simplified().numerator() == 0);
+        CHECK(a.simplified().denominator() == 1);
+        a.simplify();
+        CHECK(a.numerator() == 0);
+        CHECK(a.denominator() == 1);
+    }
+    {   // already-reduced and integer values are unchanged, and both are idempotent
+        pgl::Rational<Int> a(3, 4);
+        a.simplify();
+        a.simplify();
+        CHECK(a.numerator() == 3);
+        CHECK(a.denominator() == 4);
+        CHECK(a.simplified().simplified() == a);
+
+        pgl::Rational<Int> b(13);
+        b.simplify();
+        CHECK(b.numerator() == 13);
+        CHECK(b.denominator() == 1);
+    }
+    {   // an arithmetic result carries its reduction deferred; simplifying it
+        // agrees with what the accessors report either way
+        pgl::Rational<Int> a(5, 12);
+        pgl::Rational<Int> b(4, 12);
+        const pgl::Rational<Int> sum = a + b;
+        CHECK(sum.simplified().numerator() == 3);
+        CHECK(sum.simplified().denominator() == 4);
+        CHECK(sum.simplified() == sum);
+    }
+    {   // hashing agrees across representations of the same value, which is what
+        // std::hash<Rational> uses simplified() to guarantee
+        const std::hash<pgl::Rational<Int>> hasher;
+        CHECK(hasher(pgl::Rational<Int>(6, 8)) == hasher(pgl::Rational<Int>(3, 4)));
+        CHECK(hasher(pgl::Rational<Int>(0, 5)) == hasher(pgl::Rational<Int>(0, 1)));
+        pgl::Rational<Int> reduced(6, 8);
+        reduced.simplify();
+        CHECK(hasher(reduced) == hasher(pgl::Rational<Int>(6, 8)));
+    }
+}
+
+TEST_CASE("simplify and simplified are usable in constant expressions") {
+    // simplified() is const, so it works on a constexpr object; simplify() needs
+    // a non-const object, which a constexpr function can create locally.
+    constexpr pgl::Rational<int> value(6, 8);
+    static_assert(value.simplified().numerator() == 3);
+    static_assert(value.simplified().denominator() == 4);
+
+    constexpr auto reduce = [](int n, int d) {
+        pgl::Rational<int> r(n, d);
+        r.simplify();
+        return r.numerator() * 100 + r.denominator();
+    };
+    static_assert(reduce(6, 8) == 304);
+    static_assert(reduce(0, 7) == 1);
+    CHECK(reduce(6, 8) == 304);
+}
+
+TEST_CASE_TEMPLATE("simplifyIfLarge and simplifiedIfLarge preserve the value", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    // These two are performance hints, not conversions: whether the reduction is
+    // stored is invisible from outside, because every accessor reports the
+    // reduced form either way. So what is testable is that the value never moves
+    // — for a fraction narrow enough to be left alone, and for one wide enough to
+    // be reduced.
+    {   // narrow: below any width at which arithmetic would reduce it
+        pgl::Rational<Int> a(6, 8);
+        const pgl::Rational<Int> before = a;
+        a.simplifyIfLarge();
+        CHECK(a == before);
+        CHECK(a.numerator() == 3);
+        CHECK(a.denominator() == 4);
+        CHECK(a.simplifiedIfLarge() == before);
+    }
+    {   // wide: built well past the half-width bound so the reduction fires.
+        // Doubling rather than shifting, since pgl::BigInt has no operator<<.
+        const int bits = pgl::detail::numeric_limits<Int>::digits > 0
+                             ? pgl::detail::numeric_limits<Int>::digits / 2 + 2
+                             : 66;
+        Int big(1);
+        for (int i = 0; i < bits; ++i) {
+            big = big * Int(2);
+        }
+        pgl::Rational<Int> a(big * 6, big * 8);
+        const pgl::Rational<Int> before = a;
+        a.simplifyIfLarge();
+        CHECK(a == before);
+        CHECK(a.numerator() == 3);
+        CHECK(a.denominator() == 4);
+        CHECK(a.simplifiedIfLarge() == before);
+        CHECK(a.simplifiedIfLarge().numerator() == 3);
+    }
+    {   // zero, integers and already-reduced values are left alone and stay equal
+        pgl::Rational<Int> z(0, 7), i(13), r(3, 4);
+        z.simplifyIfLarge();
+        i.simplifyIfLarge();
+        r.simplifyIfLarge();
+        CHECK(z == pgl::Rational<Int>(0));
+        CHECK(i == pgl::Rational<Int>(13));
+        CHECK(r == pgl::Rational<Int>(3, 4));
+        CHECK(r.denominator() == 4);
+    }
+    {   // agrees with simplify()/simplified() on the value, whichever path it takes
+        pgl::Rational<Int> a(5, 12), b(5, 12);
+        a.simplify();
+        b.simplifyIfLarge();
+        CHECK(a == b);
+        CHECK(a.simplified() == b.simplifiedIfLarge());
+    }
+}
+
+TEST_CASE("simplifyIfLarge is usable in constant expressions") {
+    constexpr pgl::Rational<int> value(6, 8);
+    static_assert(value.simplifiedIfLarge() == value);
+    constexpr auto viaHint = [](int n, int d) {
+        pgl::Rational<int> r(n, d);
+        r.simplifyIfLarge();
+        return r.numerator() * 100 + r.denominator();
+    };
+    static_assert(viaHint(6, 8) == 304);
+    CHECK(viaHint(6, 8) == 304);
+}

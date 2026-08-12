@@ -530,11 +530,13 @@ struct Disk {
                 return r;
             };
 
-            if constexpr (requires(Wide w) { w.numerator(); w.denominator(); }) {
+            if constexpr (pgl::is_Rational_v<Wide>) {
                 // sqrt(s) = sqrt(sn*sd)/sd <= ceil(sqrt(sn*sd))/sd =: u, an exact
                 // rational upper bound whose only square root is over the integer
                 // sn*sd -- so it never iterates on the (irrational) sqrt itself.
-                const Wide s = ab2 * bc2 * ca2;   // (radius * d)^2
+                // Reduced once up front: both parts are wanted, and it also keeps
+                // the integer square root below off a needlessly wide sn*sd.
+                const Wide s = (ab2 * bc2 * ca2).simplified();   // (radius * d)^2
                 using Int = std::remove_cvref_t<decltype(s.numerator())>;
                 const Int sn = s.numerator();
                 const Int sd = s.denominator();
