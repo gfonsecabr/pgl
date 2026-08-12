@@ -147,6 +147,215 @@ constexpr std::partial_ordering dotSign(
     return detail::threeWay(x, -y);
 }
 
+namespace detail {
+
+/**
+ * @brief A `double` approximation of an exact quantity, with an error bound.
+ *
+ * `value` is whatever double arithmetic produced; `error` bounds how far that
+ * can be from the exact result, so the exact value lies in
+ * `[value - error, value + error]`. Chaining the operators below propagates
+ * both, which turns a floating-point evaluation of a polynomial into a proof
+ * of its sign whenever `|value| > error`.
+ */
+struct Approximate {
+    double value = 0.0;  ///< The floating-point evaluation.
+    double error = 0.0;  ///< Bound on `|value - exact|`.
+};
+
+/**
+ * @brief Absolute value of a double, usable in a constant expression.
+ *
+ * `std::abs` only became `constexpr` in C++23 and these predicates must stay
+ * evaluable at compile time under C++20.
+ */
+constexpr double approximateAbs(double value) { return value < 0.0 ? -value : value; }
+
+/**
+ * @brief Relative slack charged for the rounding of one double operation.
+ *
+ * A correctly rounded double operation lands within 2^-53 of the exact result;
+ * the constant is one binade looser so that the rounding committed while
+ * *computing* the error terms — they are ordinary double arithmetic too, and
+ * every one of them is a sum of non-negative quantities, so each can only be
+ * short by a relative 2^-53 — is absorbed along the way.
+ */
+inline constexpr double approximateRoundoff = 0x1p-52;
+
+/**
+ * @brief Slack for a single implementation-defined narrowing to double.
+ *
+ * A conversion from a wide integer picks one of the two doubles adjacent to the
+ * exact value, i.e. lands within one ulp.
+ */
+inline constexpr double approximateNarrowing = 0x1p-52;
+
+/**
+ * @brief Slack for a conversion to double that may round more than once.
+ *
+ * @ref BigInt reaches double by accumulating its base-2^62 limbs in
+ * `long double` and narrowing the total, and a @ref Rational divides two such
+ * conversions, so the rounding compounds: once per limb, once per narrowing,
+ * once for the quotient. Charging 2^-45 leaves room for some 250 limbs, and
+ * that on the pessimistic assumption that `long double` is no wider than
+ * `double` — a magnitude around 2^15000, well past any coordinate a geometric
+ * computation arrives at. Spending less slack than this buys nothing: the gap
+ * only starts to matter for near-degenerate inputs at coordinate magnitudes
+ * above 2^36 or so, and even there it decides all but a few percent.
+ */
+inline constexpr double approximateConversion = 0x1p-45;
+
+/**
+ * @brief Final safety factor applied to an accumulated error bound.
+ */
+inline constexpr double approximateMargin = 1.0 + 0x1p-20;
+
+/**
+ * @brief Sum of two approximations, widening the bound by the rounding it costs.
+ */
+constexpr Approximate operator+(const Approximate& a, const Approximate& b) {
+    const double value = a.value + b.value;
+    return {value, a.error + b.error + approximateRoundoff * approximateAbs(value)};
+}
+
+/**
+ * @brief Difference of two approximations, widening the bound by the rounding it costs.
+ */
+constexpr Approximate operator-(const Approximate& a, const Approximate& b) {
+    const double value = a.value - b.value;
+    return {value, a.error + b.error + approximateRoundoff * approximateAbs(value)};
+}
+
+/**
+ * @brief Product of two approximations, widening the bound by the rounding it costs.
+ *
+ * `(x + dx)(y + dy) - xy` is bounded by `|x| |dy| + |y| |dx| + |dx| |dy|`, to
+ * which the product's own rounding is added.
+ */
+constexpr Approximate operator*(const Approximate& a, const Approximate& b) {
+    const double value = a.value * b.value;
+    return {value,
+            approximateAbs(a.value) * b.error + approximateAbs(b.value) * a.error +
+                a.error * b.error + approximateRoundoff * approximateAbs(value)};
+}
+
+/**
+ * @brief Approximates an exact rational coordinate by a double.
+ *
+ * The single division `Rational` narrows to is deliberately preferred over the
+ * tighter bracket @ref Rational::lowerBound and @ref Rational::upperBound would
+ * give: those cost two long-double divisions apiece, which on a Delaunay build
+ * over `ERational` coordinates was a fifth of everything the filter saved,
+ * while the bracket they buy makes no difference to how often it can decide.
+ *
+ * A fraction whose stored parts overflow double — easy to reach, since the
+ * reduction is deferred — yields a non-finite quotient or a NaN here, which
+ * propagates to an error bound the comparisons cannot satisfy. The filter then
+ * abstains rather than answering from a value it never computed.
+ */
+template <class Int>
+constexpr Approximate approximate(const pgl::Rational<Int>& value) {
+    const double quotient = static_cast<double>(value);
+    return {quotient, approximateConversion * approximateAbs(quotient)};
+}
+
+/**
+ * @brief Approximates an exact coordinate by a double, bounding the conversion.
+ */
+template <class Number>
+constexpr Approximate approximate(const Number& value) {
+    if constexpr (std::is_floating_point_v<Number>) {
+        if constexpr (numeric_limits<Number>::digits <= numeric_limits<double>::digits &&
+                      numeric_limits<Number>::max_exponent <= numeric_limits<double>::max_exponent) {
+            return {static_cast<double>(value), 0.0};  // float, double: exact
+        } else {
+            const double narrowed = static_cast<double>(value);  // long double
+            return {narrowed, approximateNarrowing * approximateAbs(narrowed)};
+        }
+    } else if constexpr (numeric_limits<Number>::is_integer &&
+                         numeric_limits<Number>::digits <= numeric_limits<double>::digits) {
+        return {static_cast<double>(value), 0.0};  // int and narrower: exact
+    } else if constexpr (extended_integral<Number>) {
+        const double narrowed = static_cast<double>(value);  // int64_t, int128
+        return {narrowed, approximateNarrowing * approximateAbs(narrowed)};
+    } else {
+        const double narrowed = static_cast<double>(value);  // BigInt and the like
+        return {narrowed, approximateConversion * approximateAbs(narrowed)};
+    }
+}
+
+/**
+ * @brief Whether @ref inCircleSign should try a floating-point filter first.
+ *
+ * The filter is not free: it doubles the arithmetic of a plain double
+ * evaluation to carry the error bound, and the near-degenerate inputs it cannot
+ * settle pay for the exact determinant on top. That only comes out ahead when
+ * the exact fallback is arbitrary precision — measured on a 10k-point Delaunay
+ * build, `ERational` halves while a 128-bit determinant (`int` coordinates) and
+ * a fixed-width `Rational` both lose 10-30%, their exact arithmetic being a few
+ * machine instructions to begin with.
+ *
+ * @tparam Coordinate The type the exact determinant is evaluated in.
+ */
+template <class Coordinate>
+inline constexpr bool filtersInCircle = arbitraryPrecision<Coordinate>;
+
+/**
+ * @brief Floating-point filter for @ref inCircleSign.
+ *
+ * Evaluates the in-circle determinant in double while carrying an error bound,
+ * and reports the sign only when the bound proves it. `unordered` means the
+ * filter abstained — the determinant is too close to zero to call, a coordinate
+ * was NaN, or an intermediate overflowed to infinity (which poisons its own
+ * error bound, so the comparisons below fail and the caller falls back). Every
+ * answer it does give equals the sign of the exact determinant.
+ *
+ * The one gap in the reasoning is underflow: a product that lands in the
+ * subnormal range breaks the relative bound the operators charge. The absolute
+ * error such a product can hide is 2^-1074, and nothing downstream can amplify
+ * it past the 2^-1000 floor the final comparison adds, so a determinant the
+ * filter accepts is never decided by underflowed noise.
+ *
+ * @param a First circle point.
+ * @param b Second circle point.
+ * @param c Third circle point.
+ * @param d Query point.
+ * @return The sign of the exact determinant, or `unordered` when undecided.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel, class DNumber, class DLabel>
+constexpr std::partial_ordering inCircleFilter(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c,
+    const Point<DNumber, DLabel>& d) {
+    const Approximate dx = approximate(d.x());
+    const Approximate dy = approximate(d.y());
+    const Approximate adx = approximate(a.x()) - dx;
+    const Approximate ady = approximate(a.y()) - dy;
+    const Approximate bdx = approximate(b.x()) - dx;
+    const Approximate bdy = approximate(b.y()) - dy;
+    const Approximate cdx = approximate(c.x()) - dx;
+    const Approximate cdy = approximate(c.y()) - dy;
+    const Approximate abdet = adx * bdy - bdx * ady;
+    const Approximate bcdet = bdx * cdy - cdx * bdy;
+    const Approximate cadet = cdx * ady - adx * cdy;
+    const Approximate alift = adx * adx + ady * ady;
+    const Approximate blift = bdx * bdx + bdy * bdy;
+    const Approximate clift = cdx * cdx + cdy * cdy;
+    const Approximate det = alift * bcdet + blift * cadet + clift * abdet;
+
+    const double bound = det.error * approximateMargin + 0x1p-1000;
+    if (det.value > bound) {
+        return std::partial_ordering::greater;
+    }
+    if (det.value < -bound) {
+        return std::partial_ordering::less;
+    }
+    return std::partial_ordering::unordered;
+}
+
+}  // namespace detail
+
 /**
  * @brief Returns the signed in-circle determinant of a query point.
  *
@@ -207,6 +416,17 @@ constexpr std::partial_ordering inCircleSign(
     const Point<CNumber, CLabel>& c,
     const Point<DNumber, DLabel>& d) {
     using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
+
+    // A double evaluation that carries its own error bound settles the sign for
+    // all but the near-degenerate inputs, sparing the exact arithmetic below.
+    // It only reports a sign it has proved, so this is a shortcut, not an
+    // approximation; see @ref detail::inCircleFilter.
+    if constexpr (detail::filtersInCircle<Coordinate>) {
+        const std::partial_ordering filtered = detail::inCircleFilter(a, b, c, d);
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
 
     const auto adx = static_cast<Coordinate>(a.x()) - static_cast<Coordinate>(d.x());
     const auto ady = static_cast<Coordinate>(a.y()) - static_cast<Coordinate>(d.y());
