@@ -22,7 +22,7 @@
 #     sh tests/property/run.sh --cases 20000 --update-baseline
 # which writes exact pairs only -- the wildcards above are a maintainer's
 # judgement and have to be reapplied by hand. This list is the union over seeds
-# 1-24 at 20000 cases each.
+# 1-24 at 20000 cases each: 42 entries covering 193 observed signatures.
 #
 # boolean/operations-share-a-domain: 16 pairs observed, collapsed to [*]
 # intersection/intersection-agrees-with-predicate: 34 pairs observed, collapsed to [*]
@@ -42,7 +42,6 @@ boolean/operations-share-a-domain [*]
 bounding/bbox-bounds-containment [OrientedSegment,HalfplaneIntersection]
 bounding/bbox-bounds-containment [Segment,HalfplaneIntersection]
 bounding/bbox-bounds-containment [Triangle,HalfplaneIntersection]
-bounding/bbox-contains-shape [Disk]
 intersection/intersection-agrees-with-predicate [*]
 intersection/intersection-sits-inside-both-operands [*]
 invariance/distances-follow-the-map [*]
@@ -73,17 +72,11 @@ metric/linf-distance-is-symmetric [*]
 metric/metrics-are-ordered [*]
 metric/squared-distance-is-symmetric [*]
 metric/zero-distance-means-intersecting [*]
-predicates/boundary-contains-implies-contains [Convex,Disk]
-predicates/boundary-contains-implies-contains [Halfplane,Disk]
-predicates/boundary-contains-implies-contains [HalfplaneIntersection,Disk]
-predicates/boundary-contains-implies-contains [Rectangle,Disk]
-predicates/boundary-contains-implies-contains [Triangle,Disk]
 predicates/contains-implies-intersects [OrientedSegment,HalfplaneIntersection]
 predicates/contains-implies-intersects [Segment,HalfplaneIntersection]
 predicates/contains-implies-intersects [Triangle,HalfplaneIntersection]
 predicates/crosses-is-mutual-separation [*]
 predicates/crosses-is-symmetric [*]
-predicates/self-pair-is-consistent [Disk]
 predicates/separation-implies-intersection [Polyline,HalfplaneIntersection]
 sorting/sort-around-traces-a-simple-ring
 sweep/sweep-matches-brute-force
