@@ -11,8 +11,9 @@
 // predicates (Polygon.contains/interiorContains/boundaryContains/intersects/
 // interiorsIntersect(Rectangle)).
 //
-// NOT exercised: Polygon::separates(Rectangle), Polygon::crosses(Rectangle) and
-// Rectangle::crosses(Polygon) -- these are not implemented yet (they throw).
+// Not exercised here: Polygon::separates(Rectangle), Polygon::crosses(Rectangle),
+// and Rectangle::crosses(Polygon). These predicates are implemented by the
+// Polygon cut-predicate overloads.
 
 TEST_CASE("Rectangle contains Polygon") {
     using Point = pgl::Point<int>;

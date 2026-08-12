@@ -10,8 +10,9 @@
 // predicates, and the polygon-side containment predicates
 // (Polygon.contains/interiorContains/intersects/interiorsIntersect(Triangle)).
 //
-// NOT exercised: Polygon::separates(Triangle), Polygon::crosses(Triangle) and
-// Triangle::crosses(Polygon) -- not implemented yet (they throw).
+// Not exercised here: Polygon::separates(Triangle), Polygon::crosses(Triangle),
+// and Triangle::crosses(Polygon). These predicates are implemented by the
+// Polygon cut-predicate overloads.
 
 TEST_CASE("Triangle contains Polygon") {
     using Point = pgl::Point<int>;
