@@ -65,6 +65,7 @@
 #include "algorithm/visibilitygraph.hpp"
 #include "algorithm/intersections.hpp"
 #include "algorithm/convexhull.hpp"
+#include "algorithm/mindisk.hpp"
 #include "algorithm/shapetree.hpp"
 #include "algorithm/intervaltree.hpp"
 #include "algorithm/sortpoints.hpp"

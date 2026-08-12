@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/convexhull.hpp"
+#include "algorithm/mindisk.hpp"
 
 /**
  * @file shapetree.hpp

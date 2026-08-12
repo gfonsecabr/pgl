@@ -44,6 +44,10 @@ These functions use the same predicate conventions documented in
 
 - [`convexHullExtended(C)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ace788332cf5ee8db888decfb08383cda "Computes the convex hull of a point container.") returns the convex hull points in ccw order including vertices and points on edge interiors, starting from the smallest (leftmost) point. Complexity $O(n \log n)$ for $n$ input points.
 
+### Smallest enclosing disk
+
+- [`smallestEnclosingDisk(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ac8734297c4d99750062ee028e743d0d0 "Computes the smallest closed disk containing a set of points.") returns the unique smallest closed disk containing every point in the non-empty container `V`. It uses a randomized incremental algorithm with expected $O(n)$ time. Constructing a disk supported by two points divides coordinates by two, so all coordinates should be even when an integral type is used; otherwise integer division can truncate the result. An overload accepts a random-bit generator as its second argument when the caller needs control over the randomized order.
+
 ### Sorting points
 
 - [`sortAround(points, p)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#aab7826153f78fb8c4468ad851564fd8f "Sorts points counterclockwise around a center point.") reorders `points` in place counterclockwise around the center `p`, starting from the lexicographically smallest point and breaking ties by putting farther points first. Connecting the result in order traces a simple star-shaped polygon whose kernel contains `p`. Relies only on exact orientation and squared-distance comparisons. Complexity $O(n \log n)$ for $n$ points.
@@ -63,4 +67,3 @@ These functions use the same predicate conventions documented in
   A hole may touch the outer boundary at a single point — two diagonally opposite cells pinch the hole shut against the outside, as in the smallest holed polyomino — which `PolygonWithHoles::isValid` accepts. Such a point is in the region but has no region interior around it.
 
 - `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two [`polyominoes`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a9008f6bc68cdaae01e41b0e572127a43 "Enumerates the free polyominoes of a given size as polygons.") range overloads.
-
