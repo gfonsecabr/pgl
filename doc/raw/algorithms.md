@@ -65,3 +65,8 @@ These functions use the same predicate conventions documented in
   A hole may touch the outer boundary at a single point — two diagonally opposite cells pinch the hole shut against the outside, as in the smallest holed polyomino — which `PolygonWithHoles::isValid` accepts. Such a point is in the region but has no region interior around it.
 
 - `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two `polyominoes` range overloads.
+
+### Boolean Operations and Minkowski Sum
+
+Boolean operations are documented in [`shape_methods.md`](shape_methods.md#boolean-operations). There is also the free function `regularizedUnionOf` to compute the regularized union of multiple shapes at once.
+Minkowski sum is documented in [`shape_methods.md`](shape_methods.md#minkowski-sum).

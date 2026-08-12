@@ -69,6 +69,19 @@ TEST_CASE("The boolean operations return a PolygonSet") {
     }
 }
 
+TEST_CASE("regularizedUnionOf unites a range in one arrangement") {
+    const std::vector<PolygonShape> shapes{
+        square(0, 0, 4), square(3, 0, 4), square(6, 0, 4)};
+
+    const auto result = pgl::regularizedUnionOf<Point>(shapes);
+
+    CHECK(std::is_same_v<decltype(result), const RegionSet>);
+    CHECK(result == PolygonShape({0, 0, 10, 0, 10, 4, 0, 4}).asPolygonSet());
+
+    const std::vector<PolygonShape> empty;
+    CHECK(pgl::regularizedUnionOf<Point>(empty).empty());
+}
+
 TEST_CASE("The boolean operations are closed over PolygonSet") {
     const RegionSet holed = square(0, 0, 10).difference<int>(square(3, 3, 4));
 

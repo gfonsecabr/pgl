@@ -166,6 +166,14 @@ pgl::EPolygonSet again  = holed.difference(pgl::Rectangle(0,0,2,2));
 pgl::EPolygonSet merged = again.regularizedUnion(holed);
 ```
 
+To unite a range of regions in one arrangement, use [`regularizedUnionOf`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ae72efa38504e74942758d2d4fb78ffcd "The regularized union of arbitrarily many shapes, as a set of regions.") and
+specify the result point type:
+
+```c++
+std::vector<pgl::Polygon<>> polygons = /* ... */;
+auto merged = pgl::regularizedUnionOf<pgl::EPoint>(polygons);
+```
+
 The six bounded region types are [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners."), [`Triangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangle.html "Closed triangle stored by three vertices."), [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."), [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), and [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors."). `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), or a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") as its argument. `regularizedIntersection` is available when a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") or [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") participates; the other operand may be any of the six bounded region types, a [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), or a [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty."). These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
 
 ### Minkowski Sum
