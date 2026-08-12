@@ -1387,6 +1387,18 @@ struct Disk {
 
     /**
      * @brief Orders disks by increasing squared radius, then by center.
+     *
+     * The radius and the center are computed in @ref division_result_t, not in
+     * `NumberType`. Both are fractions of the boundary coordinates -- generally
+     * non-integral even for an integer disk -- so asking for them in an integral
+     * `NumberType` would truncate, and two circles with different radii or
+     * centers could truncate to the same pair and compare *equivalent* while
+     * @ref operator== correctly reported them unequal. All three of `<`, `==` and
+     * `>` were then false for such a pair, which is not an ordering at all: it
+     * breaks `std::set<Disk>` and anything else that sorts. Computing exactly
+     * makes equivalence here mean the same thing as @ref operator== -- same
+     * center and same radius is the same circle.
+     *
      * @warning Uses division through squaredRadius() and center().
      */
     constexpr std::partial_ordering operator<=>(const Disk& other) const {
@@ -1397,12 +1409,13 @@ struct Disk {
 
         // Order true circles from smaller to larger, then by center.
         if (!isDegenerate()) {
-            const auto radius_order = pgl::detail::threeWay(squaredRadius<NumberType>(),
-                                                             other.template squaredRadius<NumberType>());
+            using ExactNumber = division_result_t<NumberType>;
+            const auto radius_order = pgl::detail::threeWay(squaredRadius<ExactNumber>(),
+                                                             other.template squaredRadius<ExactNumber>());
             if (radius_order != 0) {
                 return radius_order;
             }
-            return center<NumberType>() <=> other.template center<NumberType>();
+            return center<ExactNumber>() <=> other.template center<ExactNumber>();
         }
 
         // Degenerate disks fall back to their canonical point representation.
