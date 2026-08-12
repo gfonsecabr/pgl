@@ -760,7 +760,12 @@ struct Shape {
      *   just as readily: an intersection of regions comes apart into a piece per
      *   area component *plus* one per stretch of shared boundary. Reach for the
      *   separately named @ref regularizedIntersection when only the areas are
-     *   wanted — it answers with a `PolygonSet` and so never has to throw.
+     *   wanted — it answers with a `PolygonSet`, so a result in several pieces
+     *   is never what makes *it* throw. Its overload grid is narrower than this
+     *   one's, though: it needs a `PolygonWithHoles` or a `PolygonSet` on one
+     *   side, so it throws for a pair drawn only from `Rectangle`, `Triangle`,
+     *   `Convex` and `Polygon`, where @ref regularizedUnion, @ref difference
+     *   and @ref symmetricDifference all answer.
      * @warning Divides coordinates after casting to ResultNumber.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
@@ -791,8 +796,19 @@ struct Shape {
      * are discarded. See @ref PolygonWithHoles::regularizedIntersection for the
      * full contract.
      *
-     * @throws std::logic_error when the selected pair has no region-valued
-     * regularized intersection.
+     * Unlike its three siblings, this one is **not** defined for every pair of
+     * bounded regions. One operand must be a `PolygonWithHoles` or a
+     * `PolygonSet`; the other may then be any of the six bounded region types, a
+     * `Halfplane`, or a `HalfplaneIntersection` — an unbounded operand is fine
+     * here because A ∩ B is bounded as soon as A is. A pair drawn only from
+     * `Rectangle`, `Triangle`, `Convex` and `Polygon` throws, even though
+     * @ref regularizedUnion, @ref difference and @ref symmetricDifference cover
+     * all thirty-six ordered pairs of the six. Calling `asPolygonWithHoles()` on
+     * either operand first reaches the operation.
+     *
+     * @throws std::logic_error when neither operand is a `PolygonWithHoles` or a
+     *   `PolygonSet`, or when the other operand is not one of the regions listed
+     *   above — the pair then has no region-valued regularized intersection.
      */
     template <class ResultNumber = division_result_t<NumberType>, class Other>
         requires(std::same_as<std::remove_cvref_t<Other>, Shape> || detail::ShapeAlternative<PointType, Other>)
