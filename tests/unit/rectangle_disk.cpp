@@ -126,3 +126,27 @@ TEST_CASE("Disk and Rectangle intersects and interiorsIntersect, both directions
         }
     }
 }
+
+TEST_CASE("Rectangle contains a collapsed Disk, boundary included") {
+    using Point = pgl::Point<int>;
+    using RectangleShape = pgl::Rectangle<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const RectangleShape r({0, 0}, {10, 10});
+    const Disk atCorner({0, 0}, {0, 0}, {0, 0});
+    const Disk onEdge({0, 4}, {0, 4}, {0, 4});
+    const Disk inside({4, 4}, {4, 4}, {4, 4});
+    const Disk outside({20, 4}, {20, 4}, {20, 4});
+
+    // A radius-zero disk is its centre, so containment must agree with the
+    // point: the boundary counts, and boundaryContains implies contains.
+    CHECK(r.contains(atCorner));
+    CHECK(r.contains(onEdge));
+    CHECK(r.contains(inside));
+    CHECK_FALSE(r.contains(outside));
+
+    CHECK(r.boundaryContains(onEdge));
+    CHECK_FALSE(r.interiorContains(onEdge));
+    CHECK(r.interiorContains(inside));
+    CHECK_FALSE(RectangleShape().contains(inside));
+}

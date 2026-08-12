@@ -163,3 +163,31 @@ TEST_CASE("Convex and Disk crosses, both directions") {
         }
     }
 }
+
+TEST_CASE("Convex contains a collapsed Disk, boundary included") {
+    using Point = pgl::Point<int>;
+    using Convex = pgl::Convex<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Convex sq(std::vector<Point>{{0, 0}, {10, 0}, {10, 10}, {0, 10}});
+
+    // A radius-zero disk is its centre, so containment must agree with the
+    // point: the boundary counts, and boundaryContains implies contains.
+    CHECK(sq.contains(Disk({0, 0}, {0, 0}, {0, 0})));      // vertex
+    CHECK(sq.contains(Disk({0, 4}, {0, 4}, {0, 4})));      // edge
+    CHECK(sq.contains(Disk({4, 4}, {4, 4}, {4, 4})));      // interior
+    CHECK_FALSE(sq.contains(Disk({20, 4}, {20, 4}, {20, 4})));
+
+    CHECK(sq.boundaryContains(Disk({0, 4}, {0, 4}, {0, 4})));
+    CHECK_FALSE(sq.interiorContains(Disk({0, 4}, {0, 4}, {0, 4})));
+
+    // A degenerate hull is its carrier point or segment, not the line through
+    // it: the bounding half-planes alone would answer for the whole line.
+    const Convex segment(std::vector<Point>{{-1, 0}, {1, 0}});
+    CHECK(segment.contains(Disk({0, 0}, {0, 0}, {0, 0})));
+    CHECK_FALSE(segment.contains(Disk({5, 0}, {5, 0}, {5, 0})));
+
+    const Convex vertex(std::vector<Point>{{-1, 0}});
+    CHECK(vertex.contains(Disk({-1, 0}, {-1, 0}, {-1, 0})));
+    CHECK_FALSE(vertex.contains(Disk({5, 0}, {5, 0}, {5, 0})));
+}
