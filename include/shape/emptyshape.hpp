@@ -98,11 +98,24 @@ struct EmptyShape {
     // The empty set is a subset of every shape, so it contains only the empty
     // set itself: containment of any non-empty shape is false, while containment
     // of another empty shape is true.
+    //
+    // "Another empty shape" is not only an EmptyShape. A default-constructed
+    // Rectangle, Convex, Polygon, PolygonWithHoles, PolygonSet,
+    // HalfplaneIntersection, MonotoneChain or Polyline is the empty set too, and
+    // each answers so through `empty()` -- so the generic overloads ask, rather
+    // than assuming that anything of another type covers a point. The shapes
+    // that can never be empty (a Point, Segment, Line, Ray, Halfplane, Triangle
+    // or Disk always cover at least one point) have no `empty()` and take the
+    // constant-false branch.
 
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <class T>
-    [[nodiscard]] constexpr bool contains(const T&) const {
-        return false;
+    [[nodiscard]] constexpr bool contains(const T& other) const {
+        if constexpr (requires { other.empty(); }) {
+            return other.empty();
+        } else {
+            return false;
+        }
     }
     /** @brief Tests whether this shape contains the other shape (A ⊇ B). */
     template <PointConcept OtherPoint>
@@ -112,8 +125,13 @@ struct EmptyShape {
 
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <class T>
-    [[nodiscard]] constexpr bool boundaryContains(const T&) const {
-        return false;
+    [[nodiscard]] constexpr bool boundaryContains(const T& other) const {
+        // The boundary of the empty set is the empty set.
+        if constexpr (requires { other.empty(); }) {
+            return other.empty();
+        } else {
+            return false;
+        }
     }
     /** @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B). */
     template <PointConcept OtherPoint>
@@ -123,8 +141,13 @@ struct EmptyShape {
 
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <class T>
-    [[nodiscard]] constexpr bool interiorContains(const T&) const {
-        return false;
+    [[nodiscard]] constexpr bool interiorContains(const T& other) const {
+        // The interior of the empty set is the empty set.
+        if constexpr (requires { other.empty(); }) {
+            return other.empty();
+        } else {
+            return false;
+        }
     }
     /** @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B). */
     template <PointConcept OtherPoint>
