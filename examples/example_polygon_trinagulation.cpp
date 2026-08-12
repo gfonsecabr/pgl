@@ -87,7 +87,7 @@ int main() {
     pgl::Convex<Point> s{{Point{-47,-36},Point{53,64},Point{53,-36},Point{27,-74}}};
     auto interiorIsec = triangulation.trianglesInteriorIntersecting(s);
     auto isec = triangulation.trianglesIntersecting(s);
-    draw("example_triangulation2.svg", triangulation, s, interiorIsec, isec);
+    draw("example_polygon_triangulation.svg", triangulation, s, interiorIsec, isec);
 
     return 0;
 }
