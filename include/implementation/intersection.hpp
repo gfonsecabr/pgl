@@ -3311,7 +3311,18 @@ HalfplaneIntersection<PointType, LabelType>::intersection(const OtherRectangle& 
     // needs no division, so the result is exact whenever ResultNumber
     // represents the inputs exactly.
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using ResultHalfplane = typename HalfplaneIntersection<ResultPoint>::HalfplaneType;
     HalfplaneIntersection<ResultPoint> result(*this);
+    if (other.empty()) {
+        // The empty rectangle carries no edge, so the loop below would insert no
+        // constraint and hand back this whole region. Force emptiness with two
+        // contradictory parallel constraints ({x <= 0} and {x >= 1}), as the
+        // Convex and half-plane-intersection overloads do for their own empty
+        // operand.
+        result.insert(ResultHalfplane(ResultPoint(0, 0), ResultPoint(0, 1)));
+        result.insert(ResultHalfplane(ResultPoint(1, 1), ResultPoint(1, 0)));
+        return result;
+    }
     for (const auto& halfplane : HalfplaneIntersection<ResultPoint>(other)) {
         result.insert(halfplane);
     }
