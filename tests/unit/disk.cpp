@@ -171,8 +171,12 @@ TEST_CASE("Disk boundaryContains detects points on the circle") {
     CHECK(disk.boundaryContains(Halfplane(Point(5, 0), Point(5, 0))));
     CHECK_FALSE(disk.boundaryContains(Halfplane(Point(5, 0), Point(6, 0))));
 
-    CHECK(disk.boundaryContains(Disk(Point(0, 0), 5)));
+    // A disk of positive radius covers area and a circle covers none, so the
+    // boundary holds no disk but a collapsed one -- not even the disk it bounds.
+    CHECK_FALSE(disk.boundaryContains(Disk(Point(0, 0), 5)));
     CHECK_FALSE(disk.boundaryContains(Disk(Point(0, 0), 4)));
+    CHECK(disk.boundaryContains(Disk(Point(5, 0), Point(5, 0), Point(5, 0))));
+    CHECK_FALSE(disk.boundaryContains(Disk(Point(1, 0), Point(1, 0), Point(1, 0))));
 
     CHECK(collinear.boundaryContains(Segment(Point(1, 0), Point(3, 0))));
     CHECK(collinear.boundaryContains(Segment(Point(1, 0), Point(5, 0))));
