@@ -317,6 +317,11 @@ constexpr bool Triangle<PointType, LabelType>::contains(const OtherConvex& other
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Triangle<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center, and contains(Point) already reads a
+        // degenerate triangle as its carrier segment.
+        return contains(*center);
+    }
     // A non-degenerate triangle behaves exactly like its convex view.
     return asConvex().contains(other);
 }
@@ -829,6 +834,11 @@ constexpr bool Rectangle<PointType, LabelType>::contains(const OtherDisk& other)
         // The empty set is a subset of itself and of nothing else.
         return detail::coversNoPoint(other);
     }
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center; it has no interior point for the
+        // witness test below to find, which would reject it on the boundary.
+        return contains(*center);
+    }
     // The closed rectangle contains the closed disk iff no edge passes through
     // the open disk (the disk does not poke across the boundary) and the disk
     // lies on the inside (a point strictly inside the disk is interior to the
@@ -980,6 +990,12 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherConvex& othe
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Halfplane<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center; it has no interior point for the
+        // witness test below to find, which would reject it on the boundary.
+        // This mirrors the same guard in interiorContains(Disk).
+        return contains(*center);
+    }
     return !asLine().interiorsIntersect(other) && other.pointInsideInteriorContainedIn(*this);
 }
 
@@ -1257,6 +1273,13 @@ constexpr bool Convex<PointType, LabelType>::contains(const OtherConvex& other) 
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::contains(const OtherDisk& other) const {
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center. The edge loop below cannot answer
+        // for it: a degenerate convex hull has no pair of bounding half-planes
+        // to cut the carrier line down to the point or segment it really is,
+        // whereas contains(Point) reads that carrier directly.
+        return contains(*center);
+    }
     for (const auto& edge : orientedEdgesView()) {
         if (!edge.leftHalfplane().contains(other)) {
             return false;
@@ -2549,6 +2572,11 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::contains(const Other
     // The region contains the disk exactly when every stored constraint does.
     if (empty()) {
         return false;
+    }
+    if (const auto center = other.getIfPoint()) {
+        // A radius-zero disk is its center, and contains(Point) is the
+        // authoritative membership test for the region.
+        return contains(*center);
     }
     for (const auto& halfplane : halfplanes_) {
         if (!halfplane.contains(other)) {

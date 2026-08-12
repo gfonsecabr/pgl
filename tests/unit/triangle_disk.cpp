@@ -140,3 +140,31 @@ TEST_CASE("Disk and Triangle intersects and interiorsIntersect, both directions"
         }
     }
 }
+
+TEST_CASE("Triangle contains a collapsed Disk, boundary included") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Triangle t({0, 0}, {10, 0}, {0, 10});
+    const Disk atVertex({0, 0}, {0, 0}, {0, 0});
+    const Disk onEdge({4, 0}, {4, 0}, {4, 0});
+    const Disk inside({2, 2}, {2, 2}, {2, 2});
+    const Disk outside({9, 9}, {9, 9}, {9, 9});
+
+    // A radius-zero disk is its centre, so containment must agree with the
+    // point: the boundary counts, and boundaryContains implies contains.
+    CHECK(t.contains(atVertex));
+    CHECK(t.contains(onEdge));
+    CHECK(t.contains(inside));
+    CHECK_FALSE(t.contains(outside));
+
+    CHECK(t.boundaryContains(onEdge));
+    CHECK_FALSE(t.interiorContains(onEdge));
+    CHECK(t.interiorContains(inside));
+
+    // A collinear triangle is its carrier segment, not the whole line.
+    const Triangle flat({-1, 0}, {0, 0}, {1, 0});
+    CHECK(flat.contains(Disk({0, 0}, {0, 0}, {0, 0})));
+    CHECK_FALSE(flat.contains(Disk({5, 0}, {5, 0}, {5, 0})));
+}

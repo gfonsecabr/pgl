@@ -25,6 +25,21 @@ TEST_CASE("Region contains a disk") {
     CHECK(k.contains(Disk(Point(3, 3), 3)));       // touches two sides
     CHECK(!k.interiorContains(Disk(Point(3, 3), 3)));
     CHECK(!k.contains(Disk(Point(5, 5), 3)));
+
+    // A radius-zero disk is its centre, so containment must agree with the
+    // point: the boundary counts, and boundaryContains implies contains.
+    const Disk onBoundary(Point(3, 0), Point(3, 0), Point(3, 0));
+    const Disk inside(Point(3, 3), Point(3, 3), Point(3, 3));
+    CHECK(k.contains(onBoundary));
+    CHECK(k.boundaryContains(onBoundary));
+    CHECK(!k.interiorContains(onBoundary));
+    CHECK(k.contains(inside));
+    CHECK(k.interiorContains(inside));
+    CHECK(!k.contains(Disk(Point(9, 9), Point(9, 9), Point(9, 9))));
+
+    // An unbounded region answers the same way.
+    CHECK(vslab().contains(Disk(Point(0, 100), Point(0, 100), Point(0, 100))));
+    CHECK(!vslab().contains(Disk(Point(9, 100), Point(9, 100), Point(9, 100))));
 }
 
 TEST_CASE("A disk contains a region") {

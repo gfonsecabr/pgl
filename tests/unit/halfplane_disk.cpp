@@ -141,6 +141,22 @@ TEST_CASE("Half-plane and Disk containment") {
         CHECK_FALSE_MESSAGE(h.interiorContains(d), h, " interiorContains ", d);
     }
 
+    SUBCASE("a collapsed disk is contained wherever its centre is") {
+        // A radius-zero disk is its centre, so containment must agree with the
+        // point: the boundary line counts for contains but not interiorContains.
+        Halfplane h(Point(0, 0), Point(1, 0));  // contained side y >= 0
+        const Disk onBoundary(Point(7, 0), Point(7, 0), Point(7, 0));
+        const Disk strictlyInside(Point(7, 3), Point(7, 3), Point(7, 3));
+        const Disk outside(Point(7, -3), Point(7, -3), Point(7, -3));
+
+        CHECK_MESSAGE(h.contains(onBoundary), h, " contains ", onBoundary);
+        CHECK_FALSE_MESSAGE(h.interiorContains(onBoundary), h, " interiorContains ", onBoundary);
+        CHECK_MESSAGE(h.boundaryContains(onBoundary), h, " boundaryContains ", onBoundary);
+        CHECK_MESSAGE(h.contains(strictlyInside), h, " contains ", strictlyInside);
+        CHECK_MESSAGE(h.interiorContains(strictlyInside), h, " interiorContains ", strictlyInside);
+        CHECK_FALSE_MESSAGE(h.contains(outside), h, " contains ", outside);
+    }
+
     SUBCASE("a disk never contains or bounds an (unbounded) half-plane") {
         Halfplane h(Point(0, 0), Point(1, 0));
         CHECK_FALSE_MESSAGE(d.contains(h), d, " contains ", h);
