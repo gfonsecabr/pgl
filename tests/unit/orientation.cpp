@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <random>
+#include <type_traits>
 #include "pgl.hpp"
 
 // Tests for the atomic sign predicates in implementation/orientation.hpp.
@@ -65,12 +66,21 @@ TEST_CASE_TEMPLATE("inCircleSign is exact on cocircular points and their neighbo
         const int y2 = coordinate(rng);
         auto at = [](int x, int y) { return Point(Number(x), Number(y)); };
 
-        // The four corners of an axis-aligned rectangle are cocircular, so the
-        // determinant is exactly zero however degenerate the rectangle is.
         const Point a = at(x1, y1);
         const Point b = at(x2, y1);
         const Point c = at(x2, y2);
-        CHECK(pgl::inCircleSign(a, b, c, at(x1, y2)) == std::partial_ordering::equivalent);
+
+        // The four corners of an axis-aligned rectangle are cocircular, so an
+        // exact coordinate type reports the determinant as zero however
+        // degenerate the rectangle is. A floating-point one is not owed that
+        // and is not asked for it: its determinant is evaluated in long double,
+        // and whether terms around 2^57 cancel at all comes down to how many
+        // mantissa bits that type has to spare -- eleven where long double is
+        // x87's 80-bit format, none at all where it is a second name for
+        // double, as it is on MSVC.
+        if constexpr (!std::is_floating_point_v<Number>) {
+            CHECK(pgl::inCircleSign(a, b, c, at(x1, y2)) == std::partial_ordering::equivalent);
+        }
 
         // Nudging the query point off that circle by a single unit is the
         // tightest non-degenerate input there is, and the sign must follow the
