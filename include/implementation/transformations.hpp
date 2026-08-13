@@ -828,12 +828,16 @@ std::optional<std::array<Working, 4>> integralLinePoints(const std::array<Workin
 
 }  // namespace detail
 
-template <class PointType, class LabelType>
+// The parameters are named as OrientedLine itself names them, unlike the rest
+// of this file: the return type reaches through one of them for a nested type,
+// and MSVC matches such a definition to its declaration by spelling, not by
+// parameter position, so any other name here is C2244.
+template <class PointType_, class TLabel>
 template <class ResultNumber>
-    requires(is_Rational_v<typename PointType::NumberType>
+    requires(is_Rational_v<typename PointType_::NumberType>
              && (detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>))
-std::optional<OrientedLine<Point<ResultNumber, typename PointType::LabelType>, LabelType>>
-OrientedLine<PointType, LabelType>::integralLine() const {
+std::optional<OrientedLine<Point<ResultNumber, typename PointType_::LabelType>, TLabel>>
+OrientedLine<PointType_, TLabel>::integralLine() const {
     using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
     using Result = OrientedLine<ResultPoint, LabelType>;
     using Integer = rational_int_t<NumberType>;
