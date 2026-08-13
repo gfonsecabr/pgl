@@ -1665,14 +1665,18 @@ struct Triangulation {
             } while (cur != startTri && cur != NO_TRI && ++g < lim);
             return NO_TRI;
         };
-        // Signed progress of vertex w along the directed line a->b (monotone along
-        // it); 0 at a, `pmax` at b. Used to keep motion within the segment.
-        const auto progress = [&](VertexId w) {
-            return (vertices_[w].x() - a.x()) * (b.x() - a.x()) +
-                   (vertices_[w].y() - a.y()) * (b.y() - a.y());
+        // Three-way order of two points along the directed line a->b: the sign
+        // of q - p projected on that direction. Every question the trace asks
+        // about progress along the segment is a comparison of two such
+        // projections, and their difference is a single dot product -- so the
+        // signed progress of each point never has to be formed. Comparing
+        // against the target b is how the walk stops at the far end.
+        const auto alongOrder = [&](const auto& p, const auto& q) {
+            return dotSign(p, q, a, b);
         };
-        // progress(b): the value at the target, i.e. |a->b|^2; the upper bound.
-        const auto pmax = (b.x() - a.x()) * (b.x() - a.x()) + (b.y() - a.y()) * (b.y() - a.y());
+        const auto vertexOrder = [&](VertexId u, VertexId w) {
+            return alongOrder(vertices_[u], vertices_[w]);
+        };
         // From a vertex w on the segment, emit its fan and follow the segment: if
         // it enters a triangle interior return that triangle (resume the trace);
         // if it continues collinearly along an edge, hop to the next on-segment
@@ -1683,7 +1687,7 @@ struct Triangulation {
                 emitFan(w, anchor);
                 if (stop) return NO_TRI;
                 if constexpr (!unboundedFront) {
-                    if (progress(w) >= pmax) return NO_TRI;  // reached the target end
+                    if (alongOrder(b, vertices_[w]) >= 0) return NO_TRI;  // reached the target end
                 }
                 const TriId interior = forwardAround(w, anchor);
                 if (interior != NO_TRI) return interior;
@@ -1697,8 +1701,8 @@ struct Triangulation {
                     if (!isGhost(cur)) {
                         for (VertexId y : triangles_[cur].v) {
                             if (y != w && orientationSign(a, b, vertices_[y]) == 0 &&
-                                progress(y) > progress(w) &&
-                                (unboundedFront || progress(y) <= pmax)) {
+                                vertexOrder(w, y) > 0 &&
+                                (unboundedFront || alongOrder(b, vertices_[y]) <= 0)) {
                                 nextV = y;
                                 nextAnchor = cur;
                                 break;
@@ -1811,9 +1815,9 @@ struct Triangulation {
                 if (onA && onB) {
                     // Along the hull edge: start at the endpoint met first, never at
                     // one behind a finite source.
-                    const VertexId first = progress(va) <= progress(vb) ? va : vb;
+                    const VertexId first = vertexOrder(va, vb) >= 0 ? va : vb;
                     const VertexId second = (first == va) ? vb : va;
-                    w = (unboundedBack || progress(first) >= 0) ? first : second;
+                    w = (unboundedBack || alongOrder(a, vertices_[first]) >= 0) ? first : second;
                 }
                 prev = NO_TRI;
                 return advanceFromVertex(w, g);
@@ -1852,12 +1856,12 @@ struct Triangulation {
                 if (orientationSign(vertices_[e1], vertices_[e2], b) != 0) {
                     return NO_TRI;
                 }
-                const VertexId fwd = progress(e1) > progress(e2) ? e1 : e2;
+                const VertexId fwd = vertexOrder(e2, e1) > 0 ? e1 : e2;
                 if constexpr (!unboundedFront) {
                     // The target lies strictly inside this edge: s stops before the
                     // forward endpoint, so its fan must not be visited. The two
                     // triangles sharing the edge are all s meets, and both are out.
-                    if (progress(fwd) > pmax) {
+                    if (alongOrder(b, vertices_[fwd]) > 0) {
                         return NO_TRI;
                     }
                 }
@@ -1989,7 +1993,7 @@ struct Triangulation {
             if (onCount >= 1) {
                 // s leaves t through the on-line vertex farthest along a->b; from
                 // there, advance (fan + collinear hops) until it re-enters an interior.
-                const int m = (onCount >= 2 && progress(v[on1]) > progress(v[on0])) ? on1 : on0;
+                const int m = (onCount >= 2 && vertexOrder(v[on0], v[on1]) > 0) ? on1 : on0;
                 t = advanceFromVertex(v[m], t);
                 prev = NO_TRI;
                 continue;

@@ -430,7 +430,7 @@ constexpr int chainSignOf(const Number& value) {
  */
 template <class P, class Q>
 constexpr int chainSideSign(const P& a, const P& b, const Q& p) {
-    return chainSignOf(orientationDeterminant(a, b, p));
+    return signOf(orientationSign(a, b, p));
 }
 
 /**

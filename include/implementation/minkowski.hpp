@@ -502,10 +502,9 @@ template <class ResultPoint>
 constexpr std::optional<ResultPoint> minkowskiInfimumPoint(
     const MinkowskiPolyhedron<ResultPoint>& polyhedron, const ResultPoint& direction) {
     using ResultNumber = typename ResultPoint::NumberType;
-    const ResultNumber zero{};
 
     for (const auto& recession : polyhedron.recessions) {
-        if (minkowskiCross(direction, recession) < zero) {
+        if (crossSign(direction, recession) < 0) {
             return std::nullopt;
         }
     }
@@ -595,11 +594,7 @@ constexpr auto minkowskiPolyhedralSum(const A& a, const B& b) {
 template <class PointType>
 constexpr int minkowskiDirectionOrder(const PointType& u, const PointType& v) {
     using Number = typename PointType::NumberType;
-    const Number zero{};
 
-    // Its own `zero` rather than a capture of the one above: for an integral
-    // Number that one is a constant expression, so clang reports capturing it as
-    // unnecessary, while a Rational one genuinely cannot be used uncaptured.
     const auto half = [](const PointType& direction) {
         const Number origin{};
         return (direction.y() < origin || (direction.y() == origin && direction.x() < origin)) ? 1
@@ -612,7 +607,7 @@ constexpr int minkowskiDirectionOrder(const PointType& u, const PointType& v) {
         return halfU < halfV ? -1 : 1;
     }
 
-    const auto turn = orientationSign(PointType(zero, zero), u, v);
+    const auto turn = crossSign(u, v);
     if (turn > 0) {
         return -1;  // v lies counterclockwise from u, so u has the smaller angle
     }

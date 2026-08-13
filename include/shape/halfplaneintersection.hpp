@@ -33,41 +33,38 @@
 namespace pgl::detail {
 
 /**
- * @brief Pseudo-angle half of a boundary direction.
+ * @brief Pseudo-angle half of a half-plane's boundary direction.
  *
  * @return `0` when the direction's angle lies in `[0, pi)` — that is, `dy > 0`
  * or `dy == 0 && dx > 0` — and `1` when it lies in `[pi, 2pi)`. A zero
  * direction (degenerate half-plane) is undefined behavior, as everywhere in
  * pgl.
+ *
+ * Reads the halves off the endpoints rather than the difference vector: the
+ * question is only which of two coordinates is larger, so there is nothing here
+ * to overflow and nothing to promote.
  */
-template <class C>
-constexpr int pseudoAngleHalf(const C& dx, const C& dy) {
-    const C zero{};
-    return (dy > zero || (dy == zero && dx > zero)) ? 0 : 1;
+template <HalfplaneConcept H>
+constexpr int pseudoAngleHalf(const H& h) {
+    const auto& s = h.source();
+    const auto& t = h.target();
+    if (t.y() != s.y()) {
+        return t.y() > s.y() ? 0 : 1;
+    }
+    return t.x() > s.x() ? 0 : 1;
 }
 
 /**
- * @brief Boundary direction of a half-plane, promoted to type @p C.
- */
-template <class C, HalfplaneConcept H>
-constexpr std::pair<C, C> boundaryDirection(const H& h) {
-    return {static_cast<C>(h.target().x()) - static_cast<C>(h.source().x()),
-            static_cast<C>(h.target().y()) - static_cast<C>(h.source().y())};
-}
-
-/**
- * @brief Cross product of the boundary directions of two half-planes.
+ * @brief Cross-product sign of the boundary directions of two half-planes.
  *
  * Positive when `b`'s boundary direction lies strictly counterclockwise from
- * `a`'s within half a turn. Degree two in the input coordinates, computed with
- * a single promotion.
+ * `a`'s within half a turn. Every caller wants the sign alone, so this defers
+ * to @ref pgl::crossSign on the four endpoints — degree two in the input
+ * coordinates, computed with a single promotion, exactly as before.
  */
 template <HalfplaneConcept HA, HalfplaneConcept HB>
-constexpr auto directionCross(const HA& a, const HB& b) {
-    using C = promoted_number_t<std::common_type_t<typename HA::NumberType, typename HB::NumberType>>;
-    const auto [ax, ay] = boundaryDirection<C>(a);
-    const auto [bx, by] = boundaryDirection<C>(b);
-    return ax * by - ay * bx;
+constexpr std::partial_ordering directionCross(const HA& a, const HB& b) {
+    return crossSign(a.source(), a.target(), b.source(), b.target());
 }
 
 /**
@@ -78,26 +75,20 @@ constexpr auto directionCross(const HA& a, const HB& b) {
  */
 template <HalfplaneConcept HA, HalfplaneConcept HB>
 constexpr bool directionLess(const HA& a, const HB& b) {
-    using C = promoted_number_t<std::common_type_t<typename HA::NumberType, typename HB::NumberType>>;
-    const auto [ax, ay] = boundaryDirection<C>(a);
-    const auto [bx, by] = boundaryDirection<C>(b);
-    const int halfA = pseudoAngleHalf(ax, ay);
-    const int halfB = pseudoAngleHalf(bx, by);
+    const int halfA = pseudoAngleHalf(a);
+    const int halfB = pseudoAngleHalf(b);
     if (halfA != halfB) {
         return halfA < halfB;
     }
-    return ax * by - ay * bx > C{};
+    return directionCross(a, b) > 0;
 }
 
 /**
- * @brief Dot product of the boundary directions of two half-planes.
+ * @brief Dot-product sign of the boundary directions of two half-planes.
  */
 template <HalfplaneConcept HA, HalfplaneConcept HB>
-constexpr auto directionDot(const HA& a, const HB& b) {
-    using C = promoted_number_t<std::common_type_t<typename HA::NumberType, typename HB::NumberType>>;
-    const auto [ax, ay] = boundaryDirection<C>(a);
-    const auto [bx, by] = boundaryDirection<C>(b);
-    return ax * bx + ay * by;
+constexpr std::partial_ordering directionDot(const HA& a, const HB& b) {
+    return dotSign(a.source(), a.target(), b.source(), b.target());
 }
 
 /**
@@ -108,19 +99,17 @@ constexpr auto directionDot(const HA& a, const HB& b) {
 template <HalfplaneConcept HF, HalfplaneConcept HT, HalfplaneConcept HX>
 constexpr bool arcContainsDirection(const HF& from, const HT& to, const HX& x) {
     const auto crossFrom = directionCross(from, x);
-    using CF = decltype(crossFrom);
-    if (crossFrom < CF{}) {
+    if (crossFrom < 0) {
         return false;
     }
-    if (crossFrom == CF{} && directionDot(from, x) <= decltype(directionDot(from, x)){}) {
+    if (crossFrom == 0 && directionDot(from, x) <= 0) {
         return false;  // opposite to the arc start, not on it
     }
     const auto crossTo = directionCross(x, to);
-    using CT = decltype(crossTo);
-    if (crossTo < CT{}) {
+    if (crossTo < 0) {
         return false;
     }
-    if (crossTo == CT{} && directionDot(to, x) <= decltype(directionDot(to, x)){}) {
+    if (crossTo == 0 && directionDot(to, x) <= 0) {
         return false;  // opposite to the arc end
     }
     return true;
@@ -131,10 +120,7 @@ constexpr bool arcContainsDirection(const HF& from, const HT& to, const HX& x) {
  */
 template <HalfplaneConcept HA, HalfplaneConcept HB>
 constexpr bool directionEqual(const HA& a, const HB& b) {
-    using C = promoted_number_t<std::common_type_t<typename HA::NumberType, typename HB::NumberType>>;
-    const auto [ax, ay] = boundaryDirection<C>(a);
-    const auto [bx, by] = boundaryDirection<C>(b);
-    return pseudoAngleHalf(ax, ay) == pseudoAngleHalf(bx, by) && ax * by - ay * bx == C{};
+    return pseudoAngleHalf(a) == pseudoAngleHalf(b) && directionCross(a, b) == 0;
 }
 
 /**
@@ -180,12 +166,9 @@ constexpr auto boundaryLinesDeterminant(const H1& h1, const H2& h2, const H3& h3
 template <HalfplaneConcept H1, HalfplaneConcept H2, HalfplaneConcept H3>
 constexpr int vertexSide(const H1& h1, const H2& h2, const H3& h3) {
     const auto det = boundaryLinesDeterminant(h1, h2, h3);
-    const auto cross = directionCross(h1, h2);
     const auto zero = decltype(det){};
-    const auto crossZero = decltype(cross){};
     const int detSign = det > zero ? 1 : det < zero ? -1 : 0;
-    const int crossSign = cross > crossZero ? 1 : cross < crossZero ? -1 : 0;
-    return detSign * crossSign;
+    return detSign * signOf(directionCross(h1, h2));
 }
 
 }  // namespace pgl::detail
@@ -2549,14 +2532,11 @@ struct HalfplaneIntersection {
         for (std::size_t i = 0; i < n; ++i) {
             const std::size_t j = nextIndex(i);
             const auto cross = detail::directionCross(halfplanes_[i], halfplanes_[j]);
-            using Cross = decltype(cross);
-            bool wide = cross < Cross{};
-            if (cross == Cross{}) {
-                // Antiparallel consecutive directions: gap exactly pi (same
-                // direction is impossible in the canonical form for distinct
-                // consecutive constraints, but a single pair wraps twice).
-                wide = true;
-            }
+            // Antiparallel consecutive directions (cross == 0) leave a gap of
+            // exactly pi and count as wide too; the same direction is
+            // impossible in the canonical form for distinct consecutive
+            // constraints, but a single pair wraps twice.
+            const bool wide = cross <= 0;
             if (i == j) {
                 break;  // n == 1, excluded by precondition but stay safe
             }

@@ -19,12 +19,34 @@ namespace pgl {
 namespace detail {
 
 /**
- * @brief Promoted coordinate type used by orientation predicates.
+ * @brief Promoted coordinate type the sign predicates evaluate in.
+ *
+ * One promotion above the common type of the operands, which is what makes the
+ * degree-two products below exact for every coordinate the operands can hold.
+ * Callers that have *already* promoted must not route through these predicates
+ * with the promoted type: a second promotion turns an `int64_t` sweep into
+ * @ref pgl::BigInt arithmetic. Pass the original points and let the predicate
+ * promote once.
  */
+template <class... Numbers>
+using sign_coordinate_t = detail::promoted_number_t<std::common_type_t<Numbers...>>;
+
 template <class AX, class BX, class CX>
-using orientation_coordinate_t = detail::promoted_number_t<std::common_type_t<AX, BX, CX>>;
+using orientation_coordinate_t = sign_coordinate_t<AX, BX, CX>;
 template <class AX, class BX>
-using dot_coordinate_t = detail::promoted_number_t<std::common_type_t<AX, BX>>;
+using dot_coordinate_t = sign_coordinate_t<AX, BX>;
+
+/**
+ * @brief The sign of a three-way comparison result, as `-1`, `0` or `1`.
+ *
+ * `unordered` — which the sign predicates only ever return for a NaN
+ * coordinate — collapses to `0`, matching the hand-written sign ladders this
+ * replaces.
+ */
+template <class Ordering>
+constexpr int signOf(const Ordering& order) {
+    return order > 0 ? 1 : (order < 0 ? -1 : 0);
+}
 }  // namespace detail
 
 /**
@@ -77,6 +99,60 @@ constexpr std::partial_ordering orientationSign(
 }
 
 /**
+ * @brief Classifies the turn from one vector to another.
+ *
+ * The sign of the 2D cross product `u x v`: positive when @p v lies
+ * counterclockwise from @p u within half a turn, negative when it lies
+ * clockwise, and equivalence when the two are parallel or one is zero. This is
+ * @ref orientationSign in vector form — `orientationSign(a, b, c)` is
+ * `crossSign(b - a, c - a)` — and is what the many call sites that already hold
+ * *directions* rather than point triples need.
+ *
+ * @param u First vector.
+ * @param v Second vector.
+ * @return Cross-product sign of `(u, v)`.
+ */
+template <class UNumber, class ULabel, class VNumber, class VLabel>
+constexpr std::partial_ordering crossSign(
+    const Point<UNumber, ULabel>& u,
+    const Point<VNumber, VLabel>& v) {
+    using Coordinate = detail::sign_coordinate_t<UNumber, VNumber>;
+
+    return detail::threeWay(static_cast<Coordinate>(u.x()) * static_cast<Coordinate>(v.y()),
+                            static_cast<Coordinate>(u.y()) * static_cast<Coordinate>(v.x()));
+}
+
+/**
+ * @brief Classifies the turn from the direction `a -> b` to the direction `p -> q`.
+ *
+ * The sign of `(b - a) x (q - p)`, formed with a single promotion so that a
+ * caller holding two directions as four points never has to build — and
+ * possibly overflow — the difference vectors itself.
+ *
+ * @param a Tail of the first direction.
+ * @param b Head of the first direction.
+ * @param p Tail of the second direction.
+ * @param q Head of the second direction.
+ * @return Cross-product sign of the two directions.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel,
+          class PNumber, class PLabel, class QNumber, class QLabel>
+constexpr std::partial_ordering crossSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<PNumber, PLabel>& p,
+    const Point<QNumber, QLabel>& q) {
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
+
+    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
+    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
+    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
+    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+
+    return detail::threeWay(abx * pqy, aby * pqx);
+}
+
+/**
  * @brief Tests whether three points are collinear.
  *
  * @param a First point.
@@ -89,14 +165,7 @@ constexpr bool collinear(
     const Point<ANumber, ALabel>& a,
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c) {
-    using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
-
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto acx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(a.x());
-    const auto acy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(a.y());
-
-    return abx * acy == aby * acx;
+    return orientationSign(a, b, c) == 0;
 }
 
 /**
@@ -119,14 +188,7 @@ constexpr bool sameDirection(
     const Point<ANumber, ALabel>& a2,
     const Point<BNumber, BLabel>& b1,
     const Point<BNumber, BLabel>& b2) {
-    using Coordinate = detail::dot_coordinate_t<ANumber, BNumber>;
-
-    const auto dx1 = static_cast<Coordinate>(a2.x()) - static_cast<Coordinate>(a1.x());
-    const auto dy1 = static_cast<Coordinate>(a2.y()) - static_cast<Coordinate>(a1.y());
-    const auto dx2 = static_cast<Coordinate>(b2.x()) - static_cast<Coordinate>(b1.x());
-    const auto dy2 = static_cast<Coordinate>(b2.y()) - static_cast<Coordinate>(b1.y());
-
-    return dx1 * dy2 == dy1 * dx2;
+    return crossSign(a1, a2, b1, b2) == 0;
 }
 
 /**
@@ -139,12 +201,43 @@ template <class ANumber, class ALabel, class BNumber, class BLabel>
 constexpr std::partial_ordering dotSign(
     const Point<ANumber, ALabel>& a,
     const Point<BNumber, BLabel>& b) {
-    using Coordinate = detail::dot_coordinate_t<ANumber, BNumber>;
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber>;
 
     const auto x = static_cast<Coordinate>(a.x()) * static_cast<Coordinate>(b.x());
     const auto y = static_cast<Coordinate>(a.y()) * static_cast<Coordinate>(b.y());
 
     return detail::threeWay(x, -y);
+}
+
+/**
+ * @brief Tells if the angle between the directions `a -> b` and `p -> q` is
+ *        acute, right, or obtuse.
+ *
+ * The sign of `(b - a) . (q - p)`, formed with a single promotion. Ordering
+ * points along a direction is the common use: `t` comes before `u` along `d`
+ * exactly when `dotSign(t, u, tail, head) > 0` for a direction `tail -> head`.
+ *
+ * @param a Tail of the first direction.
+ * @param b Head of the first direction.
+ * @param p Tail of the second direction.
+ * @param q Head of the second direction.
+ * @return Negative for obtuse, positive for acute, equivalence for right.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel,
+          class PNumber, class PLabel, class QNumber, class QLabel>
+constexpr std::partial_ordering dotSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<PNumber, PLabel>& p,
+    const Point<QNumber, QLabel>& q) {
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
+
+    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
+    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
+    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
+    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+
+    return detail::threeWay(abx * pqx, -(aby * pqy));
 }
 
 namespace detail {

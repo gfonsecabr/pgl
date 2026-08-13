@@ -86,17 +86,20 @@ Graph<PointType> Polygon<PointType, LabelType>::visibilityGraph() const {
     // between events; only the two edges incident to an event vertex enter or
     // leave the set.
     for (std::size_t source = 0; source < n; ++source) {
-        const SweepNumber sourceX(translatedVertices[source].x());
-        const SweepNumber sourceY(translatedVertices[source].y());
+        const PointType& sourcePoint = translatedVertices[source];
+        const SweepNumber sourceX(sourcePoint.x());
+        const SweepNumber sourceY(sourcePoint.y());
         const auto vectorTo = [&](std::size_t vertex) {
             return Direction{SweepNumber(translatedVertices[vertex].x()) - sourceX,
                              SweepNumber(translatedVertices[vertex].y()) - sourceY};
         };
+        // Only for the *synthesized* sweep directions, which are already in the
+        // promoted sweep type: handing those to pgl::crossSign would promote a
+        // second time, and an int64_t sweep would land in BigInt. Directions
+        // that are differences of two polygon vertices go through the shared
+        // predicates on those vertices instead, which promotes exactly once.
         const auto cross = [](const Direction& a, const Direction& b) {
             return a.x * b.y - a.y * b.x;
-        };
-        const auto dot = [](const Direction& a, const Direction& b) {
-            return a.x * b.x + a.y * b.y;
         };
         const auto angularHalf = [&](std::size_t vertex) {
             const Direction direction = vectorTo(vertex);
@@ -121,7 +124,8 @@ Graph<PointType> Polygon<PointType, LabelType>::visibilityGraph() const {
             if (halfA != halfB) {
                 return halfA < halfB;
             }
-            const auto side = cross(vectorTo(a), vectorTo(b));
+            const auto side = orientationSign(sourcePoint, translatedVertices[a],
+                                              translatedVertices[b]);
             if (side != 0) {
                 return side > 0;
             }
@@ -134,10 +138,11 @@ Graph<PointType> Polygon<PointType, LabelType>::visibilityGraph() const {
         std::vector<std::pair<std::size_t, std::size_t>> groups;
         for (std::size_t begin = 0; begin < angularOrder.size();) {
             std::size_t end = begin + 1;
-            const Direction first = vectorTo(angularOrder[begin]);
+            const PointType& first = translatedVertices[angularOrder[begin]];
             while (end < angularOrder.size()) {
-                const Direction candidate = vectorTo(angularOrder[end]);
-                if (cross(first, candidate) != 0 || dot(first, candidate) <= 0) {
+                const PointType& candidate = translatedVertices[angularOrder[end]];
+                if (orientationSign(sourcePoint, first, candidate) != 0 ||
+                    dotSign(sourcePoint, first, sourcePoint, candidate) <= 0) {
                     break;
                 }
                 ++end;
@@ -150,9 +155,12 @@ Graph<PointType> Polygon<PointType, LabelType>::visibilityGraph() const {
         // rays. Their sum lies in gaps shorter than pi; rotating the first ray
         // left lies in a gap of pi or more.
         const auto directionBetween = [&](std::size_t fromGroup, std::size_t toGroup) {
-            const Direction from = vectorTo(angularOrder[groups[fromGroup].first]);
-            const Direction to = vectorTo(angularOrder[groups[toGroup].first]);
-            if (cross(from, to) > 0) {
+            const std::size_t fromVertex = angularOrder[groups[fromGroup].first];
+            const std::size_t toVertex = angularOrder[groups[toGroup].first];
+            const Direction from = vectorTo(fromVertex);
+            const Direction to = vectorTo(toVertex);
+            if (orientationSign(sourcePoint, translatedVertices[fromVertex],
+                                translatedVertices[toVertex]) > 0) {
                 return Direction{from.x + to.x, from.y + to.y};
             }
             return Direction{-from.y, from.x};

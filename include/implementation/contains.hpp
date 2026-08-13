@@ -916,15 +916,14 @@ constexpr bool Halfplane<PointType, LabelType>::contains(const OtherRay& other) 
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && contains(other.source());
     }
-    const auto source_side = orientationDeterminant(source(), target(), other.source());
-    const auto zero = decltype(source_side){};
-    if (source_side < zero) {
+    if (orientationSign(source(), target(), other.source()) < 0) {
         return false;
     }
-    const auto direction_side =
-        orientationDeterminant(source(), target(), other.target()) -
-        source_side;
-    return !(direction_side < zero);
+    // The ray runs on into the half-plane exactly when its direction does not
+    // turn away from the boundary. That is the sign of the difference of the
+    // two endpoint determinants, which is one cross product of the two
+    // directions -- no need to evaluate either determinant.
+    return !(crossSign(source(), target(), other.source(), other.target()) < 0);
 }
 
 template <class PointType, class LabelType>

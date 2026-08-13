@@ -1940,18 +1940,20 @@ private:
         if (leftHalf != rightHalf) {
             return leftHalf < rightHalf;
         }
-        const NumberType cross = left.dx * right.dy - left.dy * right.dx;
-        if (cross != NumberType(0)) {
-            return cross > NumberType(0);
+        using Vector = Point<NumberType>;
+        const Vector leftDirection(left.dx, left.dy);
+        const auto cross = crossSign(leftDirection, Vector(right.dx, right.dy));
+        if (cross != 0) {
+            return cross > 0;
         }
         // Parallel ends with the same escape direction meet only at infinity.
         // Their transverse order is the order of their carriers there; it
         // reverses automatically at the opposite end of a line.
-        const NumberType offset =
-            left.dx * (right.anchor.y() - left.anchor.y()) -
-            left.dy * (right.anchor.x() - left.anchor.x());
-        if (offset != NumberType(0)) {
-            return offset > NumberType(0);
+        const auto offset = crossSign(
+            leftDirection, Vector(right.anchor.x() - left.anchor.x(),
+                                  right.anchor.y() - left.anchor.y()));
+        if (offset != 0) {
+            return offset > 0;
         }
         return left.halfedge < right.halfedge;
     }
@@ -2277,7 +2279,8 @@ private:
                     continue;
                 }
                 if (here == there) {
-                    if (!(upX * bestUpY > bestUpX * upY)) {
+                    if (!(crossSign(Point<NumberType>(upX, upY),
+                                    Point<NumberType>(bestUpX, bestUpY)) > 0)) {
                         continue;
                     }
                 }

@@ -43,11 +43,11 @@ constexpr Line<Point<ResultNumber, Label>> Point<Number, Label>::polar() const {
     // Build two lines through this point that do not contain the origin.
     Point<ResultNumber, Label> p{x(), y()};
     Point<ResultNumber, Label> q1{x() + 1, y() + 1};
-    if (p.x() * q1.y() == p.y() * q1.x()) {
+    if (crossSign(p, q1) == 0) {
         q1.y() = y() - 1;
     }
     Point<ResultNumber, Label> q2{x() + 1, y()};
-    if (p.x() * q2.y() == p.y() * q2.x()) {
+    if (crossSign(p, q2) == 0) {
         q2.y() = y() - 1;
     }
     Line<Point<ResultNumber, Label>> l1{p, q1}, l2{p, q2};

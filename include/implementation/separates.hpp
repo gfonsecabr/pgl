@@ -42,32 +42,6 @@ namespace detail {
  */
 ///@{
 
-/** Sign of the cross product `(b - a) x (q - p)` in the promoted coordinate type. */
-template <PointConcept A, PointConcept B, PointConcept P, PointConcept Q>
-constexpr auto vectorCrossSign(const A& a, const B& b, const P& p, const Q& q) {
-    using Coordinate = promoted_number_t<std::common_type_t<
-        typename A::NumberType, typename B::NumberType,
-        typename P::NumberType, typename Q::NumberType>>;
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
-    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
-    return threeWay(abx * pqy, aby * pqx);
-}
-
-/** Sign of the dot product `(b - a) . (q - p)` in the promoted coordinate type. */
-template <PointConcept A, PointConcept B, PointConcept P, PointConcept Q>
-constexpr auto vectorDotSign(const A& a, const B& b, const P& p, const Q& q) {
-    using Coordinate = promoted_number_t<std::common_type_t<
-        typename A::NumberType, typename B::NumberType,
-        typename P::NumberType, typename Q::NumberType>>;
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
-    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
-    return threeWay(abx * pqx, -(aby * pqy));
-}
-
 /**
  * A point where the polygon boundary meets the segment's supporting line:
  * either a vertex lying on the line (`u == v`), or the traversal point of the
@@ -95,7 +69,7 @@ constexpr std::partial_ordering lineHitOrder(
     if (!b.crossing) {
         if (!a.crossing) {
             // Two exact points: order by projection on the line direction.
-            return vectorDotSign(from, to, b.u, a.u);
+            return dotSign(from, to, b.u, a.u);
         }
         const auto reversed = lineHitOrder(from, to, b, a);
         return reversed < 0 ? std::partial_ordering::greater
@@ -104,9 +78,9 @@ constexpr std::partial_ordering lineHitOrder(
     }
     // The side of edge b from which the directed line arrives at b's
     // traversal point.
-    const auto arrival = vectorCrossSign(b.u, b.v, from, to);
+    const auto arrival = crossSign(b.u, b.v, from, to);
     if (!a.crossing) {
-        const auto side = vectorCrossSign(b.u, b.v, b.u, a.u);
+        const auto side = orientationSign(b.u, b.v, a.u);
         if (side == 0) {
             return std::partial_ordering::equivalent;
         }
@@ -144,15 +118,15 @@ template <PointConcept VertexPoint, PointConcept LinePoint>
 constexpr bool interiorWedgeContainsDirection(
     const VertexPoint& vertex, const VertexPoint& previous, const VertexPoint& next,
     const LinePoint& from, const LinePoint& to) {
-    const auto outgoing_side = vectorCrossSign(vertex, next, from, to);
-    if (outgoing_side == 0 && vectorDotSign(vertex, next, from, to) > 0) {
+    const auto outgoing_side = crossSign(vertex, next, from, to);
+    if (outgoing_side == 0 && dotSign(vertex, next, from, to) > 0) {
         return false;  // the direction continues along the outgoing edge
     }
-    const auto incoming_side = vectorCrossSign(from, to, vertex, previous);
-    if (incoming_side == 0 && vectorDotSign(vertex, previous, from, to) > 0) {
+    const auto incoming_side = crossSign(from, to, vertex, previous);
+    if (incoming_side == 0 && dotSign(vertex, previous, from, to) > 0) {
         return false;  // the direction doubles back along the incoming edge
     }
-    const auto wedge = vectorCrossSign(vertex, next, vertex, previous);
+    const auto wedge = orientationSign(vertex, next, previous);
     if (wedge > 0) {  // convex corner: wedge narrower than a halfplane
         return outgoing_side > 0 && incoming_side > 0;
     }
@@ -218,7 +192,7 @@ constexpr bool lineSectionSeparatesPolygon(
     bool found = false;
     scan_line_hits([&](const Hit& hit, std::ptrdiff_t i) {
         const bool opens_interior = hit.crossing
-            ? vectorCrossSign(hit.u, hit.v, from, to) > 0
+            ? crossSign(hit.u, hit.v, from, to) > 0
             : interiorWedgeContainsDirection(
                   hit.u, other.get(i - 1), other.get(i + 1), from, to);
         if (opens_interior &&
@@ -2659,8 +2633,7 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon& othe
             }
         }
         std::sort(cuts.begin(), cuts.end(), [&](const RPoint& u, const RPoint& v) {
-            return (u.x() - a.x()) * (b.x() - a.x()) + (u.y() - a.y()) * (b.y() - a.y())
-                 < (v.x() - a.x()) * (b.x() - a.x()) + (v.y() - a.y()) * (b.y() - a.y());
+            return dotSign(u, v, a, b) > 0;
         });
         cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
 
