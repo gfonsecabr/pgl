@@ -39,6 +39,27 @@ inline constexpr bool is_Rational_v = is_Rational<T>::value;
 template <class T>
 concept RationalConcept = is_Rational_v<T>;
 
+/**
+ * @brief The integer type a Rational stores its parts in; any other type is its
+ * own answer.
+ *
+ * This is the type an exact fraction collapses to once it is known to be whole,
+ * which is what makes it the natural default result type for an operation that
+ * hands back integers extracted from rational coordinates.
+ */
+template <class T>
+struct rational_int {
+    using type = T;
+};
+
+template <class Int>
+struct rational_int<Rational<Int>> {
+    using type = Int;
+};
+
+template <class T>
+using rational_int_t = typename rational_int<T>::type;
+
 namespace detail {
 /// @brief Exact 2^k as a pgl::BigInt for k >= 0 (exponentiation by squaring).
 ///

@@ -350,3 +350,160 @@ TEST_CASE("OrientedLine interiorContains another oriented line") {
     CHECK_FALSE(axis.interiorContains(OrientedLine({0, 1}, {4, 1})));  // parallel but distinct
     CHECK_FALSE(axis.interiorContains(OrientedLine({0, 0}, {0, 4})));  // crossing but distinct
 }
+
+// integralLine only exists for rational coordinates; detecting that needs a
+// dependent context, so the requires-expression lives in a concept.
+template <class Line>
+concept HasIntegralLine = requires(const Line& line) { line.integralLine(); };
+
+TEST_CASE("OrientedLine integralLine returns an equal line over integer coordinates") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+    using IntegerLine = pgl::OrientedLine<pgl::Point<int64_t>>;
+
+    // Line equality is geometric, so the defining points are compared directly
+    // wherever the exact representative is the point of the check.
+    const auto definedBy = [](const auto& line, const pgl::Point<int64_t>& source,
+                              const pgl::Point<int64_t>& target) {
+        return line.source() == source && line.target() == target;
+    };
+
+    // y == x, given by two half-integer points: the lattice point closest to the
+    // origin is the origin itself, and the next one along the orientation is (1,1).
+    const OrientedLine diagonal({Rational(1, 2), Rational(1, 2)}, {Rational(3, 2), Rational(3, 2)});
+    const auto integral = diagonal.integralLine();
+    REQUIRE(integral.has_value());
+    CHECK(std::is_same_v<std::remove_cvref_t<decltype(*integral)>, IntegerLine>);
+    CHECK(definedBy(*integral, {0, 0}, {1, 1}));
+    CHECK(OrientedLine(*integral) == diagonal);
+
+    // y == x + 1, from points with a different denominator. Here (0,1) and
+    // (-1,0) are equally close to the origin, and the tie goes to the
+    // lexicographically smaller one.
+    const OrientedLine shifted({Rational(1, 3), Rational(4, 3)}, {Rational(4, 3), Rational(7, 3)});
+    REQUIRE(shifted.integralLine().has_value());
+    CHECK(definedBy(*shifted.integralLine(), {-1, 0}, {0, 1}));
+    CHECK(OrientedLine(*shifted.integralLine()) == shifted);
+
+    // The representative depends only on the line, not on the points defining it.
+    const OrientedLine same({Rational(-11, 2), Rational(-11, 2)}, {Rational(101, 2), Rational(101, 2)});
+    CHECK(definedBy(*same.integralLine(), {0, 0}, {1, 1}));
+
+    // Orientation is part of the answer: the opposite line reports the opposite,
+    // from the same source, since that source depends only on the point set.
+    const auto opposite = diagonal.opposite().integralLine();
+    REQUIRE(opposite.has_value());
+    CHECK(OrientedLine(*opposite) == diagonal.opposite());
+    CHECK(definedBy(*opposite, {0, 0}, {-1, -1}));
+    CHECK_FALSE(OrientedLine(*opposite) == diagonal);
+    CHECK(shifted.opposite().integralLine()->source() == shifted.integralLine()->source());
+
+    // Axis-parallel lines keep their direction too.
+    const OrientedLine leftwards({Rational(7, 2), Rational(3)}, {Rational(1, 2), Rational(3)});
+    REQUIRE(leftwards.integralLine().has_value());
+    CHECK(definedBy(*leftwards.integralLine(), {0, 3}, {-1, 3}));
+    const OrientedLine downwards({Rational(5), Rational(9, 4)}, {Rational(5), Rational(1, 4)});
+    REQUIRE(downwards.integralLine().has_value());
+    CHECK(definedBy(*downwards.integralLine(), {5, 0}, {5, -1}));
+
+    // A line already over integers comes back as it stands, up to the choice of
+    // defining points.
+    const OrientedLine whole({Rational(3), Rational(4)}, {Rational(-1), Rational(9)});
+    REQUIRE(whole.integralLine().has_value());
+    CHECK(OrientedLine(*whole.integralLine()) == whole);
+    CHECK(definedBy(*whole.integralLine(), {3, 4}, {-1, 9}));
+}
+
+TEST_CASE("OrientedLine integralLine reports the lines that have no integer representation") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+
+    // A line meets the integer grid only when, written as a*x + b*y == c with
+    // coprime integers a and b, c is an integer as well. These three miss it.
+    const OrientedLine vertical({Rational(1, 2), Rational(0)}, {Rational(1, 2), Rational(1)});
+    CHECK_FALSE(vertical.integralLine().has_value());          // x == 1/2
+    const OrientedLine antidiagonal({Rational(1, 2), Rational(0)}, {Rational(0), Rational(1, 2)});
+    CHECK_FALSE(antidiagonal.integralLine().has_value());      // x + y == 1/2
+    const OrientedLine sixth({Rational(1, 2), Rational(1, 3)}, {Rational(5, 2), Rational(7, 3)});
+    CHECK_FALSE(sixth.integralLine().has_value());             // y == x - 1/6
+
+    // A degenerate line is undefined: it has no direction, so no line to return.
+    const OrientedLine degenerate({Rational(1, 2), Rational(1, 2)}, {Rational(1, 2), Rational(1, 2)});
+    CHECK_FALSE(degenerate.integralLine().has_value());
+
+    // The method only exists where the coordinates are fractions to begin with.
+    CHECK_FALSE(HasIntegralLine<pgl::OrientedLine<pgl::Point<int>>>);
+    CHECK(HasIntegralLine<OrientedLine>);
+}
+
+TEST_CASE("OrientedLine integralLine reports coordinates that do not fit the result type") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+
+    // x == 1000000, whose closest lattice point needs more than an int8_t.
+    const OrientedLine distant({Rational(1000000), Rational(1, 2)}, {Rational(1000000), Rational(3, 2)});
+    CHECK_FALSE(distant.integralLine<int8_t>().has_value());
+    REQUIRE(distant.integralLine<int64_t>().has_value());
+    CHECK(OrientedLine(*distant.integralLine<int64_t>()) == distant);
+
+    // Exact coordinates that overflow every fixed-width type still convert when
+    // an arbitrary-precision result is requested.
+    using Exact = pgl::Point<pgl::ERational>;
+    const pgl::BigInt beyond = pgl::BigInt(int64_t(1) << 62) * pgl::BigInt(64);
+    const pgl::OrientedLine<Exact> wide({pgl::ERational(beyond), pgl::ERational(0)},
+                                        {pgl::ERational(beyond), pgl::ERational(1)});
+    CHECK_FALSE(wide.integralLine<int64_t>().has_value());
+    const auto exact = wide.integralLine<pgl::BigInt>();
+    REQUIRE(exact.has_value());
+    CHECK(exact->source() == pgl::Point<pgl::BigInt>(beyond, pgl::BigInt(0)));
+    CHECK(pgl::OrientedLine<Exact>(*exact) == wide);
+}
+
+TEST_CASE("OrientedLine integralLine agrees across its two arithmetic paths") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using OrientedLine = pgl::OrientedLine<Point>;
+
+    // The same line, y == x + 1 with direction (1,1), reached through
+    // coordinates on either side of the width that decides whether the
+    // computation runs in a pgl::int128 or in BigInt. The answer cannot depend
+    // on which arithmetic served it.
+    for (const int64_t denominator : {int64_t(1), int64_t(4095), int64_t(4096),
+                                      int64_t(4097), int64_t(1000003)}) {
+        const Point start(Rational(1, denominator), Rational(1, denominator) + Rational(1));
+        const OrientedLine line(start, Point(start.x() + Rational(1), start.y() + Rational(1)));
+        const auto integral = line.integralLine();
+        REQUIRE(integral.has_value());
+        CHECK(integral->source() == pgl::Point<int64_t>(-1, 0));
+        CHECK(integral->target() == pgl::Point<int64_t>(0, 1));
+        CHECK(OrientedLine(*integral) == line);
+    }
+
+    // Wide coordinates that no fixed-width intermediate could carry: parts of
+    // this size are exactly what the BigInt path exists for. This is the line
+    // 7x == 3y, whose lattice points are the multiples of (3,7).
+    const int64_t wide = int64_t(1) << 40;
+    const Point origin(Rational(3, wide), Rational(7, wide));
+    const OrientedLine steep(origin, Point(origin.x() + Rational(3), origin.y() + Rational(7)));
+    const auto integral = steep.integralLine();
+    REQUIRE(integral.has_value());
+    CHECK(OrientedLine(*integral) == steep);
+    CHECK(integral->source() == pgl::Point<int64_t>(0, 0));
+    CHECK(integral->target() == pgl::Point<int64_t>(3, 7));
+}
+
+TEST_CASE("OrientedLine integralLine carries the line label") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational, std::string>;
+    using OrientedLine = pgl::OrientedLine<Point, std::string>;
+
+    const OrientedLine labeled({Rational(1, 2), Rational(1, 2)}, {Rational(3, 2), Rational(3, 2)}, "edge");
+    const auto integral = labeled.integralLine<int>();
+    REQUIRE(integral.has_value());
+    CHECK(integral->label() == "edge");
+    CHECK(integral->source() == pgl::Point<int, std::string>(0, 0));
+    CHECK(integral->target() == pgl::Point<int, std::string>(1, 1));
+}
