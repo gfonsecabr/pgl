@@ -44,7 +44,9 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
+#include <random>
 #include <ranges>
 #include <set>
 #include <span>
@@ -245,6 +247,7 @@ class Arrangement {
     struct VertexTag;
     struct HalfedgeTag;
     struct FaceTag;
+    class TrapezoidPointLocation;
 
 public:
     /** @brief Handle of a vertex of this arrangement specialization. */
@@ -253,6 +256,8 @@ public:
     using HalfedgeId = detail::Handle<HalfedgeTag>;
     /** @brief Handle of a face of this arrangement specialization. */
     using FaceId = detail::Handle<FaceTag>;
+    /** @brief Handle of the arrangement cell containing a finite query point. */
+    using CellId = std::variant<VertexId, HalfedgeId, FaceId>;
 
     /** @brief Vertex type. */
     using PointType = PointType_;
@@ -1200,6 +1205,40 @@ public:
     // Location
 
     /**
+     * @brief Builds the randomized trapezoidal point-location index.
+     *
+     * The operation is idempotent. Until it is called, @ref locateFace and
+     * @ref locateCell use their linear-scan implementations; afterwards they
+     * use the immutable index. Copies of an indexed arrangement share the
+     * index because arrangement topology cannot change through the public API.
+     * The randomized insertion order is generated from a fixed seed, making
+     * the resulting index deterministic across runs. Use the generator-taking
+     * overload to select a different order.
+     *
+     * @complexity Expected `O(E log E)` time and `O(E)` space.
+     */
+    void buildPointLocation();
+
+    /**
+     * @brief Builds the point-location index using a caller-provided generator.
+     *
+     * This overload makes the randomized incremental order reproducible in
+     * tests and applications that require it.
+     */
+    template <class UniformRandomBitGenerator>
+    void buildPointLocation(UniformRandomBitGenerator&& generator);
+
+    /** @brief Releases this arrangement's reference to its point-location index. */
+    void clearPointLocation() noexcept {
+        pointLocation_.reset();
+    }
+
+    /** @brief Tells whether @ref locateFace currently uses the point-location index. */
+    [[nodiscard]] bool hasPointLocation() const noexcept {
+        return static_cast<bool>(pointLocation_);
+    }
+
+    /**
      * @brief Returns the face containing a point.
      *
      * A point on an edge or on a vertex belongs to no face; the answer is then
@@ -1207,13 +1246,25 @@ public:
      * `-x` (and, if that is not enough to leave the boundary, towards `+y`)
      * lands in.
      *
-     * The search is a linear scan over the edges. That is enough for the
-     * occasional query; a query-heavy caller wants a point-location structure,
-     * which this class does not have yet.
+     * Without a point-location index the search is a linear scan over the
+     * edges. After @ref buildPointLocation it uses a randomized trapezoidal
+     * search DAG and takes expected logarithmic time.
      *
      * @param p Query point.
      */
-    [[nodiscard]] FaceId locate(const PointType& p) const {
+    [[nodiscard]] FaceId locateFace(const PointType& p) const;
+
+    /**
+     * @brief Returns the vertex, edge, or face containing a point.
+     *
+     * An edge is represented by its even-numbered halfedge, independently of
+     * orientation. Unlike @ref locateFace, this operation does not perturb a query
+     * on the boundary into an incident face.
+     */
+    [[nodiscard]] CellId locateCell(const PointType& p) const;
+
+private:
+    [[nodiscard]] FaceId locateFaceLinear(const PointType& p) const {
         const HalfedgeId h = halfedgeLeftOf(p);
         if (h.valid()) {
             return face(h);
@@ -1224,7 +1275,36 @@ public:
         return FaceId(0);
     }
 
-private:
+    [[nodiscard]] CellId locateCellLinear(const PointType& p) const {
+        for (std::uint32_t v = 0; v < points_.size(); ++v) {
+            if (points_[v] == p) {
+                return VertexId(v);
+            }
+        }
+        for (std::uint32_t edge = 0; edge < edgeGeometry_.size(); ++edge) {
+            const EdgeGeometry& geometry = edgeGeometry_[edge];
+            if (orientationSign(geometry.a, geometry.b, p) != 0) {
+                continue;
+            }
+            const NumberType dx = geometry.b.x() - geometry.a.x();
+            const NumberType dy = geometry.b.y() - geometry.a.y();
+            bool contains = geometry.kind == EdgeKind::line;
+            if (geometry.kind == EdgeKind::segment) {
+                contains = p.x() >= std::min(geometry.a.x(), geometry.b.x()) &&
+                           p.x() <= std::max(geometry.a.x(), geometry.b.x()) &&
+                           p.y() >= std::min(geometry.a.y(), geometry.b.y()) &&
+                           p.y() <= std::max(geometry.a.y(), geometry.b.y());
+            } else if (geometry.kind == EdgeKind::ray) {
+                contains = (p.x() - geometry.a.x()) * dx +
+                           (p.y() - geometry.a.y()) * dy >= NumberType(0);
+            }
+            if (contains) {
+                return HalfedgeId(2 * edge);
+            }
+        }
+        return locateFaceLinear(p);
+    }
+
     [[nodiscard]] std::size_t topologicalVertexCount() const {
         return points_.size() + (infinity_.valid() ? 1 : 0);
     }
@@ -2638,6 +2718,500 @@ private:
         }
     }
 
+    /**
+     * Randomized incremental trapezoidal map. The search history is a DAG:
+     * x-nodes discriminate endpoint walls, curve-nodes discriminate the two
+     * sides of an arrangement edge, and leaves name live trapezoids. Geometry
+     * is kept in a division-closed number type so the index never truncates the
+     * midpoint used while constructing it for an integral arrangement.
+     */
+    class TrapezoidPointLocation {
+        using WorkNumber = division_result_t<NumberType>;
+        using WorkPoint = Point<WorkNumber>;
+        static constexpr std::uint32_t none = ~std::uint32_t{};
+
+        struct Bound {
+            // -1 and +1 are the two infinities; zero carries a finite abscissa.
+            std::int8_t infinity = 0;
+            WorkNumber x{};
+
+            static Bound negativeInfinity() { return Bound{-1, WorkNumber(0)}; }
+            static Bound positiveInfinity() { return Bound{1, WorkNumber(0)}; }
+            static Bound finite(const WorkNumber& value) { return Bound{0, value}; }
+
+            bool operator==(const Bound& other) const {
+                return infinity == other.infinity && (infinity != 0 || x == other.x);
+            }
+        };
+
+        struct Curve {
+            WorkPoint a;                 // defining points, oriented left to right
+            WorkPoint b;
+            Bound left;
+            Bound right;
+            HalfedgeId leftToRight;
+            WorkNumber originalDx{};
+            WorkNumber originalDy{};
+        };
+
+        struct Trapezoid {
+            Bound left;
+            Bound right;
+            std::uint32_t bottom = none;
+            std::uint32_t top = none;
+            std::uint32_t leaf = none;
+            FaceId face;
+            bool active = true;
+        };
+
+        enum class NodeKind : std::uint8_t { leaf, x, curve };
+
+        struct Node {
+            NodeKind kind = NodeKind::leaf;
+            std::uint32_t value = 0;  // trapezoid or curve
+            std::uint32_t low = none;
+            std::uint32_t high = none;
+            WorkNumber x{};
+        };
+
+    public:
+        template <class UniformRandomBitGenerator>
+        TrapezoidPointLocation(const Arrangement& arrangement,
+                               UniformRandomBitGenerator&& generator) {
+            chooseShear(arrangement, generator);
+            makeVertexIndex(arrangement);
+            makeCurves(arrangement);
+
+            const std::uint32_t initial = newTrapezoid(
+                Bound::negativeInfinity(), Bound::positiveInfinity(), none, none);
+            root_ = trapezoids_[initial].leaf;
+
+            std::vector<std::uint32_t> order(curves_.size());
+            for (std::uint32_t i = 0; i < order.size(); ++i) {
+                order[i] = i;
+            }
+            std::shuffle(order.begin(), order.end(),
+                         std::forward<UniformRandomBitGenerator>(generator));
+            for (const std::uint32_t curve : order) {
+                insertCurve(curve);
+            }
+            labelTrapezoids(arrangement);
+        }
+
+        [[nodiscard]] FaceId locateFace(const Arrangement& arrangement,
+                                        const PointType& point) const {
+            const WorkPoint query = transformed(point);
+            std::uint32_t node = root_;
+            while (nodes_[node].kind != NodeKind::leaf) {
+                const Node& decision = nodes_[node];
+                if (decision.kind == NodeKind::x) {
+                    if (query.x() < decision.x || query.x() == decision.x) {
+                        node = decision.low;  // the existing -x perturbation
+                    } else {
+                        node = decision.high;
+                    }
+                    continue;
+                }
+                const Curve& curve = curves_[decision.value];
+                const auto orientation = orientationSign(curve.a, curve.b, query);
+                int side = orientation > 0 ? 1 : (orientation < 0 ? -1 : 0);
+                if (side == 0) {
+                    // Sign of cross(d, (-eps,+eps^2)): dy is primary and
+                    // dx resolves the horizontal case.
+                    side = curve.originalDy > WorkNumber(0)
+                               ? 1
+                               : (curve.originalDy < WorkNumber(0)
+                                      ? -1
+                                      : (curve.originalDx > WorkNumber(0) ? 1 : -1));
+                }
+                node = side < 0 ? decision.low : decision.high;
+            }
+            const FaceId result = trapezoids_[nodes_[node].value].face;
+            assert(result.valid() && result.index() < arrangement.faceCount());
+            return result;
+        }
+
+        [[nodiscard]] CellId locateCell(const Arrangement& arrangement,
+                                        const PointType& point) const {
+            const auto vertex = std::lower_bound(
+                vertices_.begin(), vertices_.end(), point,
+                [&](VertexId v, const PointType& p) { return arrangement.points_[v.index()] < p; });
+            if (vertex != vertices_.end() && arrangement.points_[vertex->index()] == point) {
+                return *vertex;
+            }
+
+            const WorkPoint query = transformed(point);
+            std::uint32_t node = root_;
+            while (nodes_[node].kind != NodeKind::leaf) {
+                const Node& decision = nodes_[node];
+                if (decision.kind == NodeKind::x) {
+                    node = query.x() < decision.x ? decision.low : decision.high;
+                    continue;
+                }
+                const Curve& curve = curves_[decision.value];
+                const auto side = orientationSign(curve.a, curve.b, query);
+                if (side == 0) {
+                    return HalfedgeId(2 * (curve.leftToRight.index() / 2));
+                }
+                node = side < 0 ? decision.low : decision.high;
+            }
+            return trapezoids_[nodes_[node].value].face;
+        }
+
+    private:
+        static bool less(const Bound& left, const Bound& right) {
+            if (left.infinity != right.infinity) {
+                if (left.infinity < 0 || right.infinity > 0) {
+                    return true;
+                }
+                if (left.infinity > 0 || right.infinity < 0) {
+                    return false;
+                }
+            }
+            return left.infinity == 0 && right.infinity == 0 && left.x < right.x;
+        }
+
+        static Bound maximum(const Bound& left, const Bound& right) {
+            return less(left, right) ? right : left;
+        }
+
+        static Bound minimum(const Bound& left, const Bound& right) {
+            return less(left, right) ? left : right;
+        }
+
+        [[nodiscard]] WorkPoint transformed(const PointType& point) const {
+            const WorkNumber x(point.x());
+            const WorkNumber y(point.y());
+            return WorkPoint(x + WorkNumber(shear_) * y, y);
+        }
+
+        template <class UniformRandomBitGenerator>
+        void chooseShear(const Arrangement& arrangement,
+                         UniformRandomBitGenerator& generator) {
+            const auto works = [&](std::int64_t candidate) {
+                const WorkNumber k(candidate);
+                for (const EdgeGeometry& geometry : arrangement.edgeGeometry_) {
+                    const WorkNumber dx = WorkNumber(geometry.b.x()) - WorkNumber(geometry.a.x());
+                    const WorkNumber dy = WorkNumber(geometry.b.y()) - WorkNumber(geometry.a.y());
+                    if (dx + k * dy == WorkNumber(0)) {
+                        return false;
+                    }
+                }
+                std::vector<WorkNumber> abscissae;
+                abscissae.reserve(arrangement.points_.size());
+                for (const PointType& point : arrangement.points_) {
+                    abscissae.push_back(WorkNumber(point.x()) + k * WorkNumber(point.y()));
+                }
+                std::sort(abscissae.begin(), abscissae.end());
+                return std::adjacent_find(abscissae.begin(), abscissae.end()) ==
+                       abscissae.end();
+            };
+
+            // A random shear almost surely misses the finite forbidden set.
+            // Keep the candidates small so transformed coordinates do not grow
+            // needlessly; the deterministic tail makes termination independent
+            // of generator quality.
+            for (int attempt = 0; attempt < 64; ++attempt) {
+                const auto bits = static_cast<std::uint64_t>(generator());
+                const std::int64_t candidate = static_cast<std::int64_t>(bits % 2000001) - 1000000;
+                if (candidate != 0 && works(candidate)) {
+                    shear_ = candidate;
+                    return;
+                }
+            }
+            for (std::int64_t candidate = 1;; ++candidate) {
+                if (works(candidate)) {
+                    shear_ = candidate;
+                    return;
+                }
+            }
+        }
+
+        void makeVertexIndex(const Arrangement& arrangement) {
+            vertices_.reserve(arrangement.points_.size());
+            for (std::uint32_t v = 0; v < arrangement.points_.size(); ++v) {
+                vertices_.push_back(VertexId(v));
+            }
+            std::sort(vertices_.begin(), vertices_.end(), [&](VertexId left, VertexId right) {
+                return arrangement.points_[left.index()] < arrangement.points_[right.index()];
+            });
+        }
+
+        void makeCurves(const Arrangement& arrangement) {
+            curves_.reserve(arrangement.edgeGeometry_.size());
+            for (std::uint32_t edge = 0; edge < arrangement.edgeGeometry_.size(); ++edge) {
+                const EdgeGeometry& geometry = arrangement.edgeGeometry_[edge];
+                WorkPoint a = transformed(geometry.a);
+                WorkPoint b = transformed(geometry.b);
+                WorkNumber originalDx = WorkNumber(geometry.b.x()) - WorkNumber(geometry.a.x());
+                WorkNumber originalDy = WorkNumber(geometry.b.y()) - WorkNumber(geometry.a.y());
+                bool forward = a.x() < b.x();
+                if (!forward) {
+                    std::swap(a, b);
+                    originalDx = -originalDx;
+                    originalDy = -originalDy;
+                }
+
+                Bound left = Bound::negativeInfinity();
+                Bound right = Bound::positiveInfinity();
+                if (geometry.kind == EdgeKind::segment) {
+                    left = Bound::finite(a.x());
+                    right = Bound::finite(b.x());
+                } else if (geometry.kind == EdgeKind::ray) {
+                    const WorkPoint source = transformed(geometry.a);
+                    if (forward) {
+                        left = Bound::finite(source.x());
+                    } else {
+                        right = Bound::finite(source.x());
+                    }
+                }
+                curves_.push_back(Curve{a, b, left, right,
+                                        HalfedgeId(2 * edge + (forward ? 0 : 1)),
+                                        originalDx, originalDy});
+            }
+        }
+
+        [[nodiscard]] WorkNumber sample(const Bound& left, const Bound& right) const {
+            assert(less(left, right));
+            if (left.infinity < 0 && right.infinity > 0) {
+                return WorkNumber(0);
+            }
+            if (left.infinity < 0) {
+                return right.x - WorkNumber(1);
+            }
+            if (right.infinity > 0) {
+                return left.x + WorkNumber(1);
+            }
+            return (left.x + right.x) / WorkNumber(2);
+        }
+
+        [[nodiscard]] WorkPoint pointAt(const Curve& curve, const WorkNumber& x) const {
+            const WorkNumber parameter = (x - curve.a.x()) / (curve.b.x() - curve.a.x());
+            return WorkPoint(x, curve.a.y() + parameter * (curve.b.y() - curve.a.y()));
+        }
+
+        [[nodiscard]] bool crosses(std::uint32_t curveId,
+                                   const Trapezoid& trapezoid) const {
+            const Curve& curve = curves_[curveId];
+            const Bound left = maximum(curve.left, trapezoid.left);
+            const Bound right = minimum(curve.right, trapezoid.right);
+            if (!less(left, right)) {
+                return false;
+            }
+            const WorkPoint point = pointAt(curve, sample(left, right));
+            if (trapezoid.bottom != none &&
+                orientationSign(curves_[trapezoid.bottom].a,
+                                curves_[trapezoid.bottom].b, point) <= 0) {
+                return false;
+            }
+            if (trapezoid.top != none &&
+                orientationSign(curves_[trapezoid.top].a,
+                                curves_[trapezoid.top].b, point) >= 0) {
+                return false;
+            }
+            return true;
+        }
+
+        [[nodiscard]] std::uint32_t newLeaf(std::uint32_t trapezoid) {
+            const std::uint32_t id = static_cast<std::uint32_t>(nodes_.size());
+            nodes_.push_back(Node{NodeKind::leaf, trapezoid, none, none, WorkNumber(0)});
+            return id;
+        }
+
+        [[nodiscard]] std::uint32_t newTrapezoid(Bound left, Bound right,
+                                                  std::uint32_t bottom,
+                                                  std::uint32_t top) {
+            if (trapezoids_.size() >= none || nodes_.size() >= none) {
+                throw std::length_error("Arrangement point-location index exceeds 32-bit capacity");
+            }
+            const std::uint32_t id = static_cast<std::uint32_t>(trapezoids_.size());
+            trapezoids_.push_back(Trapezoid{std::move(left), std::move(right), bottom, top,
+                                            none, FaceId(), true});
+            trapezoids_.back().leaf = newLeaf(id);
+            return id;
+        }
+
+        [[nodiscard]] std::uint32_t newNode(Node node) {
+            if (nodes_.size() >= none) {
+                throw std::length_error("Arrangement point-location index exceeds 32-bit capacity");
+            }
+            const std::uint32_t id = static_cast<std::uint32_t>(nodes_.size());
+            nodes_.push_back(std::move(node));
+            return id;
+        }
+
+        [[nodiscard]] Node curveNode(std::uint32_t curve, std::uint32_t below,
+                                     std::uint32_t above) const {
+            return Node{NodeKind::curve, curve, below, above, WorkNumber(0)};
+        }
+
+        [[nodiscard]] Node xNode(const WorkNumber& x, std::uint32_t left,
+                                 std::uint32_t right) const {
+            return Node{NodeKind::x, 0, left, right, x};
+        }
+
+        // Reports the live leaves crossed by a curve by tracing that curve
+        // through the history DAG. At an x-node the remaining domain is split;
+        // at an older curve-node planarity makes the new curve stay wholly on
+        // one side over the open interval being traced.
+        void collectCrossed(std::uint32_t nodeId, std::uint32_t curveId,
+                            const Bound& left, const Bound& right,
+                            std::vector<std::uint32_t>& crossed) const {
+            if (!less(left, right)) {
+                return;
+            }
+            const Node& node = nodes_[nodeId];
+            if (node.kind == NodeKind::leaf) {
+                if (trapezoids_[node.value].active &&
+                    crosses(curveId, trapezoids_[node.value])) {
+                    crossed.push_back(node.value);
+                }
+                return;
+            }
+            if (node.kind == NodeKind::x) {
+                const Bound wall = Bound::finite(node.x);
+                if (less(left, wall)) {
+                    collectCrossed(node.low, curveId, left, minimum(right, wall), crossed);
+                }
+                if (less(wall, right)) {
+                    collectCrossed(node.high, curveId, maximum(left, wall), right, crossed);
+                }
+                return;
+            }
+
+            const Curve& curve = curves_[curveId];
+            const WorkPoint point = pointAt(curve, sample(left, right));
+            const Curve& separator = curves_[node.value];
+            const auto side = orientationSign(separator.a, separator.b, point);
+            if (side < 0) {
+                collectCrossed(node.low, curveId, left, right, crossed);
+            } else if (side > 0) {
+                collectCrossed(node.high, curveId, left, right, crossed);
+            } else {
+                // Distinct atomic arrangement edges have disjoint relative
+                // interiors. Equality here can therefore only be a symbolic
+                // shared-endpoint ambiguity; visiting both sides is harmless
+                // and the live-leaf validation below removes the wrong one.
+                collectCrossed(node.low, curveId, left, right, crossed);
+                collectCrossed(node.high, curveId, left, right, crossed);
+            }
+        }
+
+        void insertCurve(std::uint32_t curveId) {
+            const Curve& curve = curves_[curveId];
+            std::vector<std::uint32_t> crossed;
+            collectCrossed(root_, curveId, curve.left, curve.right, crossed);
+            std::sort(crossed.begin(), crossed.end(), [&](std::uint32_t left,
+                                                           std::uint32_t right) {
+                const Bound leftStart = maximum(curve.left, trapezoids_[left].left);
+                const Bound rightStart = maximum(curve.left, trapezoids_[right].left);
+                return less(leftStart, rightStart);
+            });
+            crossed.erase(std::unique(crossed.begin(), crossed.end()), crossed.end());
+            if (crossed.empty()) {
+                throw std::logic_error("arrangement edge did not cross its trapezoidal map");
+            }
+
+            std::uint32_t previousAbove = none;
+            std::uint32_t previousBelow = none;
+            for (const std::uint32_t oldId : crossed) {
+                const Trapezoid old = trapezoids_[oldId];
+                const Bound left = maximum(curve.left, old.left);
+                const Bound right = minimum(curve.right, old.right);
+
+                std::uint32_t below;
+                if (previousBelow != none &&
+                    trapezoids_[previousBelow].bottom == old.bottom &&
+                    trapezoids_[previousBelow].right == left) {
+                    below = previousBelow;
+                    trapezoids_[below].right = right;
+                } else {
+                    below = newTrapezoid(left, right, old.bottom, curveId);
+                }
+
+                std::uint32_t above;
+                if (previousAbove != none && trapezoids_[previousAbove].top == old.top &&
+                    trapezoids_[previousAbove].right == left) {
+                    above = previousAbove;
+                    trapezoids_[above].right = right;
+                } else {
+                    above = newTrapezoid(left, right, curveId, old.top);
+                }
+
+                const bool hasLeftCap = less(old.left, left);
+                const bool hasRightCap = less(right, old.right);
+                std::uint32_t leftCap = none;
+                std::uint32_t rightCap = none;
+                if (hasLeftCap) {
+                    leftCap = newTrapezoid(old.left, left, old.bottom, old.top);
+                }
+                if (hasRightCap) {
+                    rightCap = newTrapezoid(right, old.right, old.bottom, old.top);
+                }
+
+                Node replacement = curveNode(curveId, trapezoids_[below].leaf,
+                                             trapezoids_[above].leaf);
+                if (hasRightCap) {
+                    const std::uint32_t split = newNode(std::move(replacement));
+                    replacement = xNode(right.x, split, trapezoids_[rightCap].leaf);
+                }
+                if (hasLeftCap) {
+                    const std::uint32_t split = newNode(std::move(replacement));
+                    replacement = xNode(left.x, trapezoids_[leftCap].leaf, split);
+                }
+                nodes_[old.leaf] = std::move(replacement);
+                trapezoids_[oldId].active = false;
+                previousBelow = below;
+                previousAbove = above;
+            }
+        }
+
+        [[nodiscard]] FaceId faceAtTransformedTopInfinity(
+            const Arrangement& arrangement) const {
+            if (!arrangement.infinity_.valid()) {
+                return FaceId(0);
+            }
+            const FanDirection query{NumberType(-shear_), NumberType(1),
+                                     PointType(NumberType(0), NumberType(0)), 0};
+            const auto after = std::upper_bound(
+                arrangement.infinityFan_.begin(), arrangement.infinityFan_.end(), query,
+                [&](const FanDirection& value, std::uint32_t halfedge) {
+                    return infinityFanLess(value, arrangement.fanDirection(halfedge));
+                });
+            const std::uint32_t nextDirection =
+                after == arrangement.infinityFan_.end() ? arrangement.infinityFan_.front() : *after;
+            return arrangement.face(HalfedgeId(nextDirection ^ 1));
+        }
+
+        void labelTrapezoids(const Arrangement& arrangement) {
+            const FaceId exterior = faceAtTransformedTopInfinity(arrangement);
+            for (Trapezoid& trapezoid : trapezoids_) {
+                if (!trapezoid.active) {
+                    continue;
+                }
+                if (trapezoid.bottom != none) {
+                    trapezoid.face = arrangement.face(curves_[trapezoid.bottom].leftToRight);
+                    if (trapezoid.top != none) {
+                        assert(trapezoid.face == arrangement.face(
+                            arrangement.twin(curves_[trapezoid.top].leftToRight)));
+                    }
+                } else if (trapezoid.top != none) {
+                    trapezoid.face = arrangement.face(
+                        arrangement.twin(curves_[trapezoid.top].leftToRight));
+                } else {
+                    trapezoid.face = exterior;
+                }
+            }
+        }
+
+        std::int64_t shear_ = 1;
+        std::uint32_t root_ = none;
+        std::vector<VertexId> vertices_;
+        std::vector<Curve> curves_;
+        std::vector<Trapezoid> trapezoids_;
+        std::vector<Node> nodes_;
+    };
+
     std::vector<PointType> points_;
     VertexId infinity_;                            // symbolic vertex, absent for bounded input
     std::vector<HalfedgeId> outgoing_;         // one per vertex; invalid when isolated
@@ -2654,7 +3228,38 @@ private:
     std::vector<TLabel> faceLabel_;            // one per face
     std::vector<bool> unboundedFace_;           // one per face
     std::vector<std::uint32_t> infinityFan_;    // outgoing ends in counterclockwise order
+    std::shared_ptr<const TrapezoidPointLocation> pointLocation_;
 };
+
+template <class PointType, class TLabel>
+void Arrangement<PointType, TLabel>::buildPointLocation() {
+    // Stable across runs: callers wanting another insertion order can use the
+    // generator-taking overload.
+    std::mt19937 generator(0x50474cU);  // "PGL"
+    buildPointLocation(generator);
+}
+
+template <class PointType, class TLabel>
+template <class UniformRandomBitGenerator>
+void Arrangement<PointType, TLabel>::buildPointLocation(
+    UniformRandomBitGenerator&& generator) {
+    if (!pointLocation_) {
+        pointLocation_ = std::make_shared<const TrapezoidPointLocation>(
+            *this, std::forward<UniformRandomBitGenerator>(generator));
+    }
+}
+
+template <class PointType, class TLabel>
+typename Arrangement<PointType, TLabel>::FaceId
+Arrangement<PointType, TLabel>::locateFace(const PointType& point) const {
+    return pointLocation_ ? pointLocation_->locateFace(*this, point) : locateFaceLinear(point);
+}
+
+template <class PointType, class TLabel>
+typename Arrangement<PointType, TLabel>::CellId
+Arrangement<PointType, TLabel>::locateCell(const PointType& point) const {
+    return pointLocation_ ? pointLocation_->locateCell(*this, point) : locateCellLinear(point);
+}
 
 // No deduction guide, deliberately: the vertex type cannot be read off the
 // input, because the input's own type is usually the wrong answer. Two integral

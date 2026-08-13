@@ -246,7 +246,7 @@ void checkInvariants(const Arrangement& arr) {
             continue;
         }
         const Point witness = arr.witness(face);
-        CHECK(arr.locate(witness) == face);
+        CHECK(arr.locateFace(witness) == face);
         CHECK(arr.polygonWithHoles(face).contains(witness));
     }
 }
@@ -335,12 +335,12 @@ void checkNestedCells(const Arrangement& arr, int cells) {
     // The unbounded face is held off by the big square alone, and the big square
     // holds one ring per cell — not the inner rings, which are two deep.
     CHECK(arr.innerCycles(FaceId(0)).size() == 1);
-    CHECK(arr.innerCycles(arr.locate(P(0, 0) + Point(Number(1, 2), Number(1, 2)))).size() ==
+    CHECK(arr.innerCycles(arr.locateFace(P(0, 0) + Point(Number(1, 2), Number(1, 2)))).size() ==
           static_cast<std::size_t>(cells) * cells);
     for (int i = 0; i < cells; ++i) {
         for (int j = 0; j < cells; ++j) {
-            const FaceId ring = arr.locate(P(10 * i + 2, 10 * j + 2));
-            const FaceId inside = arr.locate(P(10 * i + 4, 10 * j + 4));
+            const FaceId ring = arr.locateFace(P(10 * i + 2, 10 * j + 2));
+            const FaceId inside = arr.locateFace(P(10 * i + 4, 10 * j + 4));
             CHECK(ring != inside);
             CHECK(arr.innerCycles(ring).size() == 1);
             CHECK(arr.innerCycles(inside).empty());
@@ -357,7 +357,7 @@ TEST_CASE("empty arrangement has only the unbounded face") {
     CHECK(empty.halfedgeCount() == 0);
     CHECK(empty.faceCount() == 1);
     CHECK_FALSE(empty.isUnbounded());
-    CHECK(empty.locate(P(3, 7)) == FaceId(0));
+    CHECK(empty.locateFace(P(3, 7)) == FaceId(0));
     CHECK(empty.innerCycles(FaceId(0)).empty());
     CHECK(empty.boundaryOf(FaceId(0)).empty());
     CHECK(empty.outerBoundaryOf(FaceId(0)).empty());
@@ -386,7 +386,7 @@ TEST_CASE("boundaryOf visits outer and inner face cycles in order") {
     SUBCASE("a bounded face without holes lists its outer cycle") {
         const Arrangement arr = arrangementOf(
             {S(0, 0, 4, 0), S(4, 0, 4, 4), S(4, 4, 0, 4), S(0, 4, 0, 0)});
-        const FaceId inside = arr.locate(P(1, 1));
+        const FaceId inside = arr.locateFace(P(1, 1));
         REQUIRE(arr.outerCycle(inside).valid());
         CHECK(arr.innerCycles(inside).empty());
         checkBoundaryOf(arr, inside, {arr.outerCycle(inside)});
@@ -398,7 +398,7 @@ TEST_CASE("boundaryOf visits outer and inner face cycles in order") {
         const Arrangement arr = arrangementOf({S(0, 0, 6, 0), S(6, 0, 6, 6), S(6, 6, 0, 6),
                                                S(0, 6, 0, 0), S(2, 2, 4, 2), S(4, 2, 4, 4),
                                                S(4, 4, 2, 4), S(2, 4, 2, 2)});
-        const FaceId ring = arr.locate(P(1, 1));
+        const FaceId ring = arr.locateFace(P(1, 1));
         REQUIRE(arr.outerCycle(ring).valid());
         REQUIRE(arr.innerCycles(ring).size() == 1);
         checkBoundaryOf(arr, ring, {arr.outerCycle(ring), arr.innerCycles(ring).front()});
@@ -415,7 +415,7 @@ TEST_CASE("halfplaneIntersection extracts the outer face constraints") {
                                                S(6, 6, 0, 6), S(0, 6, 0, 0),
                                                S(2, 2, 4, 2), S(4, 2, 4, 4),
                                                S(4, 4, 2, 4), S(2, 4, 2, 2)});
-        const FaceId ring = arr.locate(P(1, 1));
+        const FaceId ring = arr.locateFace(P(1, 1));
         const pgl::HalfplaneIntersection<Point> expected(
             pgl::Rectangle<Point>(P(0, 0), P(6, 6)));
         CHECK(arr.halfplaneIntersection(ring) == expected);
@@ -437,8 +437,8 @@ TEST_CASE("halfplaneIntersection extracts the outer face constraints") {
 
     SUBCASE("the two faces of a line become opposite half-planes") {
         const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0))});
-        const auto upper = arr.halfplaneIntersection(arr.locate(P(0, 1)));
-        const auto lower = arr.halfplaneIntersection(arr.locate(P(0, -1)));
+        const auto upper = arr.halfplaneIntersection(arr.locateFace(P(0, 1)));
+        const auto lower = arr.halfplaneIntersection(arr.locateFace(P(0, -1)));
         REQUIRE(upper.isHalfplane());
         REQUIRE(lower.isHalfplane());
         CHECK(upper.contains(P(0, 1)));
@@ -450,7 +450,7 @@ TEST_CASE("halfplaneIntersection extracts the outer face constraints") {
     SUBCASE("an unbounded wedge keeps every boundary through infinity") {
         const Arrangement arr(std::vector<Line>{Line(P(-1, 0), P(1, 0)),
                                                 Line(P(0, -1), P(0, 1))});
-        const auto upperRight = arr.halfplaneIntersection(arr.locate(P(1, 1)));
+        const auto upperRight = arr.halfplaneIntersection(arr.locateFace(P(1, 1)));
         REQUIRE(upperRight.size() == 2);
         CHECK(upperRight.contains(P(1, 1)));
         CHECK_FALSE(upperRight.contains(P(-1, 1)));
@@ -465,7 +465,7 @@ TEST_CASE("halfplaneIntersection extracts the outer face constraints") {
             IntegerSegment(IntegerPoint(4, 0), IntegerPoint(4, 4)),
             IntegerSegment(IntegerPoint(4, 4), IntegerPoint(0, 4)),
             IntegerSegment(IntegerPoint(0, 4), IntegerPoint(0, 0))});
-        const auto region = arr.halfplaneIntersection<int>(arr.locate(P(1, 1)));
+        const auto region = arr.halfplaneIntersection<int>(arr.locateFace(P(1, 1)));
         static_assert(std::is_same_v<decltype(region),
                                      const pgl::HalfplaneIntersection<IntegerPoint>>);
         CHECK(region == pgl::HalfplaneIntersection<IntegerPoint>(
@@ -484,7 +484,7 @@ TEST_CASE("a single segment is two vertices, one edge and no bounded face") {
     CHECK_FALSE(arr.isUnbounded(HalfedgeId(1)));
     // The two halfedges form a single cycle, an inner cycle of the outer face.
     CHECK(arr.innerCycles(FaceId(0)).size() == 1);
-    CHECK(arr.locate(P(2, 1)) == FaceId(0));
+    CHECK(arr.locateFace(P(2, 1)) == FaceId(0));
 
     const HalfedgeId h = arr.outgoing(VertexId(0));
     CHECK(arr.witness(h) == P(2, 1));
@@ -524,9 +524,9 @@ TEST_CASE("a square encloses one bounded face") {
     CHECK(arr.edgeCount() == 4);
     REQUIRE(arr.faceCount() == 2);
     CHECK(arr.polygonWithHoles(FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
-    CHECK(arr.locate(P(1, 1)) == FaceId(1));
-    CHECK(arr.locate(P(5, 1)) == FaceId(0));
-    CHECK(arr.locate(P(-1, 2)) == FaceId(0));
+    CHECK(arr.locateFace(P(1, 1)) == FaceId(1));
+    CHECK(arr.locateFace(P(5, 1)) == FaceId(0));
+    CHECK(arr.locateFace(P(-1, 2)) == FaceId(0));
 
     // Only the unbounded face is unbounded, and it is the one holding the square.
     CHECK(arr.innerCycles(FaceId(0)).size() == 1);
@@ -550,8 +550,8 @@ TEST_CASE("a square inside a square is a face with a hole") {
                                            S(4, 4, 2, 4), S(2, 4, 2, 2)});
     REQUIRE(arr.faceCount() == 3);
 
-    const FaceId ring = arr.locate(P(1, 1));
-    const FaceId inside = arr.locate(P(3, 3));
+    const FaceId ring = arr.locateFace(P(1, 1));
+    const FaceId inside = arr.locateFace(P(3, 3));
     CHECK(ring != inside);
     CHECK_FALSE(arr.isUnbounded(ring));
     CHECK_FALSE(arr.isUnbounded(inside));
@@ -580,10 +580,10 @@ TEST_CASE("nested rings are assigned to the face that really holds them") {
         REQUIRE(arr.faceCount() == 4);
         // Each ring holds exactly the next one in, and the innermost holds none.
         CHECK(arr.innerCycles(FaceId(0)).size() == 1);
-        CHECK(arr.innerCycles(arr.locate(P(0, 5))).size() == 1);
-        CHECK(arr.innerCycles(arr.locate(P(0, 3))).size() == 1);
-        CHECK(arr.innerCycles(arr.locate(P(0, 1))).empty());
-        CHECK(arr.polygonWithHoles(arr.locate(P(0, 3))).holeCount() == 1);
+        CHECK(arr.innerCycles(arr.locateFace(P(0, 5))).size() == 1);
+        CHECK(arr.innerCycles(arr.locateFace(P(0, 3))).size() == 1);
+        CHECK(arr.innerCycles(arr.locateFace(P(0, 1))).empty());
+        CHECK(arr.polygonWithHoles(arr.locateFace(P(0, 3))).holeCount() == 1);
     }
 
     SUBCASE("many rings, nested two deep") {
@@ -606,11 +606,11 @@ TEST_CASE("nested rings are assigned to the face that really holds them") {
                                                S(3, 6, 2, 2), S(4, 2, 6, 2), S(6, 2, 6, 4),
                                                S(6, 4, 4, 4), S(4, 4, 4, 2)});
         REQUIRE(arr.faceCount() == 4);
-        const FaceId around = arr.locate(P(7, 1));
+        const FaceId around = arr.locateFace(P(7, 1));
         CHECK(arr.innerCycles(around).size() == 2);
         CHECK(arr.polygonWithHoles(around).holeCount() == 2);
-        CHECK(arr.innerCycles(arr.locate(P(2, 5))).empty());   // the triangle
-        CHECK(arr.innerCycles(arr.locate(P(5, 3))).empty());   // the small square
+        CHECK(arr.innerCycles(arr.locateFace(P(2, 5))).empty());   // the triangle
+        CHECK(arr.innerCycles(arr.locateFace(P(5, 3))).empty());   // the small square
     }
 }
 
@@ -669,7 +669,7 @@ TEST_CASE("a dangling edge does not disturb the face it hangs in") {
         // The face's boundary walks down the spike and back; its polygon is the
         // regularized face, so the spike is gone.
         CHECK(arr.polygonWithHoles(FaceId(1)) == regionOf({P(0, 0), P(4, 0), P(4, 4), P(0, 4)}));
-        CHECK(arr.locate(P(3, 1)) == FaceId(1));
+        CHECK(arr.locateFace(P(3, 1)) == FaceId(1));
     }
 
     SUBCASE("floating inside") {
@@ -708,8 +708,8 @@ TEST_CASE("isolated points are vertices of the face holding them") {
         }
     }
     CHECK(isolated == 2);
-    CHECK(arr.locate(P(2, 2)) == FaceId(1));
-    CHECK(arr.locate(P(9, 9)) == FaceId(0));
+    CHECK(arr.locateFace(P(2, 2)) == FaceId(1));
+    CHECK(arr.locateFace(P(9, 9)) == FaceId(0));
     CHECK(arr.witness(VertexId(0)) == arr[VertexId(0)]);
 }
 
@@ -773,7 +773,7 @@ TEST_CASE("polygonal input contributes its boundary") {
         checkInvariants(arr);
         // The two squares overlap in a third one, so three bounded faces.
         CHECK(arr.faceCount() == 4);
-        CHECK(arr.polygonWithHoles(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
+        CHECK(arr.polygonWithHoles(arr.locateFace(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     }
 
     SUBCASE("a region, holes included") {
@@ -782,8 +782,8 @@ TEST_CASE("polygonal input contributes its boundary") {
         const Arrangement arr(std::vector<Region>{holed});
         checkInvariants(arr);
         REQUIRE(arr.faceCount() == 3);
-        CHECK(arr.polygonWithHoles(arr.locate(P(1, 1))) == holed);
-        CHECK(arr.polygonWithHoles(arr.locate(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
+        CHECK(arr.polygonWithHoles(arr.locateFace(P(1, 1))) == holed);
+        CHECK(arr.polygonWithHoles(arr.locateFace(P(3, 3))) == regionOf({P(2, 2), P(4, 2), P(4, 4), P(2, 4)}));
     }
 
     SUBCASE("triangles and rectangles") {
@@ -853,8 +853,8 @@ TEST_CASE("integer coordinates suffice when segments meet only at endpoints") {
         IntSegment(IntPoint(4, 4), IntPoint(0, 4)), IntSegment(IntPoint(0, 4), IntPoint(0, 0))};
     const IntArrangement arr(square);
     REQUIRE(arr.faceCount() == 2);
-    CHECK(arr.locate(IntPoint(2, 2)) == IntArrangement::FaceId(1));
-    CHECK(arr.locate(IntPoint(9, 2)) == IntArrangement::FaceId(0));
+    CHECK(arr.locateFace(IntPoint(2, 2)) == IntArrangement::FaceId(1));
+    CHECK(arr.locateFace(IntPoint(9, 2)) == IntArrangement::FaceId(0));
     // The witness is asked for in a type that can hold it.
     CHECK(arr.polygonWithHoles<pgl::Rational<int>>(IntArrangement::FaceId(1))
               .contains(arr.witness<pgl::Rational<int>>(IntArrangement::FaceId(1))));
@@ -940,8 +940,8 @@ TEST_CASE("a line is a loop through infinity with oppositely oriented twins") {
     const auto backward = std::get<OrientedLine>(arr[HalfedgeId(1)]);
     CHECK(forward.source() == backward.target());
     CHECK(forward.target() == backward.source());
-    CHECK(arr.locate(P(0, 1)) != arr.locate(P(0, -1)));
-    CHECK(arr.locate(P(0, 0)) == arr.locate(P(0, 1)));
+    CHECK(arr.locateFace(P(0, 1)) != arr.locateFace(P(0, -1)));
+    CHECK(arr.locateFace(P(0, 0)) == arr.locateFace(P(0, 1)));
     CHECK(arr.boundedEdges().empty());
     REQUIRE(arr.edges().size() == 1);
     CHECK(std::holds_alternative<Line>(arr.edges().front()));
@@ -954,14 +954,14 @@ TEST_CASE("parallel lines form an ordered fan at infinity") {
     REQUIRE(arr.vertexCount() == 0);
     REQUIRE(arr.edgeCount() == 2);
     REQUIRE(arr.faceCount() == 3);
-    const FaceId below = arr.locate(P(0, -2));
-    const FaceId middle = arr.locate(P(0, 0));
-    const FaceId above = arr.locate(P(0, 2));
+    const FaceId below = arr.locateFace(P(0, -2));
+    const FaceId middle = arr.locateFace(P(0, 0));
+    const FaceId above = arr.locateFace(P(0, 2));
     CHECK(below != middle);
     CHECK(middle != above);
     CHECK(below != above);
-    CHECK(arr.locate(P(0, -1)) == middle);
-    CHECK(arr.locate(P(0, 1)) == above);
+    CHECK(arr.locateFace(P(0, -1)) == middle);
+    CHECK(arr.locateFace(P(0, 1)) == above);
 }
 
 TEST_CASE("crossing lines are split into four rays") {
@@ -974,8 +974,8 @@ TEST_CASE("crossing lines are split into four rays") {
     for (std::uint32_t h = 0; h < arr.halfedgeCount(); ++h) {
         CHECK(std::holds_alternative<Ray>(arr[HalfedgeId(h)]));
     }
-    std::set<FaceId> quadrants{arr.locate(P(-1, -1)), arr.locate(P(-1, 1)),
-                               arr.locate(P(1, -1)), arr.locate(P(1, 1))};
+    std::set<FaceId> quadrants{arr.locateFace(P(-1, -1)), arr.locateFace(P(-1, 1)),
+                               arr.locateFace(P(1, -1)), arr.locateFace(P(1, 1))};
     CHECK(quadrants.size() == 4);
 }
 
@@ -1033,8 +1033,8 @@ TEST_CASE("lines rays and bounded edges share exact finite vertices") {
     const Arrangement arr(shapes);
     checkInvariants(arr);
     CHECK(std::ranges::count(arr.vertices(), P(0, 0)) == 1);
-    CHECK(arr.locate(P(100, 1)) != arr.locate(P(100, -1)));
-    CHECK(arr.locate(P(-100, 1)) != arr.locate(P(-100, -1)));
+    CHECK(arr.locateFace(P(100, 1)) != arr.locateFace(P(100, -1)));
+    CHECK(arr.locateFace(P(-100, 1)) != arr.locateFace(P(-100, -1)));
     CHECK(arr.boundedEdges().size() == 3);
 }
 
@@ -1050,7 +1050,7 @@ TEST_CASE("bounded faces and holes coexist with the infinity fan") {
             bounded += !arr.isUnbounded(FaceId(i));
         }
         CHECK(bounded == 1);
-        CHECK(arr.polygonWithHoles(arr.locate(P(0, 0))) ==
+        CHECK(arr.polygonWithHoles(arr.locateFace(P(0, 0))) ==
               regionOf({P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)}));
     }
 
@@ -1062,9 +1062,9 @@ TEST_CASE("bounded faces and holes coexist with the infinity fan") {
         REQUIRE(arr.faceCount() == 4);
         const Point upper(Number(0), Number(1) / Number(2));
         const Point lower(Number(0), Number(-1) / Number(2));
-        CHECK_FALSE(arr.isUnbounded(arr.locate(upper)));
-        CHECK_FALSE(arr.isUnbounded(arr.locate(lower)));
-        CHECK(arr.locate(upper) != arr.locate(lower));
+        CHECK_FALSE(arr.isUnbounded(arr.locateFace(upper)));
+        CHECK_FALSE(arr.isUnbounded(arr.locateFace(lower)));
+        CHECK(arr.locateFace(upper) != arr.locateFace(lower));
     }
 }
 
@@ -1075,7 +1075,7 @@ TEST_CASE("two rays sharing their finite source bound two unbounded faces") {
     CHECK(arr.vertexCount() == 1);
     CHECK(arr.edgeCount() == 2);
     CHECK(arr.faceCount() == 2);
-    CHECK(arr.locate(P(2, 0)) != arr.locate(P(-2, 0)));
+    CHECK(arr.locateFace(P(2, 0)) != arr.locateFace(P(-2, 0)));
 }
 
 TEST_CASE("parallel rays only sharing infinity do not enclose a face") {
