@@ -1463,6 +1463,7 @@ private:
         }
         std::vector<Piece> pieces = split(segments, isolated);
         internVertices(pieces, isolated);
+        simplifyStoredCoordinates();
         wireHalfedges();
         buildFaces();
     }
@@ -1520,14 +1521,25 @@ private:
     }
 
     static PointType pointAt(const Carrier& carrier, const NumberType& parameter) {
-        if (carrier.usesX) {
-            const NumberType dx = carrier.b.x() - carrier.a.x();
-            const NumberType y = carrier.a.y() +
-                                 (parameter - carrier.a.x()) *
-                                     (carrier.b.y() - carrier.a.y()) / dx;
-            return PointType(parameter, y);
+        PointType point = [&] {
+            if (carrier.usesX) {
+                const NumberType dx = carrier.b.x() - carrier.a.x();
+                const NumberType y = carrier.a.y() +
+                                     (parameter - carrier.a.x()) *
+                                         (carrier.b.y() - carrier.a.y()) / dx;
+                return PointType(parameter, y);
+            }
+            return PointType(carrier.a.x(), parameter);
+        }();
+        // A point cut out of a carrier becomes an interned vertex, so it is
+        // hashed and compared the moment it is built and read for the rest of the
+        // arrangement's life. Reducing the chain of arithmetic above once, here,
+        // is what puts all of that on the normalized fast path.
+        if constexpr (pgl::is_Rational_v<NumberType>) {
+            point.x().simplify();
+            point.y().simplify();
         }
-        return PointType(carrier.a.x(), parameter);
+        return point;
     }
 
     static bool sameCarrier(const Carrier& carrier, const InputCurve& curve) {
@@ -1620,6 +1632,15 @@ private:
         std::vector<AtomicCurve> atoms;
         for (std::uint32_t c = 0; c < carriers.size(); ++c) {
             Carrier& carrier = carriers[c];
+            // A cut coming from a carrier crossing is an unreduced fraction, and
+            // it is read by the sort and unique here, by the interval tests in
+            // emit, and again by pointAt once it reaches an atom. One gcd apiece
+            // covers all of it; the same reasoning as split's cut lists.
+            if constexpr (pgl::is_Rational_v<NumberType>) {
+                for (NumberType& cut : carrier.cuts) {
+                    cut.simplify();
+                }
+            }
             std::sort(carrier.cuts.begin(), carrier.cuts.end());
             carrier.cuts.erase(std::unique(carrier.cuts.begin(), carrier.cuts.end()),
                                carrier.cuts.end());
@@ -1715,6 +1736,7 @@ private:
             originOffset_.push_back(static_cast<std::uint32_t>(originIndex_.size()));
         }
 
+        simplifyStoredCoordinates();
         next_.assign(origin_.size(), 0);
         face_.assign(origin_.size(), 0);
         outgoing_.assign(topologicalVertexCount(), HalfedgeId());
@@ -1854,6 +1876,19 @@ private:
                     cuts[i].push_back(point);
                 }
             }
+            // A crossing arrives from intersection() as a fraction whose
+            // normalization this type defers, and every read of one reduces it
+            // again and keeps nothing. Each cut is about to be read many times
+            // over — by the sort and unique just below, by the piece copies they
+            // feed, and by everything internVertices and the wiring passes do
+            // with those. Reducing once per distinct cut, before any of that,
+            // collapses all of it to a single gcd apiece.
+            if constexpr (pgl::is_Rational_v<NumberType>) {
+                for (PointType& cut : cuts[i]) {
+                    cut.x().simplify();
+                    cut.y().simplify();
+                }
+            }
             // Every cut lies on the segment, so the lexicographic point order is
             // the linear order along it.
             std::sort(cuts[i].begin(), cuts[i].end());
@@ -1872,22 +1907,9 @@ private:
     // overlapping and duplicated input of the same stretch — become one edge
     // remembering every input shape that produced it.
     void internVertices(std::vector<Piece>& pieces, const std::vector<PointType>& isolated) {
-        // A rational coordinate arrives here unreduced: it is a crossing, built
-        // by @ref split as a fraction whose normalization this type defers. Every
-        // read of one then reduces it again and keeps nothing — and each piece
-        // endpoint is about to be read many times over, by the sort below, by the
-        // hash lookups that follow, and by every predicate downstream of them.
-        // Reducing each endpoint once here pays a single gcd apiece and leaves
-        // every one of those reads on the already-normalized fast path.
-        if constexpr (pgl::is_Rational_v<typename PointType::NumberType>) {
-            for (Piece& piece : pieces) {
-                piece.a.x().simplify();
-                piece.a.y().simplify();
-                piece.b.x().simplify();
-                piece.b.y().simplify();
-            }
-        }
-
+        // The piece endpoints were reduced by @ref split, before the cuts were
+        // copied into pieces, so the sort and the hash lookups below already read
+        // them on the normalized fast path.
         std::sort(pieces.begin(), pieces.end(), [](const Piece& left, const Piece& right) {
             if (!(left.a == right.a)) {
                 return left.a < right.a;
@@ -1935,6 +1957,40 @@ private:
         next_.assign(origin_.size(), 0);
         face_.assign(origin_.size(), 0);
         outgoing_.assign(points_.size(), HalfedgeId());
+    }
+
+    // Reduces every rational coordinate the arrangement keeps — the interned
+    // vertex positions and the defining geometry of each edge — to lowest terms,
+    // once, before anything reads them.
+    //
+    // Two kinds of coordinate arrive here unreduced. A constructed one (a
+    // crossing, a point cut out of a carrier) is a fraction whose normalization
+    // this type defers, and an input one may have been handed to us unreduced by
+    // the caller. Either way a stored coordinate is read over and over — by the
+    // wiring and face passes immediately below, by point location, and by every
+    // query the caller later makes — and each of those reads recomputes the same
+    // gcd and throws it away. This spends one gcd per coordinate and keeps it, so
+    // all of that lands on the already-normalized fast path. On a value already
+    // in lowest terms it is a flag test.
+    //
+    // This is the belt to @ref split's braces: it covers the coordinates that
+    // never passed through a cut list — isolated input points, the source and
+    // direction of a ray, the two points defining a line — and costs nothing on
+    // the ones that did.
+    void simplifyStoredCoordinates() {
+        if constexpr (pgl::is_Rational_v<NumberType>) {
+            const auto reduce = [](PointType& point) {
+                point.x().simplify();
+                point.y().simplify();
+            };
+            for (PointType& point : points_) {
+                reduce(point);
+            }
+            for (EdgeGeometry& geometry : edgeGeometry_) {
+                reduce(geometry.a);
+                reduce(geometry.b);
+            }
+        }
     }
 
     // Sorts the halfedges leaving each vertex counterclockwise and links them:
@@ -2733,15 +2789,23 @@ private:
         struct Bound {
             // -1 and +1 are the two infinities; zero carries a finite abscissa.
             std::int8_t infinity = 0;
+            std::uint32_t wall = none;
             WorkNumber x{};
 
-            static Bound negativeInfinity() { return Bound{-1, WorkNumber(0)}; }
-            static Bound positiveInfinity() { return Bound{1, WorkNumber(0)}; }
-            static Bound finite(const WorkNumber& value) { return Bound{0, value}; }
+            static Bound negativeInfinity() { return Bound{-1, none, WorkNumber(0)}; }
+            static Bound positiveInfinity() { return Bound{1, none, WorkNumber(0)}; }
 
             bool operator==(const Bound& other) const {
                 return infinity == other.infinity && (infinity != 0 || x == other.x);
             }
+        };
+
+        // Live trapezoids immediately to the right of one transformed vertex.
+        // Entries are append-only; an old entry is ignored once its trapezoid
+        // becomes inactive. This is the local adjacency needed to walk a new
+        // curve across the map without searching the history DAG again.
+        struct Wall {
+            std::vector<std::uint32_t> starts;
         };
 
         struct Curve {
@@ -2779,6 +2843,7 @@ private:
         TrapezoidPointLocation(const Arrangement& arrangement,
                                UniformRandomBitGenerator&& generator) {
             chooseShear(arrangement, generator);
+            makeWalls(arrangement);
             makeVertexIndex(arrangement);
             makeCurves(arrangement);
 
@@ -2879,6 +2944,12 @@ private:
             return less(left, right) ? left : right;
         }
 
+        [[nodiscard]] Bound finiteBound(const WorkNumber& x) const {
+            const auto found = std::lower_bound(wallXs_.begin(), wallXs_.end(), x);
+            assert(found != wallXs_.end() && *found == x);
+            return Bound{0, static_cast<std::uint32_t>(found - wallXs_.begin()), x};
+        }
+
         [[nodiscard]] WorkPoint transformed(const PointType& point) const {
             const WorkNumber x(point.x());
             const WorkNumber y(point.y());
@@ -2937,6 +3008,16 @@ private:
             });
         }
 
+        void makeWalls(const Arrangement& arrangement) {
+            wallXs_.reserve(arrangement.points_.size());
+            for (const PointType& point : arrangement.points_) {
+                wallXs_.push_back(transformed(point).x());
+            }
+            std::sort(wallXs_.begin(), wallXs_.end());
+            assert(std::adjacent_find(wallXs_.begin(), wallXs_.end()) == wallXs_.end());
+            walls_.resize(wallXs_.size());
+        }
+
         void makeCurves(const Arrangement& arrangement) {
             curves_.reserve(arrangement.edgeGeometry_.size());
             for (std::uint32_t edge = 0; edge < arrangement.edgeGeometry_.size(); ++edge) {
@@ -2955,14 +3036,14 @@ private:
                 Bound left = Bound::negativeInfinity();
                 Bound right = Bound::positiveInfinity();
                 if (geometry.kind == EdgeKind::segment) {
-                    left = Bound::finite(a.x());
-                    right = Bound::finite(b.x());
+                    left = finiteBound(a.x());
+                    right = finiteBound(b.x());
                 } else if (geometry.kind == EdgeKind::ray) {
                     const WorkPoint source = transformed(geometry.a);
                     if (forward) {
-                        left = Bound::finite(source.x());
+                        left = finiteBound(source.x());
                     } else {
-                        right = Bound::finite(source.x());
+                        right = finiteBound(source.x());
                     }
                 }
                 curves_.push_back(Curve{a, b, left, right,
@@ -3027,6 +3108,9 @@ private:
             const std::uint32_t id = static_cast<std::uint32_t>(trapezoids_.size());
             trapezoids_.push_back(Trapezoid{std::move(left), std::move(right), bottom, top,
                                             none, FaceId(), true});
+            if (trapezoids_.back().left.infinity == 0) {
+                walls_[trapezoids_.back().left.wall].starts.push_back(id);
+            }
             trapezoids_.back().leaf = newLeaf(id);
             return id;
         }
@@ -3050,64 +3134,104 @@ private:
             return Node{NodeKind::x, 0, left, right, x};
         }
 
-        // Reports the live leaves crossed by a curve by tracing that curve
-        // through the history DAG. At an x-node the remaining domain is split;
-        // at an older curve-node planarity makes the new curve stay wholly on
-        // one side over the open interval being traced.
-        void collectCrossed(std::uint32_t nodeId, std::uint32_t curveId,
-                            const Bound& left, const Bound& right,
-                            std::vector<std::uint32_t>& crossed) const {
-            if (!less(left, right)) {
-                return;
-            }
-            const Node& node = nodes_[nodeId];
-            if (node.kind == NodeKind::leaf) {
-                if (trapezoids_[node.value].active &&
-                    crosses(curveId, trapezoids_[node.value])) {
-                    crossed.push_back(node.value);
+        // Chooses an abscissa just to the right of a curve's left end, but
+        // before the next arrangement vertex. No vertical wall of the
+        // trapezoidal map can occur inside that open slab.
+        [[nodiscard]] WorkNumber probeRightOf(const Bound& left,
+                                              const Bound& right) const {
+            const WorkNumber* nextWall = nullptr;
+            if (left.infinity < 0) {
+                if (!wallXs_.empty()) {
+                    nextWall = &wallXs_.front();
                 }
-                return;
-            }
-            if (node.kind == NodeKind::x) {
-                const Bound wall = Bound::finite(node.x);
-                if (less(left, wall)) {
-                    collectCrossed(node.low, curveId, left, minimum(right, wall), crossed);
+            } else {
+                const std::size_t following = static_cast<std::size_t>(left.wall) + 1;
+                if (following < wallXs_.size()) {
+                    nextWall = &wallXs_[following];
                 }
-                if (less(wall, right)) {
-                    collectCrossed(node.high, curveId, maximum(left, wall), right, crossed);
-                }
-                return;
             }
 
-            const Curve& curve = curves_[curveId];
-            const WorkPoint point = pointAt(curve, sample(left, right));
-            const Curve& separator = curves_[node.value];
-            const auto side = orientationSign(separator.a, separator.b, point);
-            if (side < 0) {
-                collectCrossed(node.low, curveId, left, right, crossed);
-            } else if (side > 0) {
-                collectCrossed(node.high, curveId, left, right, crossed);
-            } else {
-                // Distinct atomic arrangement edges have disjoint relative
-                // interiors. Equality here can therefore only be a symbolic
-                // shared-endpoint ambiguity; visiting both sides is harmless
-                // and the live-leaf validation below removes the wrong one.
-                collectCrossed(node.low, curveId, left, right, crossed);
-                collectCrossed(node.high, curveId, left, right, crossed);
+            WorkNumber next;
+            bool hasNext = false;
+            if (right.infinity == 0) {
+                next = right.x;
+                hasNext = true;
             }
+            if (nextWall != nullptr && (!hasNext || *nextWall < next)) {
+                next = *nextWall;
+                hasNext = true;
+            }
+
+            if (hasNext) {
+                return left.infinity < 0
+                           ? next - WorkNumber(1)
+                           : (left.x + next) / WorkNumber(2);
+            }
+            return left.infinity < 0 ? WorkNumber(0) : left.x + WorkNumber(1);
+        }
+
+        [[nodiscard]] std::uint32_t locateTrapezoid(const WorkPoint& point) const {
+            std::uint32_t nodeId = root_;
+            while (nodes_[nodeId].kind != NodeKind::leaf) {
+                const Node& node = nodes_[nodeId];
+                if (node.kind == NodeKind::x) {
+                    assert(point.x() != node.x);
+                    nodeId = point.x() < node.x ? node.low : node.high;
+                    continue;
+                }
+                const Curve& separator = curves_[node.value];
+                const auto side = orientationSign(separator.a, separator.b, point);
+                assert(side != 0);
+                nodeId = side < 0 ? node.low : node.high;
+            }
+            const std::uint32_t trapezoid = nodes_[nodeId].value;
+            assert(trapezoids_[trapezoid].active);
+            return trapezoid;
+        }
+
+        // One DAG query finds the first trapezoid. Every subsequent one is
+        // selected from the live trapezoids beginning at the current right
+        // wall, so insertion work follows the curve instead of revisiting its
+        // complete search history.
+        [[nodiscard]] std::vector<std::uint32_t> crossedByWalk(
+            std::uint32_t curveId) const {
+            const Curve& curve = curves_[curveId];
+            const WorkNumber probe = probeRightOf(curve.left, curve.right);
+            std::uint32_t current = locateTrapezoid(pointAt(curve, probe));
+            std::vector<std::uint32_t> crossed;
+
+            for (;;) {
+                const Trapezoid& trapezoid = trapezoids_[current];
+                assert(trapezoid.active && crosses(curveId, trapezoid));
+                crossed.push_back(current);
+
+                if (!less(trapezoid.right, curve.right)) {
+                    break;
+                }
+                assert(trapezoid.right.infinity == 0);
+
+                std::uint32_t next = none;
+                for (const std::uint32_t candidate :
+                     walls_[trapezoid.right.wall].starts) {
+                    const Trapezoid& adjacent = trapezoids_[candidate];
+                    if (adjacent.active && adjacent.left == trapezoid.right &&
+                        crosses(curveId, adjacent)) {
+                        assert(next == none);
+                        next = candidate;
+                    }
+                }
+                if (next == none) {
+                    throw std::logic_error(
+                        "arrangement edge lost its adjacent trapezoid");
+                }
+                current = next;
+            }
+            return crossed;
         }
 
         void insertCurve(std::uint32_t curveId) {
             const Curve& curve = curves_[curveId];
-            std::vector<std::uint32_t> crossed;
-            collectCrossed(root_, curveId, curve.left, curve.right, crossed);
-            std::sort(crossed.begin(), crossed.end(), [&](std::uint32_t left,
-                                                           std::uint32_t right) {
-                const Bound leftStart = maximum(curve.left, trapezoids_[left].left);
-                const Bound rightStart = maximum(curve.left, trapezoids_[right].left);
-                return less(leftStart, rightStart);
-            });
-            crossed.erase(std::unique(crossed.begin(), crossed.end()), crossed.end());
+            const std::vector<std::uint32_t> crossed = crossedByWalk(curveId);
             if (crossed.empty()) {
                 throw std::logic_error("arrangement edge did not cross its trapezoidal map");
             }
@@ -3207,6 +3331,8 @@ private:
         std::int64_t shear_ = 1;
         std::uint32_t root_ = none;
         std::vector<VertexId> vertices_;
+        std::vector<WorkNumber> wallXs_;
+        std::vector<Wall> walls_;
         std::vector<Curve> curves_;
         std::vector<Trapezoid> trapezoids_;
         std::vector<Node> nodes_;
