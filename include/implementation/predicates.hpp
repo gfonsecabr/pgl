@@ -221,7 +221,15 @@ constexpr bool Segment<PointType, LabelType>::parallel(const OtherOrientedSegmen
 
 template <class PointType, class LabelType>
 constexpr bool Triangle<PointType, LabelType>::isDegenerate() const {
-    return twiceArea() == decltype(twiceArea()){};
+    // The orientation sign rather than `twiceArea() == 0`: twiceArea() narrows
+    // the promoted determinant back to NumberType, so a determinant that is a
+    // nonzero multiple of the coordinate type's range wraps to zero and reports
+    // a perfectly good triangle as degenerate — (0,0), (65536,0), (0,65536) on
+    // `int` coordinates is such a triangle, and everything keyed off this
+    // predicate (isSegment, getIfSegment, the Convex and Polygon conversions)
+    // followed it. The sign predicate stays in the promoted type and drops the
+    // absolute value the area needs and this does not.
+    return orientationSign(a(), b(), c()) == 0;
 }
 
 template <class PointType, class LabelType>

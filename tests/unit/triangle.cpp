@@ -259,6 +259,26 @@ TEST_CASE("Triangle angle classification promotes past the coordinate type") {
     CHECK(big_isosceles.isIsosceles());
 }
 
+TEST_CASE("Triangle degeneracy survives an area that overflows the coordinate type") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    // Twice the area is exactly 2^32, which wraps to zero in a 32-bit
+    // coordinate. Reading degeneracy off the orientation sign instead of the
+    // narrowed area keeps this right-angled triangle a triangle.
+    const Triangle wrapped(0, 0, 65536, 0, 0, 65536);
+    CHECK_FALSE(wrapped.isDegenerate());
+    CHECK_FALSE(wrapped.isPoint());
+    CHECK_FALSE(wrapped.isSegment());
+    CHECK_FALSE(wrapped.getIfSegment().has_value());
+    CHECK(wrapped.interiorContains(Point(1000, 1000)));
+
+    // The genuinely degenerate cases stay degenerate at the same magnitude.
+    const Triangle collinear(0, 0, 65536, 65536, 32768, 32768);
+    CHECK(collinear.isDegenerate());
+    CHECK(collinear.isSegment());
+}
+
 TEST_CASE("Triangle point predicates distinguish vertices, boundary, interior, exterior, and degenerate cases") {
     using Point = pgl::Point<int>;
     using Triangle = pgl::Triangle<Point>;
