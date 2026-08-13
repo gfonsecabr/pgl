@@ -1780,6 +1780,11 @@ private:
      */
     static std::vector<Piece> split(std::vector<InputSegment>& segments,
                                     const std::vector<PointType>& isolated) {
+        using IntegralPoint = Point<std::int64_t>;
+        using IntegralSegment = Segment<IntegralPoint>;
+        constexpr bool mayNeedIntegralNarrowing =
+            is_Rational_v<NumberType> || std::same_as<NumberType, BigInt>;
+
         // Equal geometry adjacent, and within a group the contributing shapes in
         // the order internVertices expects to see them.
         std::sort(segments.begin(), segments.end(),
@@ -1824,27 +1829,82 @@ private:
         });
 
         std::vector<std::vector<PointType>> cuts(count);
+        std::vector<std::optional<IntegralSegment>> integral;
+        if constexpr (mayNeedIntegralNarrowing) {
+            integral.resize(count);
+        }
         for (std::size_t i = 0; i < count; ++i) {
-            cuts[i].push_back(segments[group[i]].segment.min());
-            cuts[i].push_back(segments[group[i]].segment.max());
+            const Segment<PointType>& segment = segments[group[i]].segment;
+            cuts[i].push_back(segment.min());
+            cuts[i].push_back(segment.max());
+
+            // A rational arrangement is commonly fed lattice segments — in
+            // particular, every convex-piece Minkowski sum keeps integral
+            // vertices until this overlay creates its crossings. Remember that
+            // narrower spelling so the many rejected segment pairs use native
+            // int64 coordinates and int128 determinants instead of promoting
+            // Rational<BigInt> predicates all the way to BigInt. The exact
+            // intersection is still constructed in NumberType below.
+            const auto asIntegral = [](const PointType& point)
+                -> std::optional<IntegralPoint> {
+                const auto store = [](const auto& x, const auto& y)
+                    -> std::optional<IntegralPoint> {
+                    if (!detail::representableAs<std::int64_t>(x) ||
+                        !detail::representableAs<std::int64_t>(y)) {
+                        return std::nullopt;
+                    }
+                    return IntegralPoint(detail::narrowTo<std::int64_t>(x),
+                                         detail::narrowTo<std::int64_t>(y));
+                };
+
+                if constexpr (is_Rational_v<NumberType>) {
+                    if (!point.x().isInteger() || !point.y().isInteger()) {
+                        return std::nullopt;
+                    }
+                    using Integer = rational_int_t<NumberType>;
+                    return store(Integer(static_cast<Integer>(point.x())),
+                                 Integer(static_cast<Integer>(point.y())));
+                } else if constexpr (detail::extended_integral<NumberType> ||
+                                     std::same_as<NumberType, BigInt>) {
+                    return store(point.x(), point.y());
+                } else {
+                    return std::nullopt;
+                }
+            };
+            if constexpr (mayNeedIntegralNarrowing) {
+                const auto a = asIntegral(segment.min());
+                const auto b = asIntegral(segment.max());
+                if (a && b) {
+                    integral[i].emplace(*a, *b);
+                }
+            }
         }
 
         const auto meet = [&](std::size_t a, std::size_t b) {
-            const auto piece = segments[group[a]].segment.template intersection<NumberType>(
-                segments[group[b]].segment);
-            if (!piece) {
-                return;
-            }
-            if (const auto* point = std::get_if<0>(&*piece)) {
-                cuts[a].emplace_back(*point);
-                cuts[b].emplace_back(*point);
-            } else {
-                const auto& overlap = std::get<1>(*piece);
-                for (const auto& end : {overlap.min(), overlap.max()}) {
-                    cuts[a].emplace_back(end);
-                    cuts[b].emplace_back(end);
+            const auto add = [&](const auto& piece) {
+                if (!piece) {
+                    return;
+                }
+                if (const auto* point = std::get_if<0>(&*piece)) {
+                    cuts[a].emplace_back(*point);
+                    cuts[b].emplace_back(*point);
+                } else {
+                    const auto& overlap = std::get<1>(*piece);
+                    for (const auto& end : {overlap.min(), overlap.max()}) {
+                        cuts[a].emplace_back(end);
+                        cuts[b].emplace_back(end);
+                    }
+                }
+            };
+
+            if constexpr (mayNeedIntegralNarrowing) {
+                if (integral[a] && integral[b]) {
+                    add(integral[a]->template intersection<NumberType>(*integral[b]));
+                    return;
                 }
             }
+            add(segments[group[a]].segment.template intersection<NumberType>(
+                segments[group[b]].segment));
         };
 
         // The active list is compacted by the same pass that tests it, so a
@@ -1856,11 +1916,31 @@ private:
             std::size_t write = 0;
             for (std::size_t read = 0; read < active.size(); ++read) {
                 const std::uint32_t other = active[read];
-                if (right[other] < left) {
+                bool expired;
+                bool missesInY;
+                if constexpr (mayNeedIntegralNarrowing) {
+                    if (integral[current] && integral[other]) {
+                        const IntegralSegment& currentSegment = *integral[current];
+                        const IntegralSegment& otherSegment = *integral[other];
+                        expired = otherSegment.max().x() < currentSegment.min().x();
+                        const auto [currentLow, currentHigh] =
+                            std::minmax(currentSegment.min().y(), currentSegment.max().y());
+                        const auto [otherLow, otherHigh] =
+                            std::minmax(otherSegment.min().y(), otherSegment.max().y());
+                        missesInY = otherHigh < currentLow || currentHigh < otherLow;
+                    } else {
+                        expired = right[other] < left;
+                        missesInY = high[other] < low[current] || high[current] < low[other];
+                    }
+                } else {
+                    expired = right[other] < left;
+                    missesInY = high[other] < low[current] || high[current] < low[other];
+                }
+                if (expired) {
                     continue;  // its projection closed before this one opened
                 }
                 active[write++] = other;
-                if (high[other] < low[current] || high[current] < low[other]) {
+                if (missesInY) {
                     continue;  // boxes overlap in x but miss in y
                 }
                 meet(other, current);

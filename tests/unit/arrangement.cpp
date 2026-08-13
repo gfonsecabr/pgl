@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -763,6 +764,42 @@ TEST_CASE("crossings off the input lattice") {
         }
     }
     CHECK(foundCentre);
+}
+
+TEST_CASE("integer-valued rational segment endpoints retain exact crossings") {
+    const auto integer = [](std::int64_t numerator, std::int64_t denominator) {
+        return Number(pgl::BigInt(numerator), pgl::BigInt(denominator));
+    };
+    const Point zero(integer(0, 7), integer(0, 11));
+    const Point one(integer(13, 13), integer(17, 17));
+    const std::vector<Segment> diagonals{
+        Segment(zero, one),
+        Segment(Point(integer(0, 19), integer(23, 23)),
+                Point(integer(29, 29), integer(0, 31)))};
+
+    const Arrangement arr(diagonals);
+    CHECK(arr.vertexCount() == 5);
+    CHECK(arr.edgeCount() == 4);
+    CHECK(std::ranges::find(arr.vertices(), Point(Number(1, 2), Number(1, 2))) !=
+          arr.vertices().end());
+}
+
+TEST_CASE("integer segment endpoints outside int64 retain exact crossings") {
+    const pgl::BigInt beyond =
+        pgl::BigInt(std::numeric_limits<std::int64_t>::max()) + pgl::BigInt(1);
+    const Point low(Number(beyond), Number(0));
+    const Point high(Number(beyond + pgl::BigInt(1)), Number(1));
+    const std::vector<Segment> diagonals{
+        Segment(low, high),
+        Segment(Point(Number(beyond), Number(1)),
+                Point(Number(beyond + pgl::BigInt(1)), Number(0)))};
+
+    const Arrangement arr(diagonals);
+    CHECK(arr.vertexCount() == 5);
+    CHECK(arr.edgeCount() == 4);
+    const Point centre(Number(beyond * pgl::BigInt(2) + pgl::BigInt(1), pgl::BigInt(2)),
+                       Number(1, 2));
+    CHECK(std::ranges::find(arr.vertices(), centre) != arr.vertices().end());
 }
 
 TEST_CASE("polygonal input contributes its boundary") {
