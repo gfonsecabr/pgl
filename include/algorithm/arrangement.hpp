@@ -2784,6 +2784,12 @@ private:
     class TrapezoidPointLocation {
         using WorkNumber = division_result_t<NumberType>;
         using WorkPoint = Point<WorkNumber>;
+        using WorkLine = OrientedLine<WorkPoint>;
+        using IntegralPoint = Point<std::int64_t>;
+        using IntegralLine = OrientedLine<IntegralPoint>;
+        using StoredLine = std::variant<WorkLine, IntegralLine>;
+        using QueryInteger = rational_int_t<WorkNumber>;
+        using WideIntegralPoint = Point<QueryInteger>;
         static constexpr std::uint32_t none = ~std::uint32_t{};
 
         struct Bound {
@@ -2809,13 +2815,18 @@ private:
         };
 
         struct Curve {
-            WorkPoint a;                 // defining points, oriented left to right
-            WorkPoint b;
+            StoredLine line;             // oriented left to right
             Bound left;
             Bound right;
             HalfedgeId leftToRight;
             WorkNumber originalDx{};
             WorkNumber originalDy{};
+        };
+
+        struct Query {
+            WorkPoint point;
+            std::optional<IntegralPoint> integralPoint;
+            std::optional<WideIntegralPoint> wideIntegralPoint;
         };
 
         struct Trapezoid {
@@ -2865,12 +2876,12 @@ private:
 
         [[nodiscard]] FaceId locateFace(const Arrangement& arrangement,
                                         const PointType& point) const {
-            const WorkPoint query = transformed(point);
+            const Query query = makeQuery(point);
             std::uint32_t node = root_;
             while (nodes_[node].kind != NodeKind::leaf) {
                 const Node& decision = nodes_[node];
                 if (decision.kind == NodeKind::x) {
-                    if (query.x() < decision.x || query.x() == decision.x) {
+                    if (query.point.x() < decision.x || query.point.x() == decision.x) {
                         node = decision.low;  // the existing -x perturbation
                     } else {
                         node = decision.high;
@@ -2878,7 +2889,7 @@ private:
                     continue;
                 }
                 const Curve& curve = curves_[decision.value];
-                const auto orientation = orientationSign(curve.a, curve.b, query);
+                const auto orientation = sideOf(curve, query);
                 int side = orientation > 0 ? 1 : (orientation < 0 ? -1 : 0);
                 if (side == 0) {
                     // Sign of cross(d, (-eps,+eps^2)): dy is primary and
@@ -2905,16 +2916,16 @@ private:
                 return *vertex;
             }
 
-            const WorkPoint query = transformed(point);
+            const Query query = makeQuery(point);
             std::uint32_t node = root_;
             while (nodes_[node].kind != NodeKind::leaf) {
                 const Node& decision = nodes_[node];
                 if (decision.kind == NodeKind::x) {
-                    node = query.x() < decision.x ? decision.low : decision.high;
+                    node = query.point.x() < decision.x ? decision.low : decision.high;
                     continue;
                 }
                 const Curve& curve = curves_[decision.value];
-                const auto side = orientationSign(curve.a, curve.b, query);
+                const auto side = sideOf(curve, query);
                 if (side == 0) {
                     return HalfedgeId(2 * (curve.leftToRight.index() / 2));
                 }
@@ -3046,9 +3057,78 @@ private:
                         right = finiteBound(source.x());
                     }
                 }
-                curves_.push_back(Curve{a, b, left, right,
+                StoredLine line(std::in_place_type<WorkLine>, a, b);
+                if constexpr (is_Rational_v<WorkNumber>) {
+                    if (auto integral = WorkLine(a, b).template integralLine<std::int64_t>()) {
+                        line = std::move(*integral);
+                    }
+                }
+                curves_.push_back(Curve{std::move(line), left, right,
                                         HalfedgeId(2 * edge + (forward ? 0 : 1)),
                                         originalDx, originalDy});
+            }
+        }
+
+        [[nodiscard]] static std::partial_ordering sideOf(const Curve& curve,
+                                                           const WorkPoint& point) {
+            return std::visit(
+                [&](const auto& line) {
+                    return orientationSign(line.source(), line.target(), point);
+                },
+                curve.line);
+        }
+
+        [[nodiscard]] static std::partial_ordering sideOf(const Curve& curve,
+                                                           const Query& query) {
+            return std::visit(
+                [&](const auto& line) {
+                    using Line = std::remove_cvref_t<decltype(line)>;
+                    if constexpr (std::same_as<Line, IntegralLine>) {
+                        if (query.integralPoint) {
+                            return orientationSign(line.source(), line.target(),
+                                                   *query.integralPoint);
+                        }
+                        if (query.wideIntegralPoint) {
+                            return orientationSign(line.source(), line.target(),
+                                                   *query.wideIntegralPoint);
+                        }
+                    }
+                    return orientationSign(line.source(), line.target(), query.point);
+                },
+                curve.line);
+        }
+
+        [[nodiscard]] Query makeQuery(const PointType& point) const {
+            Query query{transformed(point), std::nullopt, std::nullopt};
+            classifyQuery(query, point);
+            return query;
+        }
+
+        void classifyQuery(Query& query, const PointType& original) const {
+            const auto storeIntegral = [&](QueryInteger x, QueryInteger y) {
+                x = x + QueryInteger(shear_) * y;
+                if (detail::representableAs<std::int64_t>(x) &&
+                    detail::representableAs<std::int64_t>(y)) {
+                    query.integralPoint.emplace(detail::narrowTo<std::int64_t>(x),
+                                                detail::narrowTo<std::int64_t>(y));
+                } else {
+                    query.wideIntegralPoint.emplace(std::move(x), std::move(y));
+                }
+            };
+
+            // Classify the original coordinates, before the shear builds a
+            // Rational expression. An integer shear preserves integrality.
+            if constexpr (is_Rational_v<NumberType>) {
+                if (original.x().isInteger() && original.y().isInteger()) {
+                    storeIntegral(
+                        QueryInteger(static_cast<rational_int_t<NumberType>>(
+                            original.x())),
+                        QueryInteger(static_cast<rational_int_t<NumberType>>(
+                            original.y())));
+                }
+            } else if constexpr (detail::extended_integral<NumberType> ||
+                                 std::same_as<NumberType, BigInt>) {
+                storeIntegral(QueryInteger(original.x()), QueryInteger(original.y()));
             }
         }
 
@@ -3067,8 +3147,16 @@ private:
         }
 
         [[nodiscard]] WorkPoint pointAt(const Curve& curve, const WorkNumber& x) const {
-            const WorkNumber parameter = (x - curve.a.x()) / (curve.b.x() - curve.a.x());
-            return WorkPoint(x, curve.a.y() + parameter * (curve.b.y() - curve.a.y()));
+            return std::visit(
+                [&](const auto& line) {
+                    const WorkNumber ax(line.source().x());
+                    const WorkNumber ay(line.source().y());
+                    const WorkNumber bx(line.target().x());
+                    const WorkNumber by(line.target().y());
+                    const WorkNumber parameter = (x - ax) / (bx - ax);
+                    return WorkPoint(x, ay + parameter * (by - ay));
+                },
+                curve.line);
         }
 
         [[nodiscard]] bool crosses(std::uint32_t curveId,
@@ -3081,13 +3169,11 @@ private:
             }
             const WorkPoint point = pointAt(curve, sample(left, right));
             if (trapezoid.bottom != none &&
-                orientationSign(curves_[trapezoid.bottom].a,
-                                curves_[trapezoid.bottom].b, point) <= 0) {
+                sideOf(curves_[trapezoid.bottom], point) <= 0) {
                 return false;
             }
             if (trapezoid.top != none &&
-                orientationSign(curves_[trapezoid.top].a,
-                                curves_[trapezoid.top].b, point) >= 0) {
+                sideOf(curves_[trapezoid.top], point) >= 0) {
                 return false;
             }
             return true;
@@ -3180,7 +3266,7 @@ private:
                     continue;
                 }
                 const Curve& separator = curves_[node.value];
-                const auto side = orientationSign(separator.a, separator.b, point);
+                const auto side = sideOf(separator, point);
                 assert(side != 0);
                 nodeId = side < 0 ? node.low : node.high;
             }

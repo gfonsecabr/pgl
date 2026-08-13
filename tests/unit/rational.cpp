@@ -43,6 +43,17 @@ TEST_CASE_TEMPLATE("Constructors from integers", Int, int32_t, int64_t, pgl::int
     }
 }
 
+TEST_CASE_TEMPLATE("isInteger recognizes normalized and deferred whole values", Int,
+                   int32_t, int64_t, pgl::int128, pgl::BigInt) {
+    using R = pgl::Rational<Int>;
+    CHECK(R(7).isInteger());
+    CHECK(R(14, 2).isInteger());
+    CHECK(R(-21, 3).isInteger());
+    CHECK(R(0, 9).isInteger());
+    CHECK_FALSE(R(1, 2).isInteger());
+    CHECK_FALSE(R(-14, 3).isInteger());
+}
+
 TEST_CASE("Constructor from a BigInt numerator and truncating conversion back") {
     {
         // BigInt is not extended_integral, so this exercises the
