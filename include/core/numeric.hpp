@@ -10,6 +10,7 @@
  * to keep arithmetic generic over integers, floating-point values, and rationals.
  */
 
+#include <array>
 #include <cmath>
 #include <compare>
 #include <compare>
@@ -369,6 +370,94 @@ inline auto gcd(auto a, auto b) {
     }
 
     return a;
+}
+
+/**
+ * @brief Extended Euclidean algorithm over any modulo-capable integer type.
+ *
+ * Returns `(g, s, t)` with `a * s + b * t == g` and `g == gcd(|a|, |b|) >= 0`.
+ * The Bezout coefficients are what turn a solvable linear Diophantine equation
+ * into an actual solution; the library uses them to place a lattice point on a
+ * line whose direction is a primitive integer vector.
+ *
+ * Division truncating toward zero keeps the identity exact for signed inputs;
+ * only the sign of the last remainder needs fixing at the end.
+ */
+template <class Integer>
+inline std::array<Integer, 3> extendedGcd(Integer a, Integer b) {
+    Integer remainder = a, currentRemainder = b;
+    Integer coefficientA(1), nextCoefficientA(0);
+    Integer coefficientB(0), nextCoefficientB(1);
+    while (currentRemainder != Integer(0)) {
+        const Integer quotient = remainder / currentRemainder;
+        Integer next = remainder - quotient * currentRemainder;
+        remainder = currentRemainder;
+        currentRemainder = next;
+        next = coefficientA - quotient * nextCoefficientA;
+        coefficientA = nextCoefficientA;
+        nextCoefficientA = next;
+        next = coefficientB - quotient * nextCoefficientB;
+        coefficientB = nextCoefficientB;
+        nextCoefficientB = next;
+    }
+    if (remainder < Integer(0)) {
+        remainder = -remainder;
+        coefficientA = -coefficientA;
+        coefficientB = -coefficientB;
+    }
+    return {remainder, coefficientA, coefficientB};
+}
+
+/**
+ * @brief Returns `numerator / divisor` rounded to the nearest integer, with
+ * halves rounded up. The divisor must be positive.
+ */
+template <class Integer>
+inline Integer nearestQuotient(const Integer& numerator, const Integer& divisor) {
+    Integer quotient = numerator / divisor;          // truncates toward zero
+    Integer remainder = numerator - quotient * divisor;
+    if (remainder < Integer(0)) {                    // make it a floor division
+        quotient -= Integer(1);
+        remainder += divisor;
+    }
+    if (Integer(2) * remainder >= divisor) {
+        quotient += Integer(1);
+    }
+    return quotient;
+}
+
+/**
+ * @brief Whether an exact integer value is representable in @p Target.
+ *
+ * Arbitrary-precision targets (@ref pgl::BigInt) hold every value, which is what
+ * `is_bounded == false` reports; a fixed-width one is compared against its own
+ * limits in the wider type the value is already held in.
+ */
+template <class Target, class Integer>
+inline bool representableAs(const Integer& value) {
+    if constexpr (!numeric_limits<Target>::is_bounded) {
+        return true;
+    } else {
+        return value >= Integer(numeric_limits<Target>::lowest())
+            && value <= Integer(numeric_limits<Target>::max());
+    }
+}
+
+/**
+ * @brief Converts an exact integer that @ref representableAs has accepted into
+ * the target type.
+ *
+ * An arbitrary-precision source converts only to the widest integers, so the
+ * step down to a narrower target goes through ::pgl::int128 — which is exact
+ * precisely because the value was checked to fit first.
+ */
+template <class Target, class Integer>
+inline Target narrowTo(const Integer& value) {
+    if constexpr (std::same_as<Target, Integer>) {
+        return value;
+    } else {
+        return static_cast<Target>(static_cast<pgl::int128>(value));
+    }
 }
 
 /**

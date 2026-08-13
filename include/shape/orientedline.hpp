@@ -319,6 +319,53 @@ struct OrientedLine {
     }
 
     /**
+     * @brief Returns an equal oriented line whose defining points have integer
+     * coordinates, when one exists.
+     *
+     * The result compares equal to `*this` — same point set, same direction —
+     * but is defined by two lattice points, so every predicate it feeds runs in
+     * plain integer arithmetic instead of over fractions. The representative is
+     * canonical: the returned source is the lattice point of the line closest to
+     * the origin, ties going to the lexicographically smaller one, and the
+     * target is the next lattice point along the orientation. That source is a
+     * property of the point set alone, so every oriented line on it — either
+     * direction, whatever points define it — reports the same one.
+     *
+     * The result is empty whenever no such line exists:
+     * - The line misses the integer grid. A line has lattice points only when,
+     *   written as `a*x + b*y = c` with coprime integers `a` and `b`, `c` is an
+     *   integer too — so `x == 1/2` and `x + y == 1/2` have none, and no
+     *   rescaling can give them any. This is the common case, not the exception:
+     *   a line through two arbitrary rational points usually has no lattice
+     *   point at all.
+     * - A defining coordinate does not fit in @p ResultNumber. Even when the
+     *   line does hit the grid, clearing the denominators can push the closest
+     *   lattice point past a fixed-width result type; ask for
+     *   @ref pgl::BigInt (or a wider integer) to get the line anyway.
+     * - The line is degenerate, hence undefined, so it has no direction.
+     *
+     * The internal arithmetic is exact and overflow-free whatever the coordinate
+     * type, so an empty result always means one of the three cases above and
+     * never a silently wrapped intermediate. Clearing denominators raises the
+     * coordinates to a high power, far past the one promotion step a predicate
+     * needs, so the width is chosen rather than assumed: the computation runs in
+     * a ::pgl::int128 while the parts are narrow enough to prove it fits (see
+     * pgl::detail::integralLinePartBits) and in @ref pgl::BigInt beyond that.
+     * Both paths run the same code and return the same line.
+     *
+     * Complexity: O(1) exact-integer operations, one extended gcd among them.
+     *
+     * @tparam ResultNumber Integer coordinate type of the result (default: the
+     *         integer type the coordinates' Rational is built on).
+     * @return An equal oriented line over integer coordinates, or empty.
+     */
+    template <class ResultNumber = rational_int_t<NumberType>>
+        requires(is_Rational_v<typename PointType_::NumberType>
+                 && (detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>))
+    [[nodiscard]] std::optional<OrientedLine<Point<ResultNumber, typename PointType::LabelType>, LabelType>>
+    integralLine() const;
+
+    /**
      * @brief Returns the oriented segment that intersects r the same way as this oriented line.
      *
      * Coordinates grow by at most 3 times the maximum coordinate of the defining points and no segment endpoint lies on the rectangle boundary.

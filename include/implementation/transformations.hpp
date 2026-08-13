@@ -713,6 +713,207 @@ constexpr void OrientedLine<PointType, LabelType>::scaleDownY(const OtherNumber 
     points_[1].scaleDownY(scalar);
 }
 
+namespace detail {
+
+/**
+ * @brief How many bits of every numerator and denominator keep
+ * @ref pgl::OrientedLine::integralLine inside a ::pgl::int128.
+ *
+ * With every part below `2^b`, the steps of that computation are bounded by:
+ * a coordinate difference by `2^(2b+1)`, the cleared direction by `2^(4b+1)`,
+ * the offset by `2^(6b+2)`, a Bezout coefficient by `2^(4b+1)`, hence the
+ * unreduced Bezout point by `2^(10b+3)` — and, once that point is reduced into
+ * the fundamental domain, the widest term left is the recentring dot product at
+ * `2^(10b+5)`. Twelve bits puts that at `2^125`, one bit under what a signed
+ * 128-bit integer holds; thirteen would not fit.
+ */
+inline constexpr int integralLinePartBits = 12;
+
+/**
+ * @brief Core of @ref pgl::OrientedLine::integralLine over an exact integer type.
+ *
+ * Takes the numerator and denominator of each coordinate, in the order
+ * `(source.x, source.y, target.x, target.y)` with each numerator before its
+ * (positive) denominator, and returns the defining points of the integral line
+ * as `(source.x, source.y, target.x, target.y)`, or nothing when the line has no
+ * two lattice points. Every operation is exact, so @p Working has to be wide
+ * enough to hold the bounds above — which is what @ref integralLinePartBits
+ * decides for a fixed-width type.
+ */
+template <class Working>
+std::optional<std::array<Working, 4>> integralLinePoints(const std::array<Working, 8>& parts) {
+    const auto& [sourceXNum, sourceXDen, sourceYNum, sourceYDen,
+                 targetXNum, targetXDen, targetYNum, targetYDen] = parts;
+
+    // The direction, cleared of denominators and reduced to a primitive integer
+    // vector. Every factor taken out is positive — denominators are, and so is
+    // the gcd — so the direction, hence the orientation, is preserved exactly.
+    //
+    // With both differences in lowest terms the gcd below would factor as
+    // gcd(dxNum, dyNum) * gcd(dxDen, dyDen), which builds the same primitive
+    // components out of two gcds of narrow parts rather than one of the
+    // double-width products. Measured, that is a 1.5x loss, not a win: reducing
+    // the two differences first costs two more gcds, and a gcd here is priced by
+    // how many divisions it runs, not by how wide they are.
+    const Working deltaXNum = targetXNum * sourceXDen - sourceXNum * targetXDen;
+    const Working deltaXDen = targetXDen * sourceXDen;
+    const Working deltaYNum = targetYNum * sourceYDen - sourceYNum * targetYDen;
+    const Working deltaYDen = targetYDen * sourceYDen;
+    Working directionX = deltaXNum * deltaYDen;
+    Working directionY = deltaYNum * deltaXDen;
+    const Working scale = gcd(abs(directionX), abs(directionY));
+    if (scale == Working(0)) {
+        return {};   // degenerate, so undefined: no direction to build a line on
+    }
+    directionX = directionX / scale;
+    directionY = directionY / scale;
+
+    // With (directionX, directionY) primitive, the line is exactly the solution
+    // set of directionY*x - directionX*y == offset, and x |-> directionY*x -
+    // directionX*y maps the integer grid onto all of Z. So the line meets the
+    // grid iff this offset is a whole number, and when it is not, no lattice
+    // point exists at all — scaling the equation cannot change that, since it
+    // scales gcd(a, b) and c alike.
+    const Working offsetNum = directionY * sourceXNum * sourceYDen
+                            - directionX * sourceYNum * sourceXDen;
+    const Working offsetDen = sourceXDen * sourceYDen;   // positive
+    if (offsetNum % offsetDen != Working(0)) {
+        return {};
+    }
+    const Working offset = offsetNum / offsetDen;
+
+    // Bezout gives one lattice point. Its gcd is 1 — the direction is primitive,
+    // which is exactly what makes the equation solvable — so the coefficients
+    // scaled by the offset already solve it.
+    const auto bezout = extendedGcd(directionY, -directionX);
+    Working x = bezout[1] * offset;
+    Working y = bezout[2] * offset;
+
+    // That point is as far out as the offset is large, while the answer is not,
+    // so bring it back into one period of the direction before anything else
+    // multiplies it. Reducing along the wider component keeps the exact division
+    // that rebuilds the other one small, and is what bounds every term below.
+    if (abs(directionX) >= abs(directionY)) {   // directionX != 0 here
+        x = x % directionX;
+        y = (directionY * x - offset) / directionX;
+    } else {
+        y = y % directionY;
+        x = (directionX * y + offset) / directionY;
+    }
+
+    // Slide along the direction to the lattice point closest to the origin: it
+    // is the smallest one available, which is what gives a fixed-width result
+    // type its best chance of holding the answer.
+    const Working steps = nearestQuotient(
+        -(x * directionX + y * directionY),
+        directionX * directionX + directionY * directionY);
+    x = x + steps * directionX;
+    y = y + steps * directionY;
+
+    // Two lattice points tie for closest whenever the origin projects exactly
+    // between them, and rounding halves up picked the one further along the
+    // direction. Breaking that tie by lexicographic order instead makes the
+    // choice a property of the point set alone: every oriented line on it, in
+    // either direction and whatever points define it, reports this same source.
+    const Working previousX = x - directionX;
+    const Working previousY = y - directionY;
+    if (previousX * previousX + previousY * previousY == x * x + y * y
+        && (previousX < x || (previousX == x && previousY < y))) {
+        x = previousX;
+        y = previousY;
+    }
+
+    return std::array<Working, 4>{x, y, x + directionX, y + directionY};
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+    requires(is_Rational_v<typename PointType::NumberType>
+             && (detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>))
+std::optional<OrientedLine<Point<ResultNumber, typename PointType::LabelType>, LabelType>>
+OrientedLine<PointType, LabelType>::integralLine() const {
+    using ResultPoint = Point<ResultNumber, typename PointType::LabelType>;
+    using Result = OrientedLine<ResultPoint, LabelType>;
+    using Integer = rational_int_t<NumberType>;
+
+    // Both parts of every coordinate are read, and a deferred fraction reduces
+    // itself anew on each read, so reduce once here and take the fast path
+    // twice. Lowest terms also keep the products below as narrow as they can be.
+    const NumberType sourceX = source().x().simplified();
+    const NumberType sourceY = source().y().simplified();
+    const NumberType targetX = target().x().simplified();
+    const NumberType targetY = target().y().simplified();
+    const std::array<Integer, 8> parts{sourceX.numerator(), sourceX.denominator(),
+                                       sourceY.numerator(), sourceY.denominator(),
+                                       targetX.numerator(), targetX.denominator(),
+                                       targetY.numerator(), targetY.denominator()};
+
+    // Whether the parts are narrow enough that detail::integralLinePartBits
+    // guarantees a ::pgl::int128 holds every intermediate. A coordinate type too
+    // narrow to even represent the bound clears it by construction.
+    const auto partsFitNarrow = [&] {
+        if constexpr (detail::numeric_limits<Integer>::digits <= detail::integralLinePartBits) {
+            return true;
+        } else {
+            const Integer bound = Integer(1) << detail::integralLinePartBits;
+            for (const Integer& part : parts) {
+                if (part >= bound || part <= -bound) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    };
+
+    const auto widened = [&]<class Working>(std::type_identity<Working>) {
+        std::array<Working, 8> result;
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            result[i] = Working(parts[i]);
+        }
+        return result;
+    };
+
+    // Both defining points must land in the result type. A line can hit the
+    // integer grid arbitrarily far out, so this is a real answer, not a
+    // formality — and it is only meaningful because the arithmetic above cannot
+    // wrap: a wrapped intermediate would sail through it with a wrong line.
+    const auto asLineOverResult = [&](const auto& points) -> std::optional<Result> {
+        using Working = typename std::remove_cvref_t<decltype(points)>::value_type;
+        for (const Working& coordinate : points) {
+            if (!detail::representableAs<ResultNumber>(coordinate)) {
+                return {};
+            }
+        }
+        Result line(ResultPoint(detail::narrowTo<ResultNumber>(points[0]),
+                                detail::narrowTo<ResultNumber>(points[1])),
+                    ResultPoint(detail::narrowTo<ResultNumber>(points[2]),
+                                detail::narrowTo<ResultNumber>(points[3])));
+        if constexpr (detail::has_label_v<LabelType>) {
+            line.label() = label();
+        }
+        return line;
+    };
+
+    // Clearing denominators multiplies the coordinates together several times
+    // over, so the arithmetic runs in a type that provably holds the result: a
+    // ::pgl::int128 while the parts are narrow enough to guarantee it, and
+    // BigInt beyond that, where nothing can overflow at all. Coordinates already
+    // built on an arbitrary-precision integer compute in their own type.
+    if constexpr (detail::arbitraryPrecision<Integer>) {
+        const auto points = detail::integralLinePoints(parts);
+        return points ? asLineOverResult(*points) : std::nullopt;
+    } else {
+        if (partsFitNarrow()) {
+            const auto points = detail::integralLinePoints(widened(std::type_identity<pgl::int128>{}));
+            return points ? asLineOverResult(*points) : std::nullopt;
+        }
+        const auto points = detail::integralLinePoints(widened(std::type_identity<BigInt>{}));
+        return points ? asLineOverResult(*points) : std::nullopt;
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Ray
 
