@@ -22,6 +22,11 @@ Point P(int x, int y) {
     return Point(Number(x), Number(y));
 }
 
+Point Q(int xNumerator, int xDenominator, int yNumerator, int yDenominator) {
+    return Point(Number(xNumerator) / Number(xDenominator),
+                 Number(yNumerator) / Number(yDenominator));
+}
+
 Segment S(int ax, int ay, int bx, int by) {
     return Segment(P(ax, ay), P(bx, by));
 }
@@ -62,6 +67,14 @@ TEST_CASE("trapezoidal point location handles unbounded edges") {
     checkIndexedParity(std::vector<Line>{Line(P(0, -3), P(1, -3)),
                                          Line(P(0, 0), P(1, 0)),
                                          Line(P(0, 3), P(1, 3))});
+}
+
+TEST_CASE("trapezoidal point location falls back for non-integral lines") {
+    // Neither supporting line meets the integer lattice, so neither can use
+    // the index's cached int64 representative.
+    checkIndexedParity(std::vector<Shape>{
+        Line(Q(1, 2, -2, 1), Q(1, 2, 2, 1)),
+        Ray(Q(-2, 1, -13, 6), Q(2, 1, 11, 6))});
 }
 
 TEST_CASE("trapezoidal point location handles empty and lower-dimensional maps") {
@@ -151,6 +164,10 @@ TEST_CASE("the default point-location builder uses the public face-location API"
     const auto expected = arrangement.locateFace(P(2, 1));
     arrangement.buildPointLocation();
     CHECK(arrangement.locateFace(P(2, 1)) == expected);
+    const Point unreducedInteger(
+        Number(pgl::BigInt(4), pgl::BigInt(2)),
+        Number(pgl::BigInt(3), pgl::BigInt(3)));
+    CHECK(arrangement.locateFace(unreducedInteger) == expected);
 }
 
 TEST_CASE("trapezoidal point location matches scans on randomized overlays") {

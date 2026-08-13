@@ -413,6 +413,18 @@ public:
         return *this;
     }
 
+    /**
+     * @brief Whether this rational is exactly an integer.
+     *
+     * A normalized fraction is whole exactly when its denominator is one. A
+     * deferred fraction may spell an integer with a larger denominator, so it
+     * is tested by divisibility without first computing or copying its reduced
+     * numerator and denominator.
+     */
+    [[nodiscard]] constexpr bool isInteger() const {
+        return normalized_ ? den == Int(1) : num % den == Int(0);
+    }
+
     /// @brief Convert to float
     explicit constexpr operator float() const {
         return static_cast<float>(num) / static_cast<float>(den);
@@ -438,12 +450,18 @@ public:
     /// the quotient into noise. The exact value fits or it does not; the parts
     /// it happens to be written with are not the caller's business.
     explicit constexpr operator int() const {
+        if (den == Int(1)) {
+            return static_cast<int>(num);
+        }
         return static_cast<int>(num / den);
     }
 
     /// @brief Convert (truncating toward zero) to `int64_t`. Divides first, for
     /// the reason given on @ref operator int() const.
     explicit constexpr operator int64_t() const {
+        if (den == Int(1)) {
+            return static_cast<int64_t>(num);
+        }
         return static_cast<int64_t>(num / den);
     }
 
@@ -454,6 +472,9 @@ public:
     /// whether the fraction is stored reduced.
     explicit constexpr operator Int() const
         requires(!std::same_as<Int, int> && !std::same_as<Int, int64_t>) {
+        if (den == Int(1)) {
+            return num;
+        }
         return num / den;
     }
 
