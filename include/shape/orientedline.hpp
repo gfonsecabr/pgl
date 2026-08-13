@@ -362,7 +362,11 @@ struct OrientedLine {
     template <class ResultNumber = rational_int_t<NumberType>>
         requires(is_Rational_v<typename PointType_::NumberType>
                  && (detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>))
-    [[nodiscard]] std::optional<OrientedLine<Point<ResultNumber, typename PointType::LabelType>, LabelType>>
+    // Spelled with the raw template parameters, not the PointType/LabelType
+    // member aliases: MSVC resolves an alias in the declared return type to
+    // OrientedLine<PointType_, TLabel>::PointType and then fails to match the
+    // out-of-class definition, which names its own parameter (C2244).
+    [[nodiscard]] std::optional<OrientedLine<Point<ResultNumber, typename PointType_::LabelType>, TLabel>>
     integralLine() const;
 
     /**
