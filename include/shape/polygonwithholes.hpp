@@ -2769,14 +2769,14 @@ struct PolygonWithHoles {
      *
      * @param other The operand.
      * @param contacts The operand's own split points; ring vertices are added.
-     * @param base A point of the operand, the origin of the parametrization.
-     * @param direction The operand's direction vector.
+     * @param tail A point of the operand, the origin of the parametrization.
+     * @param head A further point of the operand, giving the direction of travel.
      */
     template <class OtherLinear, class ContactNumber>
     constexpr bool linearInteriorsIntersect(const OtherLinear& other,
                                             std::vector<Point<ContactNumber>> contacts,
-                                            const Point<ContactNumber>& base,
-                                            const Point<ContactNumber>& direction) const;
+                                            const Point<ContactNumber>& tail,
+                                            const Point<ContactNumber>& head) const;
 
     /**
      * @brief Tests whether the region is two-dimensional at one of its vertices.

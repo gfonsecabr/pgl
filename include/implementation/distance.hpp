@@ -111,12 +111,17 @@ constexpr auto Segment<PointType, LabelType>::squaredDistance(const OtherPoint& 
         return a.template squaredDistance<ResultNumber>(p);
     }
 
-    const ResultNumber projection_numerator = ap * ab;
-    if (projection_numerator <= 0) {
+    // Which of the three pieces of the segment's Voronoi diagram p falls in.
+    // Both clamps are sign tests on a projection, so dotSign settles them in
+    // the promoted coordinate type rather than in the caller's ResultNumber —
+    // the same reason Triangle::isRectangle prefers it to the plain dot
+    // product operator. `ap . ab >= ab . ab` is `bp . ab >= 0`, which saves
+    // comparing against the squared length as well.
+    if (dotSign(ap, ab) <= 0) {
         return static_cast<ResultNumber>(ap * ap);
     }
 
-    if (projection_numerator >= squared_length) {
+    if (dotSign(bp, ab) >= 0) {
         return static_cast<ResultNumber>(bp * bp);
     }
 
@@ -308,8 +313,9 @@ constexpr auto Ray<PointType, LabelType>::squaredDistance(const OtherPoint& poin
         return static_cast<ResultNumber>(ap * ap);
     }
 
-    const ResultNumber projection_numerator = ap * ab;
-    if (projection_numerator <= 0) {
+    // Behind the source, so the source is the nearest point; the projection's
+    // sign is promoted for the same reason as the segment's clamps above.
+    if (dotSign(ap, ab) <= 0) {
         return static_cast<ResultNumber>(ap * ap);
     }
 

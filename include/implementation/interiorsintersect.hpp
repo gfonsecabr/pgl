@@ -1034,13 +1034,12 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherSegm
             contacts.push_back(static_cast<V>(vertex));
         }
     }
-    const auto base = other.min();
-    const auto dir = other.max() - other.min();
-    const auto along = [&](const V& p) {
-        return (p.x() - base.x()) * dir.x() + (p.y() - base.y()) * dir.y();
-    };
-    std::sort(contacts.begin(), contacts.end(),
-              [&](const V& p, const V& q) { return along(p) < along(q); });
+    // Ordered along the operand: the projections of two contacts differ by the
+    // projection of their separation, so one dot product decides each
+    // comparison and neither projection is ever formed.
+    std::sort(contacts.begin(), contacts.end(), [&](const V& p, const V& q) {
+        return dotSign(p, q, other.min(), other.max()) > 0;
+    });
     const auto doubled = (*this) * NumberType(2);
     for (std::size_t i = 1; i < contacts.size(); ++i) {
         if (contacts[i - 1] == contacts[i]) {
@@ -1081,13 +1080,9 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherRay&
             contacts.push_back(static_cast<V>(vertex));
         }
     }
-    const auto base = other.source();
-    const auto dir = other.target() - other.source();
-    const auto along = [&](const V& p) {
-        return (p.x() - base.x()) * dir.x() + (p.y() - base.y()) * dir.y();
-    };
-    std::sort(contacts.begin(), contacts.end(),
-              [&](const V& p, const V& q) { return along(p) < along(q); });
+    std::sort(contacts.begin(), contacts.end(), [&](const V& p, const V& q) {
+        return dotSign(p, q, other.source(), other.target()) > 0;
+    });
     const auto doubled = (*this) * NumberType(2);
     for (std::size_t i = 1; i < contacts.size(); ++i) {
         if (contacts[i - 1] == contacts[i]) {
@@ -2288,8 +2283,8 @@ template <class OtherLinear, class ContactNumber>
 constexpr bool PolygonWithHoles<PointType, LabelType>::linearInteriorsIntersect(
     const OtherLinear& other,
     std::vector<Point<ContactNumber>> contacts,
-    const Point<ContactNumber>& base,
-    const Point<ContactNumber>& direction) const {
+    const Point<ContactNumber>& tail,
+    const Point<ContactNumber>& head) const {
     // The split points: the operand's own ends, already in `contacts`, then
     // every ring vertex on the operand. Every other contact between the operand
     // and ∂A is a transversal crossing — a non-collinear pair meets in at most
@@ -2357,11 +2352,9 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::linearInteriorsIntersect(
     // no test: the region is bounded, and a piece that escapes it for good is
     // one whose far end left through an unpinched crossing, already answered
     // above.
-    const auto along = [&](const V& p) {
-        return (p.x() - base.x()) * direction.x() + (p.y() - base.y()) * direction.y();
-    };
-    std::sort(contacts.begin(), contacts.end(),
-              [&](const V& p, const V& q) { return along(p) < along(q); });
+    std::sort(contacts.begin(), contacts.end(), [&](const V& p, const V& q) {
+        return dotSign(p, q, tail, head) > 0;
+    });
     const auto doubled = (*this) * NumberType(2);
     for (std::size_t i = 1; i < contacts.size(); ++i) {
         if (contacts[i - 1] == contacts[i]) {
@@ -2385,7 +2378,7 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const 
     using V = Point<C>;
     const V begin = static_cast<V>(other.min());
     const V end = static_cast<V>(other.max());
-    return linearInteriorsIntersect(other, std::vector<V>{begin, end}, begin, end - begin);
+    return linearInteriorsIntersect(other, std::vector<V>{begin, end}, begin, end);
 }
 
 template <class PointType, class LabelType>
@@ -2409,7 +2402,7 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const 
     using V = Point<C>;
     const V begin = static_cast<V>(other.min());
     const V end = static_cast<V>(other.max());
-    return linearInteriorsIntersect(other, std::vector<V>{}, begin, end - begin);
+    return linearInteriorsIntersect(other, std::vector<V>{}, begin, end);
 }
 
 template <class PointType, class LabelType>
@@ -2430,7 +2423,7 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorsIntersect(const 
     using V = Point<C>;
     const V source = static_cast<V>(other.source());
     const V target = static_cast<V>(other.target());
-    return linearInteriorsIntersect(other, std::vector<V>{source}, source, target - source);
+    return linearInteriorsIntersect(other, std::vector<V>{source}, source, target);
 }
 
 template <class PointType, class LabelType>

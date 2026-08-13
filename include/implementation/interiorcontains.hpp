@@ -668,10 +668,10 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherLine
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.min());
     }
-    const auto direction_side =
-        orientationDeterminant(source(), target(), other.max()) -
-        orientationDeterminant(source(), target(), other.min());
-    return direction_side == decltype(direction_side){} && interiorContains(other.min());
+    // Parallel to the boundary, i.e. the two endpoint determinants agree; the
+    // sign of their difference is one cross product of the two directions.
+    return crossSign(source(), target(), other.min(), other.max()) == 0 &&
+           interiorContains(other.min());
 }
 
 template <class PointType, class LabelType>
@@ -680,10 +680,8 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherOrie
     if (isDegenerate() || other.isDegenerate()) {
         return other.isDegenerate() && interiorContains(other.source());
     }
-    const auto direction_side =
-        orientationDeterminant(source(), target(), other.target()) -
-        orientationDeterminant(source(), target(), other.source());
-    return direction_side == decltype(direction_side){} && interiorContains(other.source());
+    return crossSign(source(), target(), other.source(), other.target()) == 0 &&
+           interiorContains(other.source());
 }
 
 template <class PointType, class LabelType>
@@ -710,12 +708,8 @@ constexpr bool Halfplane<PointType, LabelType>::interiorContains(const OtherRay&
     if (isDegenerate() || other.isDegenerate()) {
         return false;
     }
-    const auto source_side = orientationDeterminant(source(), target(), other.source());
-    const auto direction_side =
-        orientationDeterminant(source(), target(), other.target()) -
-        orientationDeterminant(source(), target(), other.source());
-    const auto zero = decltype(source_side){};
-    return zero < source_side && !(direction_side < zero);
+    return orientationSign(source(), target(), other.source()) > 0 &&
+           !(crossSign(source(), target(), other.source(), other.target()) < 0);
 }
 
 template <class PointType, class LabelType>
