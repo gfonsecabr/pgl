@@ -138,17 +138,18 @@ uset.insert(s);
 
 Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
-- Convex hull: computed with Graham scan.
-- Line segment intersection: Bentley-Ottmann sweep line using rational numbers.
-- Sort points: by angle or Hilbert order.
-- Minkowski sum and boolean operations.
+- **Convex hull** computed with Graham scan.
+- Line segment intersection: **Bentley-Ottmann sweep line** using rational numbers.
+- **Minkowski sum** and **boolean operations**.
 - Smallest enclosing disk.
+- Sort points by angle or Hilbert order.
 
  and [data structures](doc/data_structures.md):
 
-- Kd-tree: for points and a generalization for other bounded shapes.
-- Triangulation: including Delaunay and constrained Delaunay triangulations for points and polygons.
-- Arrangement of lines, line segments, and rays.
+- **Kd-tree** for points and a generalization for other bounded shapes.
+- **Interval tree** to use 1-dimensional queries on projections.
+- **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons.
+- **Arrangement** of lines, line segments, and rays with a **trapezoidal map** for fast point location.
 
 ## Comparison to CGAL
 
@@ -172,6 +173,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
+- It is hard to compare the performance against CGAL, but overall CGAL has faster more complex implementations. For example, pgl's decomposition-based minkowski sum is much slower than CGAL's convolution-based Minkowski sum and a little slower than CGAL's decomposition-based Minkowski sum. Surprisingly, pgl's trapezoidal map is significantly faster than CGAL's in our benchmarks.
 
 ## Build
 
