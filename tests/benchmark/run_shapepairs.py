@@ -284,24 +284,29 @@ def _cpp_accumulate(method: str) -> str:
                 "      + (long long)pieces.vertexCount();"
                 f" }}(a.template {method}<N>(b));")
     if method == "minkowskiSum":
-        # The non-convex overloads return a vector of regions, while translations
-        # and bounded-convex pairs return one shape. Digest the former just like
-        # the boolean operations, and retain a coordinate read for the latter:
-        # a fixed-size translated shape would otherwise let the compiler erase
-        # the whole construction. A generic lambda makes its branches dependent,
-        # so `if constexpr` discards the inapplicable result representation.
+        # The result type follows the pair: a `PolygonSet` when the sum can fall
+        # into several pieces, a `PolygonWithHoles` when it is one region that may
+        # have holes, and otherwise a single shape stored by its defining points —
+        # a translated operand, a bounded or unbounded convex shape, a `Disk`.
+        # Digest the first two the way the boolean operations do, and retain a
+        # coordinate read for the third: a fixed-size translated shape would
+        # otherwise let the compiler erase the whole construction. `componentCount`
+        # is what tells a set from a region, and `holeCount` a region from the
+        # rest — `vertexCount` does not, since `HalfplaneIntersection` has one too.
+        # A generic lambda makes the branches dependent, so `if constexpr` discards
+        # the inapplicable result representations.
         return ("count += [](const auto& s) {"
-                " if constexpr (requires { s.get(0); }) {"
+                " if constexpr (requires { s.componentCount(); }) {"
+                "   return (long long)s.componentCount() + (long long)s.vertexCount();"
+                " } else if constexpr (requires { s.holeCount(); }) {"
+                "   return (long long)s.holeCount() + (long long)s.vertexCount();"
+                " } else {"
                 "   const auto element = s.get(0);"
                 "   const auto vertex = [](const auto& e) {"
                 "     if constexpr (requires { e.source(); }) return e.source();"
                 "     else return e; }(element);"
                 "   const typename std::remove_cvref_t<decltype(vertex)>::NumberType zero{};"
                 "   return (long long)s.size() + ((vertex.x() < zero) ? 1 : 0);"
-                " } else {"
-                "   long long n = (long long)s.size();"
-                "   for (const auto& piece : s) n += (long long)piece.vertexCount();"
-                "   return n;"
                 " }"
                 " }(a.minkowskiSum(b));")
     if method in {"squaredDistance", "distanceL1", "distanceLInf",
