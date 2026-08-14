@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <limits>
 #include <map>
+#include <random>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -1122,4 +1123,220 @@ TEST_CASE("parallel rays only sharing infinity do not enclose a face") {
     CHECK(arr.vertexCount() == 2);
     CHECK(arr.edgeCount() == 2);
     CHECK(arr.faceCount() == 1);
+}
+
+TEST_CASE("arrangement intersection traversal is ordered and suppresses incident edges") {
+    using IntersectionId = Arrangement::IntersectionId;
+    const std::vector<Segment> shapes{S(0, 0, 10, 0), S(3, -2, 3, 2),
+                                      S(7, -2, 7, 2)};
+    Arrangement arr(shapes);
+
+    const auto vertexAt = [&](const Point& point) {
+        const auto found = std::ranges::find(arr.vertices(), point);
+        REQUIRE(found != arr.vertices().end());
+        return VertexId(static_cast<std::uint32_t>(found - arr.vertices().begin()));
+    };
+    const auto edgeThrough = [&](const Point& point) {
+        for (std::uint32_t edge = 0; edge < arr.edgeCount(); ++edge) {
+            const HalfedgeId h(2 * edge);
+            if (std::visit([&](const auto& value) { return value.contains(point); }, arr[h])) {
+                return h;
+            }
+        }
+        return HalfedgeId();
+    };
+
+    const HalfedgeId at3 = edgeThrough(P(3, 1));
+    const HalfedgeId at7 = edgeThrough(P(7, 1));
+    REQUIRE(at3.valid());
+    REQUIRE(at7.valid());
+    const pgl::EOrientedLine forward(P(-1, 1), P(1, 1));
+    CHECK(arr.reportIntersecting(forward) ==
+          std::vector<IntersectionId>{IntersectionId(at3), IntersectionId(at7)});
+    CHECK(arr.reportIntersecting(pgl::EOrientedLine(P(1, 1), P(-1, 1))) ==
+          std::vector<IntersectionId>{IntersectionId(at7), IntersectionId(at3)});
+    CHECK(arr.reportIntersecting(pgl::EOrientedSegment(P(-1, 1), P(5, 1))) ==
+          std::vector<IntersectionId>{IntersectionId(at3)});
+    CHECK(arr.reportIntersecting(Ray(P(-1, 1), P(0, 1))) ==
+          std::vector<IntersectionId>{IntersectionId(at3), IntersectionId(at7)});
+
+    const auto onArrangement =
+        arr.reportIntersecting(pgl::EOrientedSegment(P(-1, 0), P(11, 0)));
+    const std::vector<IntersectionId> expectedVertices{
+        vertexAt(P(0, 0)), vertexAt(P(3, 0)), vertexAt(P(7, 0)), vertexAt(P(10, 0))};
+    CHECK(onArrangement == expectedVertices);
+
+    std::size_t visited = 0;
+    CHECK(arr.visitIntersecting(forward, [&](const IntersectionId& id) {
+        ++visited;
+        CHECK(id == IntersectionId(at3));
+        return true;
+    }));
+    CHECK(visited == 1);
+    CHECK(arr.firstIntersecting(forward) == IntersectionId(at3));
+    CHECK_FALSE(arr.emptyIntersecting(forward));
+    CHECK(arr.emptyIntersecting(pgl::EOrientedSegment(P(-1, 5), P(11, 5))));
+    std::vector<IntersectionId> visitedAll;
+    CHECK_FALSE(arr.visitIntersecting(forward, [&](const IntersectionId& id) {
+        visitedAll.push_back(id);
+        return false;
+    }));
+    CHECK(visitedAll == arr.reportIntersecting(forward));
+
+    const auto withoutIndex = arr.reportIntersecting(forward);
+    arr.buildPointLocation();
+    CHECK(arr.reportIntersecting(forward) == withoutIndex);
+}
+
+TEST_CASE("arrangement intersection traversal follows chains and reports cells once") {
+    using IntersectionId = Arrangement::IntersectionId;
+    Arrangement arr(std::vector<Segment>{S(0, 0, 10, 0), S(3, -2, 3, 2),
+                                         S(7, -2, 7, 2)});
+    const pgl::EPolyline polyline({P(-1, 1), P(5, 1), P(5, -1), P(9, -1),
+                                   P(5, -1), P(5, 1)});
+    const auto report = arr.reportIntersecting(polyline);
+    REQUIRE(report.size() == 3);
+    CHECK(std::holds_alternative<HalfedgeId>(report[0]));
+    CHECK(std::holds_alternative<HalfedgeId>(report[1]));
+    CHECK(std::holds_alternative<HalfedgeId>(report[2]));
+    CHECK(std::visit([&](const auto& value) { return value.contains(P(3, 1)); },
+                     arr[std::get<HalfedgeId>(report[0])]));
+    CHECK(std::visit([&](const auto& value) { return value.contains(P(5, 0)); },
+                     arr[std::get<HalfedgeId>(report[1])]));
+    CHECK(std::visit([&](const auto& value) { return value.contains(P(7, -1)); },
+                     arr[std::get<HalfedgeId>(report[2])]));
+
+    const pgl::EMonotoneChain chain({P(-1, 1), P(5, 1), P(9, -1)});
+    const auto chainReport = arr.reportIntersecting(chain);
+    REQUIRE(chainReport.size() == 2);
+    CHECK(std::holds_alternative<HalfedgeId>(chainReport[0]));
+    CHECK(chainReport[1] == IntersectionId(
+        VertexId(static_cast<std::uint32_t>(std::ranges::find(arr.vertices(), P(7, 0)) -
+                                            arr.vertices().begin()))));
+}
+
+TEST_CASE("trapezoidal intersection traversal matches the linear traversal") {
+    const std::vector<pgl::EShape> shapes{
+        S(-8, -5, 9, 7), S(-9, 6, 8, -4), S(-7, 1, 10, 1),
+        S(-2, -8, -2, 9), Line(P(-3, -6), P(4, 8)), Ray(P(1, -3), P(5, -1))};
+    const Arrangement linear(shapes);
+    Arrangement indexed = linear;
+    indexed.buildPointLocation();
+
+    const auto compare = [&](const auto& query) {
+        CHECK(indexed.reportIntersecting(query) == linear.reportIntersecting(query));
+        CHECK(indexed.firstIntersecting(query) == linear.firstIntersecting(query));
+        CHECK(indexed.emptyIntersecting(query) == linear.emptyIntersecting(query));
+    };
+    for (int ax = -12; ax <= 12; ax += 4) {
+        for (int ay = -11; ay <= 11; ay += 3) {
+            int bx = 7 - ay;
+            int by = ax + 5;
+            if (ax == bx && ay == by) {
+                ++bx;
+            }
+            compare(pgl::EOrientedSegment(P(ax, ay), P(bx, by)));
+            compare(pgl::EOrientedLine(P(ax, ay), P(bx, by)));
+            compare(Ray(P(ax, ay), P(bx, by)));
+            compare(pgl::EPolyline({P(ax, ay), P(bx, by), P(bx + 3, by - 5)}));
+        }
+    }
+
+    // The index is built on sheared coordinates, where an axis-parallel query
+    // is no longer axis-parallel, so those directions get their own sweep.
+    for (int a = -12; a <= 12; ++a) {
+        compare(Ray(P(a, -13), P(a, -12)));       // straight up
+        compare(Ray(P(a, 13), P(a, 12)));         // straight down
+        compare(Ray(P(-13, a), P(-12, a)));       // straight right
+        compare(Ray(P(13, a), P(12, a)));         // straight left
+        compare(pgl::EOrientedLine(P(a, 0), P(a, 1)));
+        compare(pgl::EOrientedLine(P(0, a), P(1, a)));
+        compare(pgl::EOrientedSegment(P(a, -13), P(a, 13)));
+        compare(pgl::EOrientedSegment(P(-13, a), P(13, a)));
+    }
+}
+
+TEST_CASE("trapezoidal traversal matches the linear one on random arrangements") {
+    std::mt19937 random(20260814);
+    std::uniform_int_distribution<int> coordinate(-14, 14);
+    for (int trial = 0; trial < 6; ++trial) {
+        std::vector<Segment> shapes;
+        while (shapes.size() < 7) {
+            const Point a = P(coordinate(random), coordinate(random));
+            const Point b = P(coordinate(random), coordinate(random));
+            if (!(a == b)) {
+                shapes.emplace_back(a, b);
+            }
+        }
+        const Arrangement linear(shapes);
+        Arrangement indexed = linear;
+        indexed.buildPointLocation();
+
+        for (int query = 0; query < 40; ++query) {
+            const Point a = P(coordinate(random), coordinate(random));
+            const Point b = P(coordinate(random), coordinate(random));
+            if (a == b) {
+                continue;
+            }
+            // Vertical and horizontal queries stay in the mix on purpose.
+            for (const Point& target :
+                 {b, Point(a.x(), b.y()), Point(b.x(), a.y())}) {
+                if (target == a) {
+                    continue;
+                }
+                CHECK(indexed.reportIntersecting(Ray(a, target)) ==
+                      linear.reportIntersecting(Ray(a, target)));
+                CHECK(indexed.reportIntersecting(pgl::EOrientedSegment(a, target)) ==
+                      linear.reportIntersecting(pgl::EOrientedSegment(a, target)));
+                CHECK(indexed.reportIntersecting(pgl::EOrientedLine(a, target)) ==
+                      linear.reportIntersecting(pgl::EOrientedLine(a, target)));
+            }
+        }
+    }
+}
+
+TEST_CASE("a chain touching an endpoint still reports the edge it later crosses") {
+    using IntersectionId = Arrangement::IntersectionId;
+    Arrangement arr(std::vector<Segment>{S(3, -2, 3, 2)});
+    const HalfedgeId edge(0);
+    const VertexId low(static_cast<std::uint32_t>(
+        std::ranges::find(arr.vertices(), P(3, -2)) - arr.vertices().begin()));
+    REQUIRE(low.index() < arr.vertexCount());
+
+    // The first piece stops on the edge's lower endpoint, so that piece reports
+    // the vertex alone. The third piece crosses the interior at (3,1), which no
+    // vertex stands for, so the edge is still reported.
+    const std::vector<IntersectionId> touchThenCross{IntersectionId(low),
+                                                     IntersectionId(edge)};
+    CHECK(arr.reportIntersecting(
+              pgl::EPolyline({P(0, -2), P(3, -2), P(0, 1), P(6, 1)})) ==
+          touchThenCross);
+    CHECK(arr.reportIntersecting(
+              pgl::EPolyline({P(6, 1), P(0, 1), P(3, -2), P(0, -2)})) ==
+          std::vector<IntersectionId>{IntersectionId(edge), IntersectionId(low)});
+
+    // A chain meeting the edge only at that endpoint reports the vertex alone.
+    CHECK(arr.reportIntersecting(pgl::EPolyline({P(0, -2), P(3, -2), P(0, -4)})) ==
+          std::vector<IntersectionId>{IntersectionId(low)});
+
+    arr.buildPointLocation();
+    CHECK(arr.reportIntersecting(
+              pgl::EPolyline({P(0, -2), P(3, -2), P(0, 1), P(6, 1)})) ==
+          touchThenCross);
+}
+
+TEST_CASE("arrangement intersection traversal accepts mixed coordinate types") {
+    using IntPoint = pgl::Point<int>;
+    using IntSegment = pgl::Segment<IntPoint>;
+    using IntArrangement = pgl::Arrangement<IntPoint>;
+    const std::vector<IntSegment> shapes{IntSegment(IntPoint(0, 0), IntPoint(6, 0)),
+                                         IntSegment(IntPoint(2, -2), IntPoint(2, 2))};
+    IntArrangement arr(shapes);
+    const pgl::OrientedLine<pgl::Point<long>> query(pgl::Point<long>(-3, 1),
+                                                     pgl::Point<long>(5, 1));
+    const auto expected = arr.reportIntersecting(query);
+    REQUIRE(expected.size() == 1);
+    CHECK(std::holds_alternative<IntArrangement::HalfedgeId>(expected.front()));
+    arr.buildPointLocation();
+    CHECK(arr.reportIntersecting(query) == expected);
 }

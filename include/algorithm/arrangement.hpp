@@ -244,6 +244,8 @@ void splitWalkIntoRings(const std::vector<ExactPoint>& walk,
  */
 template <class PointType_, class TLabel>
 class Arrangement {
+    // Tags that keep the three handle families distinct types, so a vertex
+    // handle can never be passed where a halfedge or face one is meant.
     struct VertexTag;
     struct HalfedgeTag;
     struct FaceTag;
@@ -279,6 +281,8 @@ public:
     using HalfedgeType = std::variant<OrientedSegmentType, OrientedLineType, RayType>;
     /** @brief Geometry of an unoriented edge. */
     using EdgeType = std::variant<SegmentType, LineType, RayType>;
+    /** @brief Vertex or edge met by a directed intersection query. */
+    using IntersectionId = std::variant<HalfedgeId, VertexId>;
 
     static_assert(detail::is_point_v<PointType>, "Arrangement requires pgl::Point vertices");
 
@@ -1263,7 +1267,66 @@ public:
      */
     [[nodiscard]] CellId locateCell(const PointType& p) const;
 
+    // -------------------------------------------------------------------------
+    // Intersection traversal
+
+    /**
+     * @brief Visits the vertices and edges met by a directed curve, in order.
+     *
+     * The query may be a @ref Ray, @ref OrientedLine, @ref OrientedSegment,
+     * @ref MonotoneChain, or @ref Polyline. Where the query meets an edge only
+     * at one of its endpoints, the vertex there stands for the contact and the
+     * edge is not reported for it; a straight piece meeting that same edge away
+     * from its endpoints still reports the edge. An edge is represented by only
+     * one of its twin halfedges, and a chain that meets the same cell more than
+     * once reports it at its first encounter.
+     *
+     * If `fn` returns `bool`, `true` stops the traversal. A `void` visitor never
+     * stops it. When the point-location index is present its vertex and curve
+     * indexes supply the candidates; otherwise the arrangement arrays do.
+     *
+     * @return `true` if the visitor requested an early stop.
+     */
+    template <class Q, class Fn>
+        requires (OrientedSegmentConcept<Q> || OrientedLineConcept<Q> ||
+                  RayConcept<Q> || MonotoneChainConcept<Q> || PolylineConcept<Q>)
+    bool visitIntersecting(const Q& r, Fn fn) const;
+
+    /** @brief Returns every vertex and edge met by a directed curve, in order. */
+    template <class Q>
+        requires (OrientedSegmentConcept<Q> || OrientedLineConcept<Q> ||
+                  RayConcept<Q> || MonotoneChainConcept<Q> || PolylineConcept<Q>)
+    [[nodiscard]] std::vector<IntersectionId> reportIntersecting(const Q& r) const {
+        std::vector<IntersectionId> result;
+        visitIntersecting(r, [&](const IntersectionId& id) { result.push_back(id); });
+        return result;
+    }
+
+    /** @brief Returns the first vertex or edge met by a directed curve. */
+    template <class Q>
+        requires (OrientedSegmentConcept<Q> || OrientedLineConcept<Q> ||
+                  RayConcept<Q> || MonotoneChainConcept<Q> || PolylineConcept<Q>)
+    [[nodiscard]] std::optional<IntersectionId> firstIntersecting(const Q& r) const {
+        std::optional<IntersectionId> result;
+        visitIntersecting(r, [&](const IntersectionId& id) {
+            result = id;
+            return true;
+        });
+        return result;
+    }
+
+    /** @brief Returns whether a directed curve meets no vertex or edge. */
+    template <class Q>
+        requires (OrientedSegmentConcept<Q> || OrientedLineConcept<Q> ||
+                  RayConcept<Q> || MonotoneChainConcept<Q> || PolylineConcept<Q>)
+    [[nodiscard]] bool emptyIntersecting(const Q& r) const {
+        return !visitIntersecting(r, [](const IntersectionId&) { return true; });
+    }
+
 private:
+    // Point location without the index: the face is the one left of the nearest
+    // edge to the west, and a point with nothing to its west lies in the face
+    // the boundary at infinity opens onto.
     [[nodiscard]] FaceId locateFaceLinear(const PointType& p) const {
         const HalfedgeId h = halfedgeLeftOf(p);
         if (h.valid()) {
@@ -1275,6 +1338,9 @@ private:
         return FaceId(0);
     }
 
+    // The same without the index, but naming the cell the point lies on rather
+    // than the face around it: a vertex wins over an edge, and an edge over the
+    // face, since a point on the boundary belongs to the lower-dimensional cell.
     [[nodiscard]] CellId locateCellLinear(const PointType& p) const {
         for (std::uint32_t v = 0; v < points_.size(); ++v) {
             if (points_[v] == p) {
@@ -1305,17 +1371,39 @@ private:
         return locateFaceLinear(p);
     }
 
+    // Vertices as the halfedge structure counts them, which is the geometric
+    // vertices plus the single point at infinity when the arrangement has one.
     [[nodiscard]] std::size_t topologicalVertexCount() const {
         return points_.size() + (infinity_.valid() ? 1 : 0);
     }
 
+    // How far an edge runs: a segment is bounded at both ends, a ray only at
+    // the first, and a line at neither.
     enum class EdgeKind : std::uint8_t { segment, ray, line };
 
+    // The defining coordinates of an edge, kept beside the topology so a
+    // predicate never has to walk the halfedge structure to rebuild them. For a
+    // ray, `a` is the source and `b` only fixes the direction; for a line the
+    // two merely span it.
     struct EdgeGeometry {
         EdgeKind kind;
         PointType a;
         PointType b;
     };
+
+    // One straight piece of a query, reported in order along the piece. The
+    // seen vectors carry the cells a chain has already reported across its
+    // pieces, and are null for a query that is a single piece.
+    template <class Q, class Fn>
+    bool visitStraightIntersecting(const Q& piece, Fn& fn,
+                                   std::vector<bool>* seenVertices,
+                                   std::vector<bool>* seenEdges) const;
+
+    // A query that degenerated to a single point, which meets at most one cell.
+    template <PointConcept Q, class Fn>
+    bool visitPointIntersecting(const Q& point, Fn& fn,
+                                std::vector<bool>* seenVertices,
+                                std::vector<bool>* seenEdges) const;
 
     // An input segment, with the position of the shape it came from.
     struct InputSegment {
@@ -1468,6 +1556,9 @@ private:
         buildFaces();
     }
 
+    // A stretch of one carrier that some input curve covers, as a parameter
+    // range along that carrier. An absent bound runs to infinity, and `origin`
+    // names the input shape the stretch came from.
     struct CarrierInterval {
         std::optional<NumberType> low;
         std::optional<NumberType> high;
@@ -1475,6 +1566,11 @@ private:
         [[no_unique_address]] TLabel label;
     };
 
+    // A supporting line, with every input stretch laid over it. Collinear input
+    // shares one carrier, so overlap is settled by merging intervals instead of
+    // by intersecting curves. `usesX` picks the coordinate that parameterizes
+    // it, which is the abscissa unless the line is vertical. `cuts` holds the
+    // parameters where the carrier must be split.
     struct Carrier {
         PointType a;
         PointType b;
@@ -1483,6 +1579,9 @@ private:
         std::vector<NumberType> cuts;
     };
 
+    // A piece of a carrier between consecutive cuts, so no other curve crosses
+    // its interior. These are the pieces the halfedge structure is wired from,
+    // and `origins` records every input shape covering the piece.
     struct AtomicCurve {
         std::uint32_t carrier;
         std::optional<NumberType> low;
@@ -1491,10 +1590,16 @@ private:
         [[no_unique_address]] TLabel label;
     };
 
+    // Where a point on a carrier falls along it. Vertical carriers are
+    // parameterized by ordinate, everything else by abscissa, so the
+    // parameter is always strictly monotone along the carrier.
     static NumberType parameterOf(const Carrier& carrier, const PointType& point) {
         return carrier.usesX ? point.x() : point.y();
     }
 
+    // Whether an interval already spans the whole of another one, absent bounds
+    // reaching infinity. This is what makes a repeated or contained input
+    // stretch add nothing.
     static bool covers(const CarrierInterval& interval,
                        const std::optional<NumberType>& low,
                        const std::optional<NumberType>& high) {
@@ -1515,11 +1620,13 @@ private:
         return true;
     }
 
+    // Whether an interval holds a single parameter, ends included.
     static bool covers(const CarrierInterval& interval, const NumberType& value) {
         return (!interval.low.has_value() || !(value < *interval.low)) &&
                (!interval.high.has_value() || !(*interval.high < value));
     }
 
+    // The point at a parameter along a carrier.
     static PointType pointAt(const Carrier& carrier, const NumberType& parameter) {
         PointType point = [&] {
             if (carrier.usesX) {
@@ -1542,6 +1649,8 @@ private:
         return point;
     }
 
+    // Whether a curve is collinear with a carrier, and so belongs on it rather
+    // than on one of its own.
     static bool sameCarrier(const Carrier& carrier, const InputCurve& curve) {
         return orientationSign(carrier.a, carrier.b, curve.a) == 0 &&
                orientationSign(carrier.a, carrier.b, curve.b) == 0;
@@ -2117,6 +2226,9 @@ private:
         }
     }
 
+    // The direction a halfedge leaves its origin in, with the point that fixes
+    // where its carrier sits. Ordering these is what puts the halfedges around
+    // a vertex in rotational order.
     struct FanDirection {
         NumberType dx;
         NumberType dy;
@@ -2124,6 +2236,9 @@ private:
         std::uint32_t halfedge;
     };
 
+    // The direction of a halfedge, taken from the interned endpoints when the
+    // edge is a segment so a split edge leaves along its own piece rather than
+    // along the whole original. A line's two halfedges escape opposite ways.
     [[nodiscard]] FanDirection fanDirection(std::uint32_t h) const {
         const EdgeGeometry& geometry = edgeGeometry_[h / 2];
         NumberType dx = geometry.b.x() - geometry.a.x();
@@ -2140,6 +2255,10 @@ private:
         return {dx, dy, geometry.a, h};
     }
 
+    // Which half-turn a direction falls in, so the angular comparison below can
+    // use a cross product without ever spanning more than half a turn. Due east
+    // counts as the upper half and due west as the lower, which puts the cut
+    // just below the positive x axis.
     static int directionHalf(const FanDirection& direction) {
         if (direction.dy > NumberType(0)) {
             return 0;
@@ -2150,6 +2269,9 @@ private:
         return direction.dx > NumberType(0) ? 0 : 1;
     }
 
+    // Counterclockwise order of two directions around a shared origin, starting
+    // from the cut `directionHalf` sets. Exact throughout: the angle itself is
+    // never formed, only compared.
     static bool fanLess(const FanDirection& left, const FanDirection& right) {
         const int leftHalf = directionHalf(left);
         const int rightHalf = directionHalf(right);
@@ -2174,10 +2296,16 @@ private:
         return left.halfedge < right.halfedge;
     }
 
+    // The same order seen from the point at infinity, where the plane is
+    // traversed the other way round and every end is entered rather than left.
     static bool infinityFanLess(const FanDirection& left, const FanDirection& right) {
         return fanLess(right, left);
     }
 
+    // Links the halfedges into face cycles for an arrangement carrying rays or
+    // lines. Sorting each vertex's fan rotationally makes the next halfedge of
+    // a cycle the one just clockwise of the twin, which is what walks a face
+    // boundary; the vertex at infinity uses the reversed order.
     void wireHalfedgesUnbounded() {
         std::vector<std::vector<std::uint32_t>> fan(topologicalVertexCount());
         for (std::uint32_t h = 0; h < origin_.size(); ++h) {
@@ -2205,6 +2333,8 @@ private:
         }
     }
 
+    // The unbounded face a point with no edge to its west lies in, found by
+    // placing a due-west ray from the point into the fan at infinity.
     [[nodiscard]] HalfedgeId infinityBoundaryAtWest(const PointType& point) const {
         assert(!infinityFan_.empty());
         // At an end exactly collinear with the query ray, choose the sector on
@@ -2221,6 +2351,9 @@ private:
         return HalfedgeId(nextDirection ^ 1);
     }
 
+    // Turns the halfedge cycles into faces for an arrangement carrying rays or
+    // lines. A cycle passing through infinity bounds an unbounded face, and the
+    // rest nest as holes the way the bounded builder handles them.
     void buildFacesUnbounded() {
         constexpr std::uint32_t none = ~std::uint32_t{};
         const std::uint32_t halfedges = static_cast<std::uint32_t>(origin_.size());
@@ -3017,6 +3150,200 @@ private:
             return trapezoids_[nodes_[node].value].face;
         }
 
+        [[nodiscard]] VertexId indexedVertex(std::size_t index) const {
+            return vertices_[index];
+        }
+
+        // Vertices whose abscissa lies within the closed range, in increasing
+        // order. An absent bound is unbounded on that side. The index is sorted
+        // lexicographically on the original coordinates, so a query confined to
+        // a narrow band of abscissae -- a vertical ray above all -- reaches only
+        // the vertices that band can hold.
+        template <class Number, class Fn>
+        void visitCandidateVertices(const Arrangement& arrangement,
+                                    const std::optional<Number>& low,
+                                    const std::optional<Number>& high,
+                                    Fn&& fn) const {
+            auto first = vertices_.begin();
+            auto last = vertices_.end();
+            if (low) {
+                first = std::lower_bound(
+                    first, last, *low, [&](VertexId v, const Number& x) {
+                        return arrangement.points_[v.index()].x() < x;
+                    });
+            }
+            if (high) {
+                last = std::upper_bound(
+                    first, last, *high, [&](const Number& x, VertexId v) {
+                        return x < arrangement.points_[v.index()].x();
+                    });
+            }
+            for (auto it = first; it != last; ++it) {
+                fn(*it);
+            }
+        }
+
+        [[nodiscard]] HalfedgeId indexedHalfedge(std::size_t index) const {
+            return HalfedgeId(2 * (curves_[index].leftToRight.index() / 2));
+        }
+
+        // Walks the search DAG carrying the query clipped to the region each
+        // node stands for, held as an interval of the query's parameter. Both
+        // kinds of decision cut that interval with a straight line -- an x node
+        // with the wall it splits on, a curve node with the curve's supporting
+        // line -- so a child is entered only where the query really reaches it,
+        // and the region a node stands for stays exactly the intersection of
+        // the cuts along the path. A curve is offered where its supporting line
+        // still crosses the clipped query, which is a superset of the
+        // intersecting arrangement edges: the caller deduplicates the offers
+        // and applies the exact predicate.
+        //
+        // Nodes are taken earliest first, by the smallest parameter the node
+        // can still hold, so once a node comes out no candidate found later can
+        // precede it. That bound goes to `fn` as the frontier, which lets the
+        // caller settle its answer for everything behind the frontier and stop
+        // the walk there instead of running the query out to its far end. `fn`
+        // is called with an invalid halfedge to carry the frontier alone, and
+        // stops the walk by returning `true`. An absent frontier is the start
+        // of an unbounded query, where nothing is settled yet.
+        template <class Parameter, class Q, class Fn>
+        bool visitCandidateHalfedges(const Q& query, Fn&& fn) const {
+            const Parameter zero(0);
+
+            const Parameter x0(query[0].x());
+            const Parameter y0(query[0].y());
+            const Parameter dx = Parameter(query[1].x()) - x0;
+            const Parameter dy = Parameter(query[1].y()) - y0;
+            const Parameter abscissa = x0 + Parameter(shear_) * y0;
+            const Parameter abscissaRate = dx + Parameter(shear_) * dy;
+
+            // The parameters still in play, each end absent where the query
+            // runs off to infinity.
+            struct Span {
+                std::uint32_t node;
+                std::optional<Parameter> low;
+                std::optional<Parameter> high;
+            };
+
+            // Keeps only the parameters where `value + t * rate` holds the
+            // requested sign, and answers whether any parameter is left.
+            const auto narrow = [&zero](Span& span, const Parameter& value,
+                                        const Parameter& rate, bool nonNegative) {
+                if (rate == zero) {
+                    return nonNegative ? !(value < zero) : !(value > zero);
+                }
+                const Parameter root = -value / rate;
+                if ((rate > zero) == nonNegative) {
+                    if (!span.low || *span.low < root) {
+                        span.low = root;
+                    }
+                } else {
+                    if (!span.high || root < *span.high) {
+                        span.high = root;
+                    }
+                }
+                return !(span.low && span.high && *span.high < *span.low);
+            };
+
+            // The side of a curve's supporting line, as `value + t * rate`.
+            const auto sideAlongQuery = [&](const Curve& curve) {
+                return std::visit(
+                    [&](const auto& line) {
+                        const Parameter sourceX(line.source().x());
+                        const Parameter sourceY(line.source().y());
+                        const Parameter edgeX = Parameter(line.target().x()) - sourceX;
+                        const Parameter edgeY = Parameter(line.target().y()) - sourceY;
+                        return std::pair<Parameter, Parameter>(
+                            edgeX * (y0 - sourceY) - edgeY * (x0 - sourceX),
+                            edgeX * dy - edgeY * dx);
+                    },
+                    curve.queryLine);
+            };
+
+            // Orders the heap so the span holding the earliest parameter, an
+            // absent bound being earliest of all, comes out first.
+            const auto laterFirst = [](const Span& left, const Span& right) {
+                if (!left.low) {
+                    return false;
+                }
+                if (!right.low) {
+                    return true;
+                }
+                return *right.low < *left.low;
+            };
+
+            Span start{root_, std::nullopt, std::nullopt};
+            if constexpr (!OrientedLineConcept<Q>) {
+                start.low = zero;
+                if constexpr (!RayConcept<Q>) {
+                    start.high = Parameter(1);
+                }
+            }
+
+            std::vector<Span> pending;
+            pending.push_back(std::move(start));
+            const auto offer = [&](Span span) {
+                pending.push_back(std::move(span));
+                std::push_heap(pending.begin(), pending.end(), laterFirst);
+            };
+
+            while (!pending.empty()) {
+                std::pop_heap(pending.begin(), pending.end(), laterFirst);
+                const Span span = std::move(pending.back());
+                pending.pop_back();
+
+                const Parameter* frontier = span.low ? &*span.low : nullptr;
+                if (fn(HalfedgeId(), frontier)) {
+                    return true;
+                }
+
+                const Node& node = nodes_[span.node];
+                if (node.kind == NodeKind::leaf) {
+                    continue;
+                }
+
+                if (node.kind == NodeKind::x) {
+                    // A query sitting exactly on the wall enters both sides.
+                    const Parameter split(node.x);
+                    Span low = span;
+                    if (narrow(low, split - abscissa, -abscissaRate, true)) {
+                        low.node = node.low;
+                        offer(std::move(low));
+                    }
+                    Span high = span;
+                    if (narrow(high, abscissa - split, abscissaRate, true)) {
+                        high.node = node.high;
+                        offer(std::move(high));
+                    }
+                    continue;
+                }
+
+                const Curve& curve = curves_[node.value];
+                const auto [value, rate] = sideAlongQuery(curve);
+                Span low = span;
+                const bool below = narrow(low, value, rate, false);
+                Span high = span;
+                const bool above = narrow(high, value, rate, true);
+                if (below && above) {
+                    // The clipped query reaches both sides, so it meets the
+                    // supporting line inside the region this node stands for.
+                    const HalfedgeId h(2 * (curve.leftToRight.index() / 2));
+                    if (fn(h, frontier)) {
+                        return true;
+                    }
+                }
+                if (below) {
+                    low.node = node.low;
+                    offer(std::move(low));
+                }
+                if (above) {
+                    high.node = node.high;
+                    offer(std::move(high));
+                }
+            }
+            return false;
+        }
+
     private:
         static bool less(const Bound& left, const Bound& right) {
             if (left.infinity != right.infinity) {
@@ -3559,6 +3886,337 @@ private:
     std::vector<std::uint32_t> infinityFan_;    // outgoing ends in counterclockwise order
     std::shared_ptr<const TrapezoidPointLocation> pointLocation_;
 };
+
+template <class PointType, class TLabel>
+template <class Q, class Fn>
+bool Arrangement<PointType, TLabel>::visitStraightIntersecting(
+    const Q& piece, Fn& fn, std::vector<bool>* seenVertices,
+    std::vector<bool>* seenEdges) const {
+    using CommonNumber = std::common_type_t<NumberType, typename Q::NumberType>;
+    using Parameter = division_result_t<CommonNumber>;
+
+    // A cell the piece meets, at the parameter where it first meets it. An edge
+    // the piece runs along from infinity has no such parameter, and sorts ahead
+    // of everything instead.
+    struct Event {
+        bool negativeInfinity = false;
+        Parameter parameter{};
+        IntersectionId id;
+    };
+
+    const Parameter ax(piece[0].x());
+    const Parameter ay(piece[0].y());
+    const Parameter dx = Parameter(piece[1].x()) - ax;
+    const Parameter dy = Parameter(piece[1].y()) - ay;
+    const Parameter squaredLength = dx * dx + dy * dy;
+
+    // Where a point falls along the piece, as the parameter that is 0 at its
+    // first endpoint and 1 at its second. A degenerate piece puts everything
+    // at 0, which is the only parameter it has.
+    const auto parameterOf = [&](const auto& point) {
+        if (squaredLength == Parameter(0)) {
+            return Parameter(0);
+        }
+        return ((Parameter(point.x()) - ax) * dx +
+                (Parameter(point.y()) - ay) * dy) /
+               squaredLength;
+    };
+
+    // The parameter at which the piece first meets an edge. Crossing edges meet
+    // at one parameter; a collinear edge is met along a stretch, and the earliest
+    // of it is what counts. A query bounded at its start never reports earlier
+    // than that start.
+    const auto firstOnEdge = [&](const EdgeGeometry& geometry) {
+        Event event;
+        if (squaredLength == Parameter(0)) {
+            return event;
+        }
+
+        const Parameter ex = Parameter(geometry.b.x()) - Parameter(geometry.a.x());
+        const Parameter ey = Parameter(geometry.b.y()) - Parameter(geometry.a.y());
+        Parameter denominator = dx * ey - dy * ex;
+        if (denominator != Parameter(0)) {
+            Parameter numerator =
+                (Parameter(geometry.a.x()) - ax) * ey -
+                (Parameter(geometry.a.y()) - ay) * ex;
+            event.parameter = numerator / denominator;
+            return event;
+        }
+
+        if (geometry.kind == EdgeKind::line) {
+            event.negativeInfinity = true;
+        } else if (geometry.kind == EdgeKind::ray && ex * dx + ey * dy < Parameter(0)) {
+            event.negativeInfinity = true;
+        } else {
+            event.parameter = parameterOf(geometry.a);
+            if (geometry.kind == EdgeKind::segment) {
+                event.parameter = std::min(event.parameter, parameterOf(geometry.b));
+            }
+        }
+
+        if constexpr (!OrientedLineConcept<Q>) {
+            if (event.negativeInfinity || event.parameter < Parameter(0)) {
+                event.negativeInfinity = false;
+                event.parameter = Parameter(0);
+            }
+        }
+        return event;
+    };
+
+    // Order along the piece, breaking a tie towards the vertex, since a cell the
+    // piece meets at the same parameter as an edge is the edge's endpoint and
+    // stands for the contact. Handle order settles the rest, so the traversal is
+    // reproducible.
+    const auto eventLess = [](const Event& left, const Event& right) {
+        if (left.negativeInfinity != right.negativeInfinity) {
+            return left.negativeInfinity;
+        }
+        if (!left.negativeInfinity && left.parameter != right.parameter) {
+            return left.parameter < right.parameter;
+        }
+        const bool leftVertex = std::holds_alternative<VertexId>(left.id);
+        const bool rightVertex = std::holds_alternative<VertexId>(right.id);
+        if (leftVertex != rightVertex) {
+            return leftVertex;
+        }
+        return std::visit([](const auto& id) { return id.index(); }, left.id) <
+               std::visit([](const auto& id) { return id.index(); }, right.id);
+    };
+
+    // The abscissae the piece can reach, open on a side the piece runs off to.
+    std::optional<Parameter> lowX;
+    std::optional<Parameter> highX;
+    if (Parameter(piece[0].x()) == Parameter(piece[1].x())) {
+        lowX = Parameter(piece[0].x());
+        highX = lowX;
+    } else if constexpr (RayConcept<Q>) {
+        (Parameter(piece[1].x()) > Parameter(piece[0].x()) ? lowX : highX) =
+            Parameter(piece[0].x());
+    } else if constexpr (!OrientedLineConcept<Q>) {
+        lowX = std::min(Parameter(piece[0].x()), Parameter(piece[1].x()));
+        highX = std::max(Parameter(piece[0].x()), Parameter(piece[1].x()));
+    }
+
+    // Events wait here until the search has passed them, earliest on top.
+    const auto laterFirst = [&eventLess](const Event& left, const Event& right) {
+        return eventLess(right, left);
+    };
+    std::vector<Event> queued;
+    const auto queue = [&](Event event) {
+        queued.push_back(std::move(event));
+        std::push_heap(queued.begin(), queued.end(), laterFirst);
+    };
+
+    // Queues a vertex the piece passes through, unless an earlier piece of the
+    // same chain already reported it.
+    const auto offerVertex = [&](VertexId v) {
+        if (seenVertices != nullptr && (*seenVertices)[v.index()]) {
+            return;
+        }
+        const PointType& point = points_[v.index()];
+        if (piece.intersects(point)) {
+            queue(Event{false, parameterOf(point), v});
+        }
+    };
+
+    // The walk can reach one edge from several nodes. The offers it has already
+    // made live in a table sized to the offers themselves rather than to the
+    // arrangement, so a query never pays for the edges it does not look at.
+    static constexpr std::uint32_t noEdge = ~std::uint32_t{};
+    std::vector<std::uint32_t> offered(16, noEdge);
+    std::size_t offeredCount = 0;
+    // Open addressing with linear probing; the table always keeps a free slot,
+    // so the scan terminates.
+    const auto slotOf = [](const std::vector<std::uint32_t>& table, std::uint32_t edge) {
+        std::size_t slot = (edge * 2654435761U) & (table.size() - 1);
+        while (table[slot] != noEdge && table[slot] != edge) {
+            slot = (slot + 1) & (table.size() - 1);
+        }
+        return slot;
+    };
+    const auto offeredBefore = [&](std::uint32_t edge) {
+        if (2 * (offeredCount + 1) > offered.size()) {
+            std::vector<std::uint32_t> grown(2 * offered.size(), noEdge);
+            for (const std::uint32_t held : offered) {
+                if (held != noEdge) {
+                    grown[slotOf(grown, held)] = held;
+                }
+            }
+            offered.swap(grown);
+        }
+        const std::size_t slot = slotOf(offered, edge);
+        if (offered[slot] == edge) {
+            return true;
+        }
+        offered[slot] = edge;
+        ++offeredCount;
+        return false;
+    };
+
+    // Queues an edge the piece crosses, given a candidate the search turned up.
+    // Candidates are a superset, so the exact predicate decides here.
+    const auto offerEdge = [&](HalfedgeId h) {
+        const std::size_t edge = h.index() / 2;
+        if (offeredBefore(static_cast<std::uint32_t>(edge))) {
+            return;
+        }
+        if (seenEdges != nullptr && (*seenEdges)[edge]) {
+            return;
+        }
+        const EdgeGeometry& geometry = edgeGeometry_[edge];
+
+        // Where this piece meets a finite endpoint, the vertex there is the
+        // whole of the contact and represents it. Another piece meeting the
+        // same edge away from its endpoints still reports the edge.
+        if (piece.intersects(geometry.a) ||
+            (geometry.kind == EdgeKind::segment && piece.intersects(geometry.b))) {
+            return;
+        }
+        const bool intersects = std::visit(
+            [&](const auto& value) { return piece.intersects(value); }, (*this)[h]);
+        if (!intersects) {
+            return;
+        }
+        Event event = firstOnEdge(geometry);
+        event.id = h;
+        queue(std::move(event));
+    };
+
+    // Records a cell as reported and answers whether it still needs reporting,
+    // which is how a chain avoids naming the same cell from two of its pieces.
+    const auto markSeen = [&](const IntersectionId& id) {
+        if (const auto* v = std::get_if<VertexId>(&id)) {
+            if (seenVertices != nullptr) {
+                if ((*seenVertices)[v->index()]) {
+                    return false;
+                }
+                (*seenVertices)[v->index()] = true;
+            }
+        } else if (seenEdges != nullptr) {
+            const std::size_t edge = std::get<HalfedgeId>(id).index() / 2;
+            if ((*seenEdges)[edge]) {
+                return false;
+            }
+            (*seenEdges)[edge] = true;
+        }
+        return true;
+    };
+
+    // Hands over the events the search can no longer precede: those strictly
+    // ahead of the frontier it has reached, or all of them once it is over.
+    // Events tying with the frontier wait, since a candidate still to come may
+    // share their parameter and order before them.
+    const auto release = [&](const Parameter* frontier, bool exhausted) {
+        while (!queued.empty()) {
+            if (!exhausted) {
+                const Event& next = queued.front();
+                if (frontier == nullptr ||
+                    (!next.negativeInfinity && !(next.parameter < *frontier))) {
+                    break;
+                }
+            }
+            std::pop_heap(queued.begin(), queued.end(), laterFirst);
+            Event event = std::move(queued.back());
+            queued.pop_back();
+            if (markSeen(event.id) && detail::invokeVisitor(fn, event.id)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (pointLocation_) {
+        pointLocation_->visitCandidateVertices(*this, lowX, highX, offerVertex);
+        // The walk reports earliest first, so a visitor that stops on its first
+        // answer stops the search with it instead of running the query out.
+        if (pointLocation_->template visitCandidateHalfedges<Parameter>(
+                piece, [&](HalfedgeId h, const Parameter* frontier) {
+                    if (h.valid()) {
+                        offerEdge(h);
+                    }
+                    return release(frontier, /*exhausted=*/false);
+                })) {
+            return true;
+        }
+    } else {
+        for (std::size_t i = 0; i < points_.size(); ++i) {
+            offerVertex(VertexId(static_cast<std::uint32_t>(i)));
+        }
+        for (std::size_t edge = 0; edge < edgeGeometry_.size(); ++edge) {
+            offerEdge(HalfedgeId(static_cast<std::uint32_t>(2 * edge)));
+        }
+    }
+    return release(nullptr, /*exhausted=*/true);
+}
+
+template <class PointType, class TLabel>
+template <PointConcept Q, class Fn>
+bool Arrangement<PointType, TLabel>::visitPointIntersecting(
+    const Q& point, Fn& fn, std::vector<bool>* seenVertices,
+    std::vector<bool>* seenEdges) const {
+    for (std::size_t i = 0; i < points_.size(); ++i) {
+        const VertexId v = pointLocation_ ? pointLocation_->indexedVertex(i)
+                                          : VertexId(static_cast<std::uint32_t>(i));
+        if ((seenVertices == nullptr || !(*seenVertices)[v.index()]) &&
+            points_[v.index()].intersects(point)) {
+            if (seenVertices != nullptr) {
+                (*seenVertices)[v.index()] = true;
+            }
+            return detail::invokeVisitor(fn, IntersectionId(v));
+        }
+    }
+
+    for (std::size_t i = 0; i < edgeGeometry_.size(); ++i) {
+        const HalfedgeId h = pointLocation_
+                                 ? pointLocation_->indexedHalfedge(i)
+                                 : HalfedgeId(static_cast<std::uint32_t>(2 * i));
+        const std::size_t edge = h.index() / 2;
+        if (seenEdges != nullptr && (*seenEdges)[edge]) {
+            continue;
+        }
+        const EdgeGeometry& geometry = edgeGeometry_[edge];
+        if (point.intersects(geometry.a) ||
+            (geometry.kind == EdgeKind::segment && point.intersects(geometry.b))) {
+            continue;
+        }
+        if (!std::visit([&](const auto& value) { return point.intersects(value); },
+                        (*this)[h])) {
+            continue;
+        }
+        if (seenEdges != nullptr) {
+            (*seenEdges)[edge] = true;
+        }
+        if (detail::invokeVisitor(fn, IntersectionId(h))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class PointType, class TLabel>
+template <class Q, class Fn>
+    requires (OrientedSegmentConcept<Q> || OrientedLineConcept<Q> ||
+              RayConcept<Q> || MonotoneChainConcept<Q> || PolylineConcept<Q>)
+bool Arrangement<PointType, TLabel>::visitIntersecting(const Q& r, Fn fn) const {
+    if constexpr (MonotoneChainConcept<Q> || PolylineConcept<Q>) {
+        if (r.empty()) {
+            return false;
+        }
+        std::vector<bool> seenVertices(points_.size(), false);
+        std::vector<bool> seenEdges(edgeGeometry_.size(), false);
+        if (r.size() == 1) {
+            return visitPointIntersecting(r[0], fn, &seenVertices, &seenEdges);
+        }
+        for (const auto& edge : r.orientedEdgesView()) {
+            if (visitStraightIntersecting(edge, fn, &seenVertices, &seenEdges)) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        return visitStraightIntersecting(r, fn, nullptr, nullptr);
+    }
+}
 
 template <class PointType, class TLabel>
 void Arrangement<PointType, TLabel>::buildPointLocation() {
