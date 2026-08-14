@@ -333,7 +333,6 @@ A line `l` has some additional methods such as:
 - `l.polar()`: Returns the point $(a,b)$ such that `l` is defined by $ax + by = 1$. Undefined behavior for lines that contain the origin.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
-- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with any unbounded convex shape `b` — a `Halfplane`, `Line`, `OrientedLine`, `Ray` or `HalfplaneIntersection` — or any bounded convex one — a `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex` — which is a `HalfplaneIntersection`: a line and a bounded operand sweep out the slab the operand spans across the line, and that collapses back to a line for an operand parallel to it. A non-convex operand is not accepted, its concavity surviving the sum. The construction is exact.
 
 - Other methods:
 
@@ -371,8 +370,6 @@ An oriented line `l` has methods such as:
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns the value of the line y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns the value of the line x coordinate at the given coordinate `y`.
-- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with the same operands `Line::minkowskiSum` takes and with the same answer, a `HalfplaneIntersection`: the sum is a point-set operation, and the orientation is not part of the point set.
-- `l.integralLine<ResultNumber>()`: Only for rational coordinates. Returns an `std::optional` with an equal oriented line defined by two points with integer `ResultNumber` coordinates. `ResultNumber` defaults to the integer type the coordinates' `Rational` is built on. The optional is empty in three cases: the line misses the integer grid entirely; a defining coordinate does not fit in `ResultNumber`, which asking for a wider integer type (up to `pgl::BigInt`) may fix; or the line is degenerate, hence undefined.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line without the orientation.
@@ -413,7 +410,6 @@ A ray `l` has methods such as:
 - `l.leftHalfplane()`: Returns the half-plane defined by all points `p` such that `l.orientation(p) >= 0`.
 - `l.yAtX(x)`: Returns an `std::optional` with the value of the ray y coordinate at the given coordinate `x`.
 - `l.xAtY(y)`: Returns an `std::optional` with the value of the ray x coordinate at the given coordinate `y`.
-- `l.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with the same operands `Line::minkowskiSum` takes, and it is a `HalfplaneIntersection` as well: the operand is swept along the ray, and the cap at the source survives as one more constraint. Two rays sum to the wedge between their directions. The construction is exact.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line containing the ray.
@@ -448,10 +444,6 @@ A half-plane `h` has methods such as:
 - `h.isHorizontal()`: Returns `h[0].y() == h[1].y()`.
 - `h.opposite()`: Returns the half-plane with source and target interchanged.
 - `h.slope<ResultNumber>()`: Returns `(h[1].y()-h[0].y()) / (h[1].x()-h[0].x())`, possibly negative.
-- `h.minkowskiSum(b)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with any bounded polygonal shape `b` — a `Segment`, `Rectangle`, `Triangle`, `Convex`, `Polygon`, `Polyline`, `MonotoneChain`, `PolygonWithHoles` or `PolygonSet` — which is a `Halfplane` again: a half-plane absorbs whatever is bounded, and comes back translated to its operand's support point. The operand's concavity, holes and disconnection make no difference, since a linear function is extremal at a vertex; the construction is exact. A `Disk` operand is not accepted, its support point being irrational in all but four directions.
-- `h.minkowskiSum(u)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) with an unbounded convex shape `u` — another `Halfplane`, a `Line`, an `OrientedLine`, a `Ray` or a `HalfplaneIntersection` — which is a `HalfplaneIntersection` rather than a half-plane: two half-planes facing the same way sum to the looser of them, and any other pair of them to the whole plane, since between them they reach every point.
-
-A half-plane is also something a bounded shape with area can **remove**: the six shapes the [boolean operations](shape_methods.md#boolean-operations) act on all take `h` as the subtrahend of their own difference, cutting the receiver along the boundary line and keeping the far side, as a [`PolygonSet`](#polygon-set). Being unbounded is no obstacle to being removed, only to being united with. The reverse is not defined, a half-plane less a bounded shape being unbounded.
 
 It knows how to convert itself with an explicit cast to:
 - `(pgl::Line) l` or `l.asLine()`: Returns the line bounding the half-plane.
@@ -562,8 +554,7 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.squaredRadius<ResultNumber>()`: Returns  the squared radius.
 - `d.center<ResultNumber>()`: Returns the center point.
 - `d.diameter<ResultNumber>()`: Returns a diameter `Segment`. A center/radius disk uses its stored horizontal diameter; a genuine three-point disk uses one boundary point and its reflection across the center.
-- `d.minkowskiSum<ResultNumber = double>(e)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. This is the one curved sum the library can answer, and the one sum that is not exact by default — each radius is a square root of what a disk stores — which is why the result type defaults to `double` here as it does on `radius`. Two center/radius disks carry both quantities exactly, so their sum with an exact `ResultNumber` is exact. A disk sums with a `Point` (a translation) and with nothing else: a disk and a segment sweep out a stadium, which is not a shape here.
-
+- `d.minkowskiSum<ResultNumber = double>(d2)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. This  onesum is not always exact: each radius is a square root of what a disk stores. Two center/radius disks carry both quantities exactly, so their sum with an exact `ResultNumber` is exact.
 - Other methods:
 
 
@@ -588,14 +579,13 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
 - `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
+- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
 
 The monotone structure speeds up several predicates and constructions:
 
 - `P.contains(s)` takes $O(\log n)$ time if `s` is a point, and $O(\log n + k)$ if `s` is a segment whose x-range spans $k$ vertices (a chain contains a segment exactly when the segment is a straight sub-path of the chain).
 - `P.intersects(s)` takes $O(\log n + k)$ time for a segment overlapping $k$ edges of the chain.
-- `P.intersects(P2)` and `P.intersection(P2)` take $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences. `P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, with collinear overlaps coalesced; the same form is returned for segments, lines, rays, halfplanes, rectangles, triangles, and convex polygons.
-- `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
-- `P.minkowskiSum<ResultNumber>(b)`: Returns a `Polygon` when `b` is a `Triangle`, `Rectangle` or `Convex`. A monotone chain is the one non-convex shape whose Minkowski sum with a nondegenerate convex one is always a single polygon and needs no arrangement, although a boundary-piece crossing can still produce a rational vertex. A flat operand is off that contract — its sum can pinch shut, which no simple polygon may — and belongs to the region-valued `Segment` overload. See [Minkowski Sum](shape_methods.md#minkowski-sum).
+- `P.intersects(P2)` takes $O(n+m)$ time if `P2` is a chain with $m$ vertices, via a merge sweep over the two sorted vertex sequences.
 
 
 ### Polyline
@@ -611,10 +601,6 @@ A polyline `P` with $n$ vertices has methods such as:
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
 - `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types (and $O(n^2)$ for floating point).
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
-
-Since a self-intersecting polyline has no monotone structure to exploit, the predicates scan the edges: they take $O(n)$ time against a point or a segment (segment containment takes $O(n \log n)$, as a segment may be covered by several non-consecutive collinear edges) and $O(nm)$ time against another polyline with $m$ vertices. The cut predicates use set semantics: `separates` joins the surviving pieces through self-crossings and revisited vertices, so removing one point never disconnects a closed polyline. Against a two-dimensional region (halfplane, rectangle, triangle, disk, convex, or polygon), `separates` searches the polyline's self-intersection arrangement (built exactly, in $O(n^2)$ pairwise edge intersections) for a cycle through the region's interior, so it also detects a pocket sealed by a loop that never touches the region's boundary.
-
-`P.intersection(s)` returns an `std::vector` of points and segments sorted by the lexicographic order, in the same form as `MonotoneChain`, for segments, lines, rays, halfplanes, rectangles, triangles, convex polygons, monotone chains, and other polylines. Pieces are maximal even though a self-intersecting polyline may report them out of traversal order: collinear touching overlaps are merged (also when they come from non-consecutive edges) and points covered by a reported segment are dropped. It takes $O(n)$ segment intersections against a single shape and $O(nm)$ against a chain or polyline with $m$ vertices, plus a coalescing step quadratic in the number of pieces.
 
 
 - Other methods:
@@ -648,7 +634,6 @@ If the convex polygon `c` has $n$ vertices, then:
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `c.intersects(c2)` takes $O(\min(n+m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 - Other predicates take the same time as `intersects`.
-- `c.intersection(c2)` takes $O((n+m) log (n+m))$ time if `c2` is a convex polygon with $m$ vertices.
 
 - Other methods:
 
@@ -772,18 +757,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.pointInside<ResultNumber>()`: A point in the first component's interior.
 - `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
-- `A.difference(b)` / `A.regularizedUnion(b)` / `A.regularizedIntersection(b)` / `A.symmetricDifference(b)`: The four [boolean operations](shape_methods.md#boolean-operations), against every bounded shape with area **and against another `PolygonSet`** — which is what closure means. `difference` and `regularizedIntersection` also take an unbounded operand, a `Halfplane` or a `HalfplaneIntersection`, which they clip to the set's bounding rectangle first.
-- `A.minkowskiSum<ResultNumber>(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum), against those same operands plus the ones with no area — a `Segment`, an `OrientedSegment`, a `Polyline` and a `MonotoneChain` — and against another `PolygonSet`. Each component is summed against the operand and the results are united in one arrangement, since the sum distributes over a union and a set is one. It is the one receiver whose answer needs a set whatever its operands are: components that were apart stay apart unless the operand closes the gap. Either spelling reaches it, as it does for `regularizedUnion`, `regularizedIntersection` and `symmetricDifference`, each of which is symmetric and so is the same call written either way. `difference` takes a set on either side too, but the two orders ask different questions rather than reaching one implementation.
 
-Four of the five [predicates](shape_methods.md#predicates) fold over the components: `intersects` and `interiorsIntersect` because $A$ and $A^\circ$ are unions, `contains` against a point, and `interiorContains` against everything — the component interiors are open and pairwise disjoint, so a connected operand inside their union is inside one of them.
-
-`contains` and `boundaryContains` are the two that do not, and only for a **one-dimensional** operand. Two unit squares meeting corner to corner at the origin contain the segment from $(-1,-1)$ to $(1,1)$ between them, and neither contains it alone. An operand with area cannot be shared that way — the two components would have to meet along an edge, which the contract rules out — so the general machinery is needed exactly for segments and chains, where the operand is split at every component-boundary contact and each piece classified. A set that is not pinched skips even that.
-
-The cut predicates feel the same difference from the other side. `A.separates(B)` asks whether $B \setminus A$ is disconnected, and a set is the first shape for which that can hold without the remover doing anything: two separated components are already two pieces. A single point does cut a set held together only by a pinch, which is something no point can do to a `PolygonWithHoles`.
-
-Distances are a plain minimum over the components, with no caveat at all: the distance to a union is the smallest of the distances.
-
-`PolygonSet` is an alternative of the runtime [`Shape`](#polymorphism-with-shape) variant, and the only one whose point set need not be connected. That is what lets a `Shape`-valued `intersection` of two regions survive coming apart: the whole set comes back in one `Shape`, where a result that stays in one piece is still unwrapped to the tighter `PolygonWithHoles`. Drawing one on a [`Canvas`](canvas.md) draws the whole set as a single path over every ring of every component, so it is one element with one style and one title.
 
 - Other methods:
 
@@ -810,12 +784,6 @@ A half-plane intersection `k` has methods such as:
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.
 - `k.asConvex<R>()`: The region as a `Convex`; throws when unbounded.
 - `k.twiceArea<R>()`, `k.area<R>()`, and `k.centroid<R>()`: Measures of a bounded region; they throw when the region is unbounded. Their defaults account for fractional implicit vertices as well as the final area or centroid division.
-- `k.intersection(h)`: Intersecting with a `Halfplane`, `Rectangle`, `Triangle`, `Convex`, or another `HalfplaneIntersection` returns another `HalfplaneIntersection`, so the type is closed under these operations and the result is exact (no coordinate divisions).
-- `k.intersection(P)`: Intersecting with a `Polygon` returns the usual `std::vector` of components — points, polylines, and polygons — since a reflex polygon can meet the convex region in several disjoint pieces. The region is first clipped to the polygon's bounding rectangle, which changes nothing and makes it a convex polygon; a region with empty interior contributes only its carrier, clipped to the polygon. The pieces are cut at crossings of the constraint lines and are generally rational, so an integral receiver returns ERational coordinates by default.
-- `k.minkowskiSum(b)`: The [Minkowski sum](shape_methods.md#minkowski-sum) with any unbounded convex shape `b` — a `Halfplane`, `Line`, `OrientedLine`, `Ray` or another `HalfplaneIntersection` — or any bounded convex one — a `Segment`, `OrientedSegment`, `Rectangle`, `Triangle` or `Convex`. The sum of two convex polyhedra is a convex polyhedron, so the answer is a `HalfplaneIntersection` again, bounded exactly when both operands are. It is the one sum returning a single convex shape that leaves the operands' lattice: a region's own vertices are crossings of its boundary lines, so an integral receiver answers in ERational coordinates. Every other pair in that family — including a `Ray`, `Line` or `Halfplane` against another of those or against a bounded convex shape — keeps the operands' coordinate type. The [region-valued sums](shape_methods.md#minkowski-sum) of a non-convex operand leave the lattice for a different reason, and take a `ResultNumber` to say so. A non-convex operand is not accepted.
-- `k.regularizedIntersection(A)`: Intersecting with a `PolygonWithHoles` through the regularized region operation returns a `PolygonSet` — see [Boolean Operations](shape_methods.md#boolean-operations) — exact whatever the result type, since a holed operand keeps its holes.
-
-A half-plane intersection is also something a bounded shape with area can **remove**: the six shapes the [boolean operations](shape_methods.md#boolean-operations) act on all take `k` as the subtrahend of their own difference, clipping it to the receiver's bounding rectangle first. The result lies inside the receiver, so it is bounded however far `k` reaches. The reverse is not defined: that one is unbounded, and no `PolygonSet` can hold it.
 
 If the region has $n$ half-planes, then:
 
@@ -823,6 +791,6 @@ If the region has $n$ half-planes, then:
 - `k.insert(h)` takes $O(\log n)$ amortized comparisons (plus vector element moves).
 - `k.isBounded()` and `k.vertexCount()` take $O(n)$ time.
 
-Equality compares the stored half-planes: for full-dimensional regions the non-redundant half-planes are a canonical function of the point set, so this is geometric equality; for lower-dimensional (degenerate) regions the representation is not unique and equality is representational.
+- Other methods:
 
-`HalfplaneIntersection` is an alternative of the polymorphic `Shape` class and can be drawn on a [canvas](canvas.md), which clips the region to the visible viewport and strokes only its real boundary edges. Note that `Shape::get`, `Shape::operator[]`, and `Shape::index` throw for this alternative, since its indexable elements are half-planes rather than points.
+Equality compares the stored half-planes: for full-dimensional regions the non-redundant half-planes are a canonical function of the point set, so this is geometric equality; for lower-dimensional (degenerate) regions the representation is not unique and equality is representational.
