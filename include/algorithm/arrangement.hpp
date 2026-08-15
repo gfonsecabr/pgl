@@ -4248,6 +4248,76 @@ Arrangement<PointType, TLabel>::locateCell(const PointType& point) const {
     return pointLocation_ ? pointLocation_->locateCell(*this, point) : locateCellLinear(point);
 }
 
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+template <class ResultNumber>
+Arrangement<Point<ResultNumber>, typename Triangulation<TriangleType, SegmentType>::PointType>
+Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
+    assert(!empty() && "Triangulation::voronoiDiagram requires a nonempty triangulation");
+
+    using ResultPoint = Point<ResultNumber>;
+    using Diagram = Arrangement<ResultPoint, PointType>;
+
+    // One exact circumcenter per current real triangle. This deliberately uses
+    // the internal convex-hull triangulation, including any triangles hidden by
+    // a carved domain: the method's precondition says that this whole current
+    // connectivity is the Delaunay triangulation of the stored sites.
+    std::vector<ResultPoint> centers(static_cast<std::size_t>(firstGhost_));
+    for (TriId t = 0; t < firstGhost_; ++t) {
+        centers[static_cast<std::size_t>(t)] = ResultPoint(
+            triangleValue(t).circumcircle().template center<ResultNumber>());
+    }
+
+    std::vector<Shape<ResultPoint>> dualEdges;
+    dualEdges.reserve(segToEdge_.size());
+    for (TriId t = 0; t < firstGhost_; ++t) {
+        const Tri& triangle = triangles_[static_cast<std::size_t>(t)];
+        for (int side = 0; side < 3; ++side) {
+            const TriId neighbor = triangle.nbr[static_cast<std::size_t>(side)];
+            if (!isGhost(neighbor)) {
+                // Each interior primal edge is visited from both incident
+                // triangles. Emit its dual only from the lower triangle id.
+                if (neighbor < t) {
+                    continue;
+                }
+                const ResultPoint& a = centers[static_cast<std::size_t>(t)];
+                const ResultPoint& b = centers[static_cast<std::size_t>(neighbor)];
+                if (a != b) {
+                    dualEdges.emplace_back(Segment<ResultPoint>(a, b));
+                }
+                continue;
+            }
+
+            // A real triangle is counterclockwise, so its directed side
+            // a -> b has the hull interior on its left. Rotating b-a clockwise
+            // therefore points out of the hull and orients the dual ray.
+            const PointType& a = vertices_[static_cast<std::size_t>(
+                triangle.v[static_cast<std::size_t>((side + 1) % 3)])];
+            const PointType& b = vertices_[static_cast<std::size_t>(
+                triangle.v[static_cast<std::size_t>((side + 2) % 3)])];
+            const ResultNumber dx = static_cast<ResultNumber>(b.x()) -
+                                    static_cast<ResultNumber>(a.x());
+            const ResultNumber dy = static_cast<ResultNumber>(b.y()) -
+                                    static_cast<ResultNumber>(a.y());
+            const ResultPoint& center = centers[static_cast<std::size_t>(t)];
+            dualEdges.emplace_back(
+                Ray<ResultPoint>(center, center + ResultPoint(dy, -dx)));
+        }
+    }
+
+    Diagram diagram(dualEdges);
+
+    // Site points are strictly inside their own cells. Build the logarithmic
+    // point-location index only for this attribution pass, then release it so
+    // the returned Arrangement follows the usual opt-in indexing contract.
+    diagram.buildPointLocation();
+    for (VertexId vertex = 1; vertex < static_cast<VertexId>(vertices_.size()); ++vertex) {
+        const auto face = diagram.locateFace(ResultPoint(vertices_[static_cast<std::size_t>(vertex)]));
+        diagram.label(face) = vertices_[static_cast<std::size_t>(vertex)];
+    }
+    diagram.clearPointLocation();
+    return diagram;
+}
+
 // No deduction guide, deliberately: the vertex type cannot be read off the
 // input, because the input's own type is usually the wrong answer. Two integral
 // segments cross at a rational point, so a guide reading the type off the input

@@ -96,6 +96,49 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
     CHECK(svg.find("vector-effect=\"non-scaling-stroke\"") != std::string::npos);
 }
 
+TEST_CASE("Canvas renders shape-labeled objects instead of their point ranges") {
+    using Point = pgl::Point<int>;
+
+    pgl::Segment<Point, int> segment({0, 0}, {20, 0}, 101);
+    pgl::OrientedSegment<Point, int> orientedSegment({0, 5}, {20, 5}, 102);
+    pgl::Line<Point, int> line({0, 10}, {20, 10}, 103);
+    pgl::OrientedLine<Point, int> orientedLine({0, 15}, {20, 15}, 104);
+    pgl::Ray<Point, int> ray({0, 20}, {20, 20}, 105);
+    pgl::Halfplane<Point, int> halfplane({0, 25}, {20, 25}, 106);
+    pgl::Rectangle<Point, int> rectangle({25, 0}, {35, 10});
+    pgl::Triangle<Point, int> triangle({25, 15}, {35, 15}, {30, 25}, 108);
+    pgl::Convex<Point, int> convex({Point(40, 0), Point(50, 0), Point(50, 10), Point(40, 10)});
+    pgl::Polygon<Point, int> polygon({Point(40, 15), Point(50, 15), Point(50, 25), Point(40, 25)});
+    pgl::MonotoneChain<Point, int> chain({Point(55, 0), Point(60, 10), Point(65, 0)});
+    rectangle.label() = 107;
+    convex.label() = 109;
+    polygon.label() = 110;
+    chain.label() = 111;
+
+    pgl::Canvas canvas;
+    canvas << segment << orientedSegment << line << orientedLine << ray << halfplane
+           << rectangle << triangle << convex << polygon << chain;
+    const std::string svg = canvas.toSVG();
+
+    // Before the labeled overloads, each of these range-like shapes selected
+    // Canvas's generic range overload and was emitted as a collection of point
+    // circles. A title containing the shape-level label proves that the whole
+    // object reached the concrete drawing overload instead.
+    for (int label = 101; label <= 109; ++label) {
+        CHECK(svg.find("<title>" + std::to_string(label) + ':') != std::string::npos);
+    }
+    // Polygon and MonotoneChain IO currently omit their shape labels, but a
+    // whole-shape title still distinguishes their drawing overloads from the
+    // fallback that would emit one point title per vertex.
+    CHECK(svg.find("<title>Polygon[") != std::string::npos);
+    CHECK(svg.find("<title>MonotoneChain[") != std::string::npos);
+    CHECK(svg.find("<line") != std::string::npos);
+    CHECK(svg.find("<path") != std::string::npos);
+    CHECK(svg.find("<rect") != std::string::npos);
+    CHECK(svg.find("<polygon") != std::string::npos);
+    CHECK(svg.find("<polyline") != std::string::npos);
+}
+
 TEST_CASE("Canvas writes a PDF file") {
     const std::string path = "build/tests/output/canvas_test.pdf";
 
