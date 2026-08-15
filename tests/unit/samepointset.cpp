@@ -216,3 +216,47 @@ TEST_CASE("samePointSet preserves a seam where a hole touches its outer boundary
     CHECK_FALSE(withRetainedSeam.samePointSet(regularizedNotch));
     CHECK_FALSE(regularizedNotch.samePointSet(withRetainedSeam));
 }
+
+TEST_CASE("samePointSet matches a large-coordinate region with its singleton set") {
+    using WidePoint = pgl::Point<int64_t>;
+    using WidePolygon = pgl::Polygon<WidePoint>;
+    using WideRegion = pgl::PolygonWithHoles<WidePoint>;
+
+    const WidePolygon outer({
+        0, 824682617,
+        34229828, 692767501,
+        31140325, 337108145,
+        387653274, 346657649,
+        546911990, 280411710,
+        402851929, 356082192,
+        357028779, 512847829,
+        282828455, 734764933,
+        371533788, 583311160,
+        413253598, 529870160,
+        674443975, 130963417,
+        676696868, 74240175,
+        634520437, 0,
+        1073741824, 421770903,
+        1008785991, 577648623,
+        909074044, 469175870,
+        874792982, 745836095,
+        687762209, 780157145,
+        351608009, 805933556,
+        115213807, 875794801});
+    const WidePolygon hole({
+        401212068, 587116547,
+        538187922, 386368944,
+        702126055, 119441798,
+        444516562, 740014126});
+    const WideRegion region(outer, std::vector{hole});
+    const pgl::PolygonWithHoles<pgl::EPoint> exactRegion(region);
+    const pgl::PolygonSet<pgl::EPoint> singleton(exactRegion);
+
+    CHECK(singleton.samePointSet(region));
+    CHECK(region.samePointSet(singleton));
+
+    const pgl::Shape<pgl::EPoint> wrappedSingleton(singleton);
+    const pgl::Shape<WidePoint> wrappedRegion(region);
+    CHECK(wrappedSingleton.samePointSet(wrappedRegion));
+    CHECK(wrappedRegion.samePointSet(wrappedSingleton));
+}
