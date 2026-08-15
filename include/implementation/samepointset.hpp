@@ -163,6 +163,21 @@ constexpr bool sameRegionRings(const FirstRegion& first, const SecondRegion& sec
         first.holeCount() != second.holeCount()) {
         return false;
     }
+
+    // Equivalent canonical regions overwhelmingly keep their holes in the
+    // same order. Try that linear path first; in particular, do not turn a
+    // region with thousands of identical holes into a quadratic search.
+    bool sameOrder = true;
+    for (std::size_t i = 0; i < first.holeCount(); ++i) {
+        if (!samePolygonBoundary(first.hole(i), second.hole(i))) {
+            sameOrder = false;
+            break;
+        }
+    }
+    if (sameOrder) {
+        return true;
+    }
+
     // Polygon's representational ordering includes vertex count, so equivalent
     // subdivided holes need not occupy the same sorted position. Match them by
     // geometry. Valid regions cannot contain duplicate hole interiors.
@@ -187,6 +202,21 @@ constexpr bool sameSetComponents(const FirstSet& first, const SecondSet& second)
     if (first.componentCount() != second.componentCount()) {
         return false;
     }
+
+    // As with holes, equal canonical components normally line up. Preserve the
+    // geometric fallback below for representations whose redundant vertices
+    // change their size-first canonical ordering.
+    bool sameOrder = true;
+    for (std::size_t i = 0; i < first.componentCount(); ++i) {
+        if (!sameRegionRings(first.component(i), second.component(i))) {
+            sameOrder = false;
+            break;
+        }
+    }
+    if (sameOrder) {
+        return true;
+    }
+
     // As for holes, representational sorting can move a subdivided component.
     // Valid sets have no duplicate components, so a geometric lookup suffices.
     for (const auto& firstComponent : first.components()) {
