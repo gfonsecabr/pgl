@@ -331,6 +331,10 @@ struct Point {
     template<PointConcept OtherPoint>
     [[nodiscard]] constexpr bool operator==(const OtherPoint& other) const;
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Provides lexicographic ordering on `(x, y)`.
      *

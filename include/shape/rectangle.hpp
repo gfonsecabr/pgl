@@ -494,6 +494,10 @@ struct Rectangle {
         return points_ == other.points_;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /** @brief Orders rectangles lexicographically by their `(min, max)` corners, ignoring the label. */
     constexpr auto operator<=>(const Rectangle& other) const {
         return points_ <=> other.points_;

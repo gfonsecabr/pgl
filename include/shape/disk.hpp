@@ -1387,6 +1387,10 @@ struct Disk {
                inCircleSign(a(), b(), c(), other.c()) == std::partial_ordering::equivalent;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Orders disks by increasing squared radius, then by center.
      *

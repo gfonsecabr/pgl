@@ -272,6 +272,10 @@ struct Triangle {
         return points_ == other.points_;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /** @brief Orders triangles lexicographically by their vertices, ignoring the label. */
     constexpr auto operator<=>(const Triangle& other) const {
         return points_ <=> other.points_;

@@ -245,6 +245,10 @@ struct Segment {
         return points_ == other.points_;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Provides lexicographic ordering on `(x1,y1),(x2,y2)`.
      *

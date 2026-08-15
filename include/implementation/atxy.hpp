@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/predicates.hpp"
+#include "implementation/samepointset.hpp"
 
 /**
  * @file atxy.hpp

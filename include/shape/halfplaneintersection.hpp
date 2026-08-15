@@ -984,6 +984,10 @@ struct HalfplaneIntersection {
         return true;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Provides an ordering compatible with @ref operator==.
      */

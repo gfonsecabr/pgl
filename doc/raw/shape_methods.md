@@ -82,6 +82,7 @@ Many pairs of shapes `A` and `B` support the following predicates, where $\parti
 
 | Predicate | Definition | Question |
 | --------- | ---------- | --------- |
+| `A.samePointSet(B)` | $A = B$ | Do `A` and `B` define the same point set? |
 | `A.contains(B)` | $A \supseteq B$ | Does `A` contain `B`? |
 | `A.boundaryContains(B)` | $\partial A \supseteq B$ | Does the boundary of `A` contain `B`? |
 | `A.interiorContains(B)` | $A^\circ \supseteq B$ | Does the interior of `A` contain `B`? |
@@ -106,7 +107,7 @@ The following table illustrates the result of the predicates for a triangle and 
 | `B.separates(A)`          | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `A.crosses(B)`            | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-All predicates are calculated exactly for integers, except for possible overflows detailed in [types](types.md).
+All predicates are calculated exactly for integers, except for possible overflows detailed in [types](types.md). Notice that `A.samePointSet(B)` is equivalent to `A.contains(B) && B.contains(A)` but often faster and has the same behavior of `==` in some situations. However, `==` can only compare the same shape and is not always the same as point set equality. For example, a `Polygon` may have vertices along edges that make `==` return `false` while preserving the same point set.
 
 ### Intersection
 

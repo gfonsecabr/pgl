@@ -323,6 +323,11 @@ template <class T> concept DiskConcept = detail::is_disk_v<T>;
 template <class T> concept ShapeConcept = detail::is_shape_v<T>;
 template <class T> concept TransformationConcept = detail::is_transformation_v<T>;
 
+/** @brief Any concrete geometry type or the runtime @ref Shape wrapper. */
+template <class T>
+concept AnyShapeConcept =
+    ShapeConcept<T> || detail::shapeRank<std::remove_cvref_t<T>> >= 0;
+
 /**
  * @brief Bounded convex primitives.
  *

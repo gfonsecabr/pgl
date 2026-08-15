@@ -47,6 +47,10 @@ struct EmptyShape {
     /** @brief Three-way comparison: all empty shapes are equivalent. */
     [[nodiscard]] constexpr auto operator<=>(const EmptyShape&) const = default;
 
+    /** @brief Tests whether another shape defines the empty point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Returns the number of vertices, always `0`.
      */

@@ -247,6 +247,10 @@ struct Shape {
      */
     constexpr bool operator==(const Shape&) const = default;
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Orders wrapped values by the underlying variant ordering.
      */

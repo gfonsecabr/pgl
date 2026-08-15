@@ -2,11 +2,12 @@
 
 /**
  * @file properties_predicates.hpp
- * @brief The relations that hold among the seven predicates, for every pair.
+ * @brief The relations that hold among the eight predicates, for every pair.
  *
  * Each predicate has a set-theoretic definition (`doc/shape_methods.md`):
  *
  *   | `A.contains(B)`           | @f$A \supseteq B@f$ |
+ *   | `A.samePointSet(B)`       | @f$A = B@f$ |
  *   | `A.boundaryContains(B)`   | @f$\partial A \supseteq B@f$ |
  *   | `A.interiorContains(B)`   | @f$A^\circ \supseteq B@f$ |
  *   | `A.intersects(B)`         | @f$A \cap B \neq \emptyset@f$ |
@@ -58,6 +59,18 @@ inline Result crossesIsSymmetric(const AnyShape& a, const AnyShape& b) {
 }
 
 // ------------------------------------------------------------- definitional
+
+/** @brief Point-set equality is exactly containment in both directions. */
+inline Result samePointSetIsMutualContainment(const AnyShape& a, const AnyShape& b) {
+    const bool samePointSet = a.samePointSet(b);
+    const bool aContainsB = a.contains(b);
+    const bool bContainsA = b.contains(a);
+    PGLPROP_CHECK(samePointSet == (aContainsB && bContainsA),
+                  pair(a, b) + " ; A.samePointSet(B)=" + detail::show(samePointSet) +
+                      " but A.contains(B)=" + detail::show(aContainsB) +
+                      " and B.contains(A)=" + detail::show(bContainsA));
+    return held();
+}
 
 /**
  * @brief `A.crosses(B)` is exactly mutual separation.
@@ -248,6 +261,8 @@ inline void registerPredicateProperties(Registry& registry) {
                                props::interiorsIntersectIsSymmetric});
     registry.binary.push_back({"predicates", "crosses-is-symmetric", kNoTag,
                                props::crossesIsSymmetric});
+    registry.binary.push_back({"predicates", "same-point-set-is-mutual-containment", kNoTag,
+                               props::samePointSetIsMutualContainment});
     registry.binary.push_back({"predicates", "crosses-is-mutual-separation", kNoTag,
                                props::crossesIsMutualSeparation});
     registry.binary.push_back({"predicates", "interior-contains-implies-contains", kNoTag,

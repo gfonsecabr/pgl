@@ -54,6 +54,7 @@
 #include "implementation/bounding.hpp"
 #include "implementation/duality.hpp"
 #include "implementation/predicates.hpp"
+#include "implementation/samepointset.hpp"
 #include "implementation/atxy.hpp"
 #include "implementation/intersection.hpp"
 #include "implementation/distance.hpp"

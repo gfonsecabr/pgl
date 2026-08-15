@@ -357,6 +357,10 @@ struct Convex {
         return true;
     }
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Computes twice the area of the convex polygon.
      * @return Twice the area of the convex polygon.
