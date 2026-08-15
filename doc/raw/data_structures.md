@@ -35,6 +35,8 @@ The query methods come in two families. The *intersecting* family matches stored
 
 - `sumIntersecting(q)` / `sumContainedIn(q)` return the sum of a weight over the matching stored shapes. The weight is given by an optional `WeightFn` template parameter mapping a shape to any type with `operator+` (`ShapeTree<Shape, WeightFn>`); the weight function is passed to the constructor and ignored by default.
 
+- `nearestNeighbor(q)` returns the nearest stored shape by reference. `kNearestNeighbors(q, k)` returns up to `k` nearest shapes as nearest-first copies.
+
 - Other methods:
 
 Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bounding boxes. Is is possible to insert a new element with `insert`, but no rebalancing is performed.
