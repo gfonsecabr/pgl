@@ -236,6 +236,10 @@ struct Line {
      */
     [[nodiscard]] constexpr bool operator==(const Line& other) const;
 
+    /** @brief Tests whether another shape defines exactly the same point set. */
+    template<AnyShapeConcept OtherShape>
+    [[nodiscard]] constexpr bool samePointSet(const OtherShape& other) const;
+
     /**
      * @brief Provides an ordering compatible with geometric equality.
      *
