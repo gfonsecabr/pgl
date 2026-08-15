@@ -484,6 +484,54 @@ class ShapeTree {
             tree.nodes_[nearChild].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
             tree.nodes_[farChild].template nearest<ResultNumber, Metric>(tree, q, bestDist, bestIndex);
         }
+
+        // Maintains a max-heap containing the k closest elements seen so far.
+        // Once the heap is full, its front is the current kth-smallest distance
+        // and therefore supplies the pruning bound for whole subtrees.
+        template <class ResultNumber, class Metric, class Q>
+        void nearest(const ShapeTree& tree, const Q& q, std::size_t k,
+                     std::vector<std::pair<ResultNumber, std::size_t>>& best) const {
+            const auto nearer = [](const auto& a, const auto& b) {
+                return a.first < b.first;
+            };
+
+            if (best.size() == k) {
+                const ResultNumber lowerBound = Metric::template distance<ResultNumber>(q, box);
+                if (!(lowerBound < best.front().first)) {
+                    return;  // Nothing here can enter the current top k.
+                }
+            }
+
+            for (std::size_t i : elementIndices) {
+                const ResultNumber d = Metric::template distance<ResultNumber>(q, tree.elements_[i]);
+                if (best.size() < k) {
+                    best.emplace_back(d, i);
+                    std::push_heap(best.begin(), best.end(), nearer);
+                } else if (d < best.front().first) {
+                    std::pop_heap(best.begin(), best.end(), nearer);
+                    best.back() = {d, i};
+                    std::push_heap(best.begin(), best.end(), nearer);
+                }
+            }
+
+            if (left == -1) {
+                if (right != -1) {
+                    tree.nodes_[right].template nearest<ResultNumber, Metric>(tree, q, k, best);
+                }
+                return;
+            }
+            if (right == -1) {
+                tree.nodes_[left].template nearest<ResultNumber, Metric>(tree, q, k, best);
+                return;
+            }
+
+            const ResultNumber leftBound = Metric::template distance<ResultNumber>(q, tree.nodes_[left].box);
+            const ResultNumber rightBound = Metric::template distance<ResultNumber>(q, tree.nodes_[right].box);
+            const std::ptrdiff_t nearChild = leftBound <= rightBound ? left : right;
+            const std::ptrdiff_t farChild = leftBound <= rightBound ? right : left;
+            tree.nodes_[nearChild].template nearest<ResultNumber, Metric>(tree, q, k, best);
+            tree.nodes_[farChild].template nearest<ResultNumber, Metric>(tree, q, k, best);
+        }
     };
 
     static constexpr std::size_t defaultLeafSize = 6;
@@ -920,6 +968,30 @@ class ShapeTree {
         return elements_[static_cast<std::size_t>(bestIndex)];
     }
 
+    // Shared implementation for the k-nearest-neighbor overloads. The heap is
+    // sorted before its indices are mapped back to copies of the stored shapes.
+    template <class Metric, class ResultNumber, class Q>
+    [[nodiscard]] std::vector<ShapeType> nearestNeighborsByMetric(const Q& q, int k) const {
+        if (root_ == -1 || k <= 0) {
+            return {};
+        }
+        const std::size_t count = std::min(static_cast<std::size_t>(k), elements_.size());
+        std::vector<std::pair<ResultNumber, std::size_t>> best;
+        best.reserve(count);
+        nodes_[root_].template nearest<ResultNumber, Metric>(*this, q, count, best);
+        std::sort(best.begin(), best.end(), [](const auto& a, const auto& b) {
+            return a.first < b.first;
+        });
+
+        std::vector<ShapeType> result;
+        result.reserve(best.size());
+        for (const auto& [distance, index] : best) {
+            (void)distance;
+            result.push_back(elements_[index]);
+        }
+        return result;
+    }
+
     // Discards the current node structure and rebuilds it from elements_.
     void buildFromElements() {
         nodes_.clear();
@@ -1332,6 +1404,31 @@ class ShapeTree {
     template <class ResultNumber, class Q>
     [[nodiscard]] const ShapeType& nearestNeighbor(const Q& q) const {
         return nearestNeighborByMetric<detail::SquaredMetric, ResultNumber>(q);
+    }
+
+    /**
+     * @brief Returns up to `k` stored shapes nearest to a query shape.
+     *
+     * The result contains copies of the stored shapes in nondecreasing squared
+     * distance from `q`. If `k` exceeds the tree size, every stored shape is
+     * returned. A non-positive `k` or an empty tree produces an empty vector.
+     *
+     * @tparam ResultNumber Explicit coordinate type of the squared distance.
+     * @tparam Q Query shape type.
+     * @param q Query shape.
+     * @param k Maximum number of neighbors to return.
+     * @return Up to `k` nearest stored shapes, nearest first.
+     */
+    template <class Q>
+    [[nodiscard]] std::vector<ShapeType> kNearestNeighbors(const Q& q, int k) const {
+        using ResultNumber = std::remove_cvref_t<decltype(
+            q.squaredDistance(std::declval<const ShapeType&>()))>;
+        return nearestNeighborsByMetric<detail::SquaredMetric, ResultNumber>(q, k);
+    }
+
+    template <class ResultNumber, class Q>
+    [[nodiscard]] std::vector<ShapeType> kNearestNeighbors(const Q& q, int k) const {
+        return nearestNeighborsByMetric<detail::SquaredMetric, ResultNumber>(q, k);
     }
 
     /**

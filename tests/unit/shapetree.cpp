@@ -369,6 +369,37 @@ TEST_CASE("ShapeTree nearestNeighbor on points matches brute force") {
     }
 }
 
+TEST_CASE("ShapeTree kNearestNeighbors returns the k nearest points") {
+    const std::vector<Point> points = makePoints(300, 29);
+    const pgl::ShapeTree<Point> tree(points, 4);
+    const Point q(317, 419);
+
+    std::vector<int64_t> expected;
+    expected.reserve(points.size());
+    for (const Point& point : points) {
+        expected.push_back(q.squaredDistance<int64_t>(point));
+    }
+    std::sort(expected.begin(), expected.end());
+
+    for (const int k : {1, 2, 17, 300, 400}) {
+        const std::vector<Point> found = tree.kNearestNeighbors(q, k);
+        const std::size_t count = std::min(static_cast<std::size_t>(k), points.size());
+        REQUIRE(found.size() == count);
+        for (std::size_t i = 0; i < count; ++i) {
+            CHECK(q.squaredDistance<int64_t>(found[i]) == expected[i]);
+        }
+    }
+}
+
+TEST_CASE("ShapeTree kNearestNeighbors handles empty and non-positive requests") {
+    const pgl::ShapeTree<Point> empty{std::vector<Point>{}};
+    CHECK(empty.kNearestNeighbors(Point(0, 0), 3).empty());
+
+    const pgl::ShapeTree<Point> tree(std::vector{Point(0, 0), Point(1, 1)});
+    CHECK(tree.kNearestNeighbors(Point(0, 0), 0).empty());
+    CHECK(tree.kNearestNeighbors(Point(0, 0), -2).empty());
+}
+
 TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
     using Rational = pgl::Rational<int64_t>;
     const std::vector<Triangle> tris = makeTriangles(200, 19);
@@ -380,6 +411,26 @@ TEST_CASE("ShapeTree nearestNeighbor on triangles matches brute force") {
         const Triangle found = tree.nearestNeighbor<Rational>(q);
         const Rational expected = bruteNearestDistance<Rational>(tris, q);
         CHECK(q.squaredDistance<Rational>(found) == expected);
+    }
+}
+
+TEST_CASE("ShapeTree kNearestNeighbors supports explicit exact result types") {
+    using Rational = pgl::Rational<int64_t>;
+    const std::vector<Triangle> tris = makeTriangles(100, 31);
+    const pgl::ShapeTree<Triangle> tree(tris, 3);
+    const Point q(123, 456);
+
+    std::vector<Rational> expected;
+    expected.reserve(tris.size());
+    for (const Triangle& triangle : tris) {
+        expected.push_back(q.squaredDistance<Rational>(triangle));
+    }
+    std::sort(expected.begin(), expected.end());
+
+    const std::vector<Triangle> found = tree.kNearestNeighbors<Rational>(q, 9);
+    REQUIRE(found.size() == 9);
+    for (std::size_t i = 0; i < found.size(); ++i) {
+        CHECK(q.squaredDistance<Rational>(found[i]) == expected[i]);
     }
 }
 
