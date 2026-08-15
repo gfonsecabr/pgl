@@ -599,6 +599,37 @@ struct Triangulation {
         constructConstrained(setOuters(set), points, segments, setHoles(set));
     }
 
+    /**
+     * @brief Returns the Voronoi diagram dual to this Delaunay triangulation.
+     *
+     * The result is an unbounded @ref Arrangement whose faces are labeled by
+     * their generating vertices: after locating a query in a face `f`,
+     * `diagram.label(f)` is the nearest vertex. On a Voronoi edge or vertex,
+     * @ref Arrangement::locateFace applies its usual infinitesimal perturbation
+     * and therefore selects one of the tied sites; use
+     * @ref Arrangement::locateCell and inspect the incident faces to recover
+     * every tied site.
+     *
+     * The dual is built from the current triangle connectivity. An interior
+     * Delaunay edge becomes a segment between the two incident circumcenters,
+     * and a convex-hull edge becomes an outward ray. Cocircular triangles may
+     * have the same circumcenter; their zero-length dual edge is omitted.
+     *
+     * The arrangement's edge labels are default-constructed and have no
+     * meaning; its face labels are the stored @ref PointType values.
+     *
+     * @tparam ResultNumber Coordinate type of the arrangement vertices. The
+     *         default is exact and overflow-free for integral input.
+     * @pre The triangulation is not empty.
+     * @pre Its current real triangles form a Delaunay triangulation of all its
+     *      stored vertices (equivalently, they triangulate their convex hull and
+     *      every edge is locally Delaunay). This precondition is not checked.
+     * @return The unbounded Voronoi arrangement, with one site-labeled face per
+     *         stored vertex.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] Arrangement<Point<ResultNumber>, PointType> voronoiDiagram() const;
+
     // ---- sizes -----------------------------------------------------------
 
     /** @brief Number of real vertices (excludes the ghost vertex). */

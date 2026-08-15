@@ -428,56 +428,56 @@ class Canvas {
     }
 
     /** @brief Appends a segment using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Segment<PointType>& segment) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Segment<PointType, Label>& segment) {
         return push(Segment<Point<double>>(segment), segment);
     }
 
     /** @brief Appends an oriented segment using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const OrientedSegment<PointType>& segment) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const OrientedSegment<PointType, Label>& segment) {
         return push(OrientedSegment<Point<double>>(segment), segment);
     }
 
     /** @brief Appends a line using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Line<PointType>& line) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Line<PointType, Label>& line) {
         return push(Line<Point<double>>(line), line);
     }
 
     /** @brief Appends an oriented line using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const OrientedLine<PointType>& line) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const OrientedLine<PointType, Label>& line) {
         return push(OrientedLine<Point<double>>(line), line);
     }
 
     /** @brief Appends a ray using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Ray<PointType>& ray) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Ray<PointType, Label>& ray) {
         return push(Ray<Point<double>>(ray), ray);
     }
 
     /** @brief Appends a half-plane using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Halfplane<PointType>& halfplane) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Halfplane<PointType, Label>& halfplane) {
         return push(Halfplane<Point<double>>(halfplane), halfplane);
     }
 
     /** @brief Appends a rectangle using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Rectangle<PointType>& rectangle) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Rectangle<PointType, Label>& rectangle) {
         return push(Rectangle<Point<double>>(rectangle), rectangle);
     }
 
     /** @brief Appends a triangle using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Triangle<PointType>& triangle) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Triangle<PointType, Label>& triangle) {
         return push(Triangle<Point<double>>(triangle), triangle);
     }
 
     /** @brief Appends a convex polygon using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Convex<PointType>& convex) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Convex<PointType, Label>& convex) {
         return push(Convex<Point<double>>(convex), convex);
     }
 
@@ -488,8 +488,8 @@ class Canvas {
     }
 
     /** @brief Appends a (possibly non-convex) polygon using the current captured style. */
-    template <class PointType>
-    Canvas& operator<<(const Polygon<PointType>& polygon) {
+    template <class PointType, class Label>
+    Canvas& operator<<(const Polygon<PointType, Label>& polygon) {
         return push(Polygon<Point<double>>(polygon), polygon);
     }
 
@@ -512,8 +512,8 @@ class Canvas {
     }
 
     /** @brief Appends an x-monotone chain (an SVG polyline) using the current captured style. */
-    template <class PointType, class Label>
-    Canvas& operator<<(const MonotoneChain<PointType, Label>& chain) {
+    template <class PointType, class Label, class Storage>
+    Canvas& operator<<(const MonotoneChain<PointType, Label, Storage>& chain) {
         return push(MonotoneChain<Point<double>>(chain), chain);
     }
 
