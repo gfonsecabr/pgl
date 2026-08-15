@@ -282,6 +282,24 @@ constexpr bool samePointSet(const First& first, const Second& second) {
             }
         }
 
+        // A one-component set is only a container around that region. Compare
+        // its rings directly before bounding boxes, containment, or area. In
+        // addition to being linear and allocation-free, this avoids making an
+        // exact structural equality depend on mixed-coordinate predicate
+        // arithmetic.
+        if constexpr (PolygonWithHolesConcept<First> && PolygonSetConcept<Second>) {
+            if (second.componentCount() == 1 &&
+                sameRegionRings(first, second.component(0))) {
+                return true;
+            }
+        } else if constexpr (PolygonSetConcept<First> &&
+                             PolygonWithHolesConcept<Second>) {
+            if (first.componentCount() == 1 &&
+                sameRegionRings(first.component(0), second)) {
+                return true;
+            }
+        }
+
         if constexpr (hasExactBoundingBox<First> && hasExactBoundingBox<Second>) {
             if (!sameExactBoundingBox(first, second)) {
                 return false;
