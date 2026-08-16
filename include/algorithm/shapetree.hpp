@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/mindisk.hpp"
+#include "algorithm/closestpair.hpp"
 
 /**
  * @file shapetree.hpp
