@@ -471,27 +471,28 @@ namespace detail {
  * The recursion this induces terminates: the carrier of a collapsed shape is a
  * `Point` or a non-degenerate `Segment`, and neither reduces any further.
  *
+ * The carrier is always taken in the accessor's own default coordinate type,
+ * never in the argument's `NumberType`. A shape whose collapse point need not
+ * be representable in its coordinates -- @ref HalfplaneIntersection, whose
+ * `getIfPoint` and `getIfSegment` default to `division_result_t` -- would
+ * otherwise hand over a carrier rounded to the lattice, and the predicate would
+ * answer about a point the shape does not cover. `isPoint` and `isSegment` are
+ * exact, so the reduction fires precisely when the exact carrier exists, and
+ * @p predicate must accept it at whatever coordinate type that takes.
+ *
  * @param other Shape that may have collapsed to a lower dimension.
- * @param predicate Callable accepting the carrier point or segment.
+ * @param predicate Callable accepting the carrier point or segment, generic in
+ * its coordinate type.
  * @return The predicate's value on the carrier, or `false` if there is none.
  */
 template <class Other, class Predicate>
 constexpr bool reduceDegenerate(const Other& other, Predicate predicate) {
-    using Number = typename std::remove_cvref_t<Other>::NumberType;
-    if constexpr (requires { other.template getIfPoint<Number>(); }) {
-        if (const auto vertex = other.template getIfPoint<Number>()) {
-            return predicate(*vertex);
-        }
-    } else if constexpr (requires { other.getIfPoint(); }) {
+    if constexpr (requires { other.getIfPoint(); }) {
         if (const auto vertex = other.getIfPoint()) {
             return predicate(*vertex);
         }
     }
-    if constexpr (requires { other.template getIfSegment<Number>(); }) {
-        if (const auto carrier = other.template getIfSegment<Number>()) {
-            return predicate(*carrier);
-        }
-    } else if constexpr (requires { other.getIfSegment(); }) {
+    if constexpr (requires { other.getIfSegment(); }) {
         if (const auto carrier = other.getIfSegment()) {
             return predicate(*carrier);
         }
@@ -562,18 +563,17 @@ constexpr bool coversNoPoint(const TShape& shape) {
  * one exact orientation determinant per vertex, whereas `getIfPoint` costs an
  * equality test that a shape with area fails on its second vertex.
  *
+ * The carrier comes back in the accessor's own default coordinate type, for the
+ * reason @ref reduceDegenerate gives.
+ *
  * @param other Shape that may have collapsed to a point.
- * @param predicate Callable accepting the carrier point.
+ * @param predicate Callable accepting the carrier point, generic in its
+ * coordinate type.
  * @return The predicate's value on the carrier point, or `false` if there is none.
  */
 template <class Other, class Predicate>
 constexpr bool reduceDegenerateToPoint(const Other& other, Predicate predicate) {
-    using Number = typename std::remove_cvref_t<Other>::NumberType;
-    if constexpr (requires { other.template getIfPoint<Number>(); }) {
-        if (const auto vertex = other.template getIfPoint<Number>()) {
-            return predicate(*vertex);
-        }
-    } else if constexpr (requires { other.getIfPoint(); }) {
+    if constexpr (requires { other.getIfPoint(); }) {
         if (const auto vertex = other.getIfPoint()) {
             return predicate(*vertex);
         }
