@@ -67,6 +67,7 @@
 #include "algorithm/intersections.hpp"
 #include "algorithm/convexhull.hpp"
 #include "algorithm/mindisk.hpp"
+#include "algorithm/closestpair.hpp"
 #include "algorithm/shapetree.hpp"
 #include "algorithm/intervaltree.hpp"
 #include "algorithm/sortpoints.hpp"
