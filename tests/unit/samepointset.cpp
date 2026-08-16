@@ -217,6 +217,161 @@ TEST_CASE("samePointSet preserves a seam where a hole touches its outer boundary
     CHECK_FALSE(regularizedNotch.samePointSet(withRetainedSeam));
 }
 
+TEST_CASE("samePointSet compares unbounded shapes and their regions") {
+    const pgl::Line<Point> line({0, 0}, {2, 1});
+    const pgl::OrientedLine<Point> reversedLine({4, 2}, {-2, -1});
+    CHECK(line.samePointSet(reversedLine));
+
+    const pgl::Ray<Point> ray({0, 0}, {2, 1});
+    CHECK(ray.samePointSet(pgl::Ray<Point>({0, 0}, {4, 2})));
+    CHECK_FALSE(ray.samePointSet(pgl::Ray<Point>({0, 0}, {-2, -1})));
+    CHECK_FALSE(ray.samePointSet(line));
+
+    const pgl::Halfplane<Point> halfplane({0, 0}, {2, 1});
+    CHECK(halfplane.samePointSet(pgl::Halfplane<Point>({-2, -1}, {4, 2})));
+    CHECK_FALSE(halfplane.samePointSet(pgl::Halfplane<Point>({4, 2}, {-2, -1})));
+    CHECK_FALSE(halfplane.samePointSet(halfplane.opposite()));
+    CHECK_FALSE(halfplane.samePointSet(line));
+
+    // A region of half-planes reaches every one of those states.
+    const pgl::HalfplaneIntersection<Point> region(halfplane);
+    CHECK(halfplane.samePointSet(region));
+    CHECK_FALSE(halfplane.opposite().samePointSet(region));
+    CHECK_FALSE(pgl::HalfplaneIntersection<Point>{}.samePointSet(region));
+
+    pgl::HalfplaneIntersection<Point> collapsed(halfplane);
+    collapsed.insert(halfplane.opposite());
+    REQUIRE(collapsed.isLine());
+    CHECK(line.samePointSet(collapsed));
+    CHECK(reversedLine.samePointSet(collapsed));
+
+    pgl::HalfplaneIntersection<Point> clipped(collapsed);
+    clipped.insert(pgl::Halfplane<Point>({0, 0}, {1, -2}));
+    REQUIRE(clipped.isRay());
+    CHECK(ray.samePointSet(clipped));
+    CHECK_FALSE(pgl::Ray<Point>({0, 0}, {-2, -1}).samePointSet(clipped));
+}
+
+TEST_CASE("samePointSet compares a half-plane intersection with polygonal rings") {
+    const pgl::Rectangle<Point> box({0, 0}, {4, 4});
+    const pgl::HalfplaneIntersection<Point> region(box);
+    CHECK(region.samePointSet(box));
+    CHECK(box.samePointSet(region));
+    CHECK(region.samePointSet(PolygonShape({0, 0, 2, 0, 4, 0, 4, 4, 0, 4})));
+    CHECK(region.samePointSet(
+        pgl::Convex<Point>({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)})));
+    CHECK_FALSE(region.samePointSet(pgl::Rectangle<Point>({0, 0}, {4, 5})));
+    CHECK_FALSE(region.samePointSet(pgl::Triangle<Point>({0, 0}, {4, 0}, {0, 4})));
+
+    // A reflex vertex breaks the counterclockwise run of edge directions the
+    // stored constraints have, so the two never line up.
+    CHECK_FALSE(region.samePointSet(PolygonShape({0, 0, 4, 0, 4, 4, 2, 2, 0, 4})));
+
+    const pgl::Triangle<Point> triangle({0, 0}, {4, 0}, {0, 4});
+    const pgl::HalfplaneIntersection<Point> wedge(triangle);
+    CHECK(wedge.samePointSet(triangle));
+    CHECK(wedge.samePointSet(PolygonShape({0, 0, 4, 0, 0, 4})));
+    CHECK_FALSE(wedge.samePointSet(region));
+}
+
+TEST_CASE("samePointSet separates a disk from every straight-edged shape") {
+    const pgl::Disk<Point> disk({0, 0}, {4, 0}, {2, 2});
+    CHECK(disk.samePointSet(pgl::Disk<Point>({2, 2}, {0, 0}, {4, 0})));
+    CHECK_FALSE(disk.samePointSet(pgl::Disk<Point>(Point(2, 1), 5)));
+    CHECK_FALSE(disk.samePointSet(
+        pgl::Convex<Point>({Point(0, 0), Point(4, 0), Point(2, 2)})));
+    CHECK_FALSE(disk.samePointSet(disk.bbox()));
+
+    // A disk of zero radius is a point, and that is the one way it agrees.
+    const pgl::Disk<Point> dot({3, 7}, {3, 7}, {3, 7});
+    CHECK(dot.samePointSet(Point(3, 7)));
+    CHECK(dot.samePointSet(pgl::Rectangle<Point>({3, 7}, {3, 7})));
+    CHECK(dot.samePointSet(PolygonShape({3, 7, 3, 7, 3, 7})));
+    CHECK_FALSE(dot.samePointSet(Point(3, 8)));
+}
+
+TEST_CASE("samePointSet compares chains and polylines by their point sets") {
+    const pgl::MonotoneChain<Point> chain({Point(0, 0), Point(2, 2), Point(4, 0)});
+    const pgl::Polyline<Point> polyline({Point(0, 0), Point(2, 2), Point(4, 0)});
+    CHECK(chain.samePointSet(polyline));
+
+    // A polyline has no canonical form: it may run either way and may retrace.
+    CHECK(polyline.samePointSet(
+        pgl::Polyline<Point>({Point(4, 0), Point(2, 2), Point(0, 0)})));
+    CHECK(polyline.samePointSet(
+        pgl::Polyline<Point>({Point(0, 0), Point(2, 2), Point(4, 0), Point(2, 2)})));
+    CHECK_FALSE(polyline.samePointSet(
+        pgl::Polyline<Point>({Point(0, 0), Point(2, 2), Point(4, 0), Point(5, 3)})));
+
+    const pgl::MonotoneChain<Point> subdivided(
+        {Point(0, 0), Point(1, 1), Point(2, 2), Point(3, 1), Point(4, 0)});
+    CHECK(subdivided.samePointSet(chain));
+    CHECK(subdivided.samePointSet(polyline));
+    CHECK_FALSE(subdivided.samePointSet(
+        pgl::MonotoneChain<Point>({Point(0, 0), Point(2, 2), Point(4, 1)})));
+}
+
+TEST_CASE("samePointSet never asks a shape for its area") {
+    // Twice the area of this square is 2^33, which wraps to zero in the int
+    // coordinate type, so the polygon reports itself degenerate. The point sets
+    // are decided by the vertices, which do fit, and are unaffected.
+    const PolygonShape square({0, 0, 65536, 0, 65536, 65536, 0, 65536});
+    REQUIRE(square.isDegenerate());  // an overflowed area, not a real collapse
+    const PolygonShape subdivided(
+        {0, 0, 65536, 0, 65536, 65536, 32768, 65536, 0, 65536});
+    const PolygonShape shorter({0, 0, 65536, 0, 65536, 65535, 0, 65536});
+
+    CHECK(square.samePointSet(subdivided));
+    CHECK(square.samePointSet(pgl::Rectangle<Point>({0, 0}, {65536, 65536})));
+    CHECK_FALSE(square.samePointSet(shorter));
+    CHECK_FALSE(square.isPoint());
+    CHECK_FALSE(square.isSegment());
+}
+
+TEST_CASE("samePointSet matches sets that cut the same points differently") {
+    const PolygonShape square({0, 0, 2, 0, 2, 2, 0, 2});
+    const PolygonShape diamond({0, 1, 1, 2, 2, 1, 1, 0});
+    const pgl::PolygonSet<Point> pinched(Region(square, std::vector{diamond}));
+    const pgl::PolygonSet<Point> fourCorners(std::vector{
+        Region(PolygonShape({0, 0, 1, 0, 0, 1})),
+        Region(PolygonShape({0, 1, 1, 2, 0, 2})),
+        Region(PolygonShape({1, 0, 2, 0, 2, 1})),
+        Region(PolygonShape({1, 2, 2, 1, 2, 2}))});
+
+    REQUIRE(pinched.componentCount() == 1);
+    REQUIRE(fourCorners.componentCount() == 4);
+    CHECK(pinched.samePointSet(fourCorners));
+    CHECK(fourCorners.samePointSet(pinched));
+
+    const pgl::PolygonSet<Point> threeCorners(std::vector{
+        Region(PolygonShape({0, 0, 1, 0, 0, 1})),
+        Region(PolygonShape({0, 1, 1, 2, 0, 2})),
+        Region(PolygonShape({1, 0, 2, 0, 2, 1}))});
+    CHECK_FALSE(pinched.samePointSet(threeCorners));
+    CHECK_FALSE(fourCorners.samePointSet(threeCorners));
+}
+
+TEST_CASE("samePointSet rejects shape kinds that cannot cover the same set") {
+    const pgl::Rectangle<Point> box({0, 0}, {4, 4});
+    const pgl::Triangle<Point> triangle({0, 0}, {4, 0}, {0, 4});
+    // Four corners against three.
+    CHECK_FALSE(box.samePointSet(triangle));
+
+    const PolygonShape square({0, 0, 4, 0, 4, 4, 0, 4});
+    const PolygonShape hole({1, 1, 3, 1, 3, 3, 1, 3});
+    const Region holed(square, std::vector{hole});
+    CHECK_FALSE(box.samePointSet(holed));
+    CHECK_FALSE(square.samePointSet(holed));
+    CHECK(square.samePointSet(Region(square)));
+
+    // A shape with area against one without.
+    const pgl::Segment<Point> segment({0, 0}, {4, 0});
+    CHECK_FALSE(box.samePointSet(segment));
+    CHECK_FALSE(triangle.samePointSet(segment));
+    CHECK(pgl::Rectangle<Point>({0, 0}, {4, 0}).samePointSet(segment));
+    CHECK(pgl::Triangle<Point>({0, 0}, {2, 0}, {4, 0}).samePointSet(segment));
+}
+
 TEST_CASE("samePointSet matches a large-coordinate region with its singleton set") {
     using WidePoint = pgl::Point<int64_t>;
     using WidePolygon = pgl::Polygon<WidePoint>;
