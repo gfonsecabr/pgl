@@ -170,3 +170,22 @@ The following methods expose the representation directly. They are useful when i
 - `outerCycle(f)` returns one halfedge of a bounded face's counterclockwise outer cycle and the invalid handle for an unbounded face. `innerCycles(f)` returns one starting halfedge per clockwise inner cycle; an unbounded face's boundary walks through infinity are represented as inner cycles. Prefer `outerBoundaryOf(f)` and `innerBoundariesOf(f)` when the complete vectors are wanted.
 
 There are no fictitious halfedges: every halfedge represents part of an input segment, ray or line.
+
+
+### Graph
+
+`Graph<Vertex>` is an undirected simple graph stored as adjacency sets, where `Vertex` is any hashable and equality-comparable type. It is the combinatorial companion of the geometric structures: `Polygon::visibilityGraph()` returns the `Graph<PointType>` connecting every pair of polygon vertices seeing each other, and a graph over triangles is how a triangulation is grouped into convex pieces. Adding an edge also adds its endpoints, a self-loop is ignored and repeated edges coalesce, so an edge is simply present or absent. Vertices live in unordered containers, so vertex and traversal orders are unspecified, and every method returning several components sorts them by decreasing size only.
+
+- `Graph<Vertex>()` builds an empty graph and `Graph<Vertex>(E)` takes a vector of `std::array<Vertex, 2>` endpoint pairs. `addVertex(v)` adds an isolated vertex and `addEdge(u, v)` adds an edge along with any endpoint still missing. `removeEdge(u, v)` leaves the endpoints in place, `removeVertex(v)` deletes every incident edge with the vertex, and `clear()` empties the graph.
+
+- `containsVertex(v)`, `containsEdge(u, v)`, `vertexCount()`, `edgeCount()` and `maxDegree()` inspect the graph, while `degree(v)` returns the number of neighbors of a vertex or `-1` when it is absent. `vertices()` copies the vertices into a vector, `neighbors(v)` returns the adjacency set by const reference and throws `std::out_of_range` for an absent vertex, and `closedNeighbors(v)` returns a copy of that set including `v` itself. Iterating over a graph with its forward iterators visits every vertex as a const reference, since modifying one in place would invalidate the hash table.
+
+- `bfs(v)` returns the connected component of `v` in breadth-first order and `bfs(v, k)` stops after `k` vertices; both return nothing when `v` is absent. `components()` returns the connected components, largest first, an isolated vertex forming a one-vertex component.
+
+- `biconnectedComponents()` returns the vertex sets of the vertex-biconnected blocks, largest first, using an iterative version of Tarjan's depth-first search whose memory does not grow with recursion depth. A bridge comes back as a two-vertex block, an articulation vertex belongs to more than one block, and an isolated vertex, defining no edge, belongs to none.
+
+- `cliqueCover()` partitions the vertices into cliques, largest first, by running the DSATUR coloring heuristic on the complement graph: vertices sharing a color are pairwise adjacent here. Every vertex appears in exactly one clique, but the number of cliques is not guaranteed minimum.
+
+- `spanningTree(w)` returns a minimum spanning tree as another graph, where the edge weight function `w(u, v)` chooses its own number type: any copyable type ordered by `<`, exact rationals included. It should be symmetric, otherwise which of the two values is used for an edge is unspecified. Prim's algorithm grows the tree from a lazy binary heap (`std::priority_queue`) of frontier edges, in $O(m \log m)$ time with one weight evaluation per edge for a graph with $m$ edges. Ties between equally heavy edges are broken arbitrarily. A disconnected graph produces one minimum spanning tree per connected component, so the result always has the same vertices and the same components as the graph it comes from, isolated vertices included.
+
+- Other methods:
