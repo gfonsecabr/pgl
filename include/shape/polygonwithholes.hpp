@@ -388,9 +388,16 @@ struct PolygonWithHoles {
         return outer_.size() == 0;
     }
 
-    /** @brief Tests whether the region has zero area. */
+    /**
+     * @brief Tests whether the region has zero area.
+     *
+     * The sum is taken in the promoted type: narrowed to @ref NumberType it
+     * wraps to zero for a region larger than the coordinate range and reports
+     * an ordinary region as degenerate.
+     */
     [[nodiscard]] constexpr bool isDegenerate() const {
-        return twiceArea() == NumberType(0);
+        using Exact = detail::promoted_number_t<NumberType>;
+        return twiceArea<Exact>() == Exact(0);
     }
 
     /**
@@ -517,11 +524,17 @@ struct PolygonWithHoles {
      *
      * `2·area(outer) − Σ 2·area(hole_i)`, exact in @ref NumberType with no
      * division.
+     *
+     * @tparam ResultNumber Type the rings are measured and summed in,
+     *         @ref NumberType by default. Twice an area is a sum of coordinate
+     *         products, so a region larger than the coordinate range wraps;
+     *         pass a wider type to measure such a region.
      */
-    [[nodiscard]] constexpr NumberType twiceArea() const {
-        NumberType total = outer_.twiceArea();
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber twiceArea() const {
+        ResultNumber total = outer_.template twiceArea<ResultNumber>();
         for (const auto& hole : holes_) {
-            total -= hole.twiceArea();
+            total -= hole.template twiceArea<ResultNumber>();
         }
         return total;
     }

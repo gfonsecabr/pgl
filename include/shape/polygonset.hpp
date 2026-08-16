@@ -467,10 +467,13 @@ struct PolygonSet {
      * A canonical set drops its zero-area components, so this is exactly
      * @ref empty for one; a set adopted with `trusted` may still carry a
      * component without area, which is why the areas are summed rather than the
-     * components counted.
+     * components counted. The sum is taken in the promoted type: narrowed to
+     * @ref NumberType it wraps to zero for a set larger than the coordinate
+     * range and reports an ordinary set as degenerate.
      */
     [[nodiscard]] constexpr bool isDegenerate() const {
-        return twiceArea() == NumberType(0);
+        using Exact = detail::promoted_number_t<NumberType>;
+        return twiceArea<Exact>() == Exact(0);
     }
 
     /**
@@ -587,11 +590,17 @@ struct PolygonSet {
      *
      * `Σ 2·area(Aᵢ)`, exact in @ref NumberType with no division. The components
      * have pairwise disjoint interiors, so the sum is the area of their union.
+     *
+     * @tparam ResultNumber Type the components are measured and summed in,
+     *         @ref NumberType by default. Twice an area is a sum of coordinate
+     *         products, so a set larger than the coordinate range wraps; pass a
+     *         wider type to measure such a set.
      */
-    [[nodiscard]] constexpr NumberType twiceArea() const {
-        NumberType total{};
+    template <class ResultNumber = NumberType>
+    [[nodiscard]] constexpr ResultNumber twiceArea() const {
+        ResultNumber total{};
         for (const auto& component : components_) {
-            total += component.twiceArea();
+            total += component.template twiceArea<ResultNumber>();
         }
         return total;
     }
