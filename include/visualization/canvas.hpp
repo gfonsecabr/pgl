@@ -2310,8 +2310,8 @@ class Canvas {
     CanvasStyle style_{};
     std::vector<Element> elements_{};
     double zoom_ = 1.0;
-    double widthPixels_ = 1000.0;
-    double heightPixels_ = 1000.0;
+    double widthPixels_ = 800.0;
+    double heightPixels_ = 800.0;
     double marginPixels_ = 20.0;
     bool drawBorder_ = false;
     std::optional<Bounds> view_{};
