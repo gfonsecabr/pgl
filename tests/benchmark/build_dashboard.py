@@ -35,7 +35,7 @@ import subprocess
 SHAPE_ORDER = ["Point", "Segment", "OrientedSegment", "Line", "OrientedLine",
                "Rectangle", "Triangle", "TriangleAsConvex", "TriangleAsPolygon",
                "Disk", "Convex", "ConvexAsPolygon", "HalfplaneIntersection",
-               "Polygon", "PolygonAsPWH", "PolygonWithHoles",
+               "Polygon", "PolygonAsPWH", "PolygonWithHoles", "PolygonSet",
                "PolygonAsTriangulation", "MonotoneChain", "Polyline"]
 SIZE_ORDER = ["small", "large", "n/a"]
 METHOD_ORDER = ["contains", "interiorContains", "boundaryContains",

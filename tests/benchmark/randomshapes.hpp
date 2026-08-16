@@ -327,6 +327,89 @@ randomLargePolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
     return w;
 }
 
+// Sets of components, drawn as a random subset of the cells of a grid: every
+// 4-connected group of cells becomes one component. Two distinct groups are
+// never edge-adjacent — that would have made them one group — so the components
+// share no stretch of edge and meet at corners at most, which is exactly the
+// PolygonSet precondition, established by construction rather than checked
+// afterwards. Diagonal neighbours do meet, so a drawn set is usually pinched,
+// which is the state its predicates have a second code path for. A group that
+// closes around a background cell brings a hole with it, and one that closes
+// around another group nests it, both of which the shape allows.
+//
+// Rectilinear cells are what keep this exact for every number type, `int`
+// included: a corner is a grid point scaled by an integer, never a crossing.
+// A grid of 6 filled at 45% gives a handful of components and, over the whole
+// set, a vertex count in the same range as the polygons above.
+template <class Number>
+std::vector<pgl::PolygonSet<pgl::Point<Number>>>
+randomPolygonSets(int n, int grid, int cell, int range) {
+    using Point = pgl::Point<Number>;
+    using Cell = pgl::detail::PolyCell;
+    using PolygonSet = pgl::PolygonSet<Point>;
+    std::vector<PolygonSet> w;
+    std::set<PolygonSet> seen;
+    Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<PolygonSet>)};
+    const Point center(Number(grid * cell / 2), Number(grid * cell / 2));
+    while (static_cast<int>(w.size()) < n) {
+        std::set<Cell> left;
+        for (int x = 0; x < grid; ++x) {
+            for (int y = 0; y < grid; ++y) {
+                if (rng.range(99) < 45) {
+                    left.emplace(x, y);
+                }
+            }
+        }
+        // A small set sits somewhere in the large field, as the small shapes
+        // above do; a large one spans the field and stays centred.
+        const Point base = (range > 0) ? randomPoint<Number>(rng, range) - center : -center;
+        std::vector<pgl::PolygonWithHoles<Point>> components;
+        while (!left.empty()) {
+            pgl::detail::CellSet group{*left.begin()};
+            left.erase(left.begin());
+            for (std::size_t i = 0; i < group.size(); ++i) {
+                for (const auto& [dx, dy] : pgl::detail::polyNeighbors) {
+                    const Cell neighbor{group[i].first + dx, group[i].second + dy};
+                    if (left.erase(neighbor) != 0) {
+                        group.push_back(neighbor);
+                    }
+                }
+            }
+            int minX = group.front().first;
+            int minY = group.front().second;
+            for (const auto& [x, y] : group) {
+                minX = std::min(minX, x);
+                minY = std::min(minY, y);
+            }
+            // normalizeCells translates the group onto the origin, so the
+            // corner it came from goes back on afterwards.
+            auto region = pgl::detail::polyominoRegion<Number>(
+                              pgl::detail::normalizeCells(group)) *
+                          Number(cell);
+            region += base + Point(Number(minX * cell), Number(minY * cell));
+            components.push_back(region);
+        }
+        if (components.size() < 2) {
+            continue;  // one component is a region, not a set
+        }
+        PolygonSet set(components);
+        if (seen.insert(set).second) {
+            w.push_back(std::move(set));
+        }
+    }
+    return w;
+}
+
+template <class Number>
+std::vector<pgl::PolygonSet<pgl::Point<Number>>> randomSmallPolygonSets(int n, int grid) {
+    return randomPolygonSets<Number>(n, grid, smallRange / grid, largeRange);
+}
+
+template <class Number>
+std::vector<pgl::PolygonSet<pgl::Point<Number>>> randomLargePolygonSets(int n, int grid) {
+    return randomPolygonSets<Number>(n, grid, largeRange / grid, 0);
+}
+
 // "As-other-type" generators: build shapes with one shape's generator, then
 // store the equivalent representation of a more general storage type. This lets
 // the shape-pair cube measure, e.g., Polygon's code paths when the polygon is

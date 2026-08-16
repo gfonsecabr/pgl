@@ -343,6 +343,39 @@ inline Result differenceAvoidsWhatWasRemoved(const AnyShape& a, const AnyShape& 
 }
 
 /**
+ * @brief A shape and its own regularization answer the predicates consistently.
+ *
+ * @f$A \cup A@f$ is the closure of `A`'s interior, cut into components by the
+ * cell engine — a decomposition of `A` that owes nothing to how `A` was built.
+ * `A` contains it whatever `A` is, and the two are the same point set exactly
+ * when `A` has no lower-dimensional part to lose.
+ *
+ * This is the one place the harness puts a connected operand against a set that
+ * covers it a piece at a time: the regularization of a region pinched apart at
+ * a point hands those pieces out to several components, and no component holds
+ * the region. Drawing the two independently would never pair them.
+ */
+inline Result regularizationAgreesWithPredicates(const AnyShape& a) {
+    const auto regular = attempt([&] { return regularized(a); });
+    if (!regular || regular->empty()) {
+        return skipped();  // nothing with area survives; the empty set is its own case
+    }
+    const ExactShape exactA = toExact(a);
+    const ExactShape decomposed(*regular);
+    const bool holdsDecomposed = exactA.contains(decomposed);
+    const bool holdsA = decomposed.contains(exactA);
+    PGLPROP_CHECK(holdsDecomposed,
+                  "A = " + detail::show(a) + " ; A does not contain its regularization " +
+                      detail::show(decomposed));
+    PGLPROP_CHECK(exactA.samePointSet(decomposed) == (holdsDecomposed && holdsA),
+                  "A = " + detail::show(a) + " ; A|A=" + detail::show(decomposed) +
+                      " ; A.samePointSet(A|A)=" + detail::show(exactA.samePointSet(decomposed)) +
+                      " but A.contains(A|A)=" + detail::show(holdsDecomposed) +
+                      " and (A|A).contains(A)=" + detail::show(holdsA));
+    return held();
+}
+
+/**
  * @brief The self-operations collapse the way the algebra requires.
  *
  * @f$A \setminus A@f$ and @f$A \triangle A@f$ are empty, and @f$A \cup A@f$ and
@@ -442,6 +475,8 @@ inline void registerConstructionProperties(Registry& registry) {
                                props::differenceAvoidsWhatWasRemoved});
     registry.unary.push_back({"boolean", "self-booleans-collapse", kRegion,
                               props::selfBooleansCollapse});
+    registry.unary.push_back({"boolean", "regularization-agrees-with-predicates", kRegion,
+                              props::regularizationAgreesWithPredicates});
     registry.binary.push_back({"minkowski", "minkowski-sum-covers-vertex-sums", kConvexAlternative,
                                props::minkowskiSumCoversVertexSums});
 }

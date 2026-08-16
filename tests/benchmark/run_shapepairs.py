@@ -31,7 +31,7 @@ Usage (from repo root):
     python3 tests/benchmark/run_shapepairs.py [options]
 
 Options:
-    --shapes  S,...    Shapes to include (default: all 19, plus Point as shape B).
+    --shapes  S,...    Shapes to include (default: all 20, plus Point as shape B).
                        Point only appears as the second operand and is
                        size-agnostic (one variant, ignoring --sizes).
     --focus   S,...    Run these shapes against everything: keep only pairs where
@@ -86,6 +86,7 @@ ALL_SHAPES = [
     "Convex",
     "Polygon",
     "PolygonWithHoles",
+    "PolygonSet",
     "Polyline",
     "MonotoneChain",
     "HalfplaneIntersection",
@@ -217,6 +218,10 @@ def _cpp_make_shapes_for(shape: str, size: str, alias: str, var: str, n: int) ->
     if shape == "PolygonWithHoles":
         # A 32-gon punched with 6 holes of 6 vertices each.
         return f"auto {var} = {prefix}PolygonsWithHoles<N>({n}, 32, 6, 6);"
+    if shape == "PolygonSet":
+        # A 6x6 grid filled at 45%: about five components and 31 vertices in
+        # total, so a set is the same order of size as the shapes above it.
+        return f"auto {var} = {prefix}PolygonSets<N>({n}, 6);"
     if shape == "Polyline":
         return f"auto {var} = {prefix}Polylines<N>({n}, 32);"
     if shape == "MonotoneChain":

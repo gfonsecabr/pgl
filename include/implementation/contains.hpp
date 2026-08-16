@@ -3343,6 +3343,17 @@ bool PolygonSet<PointType, LabelType>::segmentIn(const OtherSegment& segment,
     using ExactPoint = Point<ExactNumber>;
     using ExactSegment = Segment<ExactPoint>;
 
+    // One component holding the whole segment is the common case, and it costs
+    // a scan of the components against the general answer's exact crossing per
+    // component edge. It is what the segment operand of `contains` asks before
+    // coming here; a chain and a region reach this per edge, and would pay the
+    // general price on every edge that never needed it.
+    if (anyComponent([&](const ComponentType& component) {
+            return boundaryOnly ? component.boundaryContains(segment) : component.contains(segment);
+        })) {
+        return true;
+    }
+
     const ExactSegment probe(ExactPoint(segment.min()), ExactPoint(segment.max()));
     const auto holds = [this, boundaryOnly](const ExactPoint& point) {
         return anyComponent([&](const ComponentType& component) {
@@ -3411,6 +3422,95 @@ bool PolygonSet<PointType, LabelType>::chainIn(const OtherChain& chain, bool bou
 }
 
 template <class PointType, class LabelType>
+template <class OtherRegion>
+bool PolygonSet<PointType, LabelType>::regionIn(const OtherRegion& region) const {
+    using ExactNumber = detail::Exact1DNumber<NumberType, typename OtherRegion::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    const ExactNumber two(2);
+
+    // The vertices before the edges they bound. This settles nothing on its
+    // own — the vertices of a region may all be in the set while an edge
+    // between two of them leaves it — but it is a point location per vertex
+    // against an exact segment intersection per edge per component boundary,
+    // so it is worth spending on an operand the next loop would reject anyway.
+    for (const auto& vertex : region.vertices()) {
+        if (!anyComponent([&](const ComponentType& component) {
+                return component.contains(vertex);
+            })) {
+            return false;
+        }
+    }
+
+    // The boundary itself: it is one-dimensional, so the components are free to
+    // share an edge of it between them.
+    const auto boundary = region.edges();
+    for (const auto& edge : boundary) {
+        if (!segmentIn(edge, /*boundaryOnly=*/false)) {
+            return false;
+        }
+    }
+
+    // No component boundary may reach the operand's interior. It would take a
+    // stretch of it with it — a segment meets an open set in an open piece of
+    // itself — and the far side of that stretch lies in no component, since a
+    // second component there would share it with the first.
+    for (const auto& component : components_) {
+        for (const auto& edge : component.edges()) {
+            if (region.interiorsIntersect(edge)) {
+                return false;
+            }
+        }
+    }
+
+    // What is left is one witness per connected piece of the operand's
+    // interior, taken on the vertical line down the middle of each strip
+    // between consecutive vertex abscissas. No vertex of the operand sits on
+    // such a line, so every edge that spans the strip crosses it exactly once,
+    // and between two consecutive crossings the line is wholly inside the
+    // operand or wholly outside it.
+    std::vector<ExactNumber> abscissas;
+    abscissas.reserve(2 * boundary.size());
+    for (const auto& edge : boundary) {
+        abscissas.emplace_back(edge.min().x());
+        abscissas.emplace_back(edge.max().x());
+    }
+    std::sort(abscissas.begin(), abscissas.end());
+    abscissas.erase(std::unique(abscissas.begin(), abscissas.end()), abscissas.end());
+
+    std::vector<ExactNumber> ordinates;
+    for (std::size_t strip = 0; strip + 1 < abscissas.size(); ++strip) {
+        const ExactNumber x = (abscissas[strip] + abscissas[strip + 1]) / two;
+        ordinates.clear();
+        for (const auto& edge : boundary) {
+            // An edge is stored with its endpoints in lexicographic order, so
+            // min() is the left one whenever the two abscissas differ at all.
+            const ExactNumber left(edge.min().x());
+            const ExactNumber right(edge.max().x());
+            if (!(left < x) || !(x < right)) {
+                continue;  // vertical, or entirely on one side of the line
+            }
+            const ExactNumber low(edge.min().y());
+            const ExactNumber high(edge.max().y());
+            ordinates.push_back(low + (high - low) * (x - left) / (right - left));
+        }
+        std::sort(ordinates.begin(), ordinates.end());
+        ordinates.erase(std::unique(ordinates.begin(), ordinates.end()), ordinates.end());
+        for (std::size_t i = 0; i + 1 < ordinates.size(); ++i) {
+            const ExactPoint witness(x, (ordinates[i] + ordinates[i + 1]) / two);
+            if (!region.contains(witness)) {
+                continue;  // the piece is a hole of the operand, not part of it
+            }
+            if (!anyComponent([&](const ComponentType& component) {
+                    return component.contains(witness);
+                })) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
 template <detail::SetOperandConcept OtherShape>
 bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
     if constexpr (PointConcept<OtherShape>) {
@@ -3443,12 +3543,38 @@ bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
             return false;
         }
         return chainIn(other, /*boundaryOnly=*/false);
+    } else if constexpr (PolygonWithHolesConcept<OtherShape>) {
+        // The two-dimensional case a single component need not settle. A region
+        // is connected, so a set whose components stay apart holds it in one of
+        // them or not at all — that is the argument below, and it is all the
+        // other operands with area need. What breaks it here is that a region's
+        // *interior* may still come apart, at the points and the slits where a
+        // hole reaches the outer boundary, and the pieces it comes apart into
+        // may go to different components.
+        if (anyComponent([&](const ComponentType& c) { return c.contains(other); })) {
+            return true;
+        }
+        if (!isPinched() || other.vertexCount() == 0) {
+            return false;
+        }
+        // Two necessary conditions stand in front of the general test, which
+        // costs orders of magnitude more than the fold it backs up and answers
+        // `false` for almost every operand that reaches it: the operand's box
+        // must sit inside the set's, and its first vertex, like every other
+        // point of it, must be in the set. Both are what the general test would
+        // establish anyway, at O(1) and at one point location.
+        if (!bbox().contains(other.bbox()) || !contains(other.outer()[0])) {
+            return false;
+        }
+        return regionIn(other);
     } else {
-        // Every remaining operand stays connected when finitely many points are
-        // removed from it, and the components meet at finitely many points at
-        // most, so it cannot be shared between two of them: one component holds
-        // it or none does. A collapsed one is one-dimensional again and reduces
-        // to its carrier.
+        // Every remaining operand has connected interior, and the components
+        // have disjoint interiors meeting at finitely many points at most. So
+        // the operand's interior, minus those points, still connected, lies in
+        // one component's interior, and the operand — its closure, plus a
+        // boundary the closed component then holds — lies in that component:
+        // one component holds it or none does. A collapsed operand is
+        // one-dimensional again and reduces to its carrier.
         if (anyComponent([&](const ComponentType& c) { return c.contains(other); })) {
             return true;
         }
