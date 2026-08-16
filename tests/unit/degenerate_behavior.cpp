@@ -384,3 +384,70 @@ TEST_CASE("A collapsed shape can sit on the boundary of a lower-ranked shape") {
     CHECK(longer.interiorContains(pgl::Polygon<P>(std::vector<P>{endpoint, endpoint, endpoint})));
     CHECK_FALSE(longer.interiorContains(pgl::Rectangle<P>(P(0, 0), P(0, 0))));
 }
+
+TEST_CASE("A carrier off the lattice is reduced exactly") {
+    // Regression: the degenerate reduction asked for the carrier in the
+    // operand's own NumberType, so an integral region collapsed onto (1/2, 1/2)
+    // handed over (0, 0) and the host answered about the wrong point. isPoint
+    // and isSegment are exact, so the reduction fires either way; only the
+    // carrier was rounded.
+    using Region = pgl::HalfplaneIntersection<P>;
+    using Halfplane = pgl::Halfplane<P>;
+    using PolygonShape = pgl::Polygon<P>;
+    using RegionWithHoles = pgl::PolygonWithHoles<P>;
+    using RegionSet = pgl::PolygonSet<P>;
+
+    // x + y >= 1, x + y <= 1, y >= x, y <= x: the single point (1/2, 1/2).
+    Region vertex;
+    vertex.insert(Halfplane(P(0, 1), P(1, 0)));
+    vertex.insert(Halfplane(P(1, 0), P(0, 1)));
+    vertex.insert(Halfplane(P(0, 0), P(1, 1)));
+    vertex.insert(Halfplane(P(1, 1), P(0, 0)));
+    REQUIRE(vertex.isPoint());
+
+    // The line y = x clamped to 1 <= x + y <= 3: the segment from (1/2, 1/2)
+    // to (3/2, 3/2), neither endpoint on the lattice.
+    Region flat{pgl::Line<P>(P(0, 0), P(1, 1))};
+    flat.insert(Halfplane(P(0, 1), P(1, 0)));
+    flat.insert(Halfplane(P(3, 0), P(0, 3)));
+    REQUIRE(flat.isSegment());
+
+    SUBCASE("a set that misses the carrier contains nothing of it") {
+        // Rounding (1/2, 1/2) down would land on the corner (0, 0) this set holds.
+        const RegionSet below{RegionWithHoles(PolygonShape({0, 0, 2, 0, 2, -2, 0, -2}))};
+        CHECK_FALSE(below.contains(vertex));
+        CHECK_FALSE(below.boundaryContains(vertex));
+        CHECK_FALSE(below.interiorContains(vertex));
+        CHECK_FALSE(below.intersects(vertex));
+
+        CHECK_FALSE(below.contains(flat));
+        CHECK_FALSE(below.boundaryContains(flat));
+    }
+
+    SUBCASE("a set that holds the carrier still contains it") {
+        const RegionSet square{RegionWithHoles(PolygonShape({0, 0, 2, 0, 2, 2, 0, 2}))};
+        CHECK(square.contains(vertex));
+        CHECK(square.interiorContains(vertex));
+        CHECK(square.intersects(vertex));
+        CHECK_FALSE(square.boundaryContains(vertex));
+
+        CHECK(square.contains(flat));
+        CHECK(square.intersects(flat));
+    }
+
+    SUBCASE("a boundary through the carrier reports boundary containment") {
+        // The hypotenuse x + y = 1 passes exactly through (1/2, 1/2).
+        const RegionSet corner{RegionWithHoles(PolygonShape({0, 0, 1, 0, 0, 1}))};
+        CHECK(corner.contains(vertex));
+        CHECK(corner.boundaryContains(vertex));
+        CHECK_FALSE(corner.interiorContains(vertex));
+        CHECK(corner.intersects(vertex));
+    }
+
+    SUBCASE("a set holding only part of the carrier segment does not contain it") {
+        const RegionSet unit{RegionWithHoles(PolygonShape({0, 0, 1, 0, 1, 1, 0, 1}))};
+        CHECK(unit.contains(vertex));
+        CHECK_FALSE(unit.contains(flat));
+        CHECK(unit.intersects(flat));
+    }
+}

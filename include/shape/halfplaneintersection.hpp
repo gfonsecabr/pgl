@@ -732,11 +732,11 @@ struct HalfplaneIntersection {
      * @brief Returns the ray the region equals, if it is one.
      *
      * @tparam ResultNumber Coordinate type of the returned ray (default:
-     * NumberType).
-     * @warning Divides coordinates after casting to ResultNumber, so the source
-     * is generally inexact for integer types; request `pgl::Rational`
-     * coordinates for the exact ray. The @ref isRay test itself is exact
-     * regardless.
+     * @ref division_result_t, which is exact).
+     * @warning Divides coordinates after casting to ResultNumber, so an
+     * explicitly requested integral ResultNumber truncates the source -- and
+     * the source of an integral region need not be on the lattice at all. The
+     * default is exact; @ref isRay is exact regardless.
      *
      * @return The ray if @ref isRay, `std::nullopt` otherwise.
      */
@@ -760,11 +760,11 @@ struct HalfplaneIntersection {
      * @brief Returns the point the region collapses to, if it is one.
      *
      * @tparam ResultNumber Coordinate type of the returned point (default:
-     * NumberType).
-     * @warning Divides coordinates after casting to ResultNumber, so the result
-     * is generally inexact for integer types; request `pgl::Rational`
-     * coordinates for the exact point. The @ref isPoint test itself is exact
-     * regardless.
+     * @ref division_result_t, which is exact).
+     * @warning Divides coordinates after casting to ResultNumber, so an
+     * explicitly requested integral ResultNumber truncates the result -- and
+     * the point an integral region collapses to need not be on the lattice at
+     * all. The default is exact; @ref isPoint is exact regardless.
      *
      * @return The point if @ref isPoint, `std::nullopt` otherwise.
      */
@@ -783,11 +783,11 @@ struct HalfplaneIntersection {
      * @brief Returns the segment the region collapses to, if it is one.
      *
      * @tparam ResultNumber Coordinate type of the returned endpoints (default:
-     * NumberType).
-     * @warning Divides coordinates after casting to ResultNumber, so the
-     * endpoints are generally inexact for integer types -- rounding may even
-     * collapse them together; request `pgl::Rational` coordinates for the exact
-     * segment. The @ref isSegment test itself is exact regardless.
+     * @ref division_result_t, which is exact).
+     * @warning Divides coordinates after casting to ResultNumber, so an
+     * explicitly requested integral ResultNumber truncates the endpoints --
+     * which need not be on the lattice at all, and may even round together.
+     * The default is exact; @ref isSegment is exact regardless.
      *
      * @return The segment if @ref isSegment, `std::nullopt` otherwise.
      */
@@ -862,10 +862,10 @@ struct HalfplaneIntersection {
      * region, ascending `i` walks the vertices counterclockwise.
      *
      * @tparam ResultNumber Coordinate type of the returned point (default:
-     * NumberType).
-     * @warning Divides coordinates after casting to ResultNumber, so the
-     * result is generally inexact for integer types; request
-     * `pgl::Rational` coordinates for an exact vertex.
+     * @ref division_result_t, which is exact).
+     * @warning Divides coordinates after casting to ResultNumber, so an
+     * explicitly requested integral ResultNumber truncates the vertex -- which
+     * need not be on the lattice at all. The default is exact.
      */
     template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber, typename PointType::LabelType> vertex(std::size_t i) const {
