@@ -68,12 +68,12 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
     const std::string svg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
 
     CHECK(svg.find("<svg") != std::string::npos);
-    CHECK(svg.find("width=\"1000\" height=\"1000\"") != std::string::npos);
-    CHECK(svg.find("viewBox=\"0 0 1000 1000\"") != std::string::npos);
+    CHECK(svg.find("width=\"800\" height=\"800\"") != std::string::npos);
+    CHECK(svg.find("viewBox=\"0 0 800 800\"") != std::string::npos);
     CHECK(svg.find("<circle") != std::string::npos);
     CHECK(svg.find("<line") != std::string::npos);
     CHECK(svg.find("<path") != std::string::npos);
-    CHECK(svg.find("<rect x=\"0.5\" y=\"0.5\" width=\"999\" height=\"999\" stroke=\"black\" fill=\"none\" stroke-width=\"1\"/>") != std::string::npos);
+    CHECK(svg.find("<rect x=\"0.5\" y=\"0.5\" width=\"799\" height=\"799\" stroke=\"black\" fill=\"none\" stroke-width=\"1\"/>") != std::string::npos);
     CHECK(svg.find("<marker id=\"pgl-arrowhead\"") != std::string::npos);
     CHECK(svg.find("<title>(10,20)--(30,70)</title>") != std::string::npos);
     CHECK(svg.find("<title>(10,20)</title>") != std::string::npos);
@@ -84,10 +84,10 @@ TEST_CASE("Canvas stores SVG attributes with each inserted shape and writes an S
     // type (std::string) is kept but the value is empty, which IO prints as a bare ":".
     CHECK(svg.find("<title>:(100,100)-&gt;:(80,50)</title>") != std::string::npos);
     CHECK(svg.find("marker-mid=\"url(#pgl-arrowhead)\"") != std::string::npos);
-    CHECK(svg.find("x1=\"132\" y1=\"776\" x2=\"316\" y2=\"316\"") != std::string::npos);
-    CHECK(svg.find("cx=\"132\" cy=\"776\" r=\"5\"") != std::string::npos);
-    CHECK(svg.find("x1=\"0\" y1=\"6.39488e-14\" x2=\"1000\" y2=\"1000\"") != std::string::npos);
-    CHECK(svg.find("d=\"M 960 40 L 868 270 L 776 500\"") != std::string::npos);
+    CHECK(svg.find("x1=\"112\" y1=\"616\" x2=\"256\" y2=\"256\"") != std::string::npos);
+    CHECK(svg.find("cx=\"112\" cy=\"616\" r=\"5\"") != std::string::npos);
+    CHECK(svg.find("x1=\"0\" y1=\"0\" x2=\"800\" y2=\"800\"") != std::string::npos);
+    CHECK(svg.find("d=\"M 760 40 L 688 220 L 616 400\"") != std::string::npos);
     CHECK(svg.find("stroke=\"blue\"") != std::string::npos);
     CHECK(svg.find("fill=\"blue\"") != std::string::npos);
     CHECK(svg.find("stroke=\"black\"") != std::string::npos);
@@ -744,7 +744,7 @@ TEST_CASE("Canvas renders a PolygonWithHoles as one even-odd path per ring") {
     // The PDF carries the same three subpaths in one path object: three `h`
     // closers, then a single `B` (fill and stroke). pdfgen emits its content
     // streams uncompressed, so they are readable as text.
-    const std::size_t pdfRing = pdf.find("23.000000 261.500000 m");
+    const std::size_t pdfRing = pdf.find("23.000000 211.500000 m");
     REQUIRE(pdfRing != std::string::npos);
     const std::string pdfPath = pdf.substr(pdfRing, pdf.find("\r\nB\r\n", pdfRing) - pdfRing);
     std::size_t pdfClosers = 0;
