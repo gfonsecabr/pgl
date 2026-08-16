@@ -2689,6 +2689,15 @@ constexpr bool Point<Number, Label>::contains(const OtherRegion& other) const {
 template <class PointType, class LabelType>
 template <HalfplaneIntersectionConcept OtherRegion>
 constexpr bool Segment<PointType, LabelType>::contains(const OtherRegion& other) const {
+    if (min() == max()) {
+        // The clamps below are built from the segment's own direction, which a
+        // collapsed segment does not have: every one of them would come out
+        // undefined, and `insert` drops an undefined half-plane instead of
+        // cutting with it, so the region would test as inside all four. The
+        // point the segment covers answers the question with axis-aligned
+        // clamps of its own.
+        return min().contains(other);
+    }
     // Inside the supporting line's slab and the two perpendicular clamps
     // through the endpoints.
     const auto a = min();
