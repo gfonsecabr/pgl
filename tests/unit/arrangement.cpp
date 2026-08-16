@@ -241,6 +241,24 @@ void checkInvariants(const Arrangement& arr) {
     const std::size_t f = arr.faceCount();
     CHECK(v + f == e + 1 + componentCount(arr));
 
+    // The graph view holds every vertex, the fictitious one included, and joins
+    // them exactly as the halfedges do. It is simple, so its edge count only
+    // matches the arrangement's when no line closes a loop at infinity and no
+    // two edges share both of their endpoints.
+    const pgl::Graph<VertexId> graph = arr.asGraph();
+    CHECK(graph.vertexCount() == static_cast<int>(v));
+    CHECK(graph.components().size() == componentCount(arr));
+    for (std::uint32_t i = 0; i < arr.halfedgeCount(); ++i) {
+        const HalfedgeId h(i);
+        CHECK(graph.containsEdge(arr.source(h), arr.target(h)) ==
+              (arr.source(h) != arr.target(h)));
+    }
+    for (std::uint32_t i = 0; i < v; ++i) {
+        const VertexId vertex(i);
+        REQUIRE(graph.containsVertex(vertex));
+        CHECK(graph.degree(vertex) <= static_cast<int>(arr.degree(vertex)));
+    }
+
     // Each bounded face's witness is where it says it is.
     for (std::uint32_t i = 0; i < arr.faceCount(); ++i) {
         const FaceId face(i);
@@ -1339,4 +1357,81 @@ TEST_CASE("arrangement intersection traversal accepts mixed coordinate types") {
     CHECK(std::holds_alternative<IntArrangement::HalfedgeId>(expected.front()));
     arr.buildPointLocation();
     CHECK(arr.reportIntersecting(query) == expected);
+}
+
+TEST_CASE("the graph view carries the vertices and the incidences") {
+    // A cross, plus a point on nothing: the crossing vertex has degree four,
+    // the four endpoints degree one, and the isolated point a component of its
+    // own.
+    const Arrangement arr(std::vector<Segment>{S(-2, 0, 2, 0), S(0, -2, 0, 2)},
+                          std::vector<Point>{P(5, 5)});
+    checkInvariants(arr);
+    const pgl::Graph<VertexId> graph = arr.asGraph();
+    REQUIRE(graph.vertexCount() == 6);
+    CHECK(graph.edgeCount() == static_cast<int>(arr.edgeCount()));
+    CHECK(graph.maxDegree() == 4);
+
+    const auto vertexAt = [&arr](const Point& p) {
+        const auto found = std::ranges::find(arr.vertices(), p);
+        REQUIRE(found != arr.vertices().end());
+        return VertexId(static_cast<std::uint32_t>(found - arr.vertices().begin()));
+    };
+    const VertexId center = vertexAt(P(0, 0));
+    CHECK(graph.degree(center) == 4);
+    CHECK(graph.containsEdge(center, vertexAt(P(2, 0))));
+    CHECK_FALSE(graph.containsEdge(vertexAt(P(2, 0)), vertexAt(P(0, 2))));
+    CHECK(graph.degree(vertexAt(P(5, 5))) == 0);
+    CHECK(graph.components().size() == 2);
+    CHECK(graph.bfs(center).size() == 5);
+
+    // Vertices of a bounded arrangement are exactly its finite ones.
+    for (const VertexId v : graph) {
+        CHECK_FALSE(arr.isFictitious(v));
+    }
+}
+
+TEST_CASE("the graph view holds the fictitious vertex of an unbounded arrangement") {
+    // A ray and a line: the ray joins its source to infinity, and the line runs
+    // from infinity back to it, so it is a self-loop the simple graph drops.
+    const std::vector<pgl::Shape<Point>> shapes{pgl::Shape<Point>(Ray(P(0, 0), P(1, 0))),
+                                                pgl::Shape<Point>(Line(P(0, 5), P(1, 5)))};
+    const Arrangement arr(shapes);
+    checkInvariants(arr);
+    REQUIRE(arr.isUnbounded());
+    const VertexId infinity(static_cast<std::uint32_t>(arr.vertexCount()));
+    REQUIRE(arr.isFictitious(infinity));
+
+    const pgl::Graph<VertexId> graph = arr.asGraph();
+    CHECK(graph.vertexCount() == static_cast<int>(arr.vertexCount()) + 1);
+    CHECK(graph.containsVertex(infinity));
+    CHECK(arr.edgeCount() == 2);
+    CHECK(graph.edgeCount() == 1);  // the line's self-loop is dropped
+    CHECK(graph.degree(infinity) == 1);
+    CHECK(graph.containsEdge(infinity, VertexId(0)));
+    CHECK(graph.components().size() == 1);
+
+    // Two rays leaving the same source meet again at infinity; the parallel
+    // edges coalesce, so both endpoints keep degree one.
+    const Arrangement fan(std::vector<Ray>{Ray(P(0, 0), P(1, 1)), Ray(P(0, 0), P(1, -1))});
+    checkInvariants(fan);
+    const pgl::Graph<VertexId> fanGraph = fan.asGraph();
+    CHECK(fan.edgeCount() == 2);
+    CHECK(fanGraph.vertexCount() == 2);
+    CHECK(fanGraph.edgeCount() == 1);
+    CHECK(fanGraph.maxDegree() == 1);
+}
+
+TEST_CASE("the graph of a line is one isolated fictitious vertex") {
+    const Arrangement arr(std::vector<Line>{Line(P(0, 0), P(1, 1))});
+    checkInvariants(arr);
+    const pgl::Graph<VertexId> graph = arr.asGraph();
+    CHECK(arr.vertexCount() == 0);
+    CHECK(graph.vertexCount() == 1);
+    CHECK(graph.edgeCount() == 0);
+    CHECK(arr.isFictitious(*graph.begin()));
+
+    const Arrangement empty;
+    checkInvariants(empty);
+    CHECK(empty.asGraph().vertexCount() == 0);
+    CHECK(empty.asGraph().edgeCount() == 0);
 }
