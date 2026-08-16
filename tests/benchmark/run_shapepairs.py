@@ -241,7 +241,7 @@ def _cpp_accumulate(method: str) -> str:
     if method in {"contains", "interiorContains", "boundaryContains",
                   "pointInsideInteriorContainedIn",
                   "intersects", "interiorsIntersect", "separates", "crosses",
-                  "collinear", "parallel"}:
+                  "collinear", "parallel", "samePointSet"}:
         return f"count += a.{method}(b) ? 1 : 0;"
     if method == "intersection":
         # intersection returns std::optional for most shape pairs,
