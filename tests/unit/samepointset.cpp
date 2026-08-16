@@ -313,10 +313,12 @@ TEST_CASE("samePointSet compares chains and polylines by their point sets") {
 
 TEST_CASE("samePointSet never asks a shape for its area") {
     // Twice the area of this square is 2^33, which wraps to zero in the int
-    // coordinate type, so the polygon reports itself degenerate. The point sets
-    // are decided by the vertices, which do fit, and are unaffected.
+    // coordinate type. The point sets are decided by the vertices, which do
+    // fit, and are unaffected -- as is isDegenerate, which reads the vertices
+    // rather than the wrapped area.
     const PolygonShape square({0, 0, 65536, 0, 65536, 65536, 0, 65536});
-    REQUIRE(square.isDegenerate());  // an overflowed area, not a real collapse
+    REQUIRE(square.twiceArea() == 0);      // the area wraps
+    REQUIRE_FALSE(square.isDegenerate());  // the predicate does not follow it
     const PolygonShape subdivided(
         {0, 0, 65536, 0, 65536, 65536, 32768, 65536, 0, 65536});
     const PolygonShape shorter({0, 0, 65536, 0, 65536, 65535, 0, 65536});

@@ -1087,3 +1087,52 @@ TEST_CASE("The empty polygon is the well-defined empty set") {
     CHECK(empty.asPolygonSet().empty());
     CHECK(Rectangle().asPolygon().empty());
 }
+
+TEST_CASE("The canonical form survives an area past the coordinate range") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+
+    // Twice the area of this square is 2^33, so the shoelace sum wraps to zero
+    // in `int`. Winding and degeneracy used to be read off that sum, which left
+    // the clockwise spelling uncanonicalized and called the square degenerate.
+    const PolygonShape ccw({0, 0, 65536, 0, 65536, 65536, 0, 65536});
+    const PolygonShape cw({0, 0, 0, 65536, 65536, 65536, 65536, 0});
+
+    CHECK(ccw == cw);
+    CHECK_FALSE(ccw < cw);
+    CHECK_FALSE(cw < ccw);
+    CHECK(std::hash<PolygonShape>{}(ccw) == std::hash<PolygonShape>{}(cw));
+
+    CHECK_FALSE(ccw.isDegenerate());
+    CHECK_FALSE(ccw.isUndefined());
+    CHECK_FALSE(ccw.empty());
+    CHECK_FALSE(ccw.asPolygonSet().empty());
+    CHECK_FALSE(Region(ccw).isDegenerate());
+    CHECK_FALSE(ccw.asPolygonSet().isDegenerate());
+
+    // twiceArea() stays in the coordinate type, as everywhere else in the
+    // library; a wider one measures the square.
+    CHECK(ccw.twiceArea() == 0);
+    CHECK(ccw.twiceArea<long long>() == 2LL * 65536 * 65536);
+    CHECK(Region(ccw).twiceArea<long long>() == 2LL * 65536 * 65536);
+    CHECK(ccw.centroid() == pgl::Point<pgl::ERational>(32768, 32768));
+
+    SUBCASE("a clockwise spelling is reversed whatever its size") {
+        const PolygonShape small({0, 0, 0, 4, 4, 4, 4, 0});
+        CHECK(small == PolygonShape({0, 0, 4, 0, 4, 4, 0, 4}));
+
+        // The winding is decided at the lexicographically smallest vertex, so a
+        // repeated vertex there must not hide the turn behind a zero-length edge.
+        const PolygonShape repeated({0, 0, 0, 0, 0, 4, 4, 4, 4, 0});
+        CHECK(repeated == PolygonShape({0, 0, 0, 0, 4, 0, 4, 4, 0, 4}));
+        CHECK_FALSE(repeated.isDegenerate());
+    }
+
+    SUBCASE("a collinear polygon of any size is still degenerate") {
+        const PolygonShape spike({0, 0, 65536, 65536, 32768, 32768});
+        CHECK(spike.isDegenerate());
+        CHECK(spike.isSegment());
+        CHECK_FALSE(spike.isUndefined());
+    }
+}

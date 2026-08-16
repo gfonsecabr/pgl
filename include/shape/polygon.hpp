@@ -262,13 +262,19 @@ struct Polygon {
 
     /**
      * @brief Computes twice the (unsigned) area of the polygon via the shoelace formula.
+     *
+     * @tparam ResultNumber Type the sum is accumulated in, @ref NumberType by
+     *         default. The shoelace terms are products of coordinates, so a
+     *         polygon whose area leaves the coordinate range wraps; pass a
+     *         wider type to measure such a polygon.
      * @return Twice the area, or zero for fewer than three vertices.
      */
-    constexpr auto twiceArea() const {
+    template <class ResultNumber = NumberType>
+    constexpr ResultNumber twiceArea() const {
         if (points_.size() < 3) {
-            return NumberType(0);
+            return ResultNumber(0);
         }
-        return pgl::detail::abs(signedTwiceArea());
+        return pgl::detail::abs(signedTwiceArea<ResultNumber>());
     }
 
     /**
@@ -301,9 +307,17 @@ struct Polygon {
      * @brief Checks if the polygon is degenerate (has zero area).
      *
      * The empty polygon has no area either, so it is degenerate.
+     *
+     * Collinear vertices are what a well-defined polygon without area looks
+     * like, and @ref isPoint / @ref isSegment decide that exactly whatever the
+     * coordinates. Only @ref isUndefined — a boundary that retraces itself —
+     * has no area without being collinear, and it is the one branch that needs
+     * the shoelace sum, taken in the promoted type. `twiceArea() == 0` would
+     * instead narrow that sum to @ref NumberType, where the area of an ordinary
+     * polygon past the coordinate range wraps to zero.
      */
     constexpr bool isDegenerate() const {
-        return twiceArea() == NumberType(0);
+        return empty() || isPoint() || isSegment() || hasNoArea();
     }
 
     /**
@@ -374,7 +388,7 @@ struct Polygon {
     [[nodiscard]] constexpr bool isUndefined() const {
         // Ordered so the cheap emptiness and point/segment scans reject the
         // common cases before paying for the full area sum.
-        return !empty() && !isPoint() && !isSegment() && isDegenerate();
+        return !empty() && !isPoint() && !isSegment() && hasNoArea();
     }
 
     /**
@@ -645,25 +659,31 @@ struct Polygon {
      */
     template <class ResultNumber = division_result_t<NumberType>>
     constexpr Point<ResultNumber> centroid() const {
-        if (points_.empty()) {
-            return Point<ResultNumber>();
-        }
-        const auto areaTwice = signedTwiceArea();
-        if (points_.size() < 3 || areaTwice == NumberType(0)) {
+        if (points_.size() < 3) {
             return verticesCentroid<ResultNumber>();
         }
+        // The weights and the area they are divided by are summed in the same
+        // pass and the same type: taken from signedTwiceArea() the divisor
+        // would come back narrowed to NumberType, where an area past the
+        // coordinate range wraps and either sends a perfectly ordinary polygon
+        // down the no-area path or scales the answer by a wrapped divisor.
         ResultNumber cx = 0;
         ResultNumber cy = 0;
+        ResultNumber areaTwice = 0;
         const std::size_t n = points_.size();
         for (std::size_t i = 0; i < n; ++i) {
             const auto& p1 = points_[i];
             const auto& p2 = points_[(i + 1) % n];
             const ResultNumber cross = static_cast<ResultNumber>(p1.x()) * static_cast<ResultNumber>(p2.y())
                                      - static_cast<ResultNumber>(p2.x()) * static_cast<ResultNumber>(p1.y());
+            areaTwice += cross;
             cx += (static_cast<ResultNumber>(p1.x()) + static_cast<ResultNumber>(p2.x())) * cross;
             cy += (static_cast<ResultNumber>(p1.y()) + static_cast<ResultNumber>(p2.y())) * cross;
         }
-        const ResultNumber denom = ResultNumber(3) * static_cast<ResultNumber>(areaTwice);
+        if (areaTwice == ResultNumber(0)) {
+            return verticesCentroid<ResultNumber>();
+        }
+        const ResultNumber denom = ResultNumber(3) * areaTwice;
         return Point<ResultNumber>(cx / denom, cy / denom) + static_cast<Point<ResultNumber>>(translation_);
     }
 
@@ -2880,30 +2900,84 @@ struct Polygon {
      *
      * Positive for a counterclockwise boundary, negative for clockwise. The
      * translation is irrelevant to orientation, so it is ignored here.
+     *
+     * @tparam ResultNumber Type the terms are formed and accumulated in. The
+     *         terms are products of coordinates, so they leave @ref NumberType
+     *         long before the coordinates do; pass a promoted type wherever the
+     *         sum has to be trusted rather than merely reported.
      */
-    constexpr NumberType signedTwiceArea() const {
-        NumberType sum = 0;
+    template <class ResultNumber = NumberType>
+    constexpr ResultNumber signedTwiceArea() const {
+        ResultNumber sum = 0;
         const std::size_t n = points_.size();
         for (std::size_t i = 0; i < n; ++i) {
             const auto& p1 = points_[i];
             const auto& p2 = points_[(i + 1) % n];
-            sum += p1.x() * p2.y() - p2.x() * p1.y();
+            sum += static_cast<ResultNumber>(p1.x()) * static_cast<ResultNumber>(p2.y())
+                 - static_cast<ResultNumber>(p2.x()) * static_cast<ResultNumber>(p1.y());
         }
         return sum;
     }
 
     /**
+     * @brief Whether the shoelace sum vanishes, taken in the promoted type.
+     *
+     * The zero-area test the degeneracy predicates need. @ref twiceArea answers
+     * the same question in @ref NumberType, where an area past the coordinate
+     * range wraps to zero and reports an ordinary polygon as having none.
+     */
+    constexpr bool hasNoArea() const {
+        using Exact = detail::promoted_number_t<NumberType>;
+        return signedTwiceArea<Exact>() == Exact(0);
+    }
+
+    /**
+     * @brief Whether the boundary runs clockwise, decided at vertex @p pivot.
+     *
+     * @p pivot must be a lexicographically smallest vertex. On a simple polygon
+     * such a vertex is convex — no other vertex lies in the half-plane its two
+     * boundary neighbours are turned away from — so the turn it makes with them
+     * is the winding of the whole boundary. Vertices equal to the pivot are
+     * stepped over so a repeated vertex cannot hide that turn behind a
+     * zero-length edge.
+     */
+    constexpr bool windsClockwise(std::size_t pivot) const {
+        const std::size_t n = points_.size();
+        const PointType& vertex = points_[pivot];
+        std::size_t before = (pivot + n - 1) % n;
+        while (before != pivot && points_[before] == vertex) {
+            before = (before + n - 1) % n;
+        }
+        std::size_t after = (pivot + 1) % n;
+        while (after != pivot && points_[after] == vertex) {
+            after = (after + 1) % n;
+        }
+        return orientationSign(points_[before], vertex, points_[after]) < 0;
+    }
+
+    /**
      * @brief Brings the stored vertices to canonical form: counterclockwise,
      * with the lexicographically smallest vertex first.
+     *
+     * The winding comes from a single orientation sign at the lexicographically
+     * smallest vertex (see @ref windsClockwise), not from the shoelace sum: the
+     * sum is O(n) and lives in @ref NumberType, so an area past the coordinate
+     * range wraps and leaves the polygon uncanonicalized — and with it `==`,
+     * ordering, hashing and every canonical comparison broken on equal point
+     * sets. The orientation sign is O(1) and stays in the promoted type.
      */
     constexpr void normalize() {
         if (points_.empty()) {
             return;
         }
-        if (points_.size() >= 3 && signedTwiceArea() < NumberType(0)) {
+        auto minIt = std::min_element(points_.begin(), points_.end());
+        if (points_.size() >= 3 &&
+            windsClockwise(static_cast<std::size_t>(minIt - points_.begin()))) {
+            // Reversing relocates the smallest vertex, so it is found again
+            // rather than assumed to still sit where it did.
             std::reverse(points_.begin(), points_.end());
+            minIt = std::min_element(points_.begin(), points_.end());
         }
-        const auto minIt = std::min_element(points_.begin(), points_.end());
         std::rotate(points_.begin(), minIt, points_.end());
     }
 
