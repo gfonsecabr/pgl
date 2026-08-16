@@ -1,11 +1,14 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
 #include <array>
 #include <concepts>
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "pgl.hpp"
@@ -41,6 +44,51 @@ void checkCliqueCover(
         }
     }
     CHECK(covered.size() == static_cast<std::size_t>(graph.vertexCount()));
+}
+
+// Weight of an edge of the sample weighted graph; heavy for absent edges so a
+// caller can also use it on graphs where those edges exist.
+int sampleWeight(int u, int v) {
+    const std::map<std::pair<int, int>, int> weights{
+        {{1, 2}, 1},
+        {{2, 3}, 2},
+        {{3, 4}, 3},
+        {{1, 4}, 4},
+        {{1, 3}, 10},
+        {{10, 11}, 5},
+    };
+    const auto it = weights.find({std::min(u, v), std::max(u, v)});
+    return it == weights.end() ? 100 : it->second;
+}
+
+template <class Vertex, class WeightFunction>
+int totalWeight(const pgl::Graph<Vertex>& graph, WeightFunction weight) {
+    int result = 0;
+    for (const Vertex& vertex : graph) {
+        for (const Vertex& neighbor : graph.neighbors(vertex)) {
+            result += weight(vertex, neighbor);
+        }
+    }
+    return result / 2;
+}
+
+// A spanning forest has the same vertices and components as its graph, one
+// fewer edge than vertices in each of them, and only edges of the graph.
+template <class Vertex, class WeightFunction>
+void checkSpanningForest(const pgl::Graph<Vertex>& graph, WeightFunction weight) {
+    const pgl::Graph<Vertex> forest = graph.spanningTree(weight);
+
+    CHECK(forest.vertexCount() == graph.vertexCount());
+    CHECK(asSets(forest.components()) == asSets(graph.components()));
+    CHECK(forest.edgeCount() ==
+          graph.vertexCount() - static_cast<int>(graph.components().size()));
+
+    for (const Vertex& vertex : forest) {
+        CHECK(graph.containsVertex(vertex));
+        for (const Vertex& neighbor : forest.neighbors(vertex)) {
+            CHECK(graph.containsEdge(vertex, neighbor));
+        }
+    }
 }
 
 }  // namespace
@@ -247,4 +295,106 @@ TEST_CASE("Graph computes a DSATUR clique cover") {
         CHECK(cover[2].size() == 1);
         checkCliqueCover(graph, cover);
     }
+}
+
+TEST_CASE("Graph computes a minimum spanning tree with Prim") {
+    pgl::Graph<int> graph;
+    graph.addEdge(1, 2);
+    graph.addEdge(2, 3);
+    graph.addEdge(3, 4);
+    graph.addEdge(1, 4);
+    graph.addEdge(1, 3);
+
+    const pgl::Graph<int> tree = graph.spanningTree(sampleWeight);
+    checkSpanningForest(graph, sampleWeight);
+
+    // The cycle is broken at its two heaviest edges.
+    CHECK(tree.containsEdge(1, 2));
+    CHECK(tree.containsEdge(2, 3));
+    CHECK(tree.containsEdge(3, 4));
+    CHECK_FALSE(tree.containsEdge(1, 4));
+    CHECK_FALSE(tree.containsEdge(1, 3));
+    CHECK(totalWeight(tree, sampleWeight) == 6);
+}
+
+TEST_CASE("Graph spans each component of a disconnected graph") {
+    pgl::Graph<int> graph;
+    graph.addEdge(1, 2);
+    graph.addEdge(2, 3);
+    graph.addEdge(1, 3);
+    graph.addEdge(10, 11);
+    graph.addVertex(20);
+
+    const pgl::Graph<int> forest = graph.spanningTree(sampleWeight);
+    checkSpanningForest(graph, sampleWeight);
+
+    CHECK(forest.vertexCount() == 6);
+    CHECK(forest.edgeCount() == 3);
+    CHECK(forest.degree(20) == 0);
+    CHECK(forest.containsEdge(10, 11));
+    CHECK(totalWeight(forest, sampleWeight) == 8);
+}
+
+TEST_CASE("Graph spans degenerate graphs") {
+    SUBCASE("empty graph") {
+        const pgl::Graph<int> graph;
+        CHECK(graph.spanningTree(sampleWeight).vertexCount() == 0);
+    }
+
+    SUBCASE("edgeless graph") {
+        pgl::Graph<int> graph;
+        graph.addVertex(1);
+        graph.addVertex(2);
+
+        const pgl::Graph<int> forest = graph.spanningTree(sampleWeight);
+        CHECK(forest.vertexCount() == 2);
+        CHECK(forest.edgeCount() == 0);
+        checkSpanningForest(graph, sampleWeight);
+    }
+
+    SUBCASE("single edge") {
+        pgl::Graph<std::string> graph;
+        graph.addEdge("a", "b");
+
+        const auto weight = [](const std::string& u, const std::string& v) {
+            return static_cast<int>(u.size() + v.size());
+        };
+        const pgl::Graph<std::string> tree = graph.spanningTree(weight);
+        CHECK(tree.containsEdge("a", "b"));
+        checkSpanningForest(graph, weight);
+    }
+}
+
+TEST_CASE("Graph spans geometric vertices with an exact weight") {
+    using Point = pgl::Point<int>;
+
+    // A unit square plus a far vertex: the diagonals are the heaviest edges of
+    // the square, and the distant vertex attaches by its cheapest incident edge.
+    const Point a(0, 0);
+    const Point b(4, 0);
+    const Point c(4, 4);
+    const Point d(0, 4);
+    const Point distant(100, 0);
+
+    pgl::Graph<Point> graph;
+    for (const Point& u : {a, b, c, d, distant}) {
+        for (const Point& v : {a, b, c, d, distant}) {
+            graph.addEdge(u, v);
+        }
+    }
+
+    // The weight function picks the number type; squared distances stay exact
+    // in the coordinate type.
+    const auto weight = [](const Point& u, const Point& v) {
+        return u.squaredDistance(v);
+    };
+    static_assert(std::same_as<decltype(weight(a, b)), int>);
+
+    const pgl::Graph<Point> tree = graph.spanningTree(weight);
+    checkSpanningForest(graph, weight);
+
+    CHECK(tree.containsEdge(distant, b));
+    CHECK_FALSE(tree.containsEdge(a, c));
+    CHECK_FALSE(tree.containsEdge(b, d));
+    CHECK(totalWeight(tree, weight) == 3 * 16 + 96 * 96);
 }

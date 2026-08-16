@@ -13,6 +13,7 @@
 #include <optional>
 #include <queue>
 #include <stack>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -530,6 +531,81 @@ public:
         std::sort(result.begin(), result.end(), [](const auto& a, const auto& b) {
             return a.size() > b.size();
         });
+        return result;
+    }
+
+    /**
+     * @brief Computes a minimum spanning forest using Prim's algorithm.
+     *
+     * The tree of a connected graph is a minimum spanning tree. A disconnected
+     * graph yields one minimum spanning tree per connected component, so the
+     * result always contains every vertex of this graph, isolated ones
+     * included. Ties between equally heavy edges are broken by the graph's
+     * unspecified iteration order.
+     *
+     * The frontier is a lazy binary heap (`std::priority_queue`): an edge is
+     * pushed when one endpoint enters the tree and discarded when popped if
+     * its other endpoint has since been reached. Complexity is
+     * $O(m \log m)$ weight comparisons and $O(m)$ calls to @p weight for a
+     * graph with $m$ edges.
+     *
+     * @tparam WeightFunction Callable taking two vertices and returning a
+     * copyable, less-than-comparable edge weight; the weight type is chosen by
+     * the callable.
+     * @param weight Edge weight function. It must be symmetric, otherwise
+     * which of the two values is used for an edge is unspecified.
+     * @return A minimum spanning forest of this graph.
+     */
+    template <class WeightFunction>
+    [[nodiscard]] Graph spanningTree(WeightFunction weight) const {
+        using Weight = std::invoke_result_t<WeightFunction&, const Vertex&, const Vertex&>;
+
+        struct Candidate {
+            Weight weight;
+            Vertex from;
+            Vertex to;
+        };
+
+        // A priority_queue pops its largest element, so order edges by
+        // decreasing weight to obtain the lightest frontier edge.
+        const auto heavier = [](const Candidate& a, const Candidate& b) {
+            return b.weight < a.weight;
+        };
+
+        Graph result;
+        NeighborSet visited;
+        std::priority_queue<Candidate, std::vector<Candidate>, decltype(heavier)> frontier(heavier);
+
+        const auto pushIncidentEdges = [&](const Vertex& vertex) {
+            for (const Vertex& neighbor : adjacency_.at(vertex)) {
+                if (!visited.contains(neighbor)) {
+                    frontier.push(Candidate{weight(vertex, neighbor), vertex, neighbor});
+                }
+            }
+        };
+
+        for (const auto& entry : adjacency_) {
+            if (visited.contains(entry.first)) {
+                continue;
+            }
+
+            // Grow one tree per connected component. The frontier is empty
+            // again once a component is exhausted, so it can be reused.
+            visited.insert(entry.first);
+            result.addVertex(entry.first);
+            pushIncidentEdges(entry.first);
+
+            while (!frontier.empty()) {
+                const Candidate best = frontier.top();
+                frontier.pop();
+                if (!visited.insert(best.to).second) {
+                    continue;
+                }
+                result.addEdge(best.from, best.to);
+                pushIncidentEdges(best.to);
+            }
+        }
+
         return result;
     }
 
