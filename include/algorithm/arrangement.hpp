@@ -626,6 +626,40 @@ public:
         return halfedges;
     }
 
+    /**
+     * @brief Returns the vertex-edge incidence structure as a @ref Graph.
+     *
+     * Every vertex of the arrangement is a graph vertex, isolated ones
+     * included, and every edge becomes the graph edge joining the handles of
+     * its two endpoints. When the arrangement has a symbolic vertex at
+     * infinity (@ref isUnbounded), that vertex is one of them, so a ray reaches
+     * it just as it does in the halfedge structure.
+     *
+     * The vertices are @ref VertexId handles rather than points because a point
+     * does not name a vertex on its own: the vertex at infinity has none.
+     * @ref operator[] turns a finite handle back into its position, and
+     * @ref isFictitious recognizes the infinite one.
+     *
+     * A @ref Graph is simple, so the two things the arrangement can hold and it
+     * cannot are dropped. A line's two ends are the same infinity vertex, so it
+     * contributes a self-loop and hence no graph edge; and two edges sharing
+     * both endpoints — two rays leaving the same vertex, which meet again at
+     * infinity — are coalesced into one. Both are exactly the cases where the
+     * graph would have to distinguish edges that its adjacency sets cannot.
+     *
+     * Complexity: `O(V + E)`.
+     */
+    [[nodiscard]] Graph<VertexId> asGraph() const {
+        Graph<VertexId> result;
+        for (std::uint32_t v = 0; v < topologicalVertexCount(); ++v) {
+            result.addVertex(VertexId(v));
+        }
+        for (std::size_t h = 0; h < origin_.size(); h += 2) {
+            result.addEdge(VertexId(origin_[h]), VertexId(origin_[h + 1]));
+        }
+        return result;
+    }
+
     // -------------------------------------------------------------------------
     // The uniform cell interface
 

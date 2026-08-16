@@ -2256,3 +2256,77 @@ TEST_CASE("convexCovering of an empty triangulation is empty") {
     const pgl::Triangulation<pgl::Triangle<Point>> triangulation;
     CHECK(triangulation.convexCovering().empty());
 }
+
+TEST_CASE("asGraph is the 1-skeleton of the mesh") {
+    using Point = pgl::Point<int>;
+
+    const pgl::Triangulation<pgl::Triangle<Point>> empty;
+    CHECK(empty.asGraph().vertexCount() == 0);
+    CHECK(empty.asGraph().edgeCount() == 0);
+
+    // A square with its center: four boundary edges, four spokes, and one
+    // diagonal-free interior vertex of degree four.
+    const std::vector<Point> pts{Point(0, 0), Point(4, 0), Point(4, 4),
+                                 Point(0, 4), Point(2, 2)};
+    const pgl::Triangulation<pgl::Triangle<Point>> tri(pts);
+    const pgl::Graph<Point> graph = tri.asGraph();
+    CHECK(graph.vertexCount() == static_cast<int>(tri.numVertices()));
+    CHECK(graph.edgeCount() == static_cast<int>(tri.numEdges()));
+    CHECK(graph.degree(Point(2, 2)) == 4);
+    CHECK(graph.components().size() == 1);
+    for (const auto& p : pts) {
+        CHECK(graph.containsVertex(p));
+    }
+    for (const auto& e : tri.edges()) {
+        CHECK(graph.containsEdge(e[0], e[1]));
+    }
+    // The ghost vertex closing the mesh is internal, and its stored point is
+    // the default-constructed one, which is a real vertex here.
+    CHECK(graph.degree(Point(0, 0)) == 3);
+
+    // Collinear points carry no triangle and hence no edge, but they are still
+    // vertices of the triangulation and so of its graph.
+    const pgl::Triangulation<pgl::Triangle<Point>> flat(
+        std::vector<Point>{Point(0, 0), Point(1, 1), Point(2, 2)});
+    const pgl::Graph<Point> flatGraph = flat.asGraph();
+    CHECK(flat.numTriangles() == 0);
+    CHECK(flatGraph.vertexCount() == 3);
+    CHECK(flatGraph.edgeCount() == 0);
+    CHECK(flatGraph.components().size() == 3);
+}
+
+TEST_CASE("asGraph sees only the triangulated domain of a polygon") {
+    using Point = pgl::Point<int>;
+
+    // The reflex corner of an L makes the hull triangles outside the polygon
+    // out-of-domain, so the graph must not hold the chord that closes the hull.
+    const pgl::Polygon<Point> ell(std::vector<Point>{
+        Point(0, 0), Point(4, 0), Point(4, 1),
+        Point(1, 1), Point(1, 4), Point(0, 4)});
+    const auto triangulation = ell.triangulation();
+    const pgl::Graph<Point> graph = triangulation.asGraph();
+    CHECK(graph.vertexCount() == static_cast<int>(triangulation.numVertices()));
+    CHECK(graph.edgeCount() == static_cast<int>(triangulation.numEdges()));
+    CHECK(graph.vertexCount() == 6);
+    CHECK_FALSE(graph.containsEdge(Point(4, 0), Point(0, 4)));
+    CHECK_FALSE(graph.containsEdge(Point(4, 1), Point(1, 4)));
+    for (const auto& e : ell.edges()) {
+        CHECK(graph.containsEdge(e[0], e[1]));
+    }
+
+    // Every mesh edge of the graph is an edge of the mesh, and conversely.
+    const auto edges = triangulation.edges();
+    for (const Point& u : graph) {
+        for (const Point& v : graph.neighbors(u)) {
+            CHECK(triangulation.has(pgl::Segment<Point>(u, v)));
+        }
+    }
+    CHECK(2 * static_cast<int>(edges.size()) ==
+          [&] {
+              int sum = 0;
+              for (const Point& u : graph) {
+                  sum += graph.degree(u);
+              }
+              return sum;
+          }());
+}

@@ -866,6 +866,34 @@ struct Triangulation {
         return out;
     }
 
+    /**
+     * @brief Returns the mesh's vertices and edges as a @ref Graph.
+     *
+     * The graph is the 1-skeleton of the triangulation: its vertices are the
+     * @ref numVertices stored points and its edges are the @ref numEdges edges
+     * of the visible mesh, so a vertex left without any incident in-domain edge
+     * — one duplicated or collinear with every other point, which carries no
+     * triangle — comes back as an isolated graph vertex rather than not at all.
+     * The ghost vertex closing the mesh at infinity is internal and is not one
+     * of them.
+     *
+     * The points are the graph's vertices, since a point identifies a vertex of
+     * a triangulation, unlike @ref Arrangement::asGraph where the vertex at
+     * infinity forces the use of handles. Edge labels have no place in a graph
+     * and are dropped; @ref label recovers the label of an edge from its
+     * endpoints.
+     *
+     * Complexity: `O(V + E)`.
+     */
+    [[nodiscard]] Graph<PointType> asGraph() const {
+        Graph<PointType> result;
+        for (VertexId v = GHOST + 1; v < static_cast<VertexId>(vertices_.size()); ++v) {
+            result.addVertex(vertices_[v]);
+        }
+        visitEdges([&](const SegmentType& s) { result.addEdge(s[0], s[1]); });
+        return result;
+    }
+
   private:
     friend struct detail::ConvexCoverBuilder;
 
