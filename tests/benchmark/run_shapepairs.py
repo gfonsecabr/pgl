@@ -141,6 +141,7 @@ ALL_METHODS = [
     "squaredHausdorffDistance",
     "hausdorffDistanceL1",
     "hausdorffDistanceLInf",
+    "samePointSet"
 ]
 
 # Ground-truth type for cross-type comparison
