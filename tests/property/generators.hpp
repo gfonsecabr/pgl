@@ -341,6 +341,33 @@ inline bool buildRegionFromDifference(const std::vector<PointShape>& p, AnyShape
     return accept(region, out);
 }
 
+// A rectangle with a diamond hole inscribed in it, touching all four sides. The
+// region is connected, but its interior comes apart into four corner pieces,
+// and a set covering it has to hold them one at a time — the case no generator
+// above draws, since a boolean operation never emits a boundary that pinches.
+// The corners are doubled so the side midpoints the diamond needs stay on the
+// lattice.
+inline bool buildPinchedRegion(const std::vector<PointShape>& p, AnyShape& out) {
+    const Coord left = 2 * std::min(p[0].x(), p[1].x());
+    const Coord right = 2 * std::max(p[0].x(), p[1].x());
+    const Coord bottom = 2 * std::min(p[0].y(), p[1].y());
+    const Coord top = 2 * std::max(p[0].y(), p[1].y());
+    if (left == right || bottom == top) {
+        return false;  // no area, hence nothing to pinch apart
+    }
+    const Coord midX = (left + right) / 2;
+    const Coord midY = (bottom + top) / 2;
+    const RegionShape region(
+        PolygonShape({PointShape(left, bottom), PointShape(right, bottom), PointShape(right, top),
+                      PointShape(left, top)}),
+        std::vector{PolygonShape({PointShape(left, midY), PointShape(midX, top),
+                                  PointShape(right, midY), PointShape(midX, bottom)})});
+    if (!region.isValid()) {
+        return false;
+    }
+    return accept(region, out);
+}
+
 inline bool buildRegionSetFromUnion(const std::vector<PointShape>& p, AnyShape& out) {
     const RectangleShape first(p[0], p[1]);
     const RectangleShape second(p[2], p[3]);
@@ -422,6 +449,7 @@ inline const std::vector<Generator>& generators() {
         {"PolygonWithHoles.polyomino", 2, 2, kRegion | kAffine | kAxisFree, detail::buildPolyominoRegion},
         {"PolygonWithHoles.ring", 3, 6, kRegion | kAffine | kAxisFree, detail::buildRegionFromRing},
         {"PolygonWithHoles.carved", 4, 4, kRegion | kAffine | kAxisFree, detail::buildRegionFromDifference},
+        {"PolygonWithHoles.pinched", 2, 2, kRegion | kAffine | kAxisFree, detail::buildPinchedRegion},
         {"PolygonSet.union", 4, 4, kRegion | kAffine | kAxisFree, detail::buildRegionSetFromUnion},
         {"PolygonSet.carved", 4, 4, kRegion | kAffine | kAxisFree, detail::buildRegionSetFromDifference},
         {"HalfplaneIntersection", 2, 8, kAffine | kAxisFree, detail::buildHalfplaneIntersection},

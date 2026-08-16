@@ -1498,6 +1498,42 @@ struct PolygonSet {
     bool chainIn(const OtherChain& chain, bool boundaryOnly) const;
 
     /**
+     * @brief Tests whether a region lies in the set when no single component
+     *        holds it.
+     *
+     * The two-dimensional case no single component need settle. A region is
+     * connected, but its *interior* need not be — a hole touching the outer
+     * boundary pinches it apart — and each piece of that interior may go to a
+     * different component. Three conditions decide it, and together they are
+     * exactly `A ⊇ B`:
+     *
+     * - **The boundary.** `∂B` is one-dimensional, so every edge of it goes
+     *   through @ref segmentIn, which lets the components share an edge.
+     * - **No component boundary inside `B°`.** An edge of `∂Aᵢ` has `Aᵢ°` on at
+     *   most one side, and the other side is in no component either — a second
+     *   one there would share a stretch of edge with the first, which
+     *   @ref isValid rules out. So an edge that meets `B°` at all meets it in a
+     *   stretch (an open set cut by a segment leaves an interval) and drags a
+     *   piece of `B°` out of the set with it.
+     * - **One witness per piece of `B°`.** With no component boundary crossing
+     *   it, each connected piece of `B°` lies wholly inside the set or wholly
+     *   outside, so one point settles it. The witnesses come from the vertical
+     *   strips between consecutive vertex abscissas of `B`: a piece is bounded
+     *   left and right by vertices of `B` — its own edges cross nowhere but at
+     *   their endpoints, `B` being valid — so it spans a whole strip and is met
+     *   by the vertical line down the middle of that one, where the edges
+     *   crossing the line cut the pieces out along it.
+     *
+     * Exact: the strip midpoints and the crossings along them are held over the
+     * pair's exact rational type, as in @ref segmentIn.
+     *
+     * Complexity: `O(nB)` strips, each cut by the `O(nB)` edges of the operand,
+     * with one point location per component per elementary interval.
+     */
+    template <class OtherRegion>
+    bool regionIn(const OtherRegion& region) const;
+
+    /**
      * @brief The smallest value of @p distance over the components.
      *
      * The minimum is held in whatever type a component answers in, which is not

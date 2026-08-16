@@ -200,6 +200,11 @@ TEST_CASE("samePointSet matches a diamond hole with its four corner components")
 
     CHECK(withDiamondHole.samePointSet(fourCorners));
     CHECK(fourCorners.samePointSet(withDiamondHole));
+
+    // Equality is mutual containment, and it stays so here: the region has to
+    // reach the set one corner at a time, no component holding the whole of it.
+    CHECK(withDiamondHole.contains(fourCorners));
+    CHECK(fourCorners.contains(withDiamondHole));
 }
 
 TEST_CASE("samePointSet preserves a seam where a hole touches its outer boundary") {
