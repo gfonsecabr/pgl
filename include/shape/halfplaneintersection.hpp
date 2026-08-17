@@ -634,9 +634,13 @@ struct HalfplaneIntersection {
         return halfplanes_;
     }
 
+    /** @brief Returns a constant iterator to the first half-plane, in boundary order. */
     constexpr auto begin() const { return halfplanes_.cbegin(); }
+    /** @brief Returns a constant iterator to the first half-plane, in boundary order. */
     constexpr auto cbegin() const { return halfplanes_.cbegin(); }
+    /** @brief Returns a constant iterator past the last half-plane. */
     constexpr auto end() const { return halfplanes_.cend(); }
+    /** @brief Returns a constant iterator past the last half-plane. */
     constexpr auto cend() const { return halfplanes_.cend(); }
 
     /**

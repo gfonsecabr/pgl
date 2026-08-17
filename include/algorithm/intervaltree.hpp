@@ -19,7 +19,7 @@
 
 namespace pgl {
 
-/** Axis used to project a shape's bounding box into an interval. */
+/** @brief Axis used to project a shape's bounding box into an interval. */
 enum class ProjectionAxis { x, y };
 
 namespace detail {
@@ -552,7 +552,7 @@ class IntervalTree {
   public:
     IntervalTree() = default;
 
-    /** Builds a tree by inserting every shape in @p shapes. */
+    /** @brief Builds a tree by inserting every shape in @p shapes. */
     template <class Container>
     explicit IntervalTree(const Container& shapes) {
         if constexpr (requires { shapes.size(); }) {
@@ -569,25 +569,31 @@ class IntervalTree {
         }
     }
 
+    /** @brief Returns the number of stored shapes. */
     [[nodiscard]] std::size_t size() const {
         return elements_.size();
     }
 
+    /** @brief Returns whether no shape is stored. */
     [[nodiscard]] bool empty() const {
         return elements_.empty();
     }
 
-    /** Returns the stored shapes in internal storage order. */
+    /** @brief Returns the stored shapes in internal storage order. */
     [[nodiscard]] const std::vector<ShapeType>& shapes() const {
         return elements_;
     }
 
+    /** @brief Returns a constant iterator to the first stored shape. */
     [[nodiscard]] const_iterator begin() const { return elements_.begin(); }
+    /** @brief Returns a constant iterator past the last stored shape. */
     [[nodiscard]] const_iterator end() const { return elements_.end(); }
+    /** @brief Returns a constant iterator to the first stored shape. */
     [[nodiscard]] const_iterator cbegin() const { return elements_.cbegin(); }
+    /** @brief Returns a constant iterator past the last stored shape. */
     [[nodiscard]] const_iterator cend() const { return elements_.cend(); }
 
-    /** Inserts @p shape and its selected closed bounding-box interval. */
+    /** @brief Inserts @p shape and its selected closed bounding-box interval. */
     void insert(const ShapeType& shape) {
         const auto [low, high] = project(shape);
         if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
@@ -629,7 +635,7 @@ class IntervalTree {
         return true;
     }
 
-    /** Returns whether a shape equal to @p shape is stored. */
+    /** @brief Returns whether a shape equal to @p shape is stored. */
     [[nodiscard]] bool has(const ShapeType& shape) const {
         if (root_ == invalidNode) {
             return false;
@@ -638,7 +644,7 @@ class IntervalTree {
         return findEqualNode(shape, low, high) != invalidNode;
     }
 
-    /** Counts shapes whose projected interval intersects the projection of @p q. */
+    /** @brief Counts shapes whose projected interval intersects the projection of @p q. */
     template <class Q>
     [[nodiscard]] std::size_t countProjectionsIntersecting(const Q& q) const {
         if (root_ == invalidNode) {
@@ -648,7 +654,7 @@ class IntervalTree {
         return countIntersecting(root_, low, high);
     }
 
-    /** Returns copies of shapes whose projected interval intersects that of @p q. */
+    /** @brief Returns copies of shapes whose projected interval intersects that of @p q. */
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportProjectionsIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
@@ -660,7 +666,7 @@ class IntervalTree {
         return out;
     }
 
-    /** Visits projected-interval intersections, stopping early if @p fn returns true. */
+    /** @brief Visits projected-interval intersections, stopping early if @p fn returns true. */
     template <class Q, class Fn>
     bool visitProjectionsIntersecting(const Q& q, Fn fn) const {
         if (root_ == invalidNode) {
@@ -670,13 +676,13 @@ class IntervalTree {
         return visitIntersecting(root_, low, high, fn);
     }
 
-    /** Returns whether no stored projected interval intersects the projection of @p q. */
+    /** @brief Returns whether no stored projected interval intersects the projection of @p q. */
     template <class Q>
     [[nodiscard]] bool emptyProjectionsIntersecting(const Q& q) const {
         return visitProjectionsIntersecting(q, [](const ShapeType&) { return true; }) == false;
     }
 
-    /** Counts shapes whose projected interval is contained in the projection of @p q. */
+    /** @brief Counts shapes whose projected interval is contained in the projection of @p q. */
     template <class Q>
     [[nodiscard]] std::size_t countProjectionsContainedIn(const Q& q) const {
         if (root_ == invalidNode) {
@@ -686,7 +692,7 @@ class IntervalTree {
         return countContainedIn(root_, low, high);
     }
 
-    /** Returns copies of shapes whose projected interval is contained in that of @p q. */
+    /** @brief Returns copies of shapes whose projected interval is contained in that of @p q. */
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportProjectionsContainedIn(const Q& q) const {
         std::vector<ShapeType> out;
@@ -698,7 +704,7 @@ class IntervalTree {
         return out;
     }
 
-    /** Visits projected intervals contained in @p q, stopping early if @p fn returns true. */
+    /** @brief Visits projected intervals contained in @p q, stopping early if @p fn returns true. */
     template <class Q, class Fn>
     bool visitProjectionsContainedIn(const Q& q, Fn fn) const {
         if (root_ == invalidNode) {
@@ -708,7 +714,7 @@ class IntervalTree {
         return visitContainedIn(root_, low, high, fn);
     }
 
-    /** Returns whether no stored projected interval is contained in that of @p q. */
+    /** @brief Returns whether no stored projected interval is contained in that of @p q. */
     template <class Q>
     [[nodiscard]] bool emptyProjectionsContainedIn(const Q& q) const {
         return visitProjectionsContainedIn(q, [](const ShapeType&) { return true; }) == false;
@@ -727,7 +733,7 @@ class IntervalTree {
         return count;
     }
 
-    /** Returns copies of stored shapes that geometrically intersect @p q. */
+    /** @brief Returns copies of stored shapes that geometrically intersect @p q. */
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportIntersecting(const Q& q) const {
         std::vector<ShapeType> out;
@@ -750,7 +756,7 @@ class IntervalTree {
         return visitShapeIntersecting(root_, low, high, q, fn);
     }
 
-    /** Returns whether no stored shape geometrically intersects @p q. */
+    /** @brief Returns whether no stored shape geometrically intersects @p q. */
     template <class Q>
     [[nodiscard]] bool emptyIntersecting(const Q& q) const {
         return !visitIntersecting(q, [](const ShapeType&) { return true; });
@@ -769,7 +775,7 @@ class IntervalTree {
         return count;
     }
 
-    /** Returns copies of stored shapes geometrically contained in @p q. */
+    /** @brief Returns copies of stored shapes geometrically contained in @p q. */
     template <class Q>
     [[nodiscard]] std::vector<ShapeType> reportContainedIn(const Q& q) const {
         std::vector<ShapeType> out;
@@ -777,7 +783,7 @@ class IntervalTree {
         return out;
     }
 
-    /** Visits stored shapes geometrically contained in @p q. */
+    /** @brief Visits stored shapes geometrically contained in @p q. */
     template <class Q, class Fn>
     bool visitContainedIn(const Q& q, Fn fn) const {
         if (root_ == invalidNode) {
@@ -787,7 +793,7 @@ class IntervalTree {
         return visitShapeContainedIn(root_, low, high, q, fn);
     }
 
-    /** Returns whether no stored shape is geometrically contained in @p q. */
+    /** @brief Returns whether no stored shape is geometrically contained in @p q. */
     template <class Q>
     [[nodiscard]] bool emptyContainedIn(const Q& q) const {
         return !visitContainedIn(q, [](const ShapeType&) { return true; });
