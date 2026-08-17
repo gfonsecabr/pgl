@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <path d="M 25,625 775,625 775,175 25,175 Z M 175,220 265,220 175,535 Z M 700,287.5 700,475 610,475 Z M 400,325 490,325 490,565 400,565 Z" fill-rule="evenodd" stroke="#94a3b8" fill="#e2e8f0" fill-opacity="1" stroke-opacity="1" stroke-width="2px" vector-effect="non-scaling-stroke"><title>PolygonWithHoles[Polygon[(0,0),(100,0),(100,60),(0,60)],Polygon[(20,12),(32,54),(20,54)],Polygon[(78,20),(90,20),(90,45)],Polygon[(50,8),(62,8),(62,40),(50,40)]]</title></path>
+  <line x1="25" y1="625" x2="25" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(0,60)</title></line>
+  <line x1="25" y1="625" x2="175" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(20,54)</title></line>
+  <line x1="25" y1="625" x2="175" y2="535" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(20,12)</title></line>
+  <line x1="25" y1="625" x2="400" y2="565" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(50,8)</title></line>
+  <line x1="25" y1="625" x2="490" y2="565" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(62,8)</title></line>
+  <line x1="25" y1="625" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,0)--(100,0)</title></line>
+  <line x1="25" y1="175" x2="265" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,60)--(32,54)</title></line>
+  <line x1="25" y1="175" x2="175" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,60)--(20,54)</title></line>
+  <line x1="25" y1="175" x2="175" y2="535" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,60)--(20,12)</title></line>
+  <line x1="25" y1="175" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,60)--(90,45)</title></line>
+  <line x1="25" y1="175" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(0,60)--(100,60)</title></line>
+  <line x1="490" y1="325" x2="610" y2="475" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,40)--(78,20)</title></line>
+  <line x1="490" y1="325" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,40)--(90,45)</title></line>
+  <line x1="490" y1="325" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,40)--(100,60)</title></line>
+  <line x1="775" y1="625" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(100,0)--(100,60)</title></line>
+  <line x1="700" y1="475" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(90,20)--(100,0)</title></line>
+  <line x1="700" y1="475" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(90,20)--(90,45)</title></line>
+  <line x1="700" y1="475" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(90,20)--(100,60)</title></line>
+  <line x1="490" y1="565" x2="610" y2="475" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(78,20)</title></line>
+  <line x1="490" y1="565" x2="700" y2="475" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(90,20)</title></line>
+  <line x1="490" y1="565" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(90,45)</title></line>
+  <line x1="490" y1="565" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(100,0)</title></line>
+  <line x1="490" y1="565" x2="490" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(62,40)</title></line>
+  <line x1="490" y1="565" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(62,8)--(100,60)</title></line>
+  <line x1="610" y1="475" x2="700" y2="475" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(78,20)--(90,20)</title></line>
+  <line x1="610" y1="475" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(78,20)--(90,45)</title></line>
+  <line x1="610" y1="475" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(78,20)--(100,0)</title></line>
+  <line x1="400" y1="565" x2="400" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,8)--(50,40)</title></line>
+  <line x1="400" y1="565" x2="490" y2="565" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,8)--(62,8)</title></line>
+  <line x1="400" y1="565" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,8)--(100,0)</title></line>
+  <line x1="265" y1="220" x2="400" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(32,54)--(50,40)</title></line>
+  <line x1="265" y1="220" x2="400" y2="565" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(32,54)--(50,8)</title></line>
+  <line x1="265" y1="220" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(32,54)--(90,45)</title></line>
+  <line x1="265" y1="220" x2="490" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(32,54)--(62,40)</title></line>
+  <line x1="265" y1="220" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(32,54)--(100,60)</title></line>
+  <line x1="175" y1="535" x2="175" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,12)--(20,54)</title></line>
+  <line x1="175" y1="535" x2="400" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,12)--(50,40)</title></line>
+  <line x1="175" y1="535" x2="265" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,12)--(32,54)</title></line>
+  <line x1="175" y1="535" x2="400" y2="565" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,12)--(50,8)</title></line>
+  <line x1="175" y1="535" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,12)--(100,0)</title></line>
+  <line x1="700" y1="287.5" x2="775" y2="625" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(90,45)--(100,0)</title></line>
+  <line x1="700" y1="287.5" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(90,45)--(100,60)</title></line>
+  <line x1="175" y1="220" x2="265" y2="220" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,54)--(32,54)</title></line>
+  <line x1="175" y1="220" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(20,54)--(100,60)</title></line>
+  <line x1="400" y1="325" x2="700" y2="287.5" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,40)--(90,45)</title></line>
+  <line x1="400" y1="325" x2="490" y2="325" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,40)--(62,40)</title></line>
+  <line x1="400" y1="325" x2="775" y2="175" stroke="#bfdbfe" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="1px" vector-effect="non-scaling-stroke"><title>(50,40)--(100,60)</title></line>
+  <polyline points="775,625 610,475 490,325 265,220 25,175" stroke="#ea580c" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="3px" vector-effect="non-scaling-stroke"><title>Polyline[(100,0),(78,20),(62,40),(32,54),(0,60)]</title></polyline>
+  <circle cx="775" cy="625" r="5" stroke="#1d4ed8" fill="#1d4ed8" fill-opacity="1" stroke-opacity="1" stroke-width="3px" vector-effect="non-scaling-stroke"><title>(100,0)</title></circle>
+  <circle cx="25" cy="175" r="5" stroke="#1d4ed8" fill="#1d4ed8" fill-opacity="1" stroke-opacity="1" stroke-width="3px" vector-effect="non-scaling-stroke"><title>(0,60)</title></circle>
+</svg>
