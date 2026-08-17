@@ -11,9 +11,70 @@
 #include <cassert>
 #include <map>
 #include <set>
+#include <type_traits>
 
 
 namespace pgl {
+
+namespace detail {
+
+/**
+ * @brief The crossing point of two non-parallel carriers.
+ *
+ * With `r = a2 - a1` and `s = b2 - b1` the two direction vectors, the crossing
+ * is `a1 + (cross(b1 - a1, s) / cross(r, s)) * r`. Taken as a displacement from
+ * @p a1 like that, every factor is a coordinate *difference*, so the arithmetic
+ * spans the extent of the input rather than its distance to the origin, and an
+ * exact coordinate type lands exactly on every crossing it can represent — the
+ * single division is the only step that can lose anything.
+ *
+ * `cross(b1 - a1, s) * r` is cubic in those differences, one degree above the
+ * products a sign predicate promotes for, so exact coordinates are widened two
+ * promotions to hold it, the same widening @ref inCircleDeterminant needs for
+ * its quartic determinant. Floating-point coordinates have no exactness to
+ * protect and are computed in the result type instead.
+ *
+ * @pre The carriers are not parallel: `cross(r, s)` does not vanish. The callers
+ *      have all established that with an exact predicate before arriving here.
+ */
+template <class ResultNumber, class ResultLabel, PointConcept APoint, PointConcept BPoint>
+constexpr Point<ResultNumber, ResultLabel> carrierCrossing(
+    const APoint& a1, const APoint& a2, const BPoint& b1, const BPoint& b2) {
+    using InputNumber = std::common_type_t<typename APoint::NumberType,
+                                           typename BPoint::NumberType>;
+    using Coordinate =
+        std::conditional_t<std::floating_point<InputNumber>, ResultNumber,
+                           promoted_number_t<promoted_number_t<InputNumber>>>;
+
+    const auto wide = [](const auto& value) { return static_cast<Coordinate>(value); };
+    const Coordinate rx = wide(a2.x()) - wide(a1.x());
+    const Coordinate ry = wide(a2.y()) - wide(a1.y());
+    const Coordinate sx = wide(b2.x()) - wide(b1.x());
+    const Coordinate sy = wide(b2.y()) - wide(b1.y());
+    const Coordinate ox = wide(b1.x()) - wide(a1.x());
+    const Coordinate oy = wide(b1.y()) - wide(a1.y());
+
+    const Coordinate determinant = rx * sy - ry * sx;
+    const Coordinate along = ox * sy - oy * sx;
+
+    // An integral result divides in the wide type, where the division is exact
+    // for a crossing that lands on the grid; every other result type divides in
+    // itself, which is where its own exactness lives.
+    const auto ratio = [&determinant](const Coordinate& numerator) {
+        if constexpr (std::integral<ResultNumber>) {
+            return static_cast<ResultNumber>(numerator / determinant);
+        } else {
+            return static_cast<ResultNumber>(numerator) /
+                   static_cast<ResultNumber>(determinant);
+        }
+    };
+
+    return Point<ResultNumber, ResultLabel>(
+        static_cast<ResultNumber>(a1.x()) + ratio(along * rx),
+        static_cast<ResultNumber>(a1.y()) + ratio(along * ry));
+}
+
+}  // namespace detail
 
 // -----------------------------------------------------------------------------
 // Point
@@ -99,23 +160,10 @@ Segment<PointType, LabelType>::intersection(const OtherSegment& other) const {
     }
 
     if (d1 != d2 && d3 != d4) {
-        const auto x1 = static_cast<ResultNumber>(min().x());
-        const auto y1 = static_cast<ResultNumber>(min().y());
-        const auto x2 = static_cast<ResultNumber>(max().x());
-        const auto y2 = static_cast<ResultNumber>(max().y());
-        const auto x3 = static_cast<ResultNumber>(other.min().x());
-        const auto y3 = static_cast<ResultNumber>(other.min().y());
-        const auto x4 = static_cast<ResultNumber>(other.max().x());
-        const auto y4 = static_cast<ResultNumber>(other.max().y());
-
-        const ResultNumber determinant = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-        const ResultNumber line1 = x1 * y2 - y1 * x2;
-        const ResultNumber line2 = x3 * y4 - y3 * x4;
-
-        const ResultNumber px = (line1 * (x3 - x4) - (x1 - x2) * line2) / determinant;
-        const ResultNumber py = (line1 * (y3 - y4) - (y1 - y2) * line2) / determinant;
-
-        return Point<ResultNumber, typename PointType::LabelType>(px, py);
+        // The four orientations above have established that the segments cross
+        // properly, so their carriers are not parallel.
+        return detail::carrierCrossing<ResultNumber, typename PointType::LabelType>(
+            min(), max(), other.min(), other.max());
     }
 
     return {};
@@ -189,23 +237,9 @@ Line<PointType, LabelType>::intersection(const OtherLine& other) const {
         return {};
     }
 
-    const auto x1 = static_cast<ResultNumber>(min().x());
-    const auto y1 = static_cast<ResultNumber>(min().y());
-    const auto x2 = static_cast<ResultNumber>(max().x());
-    const auto y2 = static_cast<ResultNumber>(max().y());
-    const auto x3 = static_cast<ResultNumber>(other.min().x());
-    const auto y3 = static_cast<ResultNumber>(other.min().y());
-    const auto x4 = static_cast<ResultNumber>(other.max().x());
-    const auto y4 = static_cast<ResultNumber>(other.max().y());
-
-    const ResultNumber determinant = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-    const ResultNumber line1 = x1 * y2 - y1 * x2;
-    const ResultNumber line2 = x3 * y4 - y3 * x4;
-
-    const ResultNumber px = (line1 * (x3 - x4) - (x1 - x2) * line2) / determinant;
-    const ResultNumber py = (line1 * (y3 - y4) - (y1 - y2) * line2) / determinant;
-
-    return ResultPoint(px, py);
+    // Neither line is degenerate and they are not parallel, so they cross once.
+    return detail::carrierCrossing<ResultNumber, typename PointType::LabelType>(
+        min(), max(), other.min(), other.max());
 }
 
 template <class PointType, class LabelType>
