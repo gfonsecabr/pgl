@@ -535,13 +535,21 @@ struct Shape {
      * `Rectangle`.
      */
     ///@{
+// The doc comments below are part of the expansion on purpose: a description on
+// the enclosing @name group documents the group, not its members, which would
+// leave all 51 generated methods without a @brief of their own.
 #define PGL_SHAPE_ALTERNATIVE(Name, Type)                        \
+    /** @brief Tests whether the stored alternative is Name. */  \
     [[nodiscard]] constexpr bool is##Name() const {              \
         return std::holds_alternative<Type>(value_);             \
     }                                                            \
+    /** @brief Returns a pointer to the stored Name, or `nullptr` \
+        when another alternative is active. */                   \
     [[nodiscard]] constexpr const Type* getIf##Name() const {    \
         return std::get_if<Type>(&value_);                       \
     }                                                            \
+    /** @brief Returns a pointer to the stored Name, or `nullptr` \
+        when another alternative is active. */                   \
     [[nodiscard]] constexpr Type* getIf##Name() {                \
         return std::get_if<Type>(&value_);                       \
     }

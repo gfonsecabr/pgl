@@ -1888,7 +1888,7 @@ private:
     }
 
     /**
-     * Splits every input segment at every point where another input segment, or
+     * @brief Splits every input segment at every point where another input segment, or
      * an isolated input point, meets it, so that the pieces meet each other only
      * at shared endpoints.
      *
@@ -2605,7 +2605,7 @@ private:
     // Geometry helpers
 
     /**
-     * Returns the halfedge of the nearest edge strictly to the left of @p p,
+     * @brief Returns the halfedge of the nearest edge strictly to the left of @p p,
      * directed downwards, so that the face to its left is the one holding the
      * stretch between the edge and @p p.
      *
@@ -2746,7 +2746,7 @@ private:
     };
 
     /**
-     * Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
+     * @brief Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
      * that vertex, by whichever of the two ways of answering them is cheaper.
      *
      * A scan per query costs `O(Q E)`: one straddle test per query and edge, and
@@ -2788,7 +2788,7 @@ private:
     }
 
     /**
-     * Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
+     * @brief Returns, for each of @p queries, what @ref halfedgeLeftOf would answer at
      * that vertex — the whole batch in `O((E + Q) log E)` rather than one linear
      * scan over the edges per query.
      *
@@ -2911,7 +2911,7 @@ private:
     }
 
     /**
-     * Tells whether a boundary cycle turns left every time it passes its
+     * @brief Tells whether a boundary cycle turns left every time it passes its
      * leftmost vertex — which is what distinguishes an outer boundary cycle,
      * running counterclockwise, from an inner one.
      *

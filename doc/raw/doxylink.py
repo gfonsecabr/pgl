@@ -164,6 +164,14 @@ def load_briefs(xml_dir):
     anchor_brief: html anchor -> @brief text (members + free functions).
     page_brief:   html page    -> @brief text (classes/namespaces, for class links).
     The tag file has no descriptions, so the XML is the source of @brief text.
+
+    Same-named members of one compound share their @brief: an anchor without one
+    borrows from a sibling that has it. That covers overload sets where only the
+    primary carries the documentation, and -- the case that motivated it -- a
+    member template whose out-of-line definition doxygen fails to match to its
+    declaration (Rectangle::boundaryAt, declared in rectangle.hpp with a @brief
+    and defined in bounding.hpp, becomes two members, and the tag file records
+    only the undocumented one).
     """
     anchor_brief, page_brief = {}, {}
     if not xml_dir or not os.path.isdir(xml_dir):
@@ -188,6 +196,7 @@ def load_briefs(xml_dir):
             b = text(comp.find("briefdescription"))
             if b:
                 page_brief.setdefault(f"{cid}.html", b)
+            by_name = defaultdict(list)     # member name -> [(anchor, brief)]
             for md in comp.iter("memberdef"):
                 if md.get("kind") != "function":
                     continue
@@ -196,8 +205,15 @@ def load_briefs(xml_dir):
                 if mid.startswith(cid + "_1"):
                     anchor = mid[len(cid) + 2:]
                     mb = text(md.find("briefdescription"))
+                    by_name[md.findtext("name")].append((anchor, mb))
                     if mb:
                         anchor_brief.setdefault(anchor, mb)
+            for entries in by_name.values():
+                documented = next((mb for _, mb in entries if mb), None)
+                if documented:
+                    for anchor, mb in entries:
+                        if not mb:
+                            anchor_brief.setdefault(anchor, documented)
     return anchor_brief, page_brief
 
 
