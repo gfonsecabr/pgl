@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/convexhull.hpp"
+#include "algorithm/shapetree.hpp"
 
 /**
  * @file intervaltree.hpp

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "core/hash.hpp"
-#include "core/graph.hpp"
+#include "algorithm/graph.hpp"
 
 #include <algorithm>
 #include <cstddef>

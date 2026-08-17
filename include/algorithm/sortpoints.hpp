@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/shapetree.hpp"
+#include "algorithm/intervaltree.hpp"
 
 /**
  * @file sortpoints.hpp
