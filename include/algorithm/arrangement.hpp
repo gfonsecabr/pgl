@@ -3027,6 +3027,18 @@ private:
      * sides of an arrangement edge, and leaves name live trapezoids. Geometry
      * is kept in a division-closed number type so the index never truncates the
      * midpoint used while constructing it for an integral arrangement.
+     *
+     * The map is built in the sheared frame `x + eps*y`, where `eps` is a
+     * positive infinitesimal rather than a number. Nothing has to be searched
+     * for, no coordinate grows, and the abscissa of a point is the point itself
+     * read lexicographically. A vertical query keeps its own slab instead of
+     * sweeping across every wall of the map, which is what a numeric shear
+     * would force it to do.
+     *
+     * Working over an infinitesimal has one structural consequence: two
+     * vertices sharing an abscissa leave a slab of infinitesimal width between
+     * their walls, and the point where a curve meets an abscissa inside such a
+     * slab is not an ordinary point of the plane. @ref DualPoint carries it.
      */
     class TrapezoidPointLocation {
         using WorkNumber = division_result_t<NumberType>;
@@ -3039,17 +3051,55 @@ private:
         using WideIntegralPoint = Point<QueryInteger>;
         static constexpr std::uint32_t none = ~std::uint32_t{};
 
+        // An abscissa of the sheared frame that a wall stands on. A vertex wall
+        // carries the vertex, whose abscissa is `x + eps*y`; the two infinite
+        // eps levels are the ends a vertical unbounded edge escapes to, past
+        // every vertex on that abscissa yet within an infinitesimal of it.
+        struct Abscissa {
+            PointType point;
+            std::int8_t epsInfinity = 0;
+        };
+
+        // Sheared order of two wall abscissae, formed without ever building a
+        // sheared coordinate: the plane's own abscissa decides, and the
+        // ordinate only separates what shares it.
+        static bool abscissaLess(const Abscissa& left, const Abscissa& right) {
+            if (left.point.x() != right.point.x()) {
+                return left.point.x() < right.point.x();
+            }
+            if (left.epsInfinity != right.epsInfinity) {
+                return left.epsInfinity < right.epsInfinity;
+            }
+            return left.epsInfinity == 0 && left.point.y() < right.point.y();
+        }
+
+        // An abscissa of the sheared frame that is not a wall: the pair stands
+        // for `a + eps*b`. Sampling produces these and nothing stores them.
+        struct SampleAbscissa {
+            WorkNumber a{};
+            WorkNumber b{};
+        };
+
+        // A point of the sheared plane, `value + eps*epsilon`. A curve meets an
+        // abscissa strictly inside an infinitesimally thin slab at such a point
+        // and at no ordinary one.
+        struct DualPoint {
+            WorkPoint value;
+            WorkPoint epsilon;
+        };
+
+        // A vertical bound of a trapezoid. Walls are held in increasing
+        // abscissa, so their index orders every finite bound outright.
         struct Bound {
-            // -1 and +1 are the two infinities; zero carries a finite abscissa.
+            // -1 and +1 are the two infinities; zero carries a wall.
             std::int8_t infinity = 0;
             std::uint32_t wall = none;
-            WorkNumber x{};
 
-            static Bound negativeInfinity() { return Bound{-1, none, WorkNumber(0)}; }
-            static Bound positiveInfinity() { return Bound{1, none, WorkNumber(0)}; }
+            static Bound negativeInfinity() { return Bound{-1, none}; }
+            static Bound positiveInfinity() { return Bound{1, none}; }
 
             bool operator==(const Bound& other) const {
-                return infinity == other.infinity && (infinity != 0 || x == other.x);
+                return infinity == other.infinity && wall == other.wall;
             }
         };
 
@@ -3073,7 +3123,6 @@ private:
 
         struct Query {
             const PointType* point = nullptr;
-            WorkNumber x{};              // transformed abscissa; curve tests use point
             std::optional<IntegralPoint> integralPoint;
             std::optional<WideIntegralPoint> wideIntegralPoint;
         };
@@ -3092,17 +3141,15 @@ private:
 
         struct Node {
             NodeKind kind = NodeKind::leaf;
-            std::uint32_t value = 0;  // trapezoid or curve
+            std::uint32_t value = 0;  // trapezoid, curve, or wall
             std::uint32_t low = none;
             std::uint32_t high = none;
-            WorkNumber x{};
         };
 
     public:
         template <class UniformRandomBitGenerator>
         TrapezoidPointLocation(const Arrangement& arrangement,
                                UniformRandomBitGenerator&& generator) {
-            chooseShear(arrangement, generator);
             makeWalls(arrangement);
             makeVertexIndex(arrangement);
             makeCurves(arrangement);
@@ -3121,7 +3168,7 @@ private:
                 insertCurve(curve);
             }
             labelTrapezoids(arrangement);
-            std::vector<StoredLine>().swap(constructionLines_);
+            std::vector<WorkLine>().swap(constructionLines_);
         }
 
         [[nodiscard]] FaceId locateFace(const Arrangement& arrangement,
@@ -3131,11 +3178,10 @@ private:
             while (nodes_[node].kind != NodeKind::leaf) {
                 const Node& decision = nodes_[node];
                 if (decision.kind == NodeKind::x) {
-                    if (query.x < decision.x || query.x == decision.x) {
-                        node = decision.low;  // the existing -x perturbation
-                    } else {
-                        node = decision.high;
-                    }
+                    // A query standing on the wall goes left, which is the
+                    // existing -x perturbation.
+                    node = againstWall(point, decision.value) <= 0 ? decision.low
+                                                                  : decision.high;
                     continue;
                 }
                 const Curve& curve = curves_[decision.value];
@@ -3171,7 +3217,8 @@ private:
             while (nodes_[node].kind != NodeKind::leaf) {
                 const Node& decision = nodes_[node];
                 if (decision.kind == NodeKind::x) {
-                    node = query.x < decision.x ? decision.low : decision.high;
+                    node = againstWall(point, decision.value) < 0 ? decision.low
+                                                                 : decision.high;
                     continue;
                 }
                 const Curve& curve = curves_[decision.value];
@@ -3248,8 +3295,6 @@ private:
             const Parameter y0(query[0].y());
             const Parameter dx = Parameter(query[1].x()) - x0;
             const Parameter dy = Parameter(query[1].y()) - y0;
-            const Parameter abscissa = x0 + Parameter(shear_) * y0;
-            const Parameter abscissaRate = dx + Parameter(shear_) * dy;
 
             // The parameters still in play, each end absent where the query
             // runs off to infinity.
@@ -3277,6 +3322,26 @@ private:
                     }
                 }
                 return !(span.low && span.high && *span.high < *span.low);
+            };
+
+            // The same, for a quantity of the sheared frame held as the pair
+            // `(value, epsValue)` standing for `value + eps*epsValue` and
+            // changing at `(rate, epsRate)`. The plane's own level decides
+            // unless it vanishes identically, and only then does the eps level
+            // speak. Where the plane's level merely reaches zero, keeping that
+            // one parameter on both sides costs a candidate and spares the eps
+            // level a comparison.
+            const auto narrowSheared = [&](Span& span, const Parameter& value,
+                                           const Parameter& rate,
+                                           const Parameter& epsValue,
+                                           const Parameter& epsRate, bool nonNegative) {
+                if (rate != zero) {
+                    return narrow(span, value, rate, nonNegative);
+                }
+                if (value != zero) {
+                    return (value > zero) == nonNegative;
+                }
+                return narrow(span, epsValue, epsRate, nonNegative);
             };
 
             // The side of a curve's supporting line, as `value + t * rate`.
@@ -3338,14 +3403,30 @@ private:
 
                 if (node.kind == NodeKind::x) {
                     // A query sitting exactly on the wall enters both sides.
-                    const Parameter split(node.x);
+                    const Abscissa& wall = wallXs_[node.value];
+                    const Parameter splitX(wall.point.x());
                     Span low = span;
-                    if (narrow(low, split - abscissa, -abscissaRate, true)) {
+                    Span high = span;
+                    bool below = false;
+                    bool above = false;
+                    if (wall.epsInfinity != 0) {
+                        // The wall stands infinitesimally beside an abscissa of
+                        // the plane, so the plane's own level settles the side
+                        // wherever it settles anything at all.
+                        below = narrow(low, splitX - x0, -dx, true);
+                        above = narrow(high, x0 - splitX, dx, true);
+                    } else {
+                        const Parameter splitY(wall.point.y());
+                        below = narrowSheared(low, splitX - x0, -dx, splitY - y0, -dy,
+                                              true);
+                        above = narrowSheared(high, x0 - splitX, dx, y0 - splitY, dy,
+                                              true);
+                    }
+                    if (below) {
                         low.node = node.low;
                         offer(std::move(low));
                     }
-                    Span high = span;
-                    if (narrow(high, abscissa - split, abscissaRate, true)) {
+                    if (above) {
                         high.node = node.high;
                         offer(std::move(high));
                     }
@@ -3381,14 +3462,9 @@ private:
     private:
         static bool less(const Bound& left, const Bound& right) {
             if (left.infinity != right.infinity) {
-                if (left.infinity < 0 || right.infinity > 0) {
-                    return true;
-                }
-                if (left.infinity > 0 || right.infinity < 0) {
-                    return false;
-                }
+                return left.infinity < right.infinity;
             }
-            return left.infinity == 0 && right.infinity == 0 && left.x < right.x;
+            return left.infinity == 0 && left.wall < right.wall;
         }
 
         static Bound maximum(const Bound& left, const Bound& right) {
@@ -3399,62 +3475,52 @@ private:
             return less(left, right) ? left : right;
         }
 
-        [[nodiscard]] Bound finiteBound(const WorkNumber& x) const {
-            const auto found = std::lower_bound(wallXs_.begin(), wallXs_.end(), x);
-            assert(found != wallXs_.end() && *found == x);
-            return Bound{0, static_cast<std::uint32_t>(found - wallXs_.begin()), x};
+        [[nodiscard]] Bound wallBound(const PointType& point,
+                                      std::int8_t epsInfinity) const {
+            const Abscissa key{point, epsInfinity};
+            const auto found =
+                std::lower_bound(wallXs_.begin(), wallXs_.end(), key, abscissaLess);
+            assert(found != wallXs_.end() && !abscissaLess(key, *found));
+            return Bound{0, static_cast<std::uint32_t>(found - wallXs_.begin())};
         }
 
-        [[nodiscard]] WorkPoint transformed(const PointType& point) const {
-            const WorkNumber x(point.x());
-            const WorkNumber y(point.y());
-            return WorkPoint(x + WorkNumber(shear_) * y, y);
-        }
-
-        [[nodiscard]] WorkNumber transformedX(const PointType& point) const {
-            return WorkNumber(point.x()) + WorkNumber(shear_) * WorkNumber(point.y());
-        }
-
-        template <class UniformRandomBitGenerator>
-        void chooseShear(const Arrangement& arrangement,
-                         UniformRandomBitGenerator& generator) {
-            const auto works = [&](std::int64_t candidate) {
-                const WorkNumber k(candidate);
-                for (const EdgeGeometry& geometry : arrangement.edgeGeometry_) {
-                    const WorkNumber dx = WorkNumber(geometry.b.x()) - WorkNumber(geometry.a.x());
-                    const WorkNumber dy = WorkNumber(geometry.b.y()) - WorkNumber(geometry.a.y());
-                    if (dx + k * dy == WorkNumber(0)) {
-                        return false;
-                    }
-                }
-                std::vector<WorkNumber> abscissae;
-                abscissae.reserve(arrangement.points_.size());
-                for (const PointType& point : arrangement.points_) {
-                    abscissae.push_back(WorkNumber(point.x()) + k * WorkNumber(point.y()));
-                }
-                std::sort(abscissae.begin(), abscissae.end());
-                return std::adjacent_find(abscissae.begin(), abscissae.end()) ==
-                       abscissae.end();
-            };
-
-            // A random shear almost surely misses the finite forbidden set.
-            // Keep the candidates small so transformed coordinates do not grow
-            // needlessly; the deterministic tail makes termination independent
-            // of generator quality.
-            for (int attempt = 0; attempt < 64; ++attempt) {
-                const auto bits = static_cast<std::uint64_t>(generator());
-                const std::int64_t candidate = static_cast<std::int64_t>(bits % 2000001) - 1000000;
-                if (candidate != 0 && works(candidate)) {
-                    shear_ = candidate;
-                    return;
-                }
+        // Where an ordinary query point falls against a wall. Its abscissa is
+        // the point read lexicographically, so nothing is computed here.
+        [[nodiscard]] int againstWall(const PointType& point, std::uint32_t wall) const {
+            const Abscissa& abscissa = wallXs_[wall];
+            if (point.x() != abscissa.point.x()) {
+                return point.x() < abscissa.point.x() ? -1 : 1;
             }
-            for (std::int64_t candidate = 1;; ++candidate) {
-                if (works(candidate)) {
-                    shear_ = candidate;
-                    return;
-                }
+            if (abscissa.epsInfinity != 0) {
+                return abscissa.epsInfinity > 0 ? -1 : 1;
             }
+            if (point.y() != abscissa.point.y()) {
+                return point.y() < abscissa.point.y() ? -1 : 1;
+            }
+            return 0;
+        }
+
+        // The same for a point of the sheared plane: the plane's own abscissa
+        // first, then the eps level the shear introduces, then the eps^2 level
+        // a sampled point can reach and a wall never does.
+        [[nodiscard]] int againstWall(const DualPoint& point, std::uint32_t wall) const {
+            const Abscissa& abscissa = wallXs_[wall];
+            const WorkNumber x(abscissa.point.x());
+            if (point.value.x() != x) {
+                return point.value.x() < x ? -1 : 1;
+            }
+            if (abscissa.epsInfinity != 0) {
+                return abscissa.epsInfinity > 0 ? -1 : 1;
+            }
+            const WorkNumber y(abscissa.point.y());
+            const WorkNumber first = point.value.y() + point.epsilon.x();
+            if (first != y) {
+                return first < y ? -1 : 1;
+            }
+            if (point.epsilon.y() != WorkNumber(0)) {
+                return point.epsilon.y() < WorkNumber(0) ? -1 : 1;
+            }
+            return 0;
         }
 
         void makeVertexIndex(const Arrangement& arrangement) {
@@ -3470,10 +3536,31 @@ private:
         void makeWalls(const Arrangement& arrangement) {
             wallXs_.reserve(arrangement.points_.size());
             for (const PointType& point : arrangement.points_) {
-                wallXs_.push_back(transformed(point).x());
+                wallXs_.push_back(Abscissa{point, 0});
             }
-            std::sort(wallXs_.begin(), wallXs_.end());
-            assert(std::adjacent_find(wallXs_.begin(), wallXs_.end()) == wallXs_.end());
+            // A vertical unbounded edge occupies a single abscissa of the plane
+            // and escapes to an end infinitesimally beside it, past every
+            // vertex there. Those ends bound trapezoids, so they are walls too.
+            for (const EdgeGeometry& geometry : arrangement.edgeGeometry_) {
+                if (geometry.kind == EdgeKind::segment ||
+                    geometry.a.x() != geometry.b.x()) {
+                    continue;
+                }
+                const bool upward = geometry.a.y() < geometry.b.y();
+                if (geometry.kind == EdgeKind::line || upward) {
+                    wallXs_.push_back(Abscissa{geometry.a, 1});
+                }
+                if (geometry.kind == EdgeKind::line || !upward) {
+                    wallXs_.push_back(Abscissa{geometry.a, -1});
+                }
+            }
+            std::sort(wallXs_.begin(), wallXs_.end(), abscissaLess);
+            wallXs_.erase(std::unique(wallXs_.begin(), wallXs_.end(),
+                                      [](const Abscissa& left, const Abscissa& right) {
+                                          return !abscissaLess(left, right) &&
+                                                 !abscissaLess(right, left);
+                                      }),
+                          wallXs_.end());
             walls_.resize(wallXs_.size());
         }
 
@@ -3482,13 +3569,12 @@ private:
             constructionLines_.reserve(arrangement.edgeGeometry_.size());
             for (std::uint32_t edge = 0; edge < arrangement.edgeGeometry_.size(); ++edge) {
                 const EdgeGeometry& geometry = arrangement.edgeGeometry_[edge];
-                WorkPoint a = transformed(geometry.a);
-                WorkPoint b = transformed(geometry.b);
                 WorkNumber originalDx = WorkNumber(geometry.b.x()) - WorkNumber(geometry.a.x());
                 WorkNumber originalDy = WorkNumber(geometry.b.y()) - WorkNumber(geometry.a.y());
-                bool forward = a.x() < b.x();
+                // Lexicographic order is the abscissa order of the sheared
+                // frame, so no coordinate has to be formed to read it off.
+                const bool forward = geometry.a < geometry.b;
                 if (!forward) {
-                    std::swap(a, b);
                     originalDx = -originalDx;
                     originalDy = -originalDy;
                 }
@@ -3496,64 +3582,62 @@ private:
                 Bound left = Bound::negativeInfinity();
                 Bound right = Bound::positiveInfinity();
                 if (geometry.kind == EdgeKind::segment) {
-                    left = finiteBound(a.x());
-                    right = finiteBound(b.x());
-                } else if (geometry.kind == EdgeKind::ray) {
-                    const WorkPoint source = transformed(geometry.a);
-                    if (forward) {
-                        left = finiteBound(source.x());
-                    } else {
-                        right = finiteBound(source.x());
+                    left = wallBound(forward ? geometry.a : geometry.b, 0);
+                    right = wallBound(forward ? geometry.b : geometry.a, 0);
+                } else {
+                    // A vertical edge spans no abscissa of the plane at all, so
+                    // an unbounded one escapes to the infinitesimal side of the
+                    // abscissa it stands on rather than to infinity.
+                    const bool vertical = geometry.a.x() == geometry.b.x();
+                    if (geometry.kind == EdgeKind::ray) {
+                        (forward ? left : right) = wallBound(geometry.a, 0);
+                        if (vertical) {
+                            (forward ? right : left) =
+                                wallBound(geometry.a, forward ? 1 : -1);
+                        }
+                    } else if (vertical) {
+                        left = wallBound(geometry.a, -1);
+                        right = wallBound(geometry.a, 1);
                     }
                 }
+
                 WorkPoint originalA(WorkNumber(geometry.a.x()), WorkNumber(geometry.a.y()));
                 WorkPoint originalB(WorkNumber(geometry.b.x()), WorkNumber(geometry.b.y()));
                 if (!forward) {
                     std::swap(originalA, originalB);
                 }
-                // The shear has determinant one, so curve-node orientation is
-                // identical here and avoids enlarging every query coordinate.
+                // The shear has determinant one, so orientation is identical in
+                // both frames and the original coordinates serve throughout.
                 StoredLine queryLine(std::in_place_type<WorkLine>, originalA, originalB);
-                StoredLine constructionLine(std::in_place_type<WorkLine>, a, b);
                 if constexpr (is_Rational_v<WorkNumber>) {
                     if (auto integral = WorkLine(originalA, originalB)
                                             .template integralLine<std::int64_t>()) {
-                        const auto transformedIntegralPoint = [&](const IntegralPoint& point) {
-                            const int128 x = int128(point.x()) +
-                                             int128(shear_) * int128(point.y());
-                            return detail::representableAs<std::int64_t>(x)
-                                       ? std::optional<IntegralPoint>(IntegralPoint(
-                                             detail::narrowTo<std::int64_t>(x), point.y()))
-                                       : std::optional<IntegralPoint>();
-                        };
-                        const auto source = transformedIntegralPoint(integral->source());
-                        const auto target = transformedIntegralPoint(integral->target());
-                        if (source && target) {
-                            constructionLine = IntegralLine(*source, *target);
-                        } else if (auto transformedIntegral =
-                                       WorkLine(a, b).template integralLine<std::int64_t>()) {
-                            constructionLine = std::move(*transformedIntegral);
-                        }
                         queryLine = std::move(*integral);
-                    } else if (auto transformedIntegral =
-                                   WorkLine(a, b).template integralLine<std::int64_t>()) {
-                        constructionLine = std::move(*transformedIntegral);
                     }
                 }
                 curves_.push_back(Curve{std::move(queryLine), left, right,
                                         HalfedgeId(2 * edge + (forward ? 0 : 1)),
                                         originalDx, originalDy});
-                constructionLines_.push_back(std::move(constructionLine));
+                constructionLines_.emplace_back(originalA, originalB);
             }
         }
 
+        // Which side of a curve a point of the sheared plane falls on: the
+        // ordinary orientation decides, and where that vanishes the point's own
+        // infinitesimal offset does.
         [[nodiscard]] std::partial_ordering constructionSideOf(
-            std::uint32_t curve, const WorkPoint& point) const {
-            return std::visit(
+            std::uint32_t curve, const DualPoint& point) const {
+            const std::partial_ordering side = std::visit(
                 [&](const auto& line) {
-                    return orientationSign(line.source(), line.target(), point);
+                    return orientationSign(line.source(), line.target(), point.value);
                 },
-                constructionLines_[curve]);
+                curves_[curve].queryLine);
+            if (side != 0) {
+                return side;
+            }
+            const WorkNumber cross = curves_[curve].originalDx * point.epsilon.y() -
+                                     curves_[curve].originalDy * point.epsilon.x();
+            return cross <=> WorkNumber(0);
         }
 
         [[nodiscard]] static std::partial_ordering sideOf(const Curve& curve,
@@ -3577,7 +3661,7 @@ private:
         }
 
         [[nodiscard]] Query makeQuery(const PointType& point) const {
-            Query query{&point, transformedX(point), std::nullopt, std::nullopt};
+            Query query{&point, std::nullopt, std::nullopt};
             classifyQuery(query, point);
             return query;
         }
@@ -3593,8 +3677,9 @@ private:
                 }
             };
 
-            // Curve nodes operate in the original coordinates. Only x nodes
-            // need the sheared abscissa stored in Query::x.
+            // Curve nodes operate in the original coordinates, and so do x
+            // nodes now that the shear is symbolic; an integral query point
+            // only ever needs its own coordinates.
             if constexpr (is_Rational_v<NumberType>) {
                 if (original.x().isInteger() && original.y().isInteger()) {
                     storeIntegral(
@@ -3609,31 +3694,69 @@ private:
             }
         }
 
-        [[nodiscard]] WorkNumber sample(const Bound& left, const Bound& right) const {
+        // An abscissa strictly between two bounds. Where the bounds share the
+        // abscissa of the plane -- vertices stacked above one another -- what
+        // separates them lives at the eps level, and the sample goes there.
+        [[nodiscard]] SampleAbscissa sample(const Bound& left, const Bound& right) const {
             assert(less(left, right));
-            if (left.infinity < 0 && right.infinity > 0) {
-                return WorkNumber(0);
+            const Abscissa* low = left.infinity == 0 ? &wallXs_[left.wall] : nullptr;
+            const Abscissa* high = right.infinity == 0 ? &wallXs_[right.wall] : nullptr;
+            if (low == nullptr && high == nullptr) {
+                return SampleAbscissa{WorkNumber(0), WorkNumber(0)};
             }
-            if (left.infinity < 0) {
-                return right.x - WorkNumber(1);
+            if (low == nullptr) {
+                return SampleAbscissa{WorkNumber(high->point.x()) - WorkNumber(1),
+                                      WorkNumber(0)};
             }
-            if (right.infinity > 0) {
-                return left.x + WorkNumber(1);
+            if (high == nullptr) {
+                return SampleAbscissa{WorkNumber(low->point.x()) + WorkNumber(1),
+                                      WorkNumber(0)};
             }
-            return (left.x + right.x) / WorkNumber(2);
+            const WorkNumber lowX(low->point.x());
+            const WorkNumber highX(high->point.x());
+            if (lowX != highX) {
+                return SampleAbscissa{(lowX + highX) / WorkNumber(2), WorkNumber(0)};
+            }
+            // Both bounds stand on one abscissa of the plane, so the eps level
+            // is what is left to separate, its infinities included.
+            if (low->epsInfinity < 0) {
+                return SampleAbscissa{lowX, high->epsInfinity > 0
+                                                ? WorkNumber(0)
+                                                : WorkNumber(high->point.y()) -
+                                                      WorkNumber(1)};
+            }
+            if (high->epsInfinity > 0) {
+                return SampleAbscissa{lowX, WorkNumber(low->point.y()) + WorkNumber(1)};
+            }
+            return SampleAbscissa{lowX, (WorkNumber(low->point.y()) +
+                                         WorkNumber(high->point.y())) /
+                                            WorkNumber(2)};
         }
 
-        [[nodiscard]] WorkPoint pointAt(std::uint32_t curve, const WorkNumber& x) const {
-            return std::visit(
-                [&](const auto& line) {
-                    const WorkNumber ax(line.source().x());
-                    const WorkNumber ay(line.source().y());
-                    const WorkNumber bx(line.target().x());
-                    const WorkNumber by(line.target().y());
-                    const WorkNumber parameter = (x - ax) / (bx - ax);
-                    return WorkPoint(x, ay + parameter * (by - ay));
-                },
-                constructionLines_[curve]);
+        // The point of a curve whose sheared abscissa is `x`. Inside a slab of
+        // infinitesimal width the curve reaches the abscissa only infinitesimally
+        // away from the plane's own points, which is what the eps part carries;
+        // a vertical curve is the one that lives there outright.
+        [[nodiscard]] DualPoint pointAt(std::uint32_t curve,
+                                        const SampleAbscissa& x) const {
+            const WorkPoint& source = constructionLines_[curve].source();
+            const WorkNumber& dx = curves_[curve].originalDx;
+            const WorkNumber& dy = curves_[curve].originalDy;
+            const WorkPoint zero(WorkNumber(0), WorkNumber(0));
+            if (dx == WorkNumber(0)) {
+                // The eps level of the abscissa is the ordinate outright.
+                assert(x.a == source.x());
+                return DualPoint{WorkPoint(source.x(), x.b), zero};
+            }
+            const WorkNumber along = (x.a - source.x()) / dx;
+            const WorkNumber y = source.y() + along * dy;
+            // Sliding along the curve moves the abscissa by the slide itself,
+            // so covering the eps level takes the ordinate still missing.
+            const WorkNumber slide = x.b - y;
+            if (slide == WorkNumber(0)) {
+                return DualPoint{WorkPoint(x.a, y), zero};
+            }
+            return DualPoint{WorkPoint(x.a, y), WorkPoint(slide, slide * dy / dx)};
         }
 
         [[nodiscard]] bool crosses(std::uint32_t curveId,
@@ -3644,7 +3767,7 @@ private:
             if (!less(left, right)) {
                 return false;
             }
-            const WorkPoint point = pointAt(curveId, sample(left, right));
+            const DualPoint point = pointAt(curveId, sample(left, right));
             if (trapezoid.bottom != none &&
                 constructionSideOf(trapezoid.bottom, point) <= 0) {
                 return false;
@@ -3658,7 +3781,7 @@ private:
 
         [[nodiscard]] std::uint32_t newLeaf(std::uint32_t trapezoid) {
             const std::uint32_t id = static_cast<std::uint32_t>(nodes_.size());
-            nodes_.push_back(Node{NodeKind::leaf, trapezoid, none, none, WorkNumber(0)});
+            nodes_.push_back(Node{NodeKind::leaf, trapezoid, none, none});
             return id;
         }
 
@@ -3689,57 +3812,37 @@ private:
 
         [[nodiscard]] Node curveNode(std::uint32_t curve, std::uint32_t below,
                                      std::uint32_t above) const {
-            return Node{NodeKind::curve, curve, below, above, WorkNumber(0)};
+            return Node{NodeKind::curve, curve, below, above};
         }
 
-        [[nodiscard]] Node xNode(const WorkNumber& x, std::uint32_t left,
+        [[nodiscard]] Node xNode(const Bound& bound, std::uint32_t left,
                                  std::uint32_t right) const {
-            return Node{NodeKind::x, 0, left, right, x};
+            assert(bound.infinity == 0);
+            return Node{NodeKind::x, bound.wall, left, right};
         }
 
         // Chooses an abscissa just to the right of a curve's left end, but
-        // before the next arrangement vertex. No vertical wall of the
-        // trapezoidal map can occur inside that open slab.
-        [[nodiscard]] WorkNumber probeRightOf(const Bound& left,
-                                              const Bound& right) const {
-            const WorkNumber* nextWall = nullptr;
-            if (left.infinity < 0) {
-                if (!wallXs_.empty()) {
-                    nextWall = &wallXs_.front();
-                }
-            } else {
-                const std::size_t following = static_cast<std::size_t>(left.wall) + 1;
-                if (following < wallXs_.size()) {
-                    nextWall = &wallXs_[following];
-                }
+        // before the next arrangement wall. No vertical wall of the trapezoidal
+        // map can occur inside that open slab.
+        [[nodiscard]] SampleAbscissa probeRightOf(const Bound& left,
+                                                  const Bound& right) const {
+            const std::size_t following =
+                left.infinity < 0 ? 0 : static_cast<std::size_t>(left.wall) + 1;
+            Bound next = Bound::positiveInfinity();
+            if (following < wallXs_.size()) {
+                next = Bound{0, static_cast<std::uint32_t>(following)};
             }
-
-            WorkNumber next;
-            bool hasNext = false;
-            if (right.infinity == 0) {
-                next = right.x;
-                hasNext = true;
-            }
-            if (nextWall != nullptr && (!hasNext || *nextWall < next)) {
-                next = *nextWall;
-                hasNext = true;
-            }
-
-            if (hasNext) {
-                return left.infinity < 0
-                           ? next - WorkNumber(1)
-                           : (left.x + next) / WorkNumber(2);
-            }
-            return left.infinity < 0 ? WorkNumber(0) : left.x + WorkNumber(1);
+            return sample(left, minimum(next, right));
         }
 
-        [[nodiscard]] std::uint32_t locateTrapezoid(const WorkPoint& point) const {
+        [[nodiscard]] std::uint32_t locateTrapezoid(const DualPoint& point) const {
             std::uint32_t nodeId = root_;
             while (nodes_[nodeId].kind != NodeKind::leaf) {
                 const Node& node = nodes_[nodeId];
                 if (node.kind == NodeKind::x) {
-                    assert(point.x() != node.x);
-                    nodeId = point.x() < node.x ? node.low : node.high;
+                    const int side = againstWall(point, node.value);
+                    assert(side != 0);
+                    nodeId = side < 0 ? node.low : node.high;
                     continue;
                 }
                 const auto side = constructionSideOf(node.value, point);
@@ -3758,7 +3861,7 @@ private:
         [[nodiscard]] std::vector<std::uint32_t> crossedByWalk(
             std::uint32_t curveId) const {
             const Curve& curve = curves_[curveId];
-            const WorkNumber probe = probeRightOf(curve.left, curve.right);
+            const SampleAbscissa probe = probeRightOf(curve.left, curve.right);
             std::uint32_t current = locateTrapezoid(pointAt(curveId, probe));
             std::vector<std::uint32_t> crossed;
 
@@ -3839,11 +3942,11 @@ private:
                                              trapezoids_[above].leaf);
                 if (hasRightCap) {
                     const std::uint32_t split = newNode(std::move(replacement));
-                    replacement = xNode(right.x, split, trapezoids_[rightCap].leaf);
+                    replacement = xNode(right, split, trapezoids_[rightCap].leaf);
                 }
                 if (hasLeftCap) {
                     const std::uint32_t split = newNode(std::move(replacement));
-                    replacement = xNode(left.x, trapezoids_[leftCap].leaf, split);
+                    replacement = xNode(left, trapezoids_[leftCap].leaf, split);
                 }
                 nodes_[old.leaf] = std::move(replacement);
                 trapezoids_[oldId].active = false;
@@ -3852,25 +3955,56 @@ private:
             }
         }
 
-        [[nodiscard]] FaceId faceAtTransformedTopInfinity(
-            const Arrangement& arrangement) const {
-            if (!arrangement.infinity_.valid()) {
-                return FaceId(0);
-            }
-            const FanDirection query{NumberType(-shear_), NumberType(1),
-                                     PointType(NumberType(0), NumberType(0)), 0};
-            const auto after = std::upper_bound(
-                arrangement.infinityFan_.begin(), arrangement.infinityFan_.end(), query,
-                [&](const FanDirection& value, std::uint32_t halfedge) {
-                    return infinityFanLess(value, arrangement.fanDirection(halfedge));
-                });
+        // The face above a vertical strip that no edge crosses, read off the
+        // fan at infinity, where the strip escapes. The strip's own abscissa is
+        // part of the query: an end rising straight up is parallel to it, and
+        // the fan separates parallel ends by where they stand.
+        //
+        // A strip standing on a single abscissa can tie with such an end, and
+        // then either neighbouring sector answers: an end escaping straight up
+        // from an abscissa the map leaves free is a ray or a line that the free
+        // stretch itself passes through, so the two sides of it are one face.
+        [[nodiscard]] FaceId faceAboveStrip(const Arrangement& arrangement,
+                                            const WorkNumber& abscissa) const {
+            const auto beforeStrip = [&](std::uint32_t halfedge) {
+                const FanDirection end = arrangement.fanDirection(halfedge);
+                if (directionHalf(end) != 0) {
+                    return false;
+                }
+                if (end.dx != NumberType(0)) {
+                    return end.dx > NumberType(0);
+                }
+                return abscissa < WorkNumber(end.anchor.x());
+            };
+            // The fan at infinity runs against the plain fan, so the ends
+            // before the strip are exactly its prefix.
+            const auto after = std::partition_point(
+                arrangement.infinityFan_.begin(), arrangement.infinityFan_.end(),
+                [&](std::uint32_t halfedge) { return !beforeStrip(halfedge); });
             const std::uint32_t nextDirection =
                 after == arrangement.infinityFan_.end() ? arrangement.infinityFan_.front() : *after;
             return arrangement.face(HalfedgeId(nextDirection ^ 1));
         }
 
+        // The face of a trapezoid with no curve above and none below. Nothing
+        // meets the vertical line through it, so the whole line above it is
+        // free of edges but for the vertices standing on it, and the face is
+        // the one that line runs into at the top.
+        //
+        // Where the shear was a number that face was always the outside of the
+        // map. It is still an unbounded face here, but no longer always the
+        // same one: an infinitesimal shear leaves a vertical line spanning one
+        // abscissa, so the trapezoids on either side of one are free of curves
+        // and yet lie in the two faces it separates.
+        [[nodiscard]] FaceId emptyFace(const Arrangement& arrangement,
+                                       const Trapezoid& trapezoid) const {
+            if (!arrangement.infinity_.valid()) {
+                return FaceId(0);
+            }
+            return faceAboveStrip(arrangement, sample(trapezoid.left, trapezoid.right).a);
+        }
+
         void labelTrapezoids(const Arrangement& arrangement) {
-            const FaceId exterior = faceAtTransformedTopInfinity(arrangement);
             for (Trapezoid& trapezoid : trapezoids_) {
                 if (!trapezoid.active) {
                     continue;
@@ -3885,19 +4019,19 @@ private:
                     trapezoid.face = arrangement.face(
                         arrangement.twin(curves_[trapezoid.top].leftToRight));
                 } else {
-                    trapezoid.face = exterior;
+                    trapezoid.face = emptyFace(arrangement, trapezoid);
                 }
             }
         }
 
-        std::int64_t shear_ = 1;
         std::uint32_t root_ = none;
         std::vector<VertexId> vertices_;
-        std::vector<WorkNumber> wallXs_;
-        std::vector<Wall> walls_;
+        std::vector<Abscissa> wallXs_;  // increasing
+        std::vector<Wall> walls_;       // parallel to wallXs_
         std::vector<Curve> curves_;
-        // Used only while constructing the RIC and released by the constructor.
-        std::vector<StoredLine> constructionLines_;
+        // Used only while constructing the RIC and released by the constructor:
+        // the curves again, in the one representation sampling can divide in.
+        std::vector<WorkLine> constructionLines_;
         std::vector<Trapezoid> trapezoids_;
         std::vector<Node> nodes_;
     };
