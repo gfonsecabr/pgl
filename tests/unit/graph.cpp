@@ -5,6 +5,7 @@
 #include <array>
 #include <concepts>
 #include <map>
+#include <ranges>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -15,8 +16,12 @@
 
 namespace {
 
-std::set<int> asSet(const std::vector<int>& values) {
-    return std::set<int>(values.begin(), values.end());
+template <std::ranges::input_range Range>
+std::set<std::ranges::range_value_t<Range>> asSet(const Range& values) {
+    return std::set<std::ranges::range_value_t<Range>>(
+        std::ranges::begin(values),
+        std::ranges::end(values)
+    );
 }
 
 template <class T>
@@ -140,6 +145,7 @@ TEST_CASE("Graph adds vertices and undirected edges") {
     CHECK(graph.degree(4) == -1);
     CHECK(graph.maxDegree() == 2);
     CHECK((asSet(graph.vertices()) == std::set<int>{1, 2, 3}));
+    CHECK(std::ranges::distance(graph.vertices()) == graph.vertexCount());
     CHECK((graph.neighbors(2) == std::unordered_set<int>{1, 3}));
     CHECK((graph.closedNeighbors(2) == std::unordered_set<int>{1, 2, 3}));
 }
@@ -201,6 +207,65 @@ TEST_CASE("Graph supports const and empty iteration") {
         vertices.insert(vertex);
     }
     CHECK((vertices == std::set<int>{1, 2, 3}));
+}
+
+TEST_CASE("Graph views its edges in increasing endpoint order") {
+    static_assert(std::forward_iterator<pgl::Graph<int>::EdgeIterator>);
+
+    pgl::Graph<int> graph;
+    graph.addEdge(3, 1);
+    graph.addEdge(1, 2);
+    graph.addEdge(5, 4);
+    graph.addVertex(9);
+
+    std::set<std::array<int, 2>> seen;
+    for (const auto& edge : graph.edges()) {
+        CHECK(edge[0] < edge[1]);
+        CHECK(graph.containsEdge(edge[0], edge[1]));
+        CHECK(seen.insert(edge).second);
+    }
+    CHECK((seen == std::set<std::array<int, 2>>{{1, 2}, {1, 3}, {4, 5}}));
+    CHECK(std::ranges::distance(graph.edges()) == graph.edgeCount());
+
+    // Multi-pass: a copy of an iterator keeps its own position.
+    const auto view = graph.edges();
+    auto it = view.begin();
+    const auto copy = it;
+    ++it;
+    CHECK(*copy == *view.begin());
+    CHECK(*copy != *it);
+}
+
+TEST_CASE("Graph views no edge without one") {
+    const pgl::Graph<int> empty;
+    CHECK(empty.edges().begin() == empty.edges().end());
+
+    pgl::Graph<int> isolated;
+    isolated.addVertex(1);
+    isolated.addVertex(2);
+    CHECK(isolated.edges().empty());
+
+    isolated.addEdge(1, 2);
+    isolated.removeEdge(1, 2);
+    CHECK(isolated.edges().empty());
+}
+
+TEST_CASE("Graph views edges between geometric vertices") {
+    using PointType = pgl::Point<int>;
+
+    pgl::Graph<PointType> graph;
+    graph.addEdge(PointType(1, 1), PointType(0, 0));
+    graph.addEdge(PointType(0, 0), PointType(0, 2));
+
+    std::set<std::array<PointType, 2>> seen;
+    for (const auto& edge : graph.edges()) {
+        CHECK(edge[0] < edge[1]);
+        CHECK(seen.insert(edge).second);
+    }
+    CHECK((seen == std::set<std::array<PointType, 2>>{
+                       {PointType(0, 0), PointType(0, 2)},
+                       {PointType(0, 0), PointType(1, 1)},
+                   }));
 }
 
 TEST_CASE("Graph returns connected components largest first") {

@@ -40,12 +40,8 @@ int main() {
            << triangulation.edges();
 
     canvas << pgl::stroke("#078e07") << pgl::strokeWidth("3px");
-    for (const Point& u : mst) {
-        for (const Point& v : mst.neighbors(u)) {
-            if (u < v) {  // each undirected edge appears in both adjacency sets
-                canvas << Segment(u, v);
-            }
-        }
+    for (const auto& [u, v] : mst.edges()) {  // each undirected edge once
+        canvas << Segment(u, v);
     }
 
     canvas << pgl::stroke("#1d4ed8") << pgl::fill("#1d4ed8") << pgl::pointRadius("5")
