@@ -196,6 +196,31 @@ TEST_CASE("the brute-force cutoff never changes the answer") {
     }
 }
 
+TEST_CASE("the recursion leaves its range in abscissa order") {
+    // The strip is found by walking outwards from the split index, which is only
+    // valid while the range is still sorted by abscissa. So no level may reorder
+    // it — all the reordering belongs in the scratch buffer. The merging
+    // formulation of this algorithm leaves each range sorted by ordinate
+    // instead, and adopting any part of it here would silently break the walk.
+    Rng rng{4242};
+    std::vector<IntPoint> points;
+    for (int i = 0; i < 400; ++i) {
+        points.emplace_back(rng.range(-40, 40), rng.range(-40, 40));
+    }
+    std::sort(points.begin(), points.end());
+    const std::vector<IntPoint> before = points;
+
+    std::vector<IntPoint> scratch(points.size());
+    pgl::detail::ClosestPairCandidate<IntPoint> best{
+        points[0], points[1], points[0].squaredDistance<std::int64_t>(points[1])};
+    pgl::detail::closestPairRecursive<6>(points.data(), points.size(), scratch.data(), best);
+
+    CHECK(points == before);
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    // And it did find the answer while leaving the range alone.
+    CHECK(best.squaredDistance == bruteForceClosestPair(before).second);
+}
+
 TEST_CASE("closestPair handles arbitrary-precision integer coordinates") {
     using BigPoint = pgl::Point<pgl::BigInt>;
     const pgl::BigInt base = pgl::BigInt(1000000000000000000LL) * pgl::BigInt(1000);
