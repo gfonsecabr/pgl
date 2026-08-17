@@ -222,10 +222,17 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
  * whole traversal has found rather than against its own subtree's best. The
  * result is unchanged and the strips are never wider.
  *
- * @param points Range to search, sorted lexicographically (x, then y); the
- *        order is preserved.
+ * @param points Range to search, sorted lexicographically (x, then y). Taken by
+ *        const pointer on purpose: the abscissa order is a precondition of every
+ *        level below, so nothing here may reorder the range, and the type says
+ *        so rather than leaving it to be noticed. All the reordering happens in
+ *        @p scratch. (The merging formulation of this algorithm does the
+ *        opposite — it leaves each range sorted by ordinate for its parent to
+ *        merge — which is precisely why it cannot find its strip by walking out
+ *        from the split index.)
  * @param count Number of points in the range; at least two.
- * @param scratch Uninitialized-or-stale buffer of at least @p count points.
+ * @param scratch Uninitialized-or-stale buffer of at least @p count points, not
+ *        overlapping @p points.
  * @param best Running best pair, improved in place.
  * @tparam Threshold Range size to stop recursing at; see
  *         @ref closestPairBruteForceThreshold. At least 3, so that a range that
@@ -235,7 +242,7 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
  *         register down every call.
  */
 template <std::size_t Threshold, class PointType>
-void closestPairRecursive(PointType* points, std::size_t count, PointType* scratch,
+void closestPairRecursive(const PointType* points, std::size_t count, PointType* scratch,
                           ClosestPairCandidate<PointType>& best) {
     using Coordinate = closest_pair_coordinate_t<PointType>;
     static_assert(Threshold >= 3,
