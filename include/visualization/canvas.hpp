@@ -1,6 +1,6 @@
 #pragma once
 
-#include "implementation/distance.hpp"
+#include "implementation/distancelinf.hpp"
 #include "third_party/pdfgen.hpp"
 
 /**

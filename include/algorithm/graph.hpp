@@ -5,6 +5,8 @@
  * @brief Simple undirected graph with hashable vertices.
  */
 
+#include "core/hash.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
