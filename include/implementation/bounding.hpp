@@ -588,11 +588,11 @@ HalfplaneIntersection<PointType, LabelType>::bbox() const {
     const auto convert = [](const Fraction& f, bool roundUp) -> ResultNumber {
         if constexpr (std::is_floating_point_v<ResultNumber>) {
             (void)roundUp;
-            return static_cast<ResultNumber>(f.num) / static_cast<ResultNumber>(f.den);
+            return detail::asNumber<ResultNumber>(f.num) / detail::asNumber<ResultNumber>(f.den);
         } else if constexpr (is_Rational_v<ResultNumber>) {
             // Exact when the fraction fits the rational's storage type.
             (void)roundUp;
-            return static_cast<ResultNumber>(f.num) / static_cast<ResultNumber>(f.den);
+            return detail::asNumber<ResultNumber>(f.num) / detail::asNumber<ResultNumber>(f.den);
         } else if constexpr (is_Rational_v<C> || std::is_floating_point_v<C>) {
             // Exact (Rational) or approximate (floating) coordinates: divide
             // in the working type and convert; no outward rounding applies.

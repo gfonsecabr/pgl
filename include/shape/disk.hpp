@@ -400,7 +400,7 @@ struct Disk {
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] constexpr ResultNumber squaredRadius() const {
         if (auto cr = centerAndRadius()) {
-            return static_cast<ResultNumber>(cr->second) * static_cast<ResultNumber>(cr->second);
+            return detail::asNumber<ResultNumber>(cr->second) * detail::asNumber<ResultNumber>(cr->second);
         }
 
         if (isDegenerate()) {
@@ -608,8 +608,8 @@ struct Disk {
     [[nodiscard]] constexpr Point<ResultNumber, PointLabelType> pointInside() const {
         const ResultNumber two = static_cast<ResultNumber>(2);
         return Point<ResultNumber, PointLabelType>(
-            (static_cast<ResultNumber>(a().x()) + static_cast<ResultNumber>(b().x())) / two,
-            (static_cast<ResultNumber>(a().y()) + static_cast<ResultNumber>(b().y())) / two,
+            (detail::asNumber<ResultNumber>(a().x()) + detail::asNumber<ResultNumber>(b().x())) / two,
+            (detail::asNumber<ResultNumber>(a().y()) + detail::asNumber<ResultNumber>(b().y())) / two,
             PointLabelType{});
     }
 

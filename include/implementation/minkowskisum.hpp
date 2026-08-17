@@ -496,7 +496,9 @@ constexpr int chainVertexSide(const ChainEnvelopeVertex<P>& vertex, const P& u1,
         return chainSideSign(u1, u2, vertex.point);
     }
     using Wide = chainWide_t<typename P::NumberType>;
-    const auto wide = [](const auto& value) { return static_cast<Wide>(value); };
+    const auto wide = [](const auto& value) -> decltype(auto) {
+        return detail::asNumber<Wide>(value);
+    };
 
     const Wide rx = wide(vertex.b.x()) - wide(vertex.a.x());
     const Wide ry = wide(vertex.b.y()) - wide(vertex.a.y());
@@ -529,7 +531,9 @@ constexpr int chainVertexXSign(const ChainEnvelopeVertex<P>& vertex, const Numbe
         return chainSignOf(vertex.point.x() - x);
     }
     using Wide = chainWide_t<typename P::NumberType>;
-    const auto wide = [](const auto& value) { return static_cast<Wide>(value); };
+    const auto wide = [](const auto& value) -> decltype(auto) {
+        return detail::asNumber<Wide>(value);
+    };
 
     const Wide rx = wide(vertex.b.x()) - wide(vertex.a.x());
     const Wide ry = wide(vertex.b.y()) - wide(vertex.a.y());
@@ -556,11 +560,13 @@ template <class ResultPoint, class P>
 ResultPoint chainVertexPoint(const ChainEnvelopeVertex<P>& vertex) {
     using ResultNumber = typename ResultPoint::NumberType;
     if (!vertex.isCrossing) {
-        return ResultPoint(static_cast<ResultNumber>(vertex.point.x()),
-                           static_cast<ResultNumber>(vertex.point.y()));
+        return ResultPoint(detail::asNumber<ResultNumber>(vertex.point.x()),
+                           detail::asNumber<ResultNumber>(vertex.point.y()));
     }
     using Wide = chainWide_t<typename P::NumberType>;
-    const auto wide = [](const auto& value) { return static_cast<Wide>(value); };
+    const auto wide = [](const auto& value) -> decltype(auto) {
+        return detail::asNumber<Wide>(value);
+    };
 
     const Wide rx = wide(vertex.b.x()) - wide(vertex.a.x());
     const Wide ry = wide(vertex.b.y()) - wide(vertex.a.y());
@@ -863,8 +869,8 @@ void chainAppendEnvelope(std::vector<ResultPoint>& walk,
         }
         walk.push_back(chainVertexPoint<ResultPoint>(arc.start));
     }
-    walk.emplace_back(static_cast<ResultNumber>(envelope.back().b.x()),
-                      static_cast<ResultNumber>(envelope.back().b.y()));
+    walk.emplace_back(detail::asNumber<ResultNumber>(envelope.back().b.x()),
+                      detail::asNumber<ResultNumber>(envelope.back().b.y()));
 }
 
 /** @brief Removes the repeated vertices of a closed boundary walk. */
@@ -932,12 +938,12 @@ std::vector<ResultPoint> chainSumWalk(const ChainType& chain, const ConvexOperan
     using ResultNumber = typename ResultPoint::NumberType;
 
     const auto convert = [](const auto& vertex) {
-        return ResultPoint(static_cast<ResultNumber>(vertex.x()),
-                           static_cast<ResultNumber>(vertex.y()));
+        return ResultPoint(detail::asNumber<ResultNumber>(vertex.x()),
+                           detail::asNumber<ResultNumber>(vertex.y()));
     };
     const auto shifted = [](const auto& p, const auto& q) {
-        return SumPoint(static_cast<SumNumber>(p.x()) + static_cast<SumNumber>(q.x()),
-                        static_cast<SumNumber>(p.y()) + static_cast<SumNumber>(q.y()));
+        return SumPoint(detail::asNumber<SumNumber>(p.x()) + detail::asNumber<SumNumber>(q.x()),
+                        detail::asNumber<SumNumber>(p.y()) + detail::asNumber<SumNumber>(q.y()));
     };
 
     const std::vector<SumPoint> operandVertices = minkowskiVertices<SumPoint>(other);
@@ -1198,9 +1204,9 @@ std::vector<PolygonWithHoles<ExactPoint>> minkowskiBoundaryPieces(
                 std::vector<ExactPoint> moved;
                 moved.reserve(ring.size());
                 for (const auto& vertex : ring.vertices()) {
-                    moved.emplace_back(static_cast<ExactNumber>(static_cast<SumNumber>(vertex.x()) +
+                    moved.emplace_back(static_cast<ExactNumber>(detail::asNumber<SumNumber>(vertex.x()) +
                                                                 q0.x()),
-                                       static_cast<ExactNumber>(static_cast<SumNumber>(vertex.y()) +
+                                       static_cast<ExactNumber>(detail::asNumber<SumNumber>(vertex.y()) +
                                                                 q0.y()));
                 }
                 return ExactPolygon(std::move(moved), true);

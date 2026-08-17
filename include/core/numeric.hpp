@@ -314,6 +314,48 @@ template <typename T>
 using promoted_number_t = typename _promote<T>::type;
 
 /**
+ * @brief A value as a @p Target number, without the copy a cast to the type it
+ *        already has would make.
+ *
+ * The promotion rules above deliberately leave @ref pgl::Rational and
+ * @ref pgl::BigInt alone, so an operation that casts each operand to its promoted
+ * coordinate type is, for those two, casting to the type the operand already has.
+ * Spelled as a `static_cast` that is a copy the language mandates and no
+ * optimizer removes: the argument is an lvalue, so the C++17 elision rules do not
+ * reach it, and @ref pgl::BigInt's copy constructor is non-trivial — it
+ * conditionally allocates limbs — which is what stops the compiler from reasoning
+ * it away. On a limb-carrying value it allocates, once per cast. This hands the
+ * operand over by `const` reference instead, and converts only when the type
+ * really changes, so every promoting instantiation — `int` to `int64_t` and the
+ * like — still compiles to what the plain cast did.
+ *
+ * Worth knowing where it does not pay: on the shape-pair benchmarks the exact
+ * types gain across the board, by a median of 7-11% and up to 65% on the cheap
+ * predicates that were mostly copying, but a `Disk<ERational>` pair loses about
+ * 10%. Its determinants are the heaviest exact arithmetic in the library, and
+ * there a private copy the optimizer knows aliases nothing is worth more than the
+ * copy costs. @ref pgl::Rational's own comparison operators behave the same way
+ * and deliberately still cast.
+ *
+ * @warning A returned reference refers to the argument, so it lives only as long
+ * as what was passed in. Use it inside the expression that consumes it, as the
+ * callers here do; do not bind it to a longer-lived reference, and do not pass a
+ * temporary. Neither restriction gives anything up, since a temporary argument is
+ * a prvalue whose `static_cast` the language already elides.
+ *
+ * @tparam Target The number type the caller wants to compute in.
+ * @param value The operand to view as a @p Target.
+ */
+template <class Target, class Number>
+constexpr decltype(auto) asNumber(const Number& value) {
+    if constexpr (std::is_same_v<Target, Number>) {
+        return (value);
+    } else {
+        return static_cast<Target>(value);
+    }
+}
+
+/**
  * @brief Whether a number type grows to hold its values instead of wrapping.
  *
  * True for @ref BigInt and for any @ref Rational built on one. These are the

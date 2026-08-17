@@ -29,18 +29,18 @@ template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr bool Point<Number, Label>::operator==(const OtherPoint& other) const {
     using Compare = std::common_type_t<Number, typename OtherPoint::NumberType>;
-    return static_cast<Compare>(x()) == static_cast<Compare>(other.x()) &&
-           static_cast<Compare>(y()) == static_cast<Compare>(other.y());
+    return detail::asNumber<Compare>(x()) == detail::asNumber<Compare>(other.x()) &&
+           detail::asNumber<Compare>(y()) == detail::asNumber<Compare>(other.y());
 }
 
 template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr std::strong_ordering Point<Number, Label>::operator<=>(const OtherPoint& other) const {
     using Compare = std::common_type_t<Number, typename OtherPoint::NumberType>;
-    if (auto cmp = detail::strongOrder(static_cast<Compare>(x()), static_cast<Compare>(other.x())); cmp != 0) {
+    if (auto cmp = detail::strongOrder(detail::asNumber<Compare>(x()), detail::asNumber<Compare>(other.x())); cmp != 0) {
         return cmp;
     }
-    return detail::strongOrder(static_cast<Compare>(y()), static_cast<Compare>(other.y()));
+    return detail::strongOrder(detail::asNumber<Compare>(y()), detail::asNumber<Compare>(other.y()));
 }
 
 /**

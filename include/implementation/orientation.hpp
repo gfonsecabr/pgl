@@ -64,10 +64,10 @@ constexpr auto orientationDeterminant(
     const Point<CNumber, CLabel>& c) {
     using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
 
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto acx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(a.x());
-    const auto acy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(a.y());
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
 
     return abx * acy - aby * acx;
 }
@@ -90,10 +90,10 @@ constexpr std::partial_ordering orientationSign(
     const Point<CNumber, CLabel> &c) {
     using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
 
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto acx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(a.x());
-    const auto acy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(a.y());
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
 
     return detail::threeWay(abx * acy, aby * acx);
 }
@@ -118,8 +118,8 @@ constexpr std::partial_ordering crossSign(
     const Point<VNumber, VLabel>& v) {
     using Coordinate = detail::sign_coordinate_t<UNumber, VNumber>;
 
-    return detail::threeWay(static_cast<Coordinate>(u.x()) * static_cast<Coordinate>(v.y()),
-                            static_cast<Coordinate>(u.y()) * static_cast<Coordinate>(v.x()));
+    return detail::threeWay(detail::asNumber<Coordinate>(u.x()) * detail::asNumber<Coordinate>(v.y()),
+                            detail::asNumber<Coordinate>(u.y()) * detail::asNumber<Coordinate>(v.x()));
 }
 
 /**
@@ -144,10 +144,10 @@ constexpr std::partial_ordering crossSign(
     const Point<QNumber, QLabel>& q) {
     using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
 
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
-    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
+    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
 
     return detail::threeWay(abx * pqy, aby * pqx);
 }
@@ -203,8 +203,8 @@ constexpr std::partial_ordering dotSign(
     const Point<BNumber, BLabel>& b) {
     using Coordinate = detail::sign_coordinate_t<ANumber, BNumber>;
 
-    const auto x = static_cast<Coordinate>(a.x()) * static_cast<Coordinate>(b.x());
-    const auto y = static_cast<Coordinate>(a.y()) * static_cast<Coordinate>(b.y());
+    const auto x = detail::asNumber<Coordinate>(a.x()) * detail::asNumber<Coordinate>(b.x());
+    const auto y = detail::asNumber<Coordinate>(a.y()) * detail::asNumber<Coordinate>(b.y());
 
     return detail::threeWay(x, -y);
 }
@@ -232,10 +232,10 @@ constexpr std::partial_ordering dotSign(
     const Point<QNumber, QLabel>& q) {
     using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
 
-    const auto abx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(a.x());
-    const auto aby = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(a.y());
-    const auto pqx = static_cast<Coordinate>(q.x()) - static_cast<Coordinate>(p.x());
-    const auto pqy = static_cast<Coordinate>(q.y()) - static_cast<Coordinate>(p.y());
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
+    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
 
     return detail::threeWay(abx * pqx, -(aby * pqy));
 }
@@ -473,12 +473,12 @@ constexpr auto inCircleDeterminant(
     const Point<DNumber, DLabel>& d) {
     using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
 
-    const auto adx = static_cast<Coordinate>(a.x()) - static_cast<Coordinate>(d.x());
-    const auto ady = static_cast<Coordinate>(a.y()) - static_cast<Coordinate>(d.y());
-    const auto bdx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(d.x());
-    const auto bdy = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(d.y());
-    const auto cdx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(d.x());
-    const auto cdy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(d.y());
+    const auto adx = detail::asNumber<Coordinate>(a.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto ady = detail::asNumber<Coordinate>(a.y()) - detail::asNumber<Coordinate>(d.y());
+    const auto bdx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto bdy = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(d.y());
+    const auto cdx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto cdy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(d.y());
     const auto abdet = adx * bdy - bdx * ady;
     const auto bcdet = bdx * cdy - cdx * bdy;
     const auto cadet = cdx * ady - adx * cdy;
@@ -521,12 +521,12 @@ constexpr std::partial_ordering inCircleSign(
         }
     }
 
-    const auto adx = static_cast<Coordinate>(a.x()) - static_cast<Coordinate>(d.x());
-    const auto ady = static_cast<Coordinate>(a.y()) - static_cast<Coordinate>(d.y());
-    const auto bdx = static_cast<Coordinate>(b.x()) - static_cast<Coordinate>(d.x());
-    const auto bdy = static_cast<Coordinate>(b.y()) - static_cast<Coordinate>(d.y());
-    const auto cdx = static_cast<Coordinate>(c.x()) - static_cast<Coordinate>(d.x());
-    const auto cdy = static_cast<Coordinate>(c.y()) - static_cast<Coordinate>(d.y());
+    const auto adx = detail::asNumber<Coordinate>(a.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto ady = detail::asNumber<Coordinate>(a.y()) - detail::asNumber<Coordinate>(d.y());
+    const auto bdx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto bdy = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(d.y());
+    const auto cdx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(d.x());
+    const auto cdy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(d.y());
     const auto abdet = adx * bdy - bdx * ady;
     const auto bcdet = bdx * cdy - cdx * bdy;
     const auto cadet = cdx * ady - adx * cdy;

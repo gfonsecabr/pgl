@@ -41,7 +41,7 @@ Segment<PointType, LabelType>::yAtX(const OtherNumber &x) const {
     const ResultNumber deltaX = static_cast<ResultNumber>(max().x() - min().x());
     const ResultNumber deltaY = static_cast<ResultNumber>(max().y() - min().y());
 
-    const ResultNumber y = minY + (static_cast<ResultNumber>(x) - minX) * deltaY / deltaX;
+    const ResultNumber y = minY + (detail::asNumber<ResultNumber>(x) - minX) * deltaY / deltaX;
     return y;
 }
 
@@ -77,7 +77,7 @@ constexpr std::optional<ResultNumber> Segment<PointType, LabelType>::xAtY(const 
     const ResultNumber delta_x = static_cast<ResultNumber>(max().x() - min().x());
     const ResultNumber delta_y = static_cast<ResultNumber>(max().y() - min().y());
 
-    return min_x + (static_cast<ResultNumber>(y) - min_y_value) * delta_x / delta_y;
+    return min_x + (detail::asNumber<ResultNumber>(y) - min_y_value) * delta_x / delta_y;
 }
 
 // -----------------------------------------------------------------------------
@@ -147,7 +147,7 @@ Line<PointType, LabelType>::yAtX(const OtherNumber& x) const {
     const ResultNumber delta_x = static_cast<ResultNumber>(max().x() - min().x());
     const ResultNumber delta_y = static_cast<ResultNumber>(max().y() - min().y());
 
-    return min_y + (static_cast<ResultNumber>(x) - min_x) * delta_y / delta_x;
+    return min_y + (detail::asNumber<ResultNumber>(x) - min_x) * delta_y / delta_x;
 }
 
 /**
@@ -185,7 +185,7 @@ Line<PointType, LabelType>::xAtY(const OtherNumber& y) const {
     const ResultNumber delta_x = static_cast<ResultNumber>(max().x() - min().x());
     const ResultNumber delta_y = static_cast<ResultNumber>(max().y() - min().y());
 
-    return min_x + (static_cast<ResultNumber>(y) - min_y) * delta_x / delta_y;
+    return min_x + (detail::asNumber<ResultNumber>(y) - min_y) * delta_x / delta_y;
 }
 
 // -----------------------------------------------------------------------------
@@ -293,7 +293,7 @@ constexpr std::optional<std::array<Segment<PointType>, 2>> Convex<PointType, Lab
     }
     using CommonNumberType = std::common_type_t<NumberType, OtherNumberType>;
     const CommonNumberType target =
-        static_cast<CommonNumberType>(x) - static_cast<CommonNumberType>(translation_.x());
+        detail::asNumber<CommonNumberType>(x) - detail::asNumber<CommonNumberType>(translation_.x());
     const size_t m = maxIndex();
     const CommonNumberType min_x = static_cast<CommonNumberType>(points_[0].x());
     const CommonNumberType max_x = static_cast<CommonNumberType>(points_[m].x());
@@ -351,8 +351,8 @@ MonotoneChain<PointType, LabelType, Storage>::indexAtX(const OtherNumber& x) con
         return {};
     }
     const auto tx = translation_.x();
-    if (static_cast<Compare>(x) < static_cast<Compare>(points_.front().x() + tx) ||
-        static_cast<Compare>(points_.back().x() + tx) < static_cast<Compare>(x)) {
+    if (detail::asNumber<Compare>(x) < static_cast<Compare>(points_.front().x() + tx) ||
+        static_cast<Compare>(points_.back().x() + tx) < detail::asNumber<Compare>(x)) {
         return {};
     }
     // First index whose x is >= the query x; lower_bound gives the smallest
@@ -360,11 +360,11 @@ MonotoneChain<PointType, LabelType, Storage>::indexAtX(const OtherNumber& x) con
     const auto it = std::lower_bound(
         points_.begin(), points_.end(), x,
         [&tx](const PointType& p, const OtherNumber& value) {
-            return static_cast<Compare>(p.x() + tx) < static_cast<Compare>(value);
+            return static_cast<Compare>(p.x() + tx) < detail::asNumber<Compare>(value);
         });
     assert(it != points_.end());
     const std::size_t i = static_cast<std::size_t>(it - points_.begin());
-    if (static_cast<Compare>(it->x() + tx) == static_cast<Compare>(x)) {
+    if (static_cast<Compare>(it->x() + tx) == detail::asNumber<Compare>(x)) {
         return i;
     }
     // x lies strictly between vertex i-1 and vertex i; the range check above
@@ -382,7 +382,7 @@ MonotoneChain<PointType, LabelType, Storage>::yAtX(const OtherNumber& x) const {
         return {};
     }
     const PointType a = (*this)[*idx];
-    if (static_cast<Compare>(a.x()) == static_cast<Compare>(x)) {
+    if (detail::asNumber<Compare>(a.x()) == detail::asNumber<Compare>(x)) {
         // Exactly at a vertex; at a vertical run this is its bottom vertex.
         return static_cast<ResultNumber>(a.y());
     }
@@ -402,7 +402,7 @@ MonotoneChain<PointType, LabelType, Storage>::isStrictlyBelow(const OtherPoint& 
         return {};
     }
     const PointType a = (*this)[*idx];
-    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+    if (detail::asNumber<Compare>(a.x()) == detail::asNumber<Compare>(point.x())) {
         // idx is the bottom vertex of the vertical run at x = point.x(); the
         // chain lies strictly below the point only when the run's *top* vertex
         // is still below it (a point inside the run lies on the chain, so it
@@ -413,10 +413,10 @@ MonotoneChain<PointType, LabelType, Storage>::isStrictlyBelow(const OtherPoint& 
         const auto it = std::upper_bound(
             points_.begin() + static_cast<std::ptrdiff_t>(*idx), points_.end(), point.x(),
             [&tx](const auto& value, const PointType& p) {
-                return static_cast<Compare>(value) < static_cast<Compare>(p.x() + tx);
+                return detail::asNumber<Compare>(value) < static_cast<Compare>(p.x() + tx);
             });
         const PointType top = (*this)[static_cast<std::size_t>(it - points_.begin()) - 1];
-        if (static_cast<Compare>(top.y()) < static_cast<Compare>(point.y())) {
+        if (detail::asNumber<Compare>(top.y()) < detail::asNumber<Compare>(point.y())) {
             return idx;
         }
         return {};
@@ -439,12 +439,12 @@ MonotoneChain<PointType, LabelType, Storage>::isStrictlyAbove(const OtherPoint& 
         return {};
     }
     const PointType a = (*this)[*idx];
-    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+    if (detail::asNumber<Compare>(a.x()) == detail::asNumber<Compare>(point.x())) {
         // idx is the bottom vertex of the vertical run at x = point.x(); the
         // chain lies strictly above the point only when even that bottom vertex
         // is above it (a point inside the run lies on the chain, so it counts as
         // neither above nor below).
-        if (static_cast<Compare>(a.y()) > static_cast<Compare>(point.y())) {
+        if (detail::asNumber<Compare>(a.y()) > detail::asNumber<Compare>(point.y())) {
             return idx;
         }
         return {};
@@ -466,11 +466,11 @@ MonotoneChain<PointType, LabelType, Storage>::isBelow(const OtherPoint& point) c
         return {};
     }
     const PointType a = (*this)[*idx];
-    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+    if (detail::asNumber<Compare>(a.x()) == detail::asNumber<Compare>(point.x())) {
         // The chain covers x = point.x() from the bottom vertex of this run
         // upward; a downward ray from the point hits iff the bottom is not
         // above the point.
-        if (static_cast<Compare>(a.y()) <= static_cast<Compare>(point.y())) {
+        if (detail::asNumber<Compare>(a.y()) <= detail::asNumber<Compare>(point.y())) {
             return idx;
         }
         return {};
@@ -493,7 +493,7 @@ MonotoneChain<PointType, LabelType, Storage>::isAbove(const OtherPoint& point) c
         return {};
     }
     const PointType a = (*this)[*idx];
-    if (static_cast<Compare>(a.x()) == static_cast<Compare>(point.x())) {
+    if (detail::asNumber<Compare>(a.x()) == detail::asNumber<Compare>(point.x())) {
         // The chain covers x = point.x() up to the *top* vertex of the run
         // starting at idx; locate it with a second binary search (the run is
         // contiguous because the vertices are sorted lexicographically).
@@ -501,10 +501,10 @@ MonotoneChain<PointType, LabelType, Storage>::isAbove(const OtherPoint& point) c
         const auto it = std::upper_bound(
             points_.begin() + static_cast<std::ptrdiff_t>(*idx), points_.end(), point.x(),
             [&tx](const auto& value, const PointType& p) {
-                return static_cast<Compare>(value) < static_cast<Compare>(p.x() + tx);
+                return detail::asNumber<Compare>(value) < static_cast<Compare>(p.x() + tx);
             });
         const PointType top = (*this)[static_cast<std::size_t>(it - points_.begin()) - 1];
-        if (static_cast<Compare>(top.y()) >= static_cast<Compare>(point.y())) {
+        if (detail::asNumber<Compare>(top.y()) >= detail::asNumber<Compare>(point.y())) {
             return idx;
         }
         return {};
@@ -525,7 +525,7 @@ MonotoneChain<PointType, LabelType, Storage>::edgeWindow(const LowNumber& xlo, c
         return {};
     }
     const auto tx = translation_.x();
-    if (static_cast<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.front().x() + tx) ||
+    if (detail::asNumber<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.front().x() + tx) ||
         static_cast<CompareLow>(points_.back().x() + tx) < static_cast<CompareLow>(xlo)) {
         return {};
     }
@@ -540,12 +540,12 @@ MonotoneChain<PointType, LabelType, Storage>::edgeWindow(const LowNumber& xlo, c
         }
     }
     std::size_t last = points_.size() - 1;
-    if (static_cast<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.back().x() + tx)) {
+    if (detail::asNumber<CompareHigh>(xhi) < static_cast<CompareHigh>(points_.back().x() + tx)) {
         // Last vertex with x <= xhi; the disjointness check guarantees one exists.
         const auto it = std::upper_bound(
             points_.begin(), points_.end(), xhi,
             [&tx](const HighNumber& value, const PointType& p) {
-                return static_cast<CompareHigh>(value) < static_cast<CompareHigh>(p.x() + tx);
+                return detail::asNumber<CompareHigh>(value) < static_cast<CompareHigh>(p.x() + tx);
             });
         last = static_cast<std::size_t>(it - points_.begin()) - 1;
     }

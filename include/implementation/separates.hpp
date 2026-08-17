@@ -95,8 +95,8 @@ constexpr std::partial_ordering lineHitOrder(
     const auto ou = orientationDeterminant(b.u, b.v, a.u);
     const auto ov = orientationDeterminant(b.u, b.v, a.v);
     using Wide = promoted_number_t<std::common_type_t<decltype(du), decltype(ou)>>;
-    const auto scaled = threeWay(static_cast<Wide>(ov) * static_cast<Wide>(du),
-                                 static_cast<Wide>(ou) * static_cast<Wide>(dv));
+    const auto scaled = threeWay(detail::asNumber<Wide>(ov) * detail::asNumber<Wide>(du),
+                                 detail::asNumber<Wide>(ou) * detail::asNumber<Wide>(dv));
     if (scaled == 0) {
         return std::partial_ordering::equivalent;
     }
@@ -2405,8 +2405,8 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) 
     for (std::size_t i = 0; i < size(); ++i) {
         const auto u = (*this)[i];
         const auto w = get(static_cast<std::ptrdiff_t>(i) + 1);
-        const CSeg s(CPoint(static_cast<Common>(u.x()), static_cast<Common>(u.y())),
-                     CPoint(static_cast<Common>(w.x()), static_cast<Common>(w.y())));
+        const CSeg s(CPoint(detail::asNumber<Common>(u.x()), detail::asNumber<Common>(u.y())),
+                     CPoint(detail::asNumber<Common>(w.x()), detail::asNumber<Common>(w.y())));
         constraints.push_back(s);
         pBoundary.insert(s);
     }

@@ -46,7 +46,9 @@ constexpr Point<ResultNumber, ResultLabel> carrierCrossing(
         std::conditional_t<std::floating_point<InputNumber>, ResultNumber,
                            promoted_number_t<promoted_number_t<InputNumber>>>;
 
-    const auto wide = [](const auto& value) { return static_cast<Coordinate>(value); };
+    const auto wide = [](const auto& value) -> decltype(auto) {
+        return detail::asNumber<Coordinate>(value);
+    };
     const Coordinate rx = wide(a2.x()) - wide(a1.x());
     const Coordinate ry = wide(a2.y()) - wide(a1.y());
     const Coordinate sx = wide(b2.x()) - wide(b1.x());
@@ -64,14 +66,14 @@ constexpr Point<ResultNumber, ResultLabel> carrierCrossing(
         if constexpr (std::integral<ResultNumber>) {
             return static_cast<ResultNumber>(numerator / determinant);
         } else {
-            return static_cast<ResultNumber>(numerator) /
-                   static_cast<ResultNumber>(determinant);
+            return detail::asNumber<ResultNumber>(numerator) /
+                   detail::asNumber<ResultNumber>(determinant);
         }
     };
 
     return Point<ResultNumber, ResultLabel>(
-        static_cast<ResultNumber>(a1.x()) + ratio(along * rx),
-        static_cast<ResultNumber>(a1.y()) + ratio(along * ry));
+        detail::asNumber<ResultNumber>(a1.x()) + ratio(along * rx),
+        detail::asNumber<ResultNumber>(a1.y()) + ratio(along * ry));
 }
 
 }  // namespace detail
@@ -1017,8 +1019,8 @@ Rectangle<PointType, LabelType>::intersection(const OtherRectangle& other) const
     const auto max_y = max().y() < other.max().y() ? max().y() : other.max().y();
 
     return ResultRectangle(
-        ResultPoint(static_cast<ResultNumber>(min_x), static_cast<ResultNumber>(min_y)),
-        ResultPoint(static_cast<ResultNumber>(max_x), static_cast<ResultNumber>(max_y)));
+        ResultPoint(detail::asNumber<ResultNumber>(min_x), detail::asNumber<ResultNumber>(min_y)),
+        ResultPoint(detail::asNumber<ResultNumber>(max_x), detail::asNumber<ResultNumber>(max_y)));
 }
 
 template <class PointType, class LabelType>
@@ -1122,9 +1124,9 @@ constexpr auto Rectangle<PointType, LabelType>::intersection(const OtherHalfplan
         // leaving the coordinate along the edge exact.
         if (i % 2 == 0) {   // bottom and top edges are horizontal
             keep(ResultPoint(*boundary.template xAtY<ResultNumber>(corners[i].y()),
-                             static_cast<ResultNumber>(corners[i].y())));
+                             detail::asNumber<ResultNumber>(corners[i].y())));
         } else {            // right and left edges are vertical
-            keep(ResultPoint(static_cast<ResultNumber>(corners[i].x()),
+            keep(ResultPoint(detail::asNumber<ResultNumber>(corners[i].x()),
                              *boundary.template yAtX<ResultNumber>(corners[i].x())));
         }
     }
@@ -1281,10 +1283,10 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
     using CommonNumberType = std::common_type_t<NumberType, typename OtherLine::NumberType>;
     using CommonPoint = Point<CommonNumberType, typename PointType::LabelType>;
 
-    const CommonPoint local_p0(static_cast<CommonNumberType>(other[0].x()) - static_cast<CommonNumberType>(translation_.x()),
-                               static_cast<CommonNumberType>(other[0].y()) - static_cast<CommonNumberType>(translation_.y()));
-    const CommonPoint local_p1(static_cast<CommonNumberType>(other[1].x()) - static_cast<CommonNumberType>(translation_.x()),
-                               static_cast<CommonNumberType>(other[1].y()) - static_cast<CommonNumberType>(translation_.y()));
+    const CommonPoint local_p0(detail::asNumber<CommonNumberType>(other[0].x()) - detail::asNumber<CommonNumberType>(translation_.x()),
+                               detail::asNumber<CommonNumberType>(other[0].y()) - detail::asNumber<CommonNumberType>(translation_.y()));
+    const CommonPoint local_p1(detail::asNumber<CommonNumberType>(other[1].x()) - detail::asNumber<CommonNumberType>(translation_.x()),
+                               detail::asNumber<CommonNumberType>(other[1].y()) - detail::asNumber<CommonNumberType>(translation_.y()));
 
     if (local_p0 == local_p1) {
         return {};
@@ -1354,14 +1356,14 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
 
         auto extremal_high = detail::cyclicMax(points_.begin(), points_.end(),
             [&](const PointType& a) {
-                return static_cast<CommonNumberType>(a.x()) * direction.x() +
-                       static_cast<CommonNumberType>(a.y()) * direction.y();
+                return detail::asNumber<CommonNumberType>(a.x()) * direction.x() +
+                       detail::asNumber<CommonNumberType>(a.y()) * direction.y();
             });
 
         auto extremal_low = detail::cyclicMax(points_.begin(), points_.end(),
             [&](const PointType& a) {
-                return -(static_cast<CommonNumberType>(a.x()) * direction.x() +
-                         static_cast<CommonNumberType>(a.y()) * direction.y());
+                return -(detail::asNumber<CommonNumberType>(a.x()) * direction.x() +
+                         detail::asNumber<CommonNumberType>(a.y()) * direction.y());
             });
 
         Segment<PointType> support(*extremal_low, *extremal_high);
@@ -1455,8 +1457,8 @@ constexpr std::optional<std::variant<Point<ResultNumber, typename PointType::Lab
                                 localLine[1].y() - localLine[0].y());
 
     auto project = [&](const Point<ResultNumber, typename PointType::LabelType>& point) {
-        return (static_cast<CommonNumberType>(point.x()) - localLine[0].x()) * direction.x() +
-               (static_cast<CommonNumberType>(point.y()) - localLine[0].y()) * direction.y();
+        return (detail::asNumber<CommonNumberType>(point.x()) - localLine[0].x()) * direction.x() +
+               (detail::asNumber<CommonNumberType>(point.y()) - localLine[0].y()) * direction.y();
     };
 
     std::sort(points.begin(), points.end(), [&](auto const& a, auto const& b) {

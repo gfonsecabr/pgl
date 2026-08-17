@@ -155,7 +155,7 @@ std::size_t closestPairGatherStrip(const PointType* points, std::size_t count, s
     // exact: |x - splitX| < d becomes (x - splitX)^2 < d^2. A best of zero
     // admits nothing, which is right — no pair can beat a coincident one.
     const auto inside = [&](std::size_t index) {
-        const Coordinate dx = static_cast<Coordinate>(points[index].x()) - splitX;
+        const Coordinate dx = detail::asNumber<Coordinate>(points[index].x()) - splitX;
         return dx * dx < best.squaredDistance;
     };
 
@@ -189,7 +189,7 @@ void closestPairScanStrip(const PointType* strip, std::size_t stripCount,
     for (std::size_t i = 0; i < stripCount; ++i) {
         for (std::size_t j = i + 1; j < stripCount; ++j) {
             const Coordinate dy =
-                static_cast<Coordinate>(strip[j].y()) - static_cast<Coordinate>(strip[i].y());
+                detail::asNumber<Coordinate>(strip[j].y()) - detail::asNumber<Coordinate>(strip[i].y());
             if (dy * dy >= best.squaredDistance) {
                 break;
             }
