@@ -69,6 +69,35 @@ TEST_CASE("trapezoidal point location handles unbounded edges") {
                                          Line(P(0, 3), P(1, 3))});
 }
 
+// The map is built in a symbolically sheared frame, where a vertical edge
+// occupies a single abscissa and an unbounded one escapes to an end
+// infinitesimally beside it rather than to infinity.
+TEST_CASE("trapezoidal point location handles vertical unbounded edges") {
+    checkIndexedParity(std::vector<Shape>{Ray(P(0, 1), P(0, 4)),
+                                          Ray(P(0, -1), P(0, -4)),
+                                          Segment(P(-3, 0), P(3, 0))});
+    checkIndexedParity(std::vector<Shape>{Line(P(-2, 0), P(-2, 5)),
+                                          Line(P(2, 5), P(2, 0)),
+                                          Ray(P(0, 0), P(0, 6)),
+                                          Ray(P(0, 0), P(6, 0)),
+                                          Line(P(-6, 3), P(6, 3))});
+}
+
+// Vertices stacked on one abscissa leave slabs of infinitesimal width between
+// their walls, which is where the sheared frame has to place a curve at a point
+// the plane itself does not hold.
+TEST_CASE("trapezoidal point location handles vertices stacked on one abscissa") {
+    std::vector<Segment> segments;
+    for (int x = -4; x <= 4; x += 2) {
+        segments.emplace_back(P(x, -4), P(x, 4));
+    }
+    for (int y = -4; y <= 4; y += 2) {
+        segments.emplace_back(P(-4, y), P(4, y));
+    }
+    segments.emplace_back(P(-4, -4), P(4, 4));
+    checkIndexedParity(segments, 6);
+}
+
 TEST_CASE("trapezoidal point location falls back for non-integral lines") {
     // Neither supporting line meets the integer lattice, so neither can use
     // the index's cached int64 representative.
@@ -199,6 +228,34 @@ TEST_CASE("trapezoidal point location matches scans on randomized overlays") {
             CAPTURE(trial);
             CAPTURE(queries[i]);
             CHECK(arrangement.locateFace(queries[i]) == expected[i]);
+        }
+    }
+}
+
+// A vertical query keeps its own slab in the sheared frame, which is the case
+// the search DAG prunes hardest and the one that has to stay exact.
+TEST_CASE("trapezoidal traversal matches the scan on vertical queries") {
+    const std::vector<Shape> shapes{S(-6, -3, 6, -3), S(-6, 3, 6, 3),
+                                     S(-2, -6, -2, 6), S(2, -6, 2, 6),
+                                     S(-6, -6, 6, 6),  Ray(P(0, 4), P(0, 9)),
+                                     Ray(P(4, 0), P(4, -9)),
+                                     Line(P(-4, -1), P(-4, 1))};
+    const Arrangement linear(shapes);
+    Arrangement indexed = linear;
+    std::mt19937 order(31);
+    indexed.buildPointLocation(order);
+
+    for (int x = -7; x <= 7; ++x) {
+        for (int y = -7; y <= 7; ++y) {
+            CAPTURE(x);
+            CAPTURE(y);
+            const Ray up(P(x, y), P(x, y + 1));
+            const Ray down(P(x, y), P(x, y - 1));
+            CHECK(indexed.firstIntersecting(up) == linear.firstIntersecting(up));
+            CHECK(indexed.firstIntersecting(down) == linear.firstIntersecting(down));
+            CHECK(indexed.reportIntersecting(up) == linear.reportIntersecting(up));
+            CHECK(indexed.locateCell(P(x, y)) == linear.locateCell(P(x, y)));
+            CHECK(indexed.locateFace(P(x, y)) == linear.locateFace(P(x, y)));
         }
     }
 }
