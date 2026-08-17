@@ -565,15 +565,61 @@ struct Polygon {
      * graph, while a polygon collapsed to a point or segment connects every
      * pair of distinct contained vertices.
      *
-     * Uses an exact angular sweep from every vertex, maintaining the polygon
-     * edges intersecting the current ray in distance order.
+     * Triangulates the polygon and runs one cone-clipped traversal of the mesh
+     * per vertex — triangular expansion — whose cost is proportional to the part
+     * of the polygon that vertex actually sees. A convex polygon skips the
+     * triangulation: every segment between its vertices is inside it, so the
+     * answer is the complete graph. See @ref Triangulation::visibilityGraph.
      *
-     * Complexity: O(n^2 log n) time and O(n^2) space for n vertices, including
-     * the returned graph.
+     * Complexity: O(n·t + m) time for n vertices, m visibility edges and t
+     * triangles seen per vertex, plus O(m) space for the returned graph.
      *
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
     [[nodiscard]] Graph<PointType> visibilityGraph() const;
+
+    /**
+     * @brief Returns the clear visibility graph of the polygon vertices.
+     *
+     * Two vertices are adjacent exactly when the *open* segment joining them
+     * lies in the *interior* of the polygon and contains no other vertex — the
+     * strict reading of visibility, which admits neither grazing nor passing
+     * through a vertex. The polygon's own sides are therefore absent, their
+     * relative interiors lying on the boundary, and what remains is exactly the
+     * set of legal triangulation diagonals. Always a subgraph of
+     * @ref visibilityGraph.
+     *
+     * The answer is meaningful for a simple polygon. A degenerate polygon has no
+     * interior, so its vertices come back with no edges at all.
+     *
+     * Complexity: as @ref visibilityGraph, with no convex shortcut.
+     *
+     * @return An undirected graph whose vertices are this polygon's vertices.
+     */
+    [[nodiscard]] Graph<PointType> clearVisibilityGraph() const;
+
+    /**
+     * @brief Returns the reduced visibility graph of the polygon vertices.
+     *
+     * The subgraph of @ref visibilityGraph holding the edges a shortest path
+     * inside the polygon can use: those tangent to the boundary at both ends. An
+     * edge `uv` is tangent at `u` when the two sides meeting at `u` lie in one
+     * closed half-plane of the line `uv`, which is what lets a taut path bend
+     * there. Every side survives; among the diagonals only the bitangents
+     * between reflex corners do, so this is far sparser than
+     * @ref visibilityGraph while still holding a geodesic shortest path between
+     * any two vertices. A shortest path to or from a point that is not a vertex
+     * needs that point's own visibility edges added back.
+     *
+     * The answer is meaningful for a simple polygon. A degenerate polygon has
+     * every vertex collinear with every side, so the tangency test passes
+     * everywhere and the result matches @ref visibilityGraph.
+     *
+     * Complexity: as @ref visibilityGraph, plus O(m) for m visibility edges.
+     *
+     * @return An undirected graph whose vertices are this polygon's vertices.
+     */
+    [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
 
     /**
      * @brief Returns a lazy view over the edges, materializing each @ref

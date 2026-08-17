@@ -70,6 +70,18 @@ These functions use the same predicate conventions documented in
 
 - `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two `polyominoes` range overloads.
 
+### Visibility graphs
+
+`Polygon`, `PolygonWithHoles` and `Triangulation` each has 3 methods to compute visibility graphs, all returning a `Graph<PointType>` with the same vertex set. Sight is stopped by the boundary of the domain and, on a `Triangulation`, by every constrained edge as well, so `poly.triangulation(walls).visibilityGraph()`{Polygon} is visibility inside `poly` among the segment obstacles `walls`.
+
+- `visibilityGraph()`{Polygon} joins two vertices $a,b$ when the segment $ab$ is contained in the domain, possibly touching the boundary multiple times.
+
+- `clearVisibilityGraph()`{Polygon} is the strict reading: the segment $ab$ must not intersect the boundary of the domain except at $a$ and $b$. Always a subgraph of `visibilityGraph()`. A degenerate polygon has no interior, so its vertices come back with no edges.
+
+- `reducedVisibilityGraph()`{Polygon} is the subgraph of `visibilityGraph()`{Polygon} that a shortest path can use: the edges tangent to the obstacles at both ends. An edge $uv$ is tangent at $u$ when the walls incident to $u$ all lie in one closed half-plane of the line $uv$, which is what lets a taut path bend there; a wall running along that line counts for either side, which keeps the walls themselves in the graph. What survives is the boundary edges and the bitangents between reflex corners — much sparser than the full graph, while still containing a geodesic shortest path between any two of its vertices. A vertex with no incident wall, such as a free point inside the domain, bends no path and comes back isolated. A shortest path to or from a point that is not a vertex needs that point's own visibility edges added back.
+
+All three are computed by *triangular expansion*: the domain is triangulated once, then each vertex runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
+
 ### Boolean Operations and Minkowski Sum
 
 Boolean operations are documented in [`shape_methods.md`](shape_methods.md#boolean-operations). There is also the free function `regularizedUnionOf` to compute the regularized union of multiple shapes at once.

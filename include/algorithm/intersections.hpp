@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/visibilitygraph.hpp"
+#include "algorithm/graph.hpp"
 
 /**
  * @file intersections.hpp

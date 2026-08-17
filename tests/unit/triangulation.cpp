@@ -2084,13 +2084,19 @@ void checkCovers(const Shape& shape, const Triangulation& triangulation,
 
 }  // namespace
 
-template <class T>
-concept HasPublicVisibilityGraph = requires(const T& value) {
-    value.visibilityGraph();
-};
-
-static_assert(!HasPublicVisibilityGraph<
-              pgl::Triangulation<pgl::Triangle<pgl::Point<int>>>>);
+// Two unrelated graphs answer to the name. The detail helper exercised below is
+// the paper's dual construction behind convexCovering(): its vertices are
+// *triangles*, joined when one is fully visible from the other. The public
+// Triangulation::visibilityGraph is the ordinary one, over *vertices*. Pin the
+// difference down so neither is reached for by mistake.
+static_assert(std::same_as<decltype(pgl::detail::ConvexCoverBuilder::visibilityGraph(
+                               std::declval<const pgl::Triangulation<
+                                   pgl::Triangle<pgl::Point<int>>>&>())),
+                           pgl::Graph<pgl::Triangle<pgl::Point<int>>>>);
+static_assert(std::same_as<decltype(std::declval<const pgl::Triangulation<
+                                        pgl::Triangle<pgl::Point<int>>>&>()
+                                        .visibilityGraph()),
+                           pgl::Graph<pgl::Point<int>>>);
 
 TEST_CASE("Triangulation visibility graph follows fully visible dual components") {
     using Point = pgl::Point<int>;

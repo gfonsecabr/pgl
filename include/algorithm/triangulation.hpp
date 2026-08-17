@@ -894,6 +894,85 @@ struct Triangulation {
         return result;
     }
 
+    // ---- visibility ------------------------------------------------------
+
+    /**
+     * @brief Returns the visibility graph of the mesh vertices.
+     *
+     * Sight is stopped by the boundary of the domain and by every constrained
+     * edge, which therefore act as opaque walls: `poly.triangulation(walls)`
+     * answers visibility inside `poly` among the obstacles `walls`. An
+     * unconstrained interior edge is transparent, so the visibility graph of a
+     * plain point-set triangulation is the complete graph over its convex hull.
+     *
+     * Two vertices are adjacent exactly when the closed segment joining them
+     * stays in the closed domain and never crosses a wall. Grazing counts:
+     * a segment that runs along a wall, touches a boundary vertex, or passes
+     * straight through another vertex without leaving the domain is a visibility
+     * edge. See @ref clearVisibilityGraph for the convention that forbids it.
+     *
+     * The mesh's own edges are always present, and a vertex with no in-domain
+     * triangle comes back isolated rather than absent.
+     *
+     * Computed by triangular expansion: one cone-clipped traversal of the mesh
+     * per vertex, whose cost is proportional to the part of the domain that
+     * vertex actually sees, followed by a walk along each collinear chain. Every
+     * test is an orientation predicate on stored vertices, so an exact
+     * coordinate type stays exact and nothing is ever constructed.
+     *
+     * Complexity: `O(V·T + E)` for `V` vertices, `E` visibility edges and `T`
+     * triangles seen per vertex; `T` is `O(1)` in a corridor-like domain and
+     * `O(V)` at worst.
+     *
+     * @return An undirected graph over this triangulation's vertices.
+     */
+    [[nodiscard]] Graph<PointType> visibilityGraph() const;
+
+    /**
+     * @brief Returns the clear visibility graph of the mesh vertices.
+     *
+     * Two vertices are adjacent exactly when the *open* segment joining them
+     * lies in the *interior* of the domain, crosses no wall, and contains no
+     * other vertex. This is the strict reading of visibility: a segment that
+     * grazes the boundary, runs along a wall or passes through a third vertex is
+     * excluded, and so is every boundary edge of the domain itself, whose
+     * relative interior lies on the boundary rather than inside it. The clear
+     * visibility graph of a simple polygon is therefore exactly its set of legal
+     * triangulation diagonals, and it is always a subgraph of
+     * @ref visibilityGraph.
+     *
+     * Computed by the same triangular expansion as @ref visibilityGraph, with
+     * the cone kept open, and without the collinear closure.
+     *
+     * Complexity: `O(V·T + E)`, as for @ref visibilityGraph.
+     *
+     * @return An undirected graph over this triangulation's vertices.
+     */
+    [[nodiscard]] Graph<PointType> clearVisibilityGraph() const;
+
+    /**
+     * @brief Returns the reduced visibility graph of the mesh vertices.
+     *
+     * The subgraph of @ref visibilityGraph holding the edges a shortest path can
+     * use: those tangent to the obstacles at both ends. An edge `uv` is tangent
+     * at `u` when the walls incident to `u` all lie in one closed half-plane of
+     * the line `uv`, which is what lets a taut path bend there. A vertex with no
+     * incident wall — a free point inside the domain — bends no path and comes
+     * back isolated.
+     *
+     * The surviving edges are the walls themselves and the bitangents between
+     * reflex corners, so this is much sparser than @ref visibilityGraph while
+     * still containing a geodesic shortest path between any two of its vertices.
+     * A shortest path to or from a point that is *not* a mesh vertex needs that
+     * point's own visibility edges added back.
+     *
+     * Complexity: @ref visibilityGraph plus `O(E·w)` for `w` walls per vertex,
+     * which is two along a polygon boundary.
+     *
+     * @return An undirected graph over this triangulation's vertices.
+     */
+    [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
+
   private:
     friend struct detail::ConvexCoverBuilder;
 
@@ -3043,6 +3122,39 @@ struct Triangulation {
     [[nodiscard]] bool inDomain(TriId t) const {
         return t != NO_TRI && t < firstGhost_ && !triangles_[t].outOfDomain;
     }
+
+    // ---- visibility internals (defined in implementation/visibilitygraph.hpp) ---
+
+    // True if side `s` of in-domain triangle `t` stops sight: a constrained edge
+    // is an opaque wall, and so is the boundary of the domain.
+    [[nodiscard]] bool blocksVisibility(TriId t, int s) const {
+        return bit(triangles_[t].constrainedMask, s) || !inDomain(triangles_[t].nbr[s]);
+    }
+
+    // Clear-visibility adjacency indexed by vertex id (slot GHOST stays empty),
+    // built by one triangular expansion per vertex.
+    [[nodiscard]] std::vector<std::vector<VertexId>> clearVisibleAdjacency() const;
+
+    // clearVisibleAdjacency plus the mesh's own blocking edges — together the
+    // pairs that see each other with no vertex in between — closed along
+    // collinear chains, which is the full visibility relation.
+    [[nodiscard]] std::vector<std::vector<VertexId>> visibleAdjacency() const;
+
+    // The other endpoint of every wall incident to each vertex, indexed by
+    // vertex id. Drives the tangency test of reducedVisibilityGraph.
+    [[nodiscard]] std::vector<std::vector<VertexId>> wallNeighbors() const;
+
+    // Whether some line through vertex `m` stays in the domain on both sides of
+    // it, so that a visibility segment can pass straight through. Only a
+    // strictly convex corner of the domain fails. Deciding whether the collinear
+    // closure need look at `m` at all, it is allowed to answer optimistically —
+    // never the other way round.
+    [[nodiscard]] bool passesThrough(VertexId m) const;
+
+    // The next mesh vertex met by the ray leaving `current` in the direction
+    // `current - previous`, when the segment reaching it stays in the domain and
+    // crosses no wall; GHOST when the ray leaves the domain first.
+    [[nodiscard]] VertexId nextVertexAlongRay(VertexId previous, VertexId current) const;
 
     // Side of triangle x whose neighbor is `target` (x shares <=1 edge with it).
     [[nodiscard]] std::int8_t findSide(TriId x, TriId target) const {
