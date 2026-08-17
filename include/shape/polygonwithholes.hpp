@@ -623,6 +623,56 @@ struct PolygonWithHoles {
     auto triangulation(const SegmentRange& segments) const;
 
     /**
+     * @brief Returns the visibility graph of the region's vertices.
+     *
+     * Two vertices — of the outer ring or of any hole — are adjacent exactly
+     * when the closed segment joining them stays in the closed region, the holes
+     * blocking sight. Grazing counts: a segment that touches a boundary vertex
+     * or passes straight through another vertex without leaving the region is a
+     * visibility edge.
+     *
+     * The region must satisfy @ref isValid. Without holes this is
+     * `outer().visibilityGraph()`; otherwise the region is triangulated and each
+     * vertex runs a cone-clipped traversal of the mesh — see
+     * @ref Triangulation::visibilityGraph.
+     *
+     * Complexity: O(n·t + m) time for n vertices, m visibility edges and t
+     * triangles seen per vertex.
+     *
+     * @return An undirected graph whose vertices are this region's vertices.
+     */
+    [[nodiscard]] Graph<PointType> visibilityGraph() const;
+
+    /**
+     * @brief Returns the clear visibility graph of the region's vertices.
+     *
+     * Two vertices are adjacent exactly when the *open* segment joining them
+     * lies in the *interior* of the region and contains no other vertex — the
+     * strict reading, admitting neither grazing nor passing through a vertex.
+     * The rings' own edges are therefore absent, and what remains is exactly the
+     * set of legal triangulation diagonals of the region. Always a subgraph of
+     * @ref visibilityGraph.
+     *
+     * @return An undirected graph whose vertices are this region's vertices.
+     */
+    [[nodiscard]] Graph<PointType> clearVisibilityGraph() const;
+
+    /**
+     * @brief Returns the reduced visibility graph of the region's vertices.
+     *
+     * The subgraph of @ref visibilityGraph holding the edges a shortest path
+     * through the region can use: those tangent to the boundary at both ends,
+     * meaning the two ring edges meeting at each endpoint lie in one closed
+     * half-plane of the connecting line. Every ring edge survives, and among the
+     * rest only the bitangents, so this is far sparser than
+     * @ref visibilityGraph while still holding a geodesic shortest path between
+     * any two vertices.
+     *
+     * @return An undirected graph whose vertices are this region's vertices.
+     */
+    [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
+
+    /**
      * @brief Cuts this region into convex pieces with disjoint interiors.
      *
      * Equivalent to `triangulation().convexPartition()`, with the same

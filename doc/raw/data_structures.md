@@ -178,7 +178,7 @@ There are no fictitious halfedges: every halfedge represents part of an input se
 
 ### Graph
 
-`Graph<Vertex>` is an undirected simple graph stored as adjacency sets, where `Vertex` is any hashable and equality-comparable type. It is the combinatorial companion of the geometric structures: `Polygon::visibilityGraph()` returns the `Graph<PointType>` connecting every pair of polygon vertices seeing each other, a graph over triangles is how a triangulation is grouped into convex pieces, and `Triangulation::asGraph()` and `Arrangement::asGraph()` hand over the 1-skeleton of a subdivision, so that connectivity, spanning trees and blocks are answered by this class rather than by each structure of its own. Adding an edge also adds its endpoints, a self-loop is ignored and repeated edges coalesce, so an edge is simply present or absent. Vertices live in unordered containers, so vertex and traversal orders are unspecified, and every method returning several components sorts them by decreasing size only.
+`Graph<Vertex>` is an undirected simple graph stored as adjacency sets, where `Vertex` is any hashable and equality-comparable type. It is the combinatorial companion of the geometric structures: visibility graph, triangulation, and arrangement.
 
 - `Graph<Vertex>()` builds an empty graph and `Graph<Vertex>(E)` takes a vector of `std::array<Vertex, 2>` endpoint pairs. `addVertex(v)` adds an isolated vertex and `addEdge(u, v)` adds an edge along with any endpoint still missing. `removeEdge(u, v)` leaves the endpoints in place, `removeVertex(v)` deletes every incident edge with the vertex, and `clear()` empties the graph.
 
