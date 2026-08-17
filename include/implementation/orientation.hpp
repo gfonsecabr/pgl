@@ -47,200 +47,6 @@ template <class Ordering>
 constexpr int signOf(const Ordering& order) {
     return order > 0 ? 1 : (order < 0 ? -1 : 0);
 }
-}  // namespace detail
-
-/**
- * @brief Returns the signed orientation determinant of three points.
- *
- * @param a First point.
- * @param b Second point.
- * @param c Third point.
- * @return Determinant of vectors `ab` and `ac`.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
-constexpr auto orientationDeterminant(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<CNumber, CLabel>& c) {
-    using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
-
-    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
-    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
-
-    return abx * acy - aby * acx;
-}
-
-/**
- * @brief Classifies the orientation of three points.
- *
- * Returns negative for clockwise order, positive for counterclockwise order,
- * and equivalence when the points are collinear.
- *
- * @param a First point.
- * @param b Second point.
- * @param c Third point.
- * @return Orientation sign of `(a,b,c)`.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
-constexpr std::partial_ordering orientationSign(
-    const Point<ANumber, ALabel> &a,
-    const Point<BNumber, BLabel> &b,
-    const Point<CNumber, CLabel> &c) {
-    using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
-
-    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
-    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
-
-    return detail::threeWay(abx * acy, aby * acx);
-}
-
-/**
- * @brief Classifies the turn from one vector to another.
- *
- * The sign of the 2D cross product `u x v`: positive when @p v lies
- * counterclockwise from @p u within half a turn, negative when it lies
- * clockwise, and equivalence when the two are parallel or one is zero. This is
- * @ref orientationSign in vector form — `orientationSign(a, b, c)` is
- * `crossSign(b - a, c - a)` — and is what the many call sites that already hold
- * *directions* rather than point triples need.
- *
- * @param u First vector.
- * @param v Second vector.
- * @return Cross-product sign of `(u, v)`.
- */
-template <class UNumber, class ULabel, class VNumber, class VLabel>
-constexpr std::partial_ordering crossSign(
-    const Point<UNumber, ULabel>& u,
-    const Point<VNumber, VLabel>& v) {
-    using Coordinate = detail::sign_coordinate_t<UNumber, VNumber>;
-
-    return detail::threeWay(detail::asNumber<Coordinate>(u.x()) * detail::asNumber<Coordinate>(v.y()),
-                            detail::asNumber<Coordinate>(u.y()) * detail::asNumber<Coordinate>(v.x()));
-}
-
-/**
- * @brief Classifies the turn from the direction `a -> b` to the direction `p -> q`.
- *
- * The sign of `(b - a) x (q - p)`, formed with a single promotion so that a
- * caller holding two directions as four points never has to build — and
- * possibly overflow — the difference vectors itself.
- *
- * @param a Tail of the first direction.
- * @param b Head of the first direction.
- * @param p Tail of the second direction.
- * @param q Head of the second direction.
- * @return Cross-product sign of the two directions.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel,
-          class PNumber, class PLabel, class QNumber, class QLabel>
-constexpr std::partial_ordering crossSign(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<PNumber, PLabel>& p,
-    const Point<QNumber, QLabel>& q) {
-    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
-
-    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
-    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
-    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
-
-    return detail::threeWay(abx * pqy, aby * pqx);
-}
-
-/**
- * @brief Tests whether three points are collinear.
- *
- * @param a First point.
- * @param b Second point.
- * @param c Third point.
- * @return `true` if the orientation determinant vanishes.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
-constexpr bool collinear(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<CNumber, CLabel>& c) {
-    return orientationSign(a, b, c) == 0;
-}
-
-/**
- * @brief Tests whether the directions `a1 -> a2` and `b1 -> b2` are parallel.
- *
- * Compares the 2D cross product of the two direction vectors against zero, so
- * it reports true for parallel and anti-parallel directions alike (and when
- * either direction is degenerate). The two endpoints of each direction must
- * share a point type; the two directions may use different point types.
- *
- * @param a1 Tail of the first direction.
- * @param a2 Head of the first direction.
- * @param b1 Tail of the second direction.
- * @param b2 Head of the second direction.
- * @return `true` if the two direction vectors are parallel.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel>
-constexpr bool sameDirection(
-    const Point<ANumber, ALabel>& a1,
-    const Point<ANumber, ALabel>& a2,
-    const Point<BNumber, BLabel>& b1,
-    const Point<BNumber, BLabel>& b2) {
-    return crossSign(a1, a2, b1, b2) == 0;
-}
-
-/**
- * @brief Tells if the angle between two vectors is acute, right, or obtuse.
- * @param a First vector.
- * @param b Second vector.
- * @return Negative for obtuse angle, positive for acute angle, and equivalence for right angle.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel>
-constexpr std::partial_ordering dotSign(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b) {
-    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber>;
-
-    const auto x = detail::asNumber<Coordinate>(a.x()) * detail::asNumber<Coordinate>(b.x());
-    const auto y = detail::asNumber<Coordinate>(a.y()) * detail::asNumber<Coordinate>(b.y());
-
-    return detail::threeWay(x, -y);
-}
-
-/**
- * @brief Tells if the angle between the directions `a -> b` and `p -> q` is
- *        acute, right, or obtuse.
- *
- * The sign of `(b - a) . (q - p)`, formed with a single promotion. Ordering
- * points along a direction is the common use: `t` comes before `u` along `d`
- * exactly when `dotSign(t, u, tail, head) > 0` for a direction `tail -> head`.
- *
- * @param a Tail of the first direction.
- * @param b Head of the first direction.
- * @param p Tail of the second direction.
- * @param q Head of the second direction.
- * @return Negative for obtuse, positive for acute, equivalence for right.
- */
-template <class ANumber, class ALabel, class BNumber, class BLabel,
-          class PNumber, class PLabel, class QNumber, class QLabel>
-constexpr std::partial_ordering dotSign(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<PNumber, PLabel>& p,
-    const Point<QNumber, QLabel>& q) {
-    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
-
-    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
-    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
-    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
-
-    return detail::threeWay(abx * pqx, -(aby * pqy));
-}
-
-namespace detail {
 
 /**
  * @brief A `double` approximation of an exact quantity, with an error bound.
@@ -378,36 +184,330 @@ constexpr Approximate approximate(const Number& value) {
 }
 
 /**
- * @brief Whether @ref inCircleSign should try a floating-point filter first.
+ * @brief The sign an approximation proves, or `unordered` when it proves none.
+ *
+ * `unordered` means the filter abstained — the quantity is too close to zero to
+ * call, a coordinate was NaN, or an intermediate overflowed to infinity (which
+ * poisons its own error bound, so neither comparison holds). Every answer it
+ * does give equals the sign of the exact quantity.
+ *
+ * The one gap in the reasoning is underflow: a product that lands in the
+ * subnormal range breaks the relative bound the operators charge. The absolute
+ * error such a product can hide is 2^-1074, and no predicate here amplifies it
+ * past the 2^-1000 floor added below, so a sign the filter accepts is never
+ * decided by underflowed noise.
+ */
+constexpr std::partial_ordering approximateSign(const Approximate& quantity) {
+    const double bound = quantity.error * approximateMargin + 0x1p-1000;
+    if (quantity.value > bound) {
+        return std::partial_ordering::greater;
+    }
+    if (quantity.value < -bound) {
+        return std::partial_ordering::less;
+    }
+    return std::partial_ordering::unordered;
+}
+
+/**
+ * @brief Whether the sign predicates should try a floating-point filter first.
  *
  * The filter is not free: it doubles the arithmetic of a plain double
  * evaluation to carry the error bound, and the near-degenerate inputs it cannot
- * settle pay for the exact determinant on top. That only comes out ahead when
+ * settle pay for the exact evaluation on top. That only comes out ahead when
  * the exact fallback is arbitrary precision — measured on a 10k-point Delaunay
  * build, `ERational` halves while a 128-bit determinant (`int` coordinates) and
  * a fixed-width `Rational` both lose 10-30%, their exact arithmetic being a few
- * machine instructions to begin with.
+ * machine instructions to begin with. The degree-two predicates were measured
+ * separately and land the same way: over `ERational` they gain a factor of two
+ * on point location and 1.7 on the triangulation range queries, while forcing
+ * them on for a fixed-width `Rational` costs 12-18% there.
  *
- * @tparam Coordinate The type the exact determinant is evaluated in.
+ * Note that the gate is read at the *promoted* coordinate type, and that
+ * @ref inCircleSign promotes twice where the degree-two predicates promote
+ * once: `int64_t` coordinates therefore filter their in-circle tests but not
+ * their orientation tests, whose determinant still fits in an `int128`.
+ *
+ * @tparam Coordinate The type the exact predicate is evaluated in.
  */
 template <class Coordinate>
-inline constexpr bool filtersInCircle = arbitraryPrecision<Coordinate>;
+inline constexpr bool filtersSign = arbitraryPrecision<Coordinate>;
+
+/**
+ * @brief Floating-point filter for a 2x2 determinant `ax * by - ay * bx`.
+ *
+ * @return The sign of the exact determinant, or `unordered` when undecided.
+ */
+constexpr std::partial_ordering crossFilter(
+    const Approximate& ax, const Approximate& ay,
+    const Approximate& bx, const Approximate& by) {
+    return approximateSign(ax * by - ay * bx);
+}
+
+/**
+ * @brief Floating-point filter for a dot product `ax * bx + ay * by`.
+ *
+ * @return The sign of the exact dot product, or `unordered` when undecided.
+ */
+constexpr std::partial_ordering dotFilter(
+    const Approximate& ax, const Approximate& ay,
+    const Approximate& bx, const Approximate& by) {
+    return approximateSign(ax * bx + ay * by);
+}
+}  // namespace detail
+
+/**
+ * @brief Returns the signed orientation determinant of three points.
+ *
+ * @param a First point.
+ * @param b Second point.
+ * @param c Third point.
+ * @return Determinant of vectors `ab` and `ac`.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
+constexpr auto orientationDeterminant(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c) {
+    using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
+
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
+
+    return abx * acy - aby * acx;
+}
+
+/**
+ * @brief Classifies the orientation of three points.
+ *
+ * Returns negative for clockwise order, positive for counterclockwise order,
+ * and equivalence when the points are collinear.
+ *
+ * @param a First point.
+ * @param b Second point.
+ * @param c Third point.
+ * @return Orientation sign of `(a,b,c)`.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
+constexpr std::partial_ordering orientationSign(
+    const Point<ANumber, ALabel> &a,
+    const Point<BNumber, BLabel> &b,
+    const Point<CNumber, CLabel> &c) {
+    using Coordinate = detail::orientation_coordinate_t<ANumber, BNumber, CNumber>;
+
+    // A double evaluation that carries its own error bound settles the sign for
+    // all but the near-degenerate inputs, sparing the exact arithmetic below.
+    // It only reports a sign it has proved, so this is a shortcut, not an
+    // approximation; see @ref detail::approximateSign.
+    if constexpr (detail::filtersSign<Coordinate>) {
+        const detail::Approximate ax = detail::approximate(a.x());
+        const detail::Approximate ay = detail::approximate(a.y());
+        const std::partial_ordering filtered = detail::crossFilter(
+            detail::approximate(b.x()) - ax, detail::approximate(b.y()) - ay,
+            detail::approximate(c.x()) - ax, detail::approximate(c.y()) - ay);
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
+
+    return detail::threeWay(abx * acy, aby * acx);
+}
+
+/**
+ * @brief Classifies the turn from one vector to another.
+ *
+ * The sign of the 2D cross product `u x v`: positive when @p v lies
+ * counterclockwise from @p u within half a turn, negative when it lies
+ * clockwise, and equivalence when the two are parallel or one is zero. This is
+ * @ref orientationSign in vector form — `orientationSign(a, b, c)` is
+ * `crossSign(b - a, c - a)` — and is what the many call sites that already hold
+ * *directions* rather than point triples need.
+ *
+ * @param u First vector.
+ * @param v Second vector.
+ * @return Cross-product sign of `(u, v)`.
+ */
+template <class UNumber, class ULabel, class VNumber, class VLabel>
+constexpr std::partial_ordering crossSign(
+    const Point<UNumber, ULabel>& u,
+    const Point<VNumber, VLabel>& v) {
+    using Coordinate = detail::sign_coordinate_t<UNumber, VNumber>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {  // see orientationSign
+        const std::partial_ordering filtered = detail::crossFilter(
+            detail::approximate(u.x()), detail::approximate(u.y()),
+            detail::approximate(v.x()), detail::approximate(v.y()));
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+
+    return detail::threeWay(detail::asNumber<Coordinate>(u.x()) * detail::asNumber<Coordinate>(v.y()),
+                            detail::asNumber<Coordinate>(u.y()) * detail::asNumber<Coordinate>(v.x()));
+}
+
+/**
+ * @brief Classifies the turn from the direction `a -> b` to the direction `p -> q`.
+ *
+ * The sign of `(b - a) x (q - p)`, formed with a single promotion so that a
+ * caller holding two directions as four points never has to build — and
+ * possibly overflow — the difference vectors itself.
+ *
+ * @param a Tail of the first direction.
+ * @param b Head of the first direction.
+ * @param p Tail of the second direction.
+ * @param q Head of the second direction.
+ * @return Cross-product sign of the two directions.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel,
+          class PNumber, class PLabel, class QNumber, class QLabel>
+constexpr std::partial_ordering crossSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<PNumber, PLabel>& p,
+    const Point<QNumber, QLabel>& q) {
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {  // see orientationSign
+        const std::partial_ordering filtered = detail::crossFilter(
+            detail::approximate(b.x()) - detail::approximate(a.x()),
+            detail::approximate(b.y()) - detail::approximate(a.y()),
+            detail::approximate(q.x()) - detail::approximate(p.x()),
+            detail::approximate(q.y()) - detail::approximate(p.y()));
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
+    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
+
+    return detail::threeWay(abx * pqy, aby * pqx);
+}
+
+/**
+ * @brief Tests whether three points are collinear.
+ *
+ * @param a First point.
+ * @param b Second point.
+ * @param c Third point.
+ * @return `true` if the orientation determinant vanishes.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
+constexpr bool collinear(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c) {
+    return orientationSign(a, b, c) == 0;
+}
+
+/**
+ * @brief Tests whether the directions `a1 -> a2` and `b1 -> b2` are parallel.
+ *
+ * Compares the 2D cross product of the two direction vectors against zero, so
+ * it reports true for parallel and anti-parallel directions alike (and when
+ * either direction is degenerate). The two endpoints of each direction must
+ * share a point type; the two directions may use different point types.
+ *
+ * @param a1 Tail of the first direction.
+ * @param a2 Head of the first direction.
+ * @param b1 Tail of the second direction.
+ * @param b2 Head of the second direction.
+ * @return `true` if the two direction vectors are parallel.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel>
+constexpr bool sameDirection(
+    const Point<ANumber, ALabel>& a1,
+    const Point<ANumber, ALabel>& a2,
+    const Point<BNumber, BLabel>& b1,
+    const Point<BNumber, BLabel>& b2) {
+    return crossSign(a1, a2, b1, b2) == 0;
+}
+
+/**
+ * @brief Tells if the angle between two vectors is acute, right, or obtuse.
+ * @param a First vector.
+ * @param b Second vector.
+ * @return Negative for obtuse angle, positive for acute angle, and equivalence for right angle.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel>
+constexpr std::partial_ordering dotSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b) {
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {  // see orientationSign
+        const std::partial_ordering filtered = detail::dotFilter(
+            detail::approximate(a.x()), detail::approximate(a.y()),
+            detail::approximate(b.x()), detail::approximate(b.y()));
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+
+    const auto x = detail::asNumber<Coordinate>(a.x()) * detail::asNumber<Coordinate>(b.x());
+    const auto y = detail::asNumber<Coordinate>(a.y()) * detail::asNumber<Coordinate>(b.y());
+
+    return detail::threeWay(x, -y);
+}
+
+/**
+ * @brief Tells if the angle between the directions `a -> b` and `p -> q` is
+ *        acute, right, or obtuse.
+ *
+ * The sign of `(b - a) . (q - p)`, formed with a single promotion. Ordering
+ * points along a direction is the common use: `t` comes before `u` along `d`
+ * exactly when `dotSign(t, u, tail, head) > 0` for a direction `tail -> head`.
+ *
+ * @param a Tail of the first direction.
+ * @param b Head of the first direction.
+ * @param p Tail of the second direction.
+ * @param q Head of the second direction.
+ * @return Negative for obtuse, positive for acute, equivalence for right.
+ */
+template <class ANumber, class ALabel, class BNumber, class BLabel,
+          class PNumber, class PLabel, class QNumber, class QLabel>
+constexpr std::partial_ordering dotSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<PNumber, PLabel>& p,
+    const Point<QNumber, QLabel>& q) {
+    using Coordinate = detail::sign_coordinate_t<ANumber, BNumber, PNumber, QNumber>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {  // see orientationSign
+        const std::partial_ordering filtered = detail::dotFilter(
+            detail::approximate(b.x()) - detail::approximate(a.x()),
+            detail::approximate(b.y()) - detail::approximate(a.y()),
+            detail::approximate(q.x()) - detail::approximate(p.x()),
+            detail::approximate(q.y()) - detail::approximate(p.y()));
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+
+    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
+    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
+    const auto pqx = detail::asNumber<Coordinate>(q.x()) - detail::asNumber<Coordinate>(p.x());
+    const auto pqy = detail::asNumber<Coordinate>(q.y()) - detail::asNumber<Coordinate>(p.y());
+
+    return detail::threeWay(abx * pqx, -(aby * pqy));
+}
+
+namespace detail {
 
 /**
  * @brief Floating-point filter for @ref inCircleSign.
  *
  * Evaluates the in-circle determinant in double while carrying an error bound,
- * and reports the sign only when the bound proves it. `unordered` means the
- * filter abstained — the determinant is too close to zero to call, a coordinate
- * was NaN, or an intermediate overflowed to infinity (which poisons its own
- * error bound, so the comparisons below fail and the caller falls back). Every
- * answer it does give equals the sign of the exact determinant.
- *
- * The one gap in the reasoning is underflow: a product that lands in the
- * subnormal range breaks the relative bound the operators charge. The absolute
- * error such a product can hide is 2^-1074, and nothing downstream can amplify
- * it past the 2^-1000 floor the final comparison adds, so a determinant the
- * filter accepts is never decided by underflowed noise.
+ * and reports the sign only when @ref approximateSign can prove it.
  *
  * @param a First circle point.
  * @param b Second circle point.
@@ -435,16 +535,7 @@ constexpr std::partial_ordering inCircleFilter(
     const Approximate alift = adx * adx + ady * ady;
     const Approximate blift = bdx * bdx + bdy * bdy;
     const Approximate clift = cdx * cdx + cdy * cdy;
-    const Approximate det = alift * bcdet + blift * cadet + clift * abdet;
-
-    const double bound = det.error * approximateMargin + 0x1p-1000;
-    if (det.value > bound) {
-        return std::partial_ordering::greater;
-    }
-    if (det.value < -bound) {
-        return std::partial_ordering::less;
-    }
-    return std::partial_ordering::unordered;
+    return approximateSign(alift * bcdet + blift * cadet + clift * abdet);
 }
 
 }  // namespace detail
@@ -514,7 +605,7 @@ constexpr std::partial_ordering inCircleSign(
     // all but the near-degenerate inputs, sparing the exact arithmetic below.
     // It only reports a sign it has proved, so this is a shortcut, not an
     // approximation; see @ref detail::inCircleFilter.
-    if constexpr (detail::filtersInCircle<Coordinate>) {
+    if constexpr (detail::filtersSign<Coordinate>) {
         const std::partial_ordering filtered = detail::inCircleFilter(a, b, c, d);
         if (filtered != std::partial_ordering::unordered) {
             return filtered;
