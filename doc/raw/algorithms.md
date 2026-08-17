@@ -70,7 +70,7 @@ These functions use the same predicate conventions documented in
 
 - `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two `polyominoes` range overloads.
 
-### Visibility graphs
+### Visibility
 
 `Polygon`, `PolygonWithHoles` and `Triangulation` each has 3 methods to compute visibility graphs, all returning a `Graph<PointType>` with the same vertex set. Sight is stopped by the boundary of the domain and, on a `Triangulation`, by every constrained edge as well, so `poly.triangulation(walls).visibilityGraph()`{Polygon} is visibility inside `poly` among the segment obstacles `walls`.
 
@@ -78,9 +78,30 @@ These functions use the same predicate conventions documented in
 
 - `clearVisibilityGraph()`{Polygon} is the strict reading: the segment $ab$ must not intersect the boundary of the domain except at $a$ and $b$. Always a subgraph of `visibilityGraph()`. A degenerate polygon has no interior, so its vertices come back with no edges.
 
-- `reducedVisibilityGraph()`{Polygon} is the subgraph of `visibilityGraph()`{Polygon} that a shortest path can use: the edges tangent to the obstacles at both ends. An edge $uv$ is tangent at $u$ when the walls incident to $u$ all lie in one closed half-plane of the line $uv$, which is what lets a taut path bend there; a wall running along that line counts for either side, which keeps the walls themselves in the graph. What survives is the boundary edges and the bitangents between reflex corners — much sparser than the full graph, while still containing a geodesic shortest path between any two of its vertices. A vertex with no incident wall, such as a free point inside the domain, bends no path and comes back isolated. A shortest path to or from a point that is not a vertex needs that point's own visibility edges added back.
+- `reducedVisibilityGraph()`{Polygon} is the subgraph of `visibilityGraph()`{Polygon} that a shortest path can bend along: the edges tangent to the obstacles at both ends. An edge $uv$ is tangent at $u$ when the walls incident to $u$ all lie in one closed half-plane of the line $uv$, which is what lets a taut path bend there; a wall running along that line counts for either side, which keeps the walls themselves in the graph. What survives is the boundary edges and the bitangents between reflex corners. Routing between two points, vertices or not, requires adding them joined to everything they see, which is what `visibleVertices(p)`{Polygon} is for.
 
-All three are computed by *triangular expansion*: the domain is triangulated once, then each vertex runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
+The same three classes answer the following queries for one query point $p$ in the region (possibly a vertex, but not necessarily).
+
+- `visibleVertices(p)`{Polygon} returns the domain's vertices visible from $p$, under the convention of `visibilityGraph()`{Polygon}. This is what joins a query point to `reducedVisibilityGraph()`{Polygon}:
+
+  ```cpp
+  auto graph = room.reducedVisibilityGraph();
+  for (const Point &w : room.visibleVertices(source))
+      graph.addEdge(source, w);          // and the same for the target
+  auto path = graph.shortestPath(source, target,
+                                 [](const Point &a, const Point &b) { return a.distance(b); });
+  ```
+
+- `clearlyVisibleVertices(p)`{Polygon} is the strict counterpart, under the convention of `clearVisibilityGraph()`{Polygon}: always a subset of `visibleVertices(p)`{Polygon}.
+
+  Both return the vertices counterclockwise around $p$ starting from the lexicographically smallest, as `sortAround(points, p)` orders them.
+
+- `regularizedVisiblePolygon(p)`{Polygon} returns the *region* visible from $p$ — every point reachable by a segment that stays in the domain and crosses no wall. Star-shaped about $p$, hence simply connected, so one `Polygon` holds it however many holes or walls the domain has. *Regularized* means the closure of the interior, which drops the one-dimensional spikes grazing sight would add: a sightline running along a wall, or straight through a vertex into a part beyond that has no area, contributes nothing here, and what comes back always bounds area. A $p$ on the boundary is a vertex of the result.
+
+  Its vertices are the domain's own together with the *window* ends where a sightline past a reflex corner lands on a farther edge. Those are ray-edge intersections and need division, so the result type is requested explicitly as everywhere else in the library: `regularizedVisiblePolygon<double>(p)` for a `Polygon<Point<double>>`, the default being `division_result_t` of the domain's own coordinate type. This is the one place in the visibility code where a coordinate is constructed at all — everything above is orientation predicates on the input points.
+
+All methods use *triangular expansion*: the domain is triangulated once, then each vertex or query point runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
+
 
 ### Boolean Operations and Minkowski Sum
 

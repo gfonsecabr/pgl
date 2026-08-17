@@ -45,6 +45,69 @@ constexpr int signValue(std::partial_ordering order) {
 // -----------------------------------------------------------------------------
 
 template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+template <class OnVertex, class OnBlocked>
+void Triangulation<TriangleType_, SegmentType_>::expandVisibility(
+    const PointType& origin, VisibilityCone start, std::vector<VisibilityCone>& scratch,
+    OnVertex onVertex, OnBlocked onBlocked) const {
+    scratch.clear();
+    scratch.push_back(start);
+    while (!scratch.empty()) {
+        const VisibilityCone cone = scratch.back();
+        scratch.pop_back();
+        if (blocksVisibility(cone.tri, cone.side)) {
+            onBlocked(cone);  // the cone runs into a wall: a leaf of the traversal
+            continue;
+        }
+        const TriId entered = triangles_[static_cast<std::size_t>(cone.tri)].nbr[cone.side];
+        const int back = findSide(entered, cone.tri);
+        const auto& v = triangles_[static_cast<std::size_t>(entered)].v;
+        // `entered` winds the shared edge the other way round, so its clockwise
+        // end as seen from the origin is v[(back+2)%3] and its counterclockwise
+        // end v[(back+1)%3]. The apex is the third vertex.
+        const VertexId apex = v[back];
+        const int fromRight = detail::signValue(orientationSign(
+            origin, vertices_[static_cast<std::size_t>(cone.right)],
+            vertices_[static_cast<std::size_t>(apex)]));
+        const int fromLeft = detail::signValue(orientationSign(
+            origin, vertices_[static_cast<std::size_t>(cone.left)],
+            vertices_[static_cast<std::size_t>(apex)]));
+
+        VertexId rightChildLeft = cone.left;
+        VertexId leftChildRight = cone.right;
+        bool crossRight = true;
+        bool crossLeft = true;
+        if (fromRight > 0 && fromLeft < 0) {
+            // Strictly inside the cone: nothing stands between the origin and the
+            // apex, which therefore is clearly visible and splits the cone in
+            // two. An apex merely *on* a bound is not — the vertex that set that
+            // bound is in the way — and the two comparisons being strict is the
+            // whole of what separates clear visibility from the grazing kind.
+            onVertex(apex);
+            rightChildLeft = apex;
+            leftChildRight = apex;
+        } else if (fromRight <= 0) {
+            crossRight = false;  // the clockwise sub-cone came out empty
+        } else {
+            crossLeft = false;   // the counterclockwise sub-cone came out empty
+        }
+
+        // Side (back+1)%3 is the clockwise half of the entry edge, side
+        // (back+2)%3 the counterclockwise half. The counterclockwise child goes
+        // on the stack first so the clockwise one comes off it first: leaves then
+        // arrive in counterclockwise order, which is what lets
+        // regularizedVisiblePolygon lay out its ring as it goes.
+        if (crossLeft) {
+            scratch.push_back({entered, static_cast<std::int8_t>((back + 2) % 3),
+                               leftChildRight, cone.left});
+        }
+        if (crossRight) {
+            scratch.push_back({entered, static_cast<std::int8_t>((back + 1) % 3),
+                               cone.right, rightChildLeft});
+        }
+    }
+}
+
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
 std::vector<std::vector<typename Triangulation<TriangleType_, SegmentType_>::VertexId>>
 Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
     std::vector<std::vector<VertexId>> adjacency(vertices_.size());
@@ -52,18 +115,8 @@ Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
         return adjacency;
     }
     const VertexId vertexCount = static_cast<VertexId>(vertices_.size());
-
-    // One step of the expansion: cross side `side` of `tri` carrying the open
-    // cone whose clockwise bound is the ray source->right and whose
-    // counterclockwise bound is source->left. Both bounds are vertices, so every
-    // test below is one orientation predicate on stored points.
-    struct Frame {
-        TriId tri;
-        std::int8_t side;
-        VertexId right;
-        VertexId left;
-    };
-    std::vector<Frame> stack;
+    std::vector<VisibilityCone> scratch;
+    const auto ignore = [](const VisibilityCone&) {};
 
     for (VertexId source = GHOST + 1; source < vertexCount; ++source) {
         const TriId seed = incidentTriangleOf(source);
@@ -72,8 +125,9 @@ Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
         }
         const PointType& origin = vertices_[static_cast<std::size_t>(source)];
         auto& visible = adjacency[static_cast<std::size_t>(source)];
+        const auto report = [&](VertexId w) { visible.push_back(w); };
 
-        // Seed one expansion per in-domain triangle of the source's fan. Such a
+        // One expansion per in-domain triangle of the source's fan. Such a
         // triangle (source, p, q) is counterclockwise, so p bounds its wedge
         // clockwise and q counterclockwise, and the fan wedges together tile
         // exactly the part of the plane the source can see into.
@@ -90,67 +144,291 @@ Triangulation<TriangleType_, SegmentType_>::clearVisibleAdjacency() const {
             if (!blocksVisibility(t, (i + 2) % 3)) {
                 visible.push_back(clockwise);
             }
-            if (!blocksVisibility(t, i)) {
-                stack.push_back({t, static_cast<std::int8_t>(i), clockwise, v[(i + 2) % 3]});
+            expandVisibility(origin,
+                             {t, static_cast<std::int8_t>(i), clockwise, v[(i + 2) % 3]},
+                             scratch, report, ignore);
+        });
+    }
+    return adjacency;
+}
+
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+typename Triangulation<TriangleType_, SegmentType_>::TriId
+Triangulation<TriangleType_, SegmentType_>::inDomainTriangleAt(const PointType& query,
+                                                               TriId start) const {
+    TriId real = start;
+    if (real == NO_TRI) {
+        return NO_TRI;
+    }
+    // A ghost triangle tiles the exterior beyond one real hull edge, so a query
+    // that landed on one is outside the domain unless it sits on that very edge.
+    if (isGhost(real)) {
+        const auto& v = triangles_[static_cast<std::size_t>(real)].v;
+        const int atGhost = v[0] == GHOST ? 0 : (v[1] == GHOST ? 1 : 2);
+        const PointType& a = vertices_[static_cast<std::size_t>(v[(atGhost + 1) % 3])];
+        const PointType& b = vertices_[static_cast<std::size_t>(v[(atGhost + 2) % 3])];
+        if (!Segment<PointType>(a, b).contains(query)) {
+            return NO_TRI;
+        }
+        real = triangles_[static_cast<std::size_t>(real)].nbr[atGhost];
+        if (real == NO_TRI || isGhost(real)) {
+            return NO_TRI;
+        }
+    }
+    if (inDomain(real)) {
+        return real;
+    }
+    // A hull-fill triangle outside the domain. The query can still be on the
+    // domain boundary, which it shares: at one of the triangle's vertices, or in
+    // the relative interior of one of its sides.
+    const auto& v = triangles_[static_cast<std::size_t>(real)].v;
+    for (int i = 0; i < 3; ++i) {
+        if (v[i] == GHOST || !(vertices_[static_cast<std::size_t>(v[i])] == query)) {
+            continue;
+        }
+        TriId answer = NO_TRI;
+        visitVertexFan(real, v[i], [&](TriId t) {
+            if (answer == NO_TRI && inDomain(t)) {
+                answer = t;
             }
         });
+        return answer;
+    }
+    for (int s = 0; s < 3; ++s) {
+        const VertexId a = v[(s + 1) % 3];
+        const VertexId b = v[(s + 2) % 3];
+        if (a == GHOST || b == GHOST) {
+            continue;
+        }
+        const PointType& pa = vertices_[static_cast<std::size_t>(a)];
+        const PointType& pb = vertices_[static_cast<std::size_t>(b)];
+        if (!Segment<PointType>(pa, pb).contains(query)) {
+            continue;
+        }
+        const TriId across = triangles_[static_cast<std::size_t>(real)].nbr[s];
+        if (inDomain(across)) {
+            return across;
+        }
+    }
+    return NO_TRI;
+}
 
-        while (!stack.empty()) {
-            const Frame frame = stack.back();
-            stack.pop_back();
-            const TriId entered = triangles_[static_cast<std::size_t>(frame.tri)].nbr[frame.side];
-            const int back = findSide(entered, frame.tri);
-            const auto& v = triangles_[static_cast<std::size_t>(entered)].v;
-            // `entered` winds the shared edge the other way round, so its
-            // clockwise end as seen from the source is v[(back+2)%3] and its
-            // counterclockwise end v[(back+1)%3]. The apex is the third vertex.
-            const VertexId apex = v[back];
-            const int fromRight = detail::signValue(orientationSign(
-                origin, vertices_[static_cast<std::size_t>(frame.right)],
-                vertices_[static_cast<std::size_t>(apex)]));
-            const int fromLeft = detail::signValue(orientationSign(
-                origin, vertices_[static_cast<std::size_t>(frame.left)],
-                vertices_[static_cast<std::size_t>(apex)]));
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+typename Triangulation<TriangleType_, SegmentType_>::VisibilitySeeds
+Triangulation<TriangleType_, SegmentType_>::visibilitySeeds(const PointType& query) const {
+    VisibilitySeeds seeds;
+    if (domainTriangleCount_ == 0) {
+        return seeds;
+    }
+    TriId found = locateId(query);
+    if (!inDomain(found)) {
+        found = inDomainTriangleAt(query, found);
+    }
+    if (found == NO_TRI) {
+        return seeds;
+    }
+    seeds.located = true;
 
-            VertexId rightChildLeft = frame.left;
-            VertexId leftChildRight = frame.right;
-            bool crossRight = true;
-            bool crossLeft = true;
-            if (fromRight > 0 && fromLeft < 0) {
-                // Strictly inside the cone: nothing stands between the source and
-                // the apex, which therefore is clearly visible and splits the
-                // cone in two. An apex merely *on* a bound is not — the vertex
-                // that set that bound is in the way — and the two comparisons
-                // being strict is the whole of what separates clear visibility
-                // from the grazing kind.
-                visible.push_back(apex);
-                rightChildLeft = apex;
-                leftChildRight = apex;
-            } else if (fromRight <= 0) {
-                crossRight = false;  // the clockwise sub-cone came out empty
-            } else {
-                crossLeft = false;   // the counterclockwise sub-cone came out empty
-            }
-
-            // Side (back+1)%3 is the clockwise half of the entry edge, side
-            // (back+2)%3 the counterclockwise half.
-            if (crossRight) {
-                const int side = (back + 1) % 3;
-                if (!blocksVisibility(entered, side)) {
-                    stack.push_back({entered, static_cast<std::int8_t>(side),
-                                     frame.right, rightChildLeft});
-                }
-            }
-            if (crossLeft) {
-                const int side = (back + 2) % 3;
-                if (!blocksVisibility(entered, side)) {
-                    stack.push_back({entered, static_cast<std::int8_t>(side),
-                                     leftChildRight, frame.left});
-                }
+    // `found` holds the query in its closure, so the query is one of its
+    // vertices, inside one of its sides, or strictly within it.
+    const auto& fv = triangles_[static_cast<std::size_t>(found)].v;
+    int atVertex = -1;
+    int onSide = -1;
+    for (int i = 0; i < 3; ++i) {
+        if (vertices_[static_cast<std::size_t>(fv[i])] == query) {
+            atVertex = i;
+        }
+    }
+    if (atVertex < 0) {
+        for (int s = 0; s < 3; ++s) {
+            if (orientationSign(vertices_[static_cast<std::size_t>(fv[(s + 1) % 3])],
+                                vertices_[static_cast<std::size_t>(fv[(s + 2) % 3])],
+                                query) == 0) {
+                onSide = s;
             }
         }
     }
-    return adjacency;
+
+    // Crossing side `side` of `t` spans the wedge from v[(side+1)%3] clockwise to
+    // v[(side+2)%3] counterclockwise, whichever of the three cases seeds it.
+    const auto addCone = [&](TriId t, int side) {
+        const auto& v = triangles_[static_cast<std::size_t>(t)].v;
+        seeds.cones.push_back({t, static_cast<std::int8_t>(side), v[(side + 1) % 3],
+                               v[(side + 2) % 3]});
+    };
+
+    if (atVertex >= 0) {
+        const VertexId self = fv[atVertex];
+        visitVertexFan(found, self, [&](TriId t) {
+            if (!inDomain(t)) {
+                return;
+            }
+            const auto& v = triangles_[static_cast<std::size_t>(t)].v;
+            const int i = v[0] == self ? 0 : (v[1] == self ? 1 : 2);
+            // Both bounds, not just the clockwise one: where the fan runs out of
+            // domain — at every boundary vertex — the last edge is no other
+            // in-domain triangle's clockwise bound and would go unlisted. The
+            // duplicates this leaves are dropped below, and an edge's two records
+            // agree on whether sight along it grazes, that being a property of
+            // the edge.
+            seeds.direct.emplace_back(v[(i + 1) % 3], blocksVisibility(t, (i + 2) % 3));
+            seeds.direct.emplace_back(v[(i + 2) % 3], blocksVisibility(t, (i + 1) % 3));
+            addCone(t, i);
+        });
+    } else if (onSide >= 0) {
+        // The query splits a mesh edge. Sight along that edge only grazes when the
+        // edge bounds the domain or walls it off; the wedges to either side of it
+        // are seeded independently, so a wall is never crossed.
+        const bool grazes = blocksVisibility(found, onSide);
+        seeds.direct.emplace_back(fv[(onSide + 1) % 3], grazes);
+        seeds.direct.emplace_back(fv[(onSide + 2) % 3], grazes);
+        const TriId across = triangles_[static_cast<std::size_t>(found)].nbr[onSide];
+        for (const TriId t : {found, across}) {
+            if (!inDomain(t)) {
+                continue;
+            }
+            const int s = t == found ? onSide : static_cast<int>(findSide(t, found));
+            seeds.direct.emplace_back(triangles_[static_cast<std::size_t>(t)].v[s], false);
+            addCone(t, (s + 1) % 3);
+            addCone(t, (s + 2) % 3);
+        }
+    } else {
+        for (int i = 0; i < 3; ++i) {
+            seeds.direct.emplace_back(fv[i], false);
+        }
+        for (int s = 0; s < 3; ++s) {
+            addCone(found, s);
+        }
+    }
+
+    // Counterclockwise by each cone's clockwise bound. Two cones never share that
+    // bound's direction — that would put one bound inside the edge to the other —
+    // so the order is total.
+    const auto upperHalf = [&](VertexId w) {
+        const PointType& p = vertices_[static_cast<std::size_t>(w)];
+        return p.y() > query.y() || (p.y() == query.y() && p.x() > query.x()) ? 0 : 1;
+    };
+    std::sort(seeds.cones.begin(), seeds.cones.end(),
+              [&](const VisibilityCone& a, const VisibilityCone& b) {
+        const int half = upperHalf(a.right);
+        const int other = upperHalf(b.right);
+        if (half != other) {
+            return half < other;
+        }
+        return orientationSign(query, vertices_[static_cast<std::size_t>(a.right)],
+                               vertices_[static_cast<std::size_t>(b.right)]) > 0;
+    });
+
+    // A cone continues the previous one when it opens where that one closed;
+    // anywhere else the visible directions break, and the region reaches the
+    // query along a separate lobe. Rotating a break to the front leaves the arcs
+    // as ascending ranges.
+    const std::size_t count = seeds.cones.size();
+    std::size_t firstBreak = count;
+    for (std::size_t k = 0; k < count && firstBreak == count; ++k) {
+        if (seeds.cones[(k + count - 1) % count].left != seeds.cones[k].right) {
+            firstBreak = k;
+        }
+    }
+    seeds.fullTurn = firstBreak == count;
+    if (seeds.fullTurn) {
+        seeds.arcs.push_back(0);
+    } else {
+        std::rotate(seeds.cones.begin(),
+                    seeds.cones.begin() + static_cast<std::ptrdiff_t>(firstBreak),
+                    seeds.cones.end());
+        for (std::size_t k = 0; k < count; ++k) {
+            if (k == 0 || seeds.cones[k - 1].left != seeds.cones[k].right) {
+                seeds.arcs.push_back(k);
+            }
+        }
+    }
+
+    std::sort(seeds.direct.begin(), seeds.direct.end());
+    seeds.direct.erase(std::unique(seeds.direct.begin(), seeds.direct.end(),
+                                   [](const auto& a, const auto& b) {
+                                       return a.first == b.first;
+                                   }),
+                       seeds.direct.end());
+    return seeds;
+}
+
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+std::vector<typename Triangulation<TriangleType_, SegmentType_>::VertexId>
+Triangulation<TriangleType_, SegmentType_>::visibleIds(const PointType& query,
+                                                       const VisibilitySeeds& seeds,
+                                                       bool grazing) const {
+    std::vector<VertexId> found;
+    if (!seeds.located) {
+        return found;
+    }
+    for (const auto& [vertex, grazes] : seeds.direct) {
+        if (grazing || !grazes) {
+            found.push_back(vertex);
+        }
+    }
+    std::vector<VisibilityCone> scratch;
+    const auto report = [&](VertexId w) { found.push_back(w); };
+    const auto ignore = [](const VisibilityCone&) {};
+    for (const VisibilityCone& cone : seeds.cones) {
+        expandVisibility(query, cone, scratch, report, ignore);
+    }
+    std::sort(found.begin(), found.end());
+    found.erase(std::unique(found.begin(), found.end()), found.end());
+    return found;
+}
+
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+std::vector<typename Triangulation<TriangleType_, SegmentType_>::PointType>
+Triangulation<TriangleType_, SegmentType_>::clearlyVisibleVertices(
+    const PointType& query) const {
+    const VisibilitySeeds seeds = visibilitySeeds(query);
+    std::vector<PointType> result;
+    for (const VertexId v : visibleIds(query, seeds, false)) {
+        result.push_back(vertices_[static_cast<std::size_t>(v)]);
+    }
+    sortAround(result, query);
+    return result;
+}
+
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+std::vector<typename Triangulation<TriangleType_, SegmentType_>::PointType>
+Triangulation<TriangleType_, SegmentType_>::visibleVertices(const PointType& query) const {
+    const VisibilitySeeds seeds = visibilitySeeds(query);
+    std::vector<VertexId> reached = visibleIds(query, seeds, true);
+    if (reached.empty()) {
+        return {};
+    }
+    // Grazing sight through a vertex, exactly as in visibleAdjacency: a segment
+    // that passes straight through vertices is in the domain when each of its
+    // pieces is, so walking each ray on from the first vertex it meets picks up
+    // the rest. Only a vertex a line can cross starts a chain.
+    const std::size_t direct = reached.size();
+    for (std::size_t k = 0; k < direct; ++k) {
+        VertexId current = reached[k];
+        if (!passesThrough(current)) {
+            continue;
+        }
+        VertexId next = nextVertexAlongRay(query, current);
+        while (next != GHOST) {
+            reached.push_back(next);
+            if (!passesThrough(next)) {
+                break;
+            }
+            const VertexId previous = current;
+            current = next;
+            next = nextVertexAlongRay(vertices_[static_cast<std::size_t>(previous)], current);
+        }
+    }
+    std::sort(reached.begin(), reached.end());
+    reached.erase(std::unique(reached.begin(), reached.end()), reached.end());
+    std::vector<PointType> result;
+    result.reserve(reached.size());
+    for (const VertexId v : reached) {
+        result.push_back(vertices_[static_cast<std::size_t>(v)]);
+    }
+    sortAround(result, query);
+    return result;
 }
 
 template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
@@ -200,13 +478,12 @@ bool Triangulation<TriangleType_, SegmentType_>::passesThrough(VertexId m) const
 
 template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
 typename Triangulation<TriangleType_, SegmentType_>::VertexId
-Triangulation<TriangleType_, SegmentType_>::nextVertexAlongRay(VertexId previous,
+Triangulation<TriangleType_, SegmentType_>::nextVertexAlongRay(const PointType& tail,
                                                                VertexId current) const {
     const TriId seed = incidentTriangleOf(current);
     if (seed == NO_TRI) {
         return GHOST;
     }
-    const PointType& tail = vertices_[static_cast<std::size_t>(previous)];
     const PointType& head = vertices_[static_cast<std::size_t>(current)];
     // The ray direction is head - tail, and the cross product of that direction
     // with (w - head) is exactly orientationSign(tail, head, w). So the whole
@@ -339,7 +616,8 @@ Triangulation<TriangleType_, SegmentType_>::visibleAdjacency() const {
             VertexId previous = source;
             VertexId current = adjacency[static_cast<std::size_t>(source)][k];
             while (crossable[static_cast<std::size_t>(current)] != 0) {
-                const VertexId next = nextVertexAlongRay(previous, current);
+                const VertexId next =
+                    nextVertexAlongRay(vertices_[static_cast<std::size_t>(previous)], current);
                 if (next == GHOST) {
                     break;
                 }
@@ -468,6 +746,90 @@ Triangulation<TriangleType_, SegmentType_>::reducedVisibilityGraph() const {
     return result;
 }
 
+template <TriangleConcept TriangleType_, SegmentConcept SegmentType_>
+template <class ResultNumber>
+Polygon<Point<ResultNumber>>
+Triangulation<TriangleType_, SegmentType_>::regularizedVisiblePolygon(
+    const PointType& query) const {
+    using ResultPoint = Point<ResultNumber>;
+    const VisibilitySeeds seeds = visibilitySeeds(query);
+    if (!seeds.located) {
+        return Polygon<ResultPoint>();
+    }
+    const ResultNumber originX = detail::asNumber<ResultNumber>(query.x());
+    const ResultNumber originY = detail::asNumber<ResultNumber>(query.y());
+
+    // Where the ray from the query through vertex `through` meets the line of the
+    // edge (a,b). Every cone that reaches a blocking edge lies inside the wedge
+    // that edge spans from the query, so the ray always meets it and the
+    // denominator never vanishes; when `through` is an end of the edge the
+    // quotient reproduces that end exactly. This is the only division in the
+    // whole construction, which is why the result type is the caller's to pick.
+    const auto rayHit = [&](VertexId through, VertexId a, VertexId b) {
+        const PointType& target = vertices_[static_cast<std::size_t>(through)];
+        const PointType& head = vertices_[static_cast<std::size_t>(a)];
+        const PointType& tail = vertices_[static_cast<std::size_t>(b)];
+        const ResultNumber dx = detail::asNumber<ResultNumber>(target.x()) - originX;
+        const ResultNumber dy = detail::asNumber<ResultNumber>(target.y()) - originY;
+        const ResultNumber edgeX =
+            detail::asNumber<ResultNumber>(tail.x()) - detail::asNumber<ResultNumber>(head.x());
+        const ResultNumber edgeY =
+            detail::asNumber<ResultNumber>(tail.y()) - detail::asNumber<ResultNumber>(head.y());
+        const ResultNumber toEdgeX = detail::asNumber<ResultNumber>(head.x()) - originX;
+        const ResultNumber toEdgeY = detail::asNumber<ResultNumber>(head.y()) - originY;
+        const ResultNumber along = toEdgeX * edgeY - toEdgeY * edgeX;
+        const ResultNumber sweep = dx * edgeY - dy * edgeX;
+        const ResultNumber scale = along / sweep;
+        return ResultPoint(originX + scale * dx, originY + scale * dy);
+    };
+
+    std::vector<ResultPoint> ring;
+    const auto append = [&](const ResultPoint& p) {
+        if (ring.empty() || !(ring.back() == p)) {
+            ring.push_back(p);
+        }
+    };
+
+    std::vector<VisibilityCone> scratch;
+    const auto ignore = [](VertexId) {};
+    const std::size_t count = seeds.cones.size();
+    for (std::size_t arc = 0; arc < seeds.arcs.size(); ++arc) {
+        const std::size_t begin = seeds.arcs[arc];
+        const std::size_t end = arc + 1 < seeds.arcs.size() ? seeds.arcs[arc + 1] : count;
+        // A lobe that stops short of a full turn is bounded by the two boundary
+        // edges the query itself lies on, which meet at the query: it belongs to
+        // the ring, and hinges the lobe onto whatever came before.
+        if (!seeds.fullTurn) {
+            append(ResultPoint(originX, originY));
+        }
+        for (std::size_t k = begin; k < end; ++k) {
+            expandVisibility(query, seeds.cones[k], scratch, ignore,
+                             [&](const VisibilityCone& cone) {
+                // The wall this cone ran into. Its visible stretch is the part
+                // between the two bounding rays, and the leaves arrive
+                // counterclockwise, so appending as they come lays out the ring.
+                const auto& v = triangles_[static_cast<std::size_t>(cone.tri)].v;
+                const VertexId a = v[(cone.side + 1) % 3];
+                const VertexId b = v[(cone.side + 2) % 3];
+                append(rayHit(cone.right, a, b));
+                append(rayHit(cone.left, a, b));
+            });
+        }
+    }
+    while (ring.size() > 1 && ring.front() == ring.back()) {
+        ring.pop_back();
+    }
+    if (ring.size() < 3) {
+        return Polygon<ResultPoint>();  // no area to bound
+    }
+    // Already counterclockwise by construction, so rotating the lexicographically
+    // smallest vertex to the front is the whole of the canonical form and the
+    // constructor need not settle the orientation — which for a rational
+    // coordinate type costs more than everything above.
+    std::rotate(ring.begin(), std::min_element(ring.begin(), ring.end()), ring.end());
+    return Polygon<ResultPoint>(ring, true);
+}
+
 // -----------------------------------------------------------------------------
 // Polygon
 // -----------------------------------------------------------------------------
@@ -521,6 +883,34 @@ Graph<PointType> Polygon<PointType, LabelType>::reducedVisibilityGraph() const {
     return triangulation().reducedVisibilityGraph();
 }
 
+template <class PointType, class LabelType>
+std::vector<PointType> Polygon<PointType, LabelType>::visibleVertices(
+    const PointType& query) const {
+    if (size() < 3 || isDegenerate()) {
+        return {};  // no area to see across
+    }
+    return triangulation().visibleVertices(query);
+}
+
+template <class PointType, class LabelType>
+std::vector<PointType> Polygon<PointType, LabelType>::clearlyVisibleVertices(
+    const PointType& query) const {
+    if (size() < 3 || isDegenerate()) {
+        return {};  // no interior to see through
+    }
+    return triangulation().clearlyVisibleVertices(query);
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+Polygon<Point<ResultNumber>> Polygon<PointType, LabelType>::regularizedVisiblePolygon(
+    const PointType& query) const {
+    if (size() < 3 || isDegenerate()) {
+        return Polygon<Point<ResultNumber>>();
+    }
+    return triangulation().template regularizedVisiblePolygon<ResultNumber>(query);
+}
+
 // -----------------------------------------------------------------------------
 // PolygonWithHoles
 // -----------------------------------------------------------------------------
@@ -542,6 +932,30 @@ template <class PointType_, class LabelType>
 Graph<PointType_> PolygonWithHoles<PointType_, LabelType>::reducedVisibilityGraph() const {
     return holes().empty() ? outer().reducedVisibilityGraph()
                            : triangulation().reducedVisibilityGraph();
+}
+
+template <class PointType_, class LabelType>
+std::vector<PointType_> PolygonWithHoles<PointType_, LabelType>::visibleVertices(
+    const PointType& query) const {
+    return holes().empty() ? outer().visibleVertices(query)
+                           : triangulation().visibleVertices(query);
+}
+
+template <class PointType_, class LabelType>
+std::vector<PointType_> PolygonWithHoles<PointType_, LabelType>::clearlyVisibleVertices(
+    const PointType& query) const {
+    return holes().empty() ? outer().clearlyVisibleVertices(query)
+                           : triangulation().clearlyVisibleVertices(query);
+}
+
+template <class PointType_, class LabelType>
+template <class ResultNumber>
+Polygon<Point<ResultNumber>>
+PolygonWithHoles<PointType_, LabelType>::regularizedVisiblePolygon(
+    const PointType& query) const {
+    return holes().empty()
+               ? outer().template regularizedVisiblePolygon<ResultNumber>(query)
+               : triangulation().template regularizedVisiblePolygon<ResultNumber>(query);
 }
 
 }  // namespace pgl

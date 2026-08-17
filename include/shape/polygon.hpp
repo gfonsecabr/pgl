@@ -602,14 +602,21 @@ struct Polygon {
      * @brief Returns the reduced visibility graph of the polygon vertices.
      *
      * The subgraph of @ref visibilityGraph holding the edges a shortest path
-     * inside the polygon can use: those tangent to the boundary at both ends. An
-     * edge `uv` is tangent at `u` when the two sides meeting at `u` lie in one
-     * closed half-plane of the line `uv`, which is what lets a taut path bend
-     * there. Every side survives; among the diagonals only the bitangents
+     * inside the polygon can *bend along*: those tangent to the boundary at both
+     * ends. An edge `uv` is tangent at `u` when the two sides meeting at `u` lie
+     * in one closed half-plane of the line `uv`, which is what lets a taut path
+     * bend there. Every side survives; among the diagonals only the bitangents
      * between reflex corners do, so this is far sparser than
-     * @ref visibilityGraph while still holding a geodesic shortest path between
-     * any two vertices. A shortest path to or from a point that is not a vertex
-     * needs that point's own visibility edges added back.
+     * @ref visibilityGraph.
+     *
+     * **This graph alone does not answer shortest-path queries.** It guarantees
+     * only the *interior* of a geodesic — an edge strictly inside a shortest path
+     * has the path bending at both ends, hence is tangent at both and survives.
+     * A path does not bend at its own endpoints, so its first and last hop need
+     * no tangency and may have been pruned; a convex corner keeps only its two
+     * sides, and a route starting there comes back forced along the boundary. To
+     * route between two points, add each joined to everything it sees, taken from
+     * @ref visibilityGraph.
      *
      * The answer is meaningful for a simple polygon. A degenerate polygon has
      * every vertex collinear with every side, so the tangency test passes
@@ -620,6 +627,69 @@ struct Polygon {
      * @return An undirected graph whose vertices are this polygon's vertices.
      */
     [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
+
+    /**
+     * @brief The polygon vertices visible from @p query.
+     *
+     * Same convention as @ref visibilityGraph, for a point that need not be a
+     * vertex: a vertex `v` is reported when the closed segment `query`–`v` is
+     * contained in the closed polygon, grazing included. This is what joins a
+     * query point to @ref reducedVisibilityGraph, which by itself holds only the
+     * edges a shortest path can bend along.
+     *
+     * The answer is meaningful for a simple polygon.
+     *
+     * @param query Point to look from; outside the polygon nothing is visible.
+     * @return The visible vertices, counterclockwise around @p query starting
+     *         from the lexicographically smallest, as @ref sortAround orders
+     *         them. Empty when @p query lies outside the polygon.
+     */
+    [[nodiscard]] std::vector<PointType> visibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The polygon vertices clearly visible from @p query.
+     *
+     * The strict counterpart of @ref visibleVertices, matching
+     * @ref clearVisibilityGraph: the *open* segment `query`–`v` must lie in the
+     * *interior* of the polygon and hold no other vertex, so neither grazing nor
+     * passing through a vertex counts. Always a subset of @ref visibleVertices.
+     *
+     * @param query Point to look from; outside the polygon nothing is visible.
+     * @return The clearly visible vertices, ordered as in @ref visibleVertices.
+     */
+    [[nodiscard]] std::vector<PointType> clearlyVisibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The part of the polygon visible from @p query, regularized.
+     *
+     * The visibility polygon: every point reachable from @p query by a segment
+     * staying inside. Being star-shaped about @p query it is simply connected, so
+     * one @ref Polygon holds it.
+     *
+     * *Regularized* means the closure of the interior, which drops what grazing
+     * sight would otherwise add: a sightline running along the boundary, or
+     * straight through a vertex into a part beyond that has no area, contributes
+     * a one-dimensional spike to the visible set and none to this. What comes
+     * back always bounds area.
+     *
+     * Its vertices are the polygon's own together with the *window* ends where a
+     * sightline past a reflex corner lands on a farther edge. Those are ray-edge
+     * intersections and need division, so the result type is requested
+     * explicitly, as everywhere in the library. A @p query on the boundary is a
+     * vertex of the result.
+     *
+     * The answer is meaningful for a simple polygon; a degenerate one bounds no
+     * area and gives an empty polygon.
+     *
+     * @tparam ResultNumber Coordinate type of the result (default:
+     *         @ref division_result_t of the polygon's own).
+     * @param query Point to look from.
+     * @return The visible region, counterclockwise; empty when @p query lies
+     *         outside the polygon.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] Polygon<Point<ResultNumber>> regularizedVisiblePolygon(
+        const PointType& query) const;
 
     /**
      * @brief Returns a lazy view over the edges, materializing each @ref

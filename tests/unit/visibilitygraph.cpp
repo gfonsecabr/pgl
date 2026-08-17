@@ -3,6 +3,7 @@
 
 #include "pgl.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <random>
@@ -109,6 +110,12 @@ auto bruteReducedVisibilityGraph(const Polygon& polygon) {
         }
     }
     return graph;
+}
+
+// Polygon iterates its vertices, so membership is a plain search.
+template <class Poly>
+bool hasVertex(const Poly& polygon, const typename Poly::PointType& vertex) {
+    return std::find(polygon.begin(), polygon.end(), vertex) != polygon.end();
 }
 
 template <class Vertex>
@@ -484,4 +491,205 @@ TEST_CASE("Triangulation visibility treats constrained edges as walls") {
         checkEdge(reduced, Point(5, 2), Point(5, 8), true);
         checkEdge(reduced, Point(0, 0), Point(5, 2), false);
     }
+}
+
+TEST_CASE("Polygon visibleVertices answers from a point that is not a vertex") {
+    const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+    const auto sorted = [](std::vector<Point> v) {
+        std::sort(v.begin(), v.end());
+        return v;
+    };
+
+    SUBCASE("from a vertex it matches that vertex's row of the graph") {
+        const auto graph = ell.visibilityGraph();
+        for (const auto& v : ell.vertices()) {
+            const auto seen = ell.visibleVertices(v);
+            CHECK(seen.size() == graph.neighbors(v).size());
+            for (const auto& w : seen) {
+                CHECK(graph.containsEdge(v, w));
+            }
+            // Never itself.
+            CHECK(std::find(seen.begin(), seen.end(), v) == seen.end());
+        }
+    }
+
+    SUBCASE("from inside the notch's arm") {
+        // (3,0) sits on the bottom edge, deep in the horizontal arm, and sees
+        // exactly that arm's four corners: the reflex corner at (1,1) shadows the
+        // whole upright one, whose own corners it cannot reach.
+        CHECK(sorted(ell.visibleVertices(Point(3, 0))) ==
+              sorted({Point(0, 0), Point(4, 0), Point(4, 1), Point(1, 1)}));
+        const auto seen = ell.visibleVertices(Point(3, 0));
+        CHECK(std::find(seen.begin(), seen.end(), Point(1, 4)) == seen.end());
+        CHECK(std::find(seen.begin(), seen.end(), Point(0, 4)) == seen.end());
+        // From the notch's own corner the whole polygon is in view.
+        CHECK(ell.visibleVertices(Point(1, 1)).size() == 5);
+    }
+
+    SUBCASE("clearly visible drops what is only reached along the boundary") {
+        // From (3,0) the two ends of the edge it lies on are reached along the
+        // boundary, and (0,4) only by grazing the reflex corner.
+        CHECK(sorted(ell.clearlyVisibleVertices(Point(3, 0))) ==
+              sorted({Point(4, 1), Point(1, 1)}));
+        // Clear sight is always a subset of plain sight.
+        for (int x = 0; x <= 4; ++x) {
+            for (int y = 0; y <= 4; ++y) {
+                const Point query(x, y);
+                const auto all = sorted(ell.visibleVertices(query));
+                for (const auto& v : ell.clearlyVisibleVertices(query)) {
+                    CHECK(std::find(all.begin(), all.end(), v) != all.end());
+                }
+            }
+        }
+    }
+
+    SUBCASE("outside the polygon nothing is visible") {
+        CHECK(ell.visibleVertices(Point(3, 3)).empty());
+        CHECK(ell.clearlyVisibleVertices(Point(3, 3)).empty());
+        CHECK(ell.visibleVertices(Point(-1, -1)).empty());
+        CHECK(ell.visibleVertices(Point(9, 9)).empty());
+    }
+}
+
+TEST_CASE("Polygon regularizedVisiblePolygon bounds what a point sees") {
+    using Exact = pgl::Point<pgl::ERational>;
+
+    SUBCASE("a convex polygon sees all of itself") {
+        const PolygonShape square({0, 0, 4, 0, 4, 4, 0, 4});
+        for (const auto& query : {Point(0, 0), Point(2, 2), Point(4, 0), Point(1, 0)}) {
+            const auto seen = square.regularizedVisiblePolygon(query);
+            CHECK(seen.area() == pgl::ERational(16));
+        }
+    }
+
+    SUBCASE("a reflex corner casts a shadow") {
+        // From (4,0) the upright arm of the L is hidden behind the corner at
+        // (1,1): only the horizontal arm and the wedge above it remain.
+        const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+        const auto seen = ell.regularizedVisiblePolygon(Point(4, 0));
+        CHECK(seen.size() == 5);
+        CHECK(hasVertex(seen, Exact(pgl::ERational(4), pgl::ERational(1))));
+        CHECK(hasVertex(seen, Exact(pgl::ERational(1), pgl::ERational(1))));
+        // The window: the sightline from (4,0) past (1,1) meets the left wall.
+        CHECK(hasVertex(seen, Exact(pgl::ERational(0), pgl::ERational(4, 3))));
+        CHECK(seen.area() < ell.area());
+        // Everything seen is in the polygon, and seen from the query.
+        CHECK(seen.contains(Exact(pgl::ERational(2), pgl::ERational(1, 2))));
+        CHECK_FALSE(seen.contains(Exact(pgl::ERational(1, 2), pgl::ERational(3))));
+    }
+
+    SUBCASE("the query point is a vertex when it sits on the boundary") {
+        const PolygonShape square({0, 0, 4, 0, 4, 4, 0, 4});
+        const auto seen = square.regularizedVisiblePolygon(Point(1, 0));
+        CHECK(hasVertex(seen, Exact(pgl::ERational(1), pgl::ERational(0))));
+        // Strictly inside, the region wraps the query and does not name it.
+        const auto around = square.regularizedVisiblePolygon(Point(1, 1));
+        CHECK_FALSE(hasVertex(around, Exact(pgl::ERational(1), pgl::ERational(1))));
+    }
+
+    SUBCASE("outside the polygon nothing is seen") {
+        const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+        CHECK(ell.regularizedVisiblePolygon(Point(3, 3)).size() == 0);
+    }
+
+    SUBCASE("the result type is the caller's to pick") {
+        const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4});
+        const auto native = ell.regularizedVisiblePolygon(Point(4, 0));
+        const auto floating = ell.regularizedVisiblePolygon<double>(Point(4, 0));
+        static_assert(std::is_same_v<decltype(native)::PointType, Exact>);
+        static_assert(std::is_same_v<decltype(floating)::PointType, pgl::Point<double>>);
+        CHECK(floating.size() == native.size());
+    }
+}
+
+TEST_CASE("Region and mesh visibility from a query point") {
+    SUBCASE("holes block sight") {
+        using Region = pgl::PolygonWithHoles<Point>;
+        const PolygonShape outer({0, 0, 10, 0, 10, 10, 0, 10});
+        const std::vector<PolygonShape> holes{PolygonShape({3, 3, 3, 7, 7, 7, 7, 3})};
+        const Region region(outer, holes);
+        REQUIRE(region.isValid());
+
+        const auto seen = region.visibleVertices(Point(0, 0));
+        CHECK(std::find(seen.begin(), seen.end(), Point(3, 3)) != seen.end());
+        CHECK(std::find(seen.begin(), seen.end(), Point(7, 7)) == seen.end());
+        CHECK(std::find(seen.begin(), seen.end(), Point(10, 10)) == seen.end());
+        // The visible region is a single simple polygon despite the hole.
+        const auto polygon = region.regularizedVisiblePolygon(Point(0, 0));
+        CHECK(polygon.size() >= 3);
+        CHECK(polygon.isSimple());
+        CHECK(polygon.area() < region.area());
+    }
+
+    SUBCASE("walls block sight and their tips do not") {
+        using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+        const PolygonShape room({0, 0, 10, 0, 10, 10, 0, 10});
+        const std::vector<pgl::Segment<Point>> walls{
+            pgl::Segment<Point>(Point(5, 2), Point(5, 8))};
+        const Mesh mesh(room, walls);
+
+        const auto seen = mesh.visibleVertices(Point(0, 5));
+        // Straight through the wall is out; both its tips are in.
+        CHECK(std::find(seen.begin(), seen.end(), Point(10, 10)) == seen.end());
+        CHECK(std::find(seen.begin(), seen.end(), Point(5, 2)) != seen.end());
+        CHECK(std::find(seen.begin(), seen.end(), Point(5, 8)) != seen.end());
+        // Past a tip, the far wall comes back into view.
+        const auto corner = mesh.visibleVertices(Point(0, 0));
+        CHECK(std::find(corner.begin(), corner.end(), Point(10, 0)) != corner.end());
+
+        const auto polygon = mesh.regularizedVisiblePolygon(Point(0, 5));
+        CHECK(polygon.isSimple());
+        CHECK(polygon.area() < pgl::ERational(100));
+    }
+}
+
+TEST_CASE("Visible vertices join a query point to the reduced graph") {
+    // The reduced graph holds only the edges a taut path can bend along, so a
+    // route needs its endpoints joined to everything they see. Checked against
+    // the full graph, which needs no such help.
+    const PolygonShape room({0, 0, 12, 0, 12, 9, 8, 9, 8, 3, 5, 3, 5, 9, 0, 9});
+    const auto weight = [](const Point& a, const Point& b) { return a.distance(b); };
+    const auto length = [&](const std::vector<Point>& path) {
+        double total = 0.0;
+        for (std::size_t i = 1; i < path.size(); ++i) {
+            total += path[i - 1].distance(path[i]);
+        }
+        return total;
+    };
+
+    const auto full = room.visibilityGraph();
+    const auto reduced = room.reducedVisibilityGraph();
+    CHECK(reduced.edgeCount() < full.edgeCount());
+
+    // Endpoints that are not vertices are in neither graph to begin with, so
+    // both get them joined to what they see; the point of the check is that the
+    // sparse graph then routes exactly as well as the dense one.
+    const auto join = [&](pgl::Graph<Point> graph, const Point& source, const Point& target) {
+        for (const auto& endpoint : {source, target}) {
+            for (const auto& w : room.visibleVertices(endpoint)) {
+                graph.addEdge(endpoint, w);
+            }
+        }
+        return graph;
+    };
+
+    for (const auto& source : {Point(0, 0), Point(12, 0), Point(1, 8)}) {
+        for (const auto& target : {Point(12, 9), Point(0, 9), Point(11, 1)}) {
+            const double want = length(join(full, source, target)
+                                           .shortestPath(source, target, weight));
+            const double got = length(join(reduced, source, target)
+                                          .shortestPath(source, target, weight));
+            CHECK(want > 0.0);
+            CHECK(got == doctest::Approx(want));
+        }
+    }
+
+    // Without that join the reduced graph is not merely slower to answer, it
+    // answers wrongly: a convex corner keeps only its two sides, so a route
+    // starting there is forced along the wall.
+    const Point corner(0, 0);
+    const Point across(12, 9);
+    CHECK(reduced.degree(corner) == 2);
+    CHECK(length(reduced.shortestPath(corner, across, weight)) >
+          length(join(full, corner, across).shortestPath(corner, across, weight)));
 }

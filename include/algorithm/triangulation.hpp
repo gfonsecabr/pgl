@@ -954,17 +954,33 @@ struct Triangulation {
      * @brief Returns the reduced visibility graph of the mesh vertices.
      *
      * The subgraph of @ref visibilityGraph holding the edges a shortest path can
-     * use: those tangent to the obstacles at both ends. An edge `uv` is tangent
-     * at `u` when the walls incident to `u` all lie in one closed half-plane of
-     * the line `uv`, which is what lets a taut path bend there. A vertex with no
-     * incident wall — a free point inside the domain — bends no path and comes
-     * back isolated.
+     * *bend along*: those tangent to the obstacles at both ends. An edge `uv` is
+     * tangent at `u` when the walls incident to `u` all lie in one closed
+     * half-plane of the line `uv`, which is what lets a taut path bend there. A
+     * vertex with no incident wall — a free point inside the domain — bends no
+     * path and comes back isolated.
      *
      * The surviving edges are the walls themselves and the bitangents between
-     * reflex corners, so this is much sparser than @ref visibilityGraph while
-     * still containing a geodesic shortest path between any two of its vertices.
-     * A shortest path to or from a point that is *not* a mesh vertex needs that
-     * point's own visibility edges added back.
+     * reflex corners, so this is much sparser than @ref visibilityGraph.
+     *
+     * **This graph alone does not answer shortest-path queries.** What it
+     * guarantees is the *interior* of a geodesic: an edge lying strictly inside
+     * some shortest path has that path bending at both its ends, is therefore
+     * tangent at both, and survives. A path does not bend at its own endpoints,
+     * though — it merely starts and ends there — so its first and last hop need
+     * no tangency and may well have been pruned. To route between two points,
+     * vertices or not, add each of them joined to everything it sees:
+     *
+     * ```
+     * auto graph = mesh.reducedVisibilityGraph();
+     * for (const auto& w : mesh.visibilityGraph().neighbors(source)) {
+     *     graph.addEdge(source, w);   // and the same for the target
+     * }
+     * ```
+     *
+     * Using it unaided returns a path that exists but is too long: a convex
+     * corner keeps only its two boundary edges, so a route starting there is
+     * forced along the wall.
      *
      * Complexity: @ref visibilityGraph plus `O(E·w)` for `w` walls per vertex,
      * which is two along a polygon boundary.
@@ -972,6 +988,81 @@ struct Triangulation {
      * @return An undirected graph over this triangulation's vertices.
      */
     [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
+
+    /**
+     * @brief The mesh vertices visible from @p query.
+     *
+     * Same convention as @ref visibilityGraph, for a point that need not be a
+     * vertex: a vertex `v` is reported when the closed segment `query`–`v` stays
+     * in the closed domain and crosses no wall, grazing included. Together with
+     * @ref reducedVisibilityGraph this is what routes a shortest path between
+     * arbitrary points — that graph alone holds only the edges a path can bend
+     * along, so each endpoint needs joining to everything it sees:
+     *
+     * ```
+     * auto graph = mesh.reducedVisibilityGraph();
+     * for (const auto& w : mesh.visibleVertices(source)) {
+     *     graph.addEdge(source, w);   // and the same for the target
+     * }
+     * ```
+     *
+     * Costs one cone-clipped traversal of the mesh, proportional to the part of
+     * the domain @p query actually sees — never the whole visibility graph.
+     *
+     * @param query Point to look from; outside the domain nothing is visible.
+     * @return The visible vertices, counterclockwise around @p query starting
+     *         from the lexicographically smallest, as @ref sortAround orders
+     *         them. Empty when @p query lies outside the domain.
+     */
+    [[nodiscard]] std::vector<PointType> visibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The mesh vertices clearly visible from @p query.
+     *
+     * The strict counterpart of @ref visibleVertices, matching
+     * @ref clearVisibilityGraph: the *open* segment `query`–`v` must lie in the
+     * *interior* of the domain, cross no wall, and hold no other vertex. Neither
+     * grazing nor passing through a vertex counts, and a vertex reached only
+     * along the boundary — including the far end of a boundary edge @p query sits
+     * on — is left out. Always a subset of @ref visibleVertices.
+     *
+     * @param query Point to look from; outside the domain nothing is visible.
+     * @return The clearly visible vertices, ordered as in @ref visibleVertices.
+     */
+    [[nodiscard]] std::vector<PointType> clearlyVisibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The region of the domain visible from @p query, regularized.
+     *
+     * The visibility polygon: every point reachable from @p query by a segment
+     * that stays in the domain and crosses no wall. Being star-shaped about
+     * @p query it is simply connected, so the result is one @ref Polygon however
+     * many holes or walls the domain has.
+     *
+     * *Regularized* means the closure of the interior, which drops the
+     * lower-dimensional slivers grazing sight would otherwise add: a sightline
+     * running along a wall, or straight through a vertex into a region beyond
+     * that has no area, contributes a one-dimensional spike to the visible set
+     * and none to this. What comes back always bounds area.
+     *
+     * Its vertices are the domain's own vertices together with the *window* ends
+     * where a sightline past a reflex corner lands on a farther edge. Those are
+     * ray-edge intersections and need division, so the result type is requested
+     * explicitly, as everywhere in the library.
+     *
+     * @p query on the boundary is a vertex of the result. Should the domain pinch
+     * so that the visible region reaches @p query along more than one lobe, the
+     * ring passes through @p query once per lobe and is then only weakly simple.
+     *
+     * @tparam ResultNumber Coordinate type of the result (default:
+     *         @ref division_result_t of the mesh's own).
+     * @param query Point to look from.
+     * @return The visible region, counterclockwise; empty when @p query lies
+     *         outside the domain.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] Polygon<Point<ResultNumber>> regularizedVisiblePolygon(
+        const PointType& query) const;
 
   private:
     friend struct detail::ConvexCoverBuilder;
@@ -3131,6 +3222,60 @@ struct Triangulation {
         return bit(triangles_[t].constrainedMask, s) || !inDomain(triangles_[t].nbr[s]);
     }
 
+    // One step of the expansion: cross `side` of `tri` carrying the open cone
+    // whose clockwise bound is the ray origin->right and whose counterclockwise
+    // bound is origin->left. Both bounds are vertices, so every test the
+    // traversal makes is one orientation predicate on stored points and no
+    // coordinate is ever constructed. The crossed edge runs from its clockwise
+    // end `tri.v[(side+1)%3]` to its counterclockwise end `tri.v[(side+2)%3]`.
+    struct VisibilityCone {
+        TriId tri;
+        std::int8_t side;
+        VertexId right;
+        VertexId left;
+    };
+
+    // Where an expansion starts from a query point: the cones covering the
+    // directions that immediately enter the domain, sorted counterclockwise by
+    // their clockwise bound and grouped into contiguous arcs — one arc per lobe
+    // the visible region reaches the query point along. `direct` holds the
+    // vertices visible without any expansion at all, each flagged when sight to
+    // it only grazes (runs along the boundary or a wall) rather than passing
+    // through the interior.
+    struct VisibilitySeeds {
+        std::vector<VisibilityCone> cones;
+        std::vector<std::pair<VertexId, bool>> direct;
+        std::vector<std::size_t> arcs;  // index into `cones` where each arc opens
+        bool located = false;           // the query point lies in the domain
+        bool fullTurn = false;          // one arc, covering every direction
+    };
+
+    [[nodiscard]] VisibilitySeeds visibilitySeeds(const PointType& query) const;
+
+    // An in-domain triangle whose closure holds `query`, starting from the
+    // triangle `start` that locateId stopped at. That walk may stop on a ghost or
+    // a hull-fill triangle when the query sits on the domain boundary — which
+    // every polygon vertex does — so a boundary query needs this to find the
+    // triangle it belongs to. NO_TRI when the query really is outside.
+    [[nodiscard]] TriId inDomainTriangleAt(const PointType& query, TriId start) const;
+
+    // Drains the open-cone expansion of `start`, calling onVertex(VertexId) for
+    // each clearly visible vertex met and onBlocked(VisibilityCone) for each
+    // blocking edge a cone runs into. Leaves come out counterclockwise, which is
+    // what lets regularizedVisiblePolygon assemble its ring without sorting.
+    // `scratch` is the traversal stack, passed in so repeated calls reuse it.
+    template <class OnVertex, class OnBlocked>
+    void expandVisibility(const PointType& origin, VisibilityCone start,
+                          std::vector<VisibilityCone>& scratch,
+                          OnVertex onVertex, OnBlocked onBlocked) const;
+
+    // The vertices clearly visible from `query`, by id. `grazing` selects whether
+    // the seeds reached along the boundary come too, which is what separates
+    // visibleVertices from clearlyVisibleVertices.
+    [[nodiscard]] std::vector<VertexId> visibleIds(const PointType& query,
+                                                   const VisibilitySeeds& seeds,
+                                                   bool grazing) const;
+
     // Clear-visibility adjacency indexed by vertex id (slot GHOST stays empty),
     // built by one triangular expansion per vertex.
     [[nodiscard]] std::vector<std::vector<VertexId>> clearVisibleAdjacency() const;
@@ -3152,9 +3297,10 @@ struct Triangulation {
     [[nodiscard]] bool passesThrough(VertexId m) const;
 
     // The next mesh vertex met by the ray leaving `current` in the direction
-    // `current - previous`, when the segment reaching it stays in the domain and
-    // crosses no wall; GHOST when the ray leaves the domain first.
-    [[nodiscard]] VertexId nextVertexAlongRay(VertexId previous, VertexId current) const;
+    // `current - tail`, when the segment reaching it stays in the domain and
+    // crosses no wall; GHOST when the ray leaves the domain first. `tail` is a
+    // point rather than a vertex so a chain can start at a query point.
+    [[nodiscard]] VertexId nextVertexAlongRay(const PointType& tail, VertexId current) const;
 
     // Side of triangle x whose neighbor is `target` (x shares <=1 edge with it).
     [[nodiscard]] std::int8_t findSide(TriId x, TriId target) const {
