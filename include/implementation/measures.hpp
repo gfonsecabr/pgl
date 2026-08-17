@@ -64,8 +64,8 @@ constexpr auto Segment<PointType, LabelType>::lengthLInf() const {
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Segment<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
-    const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
+    const auto dy = detail::asNumber<ResultNumber>(max().y()) - detail::asNumber<ResultNumber>(min().y());
+    const auto dx = detail::asNumber<ResultNumber>(max().x()) - detail::asNumber<ResultNumber>(min().x());
     return dy / dx;
 }
 
@@ -78,8 +78,8 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> Segment<PointType, LabelType>::midpoint() const {
     return Point<ResultNumber>(
-        (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
-        (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2)
+        (detail::asNumber<ResultNumber>(min().x()) + detail::asNumber<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
+        (detail::asNumber<ResultNumber>(min().y()) + detail::asNumber<ResultNumber>(max().y())) / static_cast<ResultNumber>(2)
     );
 }
 
@@ -139,8 +139,8 @@ constexpr auto OrientedSegment<PointType, LabelType>::lengthLInf() const {
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber OrientedSegment<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
-    const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
+    const auto dy = detail::asNumber<ResultNumber>(target().y()) - detail::asNumber<ResultNumber>(source().y());
+    const auto dx = detail::asNumber<ResultNumber>(target().x()) - detail::asNumber<ResultNumber>(source().x());
     return dy / dx;
 }
 
@@ -153,8 +153,8 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr Point<ResultNumber> OrientedSegment<PointType, LabelType>::midpoint() const {
     return Point<ResultNumber>(
-        (static_cast<ResultNumber>(source().x()) + static_cast<ResultNumber>(target().x())) / static_cast<ResultNumber>(2),
-        (static_cast<ResultNumber>(source().y()) + static_cast<ResultNumber>(target().y())) / static_cast<ResultNumber>(2));
+        (detail::asNumber<ResultNumber>(source().x()) + detail::asNumber<ResultNumber>(target().x())) / static_cast<ResultNumber>(2),
+        (detail::asNumber<ResultNumber>(source().y()) + detail::asNumber<ResultNumber>(target().y())) / static_cast<ResultNumber>(2));
 }
 
 template <class PointType, class LabelType>
@@ -187,8 +187,8 @@ constexpr typename Line<PointType, LabelType>::NumberType Line<PointType, LabelT
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Line<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(max().y()) - static_cast<ResultNumber>(min().y());
-    const auto dx = static_cast<ResultNumber>(max().x()) - static_cast<ResultNumber>(min().x());
+    const auto dy = detail::asNumber<ResultNumber>(max().y()) - detail::asNumber<ResultNumber>(min().y());
+    const auto dx = detail::asNumber<ResultNumber>(max().x()) - detail::asNumber<ResultNumber>(min().x());
     return dy / dx;
 }
 
@@ -222,8 +222,8 @@ constexpr typename OrientedLine<PointType, LabelType>::NumberType OrientedLine<P
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber OrientedLine<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
-    const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
+    const auto dy = detail::asNumber<ResultNumber>(target().y()) - detail::asNumber<ResultNumber>(source().y());
+    const auto dx = detail::asNumber<ResultNumber>(target().x()) - detail::asNumber<ResultNumber>(source().x());
     return dy / dx;
 }
 
@@ -257,8 +257,8 @@ constexpr typename Ray<PointType, LabelType>::NumberType Ray<PointType, LabelTyp
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Ray<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
-    const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
+    const auto dy = detail::asNumber<ResultNumber>(target().y()) - detail::asNumber<ResultNumber>(source().y());
+    const auto dx = detail::asNumber<ResultNumber>(target().x()) - detail::asNumber<ResultNumber>(source().x());
     return dy / dx;
 }
 
@@ -304,8 +304,8 @@ template <class ResultNumber>
 constexpr Point<ResultNumber> Rectangle<PointType, LabelType>::midpoint() const {
     assert(!empty());
     return Point<ResultNumber>(
-        (static_cast<ResultNumber>(min().x()) + static_cast<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
-        (static_cast<ResultNumber>(min().y()) + static_cast<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
+        (detail::asNumber<ResultNumber>(min().x()) + detail::asNumber<ResultNumber>(max().x())) / static_cast<ResultNumber>(2),
+        (detail::asNumber<ResultNumber>(min().y()) + detail::asNumber<ResultNumber>(max().y())) / static_cast<ResultNumber>(2));
 }
 
 template <class PointType, class LabelType>
@@ -356,7 +356,7 @@ template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Triangle<PointType, LabelType>::area() const {
     const auto area2 = twiceArea();
-    return static_cast<ResultNumber>(area2) / static_cast<ResultNumber>(2);
+    return detail::asNumber<ResultNumber>(area2) / static_cast<ResultNumber>(2);
 }
 
 template <class PointType, class LabelType>
@@ -364,12 +364,12 @@ template <class ResultNumber>
 constexpr Point<ResultNumber> Triangle<PointType, LabelType>::centroid() const {
     const ResultNumber three = static_cast<ResultNumber>(3);
     return Point<ResultNumber>(
-        (static_cast<ResultNumber>(a().x()) +
-         static_cast<ResultNumber>(b().x()) +
-         static_cast<ResultNumber>(c().x())) / three,
-        (static_cast<ResultNumber>(a().y()) +
-         static_cast<ResultNumber>(b().y()) +
-         static_cast<ResultNumber>(c().y())) / three);
+        (detail::asNumber<ResultNumber>(a().x()) +
+         detail::asNumber<ResultNumber>(b().x()) +
+         detail::asNumber<ResultNumber>(c().x())) / three,
+        (detail::asNumber<ResultNumber>(a().y()) +
+         detail::asNumber<ResultNumber>(b().y()) +
+         detail::asNumber<ResultNumber>(c().y())) / three);
 }
 
 template <class PointType, class LabelType>
@@ -476,8 +476,8 @@ constexpr bool Triangle<PointType, LabelType>::isIsosceles() const {
 template <class PointType, class LabelType>
 template <class ResultNumber>
 constexpr ResultNumber Halfplane<PointType, LabelType>::slope() const {
-    const auto dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
-    const auto dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
+    const auto dy = detail::asNumber<ResultNumber>(target().y()) - detail::asNumber<ResultNumber>(source().y());
+    const auto dx = detail::asNumber<ResultNumber>(target().x()) - detail::asNumber<ResultNumber>(source().x());
     return dy / dx;
 }
 
@@ -570,8 +570,8 @@ constexpr Point<ResultNumber> Convex<PointType, LabelType>::verticesCentroid() c
     ResultNumber cx = 0;
     ResultNumber cy = 0;
     for (const auto& vertex : points_) {
-        cx += static_cast<ResultNumber>(vertex.x());
-        cy += static_cast<ResultNumber>(vertex.y());
+        cx += detail::asNumber<ResultNumber>(vertex.x());
+        cy += detail::asNumber<ResultNumber>(vertex.y());
     }
     return Point<ResultNumber>(cx / static_cast<ResultNumber>(points_.size()), cy / static_cast<ResultNumber>(points_.size()))
            + static_cast<Point<ResultNumber>>(translation_);
@@ -636,10 +636,10 @@ Convex<PointType, LabelType>::antipodalPairs() const {
         const auto pi1 = (*this)[i + 1 == n ? std::size_t{0} : i + 1];
         const auto pj = (*this)[j];
         const auto pj1 = (*this)[j + 1 == n ? std::size_t{0} : j + 1];
-        const Coord eix = static_cast<Coord>(pi1.x()) - static_cast<Coord>(pi.x());
-        const Coord eiy = static_cast<Coord>(pi1.y()) - static_cast<Coord>(pi.y());
-        const Coord ejx = static_cast<Coord>(pj1.x()) - static_cast<Coord>(pj.x());
-        const Coord ejy = static_cast<Coord>(pj1.y()) - static_cast<Coord>(pj.y());
+        const Coord eix = detail::asNumber<Coord>(pi1.x()) - detail::asNumber<Coord>(pi.x());
+        const Coord eiy = detail::asNumber<Coord>(pi1.y()) - detail::asNumber<Coord>(pi.y());
+        const Coord ejx = detail::asNumber<Coord>(pj1.x()) - detail::asNumber<Coord>(pj.x());
+        const Coord ejy = detail::asNumber<Coord>(pj1.y()) - detail::asNumber<Coord>(pj.y());
         return eix * ejy - eiy * ejx;
     };
 
@@ -793,15 +793,15 @@ constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::verticesCe
     ResultNumber cy{};
     const auto accumulate = [&](const PolygonType& ring) {
         for (const auto& vertex : ring) {
-            cx += static_cast<ResultNumber>(vertex.x());
-            cy += static_cast<ResultNumber>(vertex.y());
+            cx += detail::asNumber<ResultNumber>(vertex.x());
+            cy += detail::asNumber<ResultNumber>(vertex.y());
         }
     };
     accumulate(outer_);
     for (const auto& hole : holes_) {
         accumulate(hole);
     }
-    return Point<ResultNumber>(cx / static_cast<ResultNumber>(n), cy / static_cast<ResultNumber>(n));
+    return Point<ResultNumber>(cx / detail::asNumber<ResultNumber>(n), cy / detail::asNumber<ResultNumber>(n));
 }
 
 template <class PointType, class LabelType>
@@ -824,7 +824,7 @@ constexpr Point<ResultNumber> PolygonWithHoles<PointType, LabelType>::centroid()
     const auto accumulate = [&](const PolygonType& ring, int sign) {
         const auto ringTwiceArea = static_cast<ResultNumber>(ring.twiceArea());
         const auto ringCentroid = ring.template centroid<ResultNumber>();
-        const ResultNumber weight = ringTwiceArea * static_cast<ResultNumber>(sign);
+        const ResultNumber weight = ringTwiceArea * detail::asNumber<ResultNumber>(sign);
         cx += ringCentroid.x() * weight;
         cy += ringCentroid.y() * weight;
     };
@@ -854,7 +854,7 @@ constexpr Point<ResultNumber> PolygonSet<PointType, LabelType>::verticesCentroid
         cx += componentCentroid.x() * weight;
         cy += componentCentroid.y() * weight;
     }
-    return Point<ResultNumber>(cx / static_cast<ResultNumber>(n), cy / static_cast<ResultNumber>(n));
+    return Point<ResultNumber>(cx / detail::asNumber<ResultNumber>(n), cy / detail::asNumber<ResultNumber>(n));
 }
 
 template <class PointType, class LabelType>
@@ -1067,8 +1067,8 @@ constexpr Point<ResultNumber> HalfplaneIntersection<PointType, LabelType>::point
     clipped.insert(HalfplaneType(lohi, lo));
     if (clipped.empty()) {
         // The anchor rounding missed the region; fall back to a boundary point.
-        return Point<ResultNumber>(static_cast<ResultNumber>(halfplanes_[0].source().x()),
-                                   static_cast<ResultNumber>(halfplanes_[0].source().y()));
+        return Point<ResultNumber>(detail::asNumber<ResultNumber>(halfplanes_[0].source().x()),
+                                   detail::asNumber<ResultNumber>(halfplanes_[0].source().y()));
     }
     return clipped.template asConvex<ResultNumber>().template pointInside<ResultNumber>();
 }

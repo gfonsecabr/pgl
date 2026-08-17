@@ -24,8 +24,8 @@ template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr bool Point<Number, Label>::contains(const OtherPoint& other) const {
     using Compare = std::common_type_t<Number, typename OtherPoint::NumberType>;
-    return static_cast<Compare>(x()) == static_cast<Compare>(other.x()) &&
-           static_cast<Compare>(y()) == static_cast<Compare>(other.y());
+    return detail::asNumber<Compare>(x()) == detail::asNumber<Compare>(other.x()) &&
+           detail::asNumber<Compare>(y()) == detail::asNumber<Compare>(other.y());
 }
 
 template <class Number, class Label>

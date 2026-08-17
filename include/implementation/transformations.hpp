@@ -23,32 +23,32 @@ constexpr Point<Number, Label> Point<Number, Label>::operator-() const {
 template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr Point<Number, Label>& Point<Number, Label>::operator+=(const OtherPoint& other) {
-    coords_[0] += static_cast<Number>(other[0]);
-    coords_[1] += static_cast<Number>(other[1]);
+    coords_[0] += detail::asNumber<Number>(other[0]);
+    coords_[1] += detail::asNumber<Number>(other[1]);
     return *this;
 }
 
 template <class Number, class Label>
 template<PointConcept OtherPoint>
 constexpr Point<Number, Label>& Point<Number, Label>::operator-=(const OtherPoint& other) {
-    coords_[0] -= static_cast<Number>(other[0]);
-    coords_[1] -= static_cast<Number>(other[1]);
+    coords_[0] -= detail::asNumber<Number>(other[0]);
+    coords_[1] -= detail::asNumber<Number>(other[1]);
     return *this;
 }
 
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr Point<Number, Label>& Point<Number, Label>::operator*=(const OtherNumber scalar) {
-    coords_[0] *= static_cast<Number>(scalar);
-    coords_[1] *= static_cast<Number>(scalar);
+    coords_[0] *= detail::asNumber<Number>(scalar);
+    coords_[1] *= detail::asNumber<Number>(scalar);
     return *this;
 }
 
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr Point<Number, Label>& Point<Number, Label>::operator/=(const OtherNumber scalar) {
-    coords_[0] /= static_cast<Number>(scalar);
-    coords_[1] /= static_cast<Number>(scalar);
+    coords_[0] /= detail::asNumber<Number>(scalar);
+    coords_[1] /= detail::asNumber<Number>(scalar);
     return *this;
 }
 
@@ -85,7 +85,7 @@ constexpr Point<Number, Label> Point<Number, Label>::scaledUpX(const OtherNumber
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr void Point<Number, Label>::scaleUpX(const OtherNumber scalar) {
-    coords_[0] *= static_cast<Number>(scalar);
+    coords_[0] *= detail::asNumber<Number>(scalar);
 }
 
 template <class Number, class Label>
@@ -97,7 +97,7 @@ constexpr Point<Number, Label> Point<Number, Label>::scaledUpY(const OtherNumber
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr void Point<Number, Label>::scaleUpY(const OtherNumber scalar) {
-    coords_[1] *= static_cast<Number>(scalar);
+    coords_[1] *= detail::asNumber<Number>(scalar);
 }
 
 template <class Number, class Label>
@@ -109,7 +109,7 @@ constexpr Point<Number, Label> Point<Number, Label>::scaledDownX(const OtherNumb
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr void Point<Number, Label>::scaleDownX(const OtherNumber scalar) {
-    coords_[0] /= static_cast<Number>(scalar);
+    coords_[0] /= detail::asNumber<Number>(scalar);
 }
 
 template <class Number, class Label>
@@ -121,7 +121,7 @@ constexpr Point<Number, Label> Point<Number, Label>::scaledDownY(const OtherNumb
 template <class Number, class Label>
 template <class OtherNumber>
 constexpr void Point<Number, Label>::scaleDownY(const OtherNumber scalar) {
-    coords_[1] /= static_cast<Number>(scalar);
+    coords_[1] /= detail::asNumber<Number>(scalar);
 }
 
 // operator+ is the Minkowski sum; see implementation/minkowski.hpp.
@@ -130,8 +130,8 @@ template <class LeftNumber, class LeftLabel, class RightNumber, class RightLabel
 constexpr auto operator-(const Point<LeftNumber, LeftLabel>& left, const Point<RightNumber, RightLabel>& right) {
     using ResultNumber = std::common_type_t<LeftNumber, RightNumber>;
     return Point<ResultNumber, LeftLabel>(
-        static_cast<ResultNumber>(left.x()) - static_cast<ResultNumber>(right.x()),
-        static_cast<ResultNumber>(left.y()) - static_cast<ResultNumber>(right.y()));
+        detail::asNumber<ResultNumber>(left.x()) - detail::asNumber<ResultNumber>(right.x()),
+        detail::asNumber<ResultNumber>(left.y()) - detail::asNumber<ResultNumber>(right.y()));
 }
 
 template <class Number, class Label, class Scalar>
@@ -139,8 +139,8 @@ template <class Number, class Label, class Scalar>
 constexpr auto operator*(const Point<Number, Label>& point, const Scalar& scalar) {
     using ResultNumber = std::common_type_t<Number, Scalar>;
     return Point<ResultNumber, Label>(
-        static_cast<ResultNumber>(point.x()) * static_cast<ResultNumber>(scalar),
-        static_cast<ResultNumber>(point.y()) * static_cast<ResultNumber>(scalar));
+        detail::asNumber<ResultNumber>(point.x()) * detail::asNumber<ResultNumber>(scalar),
+        detail::asNumber<ResultNumber>(point.y()) * detail::asNumber<ResultNumber>(scalar));
 }
 
 template <class Scalar, class Number, class Label>
@@ -154,8 +154,8 @@ template <class Number, class Label, class Scalar>
 constexpr auto operator/(const Point<Number, Label>& point, const Scalar& scalar) {
     using ResultNumber = std::common_type_t<Number, Scalar>;
     return Point<ResultNumber, Label>(
-        static_cast<ResultNumber>(point.x()) / static_cast<ResultNumber>(scalar),
-        static_cast<ResultNumber>(point.y()) / static_cast<ResultNumber>(scalar));
+        detail::asNumber<ResultNumber>(point.x()) / detail::asNumber<ResultNumber>(scalar),
+        detail::asNumber<ResultNumber>(point.y()) / detail::asNumber<ResultNumber>(scalar));
 }
 
 // -----------------------------------------------------------------------------

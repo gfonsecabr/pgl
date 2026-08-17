@@ -697,8 +697,8 @@ public:
         const PointType& b = geometry.b;
         const ResultNumber two = static_cast<ResultNumber>(NumberType(2));
         return Point<ResultNumber>(
-            (static_cast<ResultNumber>(a.x()) + static_cast<ResultNumber>(b.x())) / two,
-            (static_cast<ResultNumber>(a.y()) + static_cast<ResultNumber>(b.y())) / two);
+            (detail::asNumber<ResultNumber>(a.x()) + detail::asNumber<ResultNumber>(b.x())) / two,
+            (detail::asNumber<ResultNumber>(a.y()) + detail::asNumber<ResultNumber>(b.y())) / two);
     }
 
     /**
@@ -1704,7 +1704,7 @@ private:
                 const WideNumber rise =
                     (wide(parameter) - wide(carrier.a.x())) * dy / dx;
                 return PointType(parameter,
-                                 carrier.a.y() + static_cast<NumberType>(rise));
+                                 carrier.a.y() + detail::asNumber<NumberType>(rise));
             }
             return PointType(carrier.a.x(), parameter);
         }();
@@ -4512,10 +4512,10 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
                 triangle.v[static_cast<std::size_t>((side + 1) % 3)])];
             const PointType& b = vertices_[static_cast<std::size_t>(
                 triangle.v[static_cast<std::size_t>((side + 2) % 3)])];
-            const ResultNumber dx = static_cast<ResultNumber>(b.x()) -
-                                    static_cast<ResultNumber>(a.x());
-            const ResultNumber dy = static_cast<ResultNumber>(b.y()) -
-                                    static_cast<ResultNumber>(a.y());
+            const ResultNumber dx = detail::asNumber<ResultNumber>(b.x()) -
+                                    detail::asNumber<ResultNumber>(a.x());
+            const ResultNumber dy = detail::asNumber<ResultNumber>(b.y()) -
+                                    detail::asNumber<ResultNumber>(a.y());
             const ResultPoint& center = centers[static_cast<std::size_t>(t)];
             dualEdges.emplace_back(
                 Ray<ResultPoint>(center, center + ResultPoint(dy, -dx)));

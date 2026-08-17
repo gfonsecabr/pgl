@@ -674,11 +674,11 @@ struct Polygon {
         for (std::size_t i = 0; i < n; ++i) {
             const auto& p1 = points_[i];
             const auto& p2 = points_[(i + 1) % n];
-            const ResultNumber cross = static_cast<ResultNumber>(p1.x()) * static_cast<ResultNumber>(p2.y())
-                                     - static_cast<ResultNumber>(p2.x()) * static_cast<ResultNumber>(p1.y());
+            const ResultNumber cross = detail::asNumber<ResultNumber>(p1.x()) * detail::asNumber<ResultNumber>(p2.y())
+                                     - detail::asNumber<ResultNumber>(p2.x()) * detail::asNumber<ResultNumber>(p1.y());
             areaTwice += cross;
-            cx += (static_cast<ResultNumber>(p1.x()) + static_cast<ResultNumber>(p2.x())) * cross;
-            cy += (static_cast<ResultNumber>(p1.y()) + static_cast<ResultNumber>(p2.y())) * cross;
+            cx += (detail::asNumber<ResultNumber>(p1.x()) + detail::asNumber<ResultNumber>(p2.x())) * cross;
+            cy += (detail::asNumber<ResultNumber>(p1.y()) + detail::asNumber<ResultNumber>(p2.y())) * cross;
         }
         if (areaTwice == ResultNumber(0)) {
             return verticesCentroid<ResultNumber>();
@@ -700,8 +700,8 @@ struct Polygon {
         ResultNumber cx = 0;
         ResultNumber cy = 0;
         for (const auto& vertex : points_) {
-            cx += static_cast<ResultNumber>(vertex.x());
-            cy += static_cast<ResultNumber>(vertex.y());
+            cx += detail::asNumber<ResultNumber>(vertex.x());
+            cy += detail::asNumber<ResultNumber>(vertex.y());
         }
         return Point<ResultNumber>(cx / static_cast<ResultNumber>(points_.size()),
                                    cy / static_cast<ResultNumber>(points_.size()))
@@ -2913,8 +2913,8 @@ struct Polygon {
         for (std::size_t i = 0; i < n; ++i) {
             const auto& p1 = points_[i];
             const auto& p2 = points_[(i + 1) % n];
-            sum += static_cast<ResultNumber>(p1.x()) * static_cast<ResultNumber>(p2.y())
-                 - static_cast<ResultNumber>(p2.x()) * static_cast<ResultNumber>(p1.y());
+            sum += detail::asNumber<ResultNumber>(p1.x()) * detail::asNumber<ResultNumber>(p2.y())
+                 - detail::asNumber<ResultNumber>(p2.x()) * detail::asNumber<ResultNumber>(p1.y());
         }
         return sum;
     }

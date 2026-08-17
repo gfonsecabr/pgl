@@ -297,8 +297,8 @@ OrientedLine<PointType, LabelType>::crossingOrder(const OtherLine& first,
     // cross products, then undo the sign of the denominators d1*d2. The products
     // are ~coordinate^4, so promote the operands first to widen the headroom.
     using Wide = detail::promoted_number_t<std::remove_cvref_t<decltype(p1)>>;
-    const auto cross = detail::threeWay(static_cast<Wide>(p1) * static_cast<Wide>(d2),
-                                        static_cast<Wide>(p2) * static_cast<Wide>(d1));
+    const auto cross = detail::threeWay(detail::asNumber<Wide>(p1) * detail::asNumber<Wide>(d2),
+                                        detail::asNumber<Wide>(p2) * detail::asNumber<Wide>(d1));
     if (cross == 0) {
         return std::partial_ordering::equivalent;  // both cross at the same point
     }

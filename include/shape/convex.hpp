@@ -3096,7 +3096,7 @@ struct Convex {
             const auto bx = static_cast<C>(b.x());
             if (ax < bx) return true;
             if (bx < ax) return false;
-            return static_cast<C>(a.y()) < static_cast<C>(b.y());
+            return detail::asNumber<C>(a.y()) < detail::asNumber<C>(b.y());
         }
     };
     static constexpr LexLessCrossType lexLessCrossType{};

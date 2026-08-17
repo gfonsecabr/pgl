@@ -59,8 +59,8 @@ constexpr ResultNumber maxVertexSquaredDistance(const Self& self, const OtherSha
 template <class Number, class Label>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::squaredDistance(const OtherPoint& other) const {
-    const ResultNumber dx = static_cast<ResultNumber>(x()) - static_cast<ResultNumber>(other.x());
-    const ResultNumber dy = static_cast<ResultNumber>(y()) - static_cast<ResultNumber>(other.y());
+    const ResultNumber dx = detail::asNumber<ResultNumber>(x()) - detail::asNumber<ResultNumber>(other.x());
+    const ResultNumber dy = detail::asNumber<ResultNumber>(y()) - detail::asNumber<ResultNumber>(other.y());
     return dx * dx + dy * dy;
 }
 
@@ -73,16 +73,16 @@ ApproximateNumber Point<Number, Label>::distance(const OtherPoint& other) const 
 template <class Number, class Label>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::distanceL1(const OtherPoint& other) const {
-    const ResultNumber dx = static_cast<ResultNumber>(x()) - static_cast<ResultNumber>(other.x());
-    const ResultNumber dy = static_cast<ResultNumber>(y()) - static_cast<ResultNumber>(other.y());
+    const ResultNumber dx = detail::asNumber<ResultNumber>(x()) - detail::asNumber<ResultNumber>(other.x());
+    const ResultNumber dy = detail::asNumber<ResultNumber>(y()) - detail::asNumber<ResultNumber>(other.y());
     return pgl::detail::abs(dx) + pgl::detail::abs(dy);
 }
 
 template <class Number, class Label>
 template <class ResultNumber, PointConcept OtherPoint>
 constexpr auto Point<Number, Label>::distanceLInf(const OtherPoint& other) const {
-    const ResultNumber dx = static_cast<ResultNumber>(x()) - static_cast<ResultNumber>(other.x());
-    const ResultNumber dy = static_cast<ResultNumber>(y()) - static_cast<ResultNumber>(other.y());
+    const ResultNumber dx = detail::asNumber<ResultNumber>(x()) - detail::asNumber<ResultNumber>(other.x());
+    const ResultNumber dy = detail::asNumber<ResultNumber>(y()) - detail::asNumber<ResultNumber>(other.y());
     return std::max(pgl::detail::abs(dx), pgl::detail::abs(dy));
 }
 
@@ -816,17 +816,17 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
 
     // Reference point c = (v0 + v1 + v2) / 3, strictly interior. To stay exact we
     // work with vectors scaled by 3 (a positive factor, so signs are preserved).
-    const Num sx = static_cast<Num>(V(0).x()) + static_cast<Num>(V(1).x()) + static_cast<Num>(V(2).x());
-    const Num sy = static_cast<Num>(V(0).y()) + static_cast<Num>(V(1).y()) + static_cast<Num>(V(2).y());
-    const Num bx = Num{3} * static_cast<Num>(point.x()) - sx;   // 3 * (q - c)
-    const Num by = Num{3} * static_cast<Num>(point.y()) - sy;
+    const Num sx = detail::asNumber<Num>(V(0).x()) + detail::asNumber<Num>(V(1).x()) + detail::asNumber<Num>(V(2).x());
+    const Num sy = detail::asNumber<Num>(V(0).y()) + detail::asNumber<Num>(V(1).y()) + detail::asNumber<Num>(V(2).y());
+    const Num bx = Num{3} * detail::asNumber<Num>(point.x()) - sx;   // 3 * (q - c)
+    const Num by = Num{3} * detail::asNumber<Num>(point.y()) - sy;
 
     // Sign of (V(k) - c) x (q - c). Around the boundary this changes sign exactly
     // twice: at the edge the ray c->q exits through (which faces q) and at the
     // opposite edge (which does not).
     const auto dSign = [&](std::ptrdiff_t k) -> int {
-        const Num ax = Num{3} * static_cast<Num>(V(k).x()) - sx;   // 3 * (V(k) - c)
-        const Num ay = Num{3} * static_cast<Num>(V(k).y()) - sy;
+        const Num ax = Num{3} * detail::asNumber<Num>(V(k).x()) - sx;   // 3 * (V(k) - c)
+        const Num ay = Num{3} * detail::asNumber<Num>(V(k).y()) - sy;
         const Num cross = ax * by - ay * bx;
         return (cross > Num{0}) - (cross < Num{0});
     };
@@ -834,7 +834,7 @@ constexpr auto Convex<PointType_, LabelType>::squaredDistance(const OtherPoint& 
     // the genuinely unimodal support function, so they bracket the two sign
     // changes and are found in O(log n) with the existing cyclic search.
     const auto gDot = [&](std::ptrdiff_t k) {
-        return static_cast<Num>(V(k).x()) * by - static_cast<Num>(V(k).y()) * bx;
+        return detail::asNumber<Num>(V(k).x()) * by - detail::asNumber<Num>(V(k).y()) * bx;
     };
     const auto indices = std::views::iota(std::ptrdiff_t{0}, n);
     const std::ptrdiff_t mPos = *detail::cyclicMax(

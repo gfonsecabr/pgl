@@ -122,8 +122,8 @@ constexpr auto minkowskiTranslated(const ShapeT& shape,
     // Moves one vertex, promoting the coordinates exactly as Point + Point does.
     const auto moved = [&translation](const auto& vertex) {
         return ResultPoint(
-            static_cast<ResultNumber>(vertex.x()) + static_cast<ResultNumber>(translation.x()),
-            static_cast<ResultNumber>(vertex.y()) + static_cast<ResultNumber>(translation.y()));
+            detail::asNumber<ResultNumber>(vertex.x()) + detail::asNumber<ResultNumber>(translation.x()),
+            detail::asNumber<ResultNumber>(vertex.y()) + detail::asNumber<ResultNumber>(translation.y()));
     };
 
     if constexpr (is_point_v<ShapeT>) {
@@ -207,8 +207,8 @@ constexpr std::vector<ResultPoint> minkowskiVertices(const ShapeT& shape) {
 
     std::vector<ResultPoint> vertices;
     const auto append = [&vertices](const auto& vertex) {
-        vertices.emplace_back(static_cast<ResultNumber>(vertex.x()),
-                              static_cast<ResultNumber>(vertex.y()));
+        vertices.emplace_back(detail::asNumber<ResultNumber>(vertex.x()),
+                              detail::asNumber<ResultNumber>(vertex.y()));
     };
 
     if constexpr (is_convex_v<ShapeT>) {
@@ -267,8 +267,8 @@ constexpr auto minkowskiHalfplaneSum(const HalfplaneT& halfplane, const ShapeT& 
 
     const auto& source = halfplane.source();
     const auto& target = halfplane.target();
-    const ResultNumber dx = static_cast<ResultNumber>(target.x()) - static_cast<ResultNumber>(source.x());
-    const ResultNumber dy = static_cast<ResultNumber>(target.y()) - static_cast<ResultNumber>(source.y());
+    const ResultNumber dx = detail::asNumber<ResultNumber>(target.x()) - detail::asNumber<ResultNumber>(source.x());
+    const ResultNumber dy = detail::asNumber<ResultNumber>(target.y()) - detail::asNumber<ResultNumber>(source.y());
 
     bool found = false;
     ResultPoint support(ResultNumber{}, ResultNumber{});
@@ -284,14 +284,14 @@ constexpr auto minkowskiHalfplaneSum(const HalfplaneT& halfplane, const ShapeT& 
         }
     }
     if (!found) {
-        return ResultHalfplane(ResultPoint(static_cast<ResultNumber>(source.x()),
-                                           static_cast<ResultNumber>(source.y())),
-                               ResultPoint(static_cast<ResultNumber>(target.x()),
-                                           static_cast<ResultNumber>(target.y())));
+        return ResultHalfplane(ResultPoint(detail::asNumber<ResultNumber>(source.x()),
+                                           detail::asNumber<ResultNumber>(source.y())),
+                               ResultPoint(detail::asNumber<ResultNumber>(target.x()),
+                                           detail::asNumber<ResultNumber>(target.y())));
     }
     const auto moved = [&support](const auto& point) {
-        return ResultPoint(static_cast<ResultNumber>(point.x()) + support.x(),
-                           static_cast<ResultNumber>(point.y()) + support.y());
+        return ResultPoint(detail::asNumber<ResultNumber>(point.x()) + support.x(),
+                           detail::asNumber<ResultNumber>(point.y()) + support.y());
     };
     return ResultHalfplane(moved(source), moved(target));
 }
@@ -359,8 +359,8 @@ constexpr MinkowskiPolyhedron<ResultPoint> minkowskiPolyhedronOf(const ShapeT& s
     MinkowskiPolyhedron<ResultPoint> polyhedron;
     const ResultNumber zero{};
     const auto cast = [](const auto& point) {
-        return ResultPoint(static_cast<ResultNumber>(point.x()),
-                           static_cast<ResultNumber>(point.y()));
+        return ResultPoint(detail::asNumber<ResultNumber>(point.x()),
+                           detail::asNumber<ResultNumber>(point.y()));
     };
     const auto reversed = [](const ResultPoint& vector) {
         return ResultPoint(-vector.x(), -vector.y());
@@ -837,8 +837,8 @@ Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
 Halfplane<PointType_, TLabel>::minkowskiSum(const OtherDisk& other) const {
     using ResultPoint = Point<ResultNumber, typename PointType_::LabelType>;
 
-    const ResultNumber dx = static_cast<ResultNumber>(target().x()) - static_cast<ResultNumber>(source().x());
-    const ResultNumber dy = static_cast<ResultNumber>(target().y()) - static_cast<ResultNumber>(source().y());
+    const ResultNumber dx = detail::asNumber<ResultNumber>(target().x()) - detail::asNumber<ResultNumber>(source().x());
+    const ResultNumber dy = detail::asNumber<ResultNumber>(target().y()) - detail::asNumber<ResultNumber>(source().y());
     // Reported the way Disk::radius reports it: an exact result type has no
     // square root to offer, and says so rather than rounding silently.
     if constexpr (!requires(ResultNumber v) { std::sqrt(v); }) {
@@ -854,8 +854,8 @@ Halfplane<PointType_, TLabel>::minkowskiSum(const OtherDisk& other) const {
         const ResultNumber offsetY = center.y() - radius * dx / length;
 
         const auto moved = [&offsetX, &offsetY](const auto& point) {
-            return ResultPoint(static_cast<ResultNumber>(point.x()) + offsetX,
-                               static_cast<ResultNumber>(point.y()) + offsetY);
+            return ResultPoint(detail::asNumber<ResultNumber>(point.x()) + offsetX,
+                               detail::asNumber<ResultNumber>(point.y()) + offsetY);
         };
         return Halfplane<ResultPoint>(moved(source()), moved(target()));
     }
