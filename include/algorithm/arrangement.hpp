@@ -32,9 +32,15 @@
  * number type at extraction time through the usual `ResultNumber` template
  * parameter. Because arrangement vertices are crossings, the arrangement's own
  * point type normally has to be a rational one (`pgl::EPoint` is the usual
- * choice); an integral point type is only adequate when the input segments
- * meet at their endpoints alone. Unbounded edge ends meet at one symbolic
- * vertex at infinity; no finite frame and no fictitious edge is introduced.
+ * choice); an integral point type is adequate exactly when every crossing is
+ * itself integral, which is what input that meets only at its endpoints
+ * guarantees, and equally what axis-parallel input does. Such an arrangement is
+ * exact throughout — construction, point location and the curve traversals
+ * alike — within the coordinate bound the exact predicates carry everywhere: two
+ * coordinate differences have to multiply inside one type promotion, which holds
+ * `int` coordinates safely up to `10^8`. Unbounded edge ends meet at one
+ * symbolic vertex at infinity; no finite frame and no fictitious edge is
+ * introduced.
  */
 
 #include <algorithm>
@@ -818,24 +824,34 @@ private:
         // direction a quarter turn counterclockwise points left. Keeping the
         // midpoint doubled leaves every quantity below a polynomial in the input
         // coordinates, so the only division is the final one.
-        const NumberType midX = a.x() + b.x();
-        const NumberType midY = a.y() + b.y();
-        const NumberType normalX = a.y() - b.y();
-        const NumberType normalY = b.x() - a.x();
+        //
+        // Those polynomials reach degree four, since ordering two hits along the
+        // ray cross-multiplies two quadratic parameters, so they are formed in
+        // @ref WideNumber. That holds every one of them for a coordinate type
+        // whose promotion grows — and for a fixed-width one, coordinates up to
+        // the fourth root of the widened range, which for `int` is about `2^28`.
+        const auto wide = [](const NumberType& value) {
+            return static_cast<WideNumber>(value);
+        };
+        const WideNumber midX = wide(a.x()) + wide(b.x());
+        const WideNumber midY = wide(a.y()) + wide(b.y());
+        const WideNumber normalX = wide(a.y()) - wide(b.y());
+        const WideNumber normalY = wide(b.x()) - wide(a.x());
+        const WideNumber two(2);
 
         // The first point where the inward ray meets the boundary, as the exact
         // fraction hitNumerator / hitDenominator with a positive denominator.
-        NumberType hitNumerator(0);
-        NumberType hitDenominator(0);
-        const auto offer = [&](NumberType numerator, NumberType denominator) {
-            if (denominator < NumberType(0)) {
+        WideNumber hitNumerator(0);
+        WideNumber hitDenominator(0);
+        const auto offer = [&](WideNumber numerator, WideNumber denominator) {
+            if (denominator < WideNumber(0)) {
                 numerator = -numerator;
                 denominator = -denominator;
             }
-            if (numerator <= NumberType(0)) {
+            if (numerator <= WideNumber(0)) {
                 return;  // behind the ray's start, or at it
             }
-            if (hitDenominator == NumberType(0) ||
+            if (hitDenominator == WideNumber(0) ||
                 numerator * hitDenominator < hitNumerator * denominator) {
                 hitNumerator = numerator;
                 hitDenominator = denominator;
@@ -848,43 +864,42 @@ private:
             }
             const PointType& p = points_[origin_[h.index()]];
             const PointType& q = points_[origin_[h.index() ^ 1]];
-            const NumberType edgeX = q.x() - p.x();
-            const NumberType edgeY = q.y() - p.y();
+            const WideNumber edgeX = wide(q.x()) - wide(p.x());
+            const WideNumber edgeY = wide(q.y()) - wide(p.y());
             // Twice the vector from the ray's start to the edge's first endpoint.
-            const NumberType toEdgeX = NumberType(2) * p.x() - midX;
-            const NumberType toEdgeY = NumberType(2) * p.y() - midY;
-            const NumberType denominator = normalX * edgeY - normalY * edgeX;
-            const NumberType alongEdge = toEdgeX * normalY - toEdgeY * normalX;
-            if (denominator != NumberType(0)) {
+            const WideNumber toEdgeX = two * wide(p.x()) - midX;
+            const WideNumber toEdgeY = two * wide(p.y()) - midY;
+            const WideNumber denominator = normalX * edgeY - normalY * edgeX;
+            const WideNumber alongEdge = toEdgeX * normalY - toEdgeY * normalX;
+            if (denominator != WideNumber(0)) {
                 // A proper crossing: the ray meets the edge's line at parameter
                 // (toEdge x edge) / 2·denominator, inside the edge when the
                 // parameter along the edge stays within [0, 1].
-                NumberType along = alongEdge;
-                NumberType scale = NumberType(2) * denominator;
-                if (scale < NumberType(0)) {
+                WideNumber along = alongEdge;
+                WideNumber scale = two * denominator;
+                if (scale < WideNumber(0)) {
                     along = -along;
                     scale = -scale;
                 }
-                if (along < NumberType(0) || along > scale) {
+                if (along < WideNumber(0) || along > scale) {
                     return;
                 }
-                offer(toEdgeX * edgeY - toEdgeY * edgeX, NumberType(2) * denominator);
-            } else if (alongEdge == NumberType(0)) {
+                offer(toEdgeX * edgeY - toEdgeY * edgeX, two * denominator);
+            } else if (alongEdge == WideNumber(0)) {
                 // The edge lies along the ray: it blocks it at whichever of its
                 // endpoints comes first.
-                const NumberType squaredNormal = normalX * normalX + normalY * normalY;
+                const WideNumber squaredNormal = normalX * normalX + normalY * normalY;
                 for (const PointType& endpoint : {p, q}) {
-                    offer((NumberType(2) * endpoint.x() - midX) * normalX +
-                              (NumberType(2) * endpoint.y() - midY) * normalY,
-                          NumberType(2) * squaredNormal);
+                    offer((two * wide(endpoint.x()) - midX) * normalX +
+                              (two * wide(endpoint.y()) - midY) * normalY,
+                          two * squaredNormal);
                 }
             }
         });
 
         // A bounded face confines the ray, so it is always stopped.
-        assert(hitDenominator != NumberType(0));
-        const ResultNumber scale =
-            static_cast<ResultNumber>(NumberType(2) * hitDenominator);
+        assert(hitDenominator != WideNumber(0));
+        const ResultNumber scale = static_cast<ResultNumber>(two * hitDenominator);
         return Point<ResultNumber>(
             static_cast<ResultNumber>(midX * hitDenominator + hitNumerator * normalX) / scale,
             static_cast<ResultNumber>(midY * hitDenominator + hitNumerator * normalY) / scale);
@@ -1358,6 +1373,17 @@ public:
     }
 
 private:
+    // Two promotions above the coordinates, which is what it takes to hold a
+    // product of three coordinate differences exactly — one degree more than the
+    // sign predicates promote for. It is the width the geometry that goes beyond
+    // a sign works in: the crossing abscissae @ref halfedgeLeftOf orders, the
+    // ordinate @ref pointAt cuts a carrier at, and the ray parameters
+    // @ref sweptWitness compares, that last one quartic and so the one place a
+    // fixed-width coordinate type is bounded further. A type that grows to hold
+    // its values, or an approximate one, is its own promotion and pays nothing.
+    using WideNumber =
+        detail::promoted_number_t<detail::promoted_number_t<NumberType>>;
+
     // Point location without the index: the face is the one left of the nearest
     // edge to the west, and a point with nothing to its west lies in the face
     // the boundary at infinity opens onto.
@@ -1386,8 +1412,6 @@ private:
             if (orientationSign(geometry.a, geometry.b, p) != 0) {
                 continue;
             }
-            const NumberType dx = geometry.b.x() - geometry.a.x();
-            const NumberType dy = geometry.b.y() - geometry.a.y();
             bool contains = geometry.kind == EdgeKind::line;
             if (geometry.kind == EdgeKind::segment) {
                 contains = p.x() >= std::min(geometry.a.x(), geometry.b.x()) &&
@@ -1395,8 +1419,11 @@ private:
                            p.y() >= std::min(geometry.a.y(), geometry.b.y()) &&
                            p.y() <= std::max(geometry.a.y(), geometry.b.y());
             } else if (geometry.kind == EdgeKind::ray) {
-                contains = (p.x() - geometry.a.x()) * dx +
-                           (p.y() - geometry.a.y()) * dy >= NumberType(0);
+                // Ahead of the source along the ray, which on the carrier is the
+                // whole of it. The predicate promotes the product of the two
+                // differences, which a raw multiplication of coordinates would
+                // not.
+                contains = dotSign(geometry.a, p, geometry.a, geometry.b) >= 0;
             }
             if (contains) {
                 return HalfedgeId(2 * edge);
@@ -1664,11 +1691,20 @@ private:
     static PointType pointAt(const Carrier& carrier, const NumberType& parameter) {
         PointType point = [&] {
             if (carrier.usesX) {
-                const NumberType dx = carrier.b.x() - carrier.a.x();
-                const NumberType y = carrier.a.y() +
-                                     (parameter - carrier.a.x()) *
-                                         (carrier.b.y() - carrier.a.y()) / dx;
-                return PointType(parameter, y);
+                // The ordinate reached at that abscissa, as a displacement from
+                // the carrier's own: the product of two coordinate differences
+                // outgrows a narrow coordinate type long before the quotient
+                // does, and the quotient is what an arrangement whose vertices
+                // are representable has to land on.
+                const auto wide = [](const NumberType& value) {
+                    return static_cast<WideNumber>(value);
+                };
+                const WideNumber dx = wide(carrier.b.x()) - wide(carrier.a.x());
+                const WideNumber dy = wide(carrier.b.y()) - wide(carrier.a.y());
+                const WideNumber rise =
+                    (wide(parameter) - wide(carrier.a.x())) * dy / dx;
+                return PointType(parameter,
+                                 carrier.a.y() + static_cast<NumberType>(rise));
             }
             return PointType(carrier.a.x(), parameter);
         }();
@@ -2613,66 +2649,80 @@ private:
      * exactly the query height counts as being below it — so it meets no vertex
      * and every crossing is transversal, and it starts infinitesimally to the
      * left of @p p, so the edges through @p p itself do not stop it.
+     *
+     * Which side of an edge @p p falls on is one orientation predicate, but
+     * ordering two crossings against each other is a fraction comparison, and
+     * cross-multiplying the two is cubic in the coordinate differences — one
+     * degree above the products a sign predicate promotes for. So the crossings
+     * are held in @ref WideNumber, two promotions above the coordinates, the
+     * same widening @ref inCircleDeterminant needs for its quartic determinant.
+     * Every quantity is a difference from @p p or along an edge, so the width has
+     * to cover the extent of the input and not the distance to the origin.
      */
     [[nodiscard]] HalfedgeId halfedgeLeftOf(const PointType& p) const {
         HalfedgeId best;
-        NumberType bestNumerator(0);
-        NumberType bestDenominator(0);
-        NumberType bestUpX(0);
-        NumberType bestUpY(1);
+        WideNumber bestNumerator(0);
+        WideNumber bestUpX(0);
+        WideNumber bestUpY(1);
+        const auto wide = [](const NumberType& value) {
+            return static_cast<WideNumber>(value);
+        };
         for (std::uint32_t h = 0; h < origin_.size(); h += 2) {
             const EdgeGeometry& geometry = edgeGeometry_[h / 2];
             const PointType& a = geometry.a;
             const PointType& b = geometry.b;
-            NumberType dx = b.x() - a.x();
-            NumberType dy = b.y() - a.y();
-            if (dy == NumberType(0)) {
-                continue;
+            if (a.y() == b.y()) {
+                continue;  // a horizontal edge crosses no horizontal line
             }
+            // Whether the edge runs upwards is a comparison, not a subtraction,
+            // and it is all the height tests below need.
+            const bool upwards = a.y() < b.y();
             if (geometry.kind == EdgeKind::segment) {
-                const NumberType lowY = std::min(a.y(), b.y());
-                const NumberType highY = std::max(a.y(), b.y());
+                const NumberType& lowY = upwards ? a.y() : b.y();
+                const NumberType& highY = upwards ? b.y() : a.y();
                 if (p.y() < lowY || !(p.y() < highY)) {
                     continue;
                 }
             } else if (geometry.kind == EdgeKind::ray) {
-                if ((dy > NumberType(0) && p.y() < a.y()) ||
-                    (dy < NumberType(0) && !(p.y() < a.y()))) {
+                if (upwards ? p.y() < a.y() : !(p.y() < a.y())) {
                     continue;
                 }
             }
-            // The crossing abscissa as the fraction numerator / denominator,
-            // with a positive denominator; no division, so integer coordinates
-            // stay exact.
-            NumberType denominator = dy;
-            NumberType numerator = a.x() * dy + (p.y() - a.y()) * dx;
-            if (denominator < NumberType(0)) {
-                denominator = -denominator;
-                numerator = -numerator;
-            }
-            if (!(numerator < p.x() * denominator)) {
+            // The edge directed upwards, so that the query point lies strictly
+            // right of it exactly when the crossing is strictly left of the
+            // query point — which is the orientation predicate, and needs no
+            // arithmetic here at all.
+            const PointType& low = upwards ? a : b;
+            const PointType& high = upwards ? b : a;
+            if (!(orientationSign(low, high, p) < 0)) {
                 continue;  // to the right of the query point, or through it
             }
-            const NumberType upX = dy > NumberType(0) ? dx : -dx;
-            const NumberType upY = dy > NumberType(0) ? dy : -dy;
+            // How far right of the query point the edge crosses its horizontal
+            // line, as the fraction numerator / upY — the upward direction's own
+            // ordinate is the positive denominator. No division, so exact
+            // coordinates stay exact.
+            const WideNumber upX = wide(high.x()) - wide(low.x());
+            const WideNumber upY = wide(high.y()) - wide(low.y());
+            const WideNumber numerator =
+                (wide(low.x()) - wide(p.x())) * upY - (wide(low.y()) - wide(p.y())) * upX;
             if (best.valid()) {
-                const NumberType here = numerator * bestDenominator;
-                const NumberType there = bestNumerator * denominator;
+                const WideNumber here = numerator * bestUpY;
+                const WideNumber there = bestNumerator * upY;
                 if (here < there) {
                     continue;
                 }
                 if (here == there) {
-                    if (!(crossSign(Point<NumberType>(upX, upY),
-                                    Point<NumberType>(bestUpX, bestUpY)) > 0)) {
+                    // The same crossing point: the edge leaving it clockwise of
+                    // the incumbent is the one whose left side holds the query.
+                    if (!(upX * bestUpY - upY * bestUpX > WideNumber(0))) {
                         continue;
                     }
                 }
             }
             // The halfedge running downwards has the crossing's right-hand side,
             // where the query point lies, on its left.
-            best = HalfedgeId(dy < NumberType(0) ? h : h + 1);
+            best = HalfedgeId(upwards ? h + 1 : h);
             bestNumerator = numerator;
-            bestDenominator = denominator;
             bestUpX = upX;
             bestUpY = upY;
         }
