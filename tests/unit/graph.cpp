@@ -72,6 +72,38 @@ int totalWeight(const pgl::Graph<Vertex>& graph, WeightFunction weight) {
     return result / 2;
 }
 
+// Total weight of a path, zero for a path of a single vertex.
+template <class Vertex, class WeightFunction>
+auto pathWeight(const std::vector<Vertex>& path, WeightFunction weight) {
+    decltype(weight(path.front(), path.front())) result{};
+    for (std::size_t i = 1; i < path.size(); ++i) {
+        result = result + weight(path[i - 1], path[i]);
+    }
+    return result;
+}
+
+// A path runs along edges of the graph, from one endpoint to the other, and
+// visits no vertex twice.
+template <class Vertex>
+void checkPath(
+    const pgl::Graph<Vertex>& graph,
+    const std::vector<Vertex>& path,
+    const Vertex& source,
+    const Vertex& target
+) {
+    REQUIRE_FALSE(path.empty());
+    CHECK(path.front() == source);
+    CHECK(path.back() == target);
+
+    std::unordered_set<Vertex> visited;
+    for (std::size_t i = 0; i < path.size(); ++i) {
+        CHECK(visited.insert(path[i]).second);
+        if (i > 0) {
+            CHECK(graph.containsEdge(path[i - 1], path[i]));
+        }
+    }
+}
+
 // A spanning forest has the same vertices and components as its graph, one
 // fewer edge than vertices in each of them, and only edges of the graph.
 template <class Vertex, class WeightFunction>
@@ -397,4 +429,110 @@ TEST_CASE("Graph spans geometric vertices with an exact weight") {
     CHECK_FALSE(tree.containsEdge(a, c));
     CHECK_FALSE(tree.containsEdge(b, d));
     CHECK(totalWeight(tree, weight) == 3 * 16 + 96 * 96);
+}
+
+TEST_CASE("Graph computes a shortest path with Dijkstra") {
+    pgl::Graph<int> graph;
+    graph.addEdge(1, 2);
+    graph.addEdge(2, 3);
+    graph.addEdge(3, 4);
+    graph.addEdge(1, 4);
+    graph.addEdge(1, 3);
+
+    // Two hops of weight 1 and 2 beat the direct edge of weight 10.
+    const std::vector<int> detour = graph.shortestPath(1, 3, sampleWeight);
+    checkPath(graph, detour, 1, 3);
+    CHECK(detour == std::vector<int>{1, 2, 3});
+    CHECK(pathWeight(detour, sampleWeight) == 3);
+
+    // The reverse path of an undirected graph is the same path backwards.
+    const std::vector<int> reversed = graph.shortestPath(3, 1, sampleWeight);
+    checkPath(graph, reversed, 3, 1);
+    CHECK(reversed == std::vector<int>{3, 2, 1});
+
+    // Here the direct edge wins: 4 against 1 + 2 + 3 the long way around.
+    const std::vector<int> direct = graph.shortestPath(1, 4, sampleWeight);
+    checkPath(graph, direct, 1, 4);
+    CHECK(direct == std::vector<int>{1, 4});
+
+    // Both ways around the cycle weigh 5, so only the weight is specified.
+    const std::vector<int> tied = graph.shortestPath(2, 4, sampleWeight);
+    checkPath(graph, tied, 2, 4);
+    CHECK(pathWeight(tied, sampleWeight) == 5);
+}
+
+TEST_CASE("Graph finds no path outside a connected component") {
+    pgl::Graph<int> graph;
+    graph.addEdge(1, 2);
+    graph.addEdge(2, 3);
+    graph.addEdge(10, 11);
+    graph.addVertex(20);
+
+    CHECK(graph.shortestPath(1, 10, sampleWeight).empty());
+    CHECK(graph.shortestPath(1, 20, sampleWeight).empty());
+    CHECK(graph.shortestPath(10, 11, sampleWeight) == std::vector<int>{10, 11});
+}
+
+TEST_CASE("Graph finds shortest paths in degenerate cases") {
+    SUBCASE("empty graph") {
+        const pgl::Graph<int> graph;
+        CHECK(graph.shortestPath(1, 2, sampleWeight).empty());
+    }
+
+    SUBCASE("absent endpoint") {
+        pgl::Graph<int> graph;
+        graph.addEdge(1, 2);
+
+        CHECK(graph.shortestPath(1, 7, sampleWeight).empty());
+        CHECK(graph.shortestPath(7, 1, sampleWeight).empty());
+        CHECK(graph.shortestPath(7, 7, sampleWeight).empty());
+    }
+
+    SUBCASE("path from a vertex to itself") {
+        pgl::Graph<int> graph;
+        graph.addEdge(1, 2);
+        graph.addVertex(20);
+
+        CHECK(graph.shortestPath(1, 1, sampleWeight) == std::vector<int>{1});
+        CHECK(graph.shortestPath(20, 20, sampleWeight) == std::vector<int>{20});
+    }
+
+    SUBCASE("single edge") {
+        pgl::Graph<std::string> graph;
+        graph.addEdge("a", "b");
+
+        const auto weight = [](const std::string& u, const std::string& v) {
+            return static_cast<int>(u.size() + v.size());
+        };
+        const std::vector<std::string> path = graph.shortestPath("a", "b", weight);
+        checkPath(graph, path, std::string("a"), std::string("b"));
+        CHECK(path.size() == 2);
+    }
+}
+
+TEST_CASE("Graph finds a geodesic shortest path between geometric vertices") {
+    using Point = pgl::Point<int>;
+
+    // Two ways around an obstacle: a short one through b, a long one through d.
+    const Point a(0, 0);
+    const Point b(4, 0);
+    const Point c(4, 4);
+    const Point d(0, 20);
+
+    pgl::Graph<Point> graph;
+    graph.addEdge(a, b);
+    graph.addEdge(b, c);
+    graph.addEdge(a, d);
+    graph.addEdge(d, c);
+
+    // Euclidean lengths add up, unlike the squared distances used elsewhere,
+    // so the weight leaves the exact coordinate type.
+    const auto weight = [](const Point& u, const Point& v) {
+        return u.distance(v);
+    };
+
+    const std::vector<Point> path = graph.shortestPath(a, c, weight);
+    checkPath(graph, path, a, c);
+    CHECK(path == std::vector<Point>{a, b, c});
+    CHECK(pathWeight(path, weight) == doctest::Approx(8.0));
 }

@@ -611,6 +611,108 @@ public:
         return result;
     }
 
+    /**
+     * @brief Computes a shortest path between two vertices using Dijkstra's
+     * algorithm.
+     *
+     * The returned path starts at @p source, ends at @p target and lists every
+     * vertex along the way; the path from a vertex to itself is that vertex
+     * alone. An empty result means that no path exists, either because the two
+     * vertices lie in different connected components or because one of them is
+     * absent. Ties between equally long paths are broken by the graph's
+     * unspecified iteration order.
+     *
+     * The frontier is a lazy binary heap (`std::priority_queue`): a vertex is
+     * pushed once per incident edge relaxed and discarded when popped if it has
+     * already been settled. The search stops as soon as @p target is settled.
+     * Complexity is $O(m \log m)$ weight comparisons and $O(m)$ calls to
+     * @p weight for a graph with $m$ edges.
+     *
+     * @tparam WeightFunction Callable taking two vertices and returning a
+     * copyable edge weight ordered by `<` and added by `+`; the weight type is
+     * chosen by the callable.
+     * @param source First vertex of the path.
+     * @param target Last vertex of the path.
+     * @param weight Edge weight function. It must be symmetric and must not
+     * return a negative weight; neither is checked, and the returned path is
+     * unspecified when either fails.
+     * @return The vertices of a shortest path from @p source to @p target, or
+     * an empty vector if there is none.
+     */
+    template <class WeightFunction>
+    [[nodiscard]] std::vector<Vertex> shortestPath(
+        const Vertex& source,
+        const Vertex& target,
+        WeightFunction weight
+    ) const {
+        using Weight = std::invoke_result_t<WeightFunction&, const Vertex&, const Vertex&>;
+
+        struct Candidate {
+            Weight weight;
+            Vertex from;
+            Vertex to;
+        };
+
+        if (!containsVertex(source) || !containsVertex(target)) {
+            return {};
+        }
+        if (source == target) {
+            return {source};
+        }
+
+        // A priority_queue pops its largest element, so order candidates by
+        // decreasing distance to obtain the closest unsettled vertex.
+        const auto farther = [](const Candidate& a, const Candidate& b) {
+            return b.weight < a.weight;
+        };
+
+        NeighborSet settled;
+        std::unordered_map<Vertex, Vertex> parent;
+        std::priority_queue<Candidate, std::vector<Candidate>, decltype(farther)> frontier(farther);
+
+        const auto pushIncidentEdges = [&](const Vertex& vertex, const Candidate& candidate) {
+            for (const Vertex& neighbor : adjacency_.at(vertex)) {
+                if (!settled.contains(neighbor)) {
+                    frontier.push(Candidate{
+                        candidate.weight + weight(vertex, neighbor),
+                        vertex,
+                        neighbor,
+                    });
+                }
+            }
+        };
+
+        // Seeding the frontier with the edges leaving the source, rather than
+        // with the source itself, keeps every distance a sum of edge weights:
+        // the weight type needs no zero of its own.
+        settled.insert(source);
+        for (const Vertex& neighbor : adjacency_.at(source)) {
+            frontier.push(Candidate{weight(source, neighbor), source, neighbor});
+        }
+
+        while (!frontier.empty()) {
+            const Candidate best = frontier.top();
+            frontier.pop();
+            if (!settled.insert(best.to).second) {
+                continue;
+            }
+            parent.emplace(best.to, best.from);
+
+            if (best.to == target) {
+                std::vector<Vertex> result{target};
+                while (result.back() != source) {
+                    result.push_back(parent.at(result.back()));
+                }
+                std::reverse(result.begin(), result.end());
+                return result;
+            }
+
+            pushIncidentEdges(best.to, best);
+        }
+
+        return {};
+    }
+
     /** @brief Returns an iterator to the first vertex. */
     [[nodiscard]] iterator begin() {
         return iterator(adjacency_.cbegin());
