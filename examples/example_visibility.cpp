@@ -65,12 +65,8 @@ int main() {
     canvas << pgl::stroke("#94a3b8") << pgl::fill("#e2e8f0") << pgl::strokeWidth("2px") << room;
 
     canvas << pgl::stroke("#bfdbfe") << pgl::strokeWidth("1px") << pgl::fill("none");
-    for (const Point& u : visibility) {
-        for (const Point& v : visibility.neighbors(u)) {
-            if (u < v) {   // each undirected edge appears in both adjacency sets
-                canvas << Segment(u, v);
-            }
-        }
+    for (const auto& [u, v] : visibility.edges()) {   // each undirected edge once
+        canvas << Segment(u, v);
     }
 
     canvas << pgl::stroke("#ea580c") << pgl::strokeWidth("3px")

@@ -10,10 +10,12 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <iterator>
 #include <optional>
 #include <queue>
+#include <ranges>
 #include <stack>
 #include <type_traits>
 #include <unordered_map>
@@ -42,6 +44,9 @@ public:
 
     /** Set containing the neighbors of a vertex. */
     using NeighborSet = std::unordered_set<Vertex>;
+
+    /** Undirected edge, listing its two endpoints in increasing order. */
+    using EdgeType = std::array<Vertex, 2>;
 
     /**
      * @brief Forward iterator over the vertices of a graph.
@@ -95,6 +100,92 @@ public:
             : iterator_(iterator) {}
 
         BaseIterator iterator_;
+    };
+
+    /**
+     * @brief Forward iterator over the undirected edges of a graph.
+     *
+     * Dereferencing yields an edge by value, as an @ref EdgeType whose first
+     * vertex is the smaller of the two. The adjacency map holds both directions
+     * of every edge, so the iterator walks the adjacency sets and keeps only
+     * the direction that comes out increasing, visiting each edge once.
+     *
+     * Requires a totally ordered @ref VertexType, unlike the rest of the graph.
+     */
+    class EdgeIterator {
+        using OuterIterator = typename AdjacencyMap::const_iterator;
+        using InnerIterator = typename NeighborSet::const_iterator;
+
+    public:
+        // Multi-pass, hence a forward iterator to the C++20 concepts, but the
+        // edge is built on dereference rather than stored, so the old category
+        // stays "input": only the concept admits a reference that is a value.
+        using iterator_category = std::input_iterator_tag;
+        using iterator_concept = std::forward_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = EdgeType;
+        using reference = EdgeType;
+
+        /** @brief Creates an iterator with no associated graph. */
+        EdgeIterator() = default;
+
+        /** @brief Returns the current edge, smaller endpoint first. */
+        reference operator*() const {
+            return EdgeType{outer_->first, *inner_};
+        }
+
+        /** @brief Advances to the next edge. */
+        EdgeIterator& operator++() {
+            ++inner_;
+            skipToEdge();
+            return *this;
+        }
+
+        /** @brief Advances to the next edge and returns the previous position. */
+        EdgeIterator operator++(int) {
+            EdgeIterator previous = *this;
+            ++(*this);
+            return previous;
+        }
+
+        friend bool operator==(const EdgeIterator&, const EdgeIterator&) = default;
+
+    private:
+        friend class Graph;
+
+        EdgeIterator(OuterIterator iterator, OuterIterator last)
+            : outer_(iterator), last_(last) {
+            if (outer_ != last_) {
+                inner_ = outer_->second.cbegin();
+                skipToEdge();
+            }
+        }
+
+        // Advances the position to the next neighbor larger than its own
+        // vertex, which is the one direction of an edge that this iterator
+        // reports. Past the last one, the inner iterator is reset to its
+        // value-initialized state so that it compares equal to the end
+        // iterator's, whatever adjacency set the walk stopped in.
+        void skipToEdge() {
+            while (outer_ != last_) {
+                if (inner_ == outer_->second.cend()) {
+                    ++outer_;
+                    if (outer_ == last_) {
+                        break;
+                    }
+                    inner_ = outer_->second.cbegin();
+                } else if (outer_->first < *inner_) {
+                    return;
+                } else {
+                    ++inner_;
+                }
+            }
+            inner_ = InnerIterator{};
+        }
+
+        OuterIterator outer_;
+        OuterIterator last_;
+        InnerIterator inner_;
     };
 
     using iterator = Iterator;
@@ -244,17 +335,40 @@ public:
     }
 
     /**
-     * @brief Returns a copy of all vertices.
+     * @brief Returns a lazy view over the vertices.
      *
-     * @return Vertices in unspecified order.
+     * The vertices are the keys of the adjacency map, so the view is the graph
+     * iteration range itself: it yields every vertex as a const reference, in
+     * unspecified order, copying and allocating nothing. It refers to this
+     * graph and is invalidated by anything that modifies it.
+     *
+     * @return A forward view of the @ref vertexCount() vertices.
      */
-    [[nodiscard]] std::vector<Vertex> vertices() const {
-        std::vector<Vertex> result;
-        result.reserve(adjacency_.size());
-        for (const auto& entry : adjacency_) {
-            result.push_back(entry.first);
-        }
-        return result;
+    [[nodiscard]] auto vertices() const {
+        return std::ranges::subrange(begin(), end());
+    }
+
+    /**
+     * @brief Returns a lazy view over the undirected edges.
+     *
+     * Each edge appears exactly once, as an @ref EdgeType holding its two
+     * endpoints in increasing order; edges come in unspecified order. Nothing
+     * is copied or allocated: the view walks the adjacency sets in place, so it
+     * refers to this graph and is invalidated by anything that modifies it.
+     *
+     * Iterating the whole view costs $O(n + m)$ for a graph with $n$ vertices
+     * and $m$ edges, which is also the cost of reaching the first edge of a
+     * graph made of isolated vertices.
+     *
+     * @return A forward view of the @ref edgeCount() edges.
+     */
+    [[nodiscard]] auto edges() const
+        requires std::totally_ordered<Vertex>
+    {
+        return std::ranges::subrange(
+            EdgeIterator(adjacency_.cbegin(), adjacency_.cend()),
+            EdgeIterator(adjacency_.cend(), adjacency_.cend())
+        );
     }
 
     /**
@@ -481,7 +595,9 @@ public:
      * @return A partition of the vertices into cliques, largest first.
      */
     [[nodiscard]] std::vector<std::vector<Vertex>> cliqueCover() const {
-        const std::vector<Vertex> graphVertices = vertices();
+        // DSATUR works with vertex indices, so the vertices are materialized
+        // once rather than taken from the lazy view.
+        const std::vector<Vertex> graphVertices(begin(), end());
         const std::size_t vertexCount = graphVertices.size();
         const std::size_t uncolored = vertexCount;
 
