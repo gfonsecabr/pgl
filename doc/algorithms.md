@@ -72,7 +72,7 @@ These functions use the same predicate conventions documented in
 
 - `polyominoRegions<T>(n1, n2)` and `polyominoRegionsUpTo<T>(n)` mirror the two [`polyominoes`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a9008f6bc68cdaae01e41b0e572127a43 "Enumerates the free polyominoes of a given size as polygons.") range overloads.
 
-### Visibility graphs
+### Visibility
 
 [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes.") and [`Triangulation`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html "Triangulation whose connectivity may change and whose vertex set may grow.") each has 3 methods to compute visibility graphs, all returning a `Graph<PointType>` with the same vertex set. Sight is stopped by the boundary of the domain and, on a [`Triangulation`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html "Triangulation whose connectivity may change and whose vertex set may grow."), by every constrained edge as well, so [`poly.triangulation(walls).visibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a55c6ba6ed18502faa4cebbe7e15c60ae "Builds the constrained Delaunay triangulation of this polygon.") is visibility inside `poly` among the segment obstacles `walls`.
 
@@ -80,9 +80,30 @@ These functions use the same predicate conventions documented in
 
 - [`clearVisibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a31ffed2f5e3df9aa9a682e410201b69c "Returns the clear visibility graph of the polygon vertices.") is the strict reading: the segment $ab$ must not intersect the boundary of the domain except at $a$ and $b$. Always a subgraph of `visibilityGraph()`. A degenerate polygon has no interior, so its vertices come back with no edges.
 
-- [`reducedVisibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#add9e8b8ce20f931b5e84eb54f74e1e34 "Returns the reduced visibility graph of the polygon vertices.") is the subgraph of [`visibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a2486c5f87a836c247d28fc5260e673be "Returns the visibility graph of the polygon vertices.") that a shortest path can use: the edges tangent to the obstacles at both ends. An edge $uv$ is tangent at $u$ when the walls incident to $u$ all lie in one closed half-plane of the line $uv$, which is what lets a taut path bend there; a wall running along that line counts for either side, which keeps the walls themselves in the graph. What survives is the boundary edges and the bitangents between reflex corners — much sparser than the full graph, while still containing a geodesic shortest path between any two of its vertices. A vertex with no incident wall, such as a free point inside the domain, bends no path and comes back isolated. A shortest path to or from a point that is not a vertex needs that point's own visibility edges added back.
+- [`reducedVisibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#add9e8b8ce20f931b5e84eb54f74e1e34 "Returns the reduced visibility graph of the polygon vertices.") is the subgraph of [`visibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a2486c5f87a836c247d28fc5260e673be "Returns the visibility graph of the polygon vertices.") that a shortest path can bend along: the edges tangent to the obstacles at both ends. An edge $uv$ is tangent at $u$ when the walls incident to $u$ all lie in one closed half-plane of the line $uv$, which is what lets a taut path bend there; a wall running along that line counts for either side, which keeps the walls themselves in the graph. What survives is the boundary edges and the bitangents between reflex corners. Routing between two points, vertices or not, requires adding them joined to everything they see, which is what [`visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#aaf3c63e9821b14fdcdc0584f032d9c43 "The polygon vertices visible from query.") is for.
 
-All three are computed by *triangular expansion*: the domain is triangulated once, then each vertex runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
+The same three classes answer the following queries for one query point $p$ in the region (possibly a vertex, but not necessarily).
+
+- [`visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#aaf3c63e9821b14fdcdc0584f032d9c43 "The polygon vertices visible from query.") returns the domain's vertices visible from $p$, under the convention of [`visibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a2486c5f87a836c247d28fc5260e673be "Returns the visibility graph of the polygon vertices."). This is what joins a query point to [`reducedVisibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#add9e8b8ce20f931b5e84eb54f74e1e34 "Returns the reduced visibility graph of the polygon vertices."):
+
+  ```cpp
+  auto graph = room.reducedVisibilityGraph();
+  for (const Point &w : room.visibleVertices(source))
+      graph.addEdge(source, w);          // and the same for the target
+  auto path = graph.shortestPath(source, target,
+                                 [](const Point &a, const Point &b) { return a.distance(b); });
+  ```
+
+- [`clearlyVisibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a3a42aa5a22262e155d7062ae83615ad1 "The polygon vertices clearly visible from query.") is the strict counterpart, under the convention of [`clearVisibilityGraph()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a31ffed2f5e3df9aa9a682e410201b69c "Returns the clear visibility graph of the polygon vertices."): always a subset of [`visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#aaf3c63e9821b14fdcdc0584f032d9c43 "The polygon vertices visible from query.").
+
+  Both return the vertices counterclockwise around $p$ starting from the lexicographically smallest, as [`sortAround(points, p)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#aab7826153f78fb8c4468ad851564fd8f "Sorts points counterclockwise around a center point.") orders them.
+
+- [`regularizedVisiblePolygon(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a9b5a5245f11a6874270912af605f1373 "The part of the polygon visible from query, regularized.") returns the *region* visible from $p$ — every point reachable by a segment that stays in the domain and crosses no wall. Star-shaped about $p$, hence simply connected, so one [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") holds it however many holes or walls the domain has. *Regularized* means the closure of the interior, which drops the one-dimensional spikes grazing sight would add: a sightline running along a wall, or straight through a vertex into a part beyond that has no area, contributes nothing here, and what comes back always bounds area. A $p$ on the boundary is a vertex of the result.
+
+  Its vertices are the domain's own together with the *window* ends where a sightline past a reflex corner lands on a farther edge. Those are ray-edge intersections and need division, so the result type is requested explicitly as everywhere else in the library: `regularizedVisiblePolygon<double>(p)` for a `Polygon<Point<double>>`, the default being `division_result_t` of the domain's own coordinate type. This is the one place in the visibility code where a coordinate is constructed at all — everything above is orientation predicates on the input points.
+
+All methods use *triangular expansion*: the domain is triangulated once, then each vertex or query point runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
+
 
 ### Boolean Operations and Minkowski Sum
 

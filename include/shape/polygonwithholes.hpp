@@ -661,16 +661,75 @@ struct PolygonWithHoles {
      * @brief Returns the reduced visibility graph of the region's vertices.
      *
      * The subgraph of @ref visibilityGraph holding the edges a shortest path
-     * through the region can use: those tangent to the boundary at both ends,
-     * meaning the two ring edges meeting at each endpoint lie in one closed
+     * through the region can *bend along*: those tangent to the boundary at both
+     * ends, meaning the two ring edges meeting at each endpoint lie in one closed
      * half-plane of the connecting line. Every ring edge survives, and among the
      * rest only the bitangents, so this is far sparser than
-     * @ref visibilityGraph while still holding a geodesic shortest path between
-     * any two vertices.
+     * @ref visibilityGraph.
+     *
+     * **This graph alone does not answer shortest-path queries**: it guarantees
+     * only the *interior* of a geodesic, and a path bends at neither of its own
+     * endpoints, so its first and last hop may have been pruned. To route between
+     * two points, add each joined to everything it sees, taken from
+     * @ref visibilityGraph. See @ref Triangulation::reducedVisibilityGraph.
      *
      * @return An undirected graph whose vertices are this region's vertices.
      */
     [[nodiscard]] Graph<PointType> reducedVisibilityGraph() const;
+
+    /**
+     * @brief The region's vertices visible from @p query.
+     *
+     * Same convention as @ref visibilityGraph, for a point that need not be a
+     * vertex: a vertex `v` — of the outer ring or of any hole — is reported when
+     * the closed segment `query`–`v` stays in the closed region, grazing
+     * included. This is what joins a query point to
+     * @ref reducedVisibilityGraph, which by itself holds only the edges a
+     * shortest path can bend along.
+     *
+     * @param query Point to look from; outside the region nothing is visible.
+     * @return The visible vertices, counterclockwise around @p query starting
+     *         from the lexicographically smallest, as @ref sortAround orders
+     *         them. Empty when @p query lies outside the region.
+     */
+    [[nodiscard]] std::vector<PointType> visibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The region's vertices clearly visible from @p query.
+     *
+     * The strict counterpart of @ref visibleVertices, matching
+     * @ref clearVisibilityGraph: the *open* segment `query`–`v` must lie in the
+     * *interior* of the region and hold no other vertex. Always a subset of
+     * @ref visibleVertices.
+     *
+     * @param query Point to look from; outside the region nothing is visible.
+     * @return The clearly visible vertices, ordered as in @ref visibleVertices.
+     */
+    [[nodiscard]] std::vector<PointType> clearlyVisibleVertices(const PointType& query) const;
+
+    /**
+     * @brief The part of the region visible from @p query, regularized.
+     *
+     * The visibility polygon: every point reachable from @p query by a segment
+     * staying in the region, the holes blocking sight. Being star-shaped about
+     * @p query it is simply connected, so the result is one @ref Polygon however
+     * many holes the region has.
+     *
+     * *Regularized* means the closure of the interior, dropping the
+     * one-dimensional slivers grazing sight would otherwise add. Window ends —
+     * where a sightline past a reflex corner lands on a farther edge — are
+     * ray-edge intersections and need division, so the result type is requested
+     * explicitly. A @p query on the boundary is a vertex of the result.
+     *
+     * @tparam ResultNumber Coordinate type of the result (default:
+     *         @ref division_result_t of the region's own).
+     * @param query Point to look from.
+     * @return The visible region, counterclockwise; empty when @p query lies
+     *         outside this one.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] Polygon<Point<ResultNumber>> regularizedVisiblePolygon(
+        const PointType& query) const;
 
     /**
      * @brief Cuts this region into convex pieces with disjoint interiors.
