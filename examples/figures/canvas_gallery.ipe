@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+<!DOCTYPE ipe SYSTEM "ipe.dtd">
+<ipe version="70218" creator="pgl::Canvas">
+<ipestyle name="pgl">
+<layout paper="800 600" origin="0 0" frame="800 600"/>
+<opacity name="op250" value="0.25"/>
+<opacity name="op1000" value="1"/>
+</ipestyle>
+<page>
+<layer name="alpha"/>
+<view layers="alpha" active="alpha"/>
+<path stroke="0.862745 0.0784314 0.235294" stroke-opacity="op1000" pen="2" fill="0.27451 0.509804 0.705882" opacity="op250">
+3 0 0 3 103.214 497.857 e
+</path>
+<path stroke="1 0.54902 0" stroke-opacity="op1000" pen="2" fill="0.254902 0.411765 0.882353" opacity="op250">
+221.929 418.714 m
+380.214 577 l
+</path>
+<path stroke="0.854902 0.647059 0.12549" stroke-opacity="op1000" pen="2" fill="0.415686 0.352941 0.803922" opacity="op250">
+419.786 577 m
+578.071 418.714 l
+</path>
+<path fill="0.854902 0.647059 0.12549">
+502.323 494.463 m
+498.646 502.1 l
+494.686 498.14 l
+h
+</path>
+<path stroke="0.180392 0.545098 0.341176" stroke-opacity="op1000" pen="2">
+617.643 418.714 m
+657.214 537.429 l
+696.786 438.5 l
+736.357 577 l
+775.929 478.071 l
+</path>
+<path stroke="0 0.501961 0.501961" stroke-opacity="op1000" pen="2">
+24.0714 220.857 m
+182.357 379.143 l
+24.0714 379.143 l
+182.357 220.857 l
+</path>
+<path stroke="0.27451 0.509804 0.705882" stroke-opacity="op1000" pen="2" fill="0.627451 0.321569 0.176471" opacity="op250">
+221.929 220.857 m
+380.214 220.857 l
+301.071 379.143 l
+h
+</path>
+<path stroke="0.254902 0.411765 0.882353" stroke-opacity="op1000" pen="2" fill="0.419608 0.556863 0.137255" opacity="op250">
+419.786 379.143 m
+578.071 379.143 l
+578.071 220.857 l
+419.786 220.857 l
+h
+</path>
+<path stroke="0.415686 0.352941 0.803922" stroke-opacity="op1000" pen="2" fill="0.862745 0.0784314 0.235294" opacity="op250">
+79.1429 0 0 79.1429 696.786 300 e
+</path>
+<path stroke="0.501961 0 0.501961" stroke-opacity="op1000" pen="2" fill="1 0.54902 0" opacity="op250">
+24.0714 82.3571 m
+83.4286 23 l
+123 23 l
+182.357 82.3571 l
+182.357 121.929 l
+123 181.286 l
+83.4286 181.286 l
+24.0714 121.929 l
+h
+</path>
+<path stroke="1 0 1" stroke-opacity="op1000" pen="2" fill="0.854902 0.647059 0.12549" opacity="op250">
+221.929 23 m
+380.214 23 l
+380.214 181.286 l
+301.071 102.143 l
+221.929 181.286 l
+h
+</path>
+<path stroke="0.627451 0.321569 0.176471" stroke-opacity="op1000" pen="2" fill="0.180392 0.545098 0.341176" opacity="op250">
+419.786 23 m
+578.071 23 l
+558.286 121.929 l
+578.071 181.286 l
+419.786 181.286 l
+h
+538.5 141.714 m
+498.929 62.5714 l
+459.357 62.5714 l
+h
+</path>
+<path fill="0 0.501961 0.501961" opacity="op250">
+617.643 181.286 m
+617.643 23 l
+775.929 23 l
+775.929 42.7857 l
+706.679 181.286 l
+h
+</path>
+<path stroke="0.419608 0.556863 0.137255" stroke-opacity="op1000" pen="2">
+617.643 23 m
+775.929 23 l
+</path>
+<path stroke="0.419608 0.556863 0.137255" stroke-opacity="op1000" pen="2">
+775.929 23 m
+775.929 42.7857 l
+</path>
+<path stroke="0.419608 0.556863 0.137255" stroke-opacity="op1000" pen="2">
+706.679 181.286 m
+775.929 42.7857 l
+</path>
+<path stroke="0.419608 0.556863 0.137255" stroke-opacity="op1000" pen="2">
+617.643 181.286 m
+706.679 181.286 l
+</path>
+<path stroke="0.419608 0.556863 0.137255" stroke-opacity="op1000" pen="2">
+617.643 23 m
+617.643 181.286 l
+</path>
+</page>
+</ipe>

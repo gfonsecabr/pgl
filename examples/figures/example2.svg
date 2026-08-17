@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <circle cx="400" cy="400" r="3" stroke="black" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(0,0)</title></circle>
+  <polygon points="305.75,494.25 494.25,588.5 400,211.5" stroke="green" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>&lt;(-1,-1)(1,-2)(0,2)&gt;</title></polygon>
+  <polygon points="211.5,588.5 588.5,777 400,23" stroke="blue" fill="none" fill-opacity="1" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>&lt;(-2,-2)(2,-4)(0,4)&gt;</title></polygon>
+</svg>
