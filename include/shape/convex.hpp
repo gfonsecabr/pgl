@@ -872,22 +872,31 @@ struct Convex {
      * direction and the farthest one from the edge line) give the rectangle
      * flush with that edge, and the sweep advances each support forward only.
      *
-     * The rectangle is generally not axis-parallel, hence a @ref Convex rather
-     * than a @ref Rectangle. Its corners divide by the squared edge length, so
-     * the caller picks the result number type; the default keeps that division
-     * exact. Areas are compared in @p ResultNumber as well, so the default never
-     * overflows and never mistakes the minimum. Labels are dropped.
+     * The rectangle is generally not axis-parallel, and its corners are
+     * generally not representable in @ref NumberType: they divide by the squared
+     * length of the edge the rectangle rests on. Its four supporting lines are,
+     * though — each runs through a vertex, along the flush edge or along that
+     * edge turned 90 degrees. So the result is a @ref HalfplaneIntersection,
+     * which is exact in the polygon's own coordinate type, and the caller asks
+     * for the corners at whatever precision it wants, with
+     * `k.vertices<ResultNumber>()` or `k.asConvex<ResultNumber>()`.
      *
      * A polygon with fewer than three vertices has no area to enclose: the
-     * result is a copy of the polygon itself (empty, a point, or a segment).
+     * result is the polygon's own region, exactly as @ref asHalfplaneIntersection
+     * returns it (empty, a point, or a segment).
      *
-     * Complexity: O(n) for n vertices.
+     * Complexity: O(n) for n vertices. Comparing two candidate areas is degree
+     * six in the coordinates, past what a promoted coordinate type holds, so
+     * that comparison runs in a type that grows to hold it: @ref pgl::BigInt for
+     * integral coordinates, @ref pgl::ERational for rational ones, and the
+     * promoted floating-point type — no exact type — for floating-point ones.
      *
-     * @tparam ResultNumber The number type for the corner coordinates.
-     * @return A counterclockwise convex polygon with the four rectangle corners.
+     * @warning Each supporting line is defined by a vertex and by that vertex
+     *          translated along an edge vector, so the defining coordinates
+     *          reach about twice the extent of the polygon.
+     * @return The smallest-area enclosing rectangle, as four half-planes.
      */
-    template <class ResultNumber = division_result_t<NumberType>>
-    [[nodiscard]] constexpr Convex<Point<ResultNumber>> smallestEnclosingRectangle() const;
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> smallestEnclosingRectangle() const;
 
     /**
      * @brief Returns the smallest closed disk containing the convex polygon.
