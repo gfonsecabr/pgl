@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/intervaltree.hpp"
+#include "algorithm/xysweep.hpp"
 
 /**
  * @file sortpoints.hpp
