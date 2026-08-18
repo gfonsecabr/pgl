@@ -922,8 +922,9 @@ struct Convex {
     /**
      * @brief Returns the smallest closed disk containing the convex polygon.
      *
-     * This overload creates a random generator for the randomized incremental
-     * order. See the generator-taking overload for the contract.
+     * This overload supplies the generator for the randomized incremental
+     * order, from a fixed seed, so the same polygon always yields the same
+     * disk. See the generator-taking overload for the contract.
      *
      * Complexity: expected O(n) for n vertices.
      *

@@ -41,6 +41,29 @@ TEST_CASE("smallestEnclosingDisk handles a single point and duplicate points") {
     CHECK(disk.squaredRadius<int>() == 0);
 }
 
+TEST_CASE("smallestEnclosingDisk picks the same insertion order every time") {
+    // (0,2) and (22,6) are antipodal on the optimal circle, so it can be
+    // settled as a two-point disk, whose synthesized third boundary point
+    // depends on which of the pair the insertion order reaches first. The disk
+    // is unique whatever that order, but its stored representation is not, so
+    // this set sees the seed. The default generator has a fixed one, making it
+    // stable across calls, and across runs.
+    const std::vector<IntPoint> points{{0, 2},  {4, 12}, {10, 4}, {16, 14}, {22, 6},
+                                       {18, -2}, {8, -4}, {12, 8}, {6, 2},  {16, 4}};
+    const auto first = pgl::smallestEnclosingDisk(points);
+    const auto second = pgl::smallestEnclosingDisk(points);
+    for (std::size_t i = 0; i < 3; ++i) {
+        CHECK(first[i] == second[i]);
+    }
+
+    const pgl::Convex<IntPoint> convex(points);
+    const auto firstFromConvex = convex.smallestEnclosingDisk();
+    const auto secondFromConvex = convex.smallestEnclosingDisk();
+    for (std::size_t i = 0; i < 3; ++i) {
+        CHECK(firstFromConvex[i] == secondFromConvex[i]);
+    }
+}
+
 TEST_CASE("smallestEnclosingDisk retains the coordinate type for even integral inputs") {
     const std::vector<IntPoint> points{{0, 0}, {2, 0}};
     const auto disk = pgl::smallestEnclosingDisk(points);
