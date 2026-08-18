@@ -863,6 +863,43 @@ struct Convex {
      */
     constexpr Segment<PointType> diameter() const;
 
+    /**
+     * @brief Returns the smallest closed disk containing the convex polygon.
+     *
+     * Delegates to @ref pgl::smallestEnclosingDisk over the hull vertices,
+     * which is enough: a disk containing the vertices contains their hull.
+     * The returned disk keeps the coordinate number type and drops labels.
+     *
+     * Complexity: expected O(n) for n vertices.
+     *
+     * @tparam UniformRandomBitGenerator Generator accepted by `std::shuffle`.
+     * @param generator Generator used to randomize the incremental order.
+     * @pre The convex polygon is not empty.
+     * @warning A disk supported by two vertices divides coordinates by two, so
+     *          all coordinates should be even when an integral type is used;
+     *          otherwise integer division can truncate the result.
+     * @return The unique smallest enclosing disk.
+     */
+    template <class UniformRandomBitGenerator>
+    [[nodiscard]] Disk<Point<NumberType>>
+    smallestEnclosingDisk(UniformRandomBitGenerator&& generator) const;
+
+    /**
+     * @brief Returns the smallest closed disk containing the convex polygon.
+     *
+     * This overload creates a random generator for the randomized incremental
+     * order. See the generator-taking overload for the contract.
+     *
+     * Complexity: expected O(n) for n vertices.
+     *
+     * @pre The convex polygon is not empty.
+     * @warning A disk supported by two vertices divides coordinates by two, so
+     *          all coordinates should be even when an integral type is used;
+     *          otherwise integer division can truncate the result.
+     * @return The unique smallest enclosing disk.
+     */
+    [[nodiscard]] Disk<Point<NumberType>> smallestEnclosingDisk() const;
+
 
     /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).

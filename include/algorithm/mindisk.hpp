@@ -168,4 +168,25 @@ smallestEnclosingDisk(const Container& input) {
     return smallestEnclosingDisk(input, generator);
 }
 
+// -----------------------------------------------------------------------------
+// Shape methods that need the algorithm above.
+
+template <class PointType, class LabelType>
+template <class UniformRandomBitGenerator>
+Disk<Point<typename Convex<PointType, LabelType>::NumberType>>
+Convex<PointType, LabelType>::smallestEnclosingDisk(
+    UniformRandomBitGenerator&& generator) const {
+    assert(!empty());
+    // Qualified: the member name would otherwise hide the free function.
+    return pgl::smallestEnclosingDisk(
+        *this, std::forward<UniformRandomBitGenerator>(generator));
+}
+
+template <class PointType, class LabelType>
+Disk<Point<typename Convex<PointType, LabelType>::NumberType>>
+Convex<PointType, LabelType>::smallestEnclosingDisk() const {
+    assert(!empty());
+    return pgl::smallestEnclosingDisk(*this);
+}
+
 }  // namespace pgl
