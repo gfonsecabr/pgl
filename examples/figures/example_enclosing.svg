@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
-  <circle cx="404.116" cy="400" r="340.512" stroke="#2563eb" fill="#93c5fd" fill-opacity="25%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Disk((0,2)(13,-7)(22,6))</title></circle>
+  <circle cx="404.116" cy="400" r="340.512" stroke="#2563eb" fill="#93c5fd" fill-opacity="25%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Disk((0,2)(22,6)(9,15))</title></circle>
   <polygon points="23,184.336 105.314,678.223 777,566.275 694.686,72.3886" stroke="#2dc535" fill="#95fd93" fill-opacity="25%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Convex[(-56/37,410/37),(44/37,-190/37),(860/37,-54/37),(760/37,546/37)]</title></polygon>
   <circle cx="69.0961" cy="460.913" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(0,2)</title></circle>
   <circle cx="190.921" cy="156.349" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(4,12)</title></circle>
