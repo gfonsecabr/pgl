@@ -80,6 +80,10 @@ TEST_CASE("Point exposes a degenerate bounding box and empty edge sets") {
 
     const auto oriented_edges = point.orientedEdges();
     CHECK(oriented_edges.empty());
+
+    const auto hull = point.convexHull();
+    CHECK(hull.size() == 1);
+    CHECK(hull.vertices()[0] == point);
 }
 
 TEST_CASE("Point arithmetic and label propagation") {

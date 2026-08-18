@@ -515,6 +515,13 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Returns the convex hull of the chain's vertices.
+     */
+    constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(vertices());
+    }
+
+    /**
      * @brief Computes the bounding box of the chain.
      *
      * The x-extent is free (first and last vertex), but the y-extent requires

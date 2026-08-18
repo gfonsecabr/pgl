@@ -1086,6 +1086,20 @@ TEST_CASE("The empty polygon is the well-defined empty set") {
     CHECK(empty.bbox().empty());
     CHECK(empty.asPolygonSet().empty());
     CHECK(Rectangle().asPolygon().empty());
+    CHECK(empty.convexHull().empty());
+}
+
+TEST_CASE("Polygon::convexHull drops the reflex vertex of an L-shape") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Convex = pgl::Convex<Point>;
+
+    // An L-shaped polygon: (2,2) is a reflex vertex, not a hull vertex.
+    const PolygonShape lshape(std::vector<Point>{
+        {0, 0}, {4, 0}, {4, 2}, {2, 2}, {2, 4}, {0, 4}});
+    const Convex hull = lshape.convexHull();
+
+    CHECK(hull == Convex(std::vector<Point>{{0, 0}, {4, 0}, {4, 2}, {2, 4}, {0, 4}}));
 }
 
 TEST_CASE("The canonical form survives an area past the coordinate range") {

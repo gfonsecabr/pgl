@@ -128,6 +128,10 @@ TEST_CASE("MonotoneChain structure queries") {
         CHECK(strict.diameter() == pgl::Segment<Point>(Point(0, 0), Point(10, 0)));
     }
 
+    SUBCASE("convexHull wraps the chain vertices") {
+        CHECK(strict.convexHull() == pgl::Convex<Point>(std::vector<Point>{Point(0, 0), Point(5, 5), Point(10, 0)}));
+    }
+
     SUBCASE("bbox and fbox") {
         const Chain chain({0, 0, 1, 5, 2, -3});
         CHECK(chain.bbox() == pgl::Rectangle<Point>(Point(0, -3), Point(2, 5)));

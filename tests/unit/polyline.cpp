@@ -467,6 +467,8 @@ TEST_CASE("Polyline bounding box and diameter") {
 
     const Polyline segLike({0, 0, 3, 4});
     CHECK(segLike.diameter() == pgl::Segment(Point(0, 0), Point(3, 4)));
+
+    CHECK(poly.convexHull() == pgl::Convex<Point>(std::vector<Point>{Point(1, 1), Point(6, 6), Point(2, -1)}));
 }
 
 TEST_CASE("Polyline stream output") {

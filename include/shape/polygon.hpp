@@ -492,6 +492,13 @@ struct Polygon {
     }
 
     /**
+     * @brief Returns the convex hull of the polygon's vertices.
+     */
+    constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(vertices());
+    }
+
+    /**
      * @brief Computes the bounding box of the polygon.
      *
      * Unlike @ref Convex::bbox, a simple polygon has no monotone boundary

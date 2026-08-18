@@ -470,6 +470,15 @@ struct Triangle {
     }
 
     /**
+     * @brief Returns the convex hull of the triangle's vertices.
+     *
+     * A triangle is already convex, so this is @ref asConvex.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return asConvex();
+    }
+
+    /**
      * @brief Returns the triangle as a half-plane intersection.
      *
      * The region is the intersection of the three edge half-planes. A

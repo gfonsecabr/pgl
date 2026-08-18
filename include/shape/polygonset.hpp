@@ -669,6 +669,23 @@ struct PolygonSet {
     }
 
     /**
+     * @brief Returns the convex hull of the set's vertices.
+     *
+     * Every hole lies inside its own component's outer ring, so only the outer
+     * rings can contribute a hull vertex.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        std::vector<PointType> hullPoints;
+        hullPoints.reserve(vertexCount());
+        for (const auto& component : components_) {
+            for (const auto& vertex : component.outer()) {
+                hullPoints.push_back(vertex);
+            }
+        }
+        return Convex<PointType>(std::move(hullPoints));
+    }
+
+    /**
      * @brief Computes the bounding box of the set.
      *
      * The union of the components' boxes, cached — unlike a region, which

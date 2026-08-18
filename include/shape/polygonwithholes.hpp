@@ -1420,6 +1420,16 @@ struct PolygonWithHoles {
     }
 
     /**
+     * @brief Returns the convex hull of the region's vertices.
+     *
+     * The holes lie inside the outer boundary, so this is the outer polygon's
+     * hull.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return outer_.convexHull();
+    }
+
+    /**
      * @brief Computes the bounding box of the region.
      *
      * The holes lie inside the outer boundary, so this is the outer polygon's

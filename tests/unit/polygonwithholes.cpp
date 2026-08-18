@@ -191,6 +191,10 @@ TEST_CASE("PolygonWithHoles measures") {
         CHECK(region.bbox() == pgl::Rectangle<Point>(Point(0, 0), Point(10, 10)));
         CHECK(region.diameter().squaredLength() == 200);
     }
+
+    SUBCASE("convexHull comes from the outer ring, ignoring the hole") {
+        CHECK(region.convexHull() == region.outer().convexHull());
+    }
 }
 
 TEST_CASE("PolygonWithHoles ring traversal") {

@@ -493,6 +493,15 @@ struct Convex {
     }
 
     /**
+     * @brief Returns the convex hull of the polygon's vertices.
+     *
+     * A convex polygon is already its own hull, so this just drops the label.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(*this);
+    }
+
+    /**
      * @brief Returns the edges of the convex polygon.
      * @return A vector of segments representing the edges.
      */

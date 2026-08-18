@@ -393,6 +393,15 @@ TEST_CASE("PolygonSet measures") {
         CHECK(set.diameter() == pgl::Segment<Point>(Point(0, 0), Point(7, 7)));
     }
 
+    SUBCASE("convexHull spans both components, dropping their inner-facing corners") {
+        // (2,2) and (5,5) each face the other square and sit strictly inside
+        // the hull of the two squares together.
+        const auto hull = set.convexHull();
+        CHECK(hull == pgl::Convex<Point>(std::vector<Point>{
+            Point(0, 0), Point(2, 0), Point(7, 5), Point(7, 7), Point(5, 7), Point(0, 2)}));
+        CHECK(RegionSet().convexHull().empty());
+    }
+
     SUBCASE("pointInside lands in a component's interior") {
         const auto witness = set.pointInside<double>();
         CHECK(set.component(0).interiorContains(witness));

@@ -371,6 +371,7 @@ TEST_CASE_TEMPLATE("Rectangle reports width, height, area, midpoint, and a diame
     CHECK(circumcircle.template squaredRadius<double>() == doctest::Approx(2.0));
 
     CHECK(rectangle.diameter() == Segment(Point(2, 1), Point(4, 3)));
+    CHECK(rectangle.convexHull() == rectangle.asConvex());
     CHECK(rectangle.template pointInside<Number>() == Point(Number(3), Number(2)));
     CHECK_FALSE(rectangle.isDegenerate());
     CHECK(Rectangle(Point(2, 1), Point(2, 3)).isDegenerate());
@@ -953,6 +954,7 @@ TEST_CASE("The empty rectangle is the empty set of points") {
         CHECK(empty.asPolygonWithHoles().empty());
         CHECK(empty.asPolygonSet().empty());
         CHECK(empty.asHalfplaneIntersection().empty());
+        CHECK(empty.convexHull().empty());
     }
 
     SUBCASE("it is its own bounding box, and the bounding box of empty shapes") {

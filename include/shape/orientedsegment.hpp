@@ -1620,6 +1620,15 @@ struct OrientedSegment {
     [[nodiscard]] constexpr std::array<PointType, 2> vertices() const;
 
     /**
+     * @brief Returns the convex hull of the segment's endpoints.
+     *
+     * @return A degenerate two-vertex convex polygon spanning the segment.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(vertices());
+    }
+
+    /**
      * @brief Returns the unique geometric edge of the oriented segment.
      *
      * @return Array containing the underlying unoriented segment.

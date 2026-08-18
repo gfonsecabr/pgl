@@ -113,6 +113,22 @@ TEST_CASE("Convex converts between labeled and unlabeled vertices") {
     CHECK(labeled_from_plain[2] == LabelPoint(0, 3, ""));
 }
 
+TEST_CASE("Convex::convexHull returns an unlabeled copy of an already-convex polygon") {
+    using PlainPoint = pgl::Point<int>;
+    using LabelPoint = pgl::Point<int, std::string>;
+    using PlainConvex = pgl::Convex<PlainPoint>;
+    using LabelConvex = pgl::Convex<LabelPoint>;
+
+    const LabelConvex labeled(std::vector<LabelPoint>{LabelPoint(0, 0, "a"), LabelPoint(4, 0, "b"), LabelPoint(0, 3, "c")});
+    const PlainConvex hull = labeled.convexHull();
+    CHECK(hull == PlainConvex(std::vector<PlainPoint>{PlainPoint(0, 0), PlainPoint(4, 0), PlainPoint(0, 3)}));
+
+    const PlainConvex triangle(std::vector<PlainPoint>{PlainPoint(0, 0), PlainPoint(4, 0), PlainPoint(0, 3)});
+    CHECK(triangle.convexHull() == triangle);
+
+    CHECK(PlainConvex().convexHull().empty());
+}
+
 TEST_CASE("Convex calculates area correctly") {
     using PlainPoint = pgl::Point<int>;
     using PlainConvex = pgl::Convex<PlainPoint>;

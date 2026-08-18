@@ -963,6 +963,17 @@ struct HalfplaneIntersection {
     }
 
     /**
+     * @brief Returns the region's convex hull.
+     *
+     * Alias for @ref asConvex, kept for the `convexHull()` name shared by
+     * every shape that has a @ref bbox.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    constexpr Convex<Point<ResultNumber, typename PointType::LabelType>> convexHull() const {
+        return asConvex<ResultNumber>();
+    }
+
+    /**
      * @brief Tests equality of the stored regions.
      *
      * All empty regions are equal. For full-dimensional regions the stored
