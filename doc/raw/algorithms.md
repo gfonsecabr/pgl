@@ -46,6 +46,8 @@ These functions use the same predicate conventions documented in
 
 - `smallestEnclosingDisk(V)` returns the unique smallest closed disk containing every point in the non-empty container `V`. It uses a randomized incremental algorithm with expected $O(n)$ time. Constructing a disk supported by two points divides coordinates by two, so all coordinates should be even when an integral type is used; otherwise integer division can truncate the result. An overload accepts a random-bit generator as its second argument when the caller needs control over the randomized order.
 
+- `Convex` offers the same computation as a method, since a disk containing the hull vertices contains the whole polygon: `c.smallestEnclosingDisk()`{Convex} returns the smallest disk containing the non-empty convex polygon `c`, and an overload takes a random-bit generator. The disk keeps the coordinate number type and drops labels, with the same caveat about even integral coordinates.
+
 ### Closest pair of points
 
 - `closestPair(V)` returns a `Segment` joining two points of the container `V` at minimum distance from each other, using the classical divide and conquer algorithm. Complexity $O(n \log n)$ time on inputs whose strips stay short, which is the ordinary case, degrading to $O(n \log^2 n)$ when the points are so clustered along one line that a strip keeps holding a constant fraction of the range. The container must hold at least two points; fewer is undefined behavior. Only squared distances are compared, in the promoted coordinate type, so the result is exact for integer coordinates. The returned segment keeps the input point type, labels included, and ties are broken arbitrarily.

@@ -85,3 +85,62 @@ TEST_CASE("smallestEnclosingDisk uses a diameter for an obtuse triangle") {
         CHECK(disk.contains(point));
     }
 }
+
+TEST_CASE("Convex::smallestEnclosingDisk matches the free function on the vertices") {
+    const std::vector<IntPoint> points{{0, 0}, {8, 0}, {4, 8}, {4, 2}, {4, 4}};
+    const pgl::Convex<IntPoint> convex(points);
+
+    std::mt19937 generator(123456);
+    const auto disk = convex.smallestEnclosingDisk(generator);
+
+    static_assert(std::is_same_v<decltype(convex.smallestEnclosingDisk()), IntDisk>);
+    static_assert(std::is_same_v<decltype(convex.smallestEnclosingDisk(generator)), IntDisk>);
+
+    CHECK(disk == deterministicSmallestEnclosingDisk(points));
+    CHECK(disk.center<int>() == IntPoint(4, 3));
+    CHECK(disk.squaredRadius<int>() == 25);
+    for (const auto& vertex : convex) {
+        CHECK(disk.contains(vertex));
+    }
+    CHECK(convex.smallestEnclosingDisk() == disk);
+}
+
+TEST_CASE("Convex::smallestEnclosingDisk ignores interior points and labels") {
+    using LabeledPoint = pgl::Point<int, std::string>;
+    const pgl::Convex<LabeledPoint> convex(std::vector<LabeledPoint>{
+        {0, 0}, {12, 0}, {2, 2}, {6, 1}});
+
+    const auto disk = convex.smallestEnclosingDisk();
+    static_assert(std::is_same_v<decltype(disk), const IntDisk>);
+
+    // The obtuse triangle's longest edge is the diameter; (6,1) is inside.
+    CHECK(disk.center<int>() == IntPoint(6, 0));
+    CHECK(disk.squaredRadius<int>() == 36);
+    for (const auto& vertex : convex) {
+        CHECK(disk.contains(vertex));
+    }
+}
+
+TEST_CASE("Convex::smallestEnclosingDisk is exact with rational coordinates") {
+    const pgl::EConvex convex(std::vector<pgl::EPoint>{{0, 0}, {3, 0}, {3, 5}, {0, 5}});
+    const auto disk = convex.smallestEnclosingDisk();
+
+    CHECK(disk.center<pgl::ERational>() ==
+          pgl::EPoint(pgl::ERational(3, 2), pgl::ERational(5, 2)));
+    CHECK(disk.squaredRadius<pgl::ERational>() == pgl::ERational(17, 2));
+    for (const auto& vertex : convex) {
+        CHECK(disk.boundaryContains(vertex));
+    }
+}
+
+TEST_CASE("Convex::smallestEnclosingDisk degenerates with the convex polygon") {
+    const pgl::Convex<IntPoint> single(std::vector<IntPoint>{{7, -3}});
+    const auto pointDisk = single.smallestEnclosingDisk();
+    CHECK(pointDisk.isPoint());
+    CHECK(pointDisk.center<int>() == IntPoint(7, -3));
+
+    const pgl::Convex<IntPoint> collinear(std::vector<IntPoint>{{-8, 2}, {0, 2}, {10, 2}});
+    const auto segmentDisk = collinear.smallestEnclosingDisk();
+    CHECK(segmentDisk.center<int>() == IntPoint(1, 2));
+    CHECK(segmentDisk.squaredRadius<int>() == 81);
+}
