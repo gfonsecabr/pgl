@@ -6,7 +6,8 @@ For every combination of shape pair × size pair × number type × method, gener
 a small C++ program that creates 100 random shapes of each kind (small or large),
 times every pair-wise call to the method, and prints the elapsed time together
 with an aggregate result (e.g. count of true returns, or count of zero-distance
-pairs).
+pairs). A pair with a many-vertex operand — a polygon, a hull, a chain — runs on
+30 shapes instead of 100, since its calls cost microseconds to milliseconds.
 
 Each program stops early once it has spent --time-budget seconds in its measured
 loop, and averages over the pairs it actually completed. Cost per call spans six
@@ -48,7 +49,7 @@ Options:
     --output  FILE     JSON output path (default: build/tests/benchmark/benchmarks.json)
     --build-dir DIR    Build root  (default: build/tests/benchmark)
     --cxx     CXX      Compiler    (default: $CXX or c++)
-    --cxxflags FLAGS   Flags       (default: $CXXFLAGS or -std=c++23 -O3 -DNDEBUG)
+    --cxxflags FLAGS   Flags       (default: $CXXFLAGS or -std=c++23 -O2 -DNDEBUG)
     --jobs    N        Parallel compile jobs (default: all available CPUs)
     --time-budget S    Seconds an uncapped program may spend in its measured
                        loop before stopping early (default: 15; 0 disables the
@@ -151,14 +152,44 @@ GROUND_TRUTH_TYPE = "ERational"
 # Number of random shapes generated per type per benchmark
 N_SHAPES = 100
 
-# The regularized boolean operations build a whole arrangement per call — 2 to
-# 5 ms for a pair of 32-gons, against nanoseconds for a predicate — so a full
-# 100×100 cell would take the best part of a minute. They run on a smaller
-# sample instead. The generators are deterministic, so this is the first
-# N_CONSTRUCTION_SHAPES of the same shapes every other method sees.
-N_CONSTRUCTION_SHAPES = 20
-_CONSTRUCTION_METHODS = {"regularizedIntersection", "regularizedUnion", "difference",
-                         "symmetricDifference"}
+# What a call costs is driven by how many vertices its operands carry, far more
+# than by which method it is: a predicate on two 32-gons is already microseconds,
+# and a regularized boolean operation on them builds a whole arrangement, 2 to
+# 5 ms. A full 100×100 cell of either would take the best part of a minute, so a
+# pair with a many-vertex operand runs on a smaller sample. The generators are
+# deterministic, so this is the first N_COMPLEX_SHAPES of the same shapes a cell
+# of simple operands sees.
+N_COMPLEX_SHAPES = 30
+
+# Vertices a random shape of each kind carries, mirroring the generators in
+# randomshapes.hpp and the sample sizes _cpp_make_shapes_for passes them. More
+# than _COMPLEX_VERTICES of them makes a shape complex. The "as-other-type"
+# shapes count what they actually hold rather than what their storage type
+# usually does: a TriangleAsPolygon is a Polygon of 3 vertices, so a cell of
+# those is as cheap as one of Triangles and is measured like one.
+_COMPLEX_VERTICES = 6
+_VERTEX_COUNT = {
+    "Point":                 1,
+    "Segment":               2,
+    "OrientedSegment":       2,
+    "Line":                  2,
+    "OrientedLine":          2,
+    "Disk":                  0,   # a disk has no vertices at all
+    "Triangle":              3,
+    "Rectangle":             4,
+    "Polygon":              32,
+    "PolygonWithHoles":     32 + 6 * 6,
+    "PolygonSet":           31,   # about 31 over the components of a 6x6 grid
+    "Polyline":             32,
+    "MonotoneChain":        32,
+    "Convex":               34,   # hull of 1000 points, ~34 vertices
+    "HalfplaneIntersection": 34,  # the same hull, held as its edge half-planes
+    "TriangleAsPolygon":     3,
+    "TriangleAsConvex":      3,
+    "ConvexAsPolygon":      34,
+    "PolygonAsPWH":         32,
+    "PolygonAsTriangulation": 32,
+}
 
 # Wall-clock ceiling on the measured loop of a single generated program. The
 # cost per call spans six orders of magnitude across the cube — tens of ns for
@@ -175,9 +206,21 @@ TIME_BUDGET_S = 15.0
 RUN_TIMEOUT_S = 600.0
 
 
-def _n_shapes_for(method: str) -> int:
-    """How many random shapes per operand a method is measured on."""
-    return N_CONSTRUCTION_SHAPES if method in _CONSTRUCTION_METHODS else N_SHAPES
+def _vertex_count(shape: str) -> int:
+    """Vertices a random shape of this kind carries.
+
+    A shape missing from the table is assumed complex — the safe way to be
+    wrong, since guessing "simple" would put an expensive new shape into cells
+    of 10 000 calls.
+    """
+    return _VERTEX_COUNT.get(shape, _COMPLEX_VERTICES + 1)
+
+
+def _n_shapes_for(shape1: str, shape2: str) -> int:
+    """How many random shapes per operand a shape pair is measured on."""
+    if max(_vertex_count(shape1), _vertex_count(shape2)) > _COMPLEX_VERTICES:
+        return N_COMPLEX_SHAPES
+    return N_SHAPES
 
 
 # Shape-kind categories (drives which randomXxx helper is called)
@@ -339,7 +382,7 @@ def generate_source(
     the budget off, which is how the runner replays one type's prefix on another
     and gets back something it can actually compare.
     """
-    n = _n_shapes_for(method)
+    n = _n_shapes_for(shape1, shape2)
     # A non-positive budget means "run to completion". Rather than generating a
     # second shape of loop for that case, push the deadline out of reach: the
     # clock is then read once per 64 pairs and never trips, which is under a
@@ -539,7 +582,7 @@ def main() -> None:
     ap.add_argument("--output",    default=None)
     ap.add_argument("--build-dir", dest="build_dir", default=None)
     ap.add_argument("--cxx",       default=os.environ.get("CXX", "c++"))
-    ap.add_argument("--cxxflags",  default=os.environ.get("CXXFLAGS", "-std=c++23 -O3 -DNDEBUG"))
+    ap.add_argument("--cxxflags",  default=os.environ.get("CXXFLAGS", "-std=c++23 -O2 -DNDEBUG"))
     ap.add_argument("--jobs",      type=int, default=default_jobs)
     ap.add_argument("--time-budget", dest="time_budget", type=float,
                     default=TIME_BUDGET_S,
@@ -756,7 +799,7 @@ def main() -> None:
     truncated_cell: dict[tuple, bool] = {}
     for i, key in enumerate(ordered_keys, 1):
         shape1, size1, shape2, size2, method, type_key = key
-        full_pairs = _n_shapes_for(method) ** 2
+        full_pairs = _n_shapes_for(shape1, shape2) ** 2
         if type_key == GROUND_TRUTH_TYPE:
             # Uncapped, and told what an untruncated run looks like so it can
             # give up repeating the moment the budget starts cutting runs short.
@@ -803,7 +846,7 @@ def main() -> None:
         gt = type_data.get(GROUND_TRUTH_TYPE)
         gt_count = gt[0] if gt is not None else None
         gt_calls   = gt[4] if gt is not None else None
-        full_pairs = _n_shapes_for(method) ** 2
+        full_pairs = _n_shapes_for(shape1, shape2) ** 2
 
         type_entries: dict[str, dict] = {}
         for type_key, _ in types:
@@ -858,9 +901,13 @@ def main() -> None:
             "time_budget_s": args.time_budget or None,
             "n_shapes":     N_SHAPES,
             "n_pairs":      N_SHAPES * N_SHAPES,
-            # The constructive boolean methods run on a smaller sample; see
-            # _n_shapes_for. Only these methods depart from n_shapes above.
-            "n_shapes_by_method": {m: _n_shapes_for(m) for m in methods},
+            # A pair with a many-vertex operand runs on a smaller sample; see
+            # _n_shapes_for. The per-shape counts below are the self-pair ones,
+            # which is what a shape gets against anything at least as simple.
+            "n_complex_shapes": N_COMPLEX_SHAPES,
+            "complex_vertices": _COMPLEX_VERTICES,
+            "n_shapes_by_shape": {sh: _n_shapes_for(sh, sh)
+                                  for sh in sorted(set(shapes1) | set(shapes2))},
             "shapes_a":     shapes1,
             "shapes_b":     shapes2,
             "focus":        focus or None,

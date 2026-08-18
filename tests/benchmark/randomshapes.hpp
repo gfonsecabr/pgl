@@ -5,7 +5,14 @@
 #include <set>
 #include <vector>
 
+// Every generator below places a shape by drawing an anchor point in a field
+// and the rest of its defining points relative to that anchor, so a shape's own
+// extent and the field it is scattered over are set independently: a small
+// shape spans smallRange in a field of largeRange, so a random pair usually
+// misses, while a large one spans mediumRange in a field of mediumRange, so a
+// random pair usually meets and the predicates reach their expensive paths.
 constexpr int largeRange = 10000;
+constexpr int mediumRange = largeRange / 2;
 constexpr int smallRange = 1000;
 
 struct Rng {
@@ -76,8 +83,8 @@ std::vector<S> randomLargeBishape(int n) {
     std::set<S> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
     while (static_cast<int>(w.size()) < n) {
-        const auto p1 = randomPoint<Number>(rng, largeRange);
-        const auto p2 = randomPoint<Number>(rng, largeRange);
+        const auto p1 = randomPoint<Number>(rng, mediumRange);
+        const auto p2 = p1 + randomPoint<Number>(rng, mediumRange);
         S s(p1, p2);
         if (!s.isDegenerate() && seen.insert(s).second) {
             w.emplace_back(s);
@@ -111,9 +118,9 @@ std::vector<S> randomLargeTrishape(int n) {
     std::set<S> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<S>)};
     while (static_cast<int>(w.size()) < n) {
-        const auto p1 = randomPoint<Number>(rng, largeRange);
-        const auto p2 = randomPoint<Number>(rng, largeRange);
-        const auto p3 = randomPoint<Number>(rng, largeRange);
+        const auto p1 = randomPoint<Number>(rng, mediumRange);
+        const auto p2 = p1 + randomPoint<Number>(rng, mediumRange);
+        const auto p3 = p1 + randomPoint<Number>(rng, mediumRange);
         S s(p1, p2, p3);
         if (!s.isDegenerate() && seen.insert(s).second) {
             w.emplace_back(s);
@@ -154,13 +161,17 @@ std::vector<pgl::Convex<pgl::Point<Number>>> randomLargeConvexes(int n, int m) {
     std::set<Convex> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Convex<Point>>)};
     while (static_cast<int>(w.size()) < n) {
+        const auto p1 = randomPoint<Number>(rng, mediumRange);
         std::vector<Point> points;
         for (int i = 0; i < m; ++i) {
-            points.push_back(randomPoint<Number>(rng, largeRange));
+            points.push_back(randomPoint<Number>(rng, mediumRange));
         }
         Convex s(points);
-        if (!s.isDegenerate() && seen.insert(s).second) {
-            w.push_back(s);
+        if (!s.isDegenerate()) {
+            const auto shifted = p1 + s;
+            if (seen.insert(shifted).second) {
+                w.push_back(shifted);
+            }
         }
     }
     return w;
@@ -199,9 +210,10 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) 
     std::set<Polygon> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polygon<Point>>)};
     while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, mediumRange);
         std::vector<Point> points;
         for (int i = 0; i < m; ++i) {
-            points.push_back(randomPoint<Number>(rng, largeRange));
+            points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
         Polygon poly(points, true);  // trusted: untangle renormalizes at the end
         poly.untangle();
@@ -305,16 +317,17 @@ randomLargePolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
     std::set<PolygonWithHoles> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::PolygonWithHoles<Point>>)};
     while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, mediumRange);
         std::vector<Point> points;
         for (int i = 0; i < m; ++i) {
-            points.push_back(randomPoint<Number>(rng, largeRange));
+            points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
         Polygon poly(points, true);  // trusted: untangle renormalizes at the end
         poly.untangle();
         if (poly.isDegenerate()) {
             continue;
         }
-        const auto holes = randomHoles<Number>(poly, Point(0, 0), largeRange, rng,
+        const auto holes = randomHoles<Number>(poly, base, mediumRange, rng,
                                                holeCount, holeVertices, 100 * holeCount);
         if (static_cast<int>(holes.size()) < holeCount) {
             continue;
@@ -360,9 +373,9 @@ randomPolygonSets(int n, int grid, int cell, int range) {
                 }
             }
         }
-        // A small set sits somewhere in the large field, as the small shapes
-        // above do; a large one spans the field and stays centred.
-        const Point base = (range > 0) ? randomPoint<Number>(rng, range) - center : -center;
+        // A set is placed like the shapes above: a small one is a tenth of
+        // the field it is scattered over, a large one as wide as its field.
+        const Point base = randomPoint<Number>(rng, range) - center;
         std::vector<pgl::PolygonWithHoles<Point>> components;
         while (!left.empty()) {
             pgl::detail::CellSet group{*left.begin()};
@@ -407,7 +420,7 @@ std::vector<pgl::PolygonSet<pgl::Point<Number>>> randomSmallPolygonSets(int n, i
 
 template <class Number>
 std::vector<pgl::PolygonSet<pgl::Point<Number>>> randomLargePolygonSets(int n, int grid) {
-    return randomPolygonSets<Number>(n, grid, largeRange / grid, 0);
+    return randomPolygonSets<Number>(n, grid, mediumRange / grid, mediumRange);
 }
 
 // "As-other-type" generators: build shapes with one shape's generator, then
@@ -588,9 +601,10 @@ std::vector<pgl::MonotoneChain<pgl::Point<Number>>> randomLargeMonotoneChains(in
     std::set<MonotoneChain> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::MonotoneChain<Point>>)};
     while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, mediumRange);
         std::vector<Point> points;
         for (int i = 0; i < m; ++i) {
-            points.push_back(randomPoint<Number>(rng, largeRange));
+            points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
         MonotoneChain chain(points);
         if (!chain.isDegenerate() && seen.insert(chain).second) {
@@ -632,9 +646,10 @@ std::vector<pgl::Polyline<pgl::Point<Number>>> randomLargePolylines(int n, int m
     std::set<Polyline> seen;
     Rng rng{static_cast<std::uint64_t>(pgl::detail::shapeRank<pgl::Polyline<Point>>)};
     while (static_cast<int>(w.size()) < n) {
+        const auto base = randomPoint<Number>(rng, mediumRange);
         std::vector<Point> points;
         for (int i = 0; i < m; ++i) {
-            points.push_back(randomPoint<Number>(rng, largeRange));
+            points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
         Polyline poly(points);
         if (!poly.isDegenerate() && seen.insert(poly).second) {

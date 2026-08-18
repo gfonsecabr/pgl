@@ -63,6 +63,9 @@ const _AS_TYPE = {
   // region: the polygon's constrained Delaunay triangulation, built as setup so
   // only the queries against the mesh are timed.
   PolygonAsTriangulation: { source: "Polygon", stored: "Triangulation" },
+  // Also a re-storage: the convex hull, adopted as the intersection of its own
+  // edge half-planes, so the shape's rational-vertex paths run on that region.
+  HalfplaneIntersection: { source: "Convex", stored: "HalfplaneIntersection of the hull's edge half-planes" },
 };
 
 // Shapes built from a sample of m points rather than a fixed number of defining
@@ -74,6 +77,8 @@ const _SAMPLED = {
                                     "then punched with 6 holes of 6 points each, themselves " +
                                     "untangled (usually non-convex) and drawn from a fifth of " +
                                     "the polygon's span, taking about a tenth of its area away" },
+  Polyline:      { m: 32, build: "linked in the order drawn and never untangled, so the chain may " +
+                                 "cross itself (32 vertices)" },
   MonotoneChain: { m: 32, build: "sorted lexicographically with duplicates dropped (at most 32 vertices)" },
   Convex:        { m: 1000, build: "reduced to their convex hull (~34 vertices on average)" },
 };
@@ -89,21 +94,44 @@ function nDefiningPoints(shape) {
   return 1000; // Unknown shape: fall back to the point-sample size in run_shapepairs.py
 }
 
+// A shape's own extent and the field it is scattered over are set independently:
+// every generator draws an anchor point in the field and the rest of the shape's
+// points relative to it. A small shape spans 1000 in a field of 10000, so a random
+// pair usually misses; a large one spans 5000 in a field of 5000, so a random pair
+// usually meets. Points are drawn from the disks inscribed in those squares, hence
+// the radii below — smallRange / mediumRange / largeRange halved, as in
+// tests/benchmark/randomshapes.hpp.
+const _SIZE_SCALE = {
+  small: { extent: 500,  field: 5000 },
+  large: { extent: 2500, field: 2500 },
+};
+const sizeScale = (size) => _SIZE_SCALE[size] || _SIZE_SCALE.small;
+
 // Where a random point sample of size n is drawn from, per size class.
-const pointCloud = (n, size) =>
-  size === "large"
-    ? `${n} random integer points in a disk of radius 5000`
-    : `${n} random integer points in a disk of radius 500 translated by a random integer vector of length ≤ 5000`;
+const pointCloud = (n, size) => {
+  const s = sizeScale(size);
+  return `${n} random integer points in a disk of radius ${s.extent} translated by ` +
+         `a random integer vector of length ≤ ${s.field}`;
+};
 
 // Plain-language description of how a random shape of this kind/size is drawn,
-// used as a tooltip. Mirrors the generators in tests/benchmark/randomshapes.hpp
-// (small offset radius 500, full radius 5000).
+// used as a tooltip. Mirrors the generators in tests/benchmark/randomshapes.hpp.
 function distributionTip(shape, size) {
   if (shape === "Point")
     return "Random integer points in a disk of radius 5000";
   const as = _AS_TYPE[shape];
   if (as)
     return `${distributionTip(as.source, size)}, then stored as a ${as.stored}`;
+  // A set is drawn on a grid rather than from a point cloud: every 4-connected
+  // group of filled cells is one component, so two components meet at corners at
+  // most, and a group may close around a hole or nest another.
+  if (shape === "PolygonSet") {
+    const s = sizeScale(size);
+    return `Random PolygonSet (${size}): a 6×6 grid of squares spanning ${2 * s.extent}, each cell ` +
+           `filled with probability 45%, every 4-connected group of filled cells becoming one ` +
+           `component (usually pinched, sometimes holed or nesting another), translated by ` +
+           `a random integer vector of length ≤ ${s.field}`;
+  }
   const sampled = _SAMPLED[shape];
   if (sampled)
     return `Random ${shape} (${size}): ${pointCloud(sampled.m, size)}, ${sampled.build}`;
