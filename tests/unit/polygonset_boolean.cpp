@@ -82,6 +82,54 @@ TEST_CASE("regularizedUnionOf unites a range in one arrangement") {
     CHECK(pgl::regularizedUnionOf<Point>(empty).empty());
 }
 
+TEST_CASE("regularizedUnionOf unites shapes that carry their edges as an array") {
+    using TriangleShape = pgl::Triangle<Point>;
+    using RectangleShape = pgl::Rectangle<Point>;
+
+    SUBCASE("a range of triangles") {
+        const std::vector<TriangleShape> triangles{
+            TriangleShape(Point(0, 0), Point(4, 0), Point(0, 4)),
+            TriangleShape(Point(4, 4), Point(4, 0), Point(0, 4))};
+
+        const auto result = pgl::regularizedUnionOf<Point>(triangles);
+
+        CHECK(result == square(0, 0, 4).asPolygonSet());
+    }
+
+    SUBCASE("a range of rectangles, with a degenerate one and a repeat") {
+        const std::vector<RectangleShape> rectangles{
+            RectangleShape(Point(0, 0), Point(4, 4)), RectangleShape(Point(2, 2), Point(6, 6)),
+            RectangleShape(Point(0, 0), Point(4, 4)), RectangleShape(Point(0, 0), Point(0, 4)),
+            RectangleShape(Point(10, 10), Point(12, 12))};
+
+        const auto result = pgl::regularizedUnionOf<Point>(rectangles);
+
+        REQUIRE(result.componentCount() == 2);
+        CHECK(result.twiceArea() == 2 * (16 + 16 - 4 + 4));
+    }
+
+    SUBCASE("asserting simple boundaries picks the same answer") {
+        const std::vector<RectangleShape> rectangles{RectangleShape(Point(0, 0), Point(4, 4)),
+                                                     RectangleShape(Point(2, 2), Point(6, 6))};
+
+        CHECK(pgl::regularizedUnionOf<Point>(rectangles, true) ==
+              pgl::regularizedUnionOf<Point>(rectangles));
+    }
+}
+
+TEST_CASE("regularizedUnionOf takes a range of sets by their components") {
+    const RegionSet left = square(0, 0, 4).regularizedUnion<int>(square(10, 0, 4));
+    const RegionSet right = square(2, 2, 4).regularizedUnion<int>(square(20, 0, 4));
+    REQUIRE(left.componentCount() == 2);
+
+    const std::vector<RegionSet> sets{left, right, left};
+    const auto result = pgl::regularizedUnionOf<Point>(sets);
+
+    CHECK(result.componentCount() == 3);
+    CHECK(result.twiceArea() == 2 * (16 + 16 - 4 + 16 + 16));
+    CHECK(pgl::regularizedUnionOf<Point>(sets, true) == result);
+}
+
 TEST_CASE("The boolean operations are closed over PolygonSet") {
     const RegionSet holed = square(0, 0, 10).difference<int>(square(3, 3, 4));
 

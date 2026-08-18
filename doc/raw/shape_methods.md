@@ -166,11 +166,15 @@ pgl::EPolygonSet merged = again.regularizedUnion(holed);
 ```
 
 To unite a range of regions in one arrangement, use `regularizedUnionOf` and
-specify the result point type:
+specify the result point type. The range may hold any one of the six bounded
+region types:
 
 ```c++
 std::vector<pgl::Polygon<>> polygons = /* ... */;
 auto merged = pgl::regularizedUnionOf<pgl::EPoint>(polygons);
+
+std::vector<pgl::Triangle<>> triangles = /* ... */;
+auto covered = pgl::regularizedUnionOf<pgl::EPoint>(triangles);
 ```
 
 The six bounded region types are `Rectangle`, `Triangle`, `Convex`, `Polygon`, `PolygonWithHoles`, and `PolygonSet`. `regularizedUnion` and `symmetricDifference` are defined for every pair among them. `difference` requires one of those six as its receiver and accepts any of the six, a `Halfplane`, or a `HalfplaneIntersection` as its argument. `regularizedIntersection` is available when a `PolygonWithHoles` or `PolygonSet` participates; the other operand may be any of the six bounded region types, a `Halfplane`, or a `HalfplaneIntersection`. These last two operations can involve an unbounded operand because both $A \setminus B$ and $A \cap B$ are bounded when $A$ is bounded; for the nonsymmetric difference, the unbounded operand must be the argument.
