@@ -814,29 +814,34 @@ TEST_CASE("Convex::diameter matches the brute-force farthest vertex pair") {
 //
 // A minimum-area enclosing rectangle has a side flush with a polygon edge, so
 // the brute force projects every vertex on every edge direction and its normal.
+// It computes in ERational throughout, which is exact for every coordinate type
+// tested here, and so is independent of the widening the sweep itself picks.
 namespace {
 
 using ExactRational = pgl::ERational;
 using ExactPoint = pgl::Point<ExactRational>;
 
-static ExactRational bruteMinRectangleArea(const pgl::Convex<BPoint>& c) {
+template <class Convex>
+static ExactRational bruteMinRectangleArea(const Convex& c) {
     const std::size_t n = c.size();
     ExactRational best(0);
     for (std::size_t i = 0; i < n; ++i) {
         const auto a = c[i];
         const auto b = c[(i + 1) % n];
-        const int64_t ux = b.x() - a.x();
-        const int64_t uy = b.y() - a.y();
-        int64_t low = 0, high = 0, height = 0;
+        const ExactRational ux = ExactRational(b.x()) - ExactRational(a.x());
+        const ExactRational uy = ExactRational(b.y()) - ExactRational(a.y());
+        ExactRational low(0), high(0), height(0);
         for (std::size_t j = 0; j < n; ++j) {
             const auto p = c[j];
-            const int64_t dx = p.x() - a.x();
-            const int64_t dy = p.y() - a.y();
-            low = std::min(low, ux * dx + uy * dy);
-            high = std::max(high, ux * dx + uy * dy);
-            height = std::max(height, ux * dy - uy * dx);
+            const ExactRational dx = ExactRational(p.x()) - ExactRational(a.x());
+            const ExactRational dy = ExactRational(p.y()) - ExactRational(a.y());
+            const ExactRational along = ux * dx + uy * dy;
+            const ExactRational across = ux * dy - uy * dx;
+            if (along < low) low = along;
+            if (along > high) high = along;
+            if (across > height) height = across;
         }
-        const ExactRational area((high - low) * height, ux * ux + uy * uy);
+        const ExactRational area = (high - low) * height / (ux * ux + uy * uy);
         if (i == 0 || area < best) {
             best = area;
         }
@@ -844,45 +849,65 @@ static ExactRational bruteMinRectangleArea(const pgl::Convex<BPoint>& c) {
     return best;
 }
 
-// Four corners, each interior angle right, and every vertex inside.
-static void checkIsEnclosingRectangle(const pgl::Convex<BPoint>& c,
-                                      const pgl::Convex<ExactPoint>& r) {
-    REQUIRE(r.size() == 4);
+// Four constraints bounding a region with four right angles, holding the whole
+// polygon, and of exactly the minimum flush area.
+template <class Convex, class Region>
+static void checkIsEnclosingRectangle(const Convex& c, const Region& k) {
+    REQUIRE(k.size() == 4);
+    REQUIRE(k.isBounded());
+    REQUIRE(k.vertexCount() == 4);
+    const auto corners = k.template vertices<ExactRational>();
+    REQUIRE(corners.size() == 4);
     for (std::size_t i = 0; i < 4; ++i) {
-        const auto a = r[i], b = r[(i + 1) % 4], d = r[(i + 2) % 4];
+        const auto a = corners[i], b = corners[(i + 1) % 4], d = corners[(i + 2) % 4];
         CHECK((b.x() - a.x()) * (d.x() - b.x()) + (b.y() - a.y()) * (d.y() - b.y()) ==
               ExactRational(0));
     }
     for (std::size_t i = 0; i < c.size(); ++i) {
-        CHECK(r.contains(c[i]));
+        CHECK(k.contains(c[i]));
     }
-    // Built trusted, so the canonical vertex order has to hold on its own.
-    const pgl::Convex<ExactPoint> rebuilt{std::vector<ExactPoint>(r.begin(), r.end())};
-    CHECK(rebuilt == r);
+    CHECK(k.template area<ExactRational>() == bruteMinRectangleArea(c));
 }
 
 }  // namespace
+
+TEST_CASE("Convex::smallestEnclosingRectangle returns a region in the polygon's own number type") {
+    using Convex = pgl::Convex<BPoint>;
+    const Convex c(std::vector<BPoint>{{0, 2}, {4, 12}, {10, 4}, {16, 14}, {22, 6}, {18, -2}, {8, -4}});
+    const auto k = c.smallestEnclosingRectangle();
+    static_assert(std::is_same_v<decltype(k), const pgl::HalfplaneIntersection<BPoint>>);
+    checkIsEnclosingRectangle(c, k);
+
+    // The point of the half-plane form: the constraints are integral by type,
+    // as the static_assert above states, while the corners are not on the
+    // lattice at all.
+    const auto corners = k.vertices<ExactRational>();
+    REQUIRE(corners.size() == 4);
+    bool anyFractional = false;
+    for (const auto& corner : corners) {
+        anyFractional = anyFractional || corner.x().denominator() != 1 ||
+                        corner.y().denominator() != 1;
+    }
+    CHECK(anyFractional);
+}
 
 TEST_CASE("Convex::smallestEnclosingRectangle returns the polygon on rectangles") {
     using Convex = pgl::Convex<BPoint>;
 
     SUBCASE("axis-parallel rectangle") {
         const Convex c(std::vector<BPoint>{{0, 0}, {4, 0}, {4, 3}, {0, 3}});
-        const auto r = c.smallestEnclosingRectangle();
-        CHECK(r == pgl::Convex<ExactPoint>(c));
+        CHECK(c.smallestEnclosingRectangle().samePointSet(c));
     }
 
     SUBCASE("tilted square") {
         const Convex c(std::vector<BPoint>{{0, 1}, {1, 0}, {2, 1}, {1, 2}});
-        const auto r = c.smallestEnclosingRectangle();
-        CHECK(r == pgl::Convex<ExactPoint>(c));
+        CHECK(c.smallestEnclosingRectangle().samePointSet(c));
     }
 
     SUBCASE("translated rectangle") {
         Convex c(std::vector<BPoint>{{0, 0}, {4, 0}, {4, 3}, {0, 3}});
         c += BPoint(1000, -2000);
-        const auto r = c.smallestEnclosingRectangle();
-        CHECK(r == pgl::Convex<ExactPoint>(c));
+        CHECK(c.smallestEnclosingRectangle().samePointSet(c));
     }
 }
 
@@ -890,10 +915,10 @@ TEST_CASE("Convex::smallestEnclosingRectangle picks the tilted rectangle when it
     using Convex = pgl::Convex<BPoint>;
     // A thin diagonal sliver: its bounding box is far larger than the flush one.
     const Convex c(std::vector<BPoint>{{0, 0}, {10, 10}, {9, 11}, {-1, 1}});
-    const auto r = c.smallestEnclosingRectangle();
-    checkIsEnclosingRectangle(c, r);
-    CHECK(r.area<ExactRational>() == c.area<ExactRational>());  // the polygon itself
-    CHECK(r.area<ExactRational>() < c.bbox().area<ExactRational>());
+    const auto k = c.smallestEnclosingRectangle();
+    checkIsEnclosingRectangle(c, k);
+    CHECK(k.samePointSet(c));  // the sliver is itself a rectangle
+    CHECK(k.area<ExactRational>() < c.bbox().area<ExactRational>());
 }
 
 TEST_CASE("Convex::smallestEnclosingRectangle doubles the area of a triangle") {
@@ -901,9 +926,9 @@ TEST_CASE("Convex::smallestEnclosingRectangle doubles the area of a triangle") {
     // Every rectangle flush with a triangle edge has twice the triangle's area,
     // so all three candidates tie and any of them is a minimum.
     const Convex c(std::vector<BPoint>{{0, 0}, {4, 0}, {1, 3}});
-    const auto r = c.smallestEnclosingRectangle();
-    checkIsEnclosingRectangle(c, r);
-    CHECK(r.area<ExactRational>() == 2 * c.area<ExactRational>());
+    const auto k = c.smallestEnclosingRectangle();
+    checkIsEnclosingRectangle(c, k);
+    CHECK(k.area<ExactRational>() == 2 * c.area<ExactRational>());
 }
 
 TEST_CASE("Convex::smallestEnclosingRectangle handles degenerate sizes") {
@@ -911,32 +936,22 @@ TEST_CASE("Convex::smallestEnclosingRectangle handles degenerate sizes") {
     CHECK(Convex(std::vector<BPoint>{}).smallestEnclosingRectangle().empty());
 
     const auto point = Convex(std::vector<BPoint>{{2, 3}}).smallestEnclosingRectangle();
-    REQUIRE(point.size() == 1);
-    CHECK(point[0] == ExactPoint(2, 3));
+    REQUIRE(point.isPoint());
+    CHECK(point.getIfPoint<ExactRational>() == ExactPoint(2, 3));
 
     const auto segment = Convex(std::vector<BPoint>{{0, 0}, {5, 2}}).smallestEnclosingRectangle();
-    REQUIRE(segment.size() == 2);
-    CHECK(segment[0] == ExactPoint(0, 0));
-    CHECK(segment[1] == ExactPoint(5, 2));
+    REQUIRE(segment.isSegment());
+    CHECK(segment.getIfSegment<ExactRational>() ==
+          pgl::Segment<ExactPoint>(ExactPoint(0, 0), ExactPoint(5, 2)));
 
     // Collinear vertices only reach the sweep through the trusted constructor;
-    // the flush rectangle collapses onto the segment they span.
+    // the flush rectangle has zero height and collapses onto them, which the
+    // region represents exactly, as touching constraints.
     const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, true);
     const auto flat = collinear.smallestEnclosingRectangle();
-    REQUIRE(flat.size() == 2);
-    CHECK(flat[0] == ExactPoint(0, 0));
-    CHECK(flat[1] == ExactPoint(4, 2));
-}
-
-TEST_CASE("Convex::smallestEnclosingRectangle result type follows the requested number") {
-    using Convex = pgl::Convex<pgl::Point<int>>;
-    const Convex c(std::vector<pgl::Point<int>>{{0, 0}, {4, 0}, {1, 3}});
-    static_assert(std::is_same_v<decltype(c.smallestEnclosingRectangle()),
-                                 pgl::Convex<pgl::Point<pgl::ERational>>>);
-    static_assert(std::is_same_v<decltype(c.smallestEnclosingRectangle<double>()),
-                                 pgl::Convex<pgl::Point<double>>>);
-    const auto approximate = c.smallestEnclosingRectangle<double>();
-    CHECK(approximate.area<double>() == doctest::Approx(12.0));
+    REQUIRE(flat.isSegment());
+    CHECK(flat.getIfSegment<ExactRational>() ==
+          pgl::Segment<ExactPoint>(ExactPoint(0, 0), ExactPoint(4, 2)));
 }
 
 TEST_CASE("Convex::smallestEnclosingRectangle matches brute force on random hulls") {
@@ -950,12 +965,49 @@ TEST_CASE("Convex::smallestEnclosingRectangle matches brute force on random hull
         for (int k = 0; k < m; ++k) pts.push_back(BPoint(coord(rng), coord(rng)));
         Convex c(pts);
         if (c.size() < 3) continue;  // degenerate hulls covered separately
-        const auto r = c.smallestEnclosingRectangle();
-        checkIsEnclosingRectangle(c, r);
-        CHECK_MESSAGE(r.area<ExactRational>() == bruteMinRectangleArea(c),
-                      "n=", c.size(), " trial=", trial);
+        INFO("n=", c.size(), " trial=", trial);
+        checkIsEnclosingRectangle(c, c.smallestEnclosingRectangle());
     }
 }
+
+TEST_CASE("Convex::smallestEnclosingRectangle compares areas in a type that grows") {
+    // Coordinates this large make the area comparison — degree six, so three
+    // promotions above the coordinates — overflow any fixed-width integer the
+    // promotion rules offer. Only a growing type keeps picking the minimum.
+    using Convex = pgl::Convex<BPoint>;
+    std::mt19937_64 rng(13579);
+    std::uniform_int_distribution<int64_t> coord(-(int64_t(1) << 31), int64_t(1) << 31);
+    std::uniform_int_distribution<int> count(3, 12);
+    for (int trial = 0; trial < 40; ++trial) {
+        std::vector<BPoint> pts;
+        const int m = count(rng);
+        for (int k = 0; k < m; ++k) pts.push_back(BPoint(coord(rng), coord(rng)));
+        Convex c(pts);
+        if (c.size() < 3) continue;
+        INFO("n=", c.size(), " trial=", trial);
+        checkIsEnclosingRectangle(c, c.smallestEnclosingRectangle());
+    }
+}
+
+TEST_CASE_TEMPLATE("Convex::smallestEnclosingRectangle keeps its point type",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int64_t>>,
+                   pgl::Point<pgl::BigInt>, pgl::Point<int, std::string>) {
+    using Convex = pgl::Convex<Point>;
+    using Number = typename Point::NumberType;
+    const Convex c(std::vector<Point>{{Number(0), Number(0)},
+                                      {Number(4), Number(0)},
+                                      {Number(1), Number(3)}});
+    const auto k = c.smallestEnclosingRectangle();
+    static_assert(std::is_same_v<decltype(k), const pgl::HalfplaneIntersection<Point>>);
+    REQUIRE(k.size() == 4);
+    REQUIRE(k.isBounded());
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        CHECK(k.contains(c[i]));
+    }
+    // Twice the triangle's area, whatever the coordinate type.
+    CHECK(k.template area<double>() == doctest::Approx(12.0));
+}
+
 
 TEST_CASE("Convex hashing is consistent and cached across mutations") {
     using Point = pgl::Point<int>;

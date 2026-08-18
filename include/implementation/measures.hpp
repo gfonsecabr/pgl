@@ -1,10 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <type_traits>
-#include <vector>
 
 #include "implementation/minkowski.hpp"
 #include "implementation/orientation.hpp"
@@ -723,22 +721,25 @@ constexpr Segment<PointType> Convex<PointType, LabelType>::diameter() const {
 }
 
 template <class PointType, class LabelType>
-template <class ResultNumber>
-constexpr Convex<Point<ResultNumber>>
+constexpr HalfplaneIntersection<PointType>
 Convex<PointType, LabelType>::smallestEnclosingRectangle() const {
-    using ResultPoint = Point<ResultNumber>;
-    using ResultConvex = Convex<ResultPoint>;
     const std::size_t n = size();
     if (n < 3) {
         // No area to enclose: the polygon (empty, a point, or a segment) is its
-        // own smallest enclosing rectangle, and its vertices are already stored
-        // in the canonical order the result needs.
-        return ResultConvex(*this);
+        // own smallest enclosing rectangle.
+        return asHalfplaneIntersection();
     }
 
     // Every quantity below is a difference between vertices, so the promoted
     // coordinate type only has to cover the extent of the polygon.
     using Coord = detail::promoted_number_t<NumberType>;
+    // Comparing two candidate areas is one degree past that, so it runs in a
+    // type that grows to hold its values: their products are integers for
+    // integral coordinates and fractions for rational ones. Floating-point
+    // coordinates keep computing in the promoted floating-point type.
+    using Wide = std::conditional_t<
+        std::floating_point<NumberType>, Coord,
+        std::conditional_t<RationalConcept<NumberType>, ERational, BigInt>>;
     struct Vec {
         Coord x, y;
     };
@@ -794,10 +795,10 @@ Convex<PointType, LabelType>::smallestEnclosingRectangle() const {
     // so the best of these n candidates is the answer. Measured in the frame of
     // edge i, the rectangle spans [low, high] along u and [0, height] along u
     // turned 90 degrees, all three scaled by |u|; its area is therefore
-    // (high - low) * height / (u * u).
-    std::size_t bestEdge = 0;
-    Vec bestEdgeVector{Coord(0), Coord(0)};
-    Coord bestLow(0), bestHigh(0), bestHeight(0), bestSquaredLength(1);
+    // (high - low) * height / (u * u), and two of those fractions are compared
+    // by cross-multiplication.
+    std::size_t bestEdge = 0, bestRight = 0, bestTop = 0, bestLeft = 0;
+    Wide bestWidth(0), bestHeight(0), bestSquaredLength(1);
     for (std::size_t i = 0; i < n; ++i) {
         const Vec u = edgeVector(i);
         advanceRight(u);
@@ -806,60 +807,42 @@ Convex<PointType, LabelType>::smallestEnclosingRectangle() const {
 
         const Coord low = dot(u, difference(left, i));
         const Coord high = dot(u, difference(right, i));
+        const Coord width = high - low;
         const Coord height = cross(u, difference(top, i));
         const Coord squaredLength = dot(u, u);
-        const Coord width = high - low;
-        const Coord bestWidth = bestHigh - bestLow;
 
-        // Comparing two such fractions cross-multiplies to degree six in the
-        // coordinates, well past what a promoted coordinate holds, so the
-        // comparison is made in the result type: exact by default.
-        const bool better =
-            i == 0 ||
-            detail::asNumber<ResultNumber>(width) *
-                    detail::asNumber<ResultNumber>(height) *
-                    detail::asNumber<ResultNumber>(bestSquaredLength) <
-                detail::asNumber<ResultNumber>(bestWidth) *
-                    detail::asNumber<ResultNumber>(bestHeight) *
-                    detail::asNumber<ResultNumber>(squaredLength);
-        if (better) {
+        const Wide wideWidth = detail::asNumber<Wide>(width);
+        const Wide wideHeight = detail::asNumber<Wide>(height);
+        const Wide wideSquaredLength = detail::asNumber<Wide>(squaredLength);
+        if (i == 0 || wideWidth * wideHeight * bestSquaredLength <
+                          bestWidth * bestHeight * wideSquaredLength) {
             bestEdge = i;
-            bestEdgeVector = u;
-            bestLow = low;
-            bestHigh = high;
-            bestHeight = height;
-            bestSquaredLength = squaredLength;
+            bestRight = right;
+            bestTop = top;
+            bestLeft = left;
+            bestWidth = wideWidth;
+            bestHeight = wideHeight;
+            bestSquaredLength = wideSquaredLength;
         }
     }
 
-    // Back to world coordinates: the corner at frame coordinates (s, t) is
-    // p[bestEdge] + (s * u + t * u.rotated90()) / (u * u).
-    const auto origin = (*this)[bestEdge];
-    const ResultNumber ux = detail::asNumber<ResultNumber>(bestEdgeVector.x);
-    const ResultNumber uy = detail::asNumber<ResultNumber>(bestEdgeVector.y);
-    const ResultNumber denominator = detail::asNumber<ResultNumber>(bestSquaredLength);
-    const auto corner = [&](const Coord& s, const Coord& t) {
-        const ResultNumber sr = detail::asNumber<ResultNumber>(s);
-        const ResultNumber tr = detail::asNumber<ResultNumber>(t);
-        return ResultPoint(
-            detail::asNumber<ResultNumber>(origin.x()) + (sr * ux - tr * uy) / denominator,
-            detail::asNumber<ResultNumber>(origin.y()) + (sr * uy + tr * ux) / denominator);
-    };
-    std::vector<ResultPoint> corners{corner(bestLow, Coord(0)), corner(bestHigh, Coord(0)),
-                                     corner(bestHigh, bestHeight), corner(bestLow, bestHeight)};
-
-    // Counterclockwise by construction; rotating the lexicographically smallest
-    // corner to the front completes the convex-polygon invariant.
-    std::rotate(corners.begin(), std::min_element(corners.begin(), corners.end()),
-                corners.end());
-    // A degenerate polygon — collinear vertices, only reachable through the
-    // trusted constructor — yields a rectangle of zero width or height, whose
-    // corners coincide in pairs. Vertices of a convex polygon are distinct.
-    corners.erase(std::unique(corners.begin(), corners.end()), corners.end());
-    if (corners.size() > 1 && corners.front() == corners.back()) {
-        corners.pop_back();
-    }
-    return ResultConvex(corners, true);
+    // The four supporting lines, each through the support it touches and along
+    // the flush edge or that edge turned 90 degrees, oriented so that the
+    // rectangle lies to the left. Nothing here divides, which is why the region
+    // is exact in NumberType while its corners are not.
+    const PointType base = (*this)[bestEdge];
+    const PointType tip = (*this)[next(bestEdge)];
+    const PointType along = tip - base;
+    const PointType across = along.rotated90();
+    const PointType topSupport = (*this)[bestTop];
+    const PointType rightSupport = (*this)[bestRight];
+    const PointType leftSupport = (*this)[bestLeft];
+    return HalfplaneIntersection<PointType>({
+        Halfplane<PointType>(base, tip),
+        Halfplane<PointType>(rightSupport, rightSupport + across),
+        Halfplane<PointType>(topSupport, topSupport - along),
+        Halfplane<PointType>(leftSupport, leftSupport - across),
+    });
 }
 
 // -----------------------------------------------------------------------------

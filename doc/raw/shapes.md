@@ -618,7 +618,7 @@ A convex polygon `c` has methods such as:
 - `c.empty()`: True only for a convex polygon with no vertex, which is the empty set of points: the default-constructed one, the hull of no points, and every convex-valued result that comes back empty.
 - `c.isUndefined()`: Always `false`: a degenerate convex polygon is always empty, a point, or a segment.
 - `c.centroid<ResultNumber>()`: Returns the centroid.
-- `c.smallestEnclosingRectangle<ResultNumber>()`: Returns the smallest-area rectangle containing the convex polygon. The rectangle is generally not axis-parallel (`c.bbox()` is the axis-parallel one), so it comes back as a `Convex` with four corners. Its corners divide by the squared length of the edge it rests on, so the caller picks the number type; the default keeps that division exact. A convex polygon with fewer than three vertices has no area to enclose and comes back unchanged.
+- `c.smallestEnclosingRectangle()`: Returns the smallest-area enclosing rectangle as a `HalfplaneIntersection` in the polygon's own number type. The rectangle is generally not axis-parallel (`c.bbox()` is the axis-parallel one) and its corners generally need fractions, but its four supporting lines do not: each runs through a vertex, along the flush edge or along that edge turned 90 degrees, so the defining coordinates reach about twice the extent of the polygon. Ask the region for the corners at the wanted precision, with `k.vertices<ResultNumber>()` or `k.asConvex<ResultNumber>()`. A convex polygon with fewer than three vertices comes back as its own region.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
 - `c.upperHull()`: Returns the upper monotone chain.
@@ -630,7 +630,7 @@ It knows how to convert itself to:
 
 If the convex polygon `c` has $n$ vertices, then:
 
-- `c.diameter()` and `c.smallestEnclosingRectangle()` take $O(n)$ time, each with a single rotating-calipers sweep.
+- `c.diameter()` and `c.smallestEnclosingRectangle()` take $O(n)$ time, each with a single rotating-calipers sweep. Comparing two candidate rectangle areas is degree six in the coordinates, so it runs in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
 - `c.intersects(s)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `c.intersects(c2)` takes $O(\min(n+m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
