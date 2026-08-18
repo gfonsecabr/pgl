@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "implementation/minkowski.hpp"
 #include "implementation/orientation.hpp"
@@ -718,6 +720,146 @@ constexpr Segment<PointType> Convex<PointType, LabelType>::diameter() const {
         }
     }
     return best;
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr Convex<Point<ResultNumber>>
+Convex<PointType, LabelType>::smallestEnclosingRectangle() const {
+    using ResultPoint = Point<ResultNumber>;
+    using ResultConvex = Convex<ResultPoint>;
+    const std::size_t n = size();
+    if (n < 3) {
+        // No area to enclose: the polygon (empty, a point, or a segment) is its
+        // own smallest enclosing rectangle, and its vertices are already stored
+        // in the canonical order the result needs.
+        return ResultConvex(*this);
+    }
+
+    // Every quantity below is a difference between vertices, so the promoted
+    // coordinate type only has to cover the extent of the polygon.
+    using Coord = detail::promoted_number_t<NumberType>;
+    struct Vec {
+        Coord x, y;
+    };
+
+    const auto next = [n](std::size_t v) { return v + 1 == n ? std::size_t{0} : v + 1; };
+    const auto difference = [this](std::size_t a, std::size_t b) {
+        const auto pa = (*this)[a];
+        const auto pb = (*this)[b];
+        return Vec{detail::asNumber<Coord>(pa.x()) - detail::asNumber<Coord>(pb.x()),
+                   detail::asNumber<Coord>(pa.y()) - detail::asNumber<Coord>(pb.y())};
+    };
+    const auto edgeVector = [&](std::size_t i) { return difference(next(i), i); };
+    const auto dot = [](const Vec& u, const Vec& w) { return u.x * w.x + u.y * w.y; };
+    const auto cross = [](const Vec& u, const Vec& w) { return u.x * w.y - u.y * w.x; };
+
+    // The rectangle flush with edge i rests on three further supports: the
+    // extreme vertex along the edge direction, the farthest vertex from the edge
+    // line, and the extreme vertex against the edge direction. Around a CCW
+    // boundary they appear in exactly that order after i, and as the edge
+    // direction turns they only move forward, which is what makes the sweep
+    // linear. Each objective is cyclically unimodal along the boundary, so
+    // walking forward while the next vertex is strictly better lands on it.
+    std::size_t right = 0;
+    std::size_t top = 0;
+    std::size_t left = 0;
+    const auto advance = [&](std::size_t& support, auto better) {
+        while (better(difference(next(support), support))) {
+            support = next(support);
+        }
+    };
+    const auto advanceRight = [&](const Vec& u) {
+        advance(right, [&](const Vec& step) { return dot(u, step) > 0; });
+    };
+    const auto advanceTop = [&](const Vec& u) {
+        advance(top, [&](const Vec& step) { return cross(u, step) > 0; });
+    };
+    const auto advanceLeft = [&](const Vec& u) {
+        advance(left, [&](const Vec& step) { return dot(u, step) < 0; });
+    };
+
+    // Seed the three supports for edge 0, each starting where the previous one
+    // stopped, since that is where its own ascent begins.
+    {
+        const Vec u = edgeVector(0);
+        advanceRight(u);
+        top = right;
+        advanceTop(u);
+        left = top;
+        advanceLeft(u);
+    }
+
+    // A minimum-area enclosing rectangle has a side flush with a polygon edge,
+    // so the best of these n candidates is the answer. Measured in the frame of
+    // edge i, the rectangle spans [low, high] along u and [0, height] along u
+    // turned 90 degrees, all three scaled by |u|; its area is therefore
+    // (high - low) * height / (u * u).
+    std::size_t bestEdge = 0;
+    Vec bestEdgeVector{Coord(0), Coord(0)};
+    Coord bestLow(0), bestHigh(0), bestHeight(0), bestSquaredLength(1);
+    for (std::size_t i = 0; i < n; ++i) {
+        const Vec u = edgeVector(i);
+        advanceRight(u);
+        advanceTop(u);
+        advanceLeft(u);
+
+        const Coord low = dot(u, difference(left, i));
+        const Coord high = dot(u, difference(right, i));
+        const Coord height = cross(u, difference(top, i));
+        const Coord squaredLength = dot(u, u);
+        const Coord width = high - low;
+        const Coord bestWidth = bestHigh - bestLow;
+
+        // Comparing two such fractions cross-multiplies to degree six in the
+        // coordinates, well past what a promoted coordinate holds, so the
+        // comparison is made in the result type: exact by default.
+        const bool better =
+            i == 0 ||
+            detail::asNumber<ResultNumber>(width) *
+                    detail::asNumber<ResultNumber>(height) *
+                    detail::asNumber<ResultNumber>(bestSquaredLength) <
+                detail::asNumber<ResultNumber>(bestWidth) *
+                    detail::asNumber<ResultNumber>(bestHeight) *
+                    detail::asNumber<ResultNumber>(squaredLength);
+        if (better) {
+            bestEdge = i;
+            bestEdgeVector = u;
+            bestLow = low;
+            bestHigh = high;
+            bestHeight = height;
+            bestSquaredLength = squaredLength;
+        }
+    }
+
+    // Back to world coordinates: the corner at frame coordinates (s, t) is
+    // p[bestEdge] + (s * u + t * u.rotated90()) / (u * u).
+    const auto origin = (*this)[bestEdge];
+    const ResultNumber ux = detail::asNumber<ResultNumber>(bestEdgeVector.x);
+    const ResultNumber uy = detail::asNumber<ResultNumber>(bestEdgeVector.y);
+    const ResultNumber denominator = detail::asNumber<ResultNumber>(bestSquaredLength);
+    const auto corner = [&](const Coord& s, const Coord& t) {
+        const ResultNumber sr = detail::asNumber<ResultNumber>(s);
+        const ResultNumber tr = detail::asNumber<ResultNumber>(t);
+        return ResultPoint(
+            detail::asNumber<ResultNumber>(origin.x()) + (sr * ux - tr * uy) / denominator,
+            detail::asNumber<ResultNumber>(origin.y()) + (sr * uy + tr * ux) / denominator);
+    };
+    std::vector<ResultPoint> corners{corner(bestLow, Coord(0)), corner(bestHigh, Coord(0)),
+                                     corner(bestHigh, bestHeight), corner(bestLow, bestHeight)};
+
+    // Counterclockwise by construction; rotating the lexicographically smallest
+    // corner to the front completes the convex-polygon invariant.
+    std::rotate(corners.begin(), std::min_element(corners.begin(), corners.end()),
+                corners.end());
+    // A degenerate polygon — collinear vertices, only reachable through the
+    // trusted constructor — yields a rectangle of zero width or height, whose
+    // corners coincide in pairs. Vertices of a convex polygon are distinct.
+    corners.erase(std::unique(corners.begin(), corners.end()), corners.end());
+    if (corners.size() > 1 && corners.front() == corners.back()) {
+        corners.pop_back();
+    }
+    return ResultConvex(corners, true);
 }
 
 // -----------------------------------------------------------------------------

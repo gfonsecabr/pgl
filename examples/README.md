@@ -31,12 +31,12 @@ Every example writes its figures into the current directory. [`example1.cpp`](ex
 <a href="example_helloworld.cpp"><img src="figures/example_helloworld.svg" width="100%"/></a>
 </td>
 <td width="50%" valign="top" align="center">
-<a href="example_mindisk.cpp"><img src="figures/example_mindisk.svg" width="100%"/></a>
+<a href="example_enclosing.cpp"><img src="figures/example_enclosing.svg" width="100%"/></a>
 </td>
 </tr>
 <tr>
 <td valign="top"><a href="example_helloworld.cpp"><code>example_helloworld.cpp</code></a> — Letters built from segments, rectangles, polylines, disks, convex polygons and a half-plane intersection, mixing integer and exact-rational coordinates on a single canvas.</td>
-<td valign="top"><a href="example_mindisk.cpp"><code>example_mindisk.cpp</code></a> — <a href="../doc/algorithms.md"><code>smallestEnclosingDisk</code></a> computes the minimum enclosing disk of integral points while keeping the integral coordinate type.</td>
+<td valign="top"><a href="example_enclosing.cpp"><code>example_enclosing.cpp</code></a> — <a href="../doc/algorithms.md"><code>smallestEnclosingDisk</code></a> and <a href="../doc/shapes.md#convex"><code>Convex::smallestEnclosingRectangle</code></a> compute the minimum disk and smallest-area rectangle enclosing a set of points.</td>
 </tr>
 
 <tr>
