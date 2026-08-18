@@ -11,6 +11,7 @@
  */
 
 #include <algorithm>
+#include <type_traits>
 #include <vector>
 
 
@@ -24,10 +25,17 @@ namespace pgl {
  * counterclockwise around @p p. Points that share an angular direction are
  * tied; the tie is broken by putting the points that are farther from @p p
  * first. With this convention, connecting the sorted points in order traces a
- * simple, star-shaped polygon whose kernel contains @p p.
+ * simple, star-shaped polygon whose kernel contains @p p. Points equal to @p p
+ * have no direction to sort by and end up last.
  *
  * The comparison relies only on the exact @ref orientationSign predicate and
  * squared distances, so it stays exact for integer coordinates.
+ *
+ * The points are first split by the horizontal line through @p p, which costs
+ * two coordinate comparisons each. Each part then spans half a turn, where the
+ * orientation sign alone already orders the directions, so the sort spends one
+ * orientation predicate per comparison instead of the three that comparing
+ * angles measured from the reference direction would take.
  *
  * @tparam Number Coordinate type of the points being sorted.
  * @tparam Label Label type of the points being sorted.
@@ -42,44 +50,61 @@ void sortAround(std::vector<Point<Number, Label>>& points,
     if (points.size() < 2)
         return;
 
+    // A point equal to p has no direction around it, and would compare tied
+    // with every other point. Park those at the end and sort the rest.
+    const auto first = points.begin();
+    const auto last = std::partition(first, points.end(),
+                                     [&p](const auto& q) { return q != p; });
+    if (last - first < 2)
+        return;
+
     // The smallest point defines the reference direction (angle zero).
-    const auto reference = *std::min_element(points.begin(), points.end());
+    const auto reference = *std::min_element(first, last);
 
-    // Classifies a point into the first angular half [0, pi) -> 0 or the
-    // second half [pi, 2pi) -> 1, measured counterclockwise from the
-    // reference direction. The half is the primary sort key, so a point at
-    // angle zero (the reference direction) always precedes a point at angle pi.
-    const auto half = [&reference, &p](const auto& q) -> int {
-        const auto side = orientationSign(p, reference, q);
-        if (side > 0)
-            return 0;
-        if (side < 0)
-            return 1;
-        // Collinear with the reference ray: split angle 0 from angle pi by the
-        // sign of the dot product between the two directions. Only that sign is
-        // read, so dotSign supplies it in the promoted coordinate type; the bare
-        // dot product would multiply in the coordinate type and could wrap.
-        return dotSign(reference - p, q - p) >= 0 ? 0 : 1;
+    // Splits off the directions in the half turn [0, pi) measured
+    // counterclockwise from the +x direction, that is the points above the
+    // horizontal line through p, ties on it broken by the side of p they fall
+    // on. The coordinates are promoted the way the orientation predicate
+    // promotes them, so the split and the sort agree on every direction.
+    using Compare = std::common_type_t<Number, CenterNumber>;
+    const auto firstHalf = [&p](const auto& q) {
+        const auto vertical = detail::strongOrder(detail::asNumber<Compare>(q.y()),
+                                                  detail::asNumber<Compare>(p.y()));
+        if (vertical != 0)
+            return vertical > 0;
+        return detail::strongOrder(detail::asNumber<Compare>(q.x()),
+                                   detail::asNumber<Compare>(p.x())) > 0;
     };
+    const auto middle = std::partition(first, last, firstHalf);
 
-    std::sort(points.begin(), points.end(),
-              [&](const auto& a, const auto& b) {
-        const int halfA = half(a);
-        const int halfB = half(b);
-        if (halfA != halfB)
-            return halfA < halfB;
-
-        // Same angular half: order by counterclockwise angle around p.
+    // Neither part spans more than half a turn, so within one of them the
+    // orientation sign is a consistent order on the directions.
+    const auto less = [&p](const auto& a, const auto& b) {
         const auto turn = orientationSign(p, a, b);
         if (turn > 0)
             return true;   // b is counterclockwise of a, so a has the smaller angle.
         if (turn < 0)
             return false;
 
-        // Same direction from p: the farther point comes first.
-        return p.template squaredDistance<CenterNumber>(a) >
-               p.template squaredDistance<CenterNumber>(b);
-    });
+        // Same direction from p: the farther point comes first. The distance
+        // is taken in the promoted type, so points carrying more precision
+        // than the center still compare exactly.
+        return p.template squaredDistance<Compare>(a) >
+               p.template squaredDistance<Compare>(b);
+    };
+    std::sort(first, middle, less);
+    std::sort(middle, last, less);
+
+    // The points now run counterclockwise from the +x direction: rotate the
+    // block sharing the reference direction to the front. The search compares
+    // directions alone, so it lands on the first point of that block rather
+    // than on the reference itself, which the distance tie-break may have put
+    // behind others pointing the same way.
+    const auto above = firstHalf(reference);
+    const auto start = std::lower_bound(
+        above ? first : middle, above ? middle : last, reference,
+        [&p](const auto& a, const auto& b) { return orientationSign(p, a, b) > 0; });
+    std::rotate(first, start, last);
 }
 
 namespace detail {

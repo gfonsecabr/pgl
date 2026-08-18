@@ -52,7 +52,7 @@ These functions use the same predicate conventions documented in
 
 ### Sorting points
 
-- `sortAround(points, p)` reorders `points` in place counterclockwise around the center `p`, starting from the lexicographically smallest point and breaking ties by putting farther points first. Connecting the result in order traces a simple star-shaped polygon whose kernel contains `p`. Relies only on exact orientation and squared-distance comparisons. Complexity $O(n \log n)$ for $n$ points.
+- `sortAround(points, p)` reorders `points` in place counterclockwise around the center `p`, starting from the lexicographically smallest point and breaking ties by putting farther points first. Points equal to `p` have no direction to sort by and end up last. Connecting the result in order traces a simple star-shaped polygon whose kernel contains `p`. Relies only on exact orientation and squared-distance comparisons. Splitting the points by the horizontal line through `p` leaves each part inside half a turn, where the orientation sign alone orders them, so one orientation predicate per comparison suffices. Complexity $O(n \log n)$ for $n$ points.
 
 - `hilbertSort(points)` reorders `points` in place along a Hilbert space-filling curve, so points close in the plane stay close in the sequence — a useful preprocessing step for incremental algorithms. Uses only coordinate comparisons (exact for integer coordinates). Complexity $O(n \log n)$ for $n$ points.
 
