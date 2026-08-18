@@ -216,7 +216,7 @@ support testing, benchmarking, and PDF export. We are grateful to their authors:
 - [doctest](https://github.com/doctest/doctest) by Viktor Kirilov — the unit-testing framework (MIT).
 - [PDFGen](https://github.com/AndreRenaud/PDFGen) by Andre Renaud — a trimmed port powers the `Canvas` PDF export (public domain / The Unlicense).
 - [plf_nanotimer](https://github.com/mattreecebentley/plf_nanotimer) by Matt Bentley — timing in the benchmark suite (zlib-style license).
-- Many AI have been used to write the code, including Claude, ChatGPT, and GitHub Copilot. We are grateful to their authors for making them available.
+- Many AI have been used to write the code, including Claude, ChatGPT, and GitHub Copilot.
 
 ## More Information
 
