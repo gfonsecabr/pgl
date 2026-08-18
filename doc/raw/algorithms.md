@@ -44,9 +44,9 @@ These functions use the same predicate conventions documented in
 
 ### Smallest enclosing disk
 
-- `smallestEnclosingDisk(V)` returns the unique smallest closed disk containing every point in the non-empty container `V`. It uses a randomized incremental algorithm with expected $O(n)$ time. Constructing a disk supported by two points divides coordinates by two, so all coordinates should be even when an integral type is used; otherwise integer division can truncate the result. An overload accepts a random-bit generator as its second argument when the caller needs control over the randomized order.
+- `smallestEnclosingDisk(V)` returns the unique smallest closed disk containing every point in the non-empty container `V`. It uses a randomized incremental algorithm with expected $O(n)$ time. Constructing a disk supported by two points divides coordinates by two, so all coordinates should be even when an integral type is used; otherwise integer division can truncate the result. The insertion order comes from a fixed seed, so the same input always yields the same disk; an overload accepts a random-bit generator as its second argument when the caller wants another order.
 
-- `Convex` offers the same computation as a method, since a disk containing the hull vertices contains the whole polygon: `c.smallestEnclosingDisk()`{Convex} returns the smallest disk containing the non-empty convex polygon `c`, and an overload takes a random-bit generator. The disk keeps the coordinate number type and drops labels, with the same caveat about even integral coordinates.
+- `Convex` offers the same computation as a method, since a disk containing the hull vertices contains the whole polygon: `c.smallestEnclosingDisk()`{Convex} returns the smallest disk containing the non-empty convex polygon `c`, and an overload takes a random-bit generator in place of the fixed default one. The disk keeps the coordinate number type and drops labels, with the same caveat about even integral coordinates.
 
 ### Closest pair of points
 

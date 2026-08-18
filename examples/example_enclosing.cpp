@@ -1,8 +1,8 @@
 // Computes the smallest disk and rectangle enclosing a set of integral
 // points and draws the result. All coordinates are even because
 // smallestEnclosingDisk divides by two when two points support the
-// result and retains the integral coordinate type. The rectangle is
-// tilted, so its corners are fractional, but its four supporting lines
+// disk and retains the integral coordinate type. The rectangle is
+// tilted and its corners are fractional, but its four supporting lines
 // are not: smallestEnclosingRectangle returns them as a half-plane
 // intersection, exact in the integral coordinate type.
 //
@@ -17,8 +17,8 @@ using Point = pgl::Point<int>;
 
 int main() {
     const std::vector<Point> points = {
-        {0, 2}, {4, 12}, {10, 4}, {16, 14}, {22, 6},
-        {18, -2}, {8, -4}, {12, 8}, {6, 2}, {16, 4},
+        {0, 2}, {4, 12}, {10, 4}, {16, 14}, {18, 10}, {18,8},
+        {18, -2}, {8, -4}, {12, 8}, {6, 2}, {16, 4}, {14,12},
     };
 
     const pgl::Disk<Point> disk = pgl::smallestEnclosingDisk(points);
@@ -37,7 +37,7 @@ int main() {
     canvas << pgl::stroke("#2dc535")
            << pgl::fill("#95fd93")
            << pgl::fillOpacity("25%")
-           << rect.asConvex<pgl::ERational>();
+           << rect;
 
     canvas << pgl::stroke("#991b1b")
            << pgl::fill("#dc2626")

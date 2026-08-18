@@ -154,8 +154,9 @@ smallestEnclosingDisk(const Container& input, UniformRandomBitGenerator&& genera
 /**
  * @brief Computes the smallest closed disk containing a set of points.
  *
- * This overload creates a random generator for the randomized incremental
- * order. See the generator-taking overload for result and complexity details.
+ * This overload supplies the generator for the randomized incremental order,
+ * from a fixed seed, so the same input always yields the same disk. See the
+ * generator-taking overload for result and complexity details.
  *
  * @warning Constructing a disk from two support points divides coordinates by
  *          2. If an integral coordinate type is used, all input coordinates
@@ -164,7 +165,11 @@ smallestEnclosingDisk(const Container& input, UniformRandomBitGenerator&& genera
 template <class Container>
 [[nodiscard]] detail::min_disk_result_t<Container>
 smallestEnclosingDisk(const Container& input) {
-    std::mt19937 generator(std::random_device{}());
+    // Stable across runs: callers wanting another insertion order can use the
+    // generator-taking overload. The shuffle still randomizes the order for any
+    // given input, which is what the expected linear time needs; only an input
+    // built against this seed can force the worst case.
+    std::mt19937 generator(0x50474cU);  // "PGL"
     return smallestEnclosingDisk(input, generator);
 }
 
