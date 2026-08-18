@@ -555,6 +555,7 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.center<ResultNumber>()`: Returns the center point.
 - `d.diameter<ResultNumber>()`: Returns a diameter `Segment`. A center/radius disk uses its stored horizontal diameter; a genuine three-point disk uses one boundary point and its reflection across the center.
 - `d.minkowskiSum<ResultNumber = double>(d2)`: Returns the [Minkowski sum](shape_methods.md#minkowski-sum) of two disks, which is a `Disk`: the centers add and so do the radii. This  onesum is not always exact: each radius is a square root of what a disk stores. Two center/radius disks carry both quantities exactly, so their sum with an exact `ResultNumber` is exact.
+- `d.minkowskiErosion<ResultNumber = double>(d2)`: Returns the [Minkowski erosion](shape_methods.md#minkowski-erosion) of two disks, which is a `Disk` when there is one: the centers subtract and so do the radii. The result is a `std::optional`, empty when `d2` is the wider disk and no translation of it fits. Exact under the same condition the sum is.
 - Other methods:
 
 

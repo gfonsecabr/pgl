@@ -1411,6 +1411,33 @@ struct OrientedLine {
         requires MinkowskiSummableConcept<OrientedLine<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
+    /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A line erodes to itself when the operand is parallel to it, and to
+     * nothing otherwise.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<OrientedLine<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
     /** @brief Translates the oriented line by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr OrientedLine& operator+=(const OtherPoint& translation);

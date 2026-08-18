@@ -1471,6 +1471,79 @@ struct Disk {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A disk erodes to a disk, by an operand that is one.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Disk<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Minkowski erosion of this disk by another (A ⊖ B), a
+     *        disk when there is one.
+     *
+     * The mirror of @ref minkowskiSum(const OtherDisk&) const, and the same one
+     * curved pair the library can answer: the centres subtract and so do the
+     * radii, since a support function subtracts under the erosion exactly as it
+     * adds under the sum. The operand is the wider disk exactly when the
+     * difference of radii is negative, and then nothing fits: that is the
+     * `std::nullopt`, the typed spelling of an empty result for a shape with no
+     * empty state.
+     *
+     * **This one is not exact by default, and cannot be**, for the reason
+     * @ref minkowskiSum(const OtherDisk&) const gives: a disk stores three
+     * boundary points, so each radius is a square root of a stored quantity.
+     * @p ResultNumber therefore defaults to `double`, and a disk built from a
+     * centre and a radius is the common case that stays exact.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @param other The disk to erode by.
+     * @return The erosion as a disk, or `std::nullopt` when the operand is
+     *         wider than this disk.
+     * @warning Takes a square root unless both disks were created from a centre
+     *          and a radius.
+     */
+    template <class ResultNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] std::optional<Disk<Point<ResultNumber, PointLabelType>>>
+    minkowskiErosion(const OtherDisk& other) const;
+
+    /**
+     * @brief Returns the Minkowski erosion of this disk by a half-plane (A ⊖ B),
+     *        which is empty.
+     *
+     * A half-plane is unbounded and a disk is not, so no translate of one fits
+     * inside one: the pair whose erosion is the empty set by its types alone,
+     * which is why it is the one erosion that answers with an
+     * @ref EmptyShape. The sum of the same pair is the half-plane itself; see
+     * @ref minkowskiSum(const OtherHalfplane&) const.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @param other The half-plane to erode by.
+     * @return The empty shape.
+     */
+    template <class ResultNumber = double, HalfplaneConcept OtherHalfplane>
+    [[nodiscard]] EmptyShape<Point<ResultNumber, PointLabelType>>
+    minkowskiErosion(const OtherHalfplane& other) const;
+
+    /**
      * @brief Returns the Minkowski sum of the two disks (A ⊕ B), a disk.
      *
      * The one pair of curved operands the library can answer: the centers add

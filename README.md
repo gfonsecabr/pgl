@@ -143,7 +143,7 @@ Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 - **Convex hull** computed with Graham scan.
 - Line segment intersection: **Bentley-Ottmann sweep line** using rational numbers.
-- **Minkowski sum** and **boolean operations**.
+- **Minkowski sum**, **Minkowski erosion** and **boolean operations**.
 - **Visibility** graph and visibility polygon.
 - Find the **closest pair** of points using divide and conquer.
 - Smallest **enclosing disk and rectangle**.

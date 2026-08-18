@@ -1728,6 +1728,60 @@ struct Triangle {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A triangle erodes to the region its three constraints leave once each is
+     * moved in.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Triangle<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Minkowski erosion of this shape by a bounded polygonal
+     *        one (A ⊖ B).
+     *
+     * The pairs @ref MinkowskiSummableConcept turns away, which are exactly the
+     * ones whose *sum* needs a region: a sum sweeps the operand's concavity into
+     * its answer, so it is the operand that decides the result type, and
+     * @ref minkowskiSum hands the pair over to it.
+     *
+     * An erosion reads the operand only through its support function, and a
+     * support function sees no further than the convex hull -- `A ⊖ B` is
+     * `A ⊖ hull(B)` for a convex `A`. So this shape keeps the pair and answers
+     * it with the same convex region it erodes to by any other operand, at a
+     * cost linear in the two sizes: a `Polygon`, a `PolygonWithHoles`, a
+     * `PolygonSet`, a `Polyline` and a `MonotoneChain` are all as cheap here as
+     * their vertex count.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, as a @ref HalfplaneIntersection -- the whole plane
+     *         when @p other covers no point.
+     */
+    template <class OtherShape>
+        requires (!MinkowskiSummableConcept<Triangle<PointType_, TLabel>, OtherShape> &&
+                  BoundedPolygonalConcept<OtherShape>)
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
+    /**
      * @brief Returns the regularized Minkowski sum of the two shapes (A ⊕ B).
      *
      * The pairs @ref MinkowskiSummableConcept rejects are exactly the ones whose
