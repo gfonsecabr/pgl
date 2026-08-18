@@ -9,8 +9,10 @@ Pangolin's performance benchmarks live here. There are two kinds:
    shape1 × size1 × shape2 × size2 × method × number-type
    ```
 
-   times it over 100×100 random shape pairs, and compares the aggregate result
-   against the exact `ERational` baseline so a type that disagrees can be flagged.
+   times it over 100×100 random shape pairs — 30×30 when either operand carries
+   more than six vertices, since those calls cost microseconds to milliseconds —
+   and compares the aggregate result against the exact `ERational` baseline so a
+   type that disagrees can be flagged.
    No hand-written suite files — the shapes, sizes, methods and types are just
    lists at the top of the script.
 
@@ -39,7 +41,7 @@ bash tests/benchmark/record.sh --no-push       # commit locally, don't push
 
 It refuses to run with uncommitted changes to tracked files, so every
 measurement maps to a real commit (the dashboard's x-axis is the commit date).
-Override the compiler/flags as usual: `CXX=g++ CXXFLAGS="-std=c++23 -O3" …`.
+Override the compiler/flags as usual: `CXX=g++ CXXFLAGS="-std=c++23 -O2" …`.
 
 > The full cube is ~256 shape-size pairs × 18 methods × 5 number types — many
 > thousands of programs to compile. Compilation is parallelised across all cores

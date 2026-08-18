@@ -8,6 +8,7 @@
 #   bash tests/benchmark/record.sh --extra-only        # only the extra benchmarks
 #   bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
 #   bash tests/benchmark/record.sh --focus Polygon     # Polygon vs everything (row+col)
+#   bash tests/benchmark/record.sh --rev 3fbc199       # an old library, today's benchmarks
 #
 # Refuses to run with uncommitted changes to tracked files, so every measurement
 # maps to a real commit — the dashboard's x-axis is the commit date, not the run
@@ -19,7 +20,17 @@
 #   --pairs-only / --extra-only   run only one half
 #   --repetitions N               samples per program; median kept (default: 3)
 #   --no-push                     commit locally but do not push
-# Override the compiler/flags as usual:  CXX=g++ CXXFLAGS="-std=c++23 -O3" ...
+#   --rev COMMIT                  measure an older library version. The commit is
+#                                 checked out into a throwaway worktree, today's
+#                                 benchmarks are run against its headers, and the
+#                                 results are recorded under that commit — so a
+#                                 backfilled point is comparable with the ones
+#                                 recorded from here on, which a run of the old
+#                                 benchmarks would not be. This worktree is never
+#                                 modified. Cells the old headers cannot compile
+#                                 are reported and skipped, so filling in a very
+#                                 old commit may leave holes.
+# Override the compiler/flags as usual:  CXX=g++ CXXFLAGS="-std=c++23 -O2" ...
 
 set -Eeuo pipefail
 
@@ -31,6 +42,7 @@ pairs=1
 extra=1
 push=1
 repetitions=3
+rev=""
 pair_args=()
 
 while [[ $# -gt 0 ]]; do
@@ -40,6 +52,8 @@ while [[ $# -gt 0 ]]; do
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
         --repetitions=*) repetitions="${1#*=}"; shift ;;
+        --rev)        rev="$2"; shift 2 ;;
+        --rev=*)      rev="${1#*=}"; shift ;;
         --shapes|--focus|--sizes|--sizes-a|--sizes-b|--methods|--types)
             pair_args+=("$1" "$2"); shift 2 ;;
         --shapes=*|--focus=*|--sizes=*|--sizes-a=*|--sizes-b=*|--methods=*|--types=*)
@@ -61,7 +75,7 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
 fi
 
 CXX="${CXX:-c++}"
-CXXFLAGS="${CXXFLAGS:--std=c++23 -O3 -DNDEBUG}"
+CXXFLAGS="${CXXFLAGS:--std=c++23 -O2 -DNDEBUG}"
 jobs="$(nproc 2>/dev/null || echo 1)"
 export CXX CXXFLAGS
 
@@ -70,10 +84,47 @@ extra_json="build/tests/benchmark/extra/extra.json"
 
 history_args=()
 
+# ── Optionally measure an older library version ──────────────────────────────
+# Both runners take everything from their own location: include/ is their script
+# directory's project root, and the commit they tag results with is HEAD there.
+# So checking the old commit out into a throwaway worktree and copying today's
+# harness over its tests/benchmark measures old headers with new benchmarks,
+# recorded under the old commit. Running the old harness instead would be the
+# easier thing to do and the wrong one — its shapes, sample sizes and flags are
+# not today's, so the point would not line up with anything recorded since.
+#
+# The snapshot JSONs and the history stay here: --output is resolved against the
+# current directory, which is this worktree's root, and to_history.py runs from
+# here too, so the throwaway worktree only ever supplies headers.
+bench_root="$root"
+if [[ -n "$rev" ]]; then
+    if ! rev_commit="$(git rev-parse --verify --short "${rev}^{commit}" 2>/dev/null)"; then
+        echo "error: '$rev' is not a commit." >&2
+        exit 1
+    fi
+    tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/pgl-bench-XXXXXX")"
+    bench_root="$tmp_root/worktree"
+    cleanup_worktree() {
+        git worktree remove --force "$bench_root" >/dev/null 2>&1 || true
+        rm -rf "$tmp_root"
+    }
+    trap cleanup_worktree EXIT
+    git worktree add --detach --quiet "$bench_root" "$rev_commit"
+    # Today's harness over the old one: the runners, the shape generators, the
+    # timer header and the whole-algorithm drivers. Everything else in the
+    # worktree — include/ above all — stays as that commit left it.
+    mkdir -p "$bench_root/tests/benchmark/extra"
+    cp tests/benchmark/*.py tests/benchmark/*.hpp tests/benchmark/*.h \
+       "$bench_root/tests/benchmark/"
+    cp tests/benchmark/extra/*.cpp "$bench_root/tests/benchmark/extra/"
+    echo "Measuring $rev_commit ($(git log -1 --format=%s "$rev_commit")) with today's benchmarks."
+    echo
+fi
+
 # ── Run the shape-pair cube ──────────────────────────────────────────────────
 if [[ "$pairs" -eq 1 ]]; then
     echo "::group::Shape-pair cube"
-    python3 tests/benchmark/run_shapepairs.py \
+    python3 "$bench_root/tests/benchmark/run_shapepairs.py" \
         --jobs "$jobs" --repetitions "$repetitions" \
         --output "$pairs_json" "${pair_args[@]}"
     echo "::endgroup::"
@@ -84,7 +135,7 @@ fi
 # ── Run the whole-algorithm extra benchmarks ─────────────────────────────────
 if [[ "$extra" -eq 1 ]]; then
     echo "::group::Extra benchmarks"
-    python3 tests/benchmark/run_extra.py \
+    python3 "$bench_root/tests/benchmark/run_extra.py" \
         --repetitions "$repetitions" --output "$extra_json"
     echo "::endgroup::"
 else
@@ -107,7 +158,7 @@ if git diff --cached --quiet; then
     exit 0
 fi
 
-git commit -m "Benchmark"
+git commit -m "Benchmark${rev:+ $rev_commit}"
 if [[ "$push" -eq 1 ]]; then
     git push
     echo "History committed and pushed."

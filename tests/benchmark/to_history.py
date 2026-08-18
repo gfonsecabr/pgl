@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -54,12 +55,21 @@ def canon_type(label: str) -> str:
 
 
 def commit_date(commit: str) -> str:
+    """The commit date in UTC, strict ISO 8601.
+
+    In UTC rather than the committer's own zone so that every record carries the
+    same offset: the dashboard orders a series by comparing these as plain
+    strings, which is chronological only while the offset is shared. `%cI` would
+    give local time, so ask for `%cd` — the one that honours --date — with the
+    -local suffix, and pin that "local" to UTC through the environment.
+    """
     if not commit or commit == "unknown":
         return ""
     try:
         return subprocess.check_output(
-            ["git", "show", "-s", "--format=%cI", commit],
-            text=True, stderr=subprocess.DEVNULL).strip()
+            ["git", "show", "-s", "--format=%cd", "--date=iso-strict-local", commit],
+            text=True, stderr=subprocess.DEVNULL,
+            env={**os.environ, "TZ": "UTC"}).strip()
     except Exception:
         return ""
 

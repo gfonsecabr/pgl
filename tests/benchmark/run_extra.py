@@ -8,7 +8,7 @@ each is a self-contained driver that prints a small tab-separated table
     Operation<TAB>Number<TAB>Result<TAB>Time(<unit>)
     intersections   ERational   12345   3.21
 
-This script compiles each one with -O3 -DNDEBUG, runs it (optionally several
+This script compiles each one with -O2 -DNDEBUG, runs it (optionally several
 times, keeping the median time per operation), parses that table, and writes a
 snapshot JSON consumed by to_history.py.
 
@@ -22,7 +22,7 @@ Options:
     --output FILE       JSON output (default: build/tests/benchmark/extra.json)
     --build-dir DIR     Build root  (default: build/tests/benchmark/extra)
     --cxx CXX           Compiler    (default: $CXX or c++)
-    --cxxflags FLAGS    Flags       (default: $CXXFLAGS or -std=c++23 -O3 -DNDEBUG)
+    --cxxflags FLAGS    Flags       (default: $CXXFLAGS or -std=c++23 -O2 -DNDEBUG)
     --repetitions N     Runs per program; median time kept (default: 1)
 """
 from __future__ import annotations
@@ -98,7 +98,7 @@ def main() -> int:
     ap.add_argument("--build-dir", dest="build_dir", default=None)
     ap.add_argument("--cxx", default=os.environ.get("CXX", "c++"))
     ap.add_argument("--cxxflags",
-                    default=os.environ.get("CXXFLAGS", "-std=c++23 -O3 -DNDEBUG"))
+                    default=os.environ.get("CXXFLAGS", "-std=c++23 -O2 -DNDEBUG"))
     ap.add_argument("--repetitions", type=int, default=1)
     args = ap.parse_args()
 
