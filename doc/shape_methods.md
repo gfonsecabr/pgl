@@ -26,6 +26,7 @@ The following methods apply to many shapes and fall into several groups:
 - [Intersection](#intersection) constructs literal point-set intersections.
 - [Boolean Operations](#boolean-operations) construct regularized operations on regions.
 - [Minkowski Sum](#minkowski-sum) adds every point of one shape to every point of another.
+- [Minkowski Erosion](#minkowski-erosion) keeps the placements of one shape that stay inside another.
 - [Other Methods for Shapes](#other-methods-for-shapes) covers measurements, bounding boxes, rotations, and related helpers.
 - [Iterating](#iterating) traverses vertices and edges, including through [indexed access](#indexed-access).
 
@@ -259,6 +260,54 @@ grown.asConvex<int>();                                // Convex[(0,0),(5,0),(5,2
 A connected, bounded polygonal sum involving a nonconvex operand generally needs a [`PolygonWithHoles`](shapes.md#polygon-with-holes). One exception is a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") summed with a nondegenerate convex operand, which returns a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."); a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") operand instead requires a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") result.
 
 One region is guaranteed when at least one operand is a body: the closure of a connected, nonempty interior. A polygon with holes can fail that condition when a hole shares edges with the outer polygon and creates slits. A degenerate operand, such as a [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") collapsed to a segment, is permitted when the other operand satisfies the body condition; if neither operand does, the single-region guarantee does not apply.
+
+
+### Minkowski Erosion
+
+The Minkowski erosion of a shape by another is the set of translations of the second that keep it inside the first, $A \ominus B = \{x : x \oplus B \subseteq A\} = \bigcap_{b \in B} (A - b)$. It is written `a.minkowskiErosion(b)` and is defined for exactly the pairs [`minkowskiSum`](#minkowski-sum) is defined for. Unlike the sum it is **not commutative**: `a.minkowskiErosion(b)` and `b.minkowskiErosion(a)` are different questions.
+
+A **convex receiver** is an intersection of half-planes, and eroding it moves each of them in by the operand's support point in that direction — one clamp per constraint, in time linear in the two sizes. The half-planes stay on the operands' lattice, but their crossings need not, so the result is a [`HalfplaneIntersection`](shapes.md#halfplane-intersection), which represents a two-dimensional region, a segment, a point, the empty set and the whole plane alike. Ask it for `asConvex<ResultNumber>()` to get the vertices.
+
+```c++
+pgl::Triangle<> tri(0,0, 2,0, 0,3);
+auto shrunk = tri.minkowskiErosion(pgl::Segment(0,0, 0,1));
+shrunk.asConvex<pgl::ERational>();                    // Convex[(0,0),(4/3,0),(0,2)]
+```
+
+Because only the operand's *support function* is read, and a support function sees no further than the convex hull, a convex erodes by a non-convex operand at no extra cost and with the same answer its hull gives. That is why a convex shape keeps the pairs whose sum it forwards to a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices.") or a region.
+
+```c++
+pgl::Rectangle<> box(0,0, 10,10);
+pgl::Polygon<> ell({{0,0},{4,0},{4,1},{1,1},{1,4},{0,4}});
+box.minkowskiErosion(ell) == box.minkowskiErosion(ell.convexHull());   // true
+```
+
+Two pairs have a tighter answer. Two rectangles erode to a [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") — the minima and the maxima subtract — and a [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.") eroded by anything bounded is that same half-plane moved in.
+
+```c++
+pgl::Rectangle(0,0, 10,10).minkowskiErosion(pgl::Rectangle(0,0, 3,2));  // [(0,0),(7,8)]
+pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
+up.minkowskiErosion(pgl::Rectangle(2,3, 5,7));        // y >= -3
+```
+
+An **unbounded operand** fits inside no bounded receiver, and the clamp says so: the support in a direction the operand recedes through is infinite, so that constraint admits nothing and the erosion is empty. An unbounded *receiver* erodes like any other: a line survives only an operand parallel to it, and a half-plane survives a line, a ray or a half-plane parallel to its own boundary.
+
+A **non-convex receiver** — a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."), a [`PolygonWithHoles`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonWithHoles.html "Closed region bounded by one outer simple polygon minus disjoint polygonal holes."), a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors."), a [`Polyline`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polyline.html "Open polygonal chain stored in traversal order; may self-intersect.") or a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") — returns a [`PolygonSet`](shapes.md#polygon-set), because an erosion disconnects what it shrinks: a dumbbell eroded by anything taller than its handle is two regions, for operands that are in no way degenerate. This is where the sum's single-region guarantee has no counterpart. The result is *regularized*, `closure((A ⊖ B)°)`, as the [boolean operations](#boolean-operations) are, so material an erosion thins to a curve — a corridor exactly as wide as its operand — is dropped rather than represented, and a receiver with no area erodes to the empty set. As everywhere else, the coordinate type is the caller's, defaulting to `division_result_t`.
+
+```c++
+pgl::Polygon<> u({{0,0},{6,0},{6,6},{4,6},{4,2},{2,2},{2,6},{0,6}});   // a U
+auto eroded = u.minkowskiErosion(pgl::Rectangle(0,0, 1,1));            // a PolygonSet
+eroded.component(0).outer();     // [(0,0),(5,0),(5,5),(4,5),(4,1),(1,1),(1,5),(0,5)]
+u.minkowskiErosion<int>(pgl::Rectangle(0,0, 1,1));                     // integer coordinates
+```
+
+Two [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.")s erode to a [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") — the centers subtract and so do the radii — reported as a `std::optional` that is empty when the operand is the wider disk, since a disk has no empty state of its own. A [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.") eroded by a [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") slides in by the radius along its own normal, where the sum slides it out. Both take a square root unless the disks were built from a center and a radius, so `ResultNumber` defaults to `double` as it does for the disk sum.
+
+```c++
+pgl::Disk a(pgl::Point(0,0), 5), b(pgl::Point(4,1), 2);
+a.minkowskiErosion(b);                 // center (-4,-1), radius 3
+b.minkowskiErosion(a);                 // std::nullopt
+```
 
 
 ### Other Methods for Shapes

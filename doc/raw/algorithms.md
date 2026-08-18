@@ -109,7 +109,7 @@ The same three classes answer the following queries for one query point $p$ in t
 All methods use *triangular expansion*: the domain is triangulated once, then each vertex or query point runs a single traversal of the mesh carrying a cone of still unobstructed directions that every crossed diagonal clips, at a cost proportional to the part of the domain that vertex actually sees.
 
 
-### Boolean Operations and Minkowski Sum
+### Boolean Operations, Minkowski Sum and Erosion
 
 Boolean operations are documented in [`shape_methods.md`](shape_methods.md#boolean-operations). There is also the free function `regularizedUnionOf` to compute the regularized union of multiple shapes at once.
-Minkowski sum is documented in [`shape_methods.md`](shape_methods.md#minkowski-sum).
+Minkowski sum is documented in [`shape_methods.md`](shape_methods.md#minkowski-sum), and its dual, the Minkowski erosion, in [`shape_methods.md`](shape_methods.md#minkowski-erosion).

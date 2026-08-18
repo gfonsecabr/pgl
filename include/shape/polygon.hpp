@@ -2854,6 +2854,70 @@ struct Polygon {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A polygon eroded by a bounded operand needs a @ref PolygonSet, since an
+     * erosion can disconnect what it shrinks.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Polygon<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the regularized Minkowski erosion of this shape by a
+     *        bounded polygonal one (A ⊖ B), as a set of regions.
+     *
+     * The pairs @ref MinkowskiSummableConcept turns away, which for this
+     * receiver is every bounded operand: the erosion of a shape that is not
+     * convex is no more convex than it was, and it is not even connected --
+     * a dumbbell eroded by anything wider than its handle is two regions, for
+     * operands that are in no way degenerate. That is why this returns a
+     * @ref PolygonSet where @ref minkowskiSum returns one
+     * @ref PolygonWithHoles, and the difference is structural rather than a
+     * missing guarantee.
+     *
+     * The result is **regularized**, `closure((A ⊖ B)°)`, as the sum and the
+     * boolean operations are: an erosion produces thin material readily -- a
+     * corridor exactly as wide as the operand erodes to a curve -- and a set of
+     * regions holds none of it. A receiver with no area erodes to the empty set
+     * for the same reason.
+     *
+     * A convex receiver is answered by its own constraints in `O(a·b)`;
+     * everything else pays for a complement, a sum and a difference. See
+     * `implementation/minkowskierosion.hpp` for both constructions and their
+     * cost.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, as a @ref PolygonSet.
+     * @throws std::logic_error when @p other covers no point: that erosion is
+     *         the whole plane, which no set of bounded regions represents.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires (!MinkowskiSummableConcept<Polygon<PointType_, TLabel>, OtherShape> &&
+                  BoundedPolygonalConcept<OtherShape>)
+    [[nodiscard]] PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
+    minkowskiErosion(const OtherShape& other) const;
+
+    /**
      * @brief Translates the polygon by the given point.
      *
      * Complexity: O(1).

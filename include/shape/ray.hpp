@@ -1350,6 +1350,33 @@ struct Ray {
         requires MinkowskiSummableConcept<Ray<PointType_, TLabel>, OtherShape>
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
+    /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A ray erodes to a shorter ray, or to nothing when the operand reaches
+     * across it.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Ray<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
     /** @brief Translates the ray by the given point in place. */
     template<PointConcept OtherPoint>
     constexpr Ray& operator+=(const OtherPoint& translation);

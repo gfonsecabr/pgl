@@ -1258,6 +1258,52 @@ struct Halfplane {
     [[nodiscard]] constexpr auto minkowskiSum(const OtherShape& other) const;
 
     /**
+     * @brief Returns the Minkowski erosion of this shape by another (A ⊖ B).
+     *
+     * The erosion is the point set `{x : x ⊕ B ⊆ A}`, the translations of
+     * @p other that keep it inside this shape -- equivalently
+     * `⋂ {A - b : b ∈ B}`. It is the morphological dual of
+     * @ref minkowskiSum and is defined for the same pairs, but it is **not**
+     * commutative.
+     *
+     * Eroding by a `Point` is the translation by its negation, so it returns
+     * this shape's own type; the other pairs come back as the convex region
+     * they are, a @ref HalfplaneIntersection, which holds a lower-dimensional
+     * erosion and the empty one as readily as a two-dimensional one.
+     * A half-plane eroded by anything bounded is that same half-plane, moved
+     * in by the operand's support point.
+     *
+     * Eroding by a shape that covers no point is the whole plane, which a
+     * @ref HalfplaneIntersection returns and the tighter result types cannot.
+     *
+     * @tparam OtherShape Type of the shape to erode by.
+     * @param other Shape to erode by.
+     * @return The erosion, in the tightest type that represents it.
+     */
+    template <class OtherShape>
+        requires MinkowskiSummableConcept<Halfplane<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto minkowskiErosion(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the Minkowski erosion of this half-plane by a disk
+     *        (A ⊖ B), a half-plane.
+     *
+     * The mirror of @ref minkowskiSum(const OtherDisk&) const, and the same
+     * support point: the boundary keeps its direction and slides *in* by the
+     * disk's radius along the outward unit normal, where the sum slides it out.
+     * Both are square roots, so @p ResultNumber defaults to `double` here as it
+     * does there.
+     *
+     * @tparam ResultNumber Coordinate type of the result.
+     * @param other The disk to erode by.
+     * @return The erosion, as a half-plane.
+     * @warning Takes a square root of the boundary direction's length.
+     */
+    template <class ResultNumber = double, DiskConcept OtherDisk>
+    [[nodiscard]] Halfplane<Point<ResultNumber, typename PointType_::LabelType>>
+    minkowskiErosion(const OtherDisk& other) const;
+
+    /**
      * @brief Returns the Minkowski sum of this half-plane and a disk (A ⊕ B),
      *        a half-plane.
      *

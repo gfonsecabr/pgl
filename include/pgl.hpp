@@ -77,6 +77,7 @@
 #include "algorithm/arrangement.hpp"
 #include "implementation/booleans.hpp"
 #include "implementation/minkowskisum.hpp"
+#include "implementation/minkowskierosion.hpp"
 
 // -----------------------------------------------------------------------------
 // Exact convenience aliases
