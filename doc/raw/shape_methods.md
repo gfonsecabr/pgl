@@ -301,6 +301,8 @@ The policy is receiver-only: mixed-coordinate calls use the receiver's default. 
 
 - `fbox<T>()`: Returns a floating-point bounding box with coordinates of type `T`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
 
+- `convexHull()`{Polygon}: Returns the smallest convex polygon that contains the shape.
+
 - `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and `HalfplaneIntersection` default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; `Disk` defaults to `double` because its area contains π.
 
 - `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. `HalfplaneIntersection` uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.

@@ -516,6 +516,13 @@ struct Polyline {
     }
 
     /**
+     * @brief Returns the convex hull of the polyline's vertices.
+     */
+    constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(vertices());
+    }
+
+    /**
      * @brief Computes the bounding box of the polyline.
      *
      * The result is computed on the first call and cached in @ref bbox_; later

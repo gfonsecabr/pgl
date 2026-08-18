@@ -193,6 +193,8 @@ TEST_CASE("Triangle reports exact area, centroid, interior point, and bounding b
     const auto fbox = triangle.fbox<float>();
     CHECK(fbox.min() == pgl::Point<float>(0.0f, 0.0f));
     CHECK(fbox.max() == pgl::Point<float>(4.0f, 2.0f));
+
+    CHECK(triangle.convexHull() == triangle.asConvex());
 }
 
 TEST_CASE("Triangle exposes its longest side and basic angle classification helpers") {

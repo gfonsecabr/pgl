@@ -1681,6 +1681,15 @@ struct Segment {
     [[nodiscard]] constexpr std::array<PointType, 2> vertices() const;
 
     /**
+     * @brief Returns the convex hull of the segment's endpoints.
+     *
+     * @return A degenerate two-vertex convex polygon spanning the segment.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return Convex<PointType>(vertices());
+    }
+
+    /**
      * @brief Returns the unique boundary edge of the segment.
      *
      * @return Array containing this segment.

@@ -368,6 +368,15 @@ struct Point {
     [[nodiscard]] constexpr std::array<Point, 1> vertices() const;
 
     /**
+     * @brief Returns the convex hull of the point.
+     *
+     * @return A degenerate one-vertex convex polygon at this point.
+     */
+    [[nodiscard]] constexpr Convex<Point> convexHull() const {
+        return Convex<Point>(vertices());
+    }
+
+    /**
      * @brief Returns the point boundary edges.
      *
      * @return Empty array because a point has no edges.

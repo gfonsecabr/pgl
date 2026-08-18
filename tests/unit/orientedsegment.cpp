@@ -134,6 +134,9 @@ TEST_CASE("OrientedSegment exposes a bounding box, vertices, and edge views") {
     const auto oriented_edges = segment.orientedEdges();
     CHECK(oriented_edges.size() == 1);
     CHECK(oriented_edges[0] == segment);
+
+    const auto hull = segment.convexHull();
+    CHECK(hull == pgl::Convex<Point>({Point(2, 1), Point(4, 3)}));
 }
 
 TEST_CASE("OrientedSegment evaluates coordinates by delegating to Segment") {

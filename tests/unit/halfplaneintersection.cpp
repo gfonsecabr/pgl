@@ -175,6 +175,7 @@ TEST_CASE("Constructors from other shapes") {
         const Region k(convex);
         CHECK(k.size() == 4);
         CHECK(k.asConvex<int>() == convex);
+        CHECK(k.convexHull<int>() == convex);
     }
 
     SUBCASE("an empty convex polygon gives the empty region") {
@@ -296,6 +297,14 @@ TEST_CASE("Bounding boxes") {
         empty.insert(Halfplane(1, -1, 0, -1));
         CHECK_THROWS_AS((void)empty.bbox(), std::logic_error);
     }
+}
+
+TEST_CASE("convexHull mirrors asConvex: throws only when unbounded") {
+    CHECK_THROWS_AS((void)quadrant().convexHull(), std::logic_error);
+    CHECK_THROWS_AS((void)strip().convexHull(), std::logic_error);
+    CHECK_THROWS_AS((void)Region().convexHull(), std::logic_error);
+    // Unlike bbox, an empty (but bounded) region has a well-defined empty hull.
+    CHECK(Region(pgl::Convex<Point>{}).convexHull().empty());
 }
 
 TEST_CASE("asConvex") {

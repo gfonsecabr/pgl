@@ -303,6 +303,8 @@ The policy is receiver-only: mixed-coordinate calls use the receiver's default. 
 
 - `fbox<T>()`: Returns a floating-point bounding box with coordinates of type `T`. For shapes whose box comes from stored exact coordinates, conversions are rounded outward when the coordinate type supplies directed bounds. A disk's box is computed from its floating-point center and radius and is tight only up to floating-point rounding.
 
+- [`convexHull()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a1835b3ed57720892a452494a1554a352 "Returns the convex hull of the polygon's vertices."): Returns the smallest convex polygon that contains the shape.
+
 - `area<ResultNumber>()`: Returns the area. Rectangle and zero- or one-dimensional shapes default to `NumberType`; polygonal shapes and [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") default to `division_result_t<NumberType>` because they may divide by two or construct fractional vertices; [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") defaults to `double` because its area contains π.
 
 - `twiceArea()`: Returns two times the area in native arithmetic for stored shapes. [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") uses `twiceArea<ResultNumber = division_result_t<NumberType>>()`, because even its implicit vertices may require division.

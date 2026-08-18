@@ -670,6 +670,15 @@ struct Rectangle {
     }
 
     /**
+     * @brief Returns the convex hull of the rectangle's vertices.
+     *
+     * A rectangle is already convex, so this is @ref asConvex.
+     */
+    [[nodiscard]] constexpr Convex<PointType> convexHull() const {
+        return asConvex();
+    }
+
+    /**
      * @brief Returns the rectangle as a half-plane intersection.
      *
      * The region is the intersection of the four edge half-planes. A degenerate
