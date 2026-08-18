@@ -864,6 +864,32 @@ struct Convex {
     constexpr Segment<PointType> diameter() const;
 
     /**
+     * @brief Returns the smallest-area rectangle containing the convex polygon.
+     *
+     * A minimum-area enclosing rectangle always has one side flush with an edge
+     * of the polygon, so a single rotating-calipers sweep over the edges finds
+     * it: for each edge, three support vertices (the two extremes along the edge
+     * direction and the farthest one from the edge line) give the rectangle
+     * flush with that edge, and the sweep advances each support forward only.
+     *
+     * The rectangle is generally not axis-parallel, hence a @ref Convex rather
+     * than a @ref Rectangle. Its corners divide by the squared edge length, so
+     * the caller picks the result number type; the default keeps that division
+     * exact. Areas are compared in @p ResultNumber as well, so the default never
+     * overflows and never mistakes the minimum. Labels are dropped.
+     *
+     * A polygon with fewer than three vertices has no area to enclose: the
+     * result is a copy of the polygon itself (empty, a point, or a segment).
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam ResultNumber The number type for the corner coordinates.
+     * @return A counterclockwise convex polygon with the four rectangle corners.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr Convex<Point<ResultNumber>> smallestEnclosingRectangle() const;
+
+    /**
      * @brief Returns the smallest closed disk containing the convex polygon.
      *
      * Delegates to @ref pgl::smallestEnclosingDisk over the hull vertices,

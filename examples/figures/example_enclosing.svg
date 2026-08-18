@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <circle cx="404.116" cy="400" r="340.512" stroke="#2563eb" fill="#93c5fd" fill-opacity="25%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Disk((0,2)(13,-7)(22,6))</title></circle>
+  <polygon points="23,184.336 105.314,678.223 777,566.275 694.686,72.3886" stroke="#2dc535" fill="#95fd93" fill-opacity="25%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>Convex[(-56/37,410/37),(44/37,-190/37),(860/37,-54/37),(760/37,546/37)]</title></polygon>
+  <circle cx="69.0961" cy="460.913" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(0,2)</title></circle>
+  <circle cx="190.921" cy="156.349" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(4,12)</title></circle>
+  <circle cx="373.659" cy="400" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(10,4)</title></circle>
+  <circle cx="556.397" cy="95.4367" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(16,14)</title></circle>
+  <circle cx="739.135" cy="339.087" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(22,6)</title></circle>
+  <circle cx="617.31" cy="582.738" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(18,-2)</title></circle>
+  <circle cx="312.747" cy="643.651" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(8,-4)</title></circle>
+  <circle cx="434.572" cy="278.175" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(12,8)</title></circle>
+  <circle cx="251.834" cy="460.913" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(6,2)</title></circle>
+  <circle cx="556.397" cy="400" r="3" stroke="#991b1b" fill="#dc2626" fill-opacity="100%" stroke-opacity="1" stroke-width="2" vector-effect="non-scaling-stroke"><title>(16,4)</title></circle>
+</svg>
