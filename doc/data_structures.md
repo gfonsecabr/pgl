@@ -63,6 +63,12 @@ candidates, then applies the corresponding exact two-dimensional predicate.
 - `IntervalTree<Shape>(V)` inserts every shape in container `V`; [`insert(s)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a2f8d70f5f499a90566d2bf2d3bc4bf54 "Inserts shape and its selected closed bounding-box interval.")
   and [`erase(s)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a5232163e9152216e4602bfee044b5940 "Removes one stored shape equal to shape.") add and remove one equal stored shape while retaining
   red-black-tree balance. Equal projected intervals are stored independently.
+  An insertion takes $O(\log n)$ time. A removal instead tombstones the node
+  owning the shape, which stays in the tree, keeps it balanced, and matches
+  nothing from then on; the index is rebuilt only once tombstones outnumber the
+  live nodes, so a removal costs $O(\log n + k)$ amortized, where $k$ is the
+  number of stored intervals sharing the projected endpoints of the removed
+  shape. The stored shapes stay compact: only their order may change.
 
 - [`countProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a3e9f0fb15e803efb81b60a27bee3dadc "Counts shapes whose projected interval intersects the projection of q."), [`reportProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ae15ed226417c72c9acc097047b1e69eb "Returns copies of shapes whose projected interval intersects that of q."),
   [`visitProjectionsIntersecting(q, f)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4dbea883c9595f6b170f03abfba5fbeb "Visits projected-interval intersections, stopping early if fn returns true."), and [`emptyProjectionsIntersecting(q)`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4efb73d10446f444b0accf4097530670 "Returns whether no stored projected interval intersects the projection of q.")
@@ -86,8 +92,11 @@ receive them by const reference and may stop early by returning `true`, and
 [`has`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ac311ca8d07c24b2f8edc96676aa72dfd "Returns whether a shape equal to shape is stored."), [`size`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ac55a6eeebf7559e1f64933a9a9f45aae "Returns the number of stored shapes."), [`empty`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#ad88be49dab6c9f09d0d58e40a02df8a0 "Returns whether no shape is stored."), [`shapes`](https://gfonsecabr.github.io/pgl/classpgl_1_1IntervalTree.html#a4cb6798a11ec9ab0a74ef855e4d60c42 "Returns the stored shapes in internal storage order."), and const iterators provide container-like
 access. The tree is augmented with its subtree endpoint extrema, so irrelevant
 subtrees are pruned during both query families. Nodes use 32-bit identifiers
-and keep query data separate from insertion-only state; a tree can therefore
-hold at most `2^32 - 1` shapes.
+and keep query data separate from insertion-only state, and an identifier is
+also the index of the shape the node owns, tombstones being exactly the
+identifiers past the last stored shape. A tree therefore holds at most
+`2^32 - 2` nodes, shapes and tombstones together, so at least `2^31 - 1` shapes
+always fit.
 
 
 ### Triangulation

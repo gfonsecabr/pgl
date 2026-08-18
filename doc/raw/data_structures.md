@@ -61,6 +61,12 @@ candidates, then applies the corresponding exact two-dimensional predicate.
 - `IntervalTree<Shape>(V)` inserts every shape in container `V`; `insert(s)`
   and `erase(s)` add and remove one equal stored shape while retaining
   red-black-tree balance. Equal projected intervals are stored independently.
+  An insertion takes $O(\log n)$ time. A removal instead tombstones the node
+  owning the shape, which stays in the tree, keeps it balanced, and matches
+  nothing from then on; the index is rebuilt only once tombstones outnumber the
+  live nodes, so a removal costs $O(\log n + k)$ amortized, where $k$ is the
+  number of stored intervals sharing the projected endpoints of the removed
+  shape. The stored shapes stay compact: only their order may change.
 
 - `countProjectionsIntersecting(q)`, `reportProjectionsIntersecting(q)`,
   `visitProjectionsIntersecting(q, f)`, and `emptyProjectionsIntersecting(q)`
@@ -84,8 +90,11 @@ receive them by const reference and may stop early by returning `true`, and
 `has`, `size`, `empty`, `shapes`, and const iterators provide container-like
 access. The tree is augmented with its subtree endpoint extrema, so irrelevant
 subtrees are pruned during both query families. Nodes use 32-bit identifiers
-and keep query data separate from insertion-only state; a tree can therefore
-hold at most `2^32 - 1` shapes.
+and keep query data separate from insertion-only state, and an identifier is
+also the index of the shape the node owns, tombstones being exactly the
+identifiers past the last stored shape. A tree therefore holds at most
+`2^32 - 2` nodes, shapes and tombstones together, so at least `2^31 - 1` shapes
+always fit.
 
 
 ### Triangulation
