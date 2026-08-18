@@ -7,7 +7,6 @@
  * @brief Mutable one-dimensional interval tree over projected bounded shapes.
  */
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -53,8 +52,17 @@ template <class Fn, class Arg>
  * particular, `maxHigh` is the standard augmented interval-tree value used to
  * prune subtrees lying completely before an intersection query. Query fields
  * are stored separately from insertion-only parent/color state, and 32-bit
- * node IDs keep the hot representation compact. Consequently, one tree can
- * hold at most `2^32 - 1` shapes.
+ * node IDs keep the hot representation compact.
+ *
+ * Removal tombstones a node rather than unlinking it: the node keeps its place
+ * in the tree but owns no shape, so it stops matching queries, and the whole
+ * index is rebuilt only once tombstones outnumber live nodes. Removals are
+ * therefore logarithmic on average, and the node array never exceeds twice the
+ * number of stored shapes. A node ID still indexes the stored shapes directly:
+ * the live nodes are exactly the first `size()` slots, so a removal moves the
+ * last live node into the freed slot and the tombstone to the end. One tree
+ * can hold at most `2^32 - 2` nodes, shapes and tombstones together, so at
+ * least `2^31 - 1` shapes always fit.
  *
  * @tparam S Shape type exposing a finite `bbox()`.
  * @tparam Axis Coordinate used for the one-dimensional projection.
@@ -79,7 +87,9 @@ class IntervalTree {
 
     // Fields touched by range queries stay together in a compact array. Node
     // IDs also index elements_, so no element index or insertion serial is
-    // stored per node.
+    // stored per node; the IDs at least elements_.size() are the tombstones.
+    // `count` is the number of live nodes in the subtree, so a tombstone adds
+    // nothing to it and a subtree with `count == 0` can be skipped entirely.
     struct QueryNode {
         NumberType low{};
         NumberType high{};
@@ -139,6 +149,23 @@ class IntervalTree {
         return mutationNodes_[static_cast<std::size_t>(id)];
     }
 
+    // Live nodes own the shape stored at their own ID, and removals keep them
+    // packed in the first elements_.size() slots, so anything past that is a
+    // tombstone: still in the tree, matching nothing.
+    [[nodiscard]] bool live(NodeId id) const {
+        return static_cast<std::size_t>(id) < elements_.size();
+    }
+
+    [[nodiscard]] const ShapeType& shapeOf(NodeId id) const {
+        return elements_[static_cast<std::size_t>(id)];
+    }
+
+    // Every live node owns exactly one stored shape, so the nodes left over
+    // are the tombstones.
+    [[nodiscard]] std::size_t tombstones() const {
+        return nodes_.size() - elements_.size();
+    }
+
     [[nodiscard]] static Color colorOf(const IntervalTree& tree, NodeId id) {
         return id == invalidNode ? Color::black : tree.mutationNode(id).color;
     }
@@ -180,10 +207,13 @@ class IntervalTree {
         if (id == invalidNode) {
             return;
         }
+        // A tombstone still contributes its own endpoints to the extrema.
+        // Keeping them is conservative: pruning stays correct and merely loses
+        // a little sharpness until the next rebuild.
         QueryNode& n = node(id);
         n.minLow = n.maxLow = n.low;
         n.minHigh = n.maxHigh = n.high;
-        n.count = 1;
+        n.count = live(id) ? 1 : 0;
         for (const NodeId child : {n.left, n.right}) {
             if (child == invalidNode) {
                 continue;
@@ -204,8 +234,54 @@ class IntervalTree {
         }
     }
 
-    [[nodiscard]] NodeId allocateNode(const NumberType& low, const NumberType& high) {
-        if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
+    // Moves a node into a slot nothing refers to, repointing its parent and
+    // children. The tree keeps its shape and its augmented values; only the
+    // node's identity changes. That is safe precisely because the ID is a mere
+    // tie-break between equal intervals: every search orders by interval alone,
+    // so equal intervals stay a contiguous run whatever their IDs are, and a
+    // relabeled node stays inside its own run.
+    void relocateNode(NodeId from, NodeId to) {
+        nodes_[static_cast<std::size_t>(to)] = std::move(nodes_[static_cast<std::size_t>(from)]);
+        mutationNodes_[static_cast<std::size_t>(to)] =
+            mutationNodes_[static_cast<std::size_t>(from)];
+
+        const QueryNode& moved = node(to);
+        for (const NodeId child : {moved.left, moved.right}) {
+            if (child != invalidNode) {
+                mutationNode(child).parent = to;
+            }
+        }
+        const NodeId parent = mutationNode(to).parent;
+        if (parent == invalidNode) {
+            root_ = to;
+        } else if (node(parent).left == from) {
+            node(parent).left = to;
+        } else {
+            node(parent).right = to;
+        }
+    }
+
+    // Appends a slot and moves `from` into it. Nothing else changes if the
+    // growth throws.
+    NodeId relocateNodeToEnd(NodeId from) {
+        nodes_.push_back(QueryNode{});
+        try {
+            mutationNodes_.push_back(MutationNode{});
+        } catch (...) {
+            nodes_.pop_back();
+            throw;
+        }
+        const NodeId to = static_cast<NodeId>(nodes_.size() - 1);
+        relocateNode(from, to);
+        return to;
+    }
+
+    // Puts a fresh red node in `slot`, which is the element index of the shape
+    // it will own. That slot is either one past the last node or the first
+    // tombstone, which moves to the end to make room. One ID is left unused so
+    // that a removal always has a spare slot to swap two nodes through.
+    [[nodiscard]] NodeId allocateNode(const NumberType& low, const NumberType& high, NodeId slot) {
+        if (nodes_.size() + 1 >= static_cast<std::size_t>(invalidNode)) {
             throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
         }
 
@@ -213,14 +289,20 @@ class IntervalTree {
         fresh.low = fresh.minLow = fresh.maxLow = low;
         fresh.high = fresh.minHigh = fresh.maxHigh = high;
         fresh.count = 1;
-        nodes_.push_back(std::move(fresh));
-        try {
-            mutationNodes_.push_back(MutationNode{invalidNode, Color::red});
-        } catch (...) {
-            nodes_.pop_back();
-            throw;
+        if (static_cast<std::size_t>(slot) == nodes_.size()) {
+            nodes_.push_back(std::move(fresh));
+            try {
+                mutationNodes_.push_back(MutationNode{invalidNode, Color::red});
+            } catch (...) {
+                nodes_.pop_back();
+                throw;
+            }
+        } else {
+            relocateNodeToEnd(slot);
+            node(slot) = std::move(fresh);
+            mutationNode(slot) = MutationNode{invalidNode, Color::red};
         }
-        return static_cast<NodeId>(nodes_.size() - 1);
+        return slot;
     }
 
     void rotateLeft(NodeId x) {
@@ -304,8 +386,8 @@ class IntervalTree {
         mutationNode(root_).color = Color::black;
     }
 
-    void insertExisting(const NumberType& low, const NumberType& high) {
-        const NodeId z = allocateNode(low, high);
+    void insertExisting(const NumberType& low, const NumberType& high, NodeId slot) {
+        const NodeId z = allocateNode(low, high, slot);
 
         NodeId parent = invalidNode;
         NodeId current = root_;
@@ -330,6 +412,8 @@ class IntervalTree {
         updateUpward(z);
     }
 
+    // Discards the node structure, tombstones included, and rebuilds it by
+    // reinserting the surviving shapes in storage order.
     void rebuildFromElements() {
         nodes_.clear();
         mutationNodes_.clear();
@@ -338,7 +422,7 @@ class IntervalTree {
         root_ = invalidNode;
         for (std::size_t i = 0; i < elements_.size(); ++i) {
             const auto [low, high] = project(elements_[i]);
-            insertExisting(low, high);
+            insertExisting(low, high, static_cast<NodeId>(i));
         }
     }
 
@@ -384,7 +468,7 @@ class IntervalTree {
             if (!equivalent(n.low, low) || !equivalent(n.high, high)) {
                 break;
             }
-            if (elements_[static_cast<std::size_t>(id)] == shape) {
+            if (live(id) && shapeOf(id) == shape) {
                 return id;
             }
         }
@@ -427,7 +511,10 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
+        if (n.count == 0) {
+            return false;
+        }
+        if (live(id) && detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
         return visitAll(n.left, fn) || visitAll(n.right, fn);
@@ -440,14 +527,14 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (!mayIntersect(n, low, high)) {
+        if (n.count == 0 || !mayIntersect(n, low, high)) {
             return false;
         }
         if (allIntersect(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (intersects(n, low, high) &&
-            detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
+        if (live(id) && intersects(n, low, high) &&
+            detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
         return visitIntersecting(n.left, low, high, fn) ||
@@ -461,14 +548,14 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (!mayContain(n, low, high)) {
+        if (n.count == 0 || !mayContain(n, low, high)) {
             return false;
         }
         if (allContainedIn(n, low, high)) {
             return visitAll(id, fn);
         }
-        if (containedIn(n, low, high) &&
-            detail::invokeIntervalTreeVisitor(fn, elements_[static_cast<std::size_t>(id)])) {
+        if (live(id) && containedIn(n, low, high) &&
+            detail::invokeIntervalTreeVisitor(fn, shapeOf(id))) {
             return true;
         }
         return visitContainedIn(n.left, low, high, fn) ||
@@ -486,12 +573,14 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (!mayIntersect(n, low, high)) {
+        if (n.count == 0 || !mayIntersect(n, low, high)) {
             return false;
         }
-        const ShapeType& shape = elements_[static_cast<std::size_t>(id)];
-        if (shape.intersects(q) && detail::invokeIntervalTreeVisitor(fn, shape)) {
-            return true;
+        if (live(id)) {
+            const ShapeType& shape = shapeOf(id);
+            if (shape.intersects(q) && detail::invokeIntervalTreeVisitor(fn, shape)) {
+                return true;
+            }
         }
         return visitShapeIntersecting(n.left, low, high, q, fn) ||
                visitShapeIntersecting(n.right, low, high, q, fn);
@@ -504,12 +593,14 @@ class IntervalTree {
             return false;
         }
         const QueryNode& n = node(id);
-        if (!mayContain(n, low, high)) {
+        if (n.count == 0 || !mayContain(n, low, high)) {
             return false;
         }
-        const ShapeType& shape = elements_[static_cast<std::size_t>(id)];
-        if (q.contains(shape) && detail::invokeIntervalTreeVisitor(fn, shape)) {
-            return true;
+        if (live(id)) {
+            const ShapeType& shape = shapeOf(id);
+            if (q.contains(shape) && detail::invokeIntervalTreeVisitor(fn, shape)) {
+                return true;
+            }
         }
         return visitShapeContainedIn(n.left, low, high, q, fn) ||
                visitShapeContainedIn(n.right, low, high, q, fn);
@@ -522,14 +613,14 @@ class IntervalTree {
             return 0;
         }
         const QueryNode& n = node(id);
-        if (!mayIntersect(n, low, high)) {
+        if (n.count == 0 || !mayIntersect(n, low, high)) {
             return 0;
         }
         if (allIntersect(n, low, high)) {
             return n.count;
         }
-        return (intersects(n, low, high) ? 1 : 0) + countIntersecting(n.left, low, high) +
-               countIntersecting(n.right, low, high);
+        return (live(id) && intersects(n, low, high) ? 1 : 0) +
+               countIntersecting(n.left, low, high) + countIntersecting(n.right, low, high);
     }
 
     template <class Low, class High>
@@ -539,14 +630,14 @@ class IntervalTree {
             return 0;
         }
         const QueryNode& n = node(id);
-        if (!mayContain(n, low, high)) {
+        if (n.count == 0 || !mayContain(n, low, high)) {
             return 0;
         }
         if (allContainedIn(n, low, high)) {
             return n.count;
         }
-        return (containedIn(n, low, high) ? 1 : 0) + countContainedIn(n.left, low, high) +
-               countContainedIn(n.right, low, high);
+        return (live(id) && containedIn(n, low, high) ? 1 : 0) +
+               countContainedIn(n.left, low, high) + countContainedIn(n.right, low, high);
     }
 
   public:
@@ -596,13 +687,9 @@ class IntervalTree {
     /** @brief Inserts @p shape and its selected closed bounding-box interval. */
     void insert(const ShapeType& shape) {
         const auto [low, high] = project(shape);
-        if (nodes_.size() >= static_cast<std::size_t>(invalidNode)) {
-            throw std::length_error("IntervalTree exceeds its 32-bit node capacity");
-        }
-
         elements_.push_back(shape);
         try {
-            insertExisting(low, high);
+            insertExisting(low, high, static_cast<NodeId>(elements_.size() - 1));
         } catch (...) {
             elements_.pop_back();
             throw;
@@ -612,26 +699,56 @@ class IntervalTree {
     /**
      * @brief Removes one stored shape equal to @p shape.
      *
-     * Storage remains compact, so after removal the index is rebuilt from the
-     * surviving shapes. The rebuilt structure has the same red-black and
-     * augmentation invariants as a freshly constructed tree.
+     * The owning node is located through the projected interval and then
+     * tombstoned: it stays in the tree, keeping it balanced, but owns no shape
+     * and is counted by nothing, so every query ignores it. The shape itself is
+     * swap-removed from storage, so @ref shapes() stays compact and only the
+     * element order may change; the last live node moves into the freed slot so
+     * that a node ID keeps being the index of the shape it owns.
+     *
+     * Once tombstones outnumber the live nodes, the index is rebuilt from the
+     * surviving shapes, yielding a structure with the same red-black and
+     * augmentation invariants as a freshly constructed tree. A rebuild costs
+     * `O(n log n)` but follows at least `n / 2` removals, so a removal costs
+     * `O(log n + k)` amortized, where `k` is the number of stored intervals
+     * sharing the projected endpoints of @p shape.
+     *
+     * @param shape Shape to remove.
+     * @return `true` if a matching shape was found and removed, `false` otherwise.
      */
     bool erase(const ShapeType& shape) {
         if (root_ == invalidNode) {
             return false;
         }
-        const auto found = std::find(elements_.begin(), elements_.end(), shape);
-        if (found == elements_.end()) {
+        const auto [low, high] = project(shape);
+        const NodeId id = findEqualNode(shape, low, high);
+        if (id == invalidNode) {
             return false;
         }
 
-        const std::size_t removedIndex = static_cast<std::size_t>(found - elements_.begin());
-        const std::size_t last = elements_.size() - 1;
-        if (removedIndex != last) {
-            elements_[removedIndex] = std::move(elements_[last]);
+        // The node ID is the element index, so the slot that has to become a
+        // tombstone is the last live one. When the removed shape is not already
+        // there, the last live node and the removed one exchange slots through
+        // a temporary at the end, each move keeping the tree structure intact.
+        const NodeId last = static_cast<NodeId>(elements_.size() - 1);
+        if (id != last) {
+            const NodeId temporary = relocateNodeToEnd(id);
+            relocateNode(last, id);
+            relocateNode(temporary, last);
+            nodes_.pop_back();
+            mutationNodes_.pop_back();
+            elements_[static_cast<std::size_t>(id)] =
+                std::move(elements_[static_cast<std::size_t>(last)]);
         }
         elements_.pop_back();
-        rebuildFromElements();
+
+        // The node now in slot `last` is the tombstone: it and its ancestors
+        // lose it from their live counts.
+        updateUpward(last);
+
+        if (tombstones() > elements_.size()) {
+            rebuildFromElements();
+        }
         return true;
     }
 

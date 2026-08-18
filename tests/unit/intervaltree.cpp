@@ -228,3 +228,127 @@ TEST_CASE("IntervalTree matches brute force through randomized inserts and erase
         }
     }
 }
+
+TEST_CASE("IntervalTree queries stay exact while tombstones accumulate and rebuild") {
+    Rng rng{0x9e3779b97f4a7c15ULL};
+    std::vector<Segment> reference;
+    pgl::IntervalTree<Segment> tree;
+
+    for (int i = 0; i < 150; ++i) {
+        const Segment shape = randomSegment(rng);
+        reference.push_back(shape);
+        tree.insert(shape);
+    }
+
+    // Removing nearly everything one shape at a time crosses the rebuild
+    // threshold repeatedly, so most of these queries run over a tree holding
+    // tombstones next to live nodes.
+    while (reference.size() > 4) {
+        const std::size_t index =
+            static_cast<std::size_t>(rng.range(0, static_cast<int>(reference.size() - 1)));
+        const Segment shape = reference[index];
+        CHECK(tree.erase(shape));
+        reference[index] = reference.back();
+        reference.pop_back();
+        CHECK(tree.size() == reference.size());
+
+        const Rect query(rng.range(-60, 60), rng.range(-60, 60),
+                         rng.range(-60, 60), rng.range(-60, 60));
+
+        CHECK(tree.countProjectionsIntersecting(query) ==
+              bruteIntersecting<pgl::ProjectionAxis::x>(reference, query));
+        CHECK(tree.reportProjectionsIntersecting(query).size() ==
+              bruteIntersecting<pgl::ProjectionAxis::x>(reference, query));
+        CHECK(tree.countProjectionsContainedIn(query) ==
+              bruteContained<pgl::ProjectionAxis::x>(reference, query));
+
+        const std::size_t meeting = static_cast<std::size_t>(
+            std::count_if(reference.begin(), reference.end(),
+                          [&](const Segment& s) { return s.intersects(query); }));
+        CHECK(tree.countIntersecting(query) == meeting);
+        CHECK(tree.reportIntersecting(query).size() == meeting);
+        CHECK(tree.emptyIntersecting(query) == (meeting == 0));
+
+        const std::size_t inside = static_cast<std::size_t>(
+            std::count_if(reference.begin(), reference.end(),
+                          [&](const Segment& s) { return query.contains(s); }));
+        CHECK(tree.countContainedIn(query) == inside);
+        CHECK(tree.reportContainedIn(query).size() == inside);
+    }
+
+    // Tombstones never reach the stored shapes: iteration and shapes() stay
+    // compact and hold exactly the surviving shapes.
+    std::vector<Segment> stored(tree.begin(), tree.end());
+    CHECK(stored.size() == reference.size());
+    CHECK(tree.shapes().size() == reference.size());
+    std::sort(stored.begin(), stored.end());
+    std::vector<Segment> expected = reference;
+    std::sort(expected.begin(), expected.end());
+    CHECK(stored == expected);
+    for (const Segment& shape : reference) {
+        CHECK(tree.has(shape));
+    }
+
+    // Emptying the tree leaves it usable.
+    for (const Segment& shape : reference) {
+        CHECK(tree.erase(shape));
+    }
+    CHECK(tree.empty());
+    CHECK(tree.size() == 0);
+    const Rect everything(-100, -100, 100, 100);
+    CHECK(tree.countProjectionsIntersecting(everything) == 0);
+    CHECK(tree.emptyIntersecting(everything));
+
+    const Segment revived(Point(1, 2), Point(3, 4));
+    tree.insert(revived);
+    CHECK(tree.size() == 1);
+    CHECK(tree.has(revived));
+    CHECK(tree.countIntersecting(everything) == 1);
+    CHECK(tree.shapes() == std::vector<Segment>{revived});
+}
+
+TEST_CASE("IntervalTree survives removals among equal intervals and duplicate shapes") {
+    // A tiny coordinate range makes most shapes share their projected interval
+    // and many of them be equal, which is where a removal relabels nodes whose
+    // order is decided by the node ID.
+    Rng rng{0x243f6a8885a308d3ULL};
+    std::vector<Segment> reference;
+    pgl::IntervalTree<Segment, pgl::ProjectionAxis::y> tree;
+
+    for (int step = 0; step < 400; ++step) {
+        if (reference.empty() || rng.range(0, 99) < 55) {
+            const Segment shape(Point(rng.range(0, 3), rng.range(0, 3)),
+                                Point(rng.range(0, 3), rng.range(0, 3)));
+            reference.push_back(shape);
+            tree.insert(shape);
+        } else {
+            const std::size_t index =
+                static_cast<std::size_t>(rng.range(0, static_cast<int>(reference.size() - 1)));
+            const Segment shape = reference[index];
+            CHECK(tree.erase(shape));
+            reference[index] = reference.back();
+            reference.pop_back();
+        }
+
+        CHECK(tree.size() == reference.size());
+        for (const Segment& shape : reference) {
+            CHECK(tree.has(shape));
+        }
+
+        const Rect query(rng.range(0, 3), rng.range(0, 3), rng.range(0, 3), rng.range(0, 3));
+        CHECK(tree.countProjectionsIntersecting(query) ==
+              bruteIntersecting<pgl::ProjectionAxis::y>(reference, query));
+        CHECK(tree.countProjectionsContainedIn(query) ==
+              bruteContained<pgl::ProjectionAxis::y>(reference, query));
+        CHECK(tree.reportProjectionsIntersecting(query).size() ==
+              bruteIntersecting<pgl::ProjectionAxis::y>(reference, query));
+    }
+
+    // Every stored shape can be removed, one occurrence at a time.
+    while (!reference.empty()) {
+        CHECK(tree.erase(reference.back()));
+        reference.pop_back();
+        CHECK(tree.size() == reference.size());
+    }
+    CHECK(tree.empty());
+}
