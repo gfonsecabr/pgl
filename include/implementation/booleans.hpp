@@ -502,10 +502,11 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
  * @param simpleBoundaries Set when no two boundary edges of the *same* piece
  *        overlap, which lets @ref regularizedUnionByCoverage classify the faces
  *        instead of the witness scan below. A @ref Convex is such a piece by
- *        construction and never has to say so; a @ref Polygon is one whenever it
- *        meets its own simplicity precondition, and a @ref PolygonWithHoles is
- *        one exactly when it carries no slit — which is why this is the caller's
- *        to assert and not a property read off the type.
+ *        construction and never has to say so, as are a @ref Triangle and a
+ *        @ref Rectangle; a @ref Polygon is one whenever it meets its own
+ *        simplicity precondition, and a @ref PolygonWithHoles is one exactly
+ *        when it carries no slit — which is why this is the caller's to assert
+ *        and not a property read off the type.
  * @return The pieces of the union, in canonical order.
  */
 template <class ResultPoint, class ShapeRange>
@@ -531,7 +532,20 @@ PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
         return {};
     }
 
-    if constexpr (detail::is_convex_v<ShapeType>) {
+    if constexpr (detail::is_polygon_set_v<ShapeType>) {
+        // A set is already a union of regions with disjoint interiors, and it is
+        // those regions the paths below classify — a set is not itself something
+        // an @ref Arrangement can be built from. Separating them also weakens
+        // what `simpleBoundaries` has to promise: a stretch of boundary two
+        // components share is two origins once they are apart, which is the two
+        // crossings parity needs to see.
+        std::vector<typename ShapeType::ComponentType> components;
+        for (const ShapeType& set : distinct) {
+            components.insert(components.end(), set.components().begin(), set.components().end());
+        }
+        return regularizedUnionOf<ResultPoint>(components, simpleBoundaries);
+    } else if constexpr (detail::is_convex_v<ShapeType> || detail::is_triangle_v<ShapeType> ||
+                         detail::is_rectangle_v<ShapeType>) {
         return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
     } else {
         using ShapeNumber = typename ShapeType::NumberType;

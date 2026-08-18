@@ -4587,12 +4587,15 @@ void appendCutSegments(const Shape& shape, std::vector<Segment<ExactPoint>>& out
         (void)add;
     } else if constexpr (is_segment_v<Shape>) {
         add(shape);
-    } else if constexpr (is_polygon_with_holes_v<Shape> || is_polygon_set_v<Shape>) {
-        for (const auto& edge : shape.edges()) {
+    } else if constexpr (requires { shape.edgesView(); }) {
+        for (const auto& edge : shape.edgesView()) {
             add(edge);
         }
     } else {
-        for (const auto& edge : shape.edgesView()) {
+        // Everything else materializes its edges: a region and a set assemble
+        // theirs from their rings, and a triangle and a rectangle return a
+        // fixed-size array, which is why neither carries a lazy view.
+        for (const auto& edge : shape.edges()) {
             add(edge);
         }
     }
