@@ -69,6 +69,7 @@
 #include "algorithm/closestpair.hpp"
 #include "algorithm/shapetree.hpp"
 #include "algorithm/intervaltree.hpp"
+#include "algorithm/xysweep.hpp"
 #include "algorithm/sortpoints.hpp"
 #include "algorithm/polyominoes.hpp"
 #include "algorithm/triangulation.hpp"

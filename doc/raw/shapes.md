@@ -599,7 +599,7 @@ A polyline `P` with $n$ vertices has methods such as:
 - `P.isPoint()` / `P.getIfPoint()`: Whether the polyline collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
-- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types (and $O(n^2)$ for floating point).
+- `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through the bounding-box sweep of `xyIntersections` instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
 
@@ -650,7 +650,7 @@ A polygon `P` has methods such as:
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polygon collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.empty()`: True only for a polygon with no vertex, which is the empty set of points.
 - `P.isUndefined()`: True if the polygon is degenerate yet covers more than a segment, that is, when its zero area comes from a self-overlapping boundary rather than from collinear vertices. The empty polygon is *not* undefined; use `empty` for it.
-- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges.
+- `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through the bounding-box sweep of `xyIntersections` instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
 - `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
