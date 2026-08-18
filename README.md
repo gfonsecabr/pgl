@@ -30,6 +30,9 @@ int main() {
 } // Output: (1,0)--(4,7) intersects (0,8)--(2,1)
 ```
 
+There are [many more illustrated examples](examples/) that give a good overview of the library's features and syntax.
+
+
 ## Shapes and Predicates
 
 | Family | Shapes |
@@ -106,7 +109,7 @@ std::cout << " and has length " << s.length() << std::endl;
 
 A `Canvas` class is provided for [visualization](doc/canvas.md). It includes support to export to `svg`, `pdf`, and [ipe](https://github.com/otfried/ipe) files.
 
-<img align="right" src="doc/figures/example2.svg" width="200"/>
+<img align="right" src="examples/figures/example2.svg" width="200"/>
 
 ```c++
 pgl::Canvas canvas;
@@ -134,14 +137,16 @@ uset.insert(s);
 
 ## Algorithms and Data Structures
 
-<img align="right" src="doc/figures/example_triangulation.svg" width="200"/>
+<img align="right" src="doc/figures/algds.svg" width="180"/>
 
 Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 - **Convex hull** computed with Graham scan.
 - Line segment intersection: **Bentley-Ottmann sweep line** using rational numbers.
 - **Minkowski sum** and **boolean operations**.
-- Smallest enclosing disk.
+- **Visibility** graph and visibility polygon.
+- Find the **closest pair** of points using divide and conquer.
+- Smallest **enclosing disk and rectangle**.
 - Sort points by angle or Hilbert order.
 
  and [data structures](doc/data_structures.md):
@@ -150,6 +155,7 @@ Pangolin includes [fundamental algorithms](doc/algorithms.md):
 - **Interval tree** to use 1-dimensional queries on projections.
 - **Triangulation** including **Delaunay** and **constrained Delaunay** triangulations for points and polygons.
 - **Arrangement** of lines, line segments, and rays with a **trapezoidal map** for fast point location.
+- Graph class for combinatorial algorithms like **Djikstra** and **Prim** that can be used to compute Euclidean minimum spanning trees and shortest paths among obstacles.
 
 ## Comparison to CGAL
 
@@ -159,8 +165,8 @@ There are several architectural differences between Pangolin and [CGAL](https://
 | --- | --- | --- |
 | Dependency-free | ✓ | ✗ |
 | Learning | Easy | Hard |
+| Architecture | Monolithic | Modular |
 | Geometry | Plane only | 2d, 3d, hyperbolic... |
-| Data structures | Limited | Extensive |
 | Maturity | Very low | High |
 | Number types | Per-shape | Per-kernel |
 | Type conversion | Implicit | Explicit |
@@ -173,7 +179,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
-- It is hard to compare the performance against CGAL, but overall CGAL has faster more complex implementations. For example, pgl's decomposition-based minkowski sum is much slower than CGAL's convolution-based Minkowski sum and a little slower than CGAL's decomposition-based Minkowski sum. Surprisingly, pgl's trapezoidal map point location is significantly faster than CGAL's in our benchmarks.
+- It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other. Overall CGAL has faster more complex implementations. For example, pgl's decomposition-based Minkowski sum is much slower than CGAL's convolution-based Minkowski sum and a little slower than CGAL's decomposition-based Minkowski sum. Surprisingly, pgl's trapezoidal map point location is significantly faster than CGAL's in our benchmarks.
 
 ## Build
 
