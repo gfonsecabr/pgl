@@ -2,12 +2,25 @@
 """
 run_benchmarks.py — pgl shape-method benchmark runner.
 
-For every combination of shape pair × size pair × number type × method, generates
-a small C++ program that creates 100 random shapes of each kind (small or large),
-times every pair-wise call to the method, and prints the elapsed time together
-with an aggregate result (e.g. count of true returns, or count of zero-distance
-pairs). A pair with a many-vertex operand — a polygon, a hull, a chain — runs on
-30 shapes instead of 100, since its calls cost microseconds to milliseconds.
+For every combination of shape pair × number type × method, generates a small C++
+program that creates 100 random shapes of each kind, times every pair-wise call to
+the method, and prints the elapsed time together with an aggregate result (e.g.
+count of true returns, or count of zero-distance pairs). A pair with a many-vertex
+operand — a polygon, a hull, a chain — runs on 30 shapes instead of 100, since its
+calls cost microseconds to milliseconds.
+
+One program covers all the size combinations of its shape pair and measures the
+one its first argument selects, so every combination still runs in a process of
+its own. Size decides which generator fills a vector and never a type, so the
+combinations share one instantiation of the method under test; giving each its
+own program would pay for that instantiation — the bulk of the compile — four
+times over, while sharing a process would leave all but the first measuring warm
+caches. Results are reported per cell, a (shape, size) pair with a method and a
+type, exactly as before.
+
+Only the exact ERational baseline of a cell is compiled up front. The other types
+are compiled just for the cells whose baseline built, since a result no ground
+truth can validate is not worth the compile.
 
 Each program stops early once it has spent --time-budget seconds in its measured
 loop, and averages over the pairs it actually completed. Cost per call spans six
@@ -367,18 +380,28 @@ def _cpp_accumulate(method: str) -> str:
 
 
 def generate_source(
-    shape1: str, size1: str,
-    shape2: str, size2: str,
+    shape1: str, shape2: str,
+    size_combos: list[tuple[str, str]],
     method: str, cpp_type: str,
     time_budget_s: float = TIME_BUDGET_S,
 ) -> str:
     """Return a complete, self-contained C++ benchmark source.
 
+    One program covers every size combination of the shape pair, but measures
+    only the one argv[1] selects, so each still runs in a process of its own.
+    An operand's size picks which generator fills its vector and nothing else —
+    both sizes of a shape have the same C++ type — so all the combinations share
+    a single instantiation of the method under test, which is the expensive part
+    of the compile. Splitting them across programs pays for that instantiation
+    once per combination instead of once per pair; sharing a process would make
+    all but the first measure a warm allocator and warm caches, which is not what
+    they are there to measure.
+
     The generated program stops as soon as it has spent 'time_budget_s' in the
     measured loop, and divides by the pairs it actually got through. A cell that
     finishes the full n² pairs is unaffected; one that does not reports a timing
     over a prefix of them, plus the size of that prefix so the caller can tell
-    the two apart. Passing a pair count as argv[1] caps the loop there and turns
+    the two apart. Passing a pair count as argv[2] caps the loop there and turns
     the budget off, which is how the runner replays one type's prefix on another
     and gets back something it can actually compare.
     """
@@ -388,12 +411,12 @@ def generate_source(
     # clock is then read once per 64 pairs and never trips, which is under a
     # tenth of a percent of even the cheapest cell's per-call cost.
     budget_ns = time_budget_s * 1e9 if time_budget_s > 0 else 1e18
-    make1 = _cpp_make_shapes_for(shape1, size1, "S1", "shapes1", n)
-    make2 = _cpp_make_shapes_for(shape2, size2, "S2", "shapes2", n)
     accum = _cpp_accumulate(method)
 
+    order = ", ".join(f"{i}={s1}×{s2}" for i, (s1, s2) in enumerate(size_combos))
     lines = [
-        f"// Benchmark: {shape1}({size1}) × {shape2}({size2}) :: {method}  [{cpp_type}]",
+        f"// Benchmark: {shape1} × {shape2} :: {method}  [{cpp_type}]",
+        f"//   size combinations, selected by argv[1]: {order}",
         "#include <cstdlib>",
         "#include <iostream>",
         "#include <limits>",
@@ -405,11 +428,13 @@ def generate_source(
         f"using S1 = {_cpp_shape_type(shape1)};",
         f"using S2 = {_cpp_shape_type(shape2)};",
         "",
-        "int main(int argc, char** argv) {",
-        "    // argv[1], when given, caps the number of pairs. The runner uses it",
-        "    // to hold every number type of a cell to the prefix the exact",
-        "    // baseline managed, so their aggregates stay comparable.",
-        "    const long long arg_pairs = (argc > 1) ? std::atoll(argv[1]) : 0;",
+        "// The measured loop, shared by every size combination. Size is a property",
+        "// of the data, not of the type, so this instantiates once per program —",
+        "// which is the whole reason the combinations share a source file.",
+        "template <class C1, class C2>",
+        "void runCombination(const char* size1, const char* size2,",
+        "                    long long arg_pairs,",
+        "                    const C1& shapes1, const C2& shapes2) {",
         "    const bool capped = arg_pairs > 0;",
         "    const long long max_pairs =",
         "        capped ? arg_pairs : std::numeric_limits<long long>::max();",
@@ -419,8 +444,6 @@ def generate_source(
         "    // applies only to an uncapped run, which has nothing to line up with.",
         "    const double deadline_ns =",
         f"        capped ? std::numeric_limits<double>::infinity() : {budget_ns:.1f};",
-        f"    {make1}",
-        f"    {make2}",
         "    plf::nanotimer timer;",
         "    timer.start();",
         "    long long count = 0;",
@@ -443,7 +466,36 @@ def generate_source(
         "        if (stop) break;",
         "    }",
         "    double ns = timer.get_elapsed_ns() / (double)(calls > 0 ? calls : 1);",
-        '    std::cout << count << "\\t" << ns << "\\t" << calls << "\\n";',
+        '    std::cout << size1 << "\\t" << size2 << "\\t" << count',
+        '              << "\\t" << ns << "\\t" << calls << "\\n";',
+        "}",
+        "",
+        "int main(int argc, char** argv) {",
+        "    // argv[1] picks the size combination to measure — one per process, so",
+        "    // none of them is timed on another's warm caches. argv[2], when given,",
+        "    // caps the number of pairs; the runner uses it to hold every number",
+        "    // type of a cell to the prefix the exact baseline managed, so their",
+        "    // aggregates stay comparable.",
+        "    const int which = (argc > 1) ? std::atoi(argv[1]) : 0;",
+        "    const long long arg_pairs = (argc > 2) ? std::atoll(argv[2]) : 0;",
+        "    switch (which) {",
+    ]
+    for i, (size1, size2) in enumerate(size_combos):
+        make1 = _cpp_make_shapes_for(shape1, size1, "S1", "shapes1", n)
+        make2 = _cpp_make_shapes_for(shape2, size2, "S2", "shapes2", n)
+        lines += [
+            f"    case {i}: {{",
+            f"        {make1}",
+            f"        {make2}",
+            f'        runCombination("{size1}", "{size2}", arg_pairs, shapes1, shapes2);',
+            "        break;",
+            "    }",
+        ]
+    lines += [
+        "    default:",
+        '        std::cerr << "no such size combination: " << which << "\\n";',
+        "        return 1;",
+        "    }",
         "    return 0;",
         "}",
         "",
@@ -468,11 +520,21 @@ def compile_source(src: Path, binary: Path,
 
 
 def run_binary(binary: Path,
+               combo_index: int,
+               expected_combo: tuple[str, str],
                repetitions: int = 1,
                max_pairs: int = 0,
                timeout_s: float = RUN_TIMEOUT_S,
                full_pairs: int = 0) -> tuple[bool, tuple[int, float, float, float, int] | str]:
-    """Run binary 'repetitions' times; aggregate the timings.
+    """Run one size combination of binary 'repetitions' times; aggregate the timings.
+
+    A binary holds every size combination of its shape pair and measures the one
+    'combo_index' selects, in a process of its own — sharing the compile is what
+    the combinations are grouped for, and sharing a process is what they must not
+    do. 'expected_combo' is the (size1, size2) that index should report; the
+    program echoes what it ran, and a mismatch means the caller's indexing and
+    the binary's have drifted apart, which would silently file results under the
+    wrong cell.
 
     'max_pairs' caps the pairs the program may work through; 0 leaves it to run
     until its own time budget stops it. A capped program ignores that budget —
@@ -494,7 +556,7 @@ def run_binary(binary: Path,
     taken from the same run that supplied the median time, keeping the triple
     internally consistent.
     """
-    argv = [str(binary)] + ([str(max_pairs)] if max_pairs > 0 else [])
+    argv = [str(binary), str(combo_index)] + ([str(max_pairs)] if max_pairs > 0 else [])
     runs: list[tuple[float, int, int]] = []   # (ns, count, calls)
     for _ in range(max(1, repetitions)):
         try:
@@ -506,7 +568,10 @@ def run_binary(binary: Path,
         parsed = parse_output(r.stdout)
         if parsed is None:
             return False, r.stdout
-        count, ns, calls = parsed
+        combo, count, ns, calls = parsed
+        if combo != expected_combo:
+            return False, (f"binary reported size combination {combo},"
+                           f" expected {expected_combo} at index {combo_index}")
         runs.append((ns, count, calls))
         if full_pairs and calls < full_pairs:
             break
@@ -517,21 +582,22 @@ def run_binary(binary: Path,
     return True, (median_count, median_ns, runs[0][0], runs[-1][0], median_calls)
 
 
-def parse_output(raw: str) -> tuple[int, float, int] | None:
-    """Parse 'count<TAB>ns<TAB>calls' output; returns None on malformed output.
+def parse_output(raw: str) -> tuple[tuple[str, str], int, float, int] | None:
+    """Parse 'size1<TAB>size2<TAB>count<TAB>ns<TAB>calls'.
 
-    A two-field line is accepted as the pre-time-budget format, where the loop
-    always ran to completion; calls comes back as 0, meaning "unknown".
+    Returns ((size1, size2), count, ns, calls), or None on malformed or absent
+    output — a program that printed nothing measured nothing, which is a failure
+    rather than an empty result. The sizes are echoed by the program so the
+    caller can check it ran the combination it was asked for.
     """
     lines = raw.strip().splitlines()
     if not lines:
         return None
     parts = lines[0].split("\t")
-    if len(parts) not in (2, 3):
+    if len(parts) != 5:
         return None
     try:
-        return (int(parts[0]), float(parts[1]),
-                int(parts[2]) if len(parts) == 3 else 0)
+        return ((parts[0], parts[1]), int(parts[2]), float(parts[3]), int(parts[4]))
     except ValueError:
         return None
 
@@ -669,23 +735,41 @@ def main() -> None:
     def variants_of(shape: str, sizes_for: list[str]) -> list[tuple[str, str]]:
         return [(shape, POINT_SIZE)] if shape == "Point" else [(shape, sz) for sz in sizes_for]
 
-    variants1 = [v for s in shapes1 for v in variants_of(s, sizes_a)]
-    variants2 = [v for s in shapes2 for v in variants_of(s, sizes_b)]
-    pairs = list(itertools.product(variants1, variants2))
+    shape_pairs = list(itertools.product(shapes1, shapes2))
     if focus:
         focus_set = set(focus)
-        pairs = [(a, b) for a, b in pairs if a[0] in focus_set or b[0] in focus_set]
+        shape_pairs = [(a, b) for a, b in shape_pairs
+                       if a in focus_set or b in focus_set]
+
+    # Every size combination of a shape pair goes into one program: sizes differ
+    # in the data the generators produce, never in a type, so they share the one
+    # instantiation of the method that dominates the compile. See generate_source.
+    size_combos: dict[tuple[str, str], list[tuple[str, str]]] = {
+        (s1, s2): [(sz1, sz2)
+                   for _, sz1 in variants_of(s1, sizes_a)
+                   for _, sz2 in variants_of(s2, sizes_b)]
+        for s1, s2 in shape_pairs
+    }
+
+    programs = [
+        (s1, s2, m, k, cpp_t)
+        for (s1, s2), m, (k, cpp_t)
+        in itertools.product(shape_pairs, methods, types)
+    ]
+    # The cell — a (shape, size) pair, a method and a type — stays the unit the
+    # results are reported in, whatever the unit of compilation is.
     combos = [
-        (s1, sz1, s2, sz2, m, k, cpp_t)
-        for ((s1, sz1), (s2, sz2)), m, (k, cpp_t)
-        in itertools.product(pairs, methods, types)
+        (s1, sz1, s2, sz2, m, k)
+        for (s1, s2, m, k, _) in programs
+        for (sz1, sz2) in size_combos[(s1, s2)]
     ]
 
-    total = len(combos)
-    n_pairs = len(pairs)
+    total = len(programs)
+    n_cells = len(combos)
+    n_pairs = len(shape_pairs)
     print(
-        f"pgl benchmark: {n_pairs} shape×size pairs × {len(methods)} methods"
-        f" × {len(types)} types = {total} programs"
+        f"pgl benchmark: {n_pairs} shape pairs × {len(methods)} methods"
+        f" × {len(types)} types = {total} programs, covering {n_cells} cells"
     )
     print(f"  shape A: {shapes1}")
     print(f"  shape B: {shapes2}")
@@ -729,23 +813,26 @@ def main() -> None:
     # ── Step 1: generate all C++ sources ────────────────────────────────────
     srcs: dict[tuple, Path] = {}
     bins: dict[tuple, Path] = {}
-    for shape1, size1, shape2, size2, method, type_key, cpp_type in combos:
-        # Slashes (e.g. the "n/a" Point size) would break the path; sanitise.
-        tag    = (f"{shape1}_{size1}_x_{shape2}_{size2}__{method}__{type_key}"
-                  .replace("/", "-"))
+    for shape1, shape2, method, type_key, cpp_type in programs:
+        tag    = f"{shape1}_x_{shape2}__{method}__{type_key}"
         src    = src_dir / f"{tag}.cpp"
         binary = bin_dir / tag
-        key    = (shape1, size1, shape2, size2, method, type_key)
+        key    = (shape1, shape2, method, type_key)
         srcs[key] = src
         bins[key] = binary
-        src.write_text(generate_source(shape1, size1, shape2, size2, method,
-                                       cpp_type, args.time_budget))
+        src.write_text(generate_source(shape1, shape2, size_combos[(shape1, shape2)],
+                                       method, cpp_type, args.time_budget))
 
     if args.dry_run:
         print(f"Dry-run: {total} sources written to {src_dir}")
         return
 
     # ── Step 2: compile ─────────────────────────────────────────────────────
+    # The exact baseline compiles first, on its own. Every other type of a cell
+    # is validated against it, so a cell whose baseline will not compile has no
+    # ground truth to check the rest against — their aggregates could not be
+    # called right or wrong, only recorded. Compiling them would buy a number
+    # nothing can validate, so they are skipped rather than attempted.
     compile_ok:  dict[tuple, bool] = {}
     compile_err: dict[tuple, str]  = {}
 
@@ -753,27 +840,51 @@ def main() -> None:
         ok, err = compile_source(srcs[key], bins[key], cxx, cxxflags, include_dir, bench_dir)
         return key, ok, err
 
-    n_ok = n_fail = 0
-    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        futures = {pool.submit(_compile, k): k for k in srcs}
-        for i, fut in enumerate(as_completed(futures), 1):
-            key, ok, err = fut.result()
-            compile_ok[key]  = ok
-            compile_err[key] = err
-            if ok:
-                n_ok += 1
-            else:
-                n_fail += 1
-            shape1, size1, shape2, size2, method, type_key = key
-            status = "ok" if ok else "FAIL"
-            print(
-                f"  [{i:>6}/{total}] compile"
-                f" {shape1}({size1}) × {shape2}({size2})"
-                f" {method} [{type_key}] {status}",
-                flush=True,
-            )
+    n_ok = n_fail = n_skipped = 0
+    done = 0
 
-    print(f"Compilation: {n_ok} ok, {n_fail} failed.")
+    def _compile_wave(keys: list[tuple]) -> None:
+        nonlocal n_ok, n_fail, done
+        if not keys:
+            return
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            futures = {pool.submit(_compile, k): k for k in keys}
+            for fut in as_completed(futures):
+                key, ok, err = fut.result()
+                compile_ok[key]  = ok
+                compile_err[key] = err
+                done += 1
+                if ok:
+                    n_ok += 1
+                else:
+                    n_fail += 1
+                shape1, shape2, method, type_key = key
+                status = "ok" if ok else "FAIL"
+                print(
+                    f"  [{done:>6}/{total}] compile"
+                    f" {shape1} × {shape2}"
+                    f" {method} [{type_key}] {status}",
+                    flush=True,
+                )
+
+    _compile_wave([k for k in srcs if k[3] == GROUND_TRUTH_TYPE])
+
+    rest = []
+    for key in srcs:
+        if key[3] == GROUND_TRUTH_TYPE:
+            continue
+        if compile_ok.get((key[0], key[1], key[2], GROUND_TRUTH_TYPE), False):
+            rest.append(key)
+        else:
+            compile_ok[key]  = False
+            compile_err[key] = (f"skipped: the {GROUND_TRUTH_TYPE} baseline of this"
+                                " cell did not compile, so nothing could validate"
+                                " the result")
+            n_skipped += 1
+    _compile_wave(rest)
+
+    print(f"Compilation: {n_ok} ok, {n_fail} failed,"
+          f" {n_skipped} skipped for want of an {GROUND_TRUTH_TYPE} baseline.")
 
     # ── Step 3: run all successful binaries ──────────────────────────────────
     # parsed = (count, median_ns, min_ns, max_ns, calls)
@@ -785,7 +896,12 @@ def main() -> None:
     # and stay comparable. The baseline is the slowest type on almost every
     # cell, so this mostly costs the faster types nothing but the pairs they
     # would have spent going further than the comparison could follow.
-    successful_keys = [k for k in srcs if compile_ok.get(k)]
+    successful_keys = [
+        (s1, sz1, s2, sz2, m, k)
+        for (s1, s2, m, k) in srcs
+        if compile_ok.get((s1, s2, m, k))
+        for (sz1, sz2) in size_combos[(s1, s2)]
+    ]
     cells: dict[tuple, list[tuple]] = {}
     for key in successful_keys:
         cells.setdefault(key[:5], []).append(key)
@@ -812,7 +928,12 @@ def main() -> None:
             cap = cap_for_cell.get(key[:5], 0)
             reps = 1 if truncated_cell.get(key[:5]) else args.repetitions
             stop_early = 0
-        ok, res = run_binary(bins[key], reps, cap, full_pairs=stop_early)
+        # The pair's binary holds every size combination; this cell is one of
+        # them, run on its own so nothing else has warmed the process for it.
+        combo = (size1, size2)
+        ok, res = run_binary(bins[(shape1, shape2, method, type_key)],
+                             size_combos[(shape1, shape2)].index(combo), combo,
+                             reps, cap, full_pairs=stop_early)
         parsed = res if ok else None
         run_results[key] = parsed
         if type_key == GROUND_TRUTH_TYPE and parsed:
@@ -836,8 +957,8 @@ def main() -> None:
     groups: dict[tuple, dict[str, tuple[int, float, float, float, int] | None]] = {}
     for (shape1, size1, shape2, size2, method, type_key), parsed in run_results.items():
         groups.setdefault((shape1, size1, shape2, size2, method), {})[type_key] = parsed
-    for (shape1, size1, shape2, size2, method, type_key) in srcs:
-        if not compile_ok.get((shape1, size1, shape2, size2, method, type_key)):
+    for (shape1, size1, shape2, size2, method, type_key) in combos:
+        if not compile_ok.get((shape1, shape2, method, type_key)):
             groups.setdefault((shape1, size1, shape2, size2, method), {})[type_key] = None
 
     output_entries: list[dict] = []
@@ -851,7 +972,7 @@ def main() -> None:
         type_entries: dict[str, dict] = {}
         for type_key, _ in types:
             parsed = type_data.get(type_key)
-            if not compile_ok.get((shape1, size1, shape2, size2, method, type_key), False):
+            if not compile_ok.get((shape1, shape2, method, type_key), False):
                 type_entries[type_key] = {"status": "compile_error"}
                 continue
             if parsed is None:
