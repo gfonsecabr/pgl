@@ -357,12 +357,19 @@ def _cpp_accumulate(method: str) -> str:
         # rest — `vertexCount` does not, since `HalfplaneIntersection` has one too.
         # A generic lambda makes the branches dependent, so `if constexpr` discards
         # the inapplicable result representations.
+        #
+        # A result stored by its defining points can legitimately have none of
+        # them: the sum of two non-parallel lines is the whole plane, which is
+        # the intersection of no half-planes at all. That is a defined result,
+        # not a degenerate one, and `size()` is the only digest it has — there is
+        # no element 0 to read, and reading it anyway walks off the end.
         return ("count += [](const auto& s) {"
                 " if constexpr (requires { s.componentCount(); }) {"
                 "   return (long long)s.componentCount() + (long long)s.vertexCount();"
                 " } else if constexpr (requires { s.holeCount(); }) {"
                 "   return (long long)s.holeCount() + (long long)s.vertexCount();"
                 " } else {"
+                "   if (s.size() == 0) return (long long)0;"
                 "   const auto element = s.get(0);"
                 "   const auto vertex = [](const auto& e) {"
                 "     if constexpr (requires { e.source(); }) return e.source();"
@@ -413,6 +420,14 @@ def generate_source(
     budget_ns = time_budget_s * 1e9 if time_budget_s > 0 else 1e18
     accum = _cpp_accumulate(method)
 
+    # Nanoseconds per call above which the loop reads the clock on every call
+    # instead of every 64th. Whether that read is affordable depends on what a
+    # call costs, which is not something the shapes predict: `intersects` on two
+    # 32-gons rejects on bounding boxes in about 80 ns, while `crosses` on the
+    # same pair builds an arrangement and takes 30 ms. So the loop measures its
+    # own call cost and decides, rather than being told by a vertex count.
+    check_every_call_above_ns = 1000.0
+
     order = ", ".join(f"{i}={s1}×{s2}" for i, (s1, s2) in enumerate(size_combos))
     lines = [
         f"// Benchmark: {shape1} × {shape2} :: {method}  [{cpp_type}]",
@@ -449,18 +464,30 @@ def generate_source(
         "    long long count = 0;",
         "    long long calls = 0;",
         "    bool stop = false;",
+        "    // How often to read the clock, as a mask on the call counter. A call",
+        "    // costing tens of nanoseconds cannot afford a clock read of its own —",
+        "    // the read costs about what the call does — so the cost is amortized",
+        "    // over 64 calls, at the price of overshooting the budget by up to 63",
+        "    // of them. That price is only cheap while the calls are: 63 calls of",
+        "    // 30 ms is two seconds past a 15-second budget, and it is how a cell",
+        "    // whose calls are slow enough runs long past what bounds it. So once",
+        "    // the loop has measured its own calls as expensive, it drops the mask",
+        "    // and checks every one — by then the read is noise against the call.",
+        "    long long mask = 63;",
         "    for (const auto& a : shapes1) {",
         "        for (const auto& b : shapes2) {",
         f"            {accum}",
         "            ++calls;",
         "            if (calls >= max_pairs) { stop = true; break; }",
-        "            // Reading the clock costs on the order of the cheapest call",
-        "            // being measured, so amortize it over 64 pairs. The overshoot",
-        "            // that buys is 63 calls past the budget, which only matters",
-        "            // for the cells that are already far over it.",
-        "            if ((calls & 63) == 0 && timer.get_elapsed_ns() >= deadline_ns) {",
-        "                stop = true;",
-        "                break;",
+        "            if ((calls & mask) == 0) {",
+        "                const double elapsed_ns = timer.get_elapsed_ns();",
+        "                if (elapsed_ns >= deadline_ns) {",
+        "                    stop = true;",
+        "                    break;",
+        "                }",
+        f"                if (mask != 0 && elapsed_ns / (double)calls >= {check_every_call_above_ns:.1f}) {{",
+        "                    mask = 0;",
+        "                }",
         "            }",
         "        }",
         "        if (stop) break;",
