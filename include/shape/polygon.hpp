@@ -1382,6 +1382,24 @@ struct Polygon {
     constexpr bool contains(const OtherPolygon& other) const;
 
     /**
+     * @brief Same contract as @ref contains(const OtherPolygon&) const, kept
+     * only for benchmarking against it.
+     *
+     * Reaches the same answer by testing this polygon's and @p other's
+     * lexicographically monotone chains (see @ref BoundaryChains) against each
+     * other pairwise instead of running a combined plane sweep. Cheaper when
+     * both boundaries are near-convex (few chains), since its cost is the
+     * product of the two chain counts; that product degrades to O(n * m) on a
+     * jagged, comb-like or star-shaped boundary, where @ref contains stays at
+     * O((n + m) log(n + m)) regardless.
+     *
+     * Complexity: O(chains(A) * chains(B) * average chain length), i.e. O(n)
+     * for near-convex input and O(n * m) in the worst case.
+     */
+    template<PolygonConcept OtherPolygon>
+    constexpr bool containsChainBased(const OtherPolygon& other) const;
+
+    /**
      * @brief Tests whether this shape contains the other shape (A ⊇ B).
      *
      * A non-degenerate closed disk lies in the closed polygon iff its center is

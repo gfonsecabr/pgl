@@ -1547,9 +1547,27 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other)
     return true;
 }
 
+// Delegates to a combined red-blue plane sweep (sweepContains, in
+// algorithm/redbluesweep.hpp) rather than testing this polygon's and other's
+// lexicographically monotone chains pairwise (still done in contains(Convex),
+// where a convex hull's fixed 2-chain shape makes that cheap). The chain
+// approach costs the product of the two chain counts, which for a jagged,
+// comb-like or star-shaped boundary is O(n) chains on a side and so degrades
+// to O(n*m); the sweep stays O((n+m) log(n+m)) however either boundary
+// wiggles. sweepContains reproduces the same argument otherwise: bbox and
+// degenerate-point rejects, one vertex of `other` inside `this`, no boundary
+// crossing, and the same quadratic edge fallback when boundaries only touch.
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other) const {
+    return sweepContains(*this, other);
+}
+
+// Kept only so containsChainBased can be benchmarked against contains(); see
+// its declaration in shape/polygon.hpp for why the two can disagree in cost.
+template <class PointType, class LabelType>
+template<PolygonConcept OtherPolygon>
+constexpr bool Polygon<PointType, LabelType>::containsChainBased(const OtherPolygon& other) const {
     if (other.size() == 0) {
         return true;
     }
@@ -3007,6 +3025,19 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::areaContains(const OtherA
             return outer_.contains(other);
         }
     }
+    // A crossing anywhere between the operand's boundary and this region's
+    // full boundary (outer ring and every hole together) settles the question
+    // outright: it lands the operand partly outside the outer ring or partly
+    // inside a hole, either of which is disqualifying (see the file comment on
+    // redBlueSweep). Checking that with one combined sweep costs
+    // O((n + m) log(n + m)); the edge-by-edge loop below, needed regardless
+    // when the boundaries only touch or miss entirely, costs O(n * m) for a
+    // Polygon or PolygonWithHoles operand with many edges.
+    if constexpr (PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>) {
+        if (boundariesCross(edges(), other.edges())) {
+            return false;
+        }
+    }
     for (const auto& edge : other.edges()) {
         if (!contains(edge)) {
             return false;
@@ -3513,6 +3544,16 @@ bool PolygonSet<PointType, LabelType>::regionIn(const OtherRegion& region) const
 template <class PointType, class LabelType>
 template <detail::SetOperandConcept OtherShape>
 bool PolygonSet<PointType, LabelType>::contains(const OtherShape& other) const {
+    // A single-component set is exactly that component, so the component's
+    // own answer is already exact, not just a fast necessary condition. Every
+    // branch below exists for the genuinely multi-component case — disjoint
+    // components whose interiors may still meet at finitely many points, or
+    // come apart at a hole-to-boundary pinch — and falling into one here would
+    // only re-derive the same answer through machinery (isPinched, segmentIn,
+    // chainIn, regionIn) built for that harder problem.
+    if (componentCount() == 1) {
+        return component(0).contains(other);
+    }
     if constexpr (PointConcept<OtherShape>) {
         return anyComponent([&](const ComponentType& c) { return c.contains(other); });
     } else if constexpr (LineConcept<OtherShape>) {

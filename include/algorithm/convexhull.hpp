@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/intersections.hpp"
+#include "algorithm/redbluesweep.hpp"
 
 /**
  * @file convexhull.hpp

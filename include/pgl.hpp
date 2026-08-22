@@ -64,6 +64,7 @@
 #include "core/hash.hpp"
 #include "algorithm/graph.hpp"
 #include "algorithm/intersections.hpp"
+#include "algorithm/redbluesweep.hpp"
 #include "algorithm/convexhull.hpp"
 #include "algorithm/mindisk.hpp"
 #include "algorithm/closestpair.hpp"

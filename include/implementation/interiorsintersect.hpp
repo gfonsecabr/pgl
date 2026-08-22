@@ -1175,73 +1175,30 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherConv
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::boundariesIntersect(const OtherPolygon& other) const {
-    // A polygon collapsed to a single point is all boundary, and its boundary
-    // has no lexicographic break for BoundaryChains to split on, so reduce it
-    // to that point first.
+    // A polygon collapsed to a single point is all boundary, and edgesView has
+    // no edge to feed the sweep, so reduce it to that point first.
     if (const auto vertex = getIfPoint()) {
         return other.boundaryContains(*vertex);
     }
     if (const auto vertex = other.getIfPoint()) {
         return boundaryContains(*vertex);
     }
-    // Produce both boundary decompositions in lockstep, testing each new chain
-    // against every already-produced chain of the other polygon before building
-    // the next, and stop at the first shared point. See BoundaryChains.
-    BoundaryChains<Polygon> mine(*this);
-    BoundaryChains<OtherPolygon> theirs(other);
-    while (!mine.exhausted() || !theirs.exhausted()) {
-        if (!mine.exhausted()) {
-            const auto& chain = mine.produceNext();
-            for (const auto& their : theirs.produced()) {
-                if (chain.intersects(their)) {
-                    return true;
-                }
-            }
-        }
-        if (!theirs.exhausted()) {
-            const auto& chain = theirs.produceNext();
-            for (const auto& my : mine.produced()) {
-                if (chain.intersects(my)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    // A single combined sweep over both edge sets in O((n + m) log(n + m)),
+    // rather than testing this polygon's and other's lexicographically
+    // monotone chains against each other pairwise (see BoundaryChains): that
+    // product-of-chain-counts cost is fine for near-convex input but degrades
+    // to O(n * m) on a jagged, comb-like or star-shaped boundary.
+    return boundariesMeet(edgesView(), other.edgesView());
 }
 
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::boundariesStrongCross(const OtherPolygon& other) const {
-    // A polygon collapsed to a single point has no edges to cross with, and
-    // its boundary offers BoundaryChains no lexicographic break to split on.
+    // A polygon collapsed to a single point has no edges to cross with.
     if (isPoint() || other.isPoint()) {
         return false;
     }
-    // Produce both boundary decompositions in lockstep, testing each new chain
-    // against every already-produced chain of the other polygon before building
-    // the next, and stop at the first shared point. See BoundaryChains.
-    BoundaryChains<Polygon> mine(*this);
-    BoundaryChains<OtherPolygon> theirs(other);
-    while (!mine.exhausted() || !theirs.exhausted()) {
-        if (!mine.exhausted()) {
-            const auto& chain = mine.produceNext();
-            for (const auto& their : theirs.produced()) {
-                if (chain.edgesCross(their)) {
-                    return true;
-                }
-            }
-        }
-        if (!theirs.exhausted()) {
-            const auto& chain = theirs.produceNext();
-            for (const auto& my : mine.produced()) {
-                if (chain.edgesCross(my)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    return boundariesCross(edgesView(), other.edgesView());
 }
 
 template <class PointType, class LabelType>
@@ -1266,46 +1223,30 @@ constexpr bool Polygon<PointType, LabelType>::interiorsIntersect(const OtherPoly
     // is nested in the other, so the interiors meet iff one polygon contains the
     // other — which, with no boundary contact, reduces to a single interior
     // point-in-polygon test each way (every vertex of the inner polygon lies in
-    // the outer interior). This short-circuits the quadratic scan below, which
-    // is then only reached when the boundaries actually touch.
-    // Similarly, if the boundaries strongly cross, then the interiors intersect
-
-    bool boundaries_intersect = false;
-
-    BoundaryChains<Polygon> mine(*this);
-    BoundaryChains<OtherPolygon> theirs(other);
-    while (!mine.exhausted() || !theirs.exhausted()) {
-        if (!mine.exhausted()) {
-            const auto& chain = mine.produceNext();
-            for (const auto& their : theirs.produced()) {
-                if (chain.intersects(their)) {
-                    boundaries_intersect = true;
-                    if (chain.edgesCross(their)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        if (!theirs.exhausted()) {
-            const auto& chain = theirs.produceNext();
-            for (const auto& my : mine.produced()) {
-                if (chain.intersects(my)) {
-                    boundaries_intersect = true;
-                    if (chain.edgesCross(my)) {
-                        return true;
-                    }
-                }
-            }
-        }
+    // the outer interior). A verified crossing settles it the other way at
+    // once: it puts points of each polygon on both sides of the other's
+    // boundary right there, so the interiors overlap regardless of anything
+    // else. Only a mere touch (boundaries meet, no crossing found) reaches the
+    // quadratic scan below.
+    //
+    // One combined sweep over both edge sets answers both bits in
+    // O((n + m) log(n + m)), rather than testing this polygon's and other's
+    // lexicographically monotone chains against each other pairwise (see
+    // BoundaryChains): that product-of-chain-counts cost is fine for
+    // near-convex input but degrades to O(n * m) on a jagged, comb-like or
+    // star-shaped boundary.
+    const auto [crossed, boundaries_intersect] = boundaryContactBits(edgesView(), other.edgesView());
+    if (crossed) {
+        return true;
     }
 
     if (!boundaries_intersect) {
         return interiorContains(other.get(0)) || other.interiorContains(get(0));
     }
 
-    // Boundaries touch but do not have crossing chains:
-    // distinguish a mere boundary contact from a real interior
-    // overlap that went through a vertex between monotone chains.
+    // Boundaries touch but no crossing was found: distinguish a mere boundary
+    // contact from a real interior overlap that meets at a vertex or slips
+    // past the sweep's degenerate-corner shortcuts (see BoundaryContact).
 
     for (const auto& vertex : other.vertices()) {
         if (interiorContains(vertex)) {
