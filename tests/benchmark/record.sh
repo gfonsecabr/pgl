@@ -17,6 +17,19 @@
 # Pass-through filters for the shape-pair cube: --shapes, --focus, --sizes,
 # --sizes-a, --sizes-b (independent size lists per operand, overriding --sizes),
 # --methods, --types (comma lists; see run_shapepairs.py). Other options:
+#   --fraction N/D                 run only method-group N of D, split by
+#                                 estimated cost (compile + measured run time)
+#                                 so D roughly-equal overnight runs cover the
+#                                 full cube between them. Run 1/D first, then
+#                                 2/D, ... D/D in order (any commits in between
+#                                 are fine); each grouping is cached in
+#                                 build/tests/benchmark/fraction_cache.json so
+#                                 the D runs partition the methods exactly,
+#                                 even though history — and so the estimated
+#                                 costs — changes between them. Re-running 1/D
+#                                 starts a fresh cycle. Cannot be combined with
+#                                 --methods. See split_methods.py for the cost
+#                                 model. Has no effect with --extra-only.
 #   --pairs-only / --extra-only   run only one half
 #   --repetitions N               samples per program; median kept (default: 3)
 #   --no-push                     commit locally but do not push
@@ -43,6 +56,10 @@ extra=1
 push=1
 repetitions=3
 rev=""
+fraction=""
+shapes_opt=""
+types_opt=""
+methods_given=0
 pair_args=()
 
 while [[ $# -gt 0 ]]; do
@@ -54,9 +71,17 @@ while [[ $# -gt 0 ]]; do
         --repetitions=*) repetitions="${1#*=}"; shift ;;
         --rev)        rev="$2"; shift 2 ;;
         --rev=*)      rev="${1#*=}"; shift ;;
-        --shapes|--focus|--sizes|--sizes-a|--sizes-b|--methods|--types)
+        --fraction)   fraction="$2"; shift 2 ;;
+        --fraction=*) fraction="${1#*=}"; shift ;;
+        --shapes)     shapes_opt="$2"; pair_args+=("$1" "$2"); shift 2 ;;
+        --shapes=*)   shapes_opt="${1#*=}"; pair_args+=("$1"); shift ;;
+        --types)      types_opt="$2"; pair_args+=("$1" "$2"); shift 2 ;;
+        --types=*)    types_opt="${1#*=}"; pair_args+=("$1"); shift ;;
+        --methods)    methods_given=1; pair_args+=("$1" "$2"); shift 2 ;;
+        --methods=*)  methods_given=1; pair_args+=("$1"); shift ;;
+        --focus|--sizes|--sizes-a|--sizes-b)
             pair_args+=("$1" "$2"); shift 2 ;;
-        --shapes=*|--focus=*|--sizes=*|--sizes-a=*|--sizes-b=*|--methods=*|--types=*)
+        --focus=*|--sizes=*|--sizes-a=*|--sizes-b=*)
             pair_args+=("$1"); shift ;;
         -h|--help)
             awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"
@@ -67,6 +92,17 @@ while [[ $# -gt 0 ]]; do
             exit 2 ;;
     esac
 done
+
+if [[ -n "$fraction" ]]; then
+    if [[ "$methods_given" -eq 1 ]]; then
+        echo "error: --fraction and --methods are mutually exclusive (--fraction picks methods itself)." >&2
+        exit 2
+    fi
+    if [[ "$pairs" -eq 0 ]]; then
+        echo "error: --fraction has no effect with --extra-only (it splits the shape-pair cube's methods)." >&2
+        exit 2
+    fi
+fi
 
 if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     echo "error: tracked files have uncommitted changes." >&2
@@ -121,6 +157,20 @@ if [[ -n "$rev" ]]; then
     echo
 fi
 
+# ── Split methods for --fraction ──────────────────────────────────────────────
+# Always resolved against the real repo's history and cache, even under --rev:
+# the split is about spreading tonight's compile+run cost, which has nothing to
+# do with which commit's headers are being measured.
+if [[ -n "$fraction" ]]; then
+    split_args=(--fraction "$fraction" --repetitions "$repetitions" --jobs "$jobs")
+    [[ -n "$shapes_opt" ]] && split_args+=(--shapes "$shapes_opt")
+    [[ -n "$types_opt"  ]] && split_args+=(--types  "$types_opt")
+    fraction_methods="$(python3 tests/benchmark/split_methods.py "${split_args[@]}")"
+    pair_args+=(--methods "$fraction_methods")
+    echo "Fraction $fraction methods: $fraction_methods"
+    echo
+fi
+
 # ── Run the shape-pair cube ──────────────────────────────────────────────────
 if [[ "$pairs" -eq 1 ]]; then
     echo "::group::Shape-pair cube"
@@ -158,7 +208,7 @@ if git diff --cached --quiet; then
     exit 0
 fi
 
-git commit -m "Benchmark${rev:+ $rev_commit}"
+git commit -m "Benchmark${fraction:+ ($fraction)}${rev:+ $rev_commit}"
 if [[ "$push" -eq 1 ]]; then
     git push
     echo "History committed and pushed."
