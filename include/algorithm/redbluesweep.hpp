@@ -518,6 +518,151 @@ SweepContact boundaryContactBits(const RedRange& red, const BlueRange& blue) {
 }
 
 /**
+ * @defgroup boundary-dispatch Sweep-versus-chains dispatch
+ *
+ * Two ways to find out how two polygon boundaries meet, with opposite cost
+ * profiles, and the single rule that picks between them.
+ *
+ * @ref redBlueSweep is O((n + m) log(n + m)) come what may. Testing the two
+ * boundaries' maximal lexicographically monotone chains against each other
+ * pairwise (see @ref Polygon::BoundaryChains) is not: it runs one merge per
+ * chain pair, so it costs the *product* of the two chain counts — two chains a
+ * side for a convex polygon, up to n for a comb or a star. Neither dominates:
+ *
+ *   - The chain test wins on near-convex input, where the product is tiny and
+ *     the merges are seeded by binary search, and it wins again whenever the
+ *     answer comes early, since it produces chains lazily and stops at the
+ *     first hit. The sweep cannot stop early in the same sense: it builds and
+ *     sorts every event before it looks at anything.
+ *   - The sweep wins once the chain counts climb, by margins that reach two
+ *     orders of magnitude on a 4096-vertex star.
+ *
+ * Absolute size matters as much as the ratio does. The sweep allocates edge and
+ * event vectors and drives a `std::set`; on a pair of 32-gons that fixed
+ * overhead swamps the handful of orientation tests either method needs, and the
+ * chain test wins however jagged the two are. The crossover therefore moves with
+ * how expensive one orientation test is: for @ref BigInt or a rational built on
+ * it, a single predicate costs more than the sweep's whole bookkeeping, so the
+ * method doing fewer of them pulls ahead at a much smaller size than it does for
+ * `int` or `double`.
+ *
+ * @{
+ */
+
+/**
+ * @brief Overrides the dispatch, for benchmarking one strategy in isolation.
+ *
+ * Define to 1 to force the chain-pair tests everywhere, 2 to force the sweep.
+ * Left at its default of 0, @ref preferSweep decides per call. Only the default
+ * is a supported configuration; the other two exist so a benchmark can time the
+ * two strategies over the same inputs (see tests/benchmark/extra).
+ */
+#ifndef PGL_BOUNDARY_STRATEGY
+#define PGL_BOUNDARY_STRATEGY 0
+#endif
+
+namespace detail {
+
+/// Boundary edge count: every ring of a region, not just its outer one.
+template <class Shape>
+constexpr std::size_t boundaryEdgeCount(const Shape& shape) {
+    if constexpr (PolygonWithHolesConcept<Shape>) {
+        return shape.vertexCount();
+    } else {
+        return shape.size();
+    }
+}
+
+/**
+ * @brief The size floor half of the dispatch rule; see @ref preferSweep.
+ *
+ * Below this many edges the sweep's setup — two vectors, a sort and a
+ * `std::set` — costs more than everything the chain test does, at any chain
+ * count, so nothing past this check needs the chain counts at all. The floor
+ * measured at 128 edges for native coordinates.
+ *
+ * It is a fixed count, not scaled down for `Rational`/`BigInt` coordinates: an
+ * earlier version of this rule did scale it down, on the reasoning that an
+ * expensive @ref orientationSign inflates only the chain test's work. Measured
+ * against the real shape-pair benchmark cube that turned out to be wrong — the
+ * sweep's own status-structure comparisons and `Segment::crosses` calls run
+ * exactly as many orientation predicates, so an expensive `Number` inflates
+ * both strategies by roughly the same factor and the crossover, in chain and
+ * edge counts, barely moves. Scaling the floor down made the sweep get chosen
+ * at sizes where it was still slower in absolute terms — e.g. `BigInt`
+ * `intersects` on two 32-vertex polygons regressed 5.7x before this fix, for
+ * nothing: the fixed floor alone (below) already keeps small operands on the
+ * chain test regardless of `Number`, without ever reading a chain count.
+ *
+ * This is checked on edge counts alone — both O(1), read straight off
+ * `size()`/`vertexCount()` — specifically so a caller need not pay for
+ * @ref Polygon::chainCount, an O(n) pass, on operands this check already
+ * settles; that pass is not free for `Rational` or `BigInt` coordinates,
+ * where a single lexicographic comparison is not O(1) in practice either.
+ */
+constexpr bool clearsEdgeFloor(std::size_t redEdges, std::size_t blueEdges) {
+    constexpr std::size_t kMinEdges = 128;
+    return redEdges + blueEdges >= kMinEdges;
+}
+
+/**
+ * @brief The chain-count half of the dispatch rule; see @ref preferSweep.
+ *
+ * Only called once @ref clearsEdgeFloor has passed. The chain test's pair
+ * count must exceed the sweep's linear term. Across star polygons from 64 to
+ * 4096 vertices the crossover sat between `chainPairs = 0.36 * edges` and
+ * `2 * edges`; `chainPairs > edges / 2` runs through the middle of that, and
+ * errs towards the sweep only at the small end, where the floor has the last
+ * word anyway.
+ */
+constexpr bool sweepBeatsChains(std::size_t redEdges, std::size_t redChains,
+                                std::size_t blueEdges, std::size_t blueChains) {
+    const std::size_t edges = redEdges + blueEdges;
+    return 2 * redChains * blueChains > edges;
+}
+
+}  // namespace detail
+
+/**
+ * @brief Whether @p red against @p blue is a job for @ref redBlueSweep rather
+ * than for a pairwise test of their monotone boundary chains.
+ *
+ * The one place the library decides between the two boundary strategies, so the
+ * heuristic is tuned once and every predicate built on it — `Polygon::contains`,
+ * `intersects`, `interiorContains`, `interiorsIntersect`, and
+ * `PolygonWithHoles`/`PolygonSet` containment through them — moves together.
+ * Both operands may be a @ref Polygon or a @ref PolygonWithHoles.
+ *
+ * Reading the two chain counts is O(n + m) and allocation-free (see
+ * @ref Polygon::chainCount), which both strategies are dominated by anyway.
+ *
+ * @param red First boundary.
+ * @param blue Second boundary.
+ * @return `true` to sweep, `false` to compare chains.
+ */
+template <class RedShape, class BlueShape>
+constexpr bool preferSweep([[maybe_unused]] const RedShape& red,
+                           [[maybe_unused]] const BlueShape& blue) {
+#if PGL_BOUNDARY_STRATEGY == 1
+    return false;
+#elif PGL_BOUNDARY_STRATEGY == 2
+    return true;
+#else
+    const std::size_t redEdges = detail::boundaryEdgeCount(red);
+    const std::size_t blueEdges = detail::boundaryEdgeCount(blue);
+    // Settled on edge counts alone — O(1), read straight off size()/vertexCount()
+    // — before either chainCount() is read, so an operand pair too small to be
+    // worth a sweep never pays for that O(n) pass (see clearsEdgeFloor).
+    if (!detail::clearsEdgeFloor(redEdges, blueEdges)) {
+        return false;
+    }
+    return detail::sweepBeatsChains(redEdges, red.chainCount(), blueEdges, blue.chainCount());
+#endif
+}
+
+/** @} */
+
+/**
  * @brief Sweep-based counterpart of `Polygon::contains(Polygon)`.
  *
  * Same answer as @ref Polygon::contains for two simple polygons, reached by the

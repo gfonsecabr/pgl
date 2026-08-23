@@ -442,6 +442,46 @@ struct Polygon {
     }
 
     /**
+     * @brief Counts the maximal lexicographically monotone chains the boundary
+     * decomposes into, without building any of them.
+     *
+     * Consecutive boundary vertices of a simple polygon are distinct, so every
+     * edge runs strictly lex-up or lex-down and the boundary breaks into chains
+     * exactly at the vertices where that direction reverses. Counting those
+     * reversals is one pass and no allocation, and it returns precisely the
+     * number of chains @ref BoundaryChains would produce: two for a convex
+     * polygon, up to n for a comb or a star, and zero for a boundary collapsed
+     * to a single point (no reversal exists there).
+     *
+     * The count is what the chain-pair boundary tests pay for quadratically, so
+     * it is the input the sweep-versus-chains dispatch reads (see
+     * @ref preferSweep).
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @return The number of maximal lexicographically monotone boundary chains.
+     */
+    [[nodiscard]] constexpr std::size_t chainCount() const {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(size());
+        if (n < 2) {
+            return 0;
+        }
+        // Matches BoundaryChains exactly, down to how it classifies a repeated
+        // vertex: `ascends` is a strict lexicographic test, so a level edge
+        // counts as descending in both places.
+        std::size_t breaks = 0;
+        bool previous = get(n - 1) < get(0);
+        for (std::ptrdiff_t i = 0; i < n; ++i) {
+            const bool ascends = get(i) < get(i + 1);
+            if (ascends != previous) {
+                ++breaks;
+            }
+            previous = ascends;
+        }
+        return breaks;
+    }
+
+    /**
      * @brief Returns the kernel: the set of points that see the whole polygon.
      *
      * A point `p` of the polygon belongs to the kernel when the segment `pq`
@@ -1382,16 +1422,22 @@ struct Polygon {
     constexpr bool contains(const OtherPolygon& other) const;
 
     /**
-     * @brief Same contract as @ref contains(const OtherPolygon&) const, kept
-     * only for benchmarking against it.
+     * @brief Same contract as @ref contains(const OtherPolygon&) const, by the
+     * chain-pair strategy alone.
      *
      * Reaches the same answer by testing this polygon's and @p other's
      * lexicographically monotone chains (see @ref BoundaryChains) against each
      * other pairwise instead of running a combined plane sweep. Cheaper when
      * both boundaries are near-convex (few chains), since its cost is the
      * product of the two chain counts; that product degrades to O(n * m) on a
-     * jagged, comb-like or star-shaped boundary, where @ref contains stays at
-     * O((n + m) log(n + m)) regardless.
+     * jagged, comb-like or star-shaped boundary, where @ref sweepContains stays
+     * at O((n + m) log(n + m)) regardless.
+     *
+     * @ref contains calls whichever of the two @ref preferSweep judges cheaper
+     * for the operands at hand, so reach for it rather than this; naming this
+     * one commits to the chain strategy even where the sweep would win by two
+     * orders of magnitude. It stays public so a benchmark can time the two
+     * strategies against each other over the same inputs.
      *
      * Complexity: O(chains(A) * chains(B) * average chain length), i.e. O(n)
      * for near-convex input and O(n * m) in the worst case.

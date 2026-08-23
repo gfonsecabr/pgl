@@ -1547,24 +1547,41 @@ constexpr bool Polygon<PointType, LabelType>::contains(const OtherConvex& other)
     return true;
 }
 
-// Delegates to a combined red-blue plane sweep (sweepContains, in
-// algorithm/redbluesweep.hpp) rather than testing this polygon's and other's
-// lexicographically monotone chains pairwise (still done in contains(Convex),
-// where a convex hull's fixed 2-chain shape makes that cheap). The chain
-// approach costs the product of the two chain counts, which for a jagged,
-// comb-like or star-shaped boundary is O(n) chains on a side and so degrades
-// to O(n*m); the sweep stays O((n+m) log(n+m)) however either boundary
-// wiggles. sweepContains reproduces the same argument otherwise: bbox and
-// degenerate-point rejects, one vertex of `other` inside `this`, no boundary
-// crossing, and the same quadratic edge fallback when boundaries only touch.
+// Two implementations of one contract, picked between per call: a combined
+// red-blue plane sweep (sweepContains, in algorithm/redbluesweep.hpp) and the
+// pairwise test of the two boundaries' lexicographically monotone chains
+// (containsChainBased, below — the same argument contains(Convex) runs against
+// a convex hull's fixed two chains). Neither dominates: the chain test costs
+// the product of the two chain counts, cheap for near-convex boundaries and
+// O(n*m) for a comb or a star, while the sweep is O((n+m) log(n+m)) always but
+// carries setup a small input never earns back. preferSweep is where that
+// tradeoff is decided, once, for every predicate built on it.
+//
+// The two agree on every input: sweepContains follows the same three steps as
+// containsChainBased — bbox and degenerate-point rejects, one vertex of `other`
+// inside `this`, no boundary crossing — and falls back to the same quadratic
+// edge scan when the boundaries touch without a crossing being found.
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::contains(const OtherPolygon& other) const {
-    return sweepContains(*this, other);
+    // The bbox reject both implementations open with is cheap (bbox() is
+    // cached) and, for the common case of two polygons that plainly do not
+    // overlap, settles the call outright. Doing it here too, before
+    // preferSweep, means that common case never pays for chainCount()'s O(n)
+    // pass on either operand — real money for Rational or BigInt coordinates,
+    // where a single lexicographic comparison is not cheap.
+    if (other.size() == 0) {
+        return true;
+    }
+    if (!bbox().contains(other.bbox())) {
+        return false;
+    }
+    if (preferSweep(*this, other)) {
+        return sweepContains(*this, other);
+    }
+    return containsChainBased(other);
 }
 
-// Kept only so containsChainBased can be benchmarked against contains(); see
-// its declaration in shape/polygon.hpp for why the two can disagree in cost.
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Polygon<PointType, LabelType>::containsChainBased(const OtherPolygon& other) const {
@@ -3025,19 +3042,20 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::areaContains(const OtherA
             return outer_.contains(other);
         }
     }
-    // A crossing anywhere between the operand's boundary and this region's
-    // full boundary (outer ring and every hole together) settles the question
-    // outright: it lands the operand partly outside the outer ring or partly
-    // inside a hole, either of which is disqualifying (see the file comment on
-    // redBlueSweep). Checking that with one combined sweep costs
-    // O((n + m) log(n + m)); the edge-by-edge loop below, needed regardless
-    // when the boundaries only touch or miss entirely, costs O(n * m) for a
-    // Polygon or PolygonWithHoles operand with many edges.
-    if constexpr (PolygonConcept<OtherArea> || PolygonWithHolesConcept<OtherArea>) {
-        if (boundariesCross(edges(), other.edges())) {
-            return false;
-        }
-    }
+    // A sweep pre-check was tried here (any crossing between the operand's
+    // boundary and this region's full boundary settles the question outright,
+    // in O((n + m) log(n + m)) instead of the O(n * m) the edge scan below
+    // costs in the worst case). Measured against the shape-pair benchmark
+    // cube it was a net loss, not a win: this loop already returns on the
+    // first violating edge, so on the ordinary (non-adversarially-jagged)
+    // regions that cube generates it was already fast, and the pre-check's
+    // own cost — chainCount() over every ring, plus materializing edges()
+    // for both operands a second time (the loop below materializes them
+    // again) — was pure overhead on top of that, regressing PolygonWithHoles
+    // containment up to 7x. Left out until there is a real dispatch for it,
+    // the way Polygon::contains has one in containsChainBased/sweepContains,
+    // rather than a pre-check bolted onto an algorithm with no fast branch of
+    // its own to skip.
     for (const auto& edge : other.edges()) {
         if (!contains(edge)) {
             return false;

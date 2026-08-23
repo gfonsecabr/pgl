@@ -281,6 +281,24 @@ struct PolygonWithHoles {
         return total;
     }
 
+    /**
+     * @brief Total number of maximal lexicographically monotone chains over all
+     * rings; see @ref Polygon::chainCount.
+     *
+     * The region's boundary is the disjoint union of its rings, so a chain-pair
+     * boundary test against it pays for the sum of their chain counts. This is
+     * the input the sweep-versus-chains dispatch reads (see @ref preferSweep).
+     *
+     * Complexity: O(n) for n vertices over all rings.
+     */
+    [[nodiscard]] constexpr std::size_t chainCount() const {
+        std::size_t total = outer_.chainCount();
+        for (const auto& hole : holes_) {
+            total += hole.chainCount();
+        }
+        return total;
+    }
+
     /** @brief Returns the vertices of every ring, outer boundary first. */
     [[nodiscard]] constexpr std::vector<PointType> vertices() const {
         std::vector<PointType> result;
