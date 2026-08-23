@@ -149,6 +149,33 @@ for (pgl::EShape piece : pieces)
   </tr>
 </table>
 
+The object returned as the intersection depends on the two operands and is summarized below.
+
+| Code | Return type |
+|---|---|
+| oP | opt&lt;Point&gt; |
+| oPS, oPL, oPR, oPLR | opt&lt;var&lt;Point, Segment&gt;&gt;, opt&lt;var&lt;Point, Line&gt;&gt;, opt&lt;var&lt;Point, Ray&gt;&gt;, opt&lt;var&lt;Point, Line, Ray&gt;&gt; |
+| oPSR, oPSRL, oPSC, oRect | opt&lt;var&lt;Point, Segment, Ray&gt;&gt;, opt&lt;var&lt;Point, Segment, Ray, Line&gt;&gt;, opt&lt;var&lt;Point, Segment, Convex&gt;&gt;, opt&lt;Rectangle&gt; |
+| vPS, vPSP | vec&lt;var&lt;Point, Segment&gt;&gt;, vec&lt;var&lt;Point, Segment, Polygon&gt;&gt; |
+| vPPLP, vPPLW | vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;, vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt; |
+| I | HalfplaneIntersection |
+| — | No overload is available |
+
+| operands | Seg.<br>OSeg. | Line<br>O.Line | Ray | Hp. | Rect. | Tri.<br>Conv. | MCh.<br>P.line | Poly. | HpI. | PWH. | P.Set |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Segment<br>OrientedSegment | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="No overload is available">-</abbr> |
+| Line<br>OrientedLine | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Line&gt;&gt;">oPL</abbr> | <abbr title="opt&lt;var&lt;Point, Ray&gt;&gt;">oPR</abbr> | <abbr title="opt&lt;var&lt;Point, Line, Ray&gt;&gt;">oPLR</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray, Line&gt;&gt;">oPSRL</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="No overload is available">-</abbr> |
+| Ray | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Ray&gt;&gt;">oPR</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray&gt;&gt;">oPSR</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray&gt;&gt;">oPSR</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray&gt;&gt;">oPSR</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="No overload is available">-</abbr> |
+| Halfplane | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Line, Ray&gt;&gt;">oPLR</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray&gt;&gt;">oPSR</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment, Polygon&gt;&gt;">vPSP</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| Rectangle | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="opt&lt;Rectangle&gt;">oRect</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| Triangle<br>Convex | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Convex&gt;&gt;">oPSC</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| MonotoneChain<br>Polyline | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="No overload is available">-</abbr> |
+| Polygon | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment, Polygon&gt;&gt;">vPSP</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| HalfplaneIntersec. | <abbr title="opt&lt;var&lt;Point, Segment&gt;&gt;">oPS</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray, Line&gt;&gt;">oPSRL</abbr> | <abbr title="opt&lt;var&lt;Point, Segment, Ray&gt;&gt;">oPSR</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, Polygon&gt;&gt;">vPPLP</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| PolygonWithHoles | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Segment&gt;&gt;">vPS</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+| PolygonSet | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> | <abbr title="vec&lt;var&lt;Point, Polyline, PolygonWithHoles&gt;&gt;">vPPLW</abbr> |
+
+
 
 ### Boolean Operations
 
@@ -194,9 +221,9 @@ For the literal point set, including its lower-dimensional pieces, `intersection
 
 ### Minkowski Sum
 
-The Minkowski sum of two shapes is the set of all sums of a point of the first and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is written `a.minkowskiSum(b)`, or `a + b`. Adding a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") is a translation, so it returns the other operand's own type and is defined for every shape.
+The Minkowski sum of two shapes is the set of all sums of a point of the first and a point of the second, $A \oplus B = \\{a + b : a \in A, b \in B\\}$. It is written `a.minkowskiSum(b)`, or `a + b` when there is no template parameter (because the construction is exact for integers). Adding a [`Point`](https://gfonsecabr.github.io/pgl/structpgl_1_1Point.html "Two-dimensional point with optional label payload.") is a translation.
 
-The Minkowski sum of two bounded, polygonal convex shapes is convex. Every vertex of the result is a sum of two input vertices, so the construction is exact for integers. A result that drops below two dimensions is reported through the returned [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices."): summing two parallel segments gives a [`Convex`](https://gfonsecabr.github.io/pgl/structpgl_1_1Convex.html "Closed convex polygon stored by its vertices.") satisfying `isSegment()`.
+The Minkowski sum of two bounded, polygonal convex shapes is convex. Every vertex of the result is a sum of two input vertices, so the construction is exact for integers.
 
 <table>
   <tr>
@@ -217,49 +244,26 @@ pgl::Convex convex = tri + box;
   </tr>
 </table>
 
-Other sums also have tighter return types. A [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.") absorbs every supported bounded operand and comes back as a halfplane.
+The shape returned by the Minkowski sum depends on the two operands, and is summarized below.
 
-```c++
-pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
-up.minkowskiSum(pgl::Rectangle(2,3, 5,7));            // y >= 3
-```
+| Code | Return type |
+|---|---|
+| Cvx, Rect, Poly, PWH, PSet | Convex, Rectangle, Polygon, PolygonWithHoles, PolygonSet |
+| H, I | Halfplane, HalfplaneIntersection |
+| K* | Rectangle for Rectangle + Rectangle; otherwise Convex |
+| — | No overload is available |
 
-A [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.") is another, and the one curved sum the library can answer: two disks sum to a disk whose radius is the sum of the two radii. The operation is exact for disks built from a center and a radius but requires square roots for disks built from three boundary points.
-
-```c++
-pgl::Disk a(pgl::Point(0,0), 3), b(pgl::Point(4,1), 2);
-a.minkowskiSum(b);                     // center (4,1), radius 5, as double
-a.minkowskiSum<pgl::ERational>(b);     // exact: both operands carry their radius
-```
-
-The remaining unbounded operands ([`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line."), [`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html "Directed infinite line with left/right side semantics plus optional line label."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), and [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.")) are each an intersection of finitely many closed halfplanes. The sum of two convex polyhedra is also a convex polyhedron, so sums between these operands return a [`HalfplaneIntersection`](shapes.md#halfplane-intersection), whichever operand is written first.
-
-```c++
-pgl::Line l = {0,0, 1,0};                             // the x axis
-l.minkowskiSum(pgl::Triangle(0,0, 3,0, 0,2));         // the slab 0 <= y <= 2
-l.minkowskiSum(pgl::Segment(0,0, 5,0));               // still the x axis
-
-pgl::Ray r = {0,0, 1,0};                              // east from the origin
-r.minkowskiSum(pgl::Ray(0,0, 0,1));                   // the quadrant x,y >= 0
-r.minkowskiSum(pgl::Segment(0,0, 0,2));               // the half-strip x >= 0, 0 <= y <= 2
-
-pgl::Halfplane up = {0,0, 1,0};                       // y >= 0
-up.minkowskiSum(pgl::Halfplane(5,3, 7,3));            // y >= 3
-up.minkowskiSum(pgl::Halfplane(0,9, -1,9));           // the whole plane
-```
-
-[`Line`](https://gfonsecabr.github.io/pgl/structpgl_1_1Line.html "Unoriented infinite line."), [`OrientedLine`](https://gfonsecabr.github.io/pgl/structpgl_1_1OrientedLine.html "Directed infinite line with left/right side semantics plus optional line label."), [`Ray`](https://gfonsecabr.github.io/pgl/structpgl_1_1Ray.html "Half-infinite line starting from one source point plus optional ray label."), and [`HalfplaneIntersection`](https://gfonsecabr.github.io/pgl/structpgl_1_1HalfplaneIntersection.html "Intersection of closed half-planes; convex but possibly unbounded or empty.") may also be summed with bounded convex polygonal shapes, but they reject nonconvex operands. [`Halfplane`](https://gfonsecabr.github.io/pgl/structpgl_1_1Halfplane.html "Closed half-plane defined by an oriented boundary line.") is broader: it also accepts bounded nonconvex polygonal shapes and [`Disk`](https://gfonsecabr.github.io/pgl/structpgl_1_1Disk.html "Closed Euclidean disk stored by boundary points plus optional disk label.").
-
-```c++
-pgl::HalfplaneIntersection region(pgl::Rectangle(0,0, 2,2));
-auto grown = region.minkowskiSum(pgl::Triangle(0,0, 3,0, 0,2));  // ERational coordinates
-grown.isBounded();                                    // true: both operands were
-grown.asConvex<int>();                                // Convex[(0,0),(5,0),(5,2),(2,4),(0,4)]
-```
-
-A connected, bounded polygonal sum involving a nonconvex operand generally needs a [`PolygonWithHoles`](shapes.md#polygon-with-holes). One exception is a [`MonotoneChain`](https://gfonsecabr.github.io/pgl/structpgl_1_1MonotoneChain.html "Weakly x-monotone polyline stored by lexicographically sorted vertices.") summed with a nondegenerate convex operand, which returns a [`Polygon`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html "Closed simple polygon stored by its vertices."); a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") operand instead requires a [`PolygonSet`](https://gfonsecabr.github.io/pgl/structpgl_1_1PolygonSet.html "Set of closed regions with pairwise disjoint interiors.") result.
-
-One region is guaranteed when at least one operand is a body: the closure of a connected, nonempty interior. A polygon with holes can fail that condition when a hole shares edges with the outer polygon and creates slits. A degenerate operand, such as a [`Rectangle`](https://gfonsecabr.github.io/pgl/structpgl_1_1Rectangle.html "Axis-aligned rectangle stored by minimum and maximum corners.") collapsed to a segment, is permitted when the other operand satisfies the body condition; if neither operand does, the single-region guarantee does not apply.
+| operands| Seg.<br>O.Seg. | Line<br>O.Line<br>Ray | Halfp. | Rect.<br>Tri.<br>Conv. | M.Chain | P.line | Poly.<br>PWH. | HpI. | P.Set |
+|---|---|---|---|---|---|---|---|---|---|
+| Segment<br>OrientedSegment | <abbr title="Convex">Cvx</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Convex">Cvx</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="PolygonSet">PSet</abbr> |
+| Line<br>OrientedLine<br>Ray | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="No overload is available">-</abbr> |
+| Halfplane | <abbr title="Halfplane">H</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="Halfplane">H</abbr> |
+| Rectangle<br>Triangle<br>Convex | <abbr title="Convex">Cvx</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Rectangle for Rectangle + Rectangle; otherwise Convex">K*</abbr> | <abbr title="Polygon">Poly</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="PolygonSet">PSet</abbr> |
+| MonotoneChain | <abbr title="PolygonSet">PSet</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="Polygon">Poly</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="PolygonSet">PSet</abbr> |
+| Polyline | <abbr title="PolygonSet">PSet</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="PolygonSet">PSet</abbr> |
+| Polygon<br>PolygonWithHoles | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="PolygonWithHoles">PWH</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="PolygonSet">PSet</abbr> |
+| HalfplaneIntersection | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="HalfplaneIntersection">I</abbr> | <abbr title="No overload is available">-</abbr> |
+| PolygonSet | <abbr title="PolygonSet">PSet</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="Halfplane">H</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="PolygonSet">PSet</abbr> | <abbr title="No overload is available">-</abbr> | <abbr title="PolygonSet">PSet</abbr> |
 
 
 ### Minkowski Erosion
