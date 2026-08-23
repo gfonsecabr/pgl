@@ -1686,6 +1686,46 @@ TEST_CASE("Containment on a hull domain, and of unbounded and empty shapes") {
     CHECK_FALSE(none.contains(pgl::Segment<Point>(P<Point>(0, 0), P<Point>(1, 1))));
 }
 
+TEST_CASE("Triangulation predicates dispatch concrete compound region queries") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Set = pgl::PolygonSet<Point>;
+    using Intersection = pgl::HalfplaneIntersection<Point>;
+
+    const Polygon domain({0, 0, 10, 0, 10, 10, 0, 10});
+    const auto tri = domain.triangulation();
+    const Region region(Polygon({1, 1, 5, 1, 5, 5, 1, 5}),
+                        std::vector{Polygon({2, 2, 4, 2, 4, 4, 2, 4})});
+    const Set set(std::vector{region,
+                              Region(Polygon({6, 6, 9, 6, 9, 9, 6, 9}))});
+    const Intersection bounded(pgl::Rectangle<Point>(P<Point>(1, 1), P<Point>(5, 5)));
+
+    const auto checkInside = [&]<class Q>(const Q& query) {
+        CHECK(tri.contains(query));
+        CHECK(tri.interiorContains(query));
+        CHECK(tri.intersects(query));
+        CHECK(tri.interiorsIntersect(query));
+
+        // The benchmark calls the concrete overload. Shape erasure must reach
+        // the same overload instead of visiting back into itself.
+        const pgl::Shape<Point> erased(query);
+        CHECK(tri.contains(erased));
+        CHECK(tri.interiorContains(erased));
+        CHECK(tri.intersects(erased));
+        CHECK(tri.interiorsIntersect(erased));
+    };
+    checkInside(region);
+    checkInside(set);
+    checkInside(bounded);
+
+    const Intersection wholePlane;
+    CHECK_FALSE(tri.contains(wholePlane));
+    CHECK_FALSE(tri.interiorContains(wholePlane));
+    CHECK(tri.intersects(wholePlane));
+    CHECK(tri.interiorsIntersect(wholePlane));
+}
+
 // ---------------------------------------------------------------------------
 // Regions with holes. The domain is the part of the region that has area, so
 // the in-domain triangles tile it exactly: their areas sum to the region's, no
@@ -1878,6 +1918,15 @@ TEST_CASE("A boundary inside a holed domain can still enclose a hole") {
 
     const pgl::Polygon<Point> ring({1, 1, 9, 1, 9, 9, 1, 9});
     CHECK_FALSE(tri.contains(ring));
+
+    // Compound regions take the same witness path: their own boundary can be
+    // clear while their interior still covers the domain hole.
+    const Region holedQuery(ring);
+    CHECK_FALSE(tri.contains(holedQuery));
+    CHECK_FALSE(tri.interiorContains(holedQuery));
+    const pgl::HalfplaneIntersection<Point> convexQuery(around);
+    CHECK_FALSE(tri.contains(convexQuery));
+    CHECK_FALSE(tri.interiorContains(convexQuery));
 
     // A polygon threading around the hole keeps clear of it and is contained.
     const pgl::Polygon<Point> beside({1, 1, 3, 1, 3, 9, 1, 9});

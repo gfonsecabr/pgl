@@ -2638,6 +2638,56 @@ struct Triangulation {
     }
 
     /** @overload */
+    template <PolygonWithHolesConcept Q>
+    [[nodiscard]] bool contains(const Q& shape) const {
+        if (shape.outer().empty()) {
+            return true;
+        }
+        bool traced = false;
+        for (const auto& edge : shape.edges()) {
+            if (edge[0] == edge[1]) {
+                continue;
+            }
+            traced = true;
+            if (!contains(edge)) {
+                return false;
+            }
+        }
+        if (!traced && !contains(shape.outer()[0])) {
+            return false;
+        }
+        for (const TriangleType& witness : holeWitnesses_) {
+            if (shape.contains(witness)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @overload */
+    template <PolygonSetConcept Q>
+    [[nodiscard]] bool contains(const Q& shape) const {
+        for (const auto& component : shape.components()) {
+            if (!contains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @overload */
+    template <HalfplaneIntersectionConcept Q>
+    [[nodiscard]] bool contains(const Q& shape) const {
+        if (shape.empty()) {
+            return true;
+        }
+        if (!shape.isBounded()) {
+            return false;
+        }
+        return contains(shape.template asConvex<division_result_t<typename Q::NumberType>>());
+    }
+
+    /** @overload */
     template <DiskConcept D>
     [[nodiscard]] bool contains(const D& shape) const {
         // A disk has no edges to trace, so it is grown by the region flood fill
@@ -2725,6 +2775,43 @@ struct Triangulation {
             [&](TriId t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
     }
 
+    /** @overload */
+    template <PolygonWithHolesConcept Q>
+    [[nodiscard]] bool intersects(const Q& shape) const {
+        if (shape.outer().empty()) {
+            return false;
+        }
+        for (const auto& edge : shape.edges()) {
+            if (edge[0] != edge[1] && intersects(edge)) {
+                return true;
+            }
+        }
+        return anyDomainComponent(
+            [&](TriId t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
+    }
+
+    /** @overload */
+    template <PolygonSetConcept Q>
+    [[nodiscard]] bool intersects(const Q& shape) const {
+        for (const auto& component : shape.components()) {
+            if (intersects(component)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @overload */
+    template <HalfplaneIntersectionConcept Q>
+    [[nodiscard]] bool intersects(const Q& shape) const {
+        for (TriId t = 0; t < static_cast<TriId>(triangles_.size()); ++t) {
+            if (inDomain(t) && shape.intersects(triangleValue(t))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @overload @brief Always false: nothing meets the empty shape. */
     template <EmptyShapeConcept E>
     [[nodiscard]] bool intersects(const E&) const {
@@ -2760,6 +2847,59 @@ struct Triangulation {
         // touching ∂D would have points outside the domain arbitrarily close to it,
         // yet a whole neighbourhood of it lies in the polygon, hence in the domain.
         return containsBoundary<true>(shape.edges(), shape);
+    }
+
+    /** @overload */
+    template <PolygonWithHolesConcept Q>
+    [[nodiscard]] bool interiorContains(const Q& shape) const {
+        if (shape.outer().empty()) {
+            return true;
+        }
+        bool traced = false;
+        for (const auto& edge : shape.edges()) {
+            if (edge[0] == edge[1]) {
+                continue;
+            }
+            traced = true;
+            if (!interiorContains(edge)) {
+                return false;
+            }
+        }
+        if (!traced && !interiorContains(shape.outer()[0])) {
+            return false;
+        }
+        for (const TriangleType& witness : holeWitnesses_) {
+            if (shape.contains(witness)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @overload */
+    template <PolygonSetConcept Q>
+    [[nodiscard]] bool interiorContains(const Q& shape) const {
+        for (const auto& component : shape.components()) {
+            if (!interiorContains(component)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @overload */
+    template <HalfplaneIntersectionConcept Q>
+    [[nodiscard]] bool interiorContains(const Q& shape) const {
+        if (shape.empty()) {
+            return true;
+        }
+        if (!shape.isBounded()) {
+            return false;
+        }
+        if (!contains(shape)) {
+            return false;
+        }
+        return interiorContains(shape.template asConvex<division_result_t<typename Q::NumberType>>());
     }
 
     /** @overload @brief Always true: every interior contains the empty shape. */
@@ -2823,6 +2963,43 @@ struct Triangulation {
         }
         return anyDomainComponent(
             [&](TriId t) { return shape.interiorsIntersect(triangleValue(t)); });
+    }
+
+    /** @overload */
+    template <PolygonWithHolesConcept Q>
+    [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
+        if (shape.outer().empty()) {
+            return false;
+        }
+        for (const auto& edge : shape.edges()) {
+            if (edge[0] != edge[1] && interiorsIntersect(edge)) {
+                return true;
+            }
+        }
+        return anyDomainComponent(
+            [&](TriId t) { return shape.interiorsIntersect(triangleValue(t)); });
+    }
+
+    /** @overload */
+    template <PolygonSetConcept Q>
+    [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
+        for (const auto& component : shape.components()) {
+            if (interiorsIntersect(component)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @overload */
+    template <HalfplaneIntersectionConcept Q>
+    [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
+        for (TriId t = 0; t < static_cast<TriId>(triangles_.size()); ++t) {
+            if (inDomain(t) && triangleValue(t).interiorsIntersect(shape)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @overload @brief Always false: the empty shape has no interior. */
