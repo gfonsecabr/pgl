@@ -77,7 +77,7 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `run_shapepairs.py` | Generate/compile/run/compare the shape-pair cube → snapshot JSON |
 | `run_extra.py`      | Compile/run the `extra/*.cpp` whole-algorithm benchmarks → snapshot JSON |
 | `to_history.py`     | Append snapshots into `history/` (one record per data point per commit) |
-| `build_dashboard.py`| History → `data.json` + copy the `dashboard/` frontend into the output dir |
+| `build_dashboard.py`| History → page-specific JSON payloads + copy the `dashboard/` frontend into the output dir |
 | `record.sh`         | Orchestrate run → history → commit → push |
 | `randomshapes.hpp`  | Deterministic random shape generators used by the generated sources |
 | `dashboard/`        | Static frontend (`index.html`, `extra.html`, `app.js`, `style.css`) |

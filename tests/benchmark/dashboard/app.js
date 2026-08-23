@@ -141,7 +141,8 @@ function distributionTip(shape, size) {
 }
 
 async function load() {
-  const res = await fetch("data.json", { cache: "no-store" });
+  const dataFile = PAGE === "extra" ? "extra.json" : "pairs.json";
+  const res = await fetch(dataFile, { cache: "no-store" });
   DB = await res.json();
   pop = document.getElementById("spark-pop");
 

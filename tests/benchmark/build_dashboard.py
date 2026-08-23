@@ -3,11 +3,12 @@
 
 Reads the JSONL history under --history (pair records at the top level, extra
 whole-algorithm records under history/extra/), copies the dashboard template
-(index.html / extra.html / app.js / style.css) into --out, and emits data.json — the single
-payload the frontend fetches. Pure transformation, no network, so it runs
+(index.html / extra.html / app.js / style.css) into --out, and emits separate
+pair and extra payloads so each page only downloads the data it displays. Pure
+transformation, no network, so it runs
 identically locally and in CI.
 
-data.json shape:
+pairs.json shape:
   {
     "generated": <iso>,
     "machines":  [<machine>, ...],
@@ -15,6 +16,14 @@ data.json shape:
                    method:[...], type:[...]},   # each value list in display order
     "pairs": { <machine>: { "s1|sz1|s2|sz2|method|type":
                             [ {commit,date,time,result,match}, ... ] } },
+    "extra": {}
+  }
+
+extra.json shape:
+  {
+    "generated": <iso>,
+    "machines": [<machine>, ...],
+    "pairs": {},
     "extra": { <suite>: { functions:[...], types:[...], unit, machines:[...],
                           data:{ <machine>: { "op|type": [ {commit,date,time,result} ] } },
                           source_url?, description? } }
@@ -226,12 +235,21 @@ def main() -> None:
     extra, extra_machines = build_extra(args.history, repo_base, args.bench_root)
     machines = sorted(pair_machines | extra_machines)
 
-    payload = {
-        "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "machines": machines,
+    generated = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    pairs_payload = {
+        "generated": generated,
+        "machines": sorted(pair_machines),
         "unit": "ns",
         "dimensions": dimensions,
         "pairs": pairs,
+        "extra": {},
+    }
+    extra_payload = {
+        "generated": generated,
+        "machines": sorted(extra_machines),
+        "unit": "ns",
+        "dimensions": {},
+        "pairs": {},
         "extra": extra,
     }
 
@@ -242,8 +260,9 @@ def main() -> None:
             shutil.copy(src, os.path.join(args.out, fname))
     if os.path.exists(args.logo):
         shutil.copy(args.logo, os.path.join(args.out, "logo.png"))
-    with open(os.path.join(args.out, "data.json"), "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+    for fname, payload in (("pairs.json", pairs_payload), ("extra.json", extra_payload)):
+        with open(os.path.join(args.out, fname), "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
     print(f"dashboard -> {args.out}  "
           f"({len(pairs)} machines of pairs, {len(extra)} extra suites, "
