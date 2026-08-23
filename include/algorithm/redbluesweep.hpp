@@ -594,6 +594,22 @@ constexpr std::size_t boundaryEdgeCount(const Shape& shape) {
  * nothing: the fixed floor alone (below) already keeps small operands on the
  * chain test regardless of `Number`, without ever reading a chain count.
  *
+ * It is also checked on *each* operand separately, not their sum: an earlier
+ * version summed them, which passed a tiny operand (as small as a triangle)
+ * straight through to the chain-count comparison the moment the *other*
+ * operand was large — and a triangle's boundary is only 2 chains, which that
+ * comparison reads as "barely jagged, so sweep must be cheap here" without
+ * ever noticing that those 2 chains are only a couple of vertices long.
+ * A large convex polygon also has 2 chains, but each spans half its
+ * vertices, and pairwise-testing two long chains against a jagged operand's
+ * many short ones is genuinely expensive — chain count alone cannot tell the
+ * two apart, only chain count *together with the edge count it was measured
+ * on* can. Requiring both operands to individually clear the floor sidesteps
+ * the distinction entirely: a triangle-sized operand never reaches the
+ * chain-count comparison regardless of the other side, exactly matching
+ * measurement (chain-based stayed faster for every tiny-vs-jagged pair tried,
+ * up to a 4096-vertex, maximally jagged partner).
+ *
  * This is checked on edge counts alone — both O(1), read straight off
  * `size()`/`vertexCount()` — specifically so a caller need not pay for
  * @ref Polygon::chainCount, an O(n) pass, on operands this check already
@@ -602,23 +618,36 @@ constexpr std::size_t boundaryEdgeCount(const Shape& shape) {
  */
 constexpr bool clearsEdgeFloor(std::size_t redEdges, std::size_t blueEdges) {
     constexpr std::size_t kMinEdges = 128;
-    return redEdges + blueEdges >= kMinEdges;
+    return redEdges >= kMinEdges && blueEdges >= kMinEdges;
 }
 
 /**
  * @brief The chain-count half of the dispatch rule; see @ref preferSweep.
  *
- * Only called once @ref clearsEdgeFloor has passed. The chain test's pair
- * count must exceed the sweep's linear term. Across star polygons from 64 to
- * 4096 vertices the crossover sat between `chainPairs = 0.36 * edges` and
- * `2 * edges`; `chainPairs > edges / 2` runs through the middle of that, and
- * errs towards the sweep only at the small end, where the floor has the last
- * word anyway.
+ * Only called once @ref clearsEdgeFloor has passed, which is what makes a
+ * chain-count-only comparison safe here: both operands are already known to
+ * be large enough that a low chain count means genuinely few, long chains,
+ * not a small operand's short ones (see @ref clearsEdgeFloor).
+ *
+ * The chain test's pair count must exceed the sweep's linear term by a
+ * margin, not just cross it: measured against a wider benchmark than the
+ * original fit (adding operand pairs of unequal jaggedness, not just two
+ * matched star polygons), the extra margin (3x rather than 2x) removed
+ * several cases where the chain test was still faster despite crossing the
+ * old, tighter threshold, without losing any case where the sweep was
+ * genuinely faster. The reverse case (sweep chosen but chain test faster)
+ * cannot be eliminated by any multiplier tried, on this benchmark or the
+ * original one — it comes from asymmetric-jaggedness pairs whose boundaries
+ * happen to touch (an early-exit case for the chain test's lazy production
+ * that a decision based on aggregate chain and edge counts alone cannot see
+ * coming) rather than from the chain-count model itself being wrong, so
+ * pushing the multiplier further only trades those cases for losing correct
+ * sweep calls elsewhere.
  */
 constexpr bool sweepBeatsChains(std::size_t redEdges, std::size_t redChains,
                                 std::size_t blueEdges, std::size_t blueChains) {
     const std::size_t edges = redEdges + blueEdges;
-    return 2 * redChains * blueChains > edges;
+    return 3 * redChains * blueChains > edges;
 }
 
 }  // namespace detail
