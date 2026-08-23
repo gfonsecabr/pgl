@@ -7,12 +7,13 @@
 // multi-select chip filter. The two highest-priority dimensions that still have
 // more than one value selected become the table's columns and rows; any further
 // multi-valued dimensions facet into a grid of small tables. Dimensions narrowed
-// to a single value are shown in the caption. A second, separate section renders
-// the whole-algorithm ("extra") benchmarks as classic per-suite tables.
+// to a single value are shown in the caption. Whole-algorithm ("extra")
+// benchmarks render on their own page as classic per-suite tables.
 
 let DB = null;
 let chart = null;
 let pop = null; // hover preview bubble
+const PAGE = document.body.dataset.page || "pairs";
 
 const DIMS = ["shape1", "size1", "shape2", "size2", "method", "type"];
 const DIM_LABEL = {
@@ -146,11 +147,11 @@ async function load() {
 
   const sel = document.getElementById("machine");
   if (!DB.machines || !DB.machines.length) {
-    document.getElementById("suites").innerHTML =
+    const root = document.getElementById(PAGE === "extra" ? "extra" : "suites");
+    root.innerHTML =
       '<p class="empty-state">No benchmark data recorded yet. Run ' +
       "<code>bash tests/benchmark/record.sh</code> and commit " +
       "<code>tests/benchmark/history/</code>.</p>";
-    document.getElementById("extra-section").style.display = "none";
     return;
   }
   for (const m of DB.machines) {
@@ -162,13 +163,15 @@ async function load() {
   document.getElementById("chart-close")
     .addEventListener("click", () => document.getElementById("chart-dialog").close());
 
-  for (const d of DIMS) {
-    const vals = dimValues(d);
-    const pref = (INITIAL_SELECTION[d] || []).filter((v) => vals.includes(v));
-    selected[d] = new Set(pref.length ? pref : vals);
+  if (PAGE === "pairs") {
+    for (const d of DIMS) {
+      const vals = dimValues(d);
+      const pref = (INITIAL_SELECTION[d] || []).filter((v) => vals.includes(v));
+      selected[d] = new Set(pref.length ? pref : vals);
+    }
+    buildFilterBar();
   }
 
-  buildFilterBar();
   render();
 }
 
@@ -323,6 +326,14 @@ const sel = (d) => dimValues(d).filter((v) => selected[d].has(v));
 // ── main render (shape-pair cube) ─────────────────────────────────────────────
 
 function render() {
+  if (PAGE === "extra") {
+    renderExtra();
+    return;
+  }
+  renderPairs();
+}
+
+function renderPairs() {
   const machine = document.getElementById("machine").value;
   const data = (DB.pairs && DB.pairs[machine]) || {};
   const root = document.getElementById("suites");
@@ -335,7 +346,6 @@ function render() {
     root.innerHTML =
       `<p class="empty-state">No values selected for: ${empty.map((d) => DIM_LABEL[d]).join(", ")}.</p>`;
     updateSummary([], [], []);
-    renderExtra();
     return;
   }
 
@@ -501,7 +511,6 @@ function render() {
     root.innerHTML = '<p class="empty-state">No data for this machine and filter.</p>';
   }
 
-  renderExtra();
 }
 
 // Build the cube key in the canonical "s1|sz1|s2|sz2|method|type" order. A Point

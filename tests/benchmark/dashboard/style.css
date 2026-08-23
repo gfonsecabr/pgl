@@ -50,6 +50,14 @@ body {
 .brand span { margin-left: 9px; font-size: 14px; font-weight: 500; color: var(--muted); }
 
 .controls { display: flex; align-items: center; gap: 18px; }
+.benchmark-nav { display: flex; gap: 6px; }
+.nav-button {
+  padding: 6px 10px; border: 1px solid var(--sep); border-radius: 8px;
+  color: var(--blue); background: #fff; text-decoration: none;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.nav-button:hover { border-color: var(--blue); background: var(--tint); }
+.nav-button.active { color: #fff; border-color: var(--blue); background: var(--blue); }
 .legend { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
 .legend .grad {
   width: 84px; height: 8px; border-radius: 5px;
@@ -239,9 +247,16 @@ dialog#chart-dialog::backdrop {
 }
 .swap-btn:hover { border-color: var(--blue); background: var(--tint); }
 
-/* ---- separate section for whole-algorithm benchmarks ---- */
+/* ---- whole-algorithm benchmark page ---- */
 .section-title {
   max-width: 1340px; margin: 26px auto 0; padding: 0 24px;
   font-size: 14px; font-weight: 700; letter-spacing: .3px; color: var(--blue-d);
 }
 .extra-section { border-top: 1px solid var(--sep); margin-top: 18px; padding-top: 4px; }
+.extra-section.page-section { border-top: 0; margin-top: 0; }
+
+@media (max-width: 760px) {
+  .topbar { align-items: flex-start; padding: 10px 14px; }
+  .controls { justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  .legend { display: none; }
+}

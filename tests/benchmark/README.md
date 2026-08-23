@@ -24,6 +24,7 @@ Pangolin's performance benchmarks live here. There are two kinds:
 The interactive dashboard (filter by any dimension, auto-pivoting tables, per-commit
 trend charts) is published at
 <https://gfonsecabr.github.io/pgl/benchmarks/index.html>.
+Its **Extra benchmarks** button opens the separate whole-algorithm benchmark page.
 
 ## Recording a run
 
@@ -79,6 +80,6 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `build_dashboard.py`| History → `data.json` + copy the `dashboard/` frontend into the output dir |
 | `record.sh`         | Orchestrate run → history → commit → push |
 | `randomshapes.hpp`  | Deterministic random shape generators used by the generated sources |
-| `dashboard/`        | Static frontend (`index.html`, `app.js`, `style.css`) |
+| `dashboard/`        | Static frontend (`index.html`, `extra.html`, `app.js`, `style.css`) |
 | `history/`          | Versioned JSONL: pair records at the top level, extra under `history/extra/` |
 | `extra/`            | Whole-algorithm benchmark sources |

@@ -3,7 +3,7 @@
 
 Reads the JSONL history under --history (pair records at the top level, extra
 whole-algorithm records under history/extra/), copies the dashboard template
-(index.html / app.js / style.css) into --out, and emits data.json — the single
+(index.html / extra.html / app.js / style.css) into --out, and emits data.json — the single
 payload the frontend fetches. Pure transformation, no network, so it runs
 identically locally and in CI.
 
@@ -236,7 +236,7 @@ def main() -> None:
     }
 
     os.makedirs(args.out, exist_ok=True)
-    for fname in ("index.html", "app.js", "style.css"):
+    for fname in ("index.html", "extra.html", "app.js", "style.css"):
         src = os.path.join(args.dashboard, fname)
         if os.path.exists(src):
             shutil.copy(src, os.path.join(args.out, fname))

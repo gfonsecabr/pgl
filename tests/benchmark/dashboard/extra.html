@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Pangolin · benchmarks</title>
+<title>Pangolin · extra benchmarks</title>
 <link rel="stylesheet" href="style.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
-<body data-page="pairs">
+<body data-page="extra">
 <header class="topbar">
   <div class="brand">
     <a href="../index.html" class="logo-link"><img src="logo.png" alt="Pangolin" class="logo"/></a>
@@ -15,8 +15,8 @@
   </div>
   <div class="controls">
     <nav class="benchmark-nav" aria-label="Benchmark category">
-      <a class="nav-button active" href="index.html" aria-current="page">Pairs</a>
-      <a class="nav-button" href="extra.html">Extra benchmarks</a>
+      <a class="nav-button" href="index.html">Pairs</a>
+      <a class="nav-button active" href="extra.html" aria-current="page">Extra benchmarks</a>
     </nav>
     <div class="legend"><span>best</span><i class="grad"></i><span>worst</span></div>
     <label class="machine-picker">Machine
@@ -25,13 +25,10 @@
   </div>
 </header>
 
-<!-- One multi-select chip group per cube dimension. The two highest-priority
-     dimensions that still have >1 value selected become the table columns and
-     rows; any further multi-valued dimensions facet into a grid of tables. -->
-<section id="filters" class="filters"></section>
-
-<div id="summary" class="summary"></div>
-<main id="suites"></main>
+<section id="extra-section" class="extra-section page-section">
+  <h1 class="section-title">Whole-algorithm benchmarks</h1>
+  <main id="extra"></main>
+</section>
 
 <p id="generated" class="generated"></p>
 
