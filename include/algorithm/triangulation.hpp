@@ -5355,12 +5355,11 @@ Point<ResultNumber> PolygonSet<PointType_, TLabel>::pointInside() const {
     return components_.front().template pointInside<ResultNumber>();
 }
 
-// pointInside also lives here rather than in measures.hpp, since a region that
-// is not simply connected has no counterpart of Polygon's ear argument: an ear
-// of the outer ring can be occupied by a hole, and a diagonal between two outer
-// vertices can be interrupted by one. The triangulated domain is exactly the
-// part of the region with area, so any of its triangles supplies a witness,
-// and each triangle is inside the region by construction.
+// pointInside also lives here rather than in measures.hpp.  It first tries the
+// outer ring's cheap ear/diagonal witness. A hole can occupy that ear or
+// interrupt that diagonal, however, so a witness in or on a hole falls back to
+// the triangulated domain: every one of its triangles is inside the region by
+// construction.
 template <class PointType_, class TLabel>
 template <class ResultNumber>
 Point<ResultNumber> PolygonWithHoles<PointType_, TLabel>::pointInside() const {
@@ -5369,6 +5368,19 @@ Point<ResultNumber> PolygonWithHoles<PointType_, TLabel>::pointInside() const {
         // representative point rather than triangulating nothing.
         return verticesCentroid<ResultNumber>();
     }
+
+    const auto outerWitness = outer_.template pointInside<ResultNumber>();
+    bool insideHole = false;
+    for (const auto& hole : holes_) {
+        if (hole.contains(outerWitness)) {
+            insideHole = true;
+            break;
+        }
+    }
+    if (!insideHole) {
+        return outerWitness;
+    }
+
     const auto mesh = triangulation();
     for (const auto& triangle : mesh.triangles()) {
         if (!triangle.isDegenerate()) {

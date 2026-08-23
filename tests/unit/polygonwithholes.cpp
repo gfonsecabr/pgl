@@ -520,7 +520,9 @@ TEST_CASE("PolygonWithHoles pointInside") {
 
     SUBCASE("an annulus") {
         const Region region(outerSquare(), std::vector{smallHole()});
-        CHECK(region.interiorContains(region.pointInside<Q>()));
+        const auto witness = region.pointInside<Q>();
+        CHECK(region.interiorContains(witness));
+        CHECK(witness == region.outer().pointInside<Q>());
     }
 
     SUBCASE("a hole covering the ear of the lex-min vertex") {

@@ -589,12 +589,13 @@ struct PolygonWithHoles {
      * @brief Returns a point strictly inside the region.
      *
      * The point is in the region's interior, so it is inside the outer boundary
-     * and outside every hole. @ref Polygon finds one in O(n) from an ear of its
-     * lexicographically smallest vertex; that argument does not survive holes —
-     * an ear can be occupied by one, and a diagonal interrupted by one — so this
+     * and outside every hole. It first tries @ref Polygon's O(n) ear/diagonal
+     * witness for the outer ring. If that witness lies in or on a hole, an ear
+     * can be occupied by it or a diagonal interrupted by it, so this
      * triangulates and takes a point inside the first triangle of the domain.
      *
-     * Complexity: O(n log n) over the total vertex count.
+     * Complexity: O(n) when the outer-ring witness succeeds; O(n log n) over
+     * the total vertex count otherwise.
      *
      * @tparam ResultNumber The number type for the result.
      * @return A point guaranteed to be inside the region.
