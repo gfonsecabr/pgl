@@ -44,7 +44,66 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherPoin
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
-    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+    using Coordinate = detail::sign_coordinate_t<NumberType, typename OtherSegment::NumberType>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {
+        const auto filtered = detail::segmentOrientationFilters(*this, other);
+        if (filtered.allDecided()) {
+            return filtered.firstOtherMin != filtered.firstOtherMax &&
+                   filtered.secondFirstMin != filtered.secondFirstMax;
+        }
+
+        if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+            const int cross = boundingBoxesCross(other);
+            if (cross == 0) {
+                return false;
+            }
+            if (cross == 2) {
+                return true;
+            }
+        }
+        else if (!boundingBoxesOverlap(other)) {
+            return false;
+        }
+        if (min() == max() || other.min() == other.max()) {
+            return false;
+        }
+        const auto& a = min();
+        const auto& b = max();
+        const auto& c = other.min();
+        const auto& d = other.max();
+        const auto d1 = filtered.firstOtherMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(a, b, c)
+                      : filtered.firstOtherMin;
+        const auto d2 = filtered.firstOtherMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(a, b, d)
+                      : filtered.firstOtherMax;
+        const auto d3 = filtered.secondFirstMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(c, d, a)
+                      : filtered.secondFirstMin;
+        const auto d4 = filtered.secondFirstMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(c, d, b)
+                      : filtered.secondFirstMax;
+        const bool no_endpoint_is_collinear = d1 != 0 && d2 != 0 && d3 != 0 && d4 != 0;
+        const bool this_segment_straddles_other = (d1 > 0) != (d2 > 0);
+        const bool other_segment_straddles_this = (d3 > 0) != (d4 > 0);
+        const bool proper_cross =
+            no_endpoint_is_collinear &&
+            this_segment_straddles_other &&
+            other_segment_straddles_this;
+        if (proper_cross) {
+            return true;
+        }
+        if (d1 != 0 || d2 != 0) {
+            return false;
+        }
+        return interiorContains(c) ||
+               interiorContains(d) ||
+               other.interiorContains(a) ||
+               other.interiorContains(b) ||
+               (a == c && b == d);
+    }
+    else if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
             return false;

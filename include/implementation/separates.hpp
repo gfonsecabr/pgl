@@ -320,6 +320,55 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherPoint&) const
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherSegment& other) const {
+    using Coordinate = detail::sign_coordinate_t<NumberType, typename OtherSegment::NumberType>;
+    const auto& a = min();
+    const auto& b = max();
+    const auto& c = other.min();
+    const auto& d = other.max();
+
+    if constexpr (detail::filtersSign<Coordinate>) {
+        const auto filtered = detail::segmentOrientationFilters(*this, other);
+        if (filtered.allDecided()) {
+            return filtered.firstOtherMin != filtered.firstOtherMax &&
+                   filtered.secondFirstMin != filtered.secondFirstMax;
+        }
+
+        const int cross = boundingBoxesCross(other);
+        if (cross == 0) {
+            return false;
+        }
+        if (cross == 2) {
+            return true;
+        }
+        const auto d1 = filtered.firstOtherMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(a, b, c)
+                      : filtered.firstOtherMin;
+        const auto d2 = filtered.firstOtherMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(a, b, d)
+                      : filtered.firstOtherMax;
+        if (d1 == 0 && d2 == 0) {
+            return other.interiorContains(a) && other.interiorContains(b);
+        }
+        const bool other_endpoints_are_on_strictly_opposite_sides =
+            d1 != 0 && d2 != 0 && d1 != d2;
+        if (!other_endpoints_are_on_strictly_opposite_sides) {
+            return false;
+        }
+        const auto d3 = filtered.secondFirstMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(c, d, a)
+                      : filtered.secondFirstMin;
+        if (d3 == 0 && other.containsCollinear(a)) {
+            return true;
+        }
+        const auto d4 = filtered.secondFirstMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(c, d, b)
+                      : filtered.secondFirstMax;
+        if (d4 == 0 && other.containsCollinear(b)) {
+            return true;
+        }
+        return d3 != 0 && d4 != 0 && d3 != d4;
+    }
+
     const int cross = boundingBoxesCross(other);
     if (cross == 0) {
         return false;
@@ -327,10 +376,6 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherSegment& othe
     if (cross == 2) {
         return true;
     }
-    const auto& a = min();
-    const auto& b = max();
-    const auto& c = other.min();
-    const auto& d = other.max();
     const auto d1 = orientationSign(a, b, c);
     const auto d2 = orientationSign(a, b, d);
     if (d1 == 0 && d2 == 0) {

@@ -36,7 +36,49 @@ constexpr bool Point<Number, Label>::crosses(const OtherPoint&) const {
 template <class PointType, class LabelType>
 template<SegmentConcept OtherSegment>
 constexpr bool Segment<PointType, LabelType>::crosses(const OtherSegment& other) const {
-    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+    using Coordinate = detail::sign_coordinate_t<NumberType, typename OtherSegment::NumberType>;
+
+    if constexpr (detail::filtersSign<Coordinate>) {
+        const auto filtered = detail::segmentOrientationFilters(*this, other);
+        if (filtered.allDecided()) {
+            return filtered.firstOtherMin != filtered.firstOtherMax &&
+                   filtered.secondFirstMin != filtered.secondFirstMax;
+        }
+
+        if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+            const int cross = boundingBoxesCross(other);
+            if (cross == 0) {
+                return false;
+            }
+            if (cross == 2) {
+                return true;
+            }
+        }
+
+        const auto d1 = filtered.firstOtherMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(min(), max(), other.min())
+                      : filtered.firstOtherMin;
+        if (d1 == 0) {
+            return false;
+        }
+        const auto d2 = filtered.firstOtherMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(min(), max(), other.max())
+                      : filtered.firstOtherMax;
+        if (d1 == d2 || d2 == 0) {
+            return false;
+        }
+        const auto d3 = filtered.secondFirstMin == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(other.min(), other.max(), min())
+                      : filtered.secondFirstMin;
+        if (d3 == 0) {
+            return false;
+        }
+        const auto d4 = filtered.secondFirstMax == std::partial_ordering::unordered
+                      ? detail::exactOrientationSign(other.min(), other.max(), max())
+                      : filtered.secondFirstMax;
+        return d4 != 0 && d3 != d4;
+    }
+    else if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
             return false;

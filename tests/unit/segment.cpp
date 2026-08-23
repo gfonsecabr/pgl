@@ -928,6 +928,46 @@ TEST_CASE("Rational segment intersections return the expected shape") {
     }
 }
 
+TEST_CASE("ERational segment intersections retain proper and boundary cases") {
+    using Point = pgl::EPoint;
+    using Segment = pgl::ESegment;
+
+    const Segment horizontal(Point(0, 0), Point(10, 0));
+    const Segment crossing(Point(5, -3), Point(5, 3));
+    const Segment touching(Point(10, 0), Point(12, 4));
+    const Segment overlapping(Point(2, 0), Point(8, 0));
+    const Segment disjoint(Point(12, 0), Point(15, 0));
+
+    // The proper crossing is handled entirely by the shared floating-point
+    // filter.  The remaining cases make it abstain and exercise the exact
+    // closed-boundary fallback.
+    CHECK(horizontal.intersects(crossing));
+    CHECK(crossing.intersects(horizontal));
+    CHECK(horizontal.crosses(crossing));
+    CHECK(crossing.crosses(horizontal));
+    CHECK(horizontal.interiorsIntersect(crossing));
+    CHECK(crossing.interiorsIntersect(horizontal));
+    CHECK(horizontal.separates(crossing));
+    CHECK(crossing.separates(horizontal));
+
+    CHECK(horizontal.intersects(touching));
+    CHECK(touching.intersects(horizontal));
+    CHECK_FALSE(horizontal.crosses(touching));
+    CHECK_FALSE(horizontal.interiorsIntersect(touching));
+    CHECK_FALSE(horizontal.separates(touching));
+
+    CHECK(horizontal.intersects(overlapping));
+    CHECK(overlapping.intersects(horizontal));
+    CHECK_FALSE(horizontal.crosses(overlapping));
+    CHECK(horizontal.interiorsIntersect(overlapping));
+
+    CHECK_FALSE(horizontal.intersects(disjoint));
+    CHECK_FALSE(disjoint.intersects(horizontal));
+    CHECK_FALSE(horizontal.crosses(disjoint));
+    CHECK_FALSE(horizontal.interiorsIntersect(disjoint));
+    CHECK_FALSE(horizontal.separates(disjoint));
+}
+
 
 
 

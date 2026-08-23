@@ -63,6 +63,19 @@ struct Approximate {
 };
 
 /**
+ * @brief The two filtered coordinates of a point.
+ *
+ * A single orientation filter only needs this representation transiently, but
+ * segment-pair predicates evaluate four orientations over the same four
+ * points.  Keeping the conversions here lets those predicates pay for each
+ * exact-coordinate-to-double conversion once instead of once per orientation.
+ */
+struct ApproximatePoint {
+    Approximate x;
+    Approximate y;
+};
+
+/**
  * @brief Absolute value of a double, usable in a constant expression.
  *
  * `std::abs` only became `constexpr` in C++23 and these predicates must stay
@@ -183,6 +196,12 @@ constexpr Approximate approximate(const Number& value) {
     }
 }
 
+/** @brief Converts both coordinates of a point for a floating-point filter. */
+template <class PointType>
+constexpr ApproximatePoint approximatePoint(const PointType& point) {
+    return {approximate(point.x()), approximate(point.y())};
+}
+
 /**
  * @brief The sign an approximation proves, or `unordered` when it proves none.
  *
@@ -241,6 +260,68 @@ constexpr std::partial_ordering crossFilter(
     const Approximate& ax, const Approximate& ay,
     const Approximate& bx, const Approximate& by) {
     return approximateSign(ax * by - ay * bx);
+}
+
+/**
+ * @brief Proves the orientation sign from already-filtered point coordinates.
+ *
+ * Returns `unordered` when the filter cannot prove the sign, exactly like the
+ * filter stage of @ref orientationSign.
+ */
+constexpr std::partial_ordering orientationFilter(
+    const ApproximatePoint& a, const ApproximatePoint& b, const ApproximatePoint& c) {
+    return crossFilter(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y);
+}
+
+/** @brief Exact fallback for @ref orientationSign, with no floating filter. */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel>
+constexpr std::partial_ordering exactOrientationSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c) {
+    using Coordinate = orientation_coordinate_t<ANumber, BNumber, CNumber>;
+
+    const auto abx = asNumber<Coordinate>(b.x()) - asNumber<Coordinate>(a.x());
+    const auto aby = asNumber<Coordinate>(b.y()) - asNumber<Coordinate>(a.y());
+    const auto acx = asNumber<Coordinate>(c.x()) - asNumber<Coordinate>(a.x());
+    const auto acy = asNumber<Coordinate>(c.y()) - asNumber<Coordinate>(a.y());
+
+    return threeWay(abx * acy, aby * acx);
+}
+
+/**
+ * @brief The four orientation filters required by a pair of segments.
+ *
+ * Each endpoint occurs in three signs.  Materializing all eight approximate
+ * coordinates once avoids repeating expensive exact-coordinate conversions in
+ * segment predicates that can finish from proved signs alone.
+ */
+struct SegmentOrientationFilters {
+    std::partial_ordering firstOtherMin;
+    std::partial_ordering firstOtherMax;
+    std::partial_ordering secondFirstMin;
+    std::partial_ordering secondFirstMax;
+
+    [[nodiscard]] constexpr bool allDecided() const {
+        return firstOtherMin != std::partial_ordering::unordered &&
+               firstOtherMax != std::partial_ordering::unordered &&
+               secondFirstMin != std::partial_ordering::unordered &&
+               secondFirstMax != std::partial_ordering::unordered;
+    }
+};
+
+/** @brief Evaluates every filtered orientation for a pair of segments once. */
+template <class FirstSegment, class SecondSegment>
+constexpr SegmentOrientationFilters segmentOrientationFilters(
+    const FirstSegment& first, const SecondSegment& second) {
+    const ApproximatePoint firstMin = approximatePoint(first.min());
+    const ApproximatePoint firstMax = approximatePoint(first.max());
+    const ApproximatePoint secondMin = approximatePoint(second.min());
+    const ApproximatePoint secondMax = approximatePoint(second.max());
+    return {orientationFilter(firstMin, firstMax, secondMin),
+            orientationFilter(firstMin, firstMax, secondMax),
+            orientationFilter(secondMin, secondMax, firstMin),
+            orientationFilter(secondMin, secondMax, firstMax)};
 }
 
 /**
@@ -311,12 +392,7 @@ constexpr std::partial_ordering orientationSign(
         }
     }
 
-    const auto abx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto aby = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(a.y());
-    const auto acx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(a.x());
-    const auto acy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(a.y());
-
-    return detail::threeWay(abx * acy, aby * acx);
+    return detail::exactOrientationSign(a, b, c);
 }
 
 /**
