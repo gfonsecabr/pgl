@@ -652,6 +652,35 @@ TEST_CASE("Polygon contains/intersects a segment for non-convex shapes") {
     }
 }
 
+TEST_CASE("Polygon interiorContainsInterior allows boundary endpoints only") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Polygon = pgl::Polygon<Point>;
+
+    const Polygon square({0, 0, 10, 0, 10, 10, 0, 10});
+
+    CHECK(square.interiorContainsInterior(Segment({1, 1}, {9, 9})));
+    CHECK(square.interiorContainsInterior(Segment({0, 0}, {10, 10})));
+    CHECK(square.interiorContainsInterior(Segment({0, 5}, {5, 5})));
+    CHECK_FALSE(square.interiorContainsInterior(Segment({0, 0}, {10, 0})));
+    CHECK_FALSE(square.interiorContainsInterior(Segment({-1, 5}, {5, 5})));
+
+    CHECK(square.interiorContainsInterior(Segment({0, 5}, {0, 5})));
+    CHECK(square.interiorContainsInterior(Segment({5, 5}, {5, 5})));
+    CHECK_FALSE(square.interiorContainsInterior(Segment({-1, 5}, {-1, 5})));
+
+    using LongPoint = pgl::Point<long long>;
+    using LongSegment = pgl::Segment<LongPoint>;
+    CHECK(square.interiorContainsInterior(LongSegment({0, 10}, {10, 0})));
+
+    // The open segment is otherwise in the L-shaped polygon, but contains the
+    // reflex boundary vertex (3,3), so the strict-interior predicate rejects it.
+    const Polygon ell({0, 0, 6, 0, 6, 3, 3, 3, 3, 6, 0, 6});
+    CHECK(ell.contains(Segment({1, 5}, {5, 1})));
+    CHECK_FALSE(ell.interiorContainsInterior(Segment({1, 5}, {5, 1})));
+    CHECK(ell.interiorContainsInterior(Segment({3, 3}, {1, 1})));
+}
+
 // Polygon::intersection clips the segment against the closed region and returns
 // the disjoint pieces (points and sub-segments) in order along the segment.
 TEST_CASE("Polygon intersection with a segment for non-convex shapes") {

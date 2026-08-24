@@ -129,6 +129,21 @@ TEST_CASE("PolygonWithHoles vs Segment: containment") {
     }
 }
 
+TEST_CASE("PolygonWithHoles interiorContainsInterior allows ring endpoints only") {
+    const Region region = annulus();
+
+    CHECK(region.interiorContainsInterior(Segment({0, 0}, {3, 3})));
+    CHECK(region.interiorContainsInterior(Segment({0, 5}, {3, 5})));
+    CHECK(region.interiorContainsInterior(Segment({0, 1}, {10, 1})));
+
+    CHECK_FALSE(region.interiorContainsInterior(Segment({1, 5}, {5, 1})));
+    CHECK_FALSE(region.interiorContainsInterior(Segment({3, 3}, {7, 3})));
+    CHECK_FALSE(region.interiorContainsInterior(Segment({1, 5}, {9, 5})));
+
+    CHECK(region.interiorContainsInterior(Segment({3, 5}, {3, 5})));
+    CHECK_FALSE(region.interiorContainsInterior(Segment({5, 5}, {5, 5})));
+}
+
 TEST_CASE("PolygonWithHoles vs Segment: a chord touching the hole tangentially") {
     const Region region = annulus();
 

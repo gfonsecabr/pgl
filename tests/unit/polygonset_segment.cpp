@@ -58,6 +58,8 @@ TEST_CASE("PolygonSet and Segment containment across a pinch") {
         const SegmentShape inside(Point(-1, -1), Point(0, 0));
         CHECK(set.contains(inside));
         CHECK(!set.interiorContains(inside));  // the endpoints are on the boundary
+        CHECK(set.interiorContainsInterior(inside));
+        CHECK(!set.interiorContainsInterior(SegmentShape(Point(-1, -1), Point(1, 1))));
     }
 
     SUBCASE("a boundary run may also cross a pinch") {
@@ -84,6 +86,8 @@ TEST_CASE("PolygonSet and Segment containment without a pinch") {
     SUBCASE("interior containment") {
         CHECK(set.interiorContains(SegmentShape(Point(1, 1), Point(1, 1))));
         CHECK(!set.interiorContains(SegmentShape(Point(0, 0), Point(2, 2))));
+        CHECK(set.interiorContainsInterior(SegmentShape(Point(0, 0), Point(2, 2))));
+        CHECK(!set.interiorContainsInterior(SegmentShape(Point(1, 1), Point(6, 6))));
     }
 
     SUBCASE("boundary containment") {

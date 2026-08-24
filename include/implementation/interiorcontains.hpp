@@ -956,6 +956,32 @@ constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherSegmen
 }
 
 template <class PointType, class LabelType>
+template<SegmentConcept OtherSegment>
+constexpr bool Polygon<PointType, LabelType>::interiorContainsInterior(const OtherSegment& other) const {
+    // The endpoint exception still requires the closed segment to be contained:
+    // endpoints may be on the boundary, never outside it. It also gives the
+    // intended point-containment answer for a degenerate segment.
+    if (!contains(other)) {
+        return false;
+    }
+    if (other.isDegenerate()) {
+        return true;
+    }
+
+    // Reject precisely the contacts between the polygon boundary and the open
+    // segment. Segment::interiorsIntersect catches crossings and positive-length
+    // overlaps in edge interiors; the vertex test catches a boundary contact at
+    // an edge endpoint. Both are exact orientation/order predicates and do not
+    // construct intersection coordinates.
+    for (const auto& edge : edgesView()) {
+        if (edge.interiorsIntersect(other) || other.interiorContains(edge.min())) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
 template<OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool Polygon<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(Segment<typename OtherOrientedSegment::PointType>(other.source(), other.target()));
@@ -2228,6 +2254,28 @@ constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const Ot
 }
 
 template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContainsInterior(const OtherSegment& other) const {
+    if (!contains(other)) {
+        return false;
+    }
+    if (other.isDegenerate()) {
+        return true;
+    }
+    if (!outer_.interiorContainsInterior(other)) {
+        return false;
+    }
+    for (const auto& hole : holes_) {
+        for (const auto& edge : hole.edgesView()) {
+            if (edge.interiorsIntersect(other) || other.interiorContains(edge.min())) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+template <class PointType, class LabelType>
 template <OrientedSegmentConcept OtherOrientedSegment>
 constexpr bool PolygonWithHoles<PointType, LabelType>::interiorContains(const OtherOrientedSegment& other) const {
     return interiorContains(other.asSegment());
@@ -2535,6 +2583,14 @@ template <detail::SetOperandConcept OtherShape>
 bool PolygonSet<PointType, LabelType>::interiorContains(const OtherShape& other) const {
     return anyComponent([&](const ComponentType& component) {
         return component.interiorContains(other);
+    });
+}
+
+template <class PointType, class LabelType>
+template <SegmentConcept OtherSegment>
+bool PolygonSet<PointType, LabelType>::interiorContainsInterior(const OtherSegment& other) const {
+    return anyComponent([&](const ComponentType& component) {
+        return component.interiorContainsInterior(other);
     });
 }
 

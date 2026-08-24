@@ -1504,6 +1504,18 @@ struct Polygon {
     constexpr bool interiorContains(const OtherSegment& other) const;
 
     /**
+     * @brief Tests whether this shape's interior contains the segment's interior.
+     *
+     * Every point of the open segment must lie strictly inside the polygon;
+     * either endpoint may lie on the polygon boundary. A degenerate segment is
+     * accepted exactly when its sole point is contained.
+     *
+     * Complexity: O(n) for n vertices.
+     */
+    template<SegmentConcept OtherSegment>
+    constexpr bool interiorContainsInterior(const OtherSegment& other) const;
+
+    /**
      * @brief Tests whether this shape's interior contains the other shape (A∖∂A ⊇ B).
      *
      * Complexity: O(n) for n vertices.

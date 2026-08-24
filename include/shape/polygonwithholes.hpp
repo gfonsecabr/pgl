@@ -1623,6 +1623,18 @@ struct PolygonWithHoles {
     template <SegmentConcept OtherSegment>
     [[nodiscard]] constexpr bool interiorContains(const OtherSegment& other) const;
 
+    /**
+     * @brief Tests whether this shape's interior contains the segment's interior.
+     *
+     * Every point of the open segment must lie strictly inside the region;
+     * either endpoint may lie on an outer or hole boundary. A degenerate
+     * segment is accepted exactly when its sole point is contained.
+     *
+     * Complexity: O(n log n) over the total vertex count.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] constexpr bool interiorContainsInterior(const OtherSegment& other) const;
+
     /** @copydoc interiorContains(const OtherSegment&) const */
     template <OrientedSegmentConcept OtherOrientedSegment>
     [[nodiscard]] constexpr bool interiorContains(const OtherOrientedSegment& other) const;

@@ -977,6 +977,16 @@ struct PolygonSet {
     [[nodiscard]] bool interiorContains(const OtherShape& other) const;
 
     /**
+     * @brief Tests whether this shape's interior contains the segment's interior.
+     *
+     * Every point of the open segment must lie strictly inside one component;
+     * either endpoint may lie on the set boundary. A degenerate segment is
+     * accepted exactly when its sole point is contained.
+     */
+    template <SegmentConcept OtherSegment>
+    [[nodiscard]] bool interiorContainsInterior(const OtherSegment& other) const;
+
+    /**
      * @brief Tests whether this shape's boundary contains the other shape (∂A ⊇ B).
      *
      * `∂A = ⋃ ∂Aᵢ`, which has no area, so only an operand that has collapsed can
