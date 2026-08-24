@@ -16,15 +16,53 @@ Pangolin's performance benchmarks live here. There are two kinds:
    No hand-written suite files — the shapes, sizes, methods and types are just
    lists at the top of the script.
 
-2. **Whole-algorithm benchmarks** (`extra/*.cpp`) — self-contained drivers for
-   things that don't fit the pair model (Bentley–Ottmann, triangulation, the
-   shape tree, …). Each prints a tab-separated `Operation/Number/Result/Time`
-   table; `run_extra.py` compiles, runs and parses them.
+2. **Asymptotic benchmarks** (`asymptotic/*.cpp`) — whole algorithms measured
+   against growing input, for the things that don't fit the pair model
+   (triangulation, arrangements, segment sweeps, spatial search, visibility,
+   Minkowski sums, unions). One driver per **category**, each a small cube of
+
+   ```
+   dataset × problem × algorithm × number-type
+   ```
+
+   swept over ~32 fixed input sizes. The chart is time against size, so the
+   thing being read off it is the *shape* of the curve. `run_asymptotic.py`
+   compiles, runs and parses them.
+
+   Three things are load-bearing about how they are set up:
+
+   * **The sizes are fixed constants** (`asymptotic/sizes.hpp`), never probed at
+     runtime. Two runs of the same commit have to measure the same x values or
+     overlaying their curves means nothing.
+   * **Every dataset is generated in `int` and converted.** The `int` and
+     `ERational` runs then see the identical input, which is what makes
+     comparing their result signatures a correctness check rather than a
+     coincidence.
+   * **Every row carries a numeric result signature**, not just a time. It
+     cross-checks number types and algorithms against each other, it is what the
+     CGAL baseline compares, and in the output-sensitive categories it is the
+     record of how fast the output itself grows.
 
 The interactive dashboard (filter by any dimension, auto-pivoting tables, per-commit
 trend charts) is published at
 <https://gfonsecabr.github.io/pgl/benchmarks/index.html>.
-Its **Extra benchmarks** button opens the separate whole-algorithm benchmark page.
+Its **Asymptotic** button opens the size-sweep page.
+
+### The CGAL baseline
+
+`asymptotic/baseline/*.cpp` measure the same problems on the same operands with
+CGAL, for the categories where CGAL has a direct analogue. They exist to check
+pgl's answers against something that is not more pgl, and to put a reference
+curve on the chart. A cell may carry more than one: CGAL solves the Minkowski
+sum both by decomposition, the strategy pgl uses, and by reduced convolution,
+which pgl has no counterpart for — the first says how pgl's implementation of an
+idea compares, the second says what the other idea costs. The chart draws every
+reference a cell has, one dash pattern each.
+
+Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
+Never appended to the history either: a baseline is a reference point rather
+than a measurement of this repo at this commit, so it overwrites a single
+`history/asymptotic-baseline.json`.
 
 ## Recording a run
 
@@ -33,11 +71,12 @@ under `history/`, commits and pushes. The Pages workflow then rebuilds the
 dashboard from that history.
 
 ```bash
-bash tests/benchmark/record.sh                 # full cube + all extra benchmarks
-bash tests/benchmark/record.sh --pairs-only    # skip the extra benchmarks
-bash tests/benchmark/record.sh --extra-only    # only the extra benchmarks
+bash tests/benchmark/record.sh                     # full cube + all asymptotic
+bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
+bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
+bash tests/benchmark/record.sh --baseline          # also refresh the CGAL reference
 bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
-bash tests/benchmark/record.sh --no-push       # commit locally, don't push
+bash tests/benchmark/record.sh --no-push           # commit locally, don't push
 ```
 
 It refuses to run with uncommitted changes to tracked files, so every
@@ -58,9 +97,17 @@ python3 tests/benchmark/run_shapepairs.py \
     --methods intersects,contains --types int,double,ERational \
     --jobs $(nproc)
 
-# Extra benchmarks (one or all):
-python3 tests/benchmark/run_extra.py bentleyottmann
-python3 tests/benchmark/run_extra.py
+# Asymptotic benchmarks (one category or all):
+python3 tests/benchmark/run_asymptotic.py triangulation
+python3 tests/benchmark/run_asymptotic.py
+
+# The CGAL baseline, which is never part of a default run:
+python3 tests/benchmark/run_asymptotic.py --baseline-only
+
+# Calibrating a size list: drivers take --sizes (and --dataset/--problem/--type)
+# so one cell can be measured at candidate maxima. A run with --sizes is refused
+# by to_history.py — its points would sit at x values no other run measured.
+python3 tests/benchmark/run_asymptotic.py minkowskisum --sizes 80,160,320
 
 # Append snapshots to history, then build the static site locally to preview:
 python3 tests/benchmark/to_history.py
@@ -75,11 +122,12 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | Path | Role |
 | --- | --- |
 | `run_shapepairs.py` | Generate/compile/run/compare the shape-pair cube → snapshot JSON |
-| `run_extra.py`      | Compile/run the `extra/*.cpp` whole-algorithm benchmarks → snapshot JSON |
+| `run_asymptotic.py` | Compile/run the `asymptotic/*.cpp` size sweeps (and, with `--baseline`, the CGAL reference) → snapshot JSON |
 | `to_history.py`     | Append snapshots into `history/` (one record per data point per commit) |
 | `build_dashboard.py`| History → page-specific JSON payloads + copy the `dashboard/` frontend into the output dir |
 | `record.sh`         | Orchestrate run → history → commit → push |
 | `randomshapes.hpp`  | Deterministic random shape generators used by the generated sources |
-| `dashboard/`        | Static frontend (`index.html`, `extra.html`, `app.js`, `style.css`) |
-| `history/`          | Versioned JSONL: pair records at the top level, extra under `history/extra/` |
-| `extra/`            | Whole-algorithm benchmark sources |
+| `legacy_untangle.hpp` | The pre-batching `Polygon::untangle()`, pinning the pair benchmark's polygon datasets to the shapes its recorded history was measured on |
+| `dashboard/`        | Static frontend (`index.html`, `asymptotic.html`, `app.js`, `style.css`) |
+| `history/`          | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus the overwritten `asymptotic-baseline.json` |
+| `asymptotic/`       | Size-sweep drivers, the fixed size lists (`sizes.hpp`), the shared harness, and the CGAL `baseline/` |

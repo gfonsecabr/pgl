@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pangolin · asymptotic benchmarks</title>
+<link rel="stylesheet" href="style.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body data-page="asymptotic">
+<header class="topbar">
+  <div class="brand">
+    <a href="../index.html" class="logo-link"><img src="logo.png" alt="Pangolin" class="logo"/></a>
+    <a href="../index.html">Pangolin</a><span>benchmarks</span>
+  </div>
+  <div class="controls">
+    <nav class="benchmark-nav" aria-label="Benchmark category">
+      <a class="nav-button" href="index.html">Pairs</a>
+      <a class="nav-button active" href="asymptotic.html" aria-current="page">Asymptotic</a>
+    </nav>
+    <label class="depth-picker" title="How many recorded runs to draw. 1 is the latest run only; older runs are drawn in a lighter shade of the same colour.">History
+      <input id="depth" type="number" min="1" max="20" step="1" value="1"/>
+    </label>
+    <label class="machine-picker">Machine
+      <select id="machine"></select>
+    </label>
+  </div>
+</header>
+
+<!-- One section per benchmark category, each with its own chip filter bar over
+     that category's dataset / problem / algorithm / number-type values, and its
+     own chart of time against input size. -->
+<main id="asymptotic"><p class="empty-state">Loading benchmark data…</p></main>
+
+<p id="generated" class="generated"></p>
+
+<!-- No hover bubble or chart dialog here: the charts are the page, not a
+     drill-down from a table of numbers as on the pairs page. -->
+<script src="app.js"></script>
+</body>
+</html>

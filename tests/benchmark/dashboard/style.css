@@ -247,13 +247,28 @@ dialog#chart-dialog::backdrop {
 }
 .swap-btn:hover { border-color: var(--blue); background: var(--tint); }
 
-/* ---- whole-algorithm benchmark page ---- */
+/* ---- asymptotic benchmark page ---- */
 .section-title {
   max-width: 1340px; margin: 26px auto 0; padding: 0 24px;
   font-size: 14px; font-weight: 700; letter-spacing: .3px; color: var(--blue-d);
 }
-.extra-section { border-top: 1px solid var(--sep); margin-top: 18px; padding-top: 4px; }
-.extra-section.page-section { border-top: 0; margin-top: 0; }
+.depth-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.depth-picker input {
+  font-family: var(--font); font-size: 12px; width: 52px;
+  padding: 4px 6px; border-radius: 6px; border: 1px solid var(--sep); background: #fff;
+}
+.asym-category { padding-bottom: 6px; }
+/* The compare axis is the one dimension whose chips are the chart's curves, so
+   its label is marked rather than left looking like the radio groups. */
+.filter-label.comparing { color: var(--blue-d); }
+.filter-label.static { cursor: default; }
+.filter-label.static:hover { color: var(--muted); }
+.asym-filters { padding: 4px 0 10px; max-width: none; }
+/* A combination this category never measured: still shown, so the shape of the
+   cube stays visible, but plainly not a thing to click. */
+.chip.unavailable { opacity: .38; cursor: default; }
+.chip.unavailable:hover { border-color: var(--sep); color: var(--muted); }
+.asym-chart { position: relative; height: 340px; margin-top: 8px; }
 
 @media (max-width: 760px) {
   .topbar { align-items: flex-start; padding: 10px 14px; }

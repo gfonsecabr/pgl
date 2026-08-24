@@ -3,9 +3,9 @@
 # Record a benchmark run into the versioned history (tests/benchmark/history/)
 # and push it to GitHub, where the Pages workflow rebuilds the dashboard.
 #
-#   bash tests/benchmark/record.sh                     # full cube + all extra
-#   bash tests/benchmark/record.sh --pairs-only        # skip the extra benchmarks
-#   bash tests/benchmark/record.sh --extra-only        # only the extra benchmarks
+#   bash tests/benchmark/record.sh                     # full cube + all asymptotic
+#   bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
+#   bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
 #   bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
 #   bash tests/benchmark/record.sh --focus Polygon     # Polygon vs everything (row+col)
 #   bash tests/benchmark/record.sh --rev 3fbc199       # an old library, today's benchmarks
@@ -29,9 +29,17 @@
 #                                 costs — changes between them. Re-running 1/D
 #                                 starts a fresh cycle. Cannot be combined with
 #                                 --methods. See split_methods.py for the cost
-#                                 model. Has no effect with --extra-only.
-#   --pairs-only / --extra-only   run only one half
+#                                 model. Has no effect with --asymptotic-only.
+#   --pairs-only / --asymptotic-only
+#                                 run only one half
 #   --repetitions N               samples per program; median kept (default: 3)
+#   --baseline                    also build and run the CGAL reference drivers
+#                                 (tests/benchmark/asymptotic/baseline/). Off by
+#                                 default: CGAL is not on every dev machine or
+#                                 CI box, and a baseline is a reference point
+#                                 rather than a measurement of this commit — it
+#                                 overwrites history/asymptotic-baseline.json
+#                                 instead of being appended to a history.
 #   --no-push                     commit locally but do not push
 #   --rev COMMIT                  measure an older library version. The commit is
 #                                 checked out into a throwaway worktree, today's
@@ -52,7 +60,8 @@ cd "$root"
 
 # ── Parse options ────────────────────────────────────────────────────────────
 pairs=1
-extra=1
+asymptotic=1
+baseline=0
 push=1
 repetitions=3
 rev=""
@@ -64,8 +73,9 @@ pair_args=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --pairs-only) extra=0; shift ;;
-        --extra-only) pairs=0; shift ;;
+        --pairs-only) asymptotic=0; shift ;;
+        --asymptotic-only) pairs=0; shift ;;
+        --baseline)   baseline=1; shift ;;
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
         --repetitions=*) repetitions="${1#*=}"; shift ;;
@@ -99,7 +109,7 @@ if [[ -n "$fraction" ]]; then
         exit 2
     fi
     if [[ "$pairs" -eq 0 ]]; then
-        echo "error: --fraction has no effect with --extra-only (it splits the shape-pair cube's methods)." >&2
+        echo "error: --fraction has no effect with --asymptotic-only (it splits the shape-pair cube's methods)." >&2
         exit 2
     fi
 fi
@@ -116,7 +126,8 @@ jobs="$(nproc 2>/dev/null || echo 1)"
 export CXX CXXFLAGS
 
 pairs_json="build/tests/benchmark/benchmarks.json"
-extra_json="build/tests/benchmark/extra/extra.json"
+asymptotic_json="build/tests/benchmark/asymptotic/asymptotic.json"
+baseline_json="build/tests/benchmark/asymptotic/baseline.json"
 
 history_args=()
 
@@ -149,10 +160,13 @@ if [[ -n "$rev" ]]; then
     # Today's harness over the old one: the runners, the shape generators, the
     # timer header and the whole-algorithm drivers. Everything else in the
     # worktree — include/ above all — stays as that commit left it.
-    mkdir -p "$bench_root/tests/benchmark/extra"
+    mkdir -p "$bench_root/tests/benchmark/asymptotic/baseline"
     cp tests/benchmark/*.py tests/benchmark/*.hpp tests/benchmark/*.h \
        "$bench_root/tests/benchmark/"
-    cp tests/benchmark/extra/*.cpp "$bench_root/tests/benchmark/extra/"
+    cp tests/benchmark/asymptotic/*.hpp tests/benchmark/asymptotic/*.cpp \
+       "$bench_root/tests/benchmark/asymptotic/"
+    cp tests/benchmark/asymptotic/baseline/* \
+       "$bench_root/tests/benchmark/asymptotic/baseline/"
     echo "Measuring $rev_commit ($(git log -1 --format=%s "$rev_commit")) with today's benchmarks."
     echo
 fi
@@ -182,19 +196,30 @@ else
     history_args+=(--skip-pairs)
 fi
 
-# ── Run the whole-algorithm extra benchmarks ─────────────────────────────────
-if [[ "$extra" -eq 1 ]]; then
-    echo "::group::Extra benchmarks"
-    python3 "$bench_root/tests/benchmark/run_extra.py" \
-        --repetitions "$repetitions" --output "$extra_json"
+# ── Run the asymptotic benchmarks ────────────────────────────────────────────
+# Every driver measures the fixed size list checked into asymptotic/sizes.hpp;
+# nothing here may pass --sizes, which is for calibration and would put the run's
+# points at x values no other run measured.
+if [[ "$asymptotic" -eq 1 ]]; then
+    echo "::group::Asymptotic benchmarks"
+    asymptotic_args=(--repetitions "$repetitions" --jobs "$jobs"
+                     --output "$asymptotic_json" --baseline-output "$baseline_json")
+    [[ "$baseline" -eq 1 ]] && asymptotic_args+=(--baseline)
+    python3 "$bench_root/tests/benchmark/run_asymptotic.py" "${asymptotic_args[@]}"
     echo "::endgroup::"
 else
-    history_args+=(--skip-extra)
+    history_args+=(--skip-asymptotic)
+fi
+
+# A stale baseline from an earlier run would otherwise be re-recorded as if it
+# were this one's; to_history.py only reads the file when it is there.
+if [[ "$baseline" -eq 0 ]]; then
+    rm -f "$baseline_json"
 fi
 
 # ── Append to the versioned history ──────────────────────────────────────────
 python3 tests/benchmark/to_history.py \
-    --pairs "$pairs_json" --extra "$extra_json" \
+    --pairs "$pairs_json" --asymptotic "$asymptotic_json" --baseline "$baseline_json" \
     --history tests/benchmark/history "${history_args[@]}"
 
 echo

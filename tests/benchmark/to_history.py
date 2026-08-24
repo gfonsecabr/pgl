@@ -1,28 +1,37 @@
 #!/usr/bin/env python3
 """to_history.py — append benchmark snapshots into the versioned history.
 
-Reads the two snapshot JSONs produced by the runners:
+Reads the snapshot JSONs produced by the runners:
 
-  * the shape-pair cube from run_shapepairs.py  (default build/.../benchmarks.json)
-  * the whole-algorithm "extra" benchmarks from run_extra.py (default .../extra.json)
+  * the shape-pair cube from run_shapepairs.py (default build/.../benchmarks.json)
+  * the asymptotic benchmarks from run_asymptotic.py (default .../asymptotic.json)
+  * optionally the CGAL baseline, also from run_asymptotic.py
 
 and appends one record per data point into tests/benchmark/history/, tagged with
-the commit (and its commit date — the dashboard's x-axis is the commit date, not
-the run date) and the machine (CPU + compiler).
+the commit (and its commit date — the pairs dashboard's x-axis is the commit
+date, not the run date) and the machine (CPU + compiler).
 
 Layout, append-only and committed to the repo:
-  * pairs → history/<shape1>_<shape2>.jsonl   (kind:"pair")
-  * extra → history/extra/<suite>.jsonl        (kind:"extra")
+  * pairs      → history/<shape1>_<shape2>.jsonl   (kind:"pair")
+  * asymptotic → history/asymptotic/<driver>.jsonl (kind:"asymptotic")
+
+The CGAL baseline is the exception: it is *not* appended. It goes to a single
+history/asymptotic-baseline.json, overwritten each time. A baseline is a
+reference point, not a measurement of this repo at this commit, so there is
+nothing to track over time; and it only exists at all on a machine that has
+CGAL, so an append-only baseline would be a ragged log of whoever last ran one.
 
 Usage (from repo root):
     python3 tests/benchmark/to_history.py [options]
 
 Options:
-    --pairs FILE     pair snapshot   (default: build/tests/benchmark/benchmarks.json)
-    --extra FILE     extra snapshot  (default: build/tests/benchmark/extra/extra.json)
-    --history DIR    history root    (default: tests/benchmark/history)
-    --skip-pairs     do not read the pair snapshot
-    --skip-extra     do not read the extra snapshot
+    --pairs FILE         pair snapshot       (default: build/tests/benchmark/benchmarks.json)
+    --asymptotic FILE    asymptotic snapshot (default: build/tests/benchmark/asymptotic/asymptotic.json)
+    --baseline FILE      CGAL baseline snapshot; only read when it exists
+                         (default: build/tests/benchmark/asymptotic/baseline.json)
+    --history DIR        history root        (default: tests/benchmark/history)
+    --skip-pairs         do not read the pair snapshot
+    --skip-asymptotic    do not read the asymptotic snapshot
 """
 from __future__ import annotations
 
@@ -33,8 +42,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+# The microsecond symbol, and the "us" older runs spelled it with.
+MICROSECONDS = "\u00b5s"
+
+
+def canonical_unit(unit: str) -> str:
+    return MICROSECONDS if unit in ("", "us", "\u00b5s", "\u03bcs") else unit
+
+
 # Canonical number-type keys, matching run_shapepairs.py's ALL_NUMBER_TYPES keys
-# so the dashboard's "type" dimension is shared between pair and extra records.
+# so the dashboard's "type" dimension means the same thing on both pages.
 def canon_type(label: str) -> str:
     s = label.strip().lower()
     if "erational" in s:
@@ -80,14 +97,17 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument("--pairs", default="build/tests/benchmark/benchmarks.json")
-    ap.add_argument("--extra", default="build/tests/benchmark/extra/extra.json")
+    ap.add_argument("--asymptotic",
+                    default="build/tests/benchmark/asymptotic/asymptotic.json")
+    ap.add_argument("--baseline",
+                    default="build/tests/benchmark/asymptotic/baseline.json")
     ap.add_argument("--history", default="tests/benchmark/history")
     ap.add_argument("--skip-pairs", action="store_true")
-    ap.add_argument("--skip-extra", action="store_true")
+    ap.add_argument("--skip-asymptotic", action="store_true")
     args = ap.parse_args()
 
     history_dir = Path(args.history)
-    (history_dir / "extra").mkdir(parents=True, exist_ok=True)
+    (history_dir / "asymptotic").mkdir(parents=True, exist_ok=True)
 
     # buckets: relative-path -> list[record]
     buckets: dict[str, list[dict]] = {}
@@ -149,40 +169,62 @@ def main() -> int:
                     })
                     total += 1
 
-    # ── extra ────────────────────────────────────────────────────────────────
-    if not args.skip_extra:
-        extra_path = Path(args.extra)
-        if not extra_path.exists():
-            print(f"extra snapshot not found: {extra_path}", file=sys.stderr)
+    # ── asymptotic ───────────────────────────────────────────────────────────
+    if not args.skip_asymptotic:
+        path = Path(args.asymptotic)
+        if not path.exists():
+            print(f"asymptotic snapshot not found: {path}", file=sys.stderr)
         else:
-            data = json.loads(extra_path.read_text())
+            data = json.loads(path.read_text())
             meta = data.get("meta", {})
-            commit = meta.get("commit", "unknown")
-            cpu    = meta.get("cpu") or "unknown"
-            cxx    = meta.get("compiler", "unknown")
-            flags  = meta.get("cxxflags", "")
-            machine = f"{cpu} · {cxx}"
-            date = date_of(commit)
-            for entry in data.get("results", []):
-                suite = entry["suite"]
-                fname = f"extra/{suite}.jsonl"
-                buckets.setdefault(fname, []).append({
-                    "kind":       "extra",
-                    "suite":      suite,
-                    "op":         entry["op"],
-                    "type":       canon_type(entry["number"]),
-                    "type_label": entry["number"],
-                    "time":       entry["time"],
-                    "time_min":   entry.get("time_min", entry["time"]),
-                    "time_max":   entry.get("time_max", entry["time"]),
-                    "unit":       entry.get("unit", "ns"),
-                    "result":     str(entry.get("result")),
-                    "commit":     commit,
-                    "date":       date,
-                    "machine":    machine,
-                    "cpu":        cpu, "cxx": cxx, "flags": flags,
-                })
-                total += 1
+            if meta.get("sizes_override"):
+                # A run whose sizes came from the command line is a calibration
+                # run: its points sit at x values no other run measured, so
+                # recording them would put stray dots on every chart.
+                print("asymptotic snapshot used --sizes; not recording it.",
+                      file=sys.stderr)
+            else:
+                commit = meta.get("commit", "unknown")
+                cpu    = meta.get("cpu") or "unknown"
+                cxx    = meta.get("compiler", "unknown")
+                flags  = meta.get("cxxflags", "")
+                machine = f"{cpu} · {cxx}"
+                date = date_of(commit)
+                for entry in data.get("results", []):
+                    fname = f"asymptotic/{entry['driver']}.jsonl"
+                    buckets.setdefault(fname, []).append({
+                        "kind":       "asymptotic",
+                        "driver":     entry["driver"],
+                        "category":   entry["category"],
+                        "dataset":    entry["dataset"],
+                        "problem":    entry["problem"],
+                        "algorithm":  entry["algorithm"],
+                        "type":       canon_type(entry["number"]),
+                        "type_label": entry["number"],
+                        "size":       entry["size"],
+                        "time":       entry["time"],
+                        "time_min":   entry.get("time_min", entry["time"]),
+                        "time_max":   entry.get("time_max", entry["time"]),
+                        "unit":       canonical_unit(entry.get("unit", "")),
+                        "result":     str(entry.get("result")),
+                        "commit":     commit,
+                        "date":       date,
+                        "machine":    machine,
+                        "cpu":        cpu, "cxx": cxx, "flags": flags,
+                    })
+                    total += 1
+
+    # ── CGAL baseline: overwritten, never appended ───────────────────────────
+    baseline_path = Path(args.baseline)
+    if baseline_path.exists():
+        data = json.loads(baseline_path.read_text())
+        if data.get("meta", {}).get("sizes_override"):
+            print("baseline snapshot used --sizes; not recording it.", file=sys.stderr)
+        else:
+            target = history_dir / "asymptotic-baseline.json"
+            target.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+            print(f"  asymptotic-baseline.json: {len(data.get('results', []))} rows "
+                  f"(overwritten)")
 
     if not buckets:
         print("no records to append.", file=sys.stderr)

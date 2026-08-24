@@ -7,8 +7,13 @@
 // multi-select chip filter. The two highest-priority dimensions that still have
 // more than one value selected become the table's columns and rows; any further
 // multi-valued dimensions facet into a grid of small tables. Dimensions narrowed
-// to a single value are shown in the caption. Whole-algorithm ("extra")
-// benchmarks render on their own page as classic per-suite tables.
+// to a single value are shown in the caption.
+//
+// The asymptotic benchmarks render on their own page, as one chart of time
+// against input size per category. Their data is a smaller cube — dataset,
+// problem, algorithm, number type — and the reader picks which single dimension
+// is the multi-select "compare" axis; the other three act as radio groups. See
+// renderAsymptotic below.
 
 let DB = null;
 let chart = null;
@@ -141,14 +146,14 @@ function distributionTip(shape, size) {
 }
 
 async function load() {
-  const dataFile = PAGE === "extra" ? "extra.json" : "pairs.json";
+  const dataFile = PAGE === "asymptotic" ? "asymptotic.json" : "pairs.json";
   const res = await fetch(dataFile, { cache: "no-store" });
   DB = await res.json();
   pop = document.getElementById("spark-pop");
 
   const sel = document.getElementById("machine");
   if (!DB.machines || !DB.machines.length) {
-    const root = document.getElementById(PAGE === "extra" ? "extra" : "suites");
+    const root = document.getElementById(PAGE === "asymptotic" ? "asymptotic" : "suites");
     root.innerHTML =
       '<p class="empty-state">No benchmark data recorded yet. Run ' +
       "<code>bash tests/benchmark/record.sh</code> and commit " +
@@ -161,8 +166,15 @@ async function load() {
     sel.appendChild(o);
   }
   sel.addEventListener("change", render);
-  document.getElementById("chart-close")
-    .addEventListener("click", () => document.getElementById("chart-dialog").close());
+  // Controls each page owns: the asymptotic page has the history-depth input,
+  // the pairs page the hover bubble and the per-cell chart dialog.
+  const depth = document.getElementById("depth");
+  if (depth) depth.addEventListener("change", render);
+  const chartClose = document.getElementById("chart-close");
+  if (chartClose) {
+    chartClose.addEventListener(
+      "click", () => document.getElementById("chart-dialog").close());
+  }
 
   if (PAGE === "pairs") {
     for (const d of DIMS) {
@@ -327,8 +339,8 @@ const sel = (d) => dimValues(d).filter((v) => selected[d].has(v));
 // ── main render (shape-pair cube) ─────────────────────────────────────────────
 
 function render() {
-  if (PAGE === "extra") {
-    renderExtra();
+  if (PAGE === "asymptotic") {
+    renderAsymptotic();
     return;
   }
   renderPairs();
@@ -569,101 +581,758 @@ function updateSummary(fixedDims, axisDims, facetDims) {
   document.getElementById("summary").innerHTML = parts.join("");
 }
 
-// ── extra (whole-algorithm) benchmarks: classic per-suite tables ──────────────
+// ── asymptotic benchmarks: one time-against-size chart per category ───────────
+//
+// Each category is a small cube — dataset, problem, algorithm, number type —
+// measured over a fixed list of input sizes. Exactly one of those four
+// dimensions is the multi-select "compare" axis at any moment: its selected
+// values are the curves on the chart, and each one's chip wears its curve's
+// colour. The other three behave as radio groups, naming the single slice of
+// the cube being compared. Clicking a dimension's label makes that dimension
+// the compare axis (shift- or ctrl-clicking one of its chips does the same and
+// selects that value in one go), which demotes the previous compare axis back
+// to a single value.
+//
+// Depth (the shared History control) draws the last N recorded runs of each
+// curve rather than only the newest: recency modulates shade, the cube
+// dimension controls hue, so an older run of a curve is a paler version of the
+// same colour rather than a different-coloured line.
 
-function renderExtra() {
-  const machine = document.getElementById("machine").value;
-  const root = document.getElementById("extra");
-  const section = document.getElementById("extra-section");
+const ASYM_DIMS = ["dataset", "problem", "algorithm", "type"];
+const ASYM_DIM_LABEL = {
+  dataset: "Dataset", problem: "Problem", algorithm: "Algorithm", type: "Number",
+};
+// The opening view of a category is read straight off the bar, left to right:
+// the first field that offers a choice becomes the compare axis with all of its
+// values drawn, and every field after it stands on its first value. No ranking
+// of which dimension is the interesting one — the bar's own order is the
+// answer, and what the reader sees first is the widest comparison the leftmost
+// choice can make.
+
+// Categorical palette for the compare axis. Deliberately unlike the pairs
+// page's green-to-red status heat: nothing here is better or worse for being a
+// particular hue, it is just a different value of one dimension.
+const CURVE_COLORS = [
+  "#0a429e", "#cf222e", "#1a7f37", "#bf5b04",
+  "#8250df", "#0f7d8c", "#a3325f", "#57606a",
+];
+// The CGAL reference, which is not one of the cube's values and should not look
+// like one: neutral and dashed.
+const BASELINE_COLOR = "#6e7781";
+// One dash pattern per reference of the same curve, in the order the baseline
+// snapshot recorded them.
+const BASELINE_DASHES = [[6, 4], [2, 3], [10, 3, 2, 3]];
+
+// Per-category UI state, built on first render.
+const asymState = {};
+const asymCharts = {};
+
+const hexToRgba = (hex, alpha) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+};
+
+const asymKey = (coord) => ASYM_DIMS.map((d) => coord[d]).join("|");
+
+// The recorded series for one value of the compare axis, or null.
+//
+// A category's cube is not always rectangular. Most are: Segment search
+// measures every (dataset, problem, algorithm, type) it names. But several
+// categories pair each value of one dimension with its own value of another —
+// each problem in Point constructions has a single algorithm of its own, each
+// dataset in Regularized union its own problem — and there the radio buttons
+// cannot name one slice that all the curves live in, because no such slice
+// exists.
+//
+// So the radios are honoured where the cube has the combination and given way
+// where it does not: a lookup that finds nothing exact drops one radio
+// dimension at a time, in the order below, until it finds a series. Whatever it
+// had to drop comes back with the result so the curve's legend entry can say
+// which values it actually stands for — a curve is never quietly something
+// other than what the bar says. The number type is never dropped: it is the one
+// dimension that is independent in every category, so a miss there is a real
+// gap in the data rather than a corner of the cube that was never square.
+const ASYM_RELAX_ORDER = ["algorithm", "problem", "dataset"];
+
+function asymSeries(category, state, machineData, value) {
+  const coord = {};
+  for (const dim of ASYM_DIMS) {
+    coord[dim] = dim === state.compare
+      ? value
+      : asymSelected(category, state, dim)[0];
+  }
+  const exact = machineData[asymKey(coord)];
+  if (exact) return { runs: exact, relaxed: [] };
+
+  // One dimension at a time, then pairs — enough for the couplings these
+  // categories actually have, and it prefers the answer that overrides least.
+  for (const first of ASYM_RELAX_ORDER) {
+    if (first === state.compare) continue;
+    for (const a of category.dimensions[first] || []) {
+      if (a === coord[first]) continue;
+      const once = machineData[asymKey({ ...coord, [first]: a })];
+      if (once) return { runs: once, relaxed: [[first, a]] };
+    }
+  }
+  for (const first of ASYM_RELAX_ORDER) {
+    if (first === state.compare) continue;
+    for (const second of ASYM_RELAX_ORDER) {
+      if (second === first || second === state.compare) continue;
+      for (const a of category.dimensions[first] || []) {
+        for (const b of category.dimensions[second] || []) {
+          const twice = machineData[asymKey({ ...coord, [first]: a, [second]: b })];
+          if (twice) return { runs: twice, relaxed: [[first, a], [second, b]] };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Whether a radio dimension set to `value` leaves any curve on the chart, with
+// the rest of the selection as it stands.
+function asymRadioHasData(category, state, machineData, dim, value) {
+  const probe = {
+    ...state,
+    selected: { ...state.selected, [dim]: new Set([value]) },
+  };
+  return asymSelected(category, probe, probe.compare)
+    .some((v) => machineData[asymKey(Object.fromEntries(ASYM_DIMS.map((d) => [
+      d, d === probe.compare ? v : asymSelected(category, probe, d)[0]])))]);
+}
+
+// Move every radio dimension (except `keep`) off a value that has no exact data
+// onto the first that does, so that changing one dimension of a correlated pair
+// carries the other along instead of leaving the bar describing a combination
+// the category never measured.
+function asymSnapRadios(category, state, machineData, keep) {
+  for (const dim of ASYM_DIMS) {
+    if (dim === state.compare || dim === keep) continue;
+    const current = asymSelected(category, state, dim)[0];
+    if (current !== undefined &&
+        asymRadioHasData(category, state, machineData, dim, current)) continue;
+    const replacement = (category.dimensions[dim] || [])
+      .find((v) => asymRadioHasData(category, state, machineData, dim, v));
+    if (replacement !== undefined) state.selected[dim] = new Set([replacement]);
+  }
+}
+
+function asymSnap(category, state, machineData) {
+  asymSnapRadios(category, state, machineData, null);
+}
+
+// Values of a dimension worth offering — the ones that would actually draw
+// something. Decided by trying it: copy the state, select the value, snap the
+// other radio dimensions the way a real click would, and see whether any curve
+// survives.
+function asymAvailable(category, state, machineData, dim) {
+  return new Set((category.dimensions[dim] || []).filter((value) => {
+    const probe = {
+      compare: state.compare,
+      xAxis: state.xAxis,
+      selected: Object.fromEntries(
+        ASYM_DIMS.map((d) => [d, new Set(state.selected[d])])),
+    };
+    probe.selected[dim] = new Set([value]);
+    if (dim !== probe.compare) asymSnapRadios(category, probe, machineData, dim);
+    if (dim === probe.compare) {
+      return asymSeries(category, probe, machineData, value);
+    }
+    return asymSelected(category, probe, probe.compare)
+      .some((v) => asymSeries(category, probe, machineData, v));
+  }));
+}
+
+// The values of a dimension this machine ever recorded, whatever the rest of
+// the selection is. A dimension that has only one is not a control — it is a
+// caption, and the section header already carries it — so the filter bar leaves
+// it out entirely rather than showing a lone chip that does nothing when
+// clicked. Read off the machine's own keys rather than the category's declared
+// dimensions, so a machine that ran part of the cube gets a bar describing what
+// it has.
+function asymPresentValues(machineData, dim) {
+  const index = ASYM_DIMS.indexOf(dim);
+  const seen = new Set();
+  for (const key of Object.keys(machineData)) seen.add(key.split("|")[index]);
+  return seen;
+}
+
+// The algorithms this machine measured for one problem.
+function asymAlgorithmsFor(machineData, problem) {
+  const pi = ASYM_DIMS.indexOf("problem");
+  const ai = ASYM_DIMS.indexOf("algorithm");
+  const seen = new Set();
+  for (const key of Object.keys(machineData)) {
+    const parts = key.split("|");
+    if (parts[pi] === problem) seen.add(parts[ai]);
+  }
+  return seen;
+}
+
+// Whether the algorithm is a function of the problem in this category: every
+// problem it measured has exactly one.
+//
+// This is the structural fact the bar is built around. Where it holds, naming
+// the problem names the algorithm, so the algorithm is not a choice at all —
+// the field goes away and its value rides along in each curve's legend entry —
+// and several problems can share a chart, because each curve still stands for
+// exactly one algorithm. Where it fails, a chart of several problems would be
+// showing one algorithm per problem and silently hiding the others, so the
+// problems are compared one at a time and the algorithm field is the axis.
+function asymAlgorithmImplied(category, machineData) {
+  for (const problem of asymPresentValues(machineData, "problem")) {
+    if (asymAlgorithmsFor(machineData, problem).size > 1) return false;
+  }
+  return true;
+}
+
+// The chips a dimension offers. Everything but the algorithm offers what this
+// machine recorded; the algorithm offers nothing at all where it is implied by
+// the problem, and otherwise only what was measured for the problem selected —
+// an algorithm belonging to some other problem is not an alternative to the one
+// in the bar, it is a different measurement wearing the same axis.
+function asymDimValues(category, state, machineData, dim) {
+  const declared = category.dimensions[dim] || [];
+  if (dim === "algorithm") {
+    if (asymAlgorithmImplied(category, machineData)) return [];
+    const problem = asymSelected(category, state, "problem")[0];
+    const measured = asymAlgorithmsFor(machineData, problem);
+    return declared.filter((v) => measured.has(v));
+  }
+  const present = asymPresentValues(machineData, dim);
+  return declared.filter((v) => present.has(v));
+}
+
+// Whether a dimension may hold the compare axis at all.
+const asymCanCompare = (category, machineData, dim) =>
+  dim !== "problem" || asymAlgorithmImplied(category, machineData);
+
+// Bring the selection back inside what the bar can express, after a click that
+// changed what the other fields offer — switching problem in a category where
+// the algorithm is a real choice changes which algorithms exist.
+function asymReconcile(category, state, machineData) {
+  if (!asymCanCompare(category, machineData, state.compare)) {
+    const kept = [...state.selected[state.compare]][0];
+    if (kept !== undefined) state.selected[state.compare] = new Set([kept]);
+    state.compare = ASYM_DIMS.find(
+      (d) => asymCanCompare(category, machineData, d)) || "type";
+  }
+  if (asymAlgorithmImplied(category, machineData)) return;
+  const allowed = asymDimValues(category, state, machineData, "algorithm");
+  if (!allowed.length) return;
+  const kept = allowed.filter((v) => state.selected.algorithm.has(v));
+  if (kept.length) {
+    state.selected.algorithm = new Set(kept);
+  } else {
+    // Nothing selected survives the new problem. On the compare axis that is
+    // the moment to show what the problem does offer — the two ways of
+    // locating a point, say — rather than an arbitrary one of them.
+    state.selected.algorithm = new Set(
+      state.compare === "algorithm" ? allowed : allowed.slice(0, 1));
+  }
+}
+
+// The values of `dim` recorded for the current slice *exactly*, with no
+// relaxation — the curves this dimension can put side by side inside one
+// genuine slice of the cube.
+//
+// This is what a dimension is populated with when it becomes the compare axis.
+// Selecting everything merely *reachable* would be wrong: in a category whose
+// problems each have their own algorithm, that pulls the other problems' curves
+// onto the chart, so asking to compare the two ways of locating a point would
+// hand back the triangulation build and the index build as well.
+function asymExactValues(category, state, machineData, dim) {
+  const probe = { ...state, compare: dim };
+  return (category.dimensions[dim] || []).filter((value) => {
+    const coord = Object.fromEntries(ASYM_DIMS.map((d) => [
+      d, d === dim ? value : asymSelected(category, probe, d)[0]]));
+    return machineData[asymKey(coord)];
+  });
+}
+
+function asymInitState(name, category, machineData) {
+  const selected = {};
+  const state = { selected, compare: ASYM_DIMS[0], xAxis: "size" };
+  // Every field on its first value, so the fields the pass below leaves alone
+  // are already settled — and so asymDimValues can read the selected problem
+  // while deciding what the algorithm field offers.
+  for (const d of ASYM_DIMS) {
+    selected[d] = new Set(asymDimValues(category, state, machineData, d).slice(0, 1));
+  }
+
+  const opened = ASYM_DIMS.find((dim) => {
+    if (!asymCanCompare(category, machineData, dim)) return false;
+    const values = asymDimValues(category, state, machineData, dim);
+    if (values.length < 2) return false;
+    // Every value that draws something. One that draws nothing at all is a
+    // disabled chip, and selecting it would look like a curve had gone missing.
+    const drawable = asymAvailable(category, state, machineData, dim);
+    const chosen = values.filter((v) => drawable.has(v));
+    state.compare = dim;
+    state.selected[dim] = new Set(chosen.length ? chosen : values);
+    return true;
+  });
+  // No field offers a choice in the opening slice — a category whose only real
+  // one appears once a different problem is picked. The axis parks on the first
+  // field that can hold it and has values to come, so that picking that problem
+  // brings them up together rather than one at a time.
+  if (!opened) {
+    state.compare =
+      ASYM_DIMS.find((d) => asymCanCompare(category, machineData, d) &&
+                            asymPresentValues(machineData, d).size > 1) ||
+      ASYM_DIMS.find((d) => asymCanCompare(category, machineData, d));
+  }
+  asymState[name] = state;
+  return state;
+}
+
+// Move the compare axis to `dim`, collapsing the dimension that held it to a
+// single value — only one dimension can be multi-select at a time.
+function asymPromote(state, dim) {
+  if (state.compare === dim) return;
+  const previous = state.compare;
+  const kept = [...state.selected[previous]][0];
+  if (kept !== undefined) state.selected[previous] = new Set([kept]);
+  state.compare = dim;
+}
+
+// Whether making `dim` the compare axis would cost nothing. Only one dimension
+// can be multi-select at a time, so promoting one collapses whichever held the
+// axis before; when every other dimension already stands on a single value
+// there is nothing to collapse and nothing to lose. That is the case where a
+// plain click on a radio chip adds a curve instead of switching to it — asking
+// for a second algorithm should not require knowing that ctrl-click means
+// "and", and where the promotion is free there is no reading of the click that
+// the user has to be protected from.
+const asymPromotionIsFree = (state, dim) =>
+  ASYM_DIMS.every((d) => d === dim || state.selected[d].size <= 1);
+
+// The selected values of a dimension, in the payload's display order.
+const asymSelected = (category, state, dim) =>
+  (category.dimensions[dim] || []).filter((v) => state.selected[dim].has(v));
+
+function asymFilterBar(name, category, state, machineData) {
+  const bar = document.createElement("div");
+  bar.className = "filters asym-filters";
+
+  for (const dim of ASYM_DIMS) {
+    const values = asymDimValues(category, state, machineData, dim);
+    if (values.length < 2) continue;
+    const canCompare = asymCanCompare(category, machineData, dim);
+
+    const group = document.createElement("div");
+    group.className = "filter-group";
+
+    // A dimension that cannot hold the compare axis gets a plain caption
+    // instead of a button, and says why: there is nothing to click, and an
+    // unexplained dead label is worse than no label.
+    const label = document.createElement(canCompare ? "button" : "span");
+    if (canCompare) label.type = "button";
+    label.className = "filter-label" +
+      (state.compare === dim ? " comparing" : canCompare ? "" : " static");
+    label.textContent = ASYM_DIM_LABEL[dim];
+    label.title = !canCompare
+      ? "Each problem here is measured with more than one algorithm, so a " +
+        "chart of several problems would hide all but one of them. Problems " +
+        "are compared one at a time; compare the algorithms instead."
+      : state.compare === dim
+        ? "This is the compare axis: its selected values are the curves."
+        : "Compare along this dimension";
+    if (canCompare) {
+      label.addEventListener("click", () => {
+        if (state.compare === dim) return;
+        asymPromote(state, dim);
+        const inBar = (list) => [...list].filter((v) => values.includes(v));
+        const exact = inBar(asymExactValues(category, state, machineData, dim));
+        state.selected[dim] = new Set(exact.length > 1 ? exact
+          : inBar(asymAvailable(category, state, machineData, dim)));
+        if (!state.selected[dim].size) state.selected[dim] = new Set(values.slice(0, 1));
+        renderCategory(name);
+      });
+    }
+    group.appendChild(label);
+
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    const comparing = state.compare === dim;
+    const free = !comparing && canCompare && asymPromotionIsFree(state, dim);
+    const chosen = asymSelected(category, state, dim);
+    const available = asymAvailable(category, state, machineData, dim);
+    for (const value of values) {
+      const on = state.selected[dim].has(value);
+      const usable = available.has(value);
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (on ? " on" : "") + (usable ? "" : " unavailable");
+      chip.disabled = !usable && !on;
+      chip.textContent = value;
+      if (!usable) {
+        chip.title = "Not measured in this combination";
+      } else if (!comparing) {
+        if (!on) {
+          chip.title = free ? "Draw it alongside what is selected"
+            : canCompare ? "Switch to it — ctrl-click to draw both as well"
+            : "Switch to it";
+        }
+      } else {
+        // Say up front when picking this would draw a curve from a different
+        // slice than the radio buttons name — the same thing the legend
+        // qualifier says once it is on the chart.
+        const series = asymSeries(category, state, machineData, value);
+        if (series && series.relaxed.length) {
+          const where = series.relaxed
+            .map(([d, v]) => `${ASYM_DIM_LABEL[d].toLowerCase()} ${v}`).join(", ");
+          chip.title = `Only measured at ${where}; selecting it draws that curve.`;
+        }
+      }
+      if (comparing && on) {
+        // The chip wears its curve's colour, so the legend is the filter bar.
+        const color = CURVE_COLORS[chosen.indexOf(value) % CURVE_COLORS.length];
+        chip.style.background = color;
+        chip.style.borderColor = color;
+        chip.style.color = "#fff";
+      }
+      chip.addEventListener("click", (event) => {
+        if (comparing) {
+          if (on) {
+            if (state.selected[dim].size > 1) state.selected[dim].delete(value);
+          } else {
+            state.selected[dim].add(value);
+          }
+        } else if (free ||
+                   (canCompare && (event.shiftKey || event.ctrlKey || event.metaKey))) {
+          asymPromote(state, dim);
+          state.selected[dim].add(value);
+        } else {
+          state.selected[dim] = new Set([value]);
+          asymSnapRadios(category, state, machineData, dim);
+        }
+        renderCategory(name);
+      });
+      chips.appendChild(chip);
+    }
+    group.appendChild(chips);
+    bar.appendChild(group);
+  }
+
+  // What time is plotted against. The y axis is always time; the choice is
+  // whether the x axis is the input the sweep controls or the output the run
+  // produced. Output size is recorded on every row — it is the same number the
+  // correctness cross-check compares — so it is always offered, but it earns
+  // its place in the categories whose cost is driven by what comes out rather
+  // than by what goes in: plotted that way, an output-sensitive algorithm is a
+  // straight line where against n it is a parabola.
+  const xGroup = document.createElement("div");
+  xGroup.className = "filter-group";
+  const xLabel = document.createElement("span");
+  xLabel.className = "filter-label static";
+  xLabel.textContent = "X axis";
+  xGroup.appendChild(xLabel);
+  const xChips = document.createElement("div");
+  xChips.className = "chips";
+  for (const [key, text] of [["size", "input size"], ["result", "output size"]]) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip" + (state.xAxis === key ? " on" : "");
+    chip.textContent = text;
+    chip.addEventListener("click", () => { state.xAxis = key; renderCategory(name); });
+    xChips.appendChild(chip);
+  }
+  xGroup.appendChild(xChips);
+  bar.appendChild(xGroup);
+
+  return bar;
+}
+
+// The Chart.js datasets for one category: one line per (compare value, run),
+// newest run at full strength and older ones faded, plus the CGAL curve.
+function asymDatasets(category, state, machine, depth) {
+  const machineData = (category.data && category.data[machine]) || {};
+  const values = asymSelected(category, state, state.compare);
+  // Points are laid out against the chosen x and sorted by it: output size is
+  // not always monotone in n, and a line drawn in sweep order would zigzag.
+  const xOf = (p) => (state.xAxis === "result" ? Number(p.result) : p.size);
+  const laid = (list) => list
+    .map((p) => ({ x: xOf(p), y: p.time, point: p }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+    .sort((a, b) => a.x - b.x);
+
+  const datasets = [];
+  // (dataset, problem) each drawn curve actually resolved to, for the CGAL
+  // lookup below — which has to follow the same relaxation, or a relaxed curve
+  // would be given the reference belonging to the slice it isn't in.
+  const resolved = [];
+  let latestMax = 0;
+  values.forEach((value, index) => {
+    const color = CURVE_COLORS[index % CURVE_COLORS.length];
+    const series = asymSeries(category, state, machineData, value);
+    if (!series || !series.runs.length) return;
+    // Say so when this curve had to override a radio button to exist at all.
+    const qualifier = series.relaxed.length
+      ? ` (${series.relaxed.map(([, v]) => v).join(", ")})` : "";
+    const shown = series.runs.slice(Math.max(0, series.runs.length - depth));
+    const at = Object.fromEntries(series.relaxed);
+    resolved.push({
+      value,
+      color,
+      dataset: state.compare === "dataset" ? value
+        : at.dataset ?? asymSelected(category, state, "dataset")[0],
+      problem: state.compare === "problem" ? value
+        : at.problem ?? asymSelected(category, state, "problem")[0],
+    });
+    shown.forEach((run, position) => {
+      const newest = position === shown.length - 1;
+      const points = laid(run.points);
+      if (!points.length) return;
+      if (newest) {
+        latestMax = Math.max(latestMax, ...points.map((p) => p.y));
+      }
+      // Older runs fade towards the background rather than towards grey: the
+      // hue still says which curve it is, the shade says how old.
+      const alpha = newest ? 1 : 0.18 + 0.5 * ((position + 1) / shown.length);
+      datasets.push({
+        label: newest ? `${value}${qualifier}` : `${value}${qualifier} · ${run.commit}`,
+        data: points,
+        borderColor: newest ? color : hexToRgba(color, alpha),
+        backgroundColor: newest ? color : hexToRgba(color, alpha),
+        borderWidth: newest ? 2 : 1,
+        pointRadius: newest ? 2 : 0,
+        pointHoverRadius: 5,
+        tension: 0,
+        fill: false,
+        order: newest ? 0 : 3,
+        // Older runs stay off the legend: they are the same curve, and one
+        // legend entry per (curve × depth) would bury the four or five that
+        // actually name something.
+        legendEntry: newest,
+      });
+    });
+  });
+
+  // The CGAL reference curves. A baseline is keyed on dataset and problem
+  // alone — CGAL is neither one of the algorithms on the algorithm axis nor a
+  // value of the number-type axis, so the same reference is the right one
+  // whichever of those two is selected. When the compare axis *is* the dataset
+  // or the problem, though, each curve on the chart wants its own, so they are
+  // collected per compare value and duplicates dropped. A key may name more
+  // than one: CGAL solves the Minkowski sum twice, by decomposition and by
+  // convolution, and both belong on the chart.
+  const seen = new Set();
+  const references = [];
+  for (const { value, color, dataset, problem } of resolved) {
+    const key = `${dataset}|${problem}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const found = (category.baseline && category.baseline[key]) || [];
+    found.forEach((baseline, rank) => {
+      const points = laid(baseline.points);
+      if (points.length) references.push({ value, color, baseline, points, rank });
+    });
+  }
+
+  // Whether a reference belongs to one named curve rather than to all of them.
+  // A baseline is keyed on dataset and problem, so when the compare axis is the
+  // algorithm or the number type every curve on the chart shares the same
+  // reference and it stays neutral — colouring it like one of them would claim
+  // a pairing that isn't there. When the compare axis is the dataset or the
+  // problem, each curve has its own, and a grey dash among coloured curves
+  // says nothing about which one it answers: there it takes that curve's
+  // colour and keeps the dashes to stay legible as CGAL rather than as pgl.
+  const specific = values.length > 1 &&
+    state.compare !== "algorithm" && state.compare !== "type";
+  for (const { value, color, baseline, points, rank } of references) {
+    const label = `${baseline.algorithm} (${baseline.number})`;
+    const stroke = specific ? color : BASELINE_COLOR;
+    // Where a curve has several references, colour can no longer tell them
+    // apart — it is already saying which curve they belong to — so the dash
+    // pattern does.
+    const dash = BASELINE_DASHES[rank % BASELINE_DASHES.length];
+    datasets.push({
+      label: specific ? `${label} · ${value}` : label,
+      data: points,
+      borderColor: stroke,
+      backgroundColor: stroke,
+      borderDash: dash,
+      borderWidth: 1.5,
+      // The legend draws point styles, so a reference that now wears a curve's
+      // colour would otherwise be a second dot of that colour. A dashed line
+      // swatch keeps "this one is CGAL" readable from the legend alone.
+      pointStyle: "line",
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      tension: 0,
+      fill: false,
+      order: 2,
+      legendEntry: true,
+    });
+  }
+  return { datasets, latestMax };
+}
+
+function asymChart(canvas, name, category, state, machine, depth) {
+  const { datasets, latestMax } = asymDatasets(category, state, machine, depth);
+  if (asymCharts[name]) asymCharts[name].destroy();
+  if (!datasets.length) {
+    asymCharts[name] = null;
+    return false;
+  }
+
+  const yTitle = `time (${category.unit || "µs"})`;
+  const xTitle = state.xAxis === "result" ? "output size" : "input size (n)";
+  // The y scale is fitted to the newest run alone. An older run or the CGAL
+  // curve that happens to be much slower is cropped rather than allowed to
+  // squash the curve the page is actually about into the bottom inch.
+  const yMax = latestMax > 0 ? latestMax * 1.08 : undefined;
+
+  asymCharts[name] = new Chart(canvas, {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      parsing: false,
+      normalized: true,
+      animation: false,
+      interaction: { mode: "nearest", intersect: false, axis: "x" },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: xTitle },
+          beginAtZero: true,
+          ticks: { maxTicksLimit: 9 },
+        },
+        y: {
+          type: "linear",
+          title: { display: true, text: yTitle },
+          beginAtZero: true,
+          max: yMax,
+        },
+      },
+      plugins: {
+        legend: {
+          display: true, position: "top",
+          labels: {
+            boxWidth: 14, usePointStyle: true,
+            filter: (item, data) => data.datasets[item.datasetIndex].legendEntry,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            // n stays in the tooltip whichever axis it is on: with output size
+            // on the x axis it is the only thing that says which run a point
+            // came from.
+            title: (items) => `n = ${items[0].raw.point.size}`,
+            label: (item) => {
+              const p = item.raw.point;
+              return `${item.dataset.label}: ${fmt(p.time)} ${category.unit || "µs"}` +
+                     `  ·  output ${p.result}`;
+            },
+          },
+        },
+      },
+    },
+  });
+  return true;
+}
+
+// The per-category section skeletons, built once and then updated in place.
+//
+// Rebuilding the whole page on every chip click would work, but it empties the
+// document for an instant, and the browser answers a page that briefly has no
+// height by scrolling back to the top — so clicking a filter in the last
+// category would throw the reader up to the first. A click changes one
+// category, so it redraws one category: the headings and the chart holders
+// stay put (the holder is a fixed height, so nothing reflows either), and only
+// that section's filter bar and chart are replaced.
+const asymSections = {};
+
+function asymBuildSections(names) {
+  const root = document.getElementById("asymptotic");
   root.innerHTML = "";
+  for (const key of Object.keys(asymSections)) delete asymSections[key];
 
-  const names = Object.keys(DB.extra || {}).sort();
-  if (!names.length) { section.style.display = "none"; return; }
-  let rendered = 0;
   for (const name of names) {
-    const s = DB.extra[name];
-    const machineData = (s.data && s.data[machine]) || {};
+    const category = DB.asymptotic[name];
 
-    // Drop empty type columns / operation rows, and skip empty suites.
-    const types = s.types.filter((t) => s.functions.some((op) => machineData[op + "|" + t]));
-    const ops = s.functions.filter((op) => types.some((t) => machineData[op + "|" + t]));
-    if (!types.length || !ops.length) continue;
-    rendered++;
+    const section = document.createElement("section");
+    section.className = "suite asym-category";
 
-    const card = document.createElement("section");
-    card.className = "suite";
-
-    const h = document.createElement("h2");
-    h.innerHTML = s.source_url
-      ? `<a class="suite-link" href="${s.source_url}" target="_blank" rel="noopener">${name}</a>`
+    const heading = document.createElement("h2");
+    heading.innerHTML = category.source_url
+      ? `<a class="suite-link" href="${category.source_url}" target="_blank" rel="noopener">${name}</a>`
       : name;
-    if (s.description) {
+    if (category.description) {
       const desc = document.createElement("span");
       desc.className = "suite-desc";
-      desc.textContent = s.description;
-      h.appendChild(desc);
+      desc.textContent = category.description;
+      heading.appendChild(desc);
     }
-    card.appendChild(h);
+    section.appendChild(heading);
 
-    const table = document.createElement("table");
-    const thead = document.createElement("thead");
-    const hr = document.createElement("tr");
-    hr.appendChild(th("Operation"));
-    for (const t of types) hr.appendChild(th(t, "num"));
-    thead.appendChild(hr);
-    table.appendChild(thead);
+    // Placeholder for the filter bar; replaced, never emptied, on every redraw.
+    const filters = document.createElement("div");
+    section.appendChild(filters);
 
-    const tbody = document.createElement("tbody");
-    for (const op of ops) {
-      const tr = document.createElement("tr");
-      const fn = document.createElement("td");
-      fn.className = "fn";
-      fn.textContent = op;
-      tr.appendChild(fn);
+    const holder = document.createElement("div");
+    holder.className = "asym-chart";
+    const canvas = document.createElement("canvas");
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Nothing recorded for this combination on this machine.";
+    empty.style.display = "none";
+    holder.append(canvas, empty);
+    section.appendChild(holder);
 
-      const rowPts = types.map((t) => machineData[op + "|" + t] || null);
-
-      types.forEach((t, ti) => {
-        const td = document.createElement("td");
-        td.className = "val";
-        const pts = rowPts[ti];
-        const lp = latest(pts);
-        if (lp) {
-          // Colour relative to this cell's own history (best..worst over time).
-          const lo = bestOf(pts), hi = worstOf(pts);
-          const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
-          td.innerHTML =
-            `<span class="cell">${spark}` +
-            `<span class="num" style="color:${statusColor(lp.time, lo, hi)}">${fmt(lp.time)}</span>` +
-            `</span>`;
-          td.classList.add("clickable");
-          const title = `${name} · ${op} · ${t} — ${machine}`;
-          td.addEventListener("click", () => showChart(title, pts, s.unit));
-          td.addEventListener("mouseenter", (e) => showPop(e, `${name} · ${op} · ${t}`, pts, s.unit));
-          td.addEventListener("mouseleave", hidePop);
-        } else {
-          td.textContent = "—";
-          td.classList.add("empty");
-        }
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    const wrap = document.createElement("div");
-    wrap.className = "table-wrap";
-    wrap.appendChild(table);
-    card.appendChild(wrap);
-
-    const note = document.createElement("div");
-    note.className = "unit-note";
-    note.textContent =
-      "time in " + s.unit + " · colour vs. own history · hover for trend, click for chart";
-    card.appendChild(note);
-
-    root.appendChild(card);
+    root.appendChild(section);
+    asymSections[name] = { filters, canvas, empty };
   }
-  section.style.display = rendered ? "" : "none";
+}
+
+// Redraw one category: its filter bar and its chart, nothing else.
+function renderCategory(name) {
+  const parts = asymSections[name];
+  if (!parts) return;
+  const category = DB.asymptotic[name];
+  const machine = document.getElementById("machine").value;
+  const depthInput = document.getElementById("depth");
+  const depth = Math.max(1, Math.min(20, Number(depthInput && depthInput.value) || 1));
+  const machineData = (category.data && category.data[machine]) || {};
+  const state = asymState[name] || asymInitState(name, category, machineData);
+  // Reconcile first: the snap decides whether a radio value has data by looking
+  // at the compare axis's selection, so it has to see the algorithms that
+  // belong to the problem now selected. The other way round it reads a problem
+  // against the previous problem's algorithm, finds nothing, and pushes the
+  // problem back to where it was.
+  asymReconcile(category, state, machineData);
+  asymSnap(category, state, machineData);
+
+  const bar = asymFilterBar(name, category, state, machineData);
+  parts.filters.replaceWith(bar);
+  parts.filters = bar;
+
+  const drawn = asymChart(parts.canvas, name, category, state, machine, depth);
+  parts.canvas.style.display = drawn ? "" : "none";
+  parts.empty.style.display = drawn ? "none" : "";
+}
+
+function renderAsymptotic() {
+  const names = Object.keys(DB.asymptotic || {});
+  if (!names.length) {
+    document.getElementById("asymptotic").innerHTML =
+      '<p class="empty-state">No asymptotic benchmark data recorded yet. Run ' +
+      "<code>bash tests/benchmark/record.sh</code> and commit " +
+      "<code>tests/benchmark/history/</code>.</p>";
+    return;
+  }
+  // Only the first call builds the DOM; later ones (a machine or history-depth
+  // change) redraw every category in place, which keeps the scroll position
+  // for those too.
+  if (Object.keys(asymSections).length !== names.length) asymBuildSections(names);
+  for (const name of names) renderCategory(name);
+
+  const generated = DB.generated ? new Date(DB.generated) : null;
+  const stamp = document.getElementById("generated");
+  if (stamp && generated) stamp.textContent = `updated ${generated.toLocaleDateString()}`;
 }
 
 // ── hover bubble + full chart (kept from the original dashboard) ──────────────
