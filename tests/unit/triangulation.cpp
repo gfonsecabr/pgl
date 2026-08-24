@@ -2386,6 +2386,82 @@ TEST_CASE("asGraph sees only the triangulated domain of a polygon") {
           }());
 }
 
+TEST_CASE("asArrangement has the mesh edges and triangle face IDs") {
+    using Point = pgl::EPoint;
+    using Segment = pgl::Segment<Point>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    const Mesh empty;
+    const auto emptyArrangement = empty.asArrangement();
+    CHECK(emptyArrangement.edgeCount() == 0);
+    REQUIRE(emptyArrangement.faceCount() == 1);
+    CHECK_FALSE(emptyArrangement.label(decltype(emptyArrangement)::FaceId(0)).valid());
+
+    const Mesh mesh(std::vector<Point>{P<Point>(0, 0), P<Point>(4, 0), P<Point>(4, 4),
+                                       P<Point>(0, 4), P<Point>(2, 2)});
+    const auto arrangement = mesh.asArrangement();
+
+    CHECK(arrangement.edgeCount() == mesh.numEdges());
+    std::set<Segment> arrangementEdges;
+    for (const auto& edge : arrangement.boundedEdges()) {
+        arrangementEdges.emplace(edge[0], edge[1]);
+    }
+    const std::vector<Segment> meshEdgeList = mesh.edges();
+    std::set<Segment> meshEdges(meshEdgeList.begin(), meshEdgeList.end());
+    CHECK(arrangementEdges == meshEdges);
+
+    std::set<Mesh::TriId> labeledTriangles;
+    for (std::size_t i = 0; i < arrangement.faceCount(); ++i) {
+        const decltype(arrangement)::FaceId face(static_cast<std::uint32_t>(i));
+        const Mesh::TriId label = arrangement.label(face);
+        if (arrangement.isUnbounded(face)) {
+            CHECK_FALSE(label.valid());
+            continue;
+        }
+        CHECK(mesh.has(label));
+        labeledTriangles.insert(label);
+    }
+    const std::vector<Mesh::TriId> triangleIds = mesh.triangleIds();
+    CHECK(labeledTriangles == std::set<Mesh::TriId>(triangleIds.begin(), triangleIds.end()));
+
+    for (const Mesh::TriId triangle : triangleIds) {
+        const auto face = arrangement.locateFace(mesh[triangle].pointInside());
+        CHECK(arrangement.label(face) == triangle);
+    }
+}
+
+TEST_CASE("Triangulation uses and invalidates its arrangement point location") {
+    using Point = pgl::EPoint;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    Mesh mesh(std::vector<Point>{P<Point>(0, 0), P<Point>(4, 0), P<Point>(4, 4),
+                                 P<Point>(0, 4), P<Point>(2, 2)});
+    const std::vector<Point> queries{P<Point>(2, 1), P<Point>(3, 2), P<Point>(2, 3),
+                                     P<Point>(1, 2), P<Point>(8, 8)};
+    std::vector<Mesh::TriId> walked;
+    for (const Point& point : queries) {
+        walked.push_back(mesh.locateId(point));
+    }
+
+    CHECK_FALSE(mesh.hasPointLocation());
+    mesh.buildPointLocation();
+    CHECK(mesh.hasPointLocation());
+    for (std::size_t i = 0; i < queries.size(); ++i) {
+        CHECK(mesh.locateId(queries[i]) == walked[i]);
+    }
+
+    // The arrangement reports a mesh vertex as a cell, so the triangulation
+    // must still resolve it to one of its incident triangles.
+    CHECK(mesh.has(mesh.locateId(P<Point>(2, 2))));
+
+    mesh.setConstrained(mesh.triangleIds().front(), 0);
+    CHECK_FALSE(mesh.hasPointLocation());
+    mesh.buildPointLocation();
+    REQUIRE(mesh.insertDelaunay(P<Point>(1, 2)));
+    CHECK_FALSE(mesh.hasPointLocation());
+    CHECK(mesh.has(mesh.locateId(P<Point>(1, 2))));
+}
+
 TEST_CASE("handles navigate the same mesh as the value interface") {
     using Point = pgl::Point<int>;
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;

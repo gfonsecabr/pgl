@@ -74,6 +74,21 @@ void run(const char* label) {
                 << timer.get_elapsed_us() / segs.size() << std::endl;
     }
 
+    timer.start();
+    triangulation.buildPointLocation();
+    std::cout << "buildPointLocation\t\t" << label << "\t\t" << triangulation.numEdges() << "\t"
+              << timer.get_elapsed_us() << std::endl;
+
+    {
+        timer.start();
+        std::size_t hits = 0;
+        for (const auto& q : segs) {
+            hits += triangulation.locate(q[0]).has_value() ? 1 : 0;
+        }
+        std::cout << "locate indexed\t\t\t" << label << "\t\t" << hits << "\t"
+                  << timer.get_elapsed_us() / segs.size() << std::endl;
+    }
+
     {
         timer.start();
         std::size_t hits = 0;

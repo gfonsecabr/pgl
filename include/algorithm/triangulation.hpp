@@ -45,6 +45,7 @@
 #include <cstdint>
 #include <deque>
 #include <map>
+#include <memory>
 #include <optional>
 #include <queue>
 #include <random>
@@ -863,6 +864,44 @@ struct Triangulation {
         return result;
     }
 
+    /**
+     * @brief Returns the visible mesh as an arrangement, labeling each triangle face by its ID.
+     *
+     * The arrangement contains exactly the geometric edges returned by @ref edges.
+     * Its bounded faces that are triangles of this triangulation are labeled with
+     * their @ref TriId; every other face, including the exterior and holes in a
+     * constrained domain, has an invalid label. Arrangement edge labels are
+     * likewise invalid: the arrangement's label type is reserved for face IDs.
+     *
+     * @return An arrangement of the visible mesh edges, with triangle faces
+     *         labeled by their handles.
+     */
+    [[nodiscard]] Arrangement<PointType, TriId> asArrangement() const;
+
+    /**
+     * @brief Builds an arrangement-backed point-location index.
+     *
+     * The operation is idempotent. Until it is called, @ref locate and
+     * @ref locateId use their stochastic visibility walk; afterwards queries
+     * whose coordinates convert losslessly to this triangulation's @ref PointType
+     * use the arrangement's randomized trapezoidal index. Any successful
+     * topological edit releases the index.
+     *
+     * @complexity Expected `O(E log E)` time and `O(E)` space.
+     */
+    void buildPointLocation();
+
+    /** @brief Releases the arrangement-backed point-location index. */
+    void clearPointLocation() noexcept {
+        pointLocation_.reset();
+        pointLocationLookup_ = nullptr;
+    }
+
+    /** @brief True if @ref locate and @ref locateId currently use the point-location index. */
+    [[nodiscard]] bool hasPointLocation() const noexcept {
+        return static_cast<bool>(pointLocation_);
+    }
+
     // ---- low-level navigation --------------------------------------------
 
     /**
@@ -935,8 +974,26 @@ struct Triangulation {
      *         @p p lies outside the triangulated region (or the triangulation is
      *         empty).
      */
+    [[nodiscard]] TriId locateId(const PointType& p) const {
+        if (pointLocation_ && pointLocationLookup_) {
+            return pointLocationLookup_(pointLocation_.get(), p);
+        }
+        const TriIndex id = locateIndex(p);
+        return triHandle(inDomain(id) ? id : NO_TRI);
+    }
+
+    /** @overload
+     * Queries with matching coordinate types use the index whenever their point
+     * labels can be converted too. Other coordinate types keep using the
+     * visibility walk, avoiding a potentially lossy conversion into the
+     * arrangement's @ref PointType.
+     */
     template <PointConcept QueryPoint>
     [[nodiscard]] TriId locateId(const QueryPoint& p) const {
+        if constexpr (std::same_as<typename QueryPoint::NumberType, NumberType> &&
+                      std::constructible_from<PointType, const QueryPoint&>) {
+            return locateId(PointType(p));
+        }
         const TriIndex id = locateIndex(p);
         return triHandle(inDomain(id) ? id : NO_TRI);
     }
@@ -1089,6 +1146,7 @@ struct Triangulation {
         if (m.tri != NO_TRI) {
             setBit(triangles_[static_cast<std::size_t>(m.tri)].constrainedMask, m.side, value);
         }
+        clearPointLocation();
     }
 
     /**
@@ -3371,6 +3429,7 @@ struct Triangulation {
         if (m.tri != NO_TRI) {
             setBit(triangles_[m.tri].constrainedMask, m.side, value);
         }
+        clearPointLocation();
     }
 
     // ---- labels ----------------------------------------------------------
@@ -3469,6 +3528,7 @@ struct Triangulation {
         segToEdge_.erase(s);
         registerSides(t);
         registerSides(t2);
+        clearPointLocation();
         return edgeSegment(Edge{t, 1});  // new diagonal (side opposite a in t)
     }
 
@@ -3559,7 +3619,13 @@ struct Triangulation {
      *         triangulation unchanged — if @p p is already a vertex or the
      *         triangulation is empty.
      */
-    bool insert(const PointType& p) { return insertVertexImpl(p).has_value(); }
+    bool insert(const PointType& p) {
+        const bool inserted = insertVertexImpl(p).has_value();
+        if (inserted) {
+            clearPointLocation();
+        }
+        return inserted;
+    }
 
     /**
      * @brief Inserts @p p as a new vertex and restores the constrained
@@ -3596,6 +3662,7 @@ struct Triangulation {
             }
         });
         legalize(suspect);
+        clearPointLocation();
         return true;
     }
 
@@ -3704,6 +3771,18 @@ struct Triangulation {
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
     mutable TriIndex hint_ = NO_TRI;      // last located triangle (walk seed)
     mutable std::mt19937 rng_;         // drives the stochastic walk in locateIndex
+    // The arrangement is immutable once built, so copies can share it just as
+    // Arrangement copies share their own point-location index. Its exact point
+    // type lets every supported triangulation number type use the arrangement
+    // construction, including fixed-width rationals whose intermediate
+    // crossings need arbitrary-precision storage. Its definition arrives later,
+    // from arrangement.hpp, so keep only its forward-declared type here.
+    using PointLocationPoint = Point<Rational<BigInt>>;
+    using PointLocation = Arrangement<PointLocationPoint, TriId>;
+    std::shared_ptr<const PointLocation> pointLocation_;
+    using PointLocationLookup = TriId (*)(const void*, const PointType&);
+    PointLocationLookup pointLocationLookup_ = nullptr;
+    static TriId locatePointLocation(const void* location, const PointType& point);
 
     // ---- small helpers ---------------------------------------------------
 

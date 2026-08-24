@@ -4382,6 +4382,92 @@ Arrangement<PointType, TLabel>::locateCell(const PointType& point) const {
 }
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+Arrangement<typename Triangulation<TriangleType, SegmentType>::PointType,
+            typename Triangulation<TriangleType, SegmentType>::TriId>
+Triangulation<TriangleType, SegmentType>::asArrangement() const {
+    using Result = Arrangement<PointType, TriId>;
+
+    // Do not pass SegmentType directly: Result uses TriId for both edge and
+    // face labels, whereas SegmentType may carry an unrelated edge label.
+    std::vector<Segment<PointType>> meshEdges;
+    meshEdges.reserve(numEdges());
+    visitEdges([&](const SegmentType& edge) { meshEdges.emplace_back(edge[0], edge[1]); });
+
+    Result result(meshEdges);
+    for (std::size_t i = 0; i < result.faceCount(); ++i) {
+        const typename Result::FaceId face(static_cast<std::uint32_t>(i));
+        if (result.isUnbounded(face)) {
+            continue;
+        }
+        const TriId triangle = locateId(result.witness(face));
+        if (triangle.valid()) {
+            result.label(face) = triangle;
+        }
+    }
+    return result;
+}
+
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
+    if (pointLocation_) {
+        return;
+    }
+    std::vector<Segment<PointLocationPoint>> meshEdges;
+    meshEdges.reserve(numEdges());
+    visitEdges([&](const SegmentType& edge) {
+        meshEdges.emplace_back(PointLocationPoint(edge[0]), PointLocationPoint(edge[1]));
+    });
+
+    auto location = std::make_shared<PointLocation>(meshEdges);
+    for (std::size_t i = 0; i < location->faceCount(); ++i) {
+        const typename PointLocation::FaceId face(static_cast<std::uint32_t>(i));
+        if (location->isUnbounded(face)) {
+            continue;
+        }
+        const TriId triangle = locateId(location->witness(face));
+        if (triangle.valid()) {
+            location->label(face) = triangle;
+        }
+    }
+    location->buildPointLocation();
+    pointLocationLookup_ = &Triangulation::locatePointLocation;
+    pointLocation_ = std::move(location);
+}
+
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
+typename Triangulation<TriangleType, SegmentType>::TriId
+Triangulation<TriangleType, SegmentType>::locatePointLocation(const void* location,
+                                                               const PointType& point) {
+    const auto& arrangement = *static_cast<const PointLocation*>(location);
+    const auto labelOf = [&arrangement](typename PointLocation::FaceId face) {
+        return arrangement.label(face);
+    };
+    const auto labelOfEitherSide = [&arrangement, &labelOf](typename PointLocation::HalfedgeId edge) {
+        const TriId left = labelOf(arrangement.face(edge));
+        return left.valid() ? left : labelOf(arrangement.face(arrangement.twin(edge)));
+    };
+
+    return std::visit(
+        [&](const auto& cell) -> TriId {
+            using Cell = std::remove_cvref_t<decltype(cell)>;
+            if constexpr (std::same_as<Cell, typename PointLocation::FaceId>) {
+                return labelOf(cell);
+            } else if constexpr (std::same_as<Cell, typename PointLocation::HalfedgeId>) {
+                return labelOfEitherSide(cell);
+            } else {
+                for (const auto edge : arrangement.outgoingHalfedges(cell)) {
+                    const TriId triangle = labelOfEitherSide(edge);
+                    if (triangle.valid()) {
+                        return triangle;
+                    }
+                }
+                return TriId{};
+            }
+        },
+        arrangement.locateCell(PointLocationPoint(point)));
+}
+
+template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 template <class ResultNumber>
 Arrangement<Point<ResultNumber>, typename Triangulation<TriangleType, SegmentType>::PointType>
 Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
