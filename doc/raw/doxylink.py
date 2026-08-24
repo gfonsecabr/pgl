@@ -86,6 +86,27 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 # script fills it with the section's shape methods that got no link above.
 PLACEHOLDER_RE = re.compile(r"^(\s*[-*]\s*Other methods:?)\s*$")
 
+# Local HTML image paths are written relative to the editable raw page. Rebase
+# them when emitting the corresponding page one directory higher. Resolving
+# symlinks keeps the existing raw/figures -> ../figures convention unchanged.
+IMAGE_SRC_RE = re.compile(r'(?P<prefix>\bsrc=")(?P<path>[^"#?]+)(?P<suffix>[#?][^"]*)?"')
+
+
+def rebase_image_sources(line, src, dst):
+    def repl(match):
+        path = match.group("path")
+        if path.startswith(("/", "//")) or "://" in path or path.startswith("data:"):
+            return match.group(0)
+        source_path = os.path.join(os.path.dirname(src), path)
+        if not os.path.exists(source_path):
+            return match.group(0)
+        output_path = os.path.relpath(os.path.realpath(source_path),
+                                      os.path.dirname(dst)).replace(os.sep, "/")
+        return (match.group("prefix") + output_path +
+                (match.group("suffix") or "") + '"')
+
+    return IMAGE_SRC_RE.sub(repl, line)
+
 
 def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
@@ -368,7 +389,8 @@ def process(src, dst, methods, class_by_norm, class_page, freefuncs, ns_names,
                 return link_md(content, url, base, briefs)
             return mo.group(0)
 
-        out_lines.append(SPAN_RE.sub(repl, line))
+        linked_line = SPAN_RE.sub(repl, line)
+        out_lines.append(rebase_image_sources(linked_line, src, dst))
 
     for idx, sec, cls, prefix in placeholders:
         short = cls.split("::")[-1]

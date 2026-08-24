@@ -42,7 +42,7 @@ The query methods come in two families. The *intersecting* family matches stored
 Sending a tree to a [Canvas](canvas.md) with `canvas << tree` draws all node bounding boxes. Is is possible to insert a new element with `insert`, but no rebalancing is performed.
 
 <p align="center">
-  <img src="figures/example_shapetree_triangles.svg" alt="Shape tree range query over random triangles" width="50%"/>
+  <img src="../../examples/figures/example_shapetree_triangles.svg" alt="Shape tree range query over random triangles" width="50%"/>
   <br/>
   <em>A shape tree over 100 random triangles: the query triangle with the triangles it contains and intersects, plus the node bounding boxes.</em>
 </p>
@@ -128,7 +128,7 @@ It may be constructed from a Polygon (constrained Delaunay triangulation), a con
 - Other methods:
 
 <p align="center">
-  <img src="figures/example_triangulation2.svg" alt="Triangulation with a segment traversal highlighted" width="50%"/>
+  <img src="../../examples/figures/example_polygon_triangulation.svg" alt="Triangulation with a segment traversal highlighted" width="50%"/>
   <br/>
   <em>The constrained Delaunay triangulation of a polygon with points inside. Highlighting the triangles a segment meets and those whose interior it actually intersects.</em>
 </p>

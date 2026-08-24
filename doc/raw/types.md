@@ -71,8 +71,8 @@ The geometric [predicates](shape_methods.md#predicates) do not use division anyw
 - `int8_t` is promoted to `int16_t`
 - `int16_t` is promoted to `int32_t`
 - `int32_t` is promoted to `int64_t`
-- `int64_t` is promoted to [`pgl::int128`](#large_integers)
-- `pgl::int128` is promoted to [`pgl::BigInt`](#large_integers)
+- `int64_t` is promoted to [`pgl::int128`](#large-integers)
+- `pgl::int128` is promoted to [`pgl::BigInt`](#large-integers)
 - `float` is promoted to `double`
 - `double` is promoted to `long double`
 
