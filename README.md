@@ -30,7 +30,7 @@ int main() {
 } // Output: (1,0)--(4,7) intersects (0,8)--(2,1)
 ```
 
-There are [many more illustrated examples](examples/) that give a good overview of the library's features and syntax.
+There are many more [illustrated examples](examples/) that give a good overview of the library's features and syntax.
 
 
 ## Shapes and Predicates
