@@ -829,6 +829,134 @@ public:
         return {};
     }
 
+    /**
+     * @brief Computes a shortest path between two vertices using the A*
+     * algorithm.
+     *
+     * This overload has the same result and endpoint behavior as the Dijkstra
+     * overload, but uses @p lowerBound to prioritize vertices that appear
+     * closer to @p target. The lower bound need not be consistent: a vertex is
+     * reopened whenever a shorter path to it is found.
+     *
+     * The frontier is a lazy binary heap (`std::priority_queue`) ordered by the
+     * sum of the path length so far and the estimated remaining distance. With
+     * a consistent lower bound, complexity is $O(m \log m)$ weight comparisons
+     * and $O(m)$ calls to @p weight and @p lowerBound for a graph with $m$
+     * edges. An inconsistent lower bound can cause vertices to be reopened.
+     *
+     * @tparam WeightFunction Callable taking two vertices and returning a
+     * copyable edge weight ordered by `<` and added by `+`; the weight type is
+     * chosen by the callable.
+     * @tparam LowerBoundFunction Callable taking two vertices and returning a
+     * lower bound in the same weight type.
+     * @param source First vertex of the path.
+     * @param target Last vertex of the path.
+     * @param weight Edge weight function. It must be symmetric and must not
+     * return a negative weight; neither is checked, and the returned path is
+     * unspecified when either fails.
+     * @param lowerBound Estimate of the distance between two vertices. For
+     * every vertex reached by the search, `lowerBound(vertex, target)` must be
+     * nonnegative, must not exceed the shortest distance to @p target, and
+     * must be zero when `vertex == target`. These requirements are not checked.
+     * @return The vertices of a shortest path from @p source to @p target, or
+     * an empty vector if there is none.
+     */
+    template <class WeightFunction, class LowerBoundFunction>
+    [[nodiscard]] std::vector<Vertex> shortestPath(
+        const Vertex& source,
+        const Vertex& target,
+        WeightFunction weight,
+        LowerBoundFunction lowerBound
+    ) const {
+        using Weight =
+            std::invoke_result_t<WeightFunction&, const Vertex&, const Vertex&>;
+
+        struct Candidate {
+            Weight distance;
+            Weight estimate;
+            Vertex vertex;
+        };
+
+        if (!containsVertex(source) || !containsVertex(target)) {
+            return {};
+        }
+        if (source == target) {
+            return {source};
+        }
+
+        // A priority_queue pops its largest element, so order candidates by
+        // decreasing estimated total distance to obtain the most promising
+        // unsettled vertex.
+        const auto farther = [](const Candidate& a, const Candidate& b) {
+            return b.estimate < a.estimate;
+        };
+
+        std::unordered_map<Vertex, Weight> distance;
+        std::unordered_map<Vertex, Vertex> parent;
+        std::priority_queue<Candidate, std::vector<Candidate>, decltype(farther)>
+            frontier(farther);
+
+        const auto relax = [&](const Vertex& from,
+                               const Vertex& to,
+                               const Weight& fromDistance) {
+            if (to == source) {
+                return;
+            }
+
+            const Weight newDistance = fromDistance + weight(from, to);
+            const auto known = distance.find(to);
+            if (known != distance.end() && !(newDistance < known->second)) {
+                return;
+            }
+
+            distance.insert_or_assign(to, newDistance);
+            parent.insert_or_assign(to, from);
+            frontier.push(Candidate{
+                newDistance,
+                newDistance + lowerBound(to, target),
+                to,
+            });
+        };
+
+        // As in the Dijkstra overload, seed with the source's edges so the
+        // weight type does not need a default-constructed zero.
+        for (const Vertex& neighbor : adjacency_.at(source)) {
+            const Weight neighborDistance = weight(source, neighbor);
+            distance.emplace(neighbor, neighborDistance);
+            parent.emplace(neighbor, source);
+            frontier.push(Candidate{
+                neighborDistance,
+                neighborDistance + lowerBound(neighbor, target),
+                neighbor,
+            });
+        }
+
+        while (!frontier.empty()) {
+            const Candidate best = frontier.top();
+            frontier.pop();
+
+            const auto known = distance.find(best.vertex);
+            if (known == distance.end() || known->second < best.distance) {
+                continue;
+            }
+
+            if (best.vertex == target) {
+                std::vector<Vertex> result{target};
+                while (result.back() != source) {
+                    result.push_back(parent.at(result.back()));
+                }
+                std::reverse(result.begin(), result.end());
+                return result;
+            }
+
+            for (const Vertex& neighbor : adjacency_.at(best.vertex)) {
+                relax(best.vertex, neighbor, best.distance);
+            }
+        }
+
+        return {};
+    }
+
     /** @brief Returns an iterator to the first vertex. */
     [[nodiscard]] iterator begin() {
         return iterator(adjacency_.cbegin());

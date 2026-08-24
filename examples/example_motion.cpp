@@ -89,7 +89,11 @@ int main() {
     const auto edgeLength = [](const ConfigurationPoint& a, const ConfigurationPoint& b) {
         return a.distance(b);
     };
-    const std::vector<ConfigurationPoint> path = graph.shortestPath(source, target, edgeLength);
+    // Straight-line distance is both the edge weight and an admissible lower
+    // bound on the remaining path length, so A* can avoid exploring corners
+    // that cannot improve the route to the target.
+    const std::vector<ConfigurationPoint> path =
+        graph.shortestPath(source, target, edgeLength, edgeLength);
     if (path.empty()) {
         std::cerr << "no collision-free path from " << source << " to " << target << '\n';
         return 1;

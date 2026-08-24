@@ -526,6 +526,101 @@ TEST_CASE("Graph computes a shortest path with Dijkstra") {
     CHECK(pathWeight(tied, sampleWeight) == 5);
 }
 
+TEST_CASE("Graph computes a shortest path with A star") {
+    pgl::Graph<int> graph;
+    graph.addEdge(1, 2);
+    graph.addEdge(2, 3);
+    graph.addEdge(3, 4);
+    graph.addEdge(1, 4);
+    graph.addEdge(1, 3);
+
+    // These are lower bounds on the distance from each vertex to vertex 3.
+    // Vertex 2 is prioritized over the tempting but expensive direct edge.
+    const auto lowerBound = [](int vertex, int target) {
+        REQUIRE(target == 3);
+        const std::map<int, int> bounds{{1, 3}, {2, 2}, {3, 0}, {4, 3}};
+        return bounds.at(vertex);
+    };
+
+    const std::vector<int> path = graph.shortestPath(1, 3, sampleWeight, lowerBound);
+    checkPath(graph, path, 1, 3);
+    CHECK(path == std::vector<int>{1, 2, 3});
+    CHECK(pathWeight(path, sampleWeight) == 3);
+}
+
+TEST_CASE("Graph uses an A star lower bound to guide the search") {
+    pgl::Graph<int> graph;
+    graph.addEdge(0, 1);
+    graph.addEdge(1, 2);
+    for (int vertex = 10; vertex < 20; ++vertex) {
+        graph.addEdge(vertex == 10 ? 0 : vertex - 1, vertex);
+    }
+
+    const auto edgeWeight = [](int u, int v) {
+        return std::min(u, v) < 2 && std::max(u, v) < 3 ? 5 : 1;
+    };
+    const auto lowerBound = [](int vertex, int target) {
+        REQUIRE(target == 2);
+        if (vertex == 1) {
+            return 5;
+        }
+        if (vertex == 2) {
+            return 0;
+        }
+        // A decoy vertex must return along the chain and then take the
+        // length-10 route from the source to the target.
+        return vertex + 1;
+    };
+
+    int dijkstraWeightCalls = 0;
+    const auto countedDijkstraWeight = [&](int u, int v) {
+        ++dijkstraWeightCalls;
+        return edgeWeight(u, v);
+    };
+    const std::vector<int> dijkstra = graph.shortestPath(0, 2, countedDijkstraWeight);
+
+    int aStarWeightCalls = 0;
+    const auto countedAStarWeight = [&](int u, int v) {
+        ++aStarWeightCalls;
+        return edgeWeight(u, v);
+    };
+    const std::vector<int> aStar = graph.shortestPath(0, 2, countedAStarWeight, lowerBound);
+
+    CHECK(dijkstra == std::vector<int>{0, 1, 2});
+    CHECK(aStar == dijkstra);
+    CHECK(aStarWeightCalls < dijkstraWeightCalls);
+}
+
+TEST_CASE("Graph reopens vertices for an inconsistent A star lower bound") {
+    pgl::Graph<int> graph;
+    graph.addEdge(0, 1);
+    graph.addEdge(0, 2);
+    graph.addEdge(2, 1);
+    graph.addEdge(1, 3);
+
+    const auto weight = [](int u, int v) {
+        const std::map<std::pair<int, int>, int> weights{
+            {{0, 1}, 4},
+            {{0, 2}, 2},
+            {{1, 2}, 1},
+            {{1, 3}, 4},
+        };
+        return weights.at({std::min(u, v), std::max(u, v)});
+    };
+    // The estimate at vertex 2 is admissible but inconsistent across edge
+    // 2--1. A* first reaches vertex 1 directly, then must reopen it after
+    // finding the shorter route through vertex 2.
+    const auto lowerBound = [](int vertex, int target) {
+        REQUIRE(target == 3);
+        const std::map<int, int> bounds{{0, 7}, {1, 0}, {2, 5}, {3, 0}};
+        return bounds.at(vertex);
+    };
+
+    const std::vector<int> path = graph.shortestPath(0, 3, weight, lowerBound);
+    CHECK(path == std::vector<int>{0, 2, 1, 3});
+    CHECK(pathWeight(path, weight) == 7);
+}
+
 TEST_CASE("Graph finds no path outside a connected component") {
     pgl::Graph<int> graph;
     graph.addEdge(1, 2);
@@ -536,6 +631,12 @@ TEST_CASE("Graph finds no path outside a connected component") {
     CHECK(graph.shortestPath(1, 10, sampleWeight).empty());
     CHECK(graph.shortestPath(1, 20, sampleWeight).empty());
     CHECK(graph.shortestPath(10, 11, sampleWeight) == std::vector<int>{10, 11});
+
+    const auto zeroLowerBound = [](int, int) { return 0; };
+    CHECK(graph.shortestPath(1, 10, sampleWeight, zeroLowerBound).empty());
+    CHECK(graph.shortestPath(1, 20, sampleWeight, zeroLowerBound).empty());
+    CHECK(graph.shortestPath(10, 11, sampleWeight, zeroLowerBound) ==
+          std::vector<int>{10, 11});
 }
 
 TEST_CASE("Graph finds shortest paths in degenerate cases") {
@@ -560,6 +661,12 @@ TEST_CASE("Graph finds shortest paths in degenerate cases") {
 
         CHECK(graph.shortestPath(1, 1, sampleWeight) == std::vector<int>{1});
         CHECK(graph.shortestPath(20, 20, sampleWeight) == std::vector<int>{20});
+
+        const auto zeroLowerBound = [](int, int) { return 0; };
+        CHECK(graph.shortestPath(1, 1, sampleWeight, zeroLowerBound) ==
+              std::vector<int>{1});
+        CHECK(graph.shortestPath(20, 20, sampleWeight, zeroLowerBound) ==
+              std::vector<int>{20});
     }
 
     SUBCASE("single edge") {
