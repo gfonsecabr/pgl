@@ -1,6 +1,8 @@
 #pragma once
 #include "pgl.hpp"
 
+#include "legacy_untangle.hpp"
+
 #include <algorithm>
 #include <set>
 #include <vector>
@@ -178,8 +180,10 @@ std::vector<pgl::Convex<pgl::Point<Number>>> randomLargeConvexes(int n, int m) {
 }
 
 // Simple polygons: m random points fed to Polygon in generation (random) order,
-// then Polygon::untangle() removes crossings (2-opt) to make it simple. untangle
-// may drop redundant vertices, so the result has at most m vertices.
+// then legacyUntangledPolygon() removes crossings (2-opt) to make it simple. It
+// may drop redundant vertices, so the result has at most m vertices. That helper
+// is the old Polygon::untangle(); see legacy_untangle.hpp for why the recorded
+// history requires it rather than the current one.
 template <class Number>
 std::vector<pgl::Polygon<pgl::Point<Number>>> randomSmallPolygons(int n, int m) {
     using Point = pgl::Point<Number>;
@@ -193,8 +197,7 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomSmallPolygons(int n, int m) 
         for (int i = 0; i < m; ++i) {
             points.push_back(base + randomPoint<Number>(rng, smallRange));
         }
-        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
-        poly.untangle();
+        Polygon poly = legacyUntangledPolygon<Point>(points);
         if (!poly.isDegenerate() && seen.insert(poly).second) {
             w.push_back(poly);
         }
@@ -215,8 +218,7 @@ std::vector<pgl::Polygon<pgl::Point<Number>>> randomLargePolygons(int n, int m) 
         for (int i = 0; i < m; ++i) {
             points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
-        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
-        poly.untangle();
+        Polygon poly = legacyUntangledPolygon<Point>(points);
         if (!poly.isDegenerate() && seen.insert(poly).second) {
             w.push_back(poly);
         }
@@ -252,8 +254,7 @@ randomHoles(const pgl::Polygon<pgl::Point<Number>>& outer, const pgl::Point<Numb
         for (int i = 0; i < holeVertices; ++i) {
             points.push_back(center + randomPoint<Number>(rng, range / 5));
         }
-        Polygon hole(points, true);  // trusted: untangle renormalizes at the end
-        hole.untangle();
+        Polygon hole = legacyUntangledPolygon<Point>(points);
         if (hole.isDegenerate() || !outer.contains(hole)) {
             continue;
         }
@@ -289,8 +290,7 @@ randomSmallPolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
         for (int i = 0; i < m; ++i) {
             points.push_back(base + randomPoint<Number>(rng, smallRange));
         }
-        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
-        poly.untangle();
+        Polygon poly = legacyUntangledPolygon<Point>(points);
         if (poly.isDegenerate()) {
             continue;
         }
@@ -322,8 +322,7 @@ randomLargePolygonsWithHoles(int n, int m, int holeCount, int holeVertices) {
         for (int i = 0; i < m; ++i) {
             points.push_back(base + randomPoint<Number>(rng, mediumRange));
         }
-        Polygon poly(points, true);  // trusted: untangle renormalizes at the end
-        poly.untangle();
+        Polygon poly = legacyUntangledPolygon<Point>(points);
         if (poly.isDegenerate()) {
             continue;
         }
