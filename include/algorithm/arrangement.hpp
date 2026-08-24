@@ -68,91 +68,6 @@ namespace pgl {
 namespace detail {
 
 /**
- * @brief A strongly typed index handle.
- *
- * @tparam Tag Empty type that makes each handle family distinct, so a vertex
- *         handle cannot bind where a face handle is meant and the families can
- *         take part in overload resolution.
- *
- * A default-constructed handle is the invalid one, which removes the need for a
- * `NO_FACE`-style sentinel constant per family. The class costs nothing:
- * `sizeof(Handle) == sizeof(std::uint32_t)` and it is trivially copyable, so a
- * `std::vector<Handle>` has exactly the layout of a `std::vector<std::uint32_t>`
- * and the topology arrays stay as dense as they would be with raw indices.
- *
- * Construction and @ref index are both explicit: an implicit conversion in
- * either direction would give back exactly the confusion the type exists to
- * prevent.
- */
-template <class Tag>
-class Handle {
-public:
-    /** @brief The underlying index type. */
-    using IndexType = std::uint32_t;
-
-    /** @brief Creates the invalid handle. */
-    constexpr Handle() = default;
-
-    /**
-     * @brief Creates a handle for a given index.
-     *
-     * @param index Index of the cell.
-     */
-    constexpr explicit Handle(IndexType index) : index_(index) {}
-
-    /** @brief Returns the underlying index. */
-    [[nodiscard]] constexpr IndexType index() const {
-        return index_;
-    }
-
-    /** @brief Tells whether the handle refers to a cell. */
-    [[nodiscard]] constexpr bool valid() const {
-        return index_ != invalidIndex;
-    }
-
-    /** @brief Same as @ref valid, for use in a condition. */
-    constexpr explicit operator bool() const {
-        return valid();
-    }
-
-    /** @brief Compares two handles of the same family for equality. */
-    constexpr bool operator==(const Handle&) const = default;
-
-    /**
-     * @brief Orders two handles of the same family.
-     *
-     * The order is the index order: arbitrary, but stable, which is all the
-     * radial buckets and boundary sets that sort handles need.
-     */
-    constexpr auto operator<=>(const Handle&) const = default;
-
-private:
-    static constexpr IndexType invalidIndex = ~IndexType{};
-    IndexType index_ = invalidIndex;
-};
-
-}  // namespace detail
-
-}  // namespace pgl
-
-namespace std {
-
-/** @brief Hash support for @ref pgl::detail::Handle, so handles can key a set or map. */
-template <class Tag>
-struct hash<pgl::detail::Handle<Tag>> {
-    /** @brief Returns the hash of the handle's index. */
-    std::size_t operator()(const pgl::detail::Handle<Tag>& handle) const noexcept {
-        return std::hash<std::uint32_t>{}(handle.index());
-    }
-};
-
-}  // namespace std
-
-namespace pgl {
-
-namespace detail {
-
-/**
  * @brief The orientation of a **simple** ring: positive when it runs
  *        counterclockwise, negative when clockwise, zero when it bounds no area.
  *
@@ -4480,17 +4395,17 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
     // a carved domain: the method's precondition says that this whole current
     // connectivity is the Delaunay triangulation of the stored sites.
     std::vector<ResultPoint> centers(static_cast<std::size_t>(firstGhost_));
-    for (TriId t = 0; t < firstGhost_; ++t) {
+    for (TriIndex t = 0; t < firstGhost_; ++t) {
         centers[static_cast<std::size_t>(t)] = ResultPoint(
             triangleValue(t).circumcircle().template center<ResultNumber>());
     }
 
     std::vector<Shape<ResultPoint>> dualEdges;
     dualEdges.reserve(segToEdge_.size());
-    for (TriId t = 0; t < firstGhost_; ++t) {
+    for (TriIndex t = 0; t < firstGhost_; ++t) {
         const Tri& triangle = triangles_[static_cast<std::size_t>(t)];
         for (int side = 0; side < 3; ++side) {
-            const TriId neighbor = triangle.nbr[static_cast<std::size_t>(side)];
+            const TriIndex neighbor = triangle.nbr[static_cast<std::size_t>(side)];
             if (!isGhost(neighbor)) {
                 // Each interior primal edge is visited from both incident
                 // triangles. Emit its dual only from the lower triangle id.
@@ -4528,7 +4443,7 @@ Triangulation<TriangleType, SegmentType>::voronoiDiagram() const {
     // point-location index only for this attribution pass, then release it so
     // the returned Arrangement follows the usual opt-in indexing contract.
     diagram.buildPointLocation();
-    for (VertexId vertex = 1; vertex < static_cast<VertexId>(vertices_.size()); ++vertex) {
+    for (VertexIndex vertex = 1; vertex < static_cast<VertexIndex>(vertices_.size()); ++vertex) {
         const auto face = diagram.locateFace(ResultPoint(vertices_[static_cast<std::size_t>(vertex)]));
         diagram.label(face) = vertices_[static_cast<std::size_t>(vertex)];
     }

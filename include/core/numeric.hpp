@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/forward.hpp"
+#include "core/handle.hpp"
 
 /**
  * @file numeric.hpp

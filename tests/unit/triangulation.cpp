@@ -2385,3 +2385,352 @@ TEST_CASE("asGraph sees only the triangulated domain of a polygon") {
               return sum;
           }());
 }
+
+TEST_CASE("handles navigate the same mesh as the value interface") {
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using TriId = Mesh::TriId;
+    using VertexId = Mesh::VertexId;
+
+    const std::vector<Point> pts{Point(0, 0), Point(10, 0), Point(10, 10), Point(0, 10),
+                                 Point(4, 5), Point(7, 2),  Point(2, 8)};
+    const Mesh mesh(pts);
+
+    // getId and getShape are inverse, and the handles of distinct triangles are
+    // distinct (so they can key a hash set).
+    std::set<TriId> ids;
+    for (const auto& t : mesh.triangles()) {
+        const TriId id = mesh.getId(t);
+        CHECK(id.valid());
+        CHECK(mesh.has(id));
+        CHECK(mesh.getShape(id) == t);
+        CHECK(mesh[id] == t);
+        CHECK(ids.insert(id).second);
+    }
+    CHECK(ids.size() == mesh.numTriangles());
+
+    for (const TriId id : ids) {
+        const pgl::Triangle<Point> t = mesh[id];
+
+        // vertices(id) is the triangle's own vertex order, handle by handle.
+        const std::array<VertexId, 3> vs = mesh.vertices(id);
+        for (int i = 0; i < 3; ++i) {
+            CHECK(mesh.has(vs[i]));
+            CHECK(mesh[vs[i]] == t[i]);
+            CHECK(mesh.getId(mesh[vs[i]]) == vs[i]);
+        }
+
+        // The two adjacency queries agree with their value counterparts.
+        std::set<pgl::Triangle<Point>> byHandle;
+        for (const TriId n : mesh.edgeAdjacentTriangles(id)) {
+            byHandle.insert(mesh[n]);
+        }
+        const auto edgeAdjacent = mesh.edgeAdjacentTriangles(t);
+        CHECK(byHandle == std::set<pgl::Triangle<Point>>(edgeAdjacent.begin(),
+                                                         edgeAdjacent.end()));
+        byHandle.clear();
+        for (const TriId n : mesh.vertexAdjacentTriangles(id)) {
+            byHandle.insert(mesh[n]);
+        }
+        const auto vertexAdjacent = mesh.vertexAdjacentTriangles(t);
+        CHECK(byHandle == std::set<pgl::Triangle<Point>>(vertexAdjacent.begin(),
+                                                         vertexAdjacent.end()));
+
+        // Crossing each edge by its endpoint handles lands where crossing it by
+        // its segment does.
+        for (int i = 0; i < 3; ++i) {
+            const VertexId a = vs[(i + 1) % 3];
+            const VertexId b = vs[(i + 2) % 3];
+            const std::optional<TriId> across = mesh.otherTriangle(id, a, b);
+            const auto expected =
+                mesh.otherTriangle(t, pgl::Segment<Point>(mesh[a], mesh[b]));
+            REQUIRE(across.has_value() == expected.has_value());
+            if (across) {
+                CHECK(mesh[*across] == *expected);
+            }
+        }
+    }
+
+    // locateId answers the same query as locate, one handle instead of a value.
+    for (int x = 0; x <= 10; ++x) {
+        for (int y = 0; y <= 10; ++y) {
+            const Point q(x, y);
+            const TriId found = mesh.locateId(q);
+            const std::optional<pgl::Triangle<Point>> value = mesh.locate(q);
+            REQUIRE(found.valid() == value.has_value());
+            if (found.valid()) {
+                CHECK(mesh.has(found));
+                CHECK(mesh[found] == *value);
+                CHECK(mesh.getId(*value) == found);
+            }
+        }
+    }
+    CHECK_FALSE(mesh.locateId(Point(-5, -5)).valid());  // outside the hull
+    CHECK_FALSE(Mesh().locateId(Point(0, 0)).valid());  // empty triangulation
+
+    // The fan of a vertex handle is the fan of its point.
+    for (const auto& p : pts) {
+        const VertexId v = mesh.getId(p);
+        REQUIRE(mesh.has(v));
+        std::set<pgl::Triangle<Point>> byHandle;
+        for (const TriId f : mesh.incidentTriangles(v)) {
+            byHandle.insert(mesh[f]);
+        }
+        const auto fan = mesh.incidentTriangles(p);
+        CHECK_FALSE(byHandle.empty());
+        CHECK(byHandle == std::set<pgl::Triangle<Point>>(fan.begin(), fan.end()));
+    }
+}
+
+TEST_CASE("handles of foreign cells are invalid and navigate to nothing") {
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    const Mesh mesh(std::vector<Point>{Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+
+    CHECK_FALSE(mesh.getId(pgl::Triangle<Point>(Point(0, 0), Point(1, 0), Point(0, 1))).valid());
+    CHECK_FALSE(mesh.getId(Point(1, 3)).valid());   // inside, but not a vertex
+    CHECK_FALSE(mesh.getId(Point(9, 9)).valid());   // outside the hull
+    CHECK_FALSE(mesh.has(Mesh::TriId()));
+    CHECK_FALSE(mesh.has(Mesh::VertexId()));
+    CHECK_FALSE(mesh.has(Mesh::TriId(1u << 20)));   // never handed out
+    CHECK_FALSE(mesh.has(Mesh::VertexId(1u << 20)));
+    CHECK(mesh.edgeAdjacentTriangles(Mesh::TriId()).empty());
+    CHECK(mesh.vertexAdjacentTriangles(Mesh::TriId()).empty());
+    CHECK(mesh.incidentTriangles(Mesh::VertexId()).empty());
+    CHECK_FALSE(mesh.otherTriangle(Mesh::TriId(), Mesh::VertexId(), Mesh::VertexId()).has_value());
+
+    // Two vertices of the mesh that are not joined by an edge of the triangle
+    // they are asked about are not a crossable edge either.
+    const Mesh::TriId some = mesh.getId(mesh.triangles().front());
+    const auto vs = mesh.vertices(some);
+    CHECK_FALSE(mesh.otherTriangle(some, vs[0], vs[0]).has_value());
+    CHECK_FALSE(mesh.otherTriangle(some, vs[0], Mesh::VertexId()).has_value());
+}
+
+TEST_CASE("handles reach the labels of a polygon's triangulation") {
+    using Point = pgl::Point<int>;
+    using LabeledTriangle = pgl::Triangle<Point, int>;
+    using Mesh = pgl::Triangulation<LabeledTriangle>;
+
+    // An L, so the triangles between the polygon and its hull are out of domain
+    // and must stay unreachable through handles.
+    const pgl::Polygon<Point> ell(std::vector<Point>{
+        Point(0, 0), Point(4, 0), Point(4, 1),
+        Point(1, 1), Point(1, 4), Point(0, 4)});
+    Mesh mesh(ell);
+
+    int next = 1;
+    for (const auto& t : mesh.triangles()) {
+        mesh.label(mesh.getId(t)) = next++;
+    }
+    CHECK(static_cast<std::size_t>(next - 1) == mesh.numTriangles());
+    for (const auto& t : mesh.triangles()) {
+        const Mesh::TriId id = mesh.getId(t);
+        CHECK(mesh.label(id) == mesh.label(t));
+        for (const Mesh::TriId n : mesh.edgeAdjacentTriangles(id)) {
+            CHECK(mesh.has(n));                    // never leaves the domain
+            CHECK(mesh.label(n) != mesh.label(id));
+        }
+    }
+
+    // The chord closing the hull is not an edge of the domain, so the triangle
+    // on its far side is not reachable from the domain by handle.
+    for (const auto& t : mesh.triangles()) {
+        const auto vs = mesh.vertices(mesh.getId(t));
+        for (int i = 0; i < 3; ++i) {
+            const auto across =
+                mesh.otherTriangle(mesh.getId(t), vs[(i + 1) % 3], vs[(i + 2) % 3]);
+            if (across) {
+                CHECK(mesh.has(*across));
+            }
+        }
+    }
+}
+
+TEST_CASE("handles enumerate the mesh and index side tables") {
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using TriId = Mesh::TriId;
+    using VertexId = Mesh::VertexId;
+
+    const Mesh empty;
+    CHECK(empty.triangleIds().empty());
+    CHECK(empty.vertexIds().empty());
+    CHECK(empty.triangleIndexBound() == 0);
+    CHECK(empty.vertexIndexBound() == 0);
+
+    // An L, so the mesh also stores the hull-fill triangles the domain carved
+    // away: they take index slots but are not triangles of the triangulation.
+    const pgl::Polygon<Point> ell(std::vector<Point>{
+        Point(0, 0), Point(4, 0), Point(4, 1),
+        Point(1, 1), Point(1, 4), Point(0, 4)});
+    const Mesh mesh(ell);
+
+    const std::vector<TriId> ids = mesh.triangleIds();
+    CHECK(ids.size() == mesh.numTriangles());
+    std::set<pgl::Triangle<Point>> byHandle;
+    for (const TriId id : ids) {
+        CHECK(mesh.has(id));
+        byHandle.insert(mesh[id]);
+    }
+    const auto values = mesh.triangles();
+    CHECK(byHandle == std::set<pgl::Triangle<Point>>(values.begin(), values.end()));
+
+    // visitTriangles gives handles to a callable that takes only handles, values
+    // to one that takes a triangle (a generic callable takes both: values), and
+    // stops early for either when the callable says so.
+    std::size_t handleCount = 0;
+    std::size_t valueCount = 0;
+    std::size_t genericCount = 0;
+    mesh.visitTriangles([&](TriId id) { handleCount += mesh.has(id) ? 1 : 0; });
+    mesh.visitTriangles([&](const pgl::Triangle<Point>& t) { valueCount += mesh.has(t) ? 1 : 0; });
+    mesh.visitTriangles([&](auto t) { genericCount += mesh.has(t) ? 1 : 0; });
+    CHECK(handleCount == mesh.numTriangles());
+    CHECK(valueCount == mesh.numTriangles());
+    CHECK(genericCount == mesh.numTriangles());
+    std::size_t seen = 0;
+    CHECK(mesh.visitTriangles([&](TriId) { return ++seen == 2; }));
+    CHECK(seen == 2);
+
+    // Every handle indexes a side table sized from the public API.
+    CHECK(mesh.triangleIndexBound() >= mesh.numTriangles());
+    std::vector<int> triangleTable(mesh.triangleIndexBound(), 0);
+    for (const TriId id : ids) {
+        REQUIRE(id.index() < triangleTable.size());
+        CHECK(triangleTable[id.index()] == 0);
+        triangleTable[id.index()] = 1;
+    }
+
+    // Vertex indices are dense over [1, vertexIndexBound()), so index() - 1 is
+    // the tight slot of a table of numVertices() entries.
+    const std::vector<VertexId> vertexIds = mesh.vertexIds();
+    CHECK(vertexIds.size() == mesh.numVertices());
+    CHECK(mesh.vertexIndexBound() == mesh.numVertices() + 1);
+    std::vector<int> vertexTable(mesh.numVertices(), 0);
+    for (const VertexId v : vertexIds) {
+        REQUIRE(v.index() >= 1);
+        REQUIRE(v.index() < mesh.vertexIndexBound());
+        CHECK(mesh.has(v));
+        vertexTable[v.index() - 1] = 1;
+    }
+    for (const int filled : vertexTable) {
+        CHECK(filled == 1);  // dense: no slot left over
+    }
+    std::set<Point> points;
+    for (const VertexId v : vertexIds) {
+        points.insert(mesh[v]);
+    }
+    const auto corners = ell.vertices();  // one container: begin/end of the same object
+    CHECK(points == std::set<Point>(corners.begin(), corners.end()));
+}
+
+TEST_CASE("a side index names an edge of a triangle handle") {
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    const pgl::Polygon<Point> ell(std::vector<Point>{
+        Point(0, 0), Point(4, 0), Point(4, 1),
+        Point(1, 1), Point(1, 4), Point(0, 4)});
+    Mesh mesh(ell);
+
+    const auto boundary = ell.edges();  // one container: begin/end of the same object
+    const std::set<pgl::Segment<Point>> polygonEdges(boundary.begin(), boundary.end());
+
+    for (const Mesh::TriId id : mesh.triangleIds()) {
+        const pgl::Triangle<Point> t = mesh[id];
+        const auto vs = mesh.vertices(id);
+        for (int s = 0; s < 3; ++s) {
+            // Side s is the edge from vertex s to vertex s + 1, which is exactly
+            // what the triangle value calls its edge s.
+            const pgl::Segment<Point> e = t.edges()[s];
+            CHECK(e == pgl::Segment<Point>(mesh[vs[s]], mesh[vs[(s + 1) % 3]]));
+
+            const std::optional<Mesh::TriId> across = mesh.otherTriangle(id, s);
+            const auto expected = mesh.otherTriangle(t, e);
+            REQUIRE(across.has_value() == expected.has_value());
+            if (across) {
+                CHECK(mesh[*across] == *expected);
+                CHECK(mesh.otherTriangle(id, vs[s], vs[(s + 1) % 3]) == across);
+            }
+
+            // The constrained flag answers "is this shared edge one of the
+            // polygon's own edges" with no set of segments on the side.
+            CHECK(mesh.isConstrained(id, s) == mesh.isConstrained(e));
+            CHECK(mesh.isConstrained(id, s) == (polygonEdges.count(e) > 0));
+        }
+    }
+
+    // Constraining through a handle is seen from the other side of the edge and
+    // by the segment-keyed accessor, and releasing it undoes exactly that.
+    for (const Mesh::TriId id : mesh.triangleIds()) {
+        for (int s = 0; s < 3; ++s) {
+            const std::optional<Mesh::TriId> across = mesh.otherTriangle(id, s);
+            if (mesh.isConstrained(id, s) || !across) {
+                continue;
+            }
+            const pgl::Segment<Point> e = mesh[id].edges()[s];
+            mesh.setConstrained(id, s);
+            CHECK(mesh.isConstrained(id, s));
+            CHECK(mesh.isConstrained(e));
+            bool seenFromNeighbor = false;
+            for (int q = 0; q < 3; ++q) {
+                if (mesh[*across].edges()[q] == e) {
+                    seenFromNeighbor = mesh.isConstrained(*across, q);
+                }
+            }
+            CHECK(seenFromNeighbor);
+            mesh.setConstrained(id, s, false);
+            CHECK_FALSE(mesh.isConstrained(id, s));
+            CHECK_FALSE(mesh.isConstrained(e));
+        }
+    }
+}
+
+TEST_CASE("range-search visitors follow the same handle-or-value rule") {
+    using Point = pgl::Point<int>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using TriangleShape = pgl::Triangle<Point>;
+
+    std::vector<Point> pts;
+    for (int x = 0; x < 6; ++x) {
+        for (int y = 0; y < 6; ++y) {
+            pts.push_back(Point(x * 3, y * 3 + (x % 2)));  // no big cocircular families
+        }
+    }
+    const Mesh mesh(pts);
+
+    // Whatever the query shape — directed, region, chain or point — a handle
+    // visitor sees exactly the triangles a value visitor sees.
+    const auto sameBothWays = [&](const auto& query) {
+        std::set<TriangleShape> byHandle, byValue, interiorByHandle, interiorByValue;
+        mesh.visitTrianglesIntersecting(query, [&](Mesh::TriId id) { byHandle.insert(mesh[id]); });
+        mesh.visitTrianglesIntersecting(query, [&](const TriangleShape& t) { byValue.insert(t); });
+        mesh.visitTrianglesInteriorIntersecting(
+            query, [&](Mesh::TriId id) { interiorByHandle.insert(mesh[id]); });
+        mesh.visitTrianglesInteriorIntersecting(
+            query, [&](const TriangleShape& t) { interiorByValue.insert(t); });
+        CHECK(byHandle == byValue);
+        CHECK(interiorByHandle == interiorByValue);
+        const auto listed = mesh.trianglesIntersecting(query);
+        CHECK(byHandle == std::set<TriangleShape>(listed.begin(), listed.end()));
+        return byHandle.size();
+    };
+
+    CHECK(sameBothWays(pgl::Segment<Point>(Point(0, 0), Point(15, 15))) > 0);
+    CHECK(sameBothWays(pgl::OrientedSegment<Point>(Point(1, 1), Point(14, 4))) > 0);
+    CHECK(sameBothWays(pgl::Line<Point>(Point(0, 2), Point(15, 9))) > 0);
+    CHECK(sameBothWays(pgl::Ray<Point>(Point(2, 2), Point(15, 12))) > 0);
+    CHECK(sameBothWays(TriangleShape(Point(1, 1), Point(9, 2), Point(4, 8))) > 0);
+    CHECK(sameBothWays(pgl::Rectangle<Point>(Point(2, 2), Point(11, 9))) > 0);
+    CHECK(sameBothWays(pgl::Disk<Point>(Point(6, 6), 16)) > 0);
+    CHECK(sameBothWays(Point(3, 3)) > 0);
+    CHECK(sameBothWays(pgl::Polyline<Point>(std::vector<Point>{
+              Point(0, 0), Point(9, 3), Point(3, 12), Point(15, 15)})) > 0);
+
+    // A handle visitor stops the walk early on true, like a value one.
+    std::size_t seen = 0;
+    CHECK(mesh.visitTrianglesIntersecting(pgl::Segment<Point>(Point(0, 0), Point(15, 15)),
+                                          [&](Mesh::TriId) { return ++seen == 2; }));
+    CHECK(seen == 2);
+}

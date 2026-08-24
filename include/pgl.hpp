@@ -23,6 +23,7 @@
 // any single header directly and get the same result as including pgl.hpp, while
 // each header still parses cleanly on its own (no recursion through the umbrella).
 #include "core/forward.hpp"
+#include "core/handle.hpp"
 #include "core/numeric.hpp"
 #include "core/bigint.hpp"
 #include "core/rational.hpp"

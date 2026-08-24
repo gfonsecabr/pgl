@@ -14,7 +14,6 @@
 #include <map>
 #include <optional>
 #include <stdexcept>
-#include <set>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -2261,7 +2260,15 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
     // Union-find over the pieces then yields the components of P \ D: the disk
     // separates the polygon iff at least two classes remain. No pieces at all
     // means the polygon is swallowed by the disk, which does not separate it.
-    using Seg = Segment<typename OtherPolygon::PointType>;
+    //
+    // Layering: Triangulation lives in algorithm/triangulation.hpp, which
+    // pgl.hpp includes after this header. Reach it only through the dependent
+    // call other.triangulation(), never by naming the class here.
+    const auto mesh = other.triangulation();
+    using Mesh = std::decay_t<decltype(mesh)>;
+    using TriId = typename Mesh::TriId;
+    using VertexId = typename Mesh::VertexId;
+    using Seg = Segment<typename Mesh::PointType>;
 
     std::vector<std::size_t> parent;
     const auto findRoot = [&parent](std::size_t x) {
@@ -2275,11 +2282,24 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
         parent[findRoot(a)] = findRoot(b);
     };
 
-    enum : int { WHOLE = 0, NEAR_MIN = 1, NEAR_MAX = 2 };
-    std::map<Seg, std::array<std::ptrdiff_t, 3>> pieceSlots;
-    const auto slotOf = [&](const Seg& s, int piece) {
+    // Whether the disk swallows a vertex depends on the vertex alone, so the
+    // test is paid once per vertex instead of once per incident triangle.
+    std::vector<char> swallowed(mesh.vertexIndexBound(), 0);
+    for (const VertexId v : mesh.vertexIds()) {
+        swallowed[v.index()] = contains(mesh.getShape(v)) ? 1 : 0;
+    }
+
+    // A piece is named by the edge that carries it and which end it hangs from.
+    // Handle order stands in for the lexicographic order of the endpoints: all
+    // the shared slot needs is that both incident triangles name the ends the
+    // same way, and either order does that.
+    enum : int { WHOLE = 0, NEAR_LOW = 1, NEAR_HIGH = 2 };
+    using EdgeKey = std::pair<VertexId, VertexId>;
+    std::map<EdgeKey, std::array<std::ptrdiff_t, 3>> pieceSlots;
+    const auto slotOf = [&](VertexId a, VertexId b, int piece) {
+        const EdgeKey key = a < b ? EdgeKey{a, b} : EdgeKey{b, a};
         auto [it, inserted] =
-            pieceSlots.try_emplace(s, std::array<std::ptrdiff_t, 3>{-1, -1, -1});
+            pieceSlots.try_emplace(key, std::array<std::ptrdiff_t, 3>{-1, -1, -1});
         std::ptrdiff_t& slot = it->second[static_cast<std::size_t>(piece)];
         if (slot < 0) {
             slot = static_cast<std::ptrdiff_t>(parent.size());
@@ -2289,10 +2309,7 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
     };
 
     constexpr std::size_t NO_PIECE = std::numeric_limits<std::size_t>::max();
-    // Layering: Triangulation lives in algorithm/triangulation.hpp, which
-    // pgl.hpp includes after this header. Reach it only through the dependent
-    // call other.triangulation(), never by naming the class here.
-    for (const auto& tri : other.triangulation().triangles()) {
+    mesh.visitTriangles([&](TriId t) {
         // Walk dT once, emitting its outside pieces in boundary order and
         // recording every disk contact between them; gap-free consecutive
         // pieces (wrap-around included) bound the same component of T \ D.
@@ -2311,33 +2328,36 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherPolygon& other) 
             gap = false;
         };
 
-        const bool in[3] = {contains(tri[0]), contains(tri[1]), contains(tri[2])};
+        // vertices(t)[i] is the vertex at getShape(t)[i], so side i still runs
+        // from vertex i to vertex i + 1 as the value walk had it.
+        const auto v = mesh.vertices(t);
+        const bool in[3] = {swallowed[v[0].index()] != 0, swallowed[v[1].index()] != 0,
+                            swallowed[v[2].index()] != 0};
         for (int i = 0; i < 3; ++i) {
-            const auto& a = tri.get(i);
-            const auto& b = tri.get(i + 1);
-            const Seg s(a, b);
-            const int nearA = a == s.min() ? NEAR_MIN : NEAR_MAX;
-            const int nearB = nearA == NEAR_MIN ? NEAR_MAX : NEAR_MIN;
+            const VertexId a = v[i];
+            const VertexId b = v[(i + 1) % 3];
+            const int nearA = a < b ? NEAR_LOW : NEAR_HIGH;
+            const int nearB = nearA == NEAR_LOW ? NEAR_HIGH : NEAR_LOW;
             if (in[i] && in[(i + 1) % 3]) {  // edge swallowed by the disk
                 gap = true;
             } else if (in[i]) {              // walk leaves the disk mid-edge
                 gap = true;
-                emit(slotOf(s, nearB));
+                emit(slotOf(a, b, nearB));
             } else if (in[(i + 1) % 3]) {    // walk enters the disk mid-edge
-                emit(slotOf(s, nearA));
+                emit(slotOf(a, b, nearA));
                 gap = true;
-            } else if (intersects(s)) {      // contact strictly inside the edge
-                emit(slotOf(s, nearA));
+            } else if (intersects(Seg(mesh.getShape(a), mesh.getShape(b)))) {
+                emit(slotOf(a, b, nearA));   // contact strictly inside the edge
                 gap = true;
-                emit(slotOf(s, nearB));
+                emit(slotOf(a, b, nearB));
             } else {                         // edge clear of the disk
-                emit(slotOf(s, WHOLE));
+                emit(slotOf(a, b, WHOLE));
             }
         }
         if (firstPiece != NO_PIECE && !gap && !gapBeforeFirst) {
             unite(lastPiece, firstPiece);
         }
-    }
+    });
 
     std::size_t classes = 0;
     for (std::size_t i = 0; i < parent.size(); ++i) {
@@ -2442,56 +2462,57 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) 
     const Polygon<CPoint> box(std::vector<CPoint>{
         CPoint(xlo, ylo), CPoint(xhi, ylo), CPoint(xhi, yhi), CPoint(xlo, yhi)});
 
-    // P's edges become the constraints; the set tells the flood fill where the
-    // inside/outside classification flips.
+    // P's edges become the constraints. The mesh keeps them flagged as such, and
+    // that flag is what tells the flood fill below where the inside/outside
+    // classification flips -- no separate set of P's edges to consult.
     std::vector<CSeg> constraints;
     constraints.reserve(size());
-    std::set<CSeg> pBoundary;
     for (std::size_t i = 0; i < size(); ++i) {
         const auto u = (*this)[i];
         const auto w = get(static_cast<std::ptrdiff_t>(i) + 1);
-        const CSeg s(CPoint(detail::asNumber<Common>(u.x()), detail::asNumber<Common>(u.y())),
-                     CPoint(detail::asNumber<Common>(w.x()), detail::asNumber<Common>(w.y())));
-        constraints.push_back(s);
-        pBoundary.insert(s);
+        constraints.emplace_back(
+            CPoint(detail::asNumber<Common>(u.x()), detail::asNumber<Common>(u.y())),
+            CPoint(detail::asNumber<Common>(w.x()), detail::asNumber<Common>(w.y())));
     }
 
     // Layering: Triangulation lives in algorithm/triangulation.hpp, which
     // pgl.hpp includes after this header. Reach it only through the dependent
     // call box.triangulation(constraints), never by naming the class here.
     const auto mesh = box.triangulation(constraints);
-    const auto tris = mesh.triangles();
-    const std::size_t n = tris.size();
-    std::map<typename std::decay_t<decltype(tris)>::value_type, std::size_t> indexOf;
-    for (std::size_t i = 0; i < n; ++i) {
-        indexOf.emplace(tris[i], i);
-    }
+    using TriId = typename std::decay_t<decltype(mesh)>::TriId;
+    // A handle's index is a slot of a table this size, so the per-triangle
+    // bookkeeping below is plain vectors and crossing an edge is an array read.
+    // The bound counts the storage rather than the triangles: the slots it holds
+    // beyond them stay untouched, their state left at "unvisited".
+    const std::size_t n = mesh.triangleIndexBound();
 
     // Flood fill from a box corner: -1 unvisited, 0 inside P, 1 outside P.
     std::vector<signed char> state(n, -1);
-    std::vector<std::size_t> pending;
-    for (const auto& t : mesh.incidentTriangles(CPoint(xlo, ylo))) {
-        const std::size_t i = indexOf.at(t);
-        if (state[i] < 0) {
-            state[i] = 1;
-            pending.push_back(i);
+    std::vector<TriId> pending;
+    for (const TriId t : mesh.incidentTriangles(mesh.getId(CPoint(xlo, ylo)))) {
+        if (state[t.index()] < 0) {
+            state[t.index()] = 1;
+            pending.push_back(t);
         }
     }
     while (!pending.empty()) {
-        const std::size_t i = pending.back();
+        const TriId t = pending.back();
         pending.pop_back();
+        const std::size_t i = t.index();
         for (int k = 0; k < 3; ++k) {
-            const CSeg e(tris[i].get(k), tris[i].get(k + 1));
-            const auto nb = mesh.otherTriangle(tris[i], e);
+            const auto nb = mesh.otherTriangle(t, k);
             if (!nb) {
                 continue;
             }
-            const std::size_t j = indexOf.at(*nb);
+            const std::size_t j = nb->index();
             if (state[j] < 0) {
-                state[j] = pBoundary.count(e)
+                // Side k is constrained exactly when it is an edge of P, the
+                // only place the classification flips. The box boundary is
+                // constrained too, but it has no neighbor to cross to.
+                state[j] = mesh.isConstrained(t, k)
                                ? static_cast<signed char>(1 - state[i])
                                : state[i];
-                pending.push_back(j);
+                pending.push_back(*nb);
             }
         }
     }
@@ -2508,44 +2529,46 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) 
         return x;
     };
 
-    for (std::size_t i = 0; i < n; ++i) {
+    mesh.visitTriangles([&](TriId t) {
+        const std::size_t i = t.index();
         if (state[i] != 1) {
-            continue;
+            return;
         }
+        const auto tri = mesh.getShape(t);
         for (int k = 0; k < 3; ++k) {
-            const CSeg e(tris[i].get(k), tris[i].get(k + 1));
-            const auto nb = mesh.otherTriangle(tris[i], e);
+            const auto nb = mesh.otherTriangle(t, k);
             if (!nb) {
                 continue;
             }
-            const std::size_t j = indexOf.at(*nb);
+            const std::size_t j = nb->index();
             if (j < i || state[j] != 1) {
                 continue;  // shared edge handled from the smaller index only
             }
+            const CSeg e(tri.get(k), tri.get(k + 1));
             if (other.intersects(e) &&
                 (other.interiorsIntersect(e) ||
                  (!other.contains(e.min()) && !other.contains(e.max())))) {
                 parent[findRoot(i)] = findRoot(j);
             }
         }
-    }
+    });
 
     // D \ P has no isolated points and no pinches, so every component holds a
     // triangle whose open interior meets the open disk; count those classes.
     std::size_t classes = 0;
     std::vector<char> counted(n, 0);
-    for (std::size_t i = 0; i < n; ++i) {
-        if (state[i] == 1 && other.interiorsIntersect(tris[i])) {
-            const std::size_t root = findRoot(i);
-            if (!counted[root]) {
-                counted[root] = 1;
-                if (++classes >= 2) {
-                    return true;
-                }
-            }
+    return mesh.visitTriangles([&](TriId t) {
+        const std::size_t i = t.index();
+        if (state[i] != 1 || !other.interiorsIntersect(mesh.getShape(t))) {
+            return false;
         }
-    }
-    return false;
+        const std::size_t root = findRoot(i);
+        if (counted[root]) {
+            return false;
+        }
+        counted[root] = 1;
+        return ++classes >= 2;
+    });
 }
 
 template <class PointType, class LabelType>
@@ -5023,7 +5046,11 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
     const auto unite = [&](std::size_t a, std::size_t b) {
         parent[findRoot(a)] = findRoot(b);
     };
+    // `dropped` marks a cell the disk does not reach and `unset` one not yet
+    // classified. Real cell numbers are positions in `parent`, so neither
+    // collides with one.
     constexpr std::size_t dropped = std::numeric_limits<std::size_t>::max();
+    constexpr std::size_t unset = dropped - 1;
     const auto cellOf = [&](bool kept) {
         if (!kept) {
             return dropped;
@@ -5032,17 +5059,26 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
         return parent.size() - 1;
     };
 
-    std::map<ExactSegment, std::size_t> edgeCells;
-    std::map<ExactPoint, std::size_t> vertexCells;
-    const auto vertexCell = [&](const ExactPoint& vertex) {
-        const auto [it, inserted] = vertexCells.try_emplace(vertex, dropped);
-        if (inserted) {
-            it->second = cellOf(exactDisk.contains(vertex) && !region.contains(vertex));
+    // Cells are keyed by handle rather than by position: a vertex indexes a
+    // plain table, and an edge is named by its two vertex handles. Keyed by
+    // coordinates instead, as the arrangement's own arithmetic makes them, every
+    // step of every lookup would compare a pair of exact rationals.
+    using TriId = typename std::decay_t<decltype(mesh)>::TriId;
+    using VertexId = typename std::decay_t<decltype(mesh)>::VertexId;
+    using EdgeKey = std::pair<VertexId, VertexId>;
+    std::map<EdgeKey, std::size_t> edgeCells;
+    std::vector<std::size_t> vertexCells(mesh.vertexIndexBound(), unset);
+    const auto vertexCell = [&](VertexId v) {
+        std::size_t& cell = vertexCells[v.index()];
+        if (cell == unset) {
+            const auto& vertex = mesh.getShape(v);
+            cell = cellOf(exactDisk.contains(vertex) && !region.contains(vertex));
         }
-        return it->second;
+        return cell;
     };
-    const auto edgeCell = [&](const ExactSegment& edge) {
-        const auto [it, inserted] = edgeCells.try_emplace(edge, dropped);
+    const auto edgeCell = [&](VertexId a, VertexId b) {
+        const EdgeKey key = a < b ? EdgeKey{a, b} : EdgeKey{b, a};
+        const auto [it, inserted] = edgeCells.try_emplace(key, dropped);
         if (inserted) {
             // The disk reaches the open edge either through its own interior or
             // by touching it at a single point, and that point is interior to
@@ -5050,6 +5086,7 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
             // the region is constant along the open edge, so its midpoint
             // decides it — an edge along a slit is region material, not
             // complement.
+            const ExactSegment edge(mesh.getShape(a), mesh.getShape(b));
             const ExactPoint mid((edge.min().x() + edge.max().x()) / ExactNumber(2),
                                  (edge.min().y() + edge.max().y()) / ExactNumber(2));
             const bool met = exactDisk.interiorsIntersect(edge) ||
@@ -5060,14 +5097,17 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
         return it->second;
     };
 
-    for (const auto& triangle : mesh.triangles()) {
+    mesh.visitTriangles([&](TriId t) {
+        const auto triangle = mesh.getShape(t);
+        const auto v = mesh.vertices(t);
         const std::size_t face =
             cellOf(exactDisk.interiorsIntersect(triangle) &&
                    !region.contains(triangle.template pointInside<ExactNumber>()));
         for (int k = 0; k < 3; ++k) {
-            const ExactSegment edge(triangle.get(k), triangle.get(k + 1));
-            const std::size_t side = edgeCell(edge);
-            const std::size_t corner = vertexCell(ExactPoint(triangle.get(k)));
+            // vertices(t)[k] is the vertex at getShape(t)[k], so side k joins
+            // the same two corners the value walk paired.
+            const std::size_t side = edgeCell(v[k], v[(k + 1) % 3]);
+            const std::size_t corner = vertexCell(v[k]);
             if (face != dropped && side != dropped) {
                 unite(face, side);
             }
@@ -5077,12 +5117,12 @@ bool regionSeparatesDisk(const Region& region, const OtherDisk& disk) {
             if (side != dropped && corner != dropped) {
                 unite(side, corner);
             }
-            const std::size_t next = vertexCell(ExactPoint(triangle.get(k + 1)));
+            const std::size_t next = vertexCell(v[(k + 1) % 3]);
             if (side != dropped && next != dropped) {
                 unite(side, next);
             }
         }
-    }
+    });
 
     std::size_t components = 0;
     for (std::size_t i = 0; i < parent.size(); ++i) {
@@ -5189,30 +5229,46 @@ bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
         parent[findRoot(a)] = findRoot(b);
     };
 
-    // One node per vertex the disk leaves behind; a vertex it swallows carries
-    // nothing to connect, and is never handed to @c nodeOf.
-    constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
-    std::map<RegionPoint, std::size_t> nodes;
-    const auto nodeOf = [&](const RegionPoint& vertex) {
-        const auto [it, inserted] = nodes.try_emplace(vertex, 0);
-        if (inserted) {
-            it->second = parent.size();
-            parent.push_back(parent.size());
-        }
-        return it->second;
-    };
-
     // Layering: Triangulation lives in algorithm/triangulation.hpp, which
     // pgl.hpp includes after this header. Reach it only through the dependent
     // call region.triangulation(), never by naming the class here.
-    for (const auto& triangle : region.triangulation().triangles()) {
-        const bool eaten[3] = {disk.contains(triangle[0]), disk.contains(triangle[1]),
-                               disk.contains(triangle[2])};
+    const auto mesh = region.triangulation();
+    using TriId = typename std::decay_t<decltype(mesh)>::TriId;
+    using VertexId = typename std::decay_t<decltype(mesh)>::VertexId;
+
+    // One node per vertex the disk leaves behind; a vertex it swallows carries
+    // nothing to connect, and is never handed to @c nodeOf. Nodes are kept by
+    // vertex handle, so the walk indexes a table instead of searching a map
+    // keyed by coordinates.
+    constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> nodes(mesh.vertexIndexBound(), none);
+    const auto nodeOf = [&](VertexId v) {
+        std::size_t& node = nodes[v.index()];
+        if (node == none) {
+            node = parent.size();
+            parent.push_back(parent.size());
+        }
+        return node;
+    };
+
+    // Whether the disk swallows a vertex is a property of the vertex, so it is
+    // decided once rather than once per incident triangle.
+    std::vector<char> eatenAt(mesh.vertexIndexBound(), 0);
+    for (const VertexId v : mesh.vertexIds()) {
+        eatenAt[v.index()] = disk.contains(mesh.getShape(v)) ? 1 : 0;
+    }
+
+    mesh.visitTriangles([&](TriId t) {
+        // vertices(t)[i] is the vertex at getShape(t)[i], so side i runs from
+        // vertex i to vertex i + 1 as the value walk had it.
+        const auto v = mesh.vertices(t);
+        const bool eaten[3] = {eatenAt[v[0].index()] != 0, eatenAt[v[1].index()] != 0,
+                               eatenAt[v[2].index()] != 0};
         std::size_t first = none;
         std::size_t last = none;
         bool gapBeforeFirst = false;
         bool gap = false;  // a contact with the disk since the last vertex kept
-        const auto keep = [&](const RegionPoint& vertex) {
+        const auto keep = [&](VertexId vertex) {
             const std::size_t node = nodeOf(vertex);
             if (last == none) {
                 first = node;
@@ -5224,8 +5280,8 @@ bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
             gap = false;
         };
         for (int i = 0; i < 3; ++i) {
-            const auto& from = triangle.get(i);
-            const auto& to = triangle.get(i + 1);
+            const VertexId from = v[i];
+            const VertexId to = v[(i + 1) % 3];
             if (eaten[i] && eaten[(i + 1) % 3]) {  // the disk is convex: the edge is gone
                 gap = true;
             } else if (eaten[i]) {                 // the walk leaves the disk mid-edge
@@ -5234,8 +5290,9 @@ bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
             } else if (eaten[(i + 1) % 3]) {       // the walk enters the disk mid-edge
                 keep(from);
                 gap = true;
-            } else if (disk.intersects(RegionSegment(from, to))) {  // a contact inside the edge
-                keep(from);
+            } else if (disk.intersects(
+                           RegionSegment(mesh.getShape(from), mesh.getShape(to)))) {
+                keep(from);                        // a contact inside the edge
                 gap = true;
                 keep(to);
             } else {                               // the edge is clear of the disk
@@ -5246,17 +5303,32 @@ bool diskSeparatesRegion(const OtherDisk& disk, const Region& region) {
         if (first != none && !gap && !gapBeforeFirst) {
             unite(last, first);
         }
-    }
+    });
 
-    for (const auto& slit : regionSlits(region)) {
-        // Whatever the disk takes out of a slit, what is left hangs from an
-        // endpoint — it meets the segment in a single subsegment — so each end
-        // it spares is a piece of its own, and the two stay joined only when it
-        // misses the slit altogether.
-        const std::size_t low = disk.contains(slit.min()) ? none : nodeOf(slit.min());
-        const std::size_t high = disk.contains(slit.max()) ? none : nodeOf(slit.max());
-        if (low != none && high != none && !disk.intersects(slit)) {
-            unite(low, high);
+    const auto slits = regionSlits(region);
+    if (!slits.empty()) {
+        // A slit endpoint is a ring vertex, hence a vertex of the mesh, but the
+        // tip of a spur carries no triangle at all -- locating it would not find
+        // it. So the handles come from a lookup over the stored vertices, built
+        // once and only for a region that has slits in the first place.
+        std::map<RegionPoint, VertexId> vertexAt;
+        for (const VertexId v : mesh.vertexIds()) {
+            vertexAt.emplace(mesh.getShape(v), v);
+        }
+        const auto nodeAtPoint = [&](const RegionPoint& p) {
+            const auto it = vertexAt.find(p);
+            return it == vertexAt.end() ? none : nodeOf(it->second);
+        };
+        for (const auto& slit : slits) {
+            // Whatever the disk takes out of a slit, what is left hangs from an
+            // endpoint — it meets the segment in a single subsegment — so each end
+            // it spares is a piece of its own, and the two stay joined only when it
+            // misses the slit altogether.
+            const std::size_t low = disk.contains(slit.min()) ? none : nodeAtPoint(slit.min());
+            const std::size_t high = disk.contains(slit.max()) ? none : nodeAtPoint(slit.max());
+            if (low != none && high != none && !disk.intersects(slit)) {
+                unite(low, high);
+            }
         }
     }
 

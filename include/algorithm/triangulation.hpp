@@ -12,19 +12,30 @@
  * hull when it is outside — and the connectivity (the set of triangles and
  * their adjacencies) changes via @ref Triangulation::flip.
  *
- * The **public interface speaks only in value types** — `pgl::Triangle`,
+ * The **main interface speaks in value types** — `pgl::Triangle`,
  * `pgl::Segment`, and `pgl::Point`. Internally the connectivity uses the
  * triangle-with-neighbors layout (each triangle stores three CCW vertex indices
  * and three neighbor-triangle indices, with neighbor `i` across the edge
  * opposite vertex `i`), closed by a single ghost vertex so every edge has two
- * incident triangles. Those internal records (`Tri`, `Edge`) and the vertex
- * indices are **private** and never exposed.
+ * incident triangles. Those internal records (`Tri`, `Edge`) and the raw indices
+ * are **private** and never exposed.
  *
  * A single `unordered_map<Segment, Edge>` bridges the two worlds: it converts an
  * outside-world edge (a `Segment`) into the internal `Edge` handle. A public
  * `Triangle` is resolved by taking one of its edges, looking up that handle, and
  * selecting the incident side whose apex matches the triangle — so no
  * triangle-keyed map is needed.
+ *
+ * Beside that, a **low-level interface speaks in handles** —
+ * @ref Triangulation::TriId and @ref Triangulation::VertexId — which are opaque
+ * strong types over those internal indices. @ref Triangulation::getId (paying
+ * for one lookup) and @ref Triangulation::locateId (paying for none) cross into
+ * it, and @ref Triangulation::getShape or @ref Triangulation::operator[] crosses
+ * back, so a traversal that would otherwise hash a `Segment` per step walks the
+ * connectivity arrays directly.
+ * Handles are positions in that storage: they stay valid while the triangulation
+ * is only read, and any mutation (@ref Triangulation::insert,
+ * @ref Triangulation::flip) may reuse them for other cells.
  */
 
 #include <algorithm>
@@ -151,12 +162,23 @@ struct ConvexCoverBuilder;
 template <TriangleConcept TriangleType_,
           SegmentConcept SegmentType_ = typename TriangleType_::template BoundaryType<false>>
 struct Triangulation {
+  private:
+    // Tags that keep the two handle families distinct types, so a vertex handle
+    // can never be passed where a triangle one is meant.
+    struct VertexTag;
+    struct TriTag;
+
+  public:
     using TriangleType = TriangleType_;
     using SegmentType = SegmentType_;
     using PointType = typename TriangleType::PointType;
     using NumberType = typename PointType::NumberType;
     using SegmentLabel = typename SegmentType::LabelType;
     using TriangleLabel = detail::optional_label_t<TriangleType>;
+    /** @brief Handle of a vertex of this triangulation specialization. */
+    using VertexId = detail::Handle<VertexTag>;
+    /** @brief Handle of a triangle of this triangulation specialization. */
+    using TriId = detail::Handle<TriTag>;
 
     /** @brief Creates an empty triangulation. */
     Triangulation() = default;
@@ -177,7 +199,7 @@ struct Triangulation {
     template <class TriangleRange>
         requires TriangleConcept<typename TriangleRange::value_type>
     explicit Triangulation(const TriangleRange& tris) {
-        std::unordered_map<PointType, VertexId> vid;
+        std::unordered_map<PointType, VertexIndex> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         // First pass: intern every vertex so vertices_ is complete, then keep it
         // in Hilbert order for cache locality (see the point-set constructor) and
@@ -189,11 +211,11 @@ struct Triangulation {
         }
         hilbertSort(vertices_);
         vid.clear();
-        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+        for (VertexIndex i = 0; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
         // Second pass: resolve each triangle's vertices against the reordered ids.
-        std::vector<std::array<VertexId, 3>> triples;
+        std::vector<std::array<VertexIndex, 3>> triples;
         std::vector<TriangleLabel> triLabels;
         for (const auto& tr : tris) {
             triples.push_back({vid.at(tr[0]), vid.at(tr[1]), vid.at(tr[2])});
@@ -221,7 +243,7 @@ struct Triangulation {
         // Intern endpoints so vertices_ is complete, then keep it in Hilbert
         // order for cache locality (see the point-set constructor) and rebuild
         // the point->id map against the reordered vertices.
-        std::unordered_map<PointType, VertexId> vid;
+        std::unordered_map<PointType, VertexIndex> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         for (const auto& s : segs) {
             idOfPoint(s[0]);
@@ -229,23 +251,23 @@ struct Triangulation {
         }
         hilbertSort(vertices_);
         vid.clear();
-        for (VertexId i = 0; i < static_cast<VertexId>(vertices_.size()); ++i) {
+        for (VertexIndex i = 0; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
         // Collect the edges as vertex-id pairs against the reordered ids.
-        std::vector<std::pair<VertexId, VertexId>> elist;
+        std::vector<std::pair<VertexIndex, VertexIndex>> elist;
         for (const auto& s : segs) {
-            VertexId a = vid.at(s[0]);
-            VertexId b = vid.at(s[1]);
+            VertexIndex a = vid.at(s[0]);
+            VertexIndex b = vid.at(s[1]);
             if (a != b) {
                 elist.emplace_back(a, b);
             }
         }
-        const VertexId n = static_cast<VertexId>(vertices_.size());
+        const VertexIndex n = static_cast<VertexIndex>(vertices_.size());
 
         // Undirected adjacency, deduplicated.
-        std::vector<std::vector<VertexId>> adj(static_cast<std::size_t>(n));
-        std::set<std::pair<VertexId, VertexId>> seen;
+        std::vector<std::vector<VertexIndex>> adj(static_cast<std::size_t>(n));
+        std::set<std::pair<VertexIndex, VertexIndex>> seen;
         for (auto [a, b] : elist) {
             auto k = a < b ? std::pair{a, b} : std::pair{b, a};
             if (seen.insert(k).second) {
@@ -255,11 +277,11 @@ struct Triangulation {
         }
 
         // Sort each vertex's neighbors counterclockwise; record their position.
-        std::vector<std::unordered_map<VertexId, int>> posIn(static_cast<std::size_t>(n));
-        for (VertexId v = 0; v < n; ++v) {
+        std::vector<std::unordered_map<VertexIndex, int>> posIn(static_cast<std::size_t>(n));
+        for (VertexIndex v = 0; v < n; ++v) {
             std::vector<PointType> nbr;
             nbr.reserve(adj[v].size());
-            for (VertexId w : adj[v]) {
+            for (VertexIndex w : adj[v]) {
                 nbr.push_back(vertices_[w]);
             }
             sortAround(nbr, vertices_[v]);
@@ -275,22 +297,22 @@ struct Triangulation {
         // next(u->v): the half-edge leaving v that keeps the face on its left,
         // i.e. v -> (neighbor of v immediately clockwise from u). Tracing it
         // walks each face; bounded faces come out CCW, the outer face CW.
-        const auto nextHE = [&](VertexId u, VertexId v) -> std::pair<VertexId, VertexId> {
+        const auto nextHE = [&](VertexIndex u, VertexIndex v) -> std::pair<VertexIndex, VertexIndex> {
             const auto& a = adj[v];
             const int deg = static_cast<int>(a.size());
             const int pu = posIn[v].at(u);
             return {v, a[(pu + deg - 1) % deg]};
         };
 
-        std::vector<std::array<VertexId, 3>> triples;
-        std::set<std::pair<VertexId, VertexId>> visited;
-        for (VertexId v = 0; v < n; ++v) {
-            for (VertexId w : adj[v]) {
-                std::pair<VertexId, VertexId> h{v, w};
+        std::vector<std::array<VertexIndex, 3>> triples;
+        std::set<std::pair<VertexIndex, VertexIndex>> visited;
+        for (VertexIndex v = 0; v < n; ++v) {
+            for (VertexIndex w : adj[v]) {
+                std::pair<VertexIndex, VertexIndex> h{v, w};
                 if (visited.count(h)) {
                     continue;
                 }
-                std::vector<VertexId> cycle;
+                std::vector<VertexIndex> cycle;
                 while (visited.insert(h).second) {
                     cycle.push_back(h.first);
                     h = nextHE(h.first, h.second);
@@ -329,7 +351,7 @@ struct Triangulation {
     template <class PointRange>
         requires PointConcept<typename PointRange::value_type>
     explicit Triangulation(const PointRange& pts) {
-        std::unordered_map<PointType, VertexId> vid;
+        std::unordered_map<PointType, VertexIndex> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         for (const auto& p : pts) {
             idOfPoint(PointType(p));
@@ -369,7 +391,7 @@ struct Triangulation {
         requires PointConcept<typename PointRange::value_type> &&
                  SegmentConcept<typename SegmentRange::value_type>
     Triangulation(const PointRange& pts, const SegmentRange& segments) {
-        std::unordered_map<PointType, VertexId> vid;
+        std::unordered_map<PointType, VertexIndex> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         for (const auto& p : pts) {
             idOfPoint(PointType(p));
@@ -388,12 +410,12 @@ struct Triangulation {
         // constructConstrained) — then force each segment in as a constrained
         // edge and restore the constrained Delaunay property.
         vid.clear();
-        for (VertexId i = 1; i < static_cast<VertexId>(vertices_.size()); ++i) {
+        for (VertexIndex i = 1; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
         for (const auto& s : segments) {
-            const VertexId a = vid.at(PointType(s[0]));
-            const VertexId b = vid.at(PointType(s[1]));
+            const VertexIndex a = vid.at(PointType(s[0]));
+            const VertexIndex b = vid.at(PointType(s[1]));
             if (a != b) {
                 insertConstraint(a, b);
             }
@@ -683,14 +705,14 @@ struct Triangulation {
         if (se == segToEdge_.end()) {
             return std::nullopt;
         }
-        const TriId given = idOf(t);
+        const TriIndex given = idOf(t);
         if (given == NO_TRI) {
             return std::nullopt;
         }
         const Edge e = se->second;
-        const TriId i1 = e.tri;
-        const TriId i2 = mirror(e).tri;
-        TriId other = (given == i1) ? i2 : (given == i2 ? i1 : NO_TRI);
+        const TriIndex i1 = e.tri;
+        const TriIndex i2 = mirror(e).tri;
+        TriIndex other = (given == i1) ? i2 : (given == i2 ? i1 : NO_TRI);
         if (!inDomain(other)) {
             return std::nullopt;  // shared not on t, or boundary
         }
@@ -699,18 +721,7 @@ struct Triangulation {
 
     /** @brief The (up to three) triangles sharing an edge with @p t. */
     [[nodiscard]] std::vector<TriangleType> edgeAdjacentTriangles(const TriangleType& t) const {
-        std::vector<TriangleType> out;
-        const TriId id = idOf(t);
-        if (id == NO_TRI) {
-            return out;
-        }
-        for (int s = 0; s < 3; ++s) {
-            const TriId nb = triangles_[id].nbr[s];
-            if (inDomain(nb)) {
-                out.push_back(triangleValue(nb));
-            }
-        }
-        return out;
+        return trianglesOf(edgeAdjacentTriangles(triHandle(idOf(t))));
     }
 
     /**
@@ -725,32 +736,7 @@ struct Triangulation {
      *         part of the mesh.
      */
     [[nodiscard]] std::vector<TriangleType> vertexAdjacentTriangles(const TriangleType& t) const {
-        std::vector<TriangleType> out;
-        const TriId self = idOf(t);
-        if (self == NO_TRI) {
-            return out;
-        }
-        // "Already listed" is tracked by the per-triangle walkMark bit (as in
-        // visitTrianglesIntersecting): marking `self` first skips t itself, and
-        // the guard clears every set bit on the way out so the const query
-        // leaves the triangulation pristine.
-        std::vector<TriId> marked{self};
-        triangles_[self].walkMark = 1;
-        struct MarkClearer {
-            const std::vector<Tri>& tris;
-            const std::vector<TriId>& marked;
-            ~MarkClearer() { for (TriId m : marked) tris[m].walkMark = 0; }
-        } markClearer{triangles_, marked};
-        for (const VertexId w : triangles_[self].v) {
-            visitVertexFan(self, w, [&](TriId cur) {
-                if (inDomain(cur) && !triangles_[cur].walkMark) {
-                    triangles_[cur].walkMark = 1;
-                    marked.push_back(cur);
-                    out.push_back(triangleValue(cur));
-                }
-            });
-        }
-        return out;
+        return trianglesOf(vertexAdjacentTriangles(triHandle(idOf(t))));
     }
 
     /** @brief The (up to two) triangles incident to edge @p s. */
@@ -764,7 +750,7 @@ struct Triangulation {
         if (inDomain(e.tri)) {
             out.push_back(triangleValue(e.tri));
         }
-        const TriId other = mirror(e).tri;
+        const TriIndex other = mirror(e).tri;
         if (inDomain(other)) {
             out.push_back(triangleValue(other));
         }
@@ -780,33 +766,16 @@ struct Triangulation {
      *         triangulation (or lies outside the triangulated region).
      */
     [[nodiscard]] std::vector<TriangleType> incidentTriangles(const PointType& p) const {
-        std::vector<TriangleType> out;
-        const TriId start = locateId(p);
-        if (start == NO_TRI || isGhost(start)) {
-            return out;  // empty triangulation, or p outside the hull
-        }
-        // The vertex of `start` that coincides with p; p is not a vertex if none.
-        const auto& sv = triangles_[start].v;
-        VertexId w = NO_TRI;
-        for (int i = 0; i < 3; ++i) {
-            if (vertices_[sv[i]] == p) {
-                w = sv[i];
-                break;
-            }
-        }
-        if (w == NO_TRI) {
-            return out;
-        }
-        visitVertexFan(start, w, [&](TriId cur) {
-            if (inDomain(cur)) {
-                out.push_back(triangleValue(cur));
-            }
-        });
-        return out;
+        return trianglesOf(incidentTriangles(getId(p)));
     }
 
     /**
-     * @brief Calls `fn(Triangle)` on every triangle.
+     * @brief Calls `fn(Triangle)` — or `fn(TriId)` — on every triangle.
+     *
+     * A @p fn that accepts a @ref TriangleType is given triangle values; one
+     * that accepts only a @ref TriId is given handles instead, so a global pass
+     * can work in the handle world without materializing a triangle per step.
+     * A generic callable (`[](auto t)`) accepts both and is given values.
      *
      * If @p fn returns a value convertible to `bool`, the visit stops early as
      * soon as it returns `true`; a `void`-returning @p fn visits every triangle.
@@ -815,11 +784,11 @@ struct Triangulation {
      */
     template <class Fn>
     bool visitTriangles(Fn fn) const {
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             if (!inDomain(t)) {
                 continue;
             }
-            if (detail::invokeVisitor(fn, triangleValue(t))) {
+            if (reportTriangle(fn, t)) {
                 return true;
             }
         }
@@ -887,11 +856,372 @@ struct Triangulation {
      */
     [[nodiscard]] Graph<PointType> asGraph() const {
         Graph<PointType> result;
-        for (VertexId v = GHOST + 1; v < static_cast<VertexId>(vertices_.size()); ++v) {
+        for (VertexIndex v = GHOST + 1; v < static_cast<VertexIndex>(vertices_.size()); ++v) {
             result.addVertex(vertices_[v]);
         }
         visitEdges([&](const SegmentType& s) { result.addEdge(s[0], s[1]); });
         return result;
+    }
+
+    // ---- low-level navigation --------------------------------------------
+
+    /**
+     * @brief The handles of every triangle, in storage order.
+     *
+     * The order is the triangulation's own, which is neither the sorted order of
+     * @ref triangles nor a stable one across edits, but is the order that reads
+     * the connectivity arrays front to back.
+     */
+    [[nodiscard]] std::vector<TriId> triangleIds() const {
+        std::vector<TriId> out;
+        out.reserve(numTriangles());
+        visitTriangles([&](TriId t) { out.push_back(t); });
+        return out;
+    }
+
+    /**
+     * @brief The handles of every vertex, in storage order.
+     *
+     * Every stored vertex is listed, including one that carries no triangle
+     * (duplicated, or collinear with every other point), exactly as
+     * @ref numVertices counts them. The internal ghost vertex is not one of them.
+     */
+    [[nodiscard]] std::vector<VertexId> vertexIds() const {
+        std::vector<VertexId> out;
+        out.reserve(numVertices());
+        for (VertexIndex v = GHOST + 1; v < static_cast<VertexIndex>(vertices_.size()); ++v) {
+            out.push_back(vertexHandle(v));
+        }
+        return out;
+    }
+
+    /**
+     * @brief One past the largest index a @ref TriId of this triangulation can
+     *        carry.
+     *
+     * `id.index()` is therefore a slot of a side table of this size — a plain
+     * `std::vector` rather than a map — for every handle the triangulation hands
+     * out. The indices are dense over `[0, triangleIndexBound())`, but the range
+     * also covers the triangles a polygon or region domain carved away, which
+     * @ref has rejects and no query returns: it is a bound on the storage, not a
+     * triangle count, and exceeds @ref numTriangles by exactly those.
+     */
+    [[nodiscard]] std::size_t triangleIndexBound() const {
+        return static_cast<std::size_t>(firstGhost_);
+    }
+
+    /**
+     * @brief One past the largest index a @ref VertexId of this triangulation
+     *        can carry.
+     *
+     * As with @ref triangleIndexBound, `id.index()` is a slot of a side table of
+     * this size. Vertex indices are dense over `[1, vertexIndexBound())`: slot 0
+     * belongs to the internal ghost vertex that closes the mesh at infinity and
+     * is never handed out, so a table indexed by `id.index() - 1` is the tight
+     * one of @ref numVertices entries.
+     */
+    [[nodiscard]] std::size_t vertexIndexBound() const { return vertices_.size(); }
+
+    /**
+     * @brief Finds the triangle containing the query point, as a handle.
+     *
+     * Handle counterpart of @ref locate: the same stochastic visibility walk,
+     * answering with the triangle's handle instead of its value. This is the
+     * hash-free way into the handle world for a point that is not a vertex —
+     * `getId(*locate(p))` would locate the triangle and then look it up again.
+     *
+     * @param p Query point; may use a different point type than the triangulation.
+     * @return The handle of the containing triangle, or the invalid handle if
+     *         @p p lies outside the triangulated region (or the triangulation is
+     *         empty).
+     */
+    template <PointConcept QueryPoint>
+    [[nodiscard]] TriId locateId(const QueryPoint& p) const {
+        const TriIndex id = locateIndex(p);
+        return triHandle(inDomain(id) ? id : NO_TRI);
+    }
+
+    /**
+     * @brief The triangle a handle refers to, with its stored label.
+     *
+     * @param t Handle of a triangle of this triangulation.
+     * @pre `has(t)`.
+     */
+    [[nodiscard]] TriangleType getShape(TriId t) const {
+        assert(has(t) && "getShape(): the handle is not a triangle of the triangulation");
+        return triangleValue(indexOf(t));
+    }
+
+    /**
+     * @brief The position of the vertex a handle refers to.
+     *
+     * @param v Handle of a vertex of this triangulation.
+     * @pre `has(v)`.
+     */
+    [[nodiscard]] const PointType& getShape(VertexId v) const {
+        assert(has(v) && "getShape(): the handle is not a vertex of the triangulation");
+        return vertices_[static_cast<std::size_t>(indexOf(v))];
+    }
+
+    /** @brief Same as @ref getShape(TriId) const. */
+    [[nodiscard]] TriangleType operator[](TriId t) const { return getShape(t); }
+
+    /** @brief Same as @ref getShape(VertexId) const. */
+    [[nodiscard]] const PointType& operator[](VertexId v) const { return getShape(v); }
+
+    /**
+     * @brief The handle of a triangle of this triangulation.
+     *
+     * This is the bridge from the value world into the handle world: it is the
+     * one query that pays for a hash lookup, after which the handle-taking
+     * navigation methods walk the connectivity without touching a hash table.
+     *
+     * @param t A triangle.
+     * @return Its handle, or the invalid handle when @p t is not one of the
+     *         triangulation's triangles.
+     */
+    [[nodiscard]] TriId getId(const TriangleType& t) const {
+        const TriIndex id = idOf(t);
+        return triHandle(inDomain(id) ? id : NO_TRI);
+    }
+
+    /**
+     * @brief The handle of a vertex of this triangulation.
+     *
+     * Found by a point-location walk, so no hash lookup is involved.
+     *
+     * @param p A point.
+     * @return Its handle, or the invalid handle when @p p is not a vertex of the
+     *         triangulation (or lies outside the triangulated region).
+     */
+    [[nodiscard]] VertexId getId(const PointType& p) const {
+        return vertexHandle(vertexIndexAt(p));
+    }
+
+    /** @brief True if @p t is a handle of one of the triangles of this triangulation. */
+    [[nodiscard]] bool has(TriId t) const { return inDomain(indexOf(t)); }
+
+    /** @brief True if @p v is a handle of one of the vertices of this triangulation. */
+    [[nodiscard]] bool has(VertexId v) const { return realVertex(indexOf(v)); }
+
+    /**
+     * @brief The three vertices of a triangle, counterclockwise.
+     *
+     * Handle counterpart of `getShape(t).vertices()`: the order is the same one
+     * @ref TriangleType normalizes to, the lexicographically smallest vertex
+     * first, so `vertices(t)[i]` is the vertex at `getShape(t)[i]`.
+     *
+     * @param t Handle of a triangle of this triangulation.
+     * @pre `has(t)`.
+     */
+    [[nodiscard]] std::array<VertexId, 3> vertices(TriId t) const {
+        assert(has(t) && "vertices(): the handle is not a triangle of the triangulation");
+        const TriIndex id = indexOf(t);
+        const auto& v = triangles_[static_cast<std::size_t>(id)].v;
+        const int first = firstVertex(id);
+        return {vertexHandle(v[first]), vertexHandle(v[(first + 1) % 3]),
+                vertexHandle(v[(first + 2) % 3])};
+    }
+
+    /**
+     * @brief The triangle on the other side of side @p side of @p t.
+     *
+     * Side `i` of a triangle is the edge from `vertices(t)[i]` to
+     * `vertices(t)[(i + 1) % 3]`, which is `getShape(t).edges()[i]`. Crossing it
+     * is one array read, so a walk over the mesh never has to name an edge by
+     * its segment.
+     *
+     * @param t Handle of a triangle of the triangulation.
+     * @param side Which of its three edges to cross, in `[0, 3)`.
+     * @return The adjacent triangle across that edge, or `std::nullopt` when the
+     *         edge is on the boundary of the domain.
+     * @pre `has(t)`.
+     */
+    [[nodiscard]] std::optional<TriId> otherTriangle(TriId t, int side) const {
+        assert(has(t) && "otherTriangle(): the handle is not a triangle of the triangulation");
+        assert(side >= 0 && side < 3 && "otherTriangle(): side is not one of 0, 1, 2");
+        const TriIndex id = indexOf(t);
+        const TriIndex nb = triangles_[static_cast<std::size_t>(id)].nbr[internalSide(id, side)];
+        return inDomain(nb) ? std::optional<TriId>(triHandle(nb)) : std::nullopt;
+    }
+
+    /**
+     * @brief True if side @p side of @p t is a constrained edge.
+     *
+     * Handle counterpart of @ref isConstrained(const SegmentType&) const, with
+     * the edge named by the triangle it belongs to and its index there (see
+     * @ref otherTriangle(TriId, int) const for the side convention). Constraints
+     * are what the polygon and region constructors mark their boundary with, so
+     * this is also how a walk recognizes the boundary of the shape it came from
+     * without keeping a set of its edges.
+     *
+     * @param t Handle of a triangle of the triangulation.
+     * @param side Which of its three edges to test, in `[0, 3)`.
+     * @pre `has(t)`.
+     */
+    [[nodiscard]] bool isConstrained(TriId t, int side) const {
+        assert(has(t) && "isConstrained(): the handle is not a triangle of the triangulation");
+        assert(side >= 0 && side < 3 && "isConstrained(): side is not one of 0, 1, 2");
+        const TriIndex id = indexOf(t);
+        return bit(triangles_[static_cast<std::size_t>(id)].constrainedMask,
+                   internalSide(id, side));
+    }
+
+    /**
+     * @brief Constrains (or unconstrains) side @p side of @p t.
+     *
+     * Handle counterpart of @ref setConstrained(const SegmentType&, bool). The
+     * flag belongs to the edge, so it is set on both incident triangles and a
+     * later @ref isConstrained sees it from either side.
+     *
+     * @param t Handle of a triangle of the triangulation.
+     * @param side Which of its three edges to mark, in `[0, 3)`.
+     * @param value `true` to constrain the edge, `false` to release it.
+     * @pre `has(t)`.
+     */
+    void setConstrained(TriId t, int side, bool value = true) {
+        assert(has(t) && "setConstrained(): the handle is not a triangle of the triangulation");
+        assert(side >= 0 && side < 3 && "setConstrained(): side is not one of 0, 1, 2");
+        const TriIndex id = indexOf(t);
+        const Edge e{id, static_cast<std::int8_t>(internalSide(id, side))};
+        setBit(triangles_[static_cast<std::size_t>(id)].constrainedMask, e.side, value);
+        const Edge m = mirror(e);
+        if (m.tri != NO_TRI) {
+            setBit(triangles_[static_cast<std::size_t>(m.tri)].constrainedMask, m.side, value);
+        }
+    }
+
+    /**
+     * @brief The triangle on the other side of edge @p a @p b from @p t.
+     *
+     * Handle counterpart of @ref otherTriangle(const TriangleType&, const SegmentType&) const,
+     * with the shared edge given by its two endpoints instead of as a segment.
+     *
+     * @param t Handle of a triangle of the triangulation.
+     * @param a One endpoint of an edge of @p t.
+     * @param b The other endpoint of that edge.
+     * @return The adjacent triangle across that edge, or `std::nullopt` if the
+     *         edge is on the boundary of the domain or is not an edge of @p t.
+     */
+    [[nodiscard]] std::optional<TriId> otherTriangle(TriId t, VertexId a, VertexId b) const {
+        const TriIndex id = indexOf(t);
+        if (!inDomain(id)) {
+            return std::nullopt;
+        }
+        const VertexIndex first = indexOf(a);
+        const VertexIndex second = indexOf(b);
+        const auto& v = triangles_[static_cast<std::size_t>(id)].v;
+        for (int s = 0; s < 3; ++s) {
+            const VertexIndex left = v[(s + 1) % 3];
+            const VertexIndex right = v[(s + 2) % 3];
+            if ((left == first && right == second) || (left == second && right == first)) {
+                const TriIndex nb = triangles_[static_cast<std::size_t>(id)].nbr[s];
+                return inDomain(nb) ? std::optional<TriId>(triHandle(nb)) : std::nullopt;
+            }
+        }
+        return std::nullopt;  // a b is not an edge of t
+    }
+
+    /** @brief The (up to three) triangles sharing an edge with @p t. */
+    [[nodiscard]] std::vector<TriId> edgeAdjacentTriangles(TriId t) const {
+        std::vector<TriId> out;
+        const TriIndex id = indexOf(t);
+        if (!realTriangle(id)) {
+            return out;
+        }
+        for (int s = 0; s < 3; ++s) {
+            const TriIndex nb = triangles_[static_cast<std::size_t>(id)].nbr[s];
+            if (inDomain(nb)) {
+                out.push_back(triHandle(nb));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * @brief The triangles sharing at least one vertex with @p t (excluding @p t).
+     *
+     * Handle counterpart of
+     * @ref vertexAdjacentTriangles(const TriangleType&) const.
+     */
+    [[nodiscard]] std::vector<TriId> vertexAdjacentTriangles(TriId t) const {
+        std::vector<TriId> out;
+        const TriIndex self = indexOf(t);
+        if (!realTriangle(self)) {
+            return out;
+        }
+        // "Already listed" is tracked by the per-triangle walkMark bit (as in
+        // visitTrianglesIntersecting): marking `self` first skips t itself, and
+        // the guard clears every set bit on the way out so the const query
+        // leaves the triangulation pristine.
+        std::vector<TriIndex> marked{self};
+        triangles_[self].walkMark = 1;
+        struct MarkClearer {
+            const std::vector<Tri>& tris;
+            const std::vector<TriIndex>& marked;
+            ~MarkClearer() { for (TriIndex m : marked) tris[m].walkMark = 0; }
+        } markClearer{triangles_, marked};
+        for (const VertexIndex w : triangles_[self].v) {
+            visitVertexFan(self, w, [&](TriIndex cur) {
+                if (inDomain(cur) && !triangles_[cur].walkMark) {
+                    triangles_[cur].walkMark = 1;
+                    marked.push_back(cur);
+                    out.push_back(triHandle(cur));
+                }
+            });
+        }
+        return out;
+    }
+
+    /**
+     * @brief The triangles incident to vertex @p v — its full fan.
+     *
+     * @param v Handle of a vertex of the triangulation.
+     * @return Every in-domain triangle having @p v as one of its vertices, in
+     *         rotational order around @p v. Empty when @p v carries no triangle
+     *         (a vertex duplicated or collinear with every other one) or when
+     *         the handle is not a vertex of the triangulation.
+     */
+    [[nodiscard]] std::vector<TriId> incidentTriangles(VertexId v) const {
+        std::vector<TriId> out;
+        const VertexIndex w = indexOf(v);
+        if (!realVertex(w)) {
+            return out;
+        }
+        const TriIndex start = fanSeedOf(w);
+        if (start == NO_TRI) {
+            return out;
+        }
+        visitVertexFan(start, w, [&](TriIndex cur) {
+            if (inDomain(cur)) {
+                out.push_back(triHandle(cur));
+            }
+        });
+        return out;
+    }
+
+    /**
+     * @brief Returns a reference to the label stored for the triangle @p t.
+     *
+     * Handle counterpart of @ref label(const TriangleType&), reaching the same
+     * storage without the hash lookup that resolving a triangle value needs.
+     *
+     * @param t Handle of a triangle of this triangulation.
+     * @pre `has(t)`.
+     */
+    template <class L = TriangleLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] L& label(TriId t) {
+        assert(has(t) && "label(): the handle is not a triangle of the triangulation");
+        return triangles_[static_cast<std::size_t>(indexOf(t))].triLabel;
+    }
+
+    /** @overload @brief Read-only access to the label of triangle @p t. */
+    template <class L = TriangleLabel>
+        requires(detail::has_label_v<L>)
+    [[nodiscard]] const L& label(TriId t) const {
+        assert(has(t) && "label(): the handle is not a triangle of the triangulation");
+        return triangles_[static_cast<std::size_t>(indexOf(t))].triLabel;
     }
 
     // ---- visibility ------------------------------------------------------
@@ -1108,7 +1438,7 @@ struct Triangulation {
         assert(hullSize >= 2);
         --hullSize;  // the first vertex was repeated at the end
 
-        const auto isVertexOf = [&](TriId triangle, const PointType& point) {
+        const auto isVertexOf = [&](TriIndex triangle, const PointType& point) {
             const auto& ids = triangles_[triangle].v;
             return vertices_[ids[0]] == point || vertices_[ids[1]] == point ||
                    vertices_[ids[2]] == point;
@@ -1135,7 +1465,7 @@ struct Triangulation {
             if (onHullBoundary) {
                 continue;
             }
-            const TriId across = triangles_[b].nbr[side];
+            const TriIndex across = triangles_[b].nbr[side];
             if (!inDomain(across)) {
                 return false;
             }
@@ -1207,9 +1537,9 @@ struct Triangulation {
      */
     [[nodiscard]] Graph<TriangleType> convexCoverVisibilityGraph() const {
         Graph<TriangleType> result;
-        std::vector<TriId> sources;
+        std::vector<TriIndex> sources;
         sources.reserve(domainTriangleCount_);
-        for (TriId source = 0; source < firstGhost_; ++source) {
+        for (TriIndex source = 0; source < firstGhost_; ++source) {
             if (inDomain(source)) {
                 sources.push_back(source);
                 result.addVertex(triangleValue(source));
@@ -1219,24 +1549,24 @@ struct Triangulation {
         // A depth-first source order tends to make a previously processed
         // source a neighbor of the next one. Its already known symmetric edges
         // can then seed more of the next BFS without another geometric test.
-        std::vector<TriId> sourceOrder;
+        std::vector<TriIndex> sourceOrder;
         sourceOrder.reserve(sources.size());
         std::vector<bool> ordered(static_cast<std::size_t>(firstGhost_), false);
-        std::vector<TriId> stack;
-        for (const TriId seed : sources) {
+        std::vector<TriIndex> stack;
+        for (const TriIndex seed : sources) {
             if (ordered[static_cast<std::size_t>(seed)]) {
                 continue;
             }
             stack.push_back(seed);
             while (!stack.empty()) {
-                const TriId current = stack.back();
+                const TriIndex current = stack.back();
                 stack.pop_back();
                 if (ordered[static_cast<std::size_t>(current)]) {
                     continue;
                 }
                 ordered[static_cast<std::size_t>(current)] = true;
                 sourceOrder.push_back(current);
-                for (const TriId neighbor : triangles_[current].nbr) {
+                for (const TriIndex neighbor : triangles_[current].nbr) {
                     if (inDomain(neighbor) &&
                         !ordered[static_cast<std::size_t>(neighbor)]) {
                         stack.push_back(neighbor);
@@ -1247,8 +1577,8 @@ struct Triangulation {
 
         std::vector<std::uint8_t> visited(static_cast<std::size_t>(firstGhost_));
         std::vector<std::uint8_t> visible(static_cast<std::size_t>(firstGhost_));
-        std::queue<TriId> queue;
-        for (const TriId source : sourceOrder) {
+        std::queue<TriIndex> queue;
+        for (const TriIndex source : sourceOrder) {
             std::fill(visited.begin(), visited.end(), false);
             std::fill(visible.begin(), visible.end(), false);
             visited[static_cast<std::size_t>(source)] = true;
@@ -1257,9 +1587,9 @@ struct Triangulation {
             const TriangleType sourceTriangle = triangleValue(source);
 
             while (!queue.empty()) {
-                const TriId current = queue.front();
+                const TriIndex current = queue.front();
                 queue.pop();
-                for (const TriId neighbor : triangles_[current].nbr) {
+                for (const TriIndex neighbor : triangles_[current].nbr) {
                     if (!inDomain(neighbor) ||
                         visited[static_cast<std::size_t>(neighbor)]) {
                         continue;
@@ -1334,11 +1664,11 @@ struct Triangulation {
         // directed edge `v[(side+1)%3] -> v[(side+2)%3]`, CCW around the triangle
         // because the vertices are. A triangle starts as its own piece, so its
         // three sides start as its ring, in that same CCW order.
-        std::vector<TriId> parent(static_cast<std::size_t>(firstGhost_));
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        std::vector<TriIndex> parent(static_cast<std::size_t>(firstGhost_));
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             parent[static_cast<std::size_t>(t)] = t;
         }
-        const auto findRoot = [&parent](TriId x) {
+        const auto findRoot = [&parent](TriIndex x) {
             while (parent[static_cast<std::size_t>(x)] != x) {
                 parent[static_cast<std::size_t>(x)] =
                     parent[static_cast<std::size_t>(parent[static_cast<std::size_t>(x)])];
@@ -1351,7 +1681,7 @@ struct Triangulation {
         std::vector<std::int32_t> succ(slots, -1);
         std::vector<std::int32_t> pred(slots, -1);
         std::vector<std::int32_t> diagonals;
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             if (!inDomain(t)) {
                 continue;
             }
@@ -1361,7 +1691,7 @@ struct Triangulation {
                 pred[static_cast<std::size_t>(3 * t + (s + 1) % 3)] = h;
                 // Each interior unconstrained edge is a candidate once, from the
                 // lower-numbered of the two triangles that meet along it.
-                const TriId n = triangles_[static_cast<std::size_t>(t)].nbr[s];
+                const TriIndex n = triangles_[static_cast<std::size_t>(t)].nbr[s];
                 if (n > t && inDomain(n) &&
                     !bit(triangles_[static_cast<std::size_t>(t)].constrainedMask, s)) {
                     diagonals.push_back(h);
@@ -1384,11 +1714,11 @@ struct Triangulation {
         // collinear — which takes a slit or collinear vertices, and is rare
         // enough to pay a ring walk for. Splicing across one of two shared edges
         // would leave a boundary pinched shut at the other, which is not a ring.
-        const auto sharedEdges = [&](std::int32_t start, TriId otherRoot) {
+        const auto sharedEdges = [&](std::int32_t start, TriIndex otherRoot) {
             int count = 0;
             std::int32_t h = start;
             do {
-                const TriId n = neighborOf(h);
+                const TriIndex n = neighborOf(h);
                 if (n != NO_TRI && inDomain(n) && findRoot(n) == otherRoot) {
                     ++count;
                 }
@@ -1398,10 +1728,10 @@ struct Triangulation {
         };
 
         for (const std::int32_t h : diagonals) {
-            const TriId t = h / 3;
-            const TriId n = neighborOf(h);
-            const TriId rootA = findRoot(t);
-            const TriId rootB = findRoot(n);
+            const TriIndex t = h / 3;
+            const TriIndex n = neighborOf(h);
+            const TriIndex rootA = findRoot(t);
+            const TriIndex rootB = findRoot(n);
             if (rootA == rootB) {
                 continue;  // an earlier merge already swallowed this diagonal
             }
@@ -1409,13 +1739,13 @@ struct Triangulation {
             // The ring runs ... -> p -> u -> v -> q -> ... on this side and
             // ... -> r -> v -> u -> w -> ... on the other, so deleting the two
             // half-edges u->v and v->u leaves u followed by w and v followed by q.
-            const VertexId u = originOf(h);
-            const VertexId v = targetOf(h);
-            const VertexId p = originOf(pred[static_cast<std::size_t>(h)]);
-            const VertexId q = targetOf(succ[static_cast<std::size_t>(h)]);
-            const VertexId r = originOf(pred[static_cast<std::size_t>(twin)]);
-            const VertexId w = targetOf(succ[static_cast<std::size_t>(twin)]);
-            const auto convexAt = [this](VertexId before, VertexId at, VertexId after) {
+            const VertexIndex u = originOf(h);
+            const VertexIndex v = targetOf(h);
+            const VertexIndex p = originOf(pred[static_cast<std::size_t>(h)]);
+            const VertexIndex q = targetOf(succ[static_cast<std::size_t>(h)]);
+            const VertexIndex r = originOf(pred[static_cast<std::size_t>(twin)]);
+            const VertexIndex w = targetOf(succ[static_cast<std::size_t>(twin)]);
+            const auto convexAt = [this](VertexIndex before, VertexIndex at, VertexIndex after) {
                 return orientationSign(vertices_[static_cast<std::size_t>(before)],
                                        vertices_[static_cast<std::size_t>(at)],
                                        vertices_[static_cast<std::size_t>(after)]) >= 0;
@@ -1526,20 +1856,20 @@ struct Triangulation {
             return triangles_[static_cast<std::size_t>(h / 3)]
                 .v[static_cast<std::size_t>((h % 3 + 2) % 3)];
         };
-        const auto convexAt = [this](VertexId before, VertexId at, VertexId after) {
+        const auto convexAt = [this](VertexIndex before, VertexIndex at, VertexIndex after) {
             return orientationSign(vertices_[static_cast<std::size_t>(before)],
                                    vertices_[static_cast<std::size_t>(at)],
                                    vertices_[static_cast<std::size_t>(after)]) >= 0;
         };
 
         struct Candidate {
-            std::vector<TriId> triangles;
+            std::vector<TriIndex> triangles;
             Convex<PointType> convex;
         };
         std::vector<Candidate> candidates;
         candidates.reserve(domainTriangleCount_);
 
-        for (TriId seed = 0; seed < firstGhost_; ++seed) {
+        for (TriIndex seed = 0; seed < firstGhost_; ++seed) {
             if (!inDomain(seed)) {
                 continue;
             }
@@ -1550,10 +1880,10 @@ struct Triangulation {
             std::vector<std::int32_t> succ(halfEdgeSlots, -1);
             std::vector<std::int32_t> pred(halfEdgeSlots, -1);
             std::vector<char> fused(triangleSlots, 0);
-            std::vector<TriId> fusedTriangles{seed};
+            std::vector<TriIndex> fusedTriangles{seed};
             fused[static_cast<std::size_t>(seed)] = 1;
 
-            const auto initializeRing = [&](TriId t) {
+            const auto initializeRing = [&](TriIndex t) {
                 for (int s = 0; s < 3; ++s) {
                     const std::int32_t h = 3 * t + s;
                     const std::int32_t next = 3 * t + (s + 1) % 3;
@@ -1575,9 +1905,9 @@ struct Triangulation {
                     continue;  // removed by an earlier fusion
                 }
 
-                const TriId t = h / 3;
+                const TriIndex t = h / 3;
                 const int side = h % 3;
-                const TriId neighbor = triangles_[static_cast<std::size_t>(t)].nbr[side];
+                const TriIndex neighbor = triangles_[static_cast<std::size_t>(t)].nbr[side];
                 if (!inDomain(neighbor) || fused[static_cast<std::size_t>(neighbor)] ||
                     bit(triangles_[static_cast<std::size_t>(t)].constrainedMask, side)) {
                     continue;
@@ -1588,7 +1918,7 @@ struct Triangulation {
                 // along two edges, that count can only grow, so it need not be
                 // reconsidered.
                 int sharedEdges = 0;
-                for (const TriId adjacent :
+                for (const TriIndex adjacent :
                      triangles_[static_cast<std::size_t>(neighbor)].nbr) {
                     if (inDomain(adjacent) && fused[static_cast<std::size_t>(adjacent)]) {
                         ++sharedEdges;
@@ -1601,12 +1931,12 @@ struct Triangulation {
                 const std::int32_t twin = 3 * neighbor + findSide(neighbor, t);
                 initializeRing(neighbor);
 
-                const VertexId u = originOf(h);
-                const VertexId v = targetOf(h);
-                const VertexId p = originOf(pred[static_cast<std::size_t>(h)]);
-                const VertexId q = targetOf(succ[static_cast<std::size_t>(h)]);
-                const VertexId r = originOf(pred[static_cast<std::size_t>(twin)]);
-                const VertexId w = targetOf(succ[static_cast<std::size_t>(twin)]);
+                const VertexIndex u = originOf(h);
+                const VertexIndex v = targetOf(h);
+                const VertexIndex p = originOf(pred[static_cast<std::size_t>(h)]);
+                const VertexIndex q = targetOf(succ[static_cast<std::size_t>(h)]);
+                const VertexIndex r = originOf(pred[static_cast<std::size_t>(twin)]);
+                const VertexIndex w = targetOf(succ[static_cast<std::size_t>(twin)]);
                 if (!convexAt(p, u, w) || !convexAt(r, v, q)) {
                     // Initializing a rejected triangle must not leave a live ring.
                     for (int s = 0; s < 3; ++s) {
@@ -1679,7 +2009,7 @@ struct Triangulation {
         std::vector<std::size_t> gain(candidates.size());
         for (std::size_t c = 0; c < candidates.size(); ++c) {
             gain[c] = candidates[c].triangles.size();
-            for (const TriId t : candidates[c].triangles) {
+            for (const TriIndex t : candidates[c].triangles) {
                 coverers[static_cast<std::size_t>(t)].push_back(c);
             }
         }
@@ -1700,7 +2030,7 @@ struct Triangulation {
             assert(best != candidates.size() && bestGain != 0);
             selected[best] = 1;
             selectionOrder.push_back(best);
-            for (const TriId t : candidates[best].triangles) {
+            for (const TriIndex t : candidates[best].triangles) {
                 const std::size_t ti = static_cast<std::size_t>(t);
                 if (covered[ti]) {
                     continue;
@@ -1716,21 +2046,21 @@ struct Triangulation {
 
         std::vector<std::size_t> coverageCount(triangleSlots, 0);
         for (const std::size_t c : selectionOrder) {
-            for (const TriId t : candidates[c].triangles) {
+            for (const TriIndex t : candidates[c].triangles) {
                 ++coverageCount[static_cast<std::size_t>(t)];
             }
         }
         for (auto it = selectionOrder.rbegin(); it != selectionOrder.rend(); ++it) {
             const std::size_t c = *it;
             const bool redundant = std::ranges::all_of(
-                candidates[c].triangles, [&](TriId t) {
+                candidates[c].triangles, [&](TriIndex t) {
                     return coverageCount[static_cast<std::size_t>(t)] > 1;
                 });
             if (!redundant) {
                 continue;
             }
             selected[c] = 0;
-            for (const TriId t : candidates[c].triangles) {
+            for (const TriIndex t : candidates[c].triangles) {
                 --coverageCount[static_cast<std::size_t>(t)];
             }
         }
@@ -1768,13 +2098,15 @@ struct Triangulation {
      * re-entering the polygon through a reflex pocket simply shows a gap.
      *
      * @p f follows the visitor convention: returning `true` stops the walk
-     * early, a `void` return visits all. Returns whether it stopped early.
-     * @p s may use a different point type than the triangulation.
+     * early, a `void` return visits all. Returns whether it stopped early. As in
+     * @ref visitTriangles, an @p f that accepts only a @ref TriId is given
+     * handles instead of triangle values. @p s may use a different point type
+     * than the triangulation.
      */
     template <detail::DirectedTraversal OS, class Fn>
     bool visitTrianglesIntersecting(const OS& s, Fn f) const {
         return visitTriangleIdsIntersecting<false>(
-            s, [&](TriId t) { return detail::invokeVisitor(f, triangleValue(t)); });
+            s, [&](TriIndex t) { return reportTriangle(f, t); });
     }
 
   private:
@@ -1782,7 +2114,7 @@ struct Triangulation {
      * @brief The directed walk itself, reporting internal triangle ids.
      *
      * The public @ref visitTrianglesIntersecting is this walk with a visitor that
-     * materializes each id as a `Triangle` value. `f` takes a `TriId` and returns
+     * materializes each id as a `Triangle` value. `f` takes a `TriIndex` and returns
      * `bool` (`true` stops the walk).
      *
      * With @p AllTriangles the walk reports every real triangle it meets, the
@@ -1815,21 +2147,21 @@ struct Triangulation {
         // leaves the triangulation pristine. NOTE: because the mark lives on the
         // triangulation, the walk is not reentrant: f must not start another
         // walk on the same Triangulation.
-        std::vector<TriId> marked;
+        std::vector<TriIndex> marked;
         struct MarkClearer {
             const std::vector<Tri>& tris;
-            const std::vector<TriId>& marked;
-            ~MarkClearer() { for (TriId t : marked) tris[t].walkMark = 0; }
+            const std::vector<TriIndex>& marked;
+            ~MarkClearer() { for (TriIndex t : marked) tris[t].walkMark = 0; }
         } markClearer{triangles_, marked};
         bool stop = false;
         // The triangle the walk came from, so it never steps straight back out
         // through the edge it just crossed. Set by the entry helpers below too.
-        TriId prev = NO_TRI;
+        TriIndex prev = NO_TRI;
         // Emit a triangle to f, once. Ghost triangles are walked through for
         // navigation but never reported here, and out-of-domain (polygon
         // hull-fill) ones only under AllTriangles, so the reported set is exactly
         // the (in-domain, or all real) triangles s meets.
-        const auto emit = [&](TriId t) {
+        const auto emit = [&](TriIndex t) {
             const bool report = AllTriangles ? (t != NO_TRI && !isGhost(t)) : inDomain(t);
             if (!stop && report && !triangles_[t].walkMark) {
                 triangles_[t].walkMark = 1;
@@ -1840,7 +2172,7 @@ struct Triangulation {
         // The next triangle when rotating around vertex w, having arrived from
         // `from` (NO_TRI to start). Orientation-independent (ghost triangles are
         // not CCW-normalized): leave through the w-incident edge we didn't enter.
-        const auto rotateAround = [&](TriId cur, VertexId w, TriId from) -> TriId {
+        const auto rotateAround = [&](TriIndex cur, VertexIndex w, TriIndex from) -> TriIndex {
             const int lw = localIndex(cur, w);
             int s1 = -1, s2 = -1;
             for (int s = 0; s < 3; ++s) {
@@ -1851,12 +2183,12 @@ struct Triangulation {
             return triangles_[cur].nbr[triangles_[cur].nbr[s1] == from ? s2 : s1];
         };
         // Every real triangle of vertex w's fan (rotate around w through ghosts).
-        const auto emitFan = [&](VertexId w, TriId startTri) {
-            TriId cur = startTri, from = NO_TRI;
+        const auto emitFan = [&](VertexIndex w, TriIndex startTri) {
+            TriIndex cur = startTri, from = NO_TRI;
             std::size_t g = 0, lim = triangles_.size() + 1;
             do {
                 emit(cur);
-                const TriId next = rotateAround(cur, w, from);
+                const TriIndex next = rotateAround(cur, w, from);
                 from = cur;
                 cur = next;
             } while (cur != startTri && cur != NO_TRI && !stop && ++g < lim);
@@ -1868,7 +2200,7 @@ struct Triangulation {
         // second defining point, and beyond it "towards b" points backwards.
         // cross(w - u, b - a) is that direction's side of the edge (u,w), and the
         // triangle being CCW its interior is the positive side.
-        const auto rayEnters = [&](TriId t, const auto& p) -> int {
+        const auto rayEnters = [&](TriIndex t, const auto& p) -> int {
             const auto& v = triangles_[t].v;
             for (int k = 0; k < 3; ++k) {
                 const auto& u = vertices_[v[(k + 1) % 3]];
@@ -1883,12 +2215,12 @@ struct Triangulation {
             return 1;
         };
         // The fan triangle around w whose interior the ray w->b enters (or NO_TRI).
-        const auto forwardAround = [&](VertexId w, TriId startTri) -> TriId {
-            TriId cur = startTri, from = NO_TRI;
+        const auto forwardAround = [&](VertexIndex w, TriIndex startTri) -> TriIndex {
+            TriIndex cur = startTri, from = NO_TRI;
             std::size_t g = 0, lim = triangles_.size() + 1;
             do {
                 if (!isGhost(cur) && rayEnters(cur, vertices_[w]) == 1) return cur;
-                const TriId next = rotateAround(cur, w, from);
+                const TriIndex next = rotateAround(cur, w, from);
                 from = cur;
                 cur = next;
             } while (cur != startTri && cur != NO_TRI && ++g < lim);
@@ -1903,14 +2235,14 @@ struct Triangulation {
         const auto alongOrder = [&](const auto& p, const auto& q) {
             return dotSign(p, q, a, b);
         };
-        const auto vertexOrder = [&](VertexId u, VertexId w) {
+        const auto vertexOrder = [&](VertexIndex u, VertexIndex w) {
             return alongOrder(vertices_[u], vertices_[w]);
         };
         // From a vertex w on the segment, emit its fan and follow the segment: if
         // it enters a triangle interior return that triangle (resume the trace);
         // if it continues collinearly along an edge, hop to the next on-segment
         // vertex and repeat; return NO_TRI when the segment leaves/ends here.
-        const auto advanceFromVertex = [&](VertexId w, TriId anchor) -> TriId {
+        const auto advanceFromVertex = [&](VertexIndex w, TriIndex anchor) -> TriIndex {
             std::size_t hops = 0, lim = vertices_.size() + 1;
             while (!stop && ++hops < lim) {
                 emitFan(w, anchor);
@@ -1918,17 +2250,17 @@ struct Triangulation {
                 if constexpr (!unboundedFront) {
                     if (alongOrder(b, vertices_[w]) >= 0) return NO_TRI;  // reached the target end
                 }
-                const TriId interior = forwardAround(w, anchor);
+                const TriIndex interior = forwardAround(w, anchor);
                 if (interior != NO_TRI) return interior;
                 // Look for a forward neighbor x with edge {w,x} collinear with a->b,
                 // not past the target.
-                VertexId nextV = NO_TRI;
-                TriId nextAnchor = NO_TRI;
-                TriId cur = anchor, from = NO_TRI;
+                VertexIndex nextV = NO_TRI;
+                TriIndex nextAnchor = NO_TRI;
+                TriIndex cur = anchor, from = NO_TRI;
                 std::size_t g = 0, glim = triangles_.size() + 1;
                 do {
                     if (!isGhost(cur)) {
-                        for (VertexId y : triangles_[cur].v) {
+                        for (VertexIndex y : triangles_[cur].v) {
                             if (y != w && orientationSign(a, b, vertices_[y]) == 0 &&
                                 vertexOrder(w, y) > 0 &&
                                 (unboundedFront || alongOrder(b, vertices_[y]) <= 0)) {
@@ -1939,7 +2271,7 @@ struct Triangulation {
                         }
                     }
                     if (nextV != NO_TRI) break;
-                    const TriId next = rotateAround(cur, w, from);
+                    const TriIndex next = rotateAround(cur, w, from);
                     from = cur;
                     cur = next;
                 } while (cur != anchor && cur != NO_TRI && ++g < glim);
@@ -1954,11 +2286,11 @@ struct Triangulation {
         // into the hull (rather than exiting it). The interior lies on the side of
         // the hull edge holding the inside triangle's apex; the line enters iff its
         // forward direction a->b points toward that same side. (Line mode only.)
-        [[maybe_unused]] const auto lineEnters = [&](TriId g) -> bool {
-            const VertexId va = triangles_[g].v[0];
-            const VertexId vb = triangles_[g].v[1];
+        [[maybe_unused]] const auto lineEnters = [&](TriIndex g) -> bool {
+            const VertexIndex va = triangles_[g].v[0];
+            const VertexIndex vb = triangles_[g].v[1];
             const auto& iv = triangles_[triangles_[g].nbr[2]].v;  // inside (real) triangle
-            VertexId apex = iv[0];
+            VertexIndex apex = iv[0];
             for (int i = 1; i < 3; ++i) {
                 if (iv[i] != va && iv[i] != vb) apex = iv[i];
             }
@@ -1990,12 +2322,12 @@ struct Triangulation {
         // the triangles lining it, so that collinear edge is kept as a fallback.
         // @p g0 seeds the descent: the ghost the query's own source located, when it
         // has one, so the walk starts near its crossing and stays O(arc).
-        [[maybe_unused]] const auto lineEntry = [&](TriId g0) -> TriId {
-            TriId g = g0, crossing = NO_TRI;
+        [[maybe_unused]] const auto lineEntry = [&](TriIndex g0) -> TriIndex {
+            TriIndex g = g0, crossing = NO_TRI;
             std::size_t guard = 0, lim = triangles_.size() + 1;
             while (g != NO_TRI && isGhost(g) && ++guard < lim) {
-                const VertexId va = triangles_[g].v[0];
-                const VertexId vb = triangles_[g].v[1];
+                const VertexIndex va = triangles_[g].v[0];
+                const VertexIndex vb = triangles_[g].v[1];
                 const auto da = orientationDeterminant(a, b, vertices_[va]);
                 const auto db = orientationDeterminant(a, b, vertices_[vb]);
                 if (da == 0 || db == 0 || (da > 0) != (db > 0)) { crossing = g; break; }
@@ -2004,11 +2336,11 @@ struct Triangulation {
                 g = triangles_[g].nbr[absA < absB ? 1 : 0];
             }
             if (crossing == NO_TRI) return NO_TRI;  // the supporting line misses the hull
-            TriId h = crossing, from = NO_TRI, collinear = NO_TRI;
+            TriIndex h = crossing, from = NO_TRI, collinear = NO_TRI;
             guard = 0;
             while (h != NO_TRI && isGhost(h) && ++guard < lim) {
-                const VertexId va = triangles_[h].v[0];
-                const VertexId vb = triangles_[h].v[1];
+                const VertexIndex va = triangles_[h].v[0];
+                const VertexIndex vb = triangles_[h].v[1];
                 const auto da = orientationDeterminant(a, b, vertices_[va]);
                 const auto db = orientationDeterminant(a, b, vertices_[vb]);
                 const bool straddle = da == 0 || db == 0 || (da > 0) != (db > 0);
@@ -2017,7 +2349,7 @@ struct Triangulation {
                 } else if (straddle && lineEnters(h)) {
                     return h;
                 }
-                const TriId next = triangles_[h].nbr[0] == from ? triangles_[h].nbr[1]
+                const TriIndex next = triangles_[h].nbr[0] == from ? triangles_[h].nbr[1]
                                                                 : triangles_[h].nbr[0];
                 from = h;
                 h = next;
@@ -2034,31 +2366,31 @@ struct Triangulation {
         // like any other on-vertex advance (fan, then follow), which is also what
         // makes the entry independent of which of the vertex's two ghosts was found.
         // Otherwise it simply enters the triangle just inside the edge.
-        [[maybe_unused]] const auto enterThroughGhost = [&](TriId g) -> TriId {
-            const VertexId va = triangles_[g].v[0];
-            const VertexId vb = triangles_[g].v[1];
+        [[maybe_unused]] const auto enterThroughGhost = [&](TriIndex g) -> TriIndex {
+            const VertexIndex va = triangles_[g].v[0];
+            const VertexIndex vb = triangles_[g].v[1];
             const bool onA = orientationSign(a, b, vertices_[va]) == 0;
             const bool onB = orientationSign(a, b, vertices_[vb]) == 0;
             if (onA || onB) {
-                VertexId w = onA ? va : vb;
+                VertexIndex w = onA ? va : vb;
                 if (onA && onB) {
                     // Along the hull edge: start at the endpoint met first, never at
                     // one behind a finite source.
-                    const VertexId first = vertexOrder(va, vb) >= 0 ? va : vb;
-                    const VertexId second = (first == va) ? vb : va;
+                    const VertexIndex first = vertexOrder(va, vb) >= 0 ? va : vb;
+                    const VertexIndex second = (first == va) ? vb : va;
                     w = (unboundedBack || alongOrder(a, vertices_[first]) >= 0) ? first : second;
                 }
                 prev = NO_TRI;
                 return advanceFromVertex(w, g);
             }
             prev = g;  // entry boundary edge; don't step back out through it
-            const TriId inside = triangles_[g].nbr[2];
+            const TriIndex inside = triangles_[g].nbr[2];
             return (inside != NO_TRI && !isGhost(inside)) ? inside : NO_TRI;
         };
 
         // Pick the triangle to begin tracing the component reached at `start`,
         // which contains point `p`; visit p's contact triangles along the way.
-        [[maybe_unused]] const auto enterAt = [&](const auto& p, TriId start) -> TriId {
+        [[maybe_unused]] const auto enterAt = [&](const auto& p, TriIndex start) -> TriIndex {
             const auto& v = triangles_[start].v;
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
@@ -2071,13 +2403,13 @@ struct Triangulation {
                 return advanceFromVertex(v[3 - z0 - z1], start);
             }
             if (zeros == 1) {  // p on an edge: visit both sides, continue into the forward one
-                const TriId other = triangles_[start].nbr[z0];
+                const TriIndex other = triangles_[start].nbr[z0];
                 emit(start);
                 emit(other);
                 if (rayEnters(start, p) == 1) return start;
                 if (other != NO_TRI && !isGhost(other) && rayEnters(other, p) == 1) return other;
-                const VertexId e1 = v[(z0 + 1) % 3];
-                const VertexId e2 = v[(z0 + 2) % 3];
+                const VertexIndex e1 = v[(z0 + 1) % 3];
+                const VertexIndex e2 = v[(z0 + 2) % 3];
                 // Continue only if the segment runs ALONG the shared edge (hop to
                 // its forward endpoint). Otherwise the segment crosses the edge
                 // into the other side already emitted — if that side is outside
@@ -2085,7 +2417,7 @@ struct Triangulation {
                 if (orientationSign(vertices_[e1], vertices_[e2], b) != 0) {
                     return NO_TRI;
                 }
-                const VertexId fwd = vertexOrder(e2, e1) > 0 ? e1 : e2;
+                const VertexIndex fwd = vertexOrder(e2, e1) > 0 ? e1 : e2;
                 if constexpr (!unboundedFront) {
                     // The target lies strictly inside this edge: s stops before the
                     // forward endpoint, so its fan must not be visited. The two
@@ -2105,7 +2437,7 @@ struct Triangulation {
         // on, or the whole fan if b is a mesh vertex — then the walk ends. (Unlike
         // enterAt, this never continues, so it cannot over-emit a vertex fan when
         // b merely lies on an edge.)
-        [[maybe_unused]] const auto emitTargetContacts = [&](TriId t) {
+        [[maybe_unused]] const auto emitTargetContacts = [&](TriIndex t) {
             const auto& v = triangles_[t].v;
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
@@ -2124,18 +2456,18 @@ struct Triangulation {
             }
         };
 
-        TriId t;
+        TriIndex t;
         if constexpr (unboundedBack) {
             // A line has no finite source: enter the hull at the ghost where the
             // directed line a->b crosses in, then trace forward like a segment. With
             // no source to locate, the descent starts at an arbitrary ghost.
-            const TriId g = lineEntry(firstGhost_);
+            const TriIndex g = lineEntry(firstGhost_);
             if (g == NO_TRI) {
                 return false;  // the line misses the triangulated region
             }
             t = enterThroughGhost(g);
         } else {
-            t = locateId(a);
+            t = locateIndex(a);
             if (t == NO_TRI) {
                 return false;  // empty triangulation
             }
@@ -2145,7 +2477,7 @@ struct Triangulation {
                 // a segment and a ray no less than for a line — and the query must
                 // then actually reach that edge to meet the region at all. The ghost
                 // the source landed in seeds the descent, keeping it O(arc).
-                const TriId g = lineEntry(t);
+                const TriIndex g = lineEntry(t);
                 if (g == NO_TRI || !s.intersects(edgeSegment(Edge{g, 2}))) {
                     return false;  // s never meets the triangulated region
                 }
@@ -2271,11 +2603,16 @@ struct Triangulation {
      */
     template <detail::TriangulationQuery OS, class Fn>
     bool visitTrianglesInteriorIntersecting(const OS& s, Fn f) const {
-        return visitTrianglesIntersecting(s, [&](const TriangleType& t) -> bool {
-            if (t.interiorsIntersect(s)) {
-                return detail::invokeVisitor(f, t);
+        return visitTrianglesIntersecting(s, [&](TriId id) -> bool {
+            const TriangleType t = triangleValue(indexOf(id));
+            if (!t.interiorsIntersect(s)) {
+                return false;  // only boundary contact: skip, but keep walking
             }
-            return false;  // only boundary contact: skip, but keep walking
+            if constexpr (std::is_invocable_v<Fn&, const TriangleType&>) {
+                return detail::invokeVisitor(f, t);
+            } else {
+                return detail::invokeVisitor(f, id);
+            }
         });
     }
 
@@ -2438,10 +2775,10 @@ struct Triangulation {
     template <detail::TriangulationRegionQuery Q, class Fn>
     bool visitTrianglesIntersecting(const Q& shape, Fn f) const {
         if (firstGhost_ == 0) return false;  // no real triangles
-        const std::vector<TriId> seeds = seedTrianglesIntersecting(shape);
+        const std::vector<TriIndex> seeds = seedTrianglesIntersecting(shape);
         if (seeds.empty()) return false;
         return floodTriangleIdsIntersecting<false>(
-            shape, seeds, [&](TriId t) { return detail::invokeVisitor(f, triangleValue(t)); });
+            shape, seeds, [&](TriIndex t) { return reportTriangle(f, t); });
     }
 
     // The materialized form — trianglesIntersecting(shape) — and the
@@ -2483,14 +2820,14 @@ struct Triangulation {
         // Triangles already reported, so an edge re-entering a triangle an
         // earlier edge met does not report it again (the per-edge walks each
         // deduplicate only within themselves).
-        std::unordered_set<TriangleType> seen;
+        std::unordered_set<TriId> seen;
         bool stop = false;
         for (const auto& e : c.orientedEdgesView()) {
-            visitTrianglesIntersecting(e, [&](const TriangleType& t) -> bool {
+            visitTrianglesIntersecting(e, [&](TriId t) -> bool {
                 if (!seen.insert(t).second) {
                     return false;  // already reported by an earlier edge
                 }
-                stop = detail::invokeVisitor(f, t);
+                stop = reportTriangle(f, indexOf(t));
                 return stop;
             });
             if (stop) {
@@ -2520,10 +2857,10 @@ struct Triangulation {
     template <PointConcept QueryPoint>
     [[nodiscard]] std::optional<TriangleType> locate(const QueryPoint& p) const {
         const TriId id = locateId(p);
-        if (!inDomain(id)) {
+        if (!id.valid()) {
             return std::nullopt;  // outside the region, or in a hull-fill triangle
         }
-        return triangleValue(id);
+        return getShape(id);
     }
 
     // ---- predicates against the domain -----------------------------------
@@ -2581,7 +2918,7 @@ struct Triangulation {
         // touching a fill triangle (along a boundary edge, or at a boundary vertex
         // whose fan the walk sweeps) is not an escape: the boundary belongs to the
         // domain.
-        return !visitTriangleIdsIntersecting<true>(shape, [&](TriId t) {
+        return !visitTriangleIdsIntersecting<true>(shape, [&](TriIndex t) {
             if (isGhost(t)) {
                 return true;  // (c)
             }
@@ -2700,12 +3037,12 @@ struct Triangulation {
         // that the open disk actually reach inside: a disk resting against the
         // boundary from the outside, meeting the domain in a single point, escapes
         // through no triangle and no edge, and is still not contained.
-        const std::vector<TriId> seeds = seedTrianglesIntersecting(shape);
+        const std::vector<TriIndex> seeds = seedTrianglesIntersecting(shape);
         if (seeds.empty()) {
             return false;  // the disk misses the triangulated region entirely
         }
         bool reachesInside = false;
-        const bool escapes = floodTriangleIdsIntersecting<true>(shape, seeds, [&](TriId t) {
+        const bool escapes = floodTriangleIdsIntersecting<true>(shape, seeds, [&](TriIndex t) {
             const TriangleType triangle = triangleValue(t);
             if (triangle.interiorsIntersect(shape)) {
                 if (!inDomain(t)) {
@@ -2772,7 +3109,7 @@ struct Triangulation {
             }
         }
         return anyDomainComponent(
-            [&](TriId t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
+            [&](TriIndex t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
     }
 
     /** @overload */
@@ -2787,7 +3124,7 @@ struct Triangulation {
             }
         }
         return anyDomainComponent(
-            [&](TriId t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
+            [&](TriIndex t) { return shape.contains(vertices_[triangles_[t].v[0]]); });
     }
 
     /** @overload */
@@ -2804,7 +3141,7 @@ struct Triangulation {
     /** @overload */
     template <HalfplaneIntersectionConcept Q>
     [[nodiscard]] bool intersects(const Q& shape) const {
-        for (TriId t = 0; t < static_cast<TriId>(triangles_.size()); ++t) {
+        for (TriIndex t = 0; t < static_cast<TriIndex>(triangles_.size()); ++t) {
             if (inDomain(t) && shape.intersects(triangleValue(t))) {
                 return true;
             }
@@ -2962,7 +3299,7 @@ struct Triangulation {
             }
         }
         return anyDomainComponent(
-            [&](TriId t) { return shape.interiorsIntersect(triangleValue(t)); });
+            [&](TriIndex t) { return shape.interiorsIntersect(triangleValue(t)); });
     }
 
     /** @overload */
@@ -2977,7 +3314,7 @@ struct Triangulation {
             }
         }
         return anyDomainComponent(
-            [&](TriId t) { return shape.interiorsIntersect(triangleValue(t)); });
+            [&](TriIndex t) { return shape.interiorsIntersect(triangleValue(t)); });
     }
 
     /** @overload */
@@ -2994,7 +3331,7 @@ struct Triangulation {
     /** @overload */
     template <HalfplaneIntersectionConcept Q>
     [[nodiscard]] bool interiorsIntersect(const Q& shape) const {
-        for (TriId t = 0; t < static_cast<TriId>(triangles_.size()); ++t) {
+        for (TriIndex t = 0; t < static_cast<TriIndex>(triangles_.size()); ++t) {
             if (inDomain(t) && triangleValue(t).interiorsIntersect(shape)) {
                 return true;
             }
@@ -3053,7 +3390,7 @@ struct Triangulation {
     template <class L = TriangleLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] L& label(const TriangleType& t) {
-        const TriId id = idOf(t);
+        const TriIndex id = idOf(t);
         assert(inDomain(id) && "label(): triangle is not part of the triangulation");
         return triangles_[id].triLabel;
     }
@@ -3062,7 +3399,7 @@ struct Triangulation {
     template <class L = TriangleLabel>
         requires(detail::has_label_v<L>)
     [[nodiscard]] const L& label(const TriangleType& t) const {
-        const TriId id = idOf(t);
+        const TriIndex id = idOf(t);
         assert(inDomain(id) && "label(): triangle is not part of the triangulation");
         return triangles_[id].triLabel;
     }
@@ -3123,8 +3460,8 @@ struct Triangulation {
         if (!flippableEdge(e)) {
             return std::nullopt;
         }
-        const TriId t = e.tri;
-        const TriId t2 = mirror(e).tri;
+        const TriIndex t = e.tri;
+        const TriIndex t2 = mirror(e).tri;
         flipEdge(e);
         // The shared edge is gone; re-register the six sides of the two
         // rewritten triangles (the four surrounding edges get fresh handles and
@@ -3150,7 +3487,7 @@ struct Triangulation {
     template <class EdgeRange>
         requires SegmentConcept<typename EdgeRange::value_type>
     [[nodiscard]] bool flippable(const EdgeRange& edges) const {
-        std::unordered_set<TriId> claimed;  // triangles already covered by some quad
+        std::unordered_set<TriIndex> claimed;  // triangles already covered by some quad
         for (const auto& s : edges) {
             const auto se = segToEdge_.find(SegmentType(s[0], s[1]));
             if (se == segToEdge_.end() || !flippableEdge(se->second)) {
@@ -3252,7 +3589,7 @@ struct Triangulation {
         // The suspect edges are the new vertex's link: the side opposite vp in
         // every real triangle of its fan.
         std::vector<SegmentType> suspect;
-        visitVertexFan(start, vp, [&](TriId cur) {
+        visitVertexFan(start, vp, [&](TriIndex cur) {
             if (!isGhost(cur)) {
                 suspect.push_back(
                     edgeSegment(Edge{cur, static_cast<std::int8_t>(localIndex(cur, vp))}));
@@ -3269,14 +3606,14 @@ struct Triangulation {
      * Intended for debug assertions.
      */
     [[nodiscard]] bool checkInvariants() const {
-        for (TriId t = 0; t < static_cast<TriId>(triangles_.size()); ++t) {
+        for (TriIndex t = 0; t < static_cast<TriIndex>(triangles_.size()); ++t) {
             const auto& T = triangles_[t];
             if (!isGhost(t) &&
                 !(orientationSign(vertices_[T.v[0]], vertices_[T.v[1]], vertices_[T.v[2]]) > 0)) {
                 return false;
             }
             for (int i = 0; i < 3; ++i) {
-                const TriId t2 = T.nbr[i];
+                const TriIndex t2 = T.nbr[i];
                 if (t2 == NO_TRI) {
                     continue;
                 }
@@ -3289,10 +3626,10 @@ struct Triangulation {
                 if (j < 0) {
                     return false;  // link not mutual
                 }
-                const VertexId a = T.v[(i + 1) % 3];
-                const VertexId b = T.v[(i + 2) % 3];
-                const VertexId c = triangles_[t2].v[(j + 1) % 3];
-                const VertexId d = triangles_[t2].v[(j + 2) % 3];
+                const VertexIndex a = T.v[(i + 1) % 3];
+                const VertexIndex b = T.v[(i + 2) % 3];
+                const VertexIndex c = triangles_[t2].v[(j + 1) % 3];
+                const VertexIndex d = triangles_[t2].v[(j + 2) % 3];
                 if (!((a == c && b == d) || (a == d && b == c))) {
                     return false;  // links disagree on the shared edge
                 }
@@ -3317,15 +3654,16 @@ struct Triangulation {
   private:
     // ---- internal vocabulary (never exposed) -----------------------------
 
-    using VertexId = std::int32_t;  // index into vertices_
-    using TriId = std::int32_t;     // index into triangles_
-    static constexpr TriId NO_TRI = -1;
+    using VertexIndex = std::int32_t;  // index into vertices_
+    using TriIndex = std::int32_t;     // index into triangles_
+    static constexpr TriIndex NO_TRI = -1;
+    static constexpr VertexIndex NO_VERTEX = -1;
 
     // A directed reference to one side of one triangle: `side` selects the edge
     // opposite vertex `side`, i.e. { v[(side+1)%3], v[(side+2)%3] }. As the value
     // stored in segToEdge_ it also carries that edge's label.
     struct Edge {
-        TriId tri = NO_TRI;
+        TriIndex tri = NO_TRI;
         std::int8_t side = 0;
         [[no_unique_address]] SegmentLabel segLabel{};
     };
@@ -3337,8 +3675,8 @@ struct Triangulation {
     // set; always cleared again before that const method returns), and the
     // label. `walkMark` is mutable because the walk is a const query.
     struct Tri {
-        std::array<VertexId, 3> v{NO_TRI, NO_TRI, NO_TRI};
-        std::array<TriId, 3> nbr{NO_TRI, NO_TRI, NO_TRI};
+        std::array<VertexIndex, 3> v{NO_TRI, NO_TRI, NO_TRI};
+        std::array<TriIndex, 3> nbr{NO_TRI, NO_TRI, NO_TRI};
         std::uint8_t constrainedMask = 0;
         std::uint8_t outOfDomain = 0;
         mutable std::uint8_t walkMark = 0;
@@ -3355,19 +3693,127 @@ struct Triangulation {
     // closed boundary drawn inside such a domain can enclose a hole, which the
     // boundary alone never reveals, so the region queries consult these.
     std::vector<TriangleType> holeWitnesses_;
-    // One real triangle incident to each vertex, indexed by VertexId — the seed
+    // One real triangle incident to each vertex, indexed by VertexIndex — the seed
     // a fan rotation needs to reach a vertex's neighbourhood without scanning
     // every triangle. Only a *hint*: it is refreshed by registerSides and
     // verified by incidentTriangleOf, so an entry left stale by an edit that
     // does not re-register costs a fallback, never an answer.
-    std::vector<TriId> vertexTri_;
-    static constexpr VertexId GHOST = 0;  // index of the ghost vertex
-    TriId firstGhost_ = 0;             // first ghost triangle index
+    std::vector<TriIndex> vertexTri_;
+    static constexpr VertexIndex GHOST = 0;  // index of the ghost vertex
+    TriIndex firstGhost_ = 0;             // first ghost triangle index
     std::size_t domainTriangleCount_ = 0;  // in-domain real triangles (<= firstGhost_)
-    mutable TriId hint_ = NO_TRI;      // last located triangle (walk seed)
-    mutable std::mt19937 rng_;         // drives the stochastic walk in locateId
+    mutable TriIndex hint_ = NO_TRI;      // last located triangle (walk seed)
+    mutable std::mt19937 rng_;         // drives the stochastic walk in locateIndex
 
     // ---- small helpers ---------------------------------------------------
+
+    // ---- handles <-> internal indices ------------------------------------
+
+    // The public handle for an internal index, and back. An invalid handle
+    // holds ~0u, which is exactly NO_TRI / NO_VERTEX read as unsigned, so both
+    // directions are the plain cast and the invalid handle needs no special
+    // case. A handle a caller made up out of range survives the round trip
+    // unchanged and is then rejected by realTriangle / realVertex / inDomain.
+    static constexpr TriId triHandle(TriIndex t) {
+        return TriId(static_cast<std::uint32_t>(t));
+    }
+    static constexpr VertexId vertexHandle(VertexIndex v) {
+        return VertexId(static_cast<std::uint32_t>(v));
+    }
+    static constexpr TriIndex indexOf(TriId t) { return static_cast<TriIndex>(t.index()); }
+    static constexpr VertexIndex indexOf(VertexId v) {
+        return static_cast<VertexIndex>(v.index());
+    }
+
+    // Position within the stored triple of the vertex the public vertex order
+    // starts at. The stored order is counterclockwise but starts anywhere;
+    // rotating it onto the lexicographically smallest vertex is exactly what the
+    // Triangle constructor does to the same three points, so the public order is
+    // the one triangleValue() reports.
+    [[nodiscard]] int firstVertex(TriIndex t) const {
+        const auto& v = triangles_[static_cast<std::size_t>(t)].v;
+        int first = 0;
+        for (int i = 1; i < 3; ++i) {
+            if (vertices_[static_cast<std::size_t>(v[i])] <
+                vertices_[static_cast<std::size_t>(v[first])]) {
+                first = i;
+            }
+        }
+        return first;
+    }
+
+    // The stored side index of public side `side`: the public sides follow the
+    // public vertex order (side i joins public vertices i and i+1, as
+    // Triangle::edges does), while a stored side is the one *opposite* its
+    // vertex, which is the third one.
+    [[nodiscard]] int internalSide(TriIndex t, int side) const {
+        return (firstVertex(t) + side + 2) % 3;
+    }
+
+    // True if the index refers to a stored real (non-ghost) triangle, whether
+    // in the domain or a hull-fill one outside it.
+    [[nodiscard]] bool realTriangle(TriIndex t) const { return t >= 0 && t < firstGhost_; }
+
+    // True if the index refers to a stored vertex other than the ghost.
+    [[nodiscard]] bool realVertex(VertexIndex v) const {
+        return v > GHOST && static_cast<std::size_t>(v) < vertices_.size();
+    }
+
+    // Hands one triangle to a user visitor: a callable that accepts a Triangle
+    // gets the value, one that accepts only a TriId gets the handle (a generic
+    // callable accepts both and gets the value). Every triangle visitor of the
+    // public interface reports through here, so the rule is the same for all.
+    template <class Fn>
+    bool reportTriangle(Fn& f, TriIndex t) const {
+        if constexpr (std::is_invocable_v<Fn&, const TriangleType&>) {
+            return detail::invokeVisitor(f, triangleValue(t));
+        } else {
+            return detail::invokeVisitor(f, triHandle(t));
+        }
+    }
+
+    // The triangle values of a list of handles, in the same order.
+    [[nodiscard]] std::vector<TriangleType> trianglesOf(const std::vector<TriId>& ids) const {
+        std::vector<TriangleType> out;
+        out.reserve(ids.size());
+        for (const TriId id : ids) {
+            out.push_back(triangleValue(indexOf(id)));
+        }
+        return out;
+    }
+
+    // The vertex p is stored as, or NO_VERTEX when p is not a vertex of the
+    // triangulation (or lies outside the hull): locate p, then match it against
+    // the vertices of the triangle found.
+    [[nodiscard]] VertexIndex vertexIndexAt(const PointType& p) const {
+        const TriIndex start = locateIndex(p);
+        if (start == NO_TRI || isGhost(start)) {
+            return NO_VERTEX;  // empty triangulation, or p outside the hull
+        }
+        const auto& sv = triangles_[start].v;
+        for (int i = 0; i < 3; ++i) {
+            if (vertices_[sv[i]] == p) {
+                return sv[i];
+            }
+        }
+        return NO_VERTEX;
+    }
+
+    // A real triangle of vertex w's fan, or NO_TRI when w carries none. The
+    // per-vertex hint answers in O(1) when it still holds; a hint left stale by
+    // an edit that did not re-register falls back on locating w's position.
+    [[nodiscard]] TriIndex fanSeedOf(VertexIndex w) const {
+        const TriIndex hinted = incidentTriangleOf(w);
+        if (hinted != NO_TRI) {
+            return hinted;
+        }
+        const TriIndex start = locateIndex(vertices_[static_cast<std::size_t>(w)]);
+        if (start == NO_TRI) {
+            return NO_TRI;
+        }
+        const auto& v = triangles_[start].v;
+        return (v[0] == w || v[1] == w || v[2] == w) ? start : NO_TRI;
+    }
 
     // Reads bit `i` of a 3-bit edge mask (e.g. constrainedMask).
     static constexpr bool bit(std::uint8_t mask, int i) { return (mask >> i) & 1; }
@@ -3381,13 +3827,13 @@ struct Triangulation {
     }
 
     // True if t is one of the boundary-closing ghost triangles (stored last).
-    [[nodiscard]] bool isGhost(TriId t) const { return t >= firstGhost_; }
+    [[nodiscard]] bool isGhost(TriIndex t) const { return t >= firstGhost_; }
 
     // A real triangle that is part of the visible triangulation: not a ghost and
     // not a hull-fill triangle outside a polygon's boundary. The public view
     // (sizes, navigation, locate) speaks only of in-domain triangles, while the
     // internal walks still traverse every real triangle, including fill ones.
-    [[nodiscard]] bool inDomain(TriId t) const {
+    [[nodiscard]] bool inDomain(TriIndex t) const {
         return t != NO_TRI && t < firstGhost_ && !triangles_[t].outOfDomain;
     }
 
@@ -3395,7 +3841,7 @@ struct Triangulation {
 
     // True if side `s` of in-domain triangle `t` stops sight: a constrained edge
     // is an opaque wall, and so is the boundary of the domain.
-    [[nodiscard]] bool blocksVisibility(TriId t, int s) const {
+    [[nodiscard]] bool blocksVisibility(TriIndex t, int s) const {
         return bit(triangles_[t].constrainedMask, s) || !inDomain(triangles_[t].nbr[s]);
     }
 
@@ -3406,10 +3852,10 @@ struct Triangulation {
     // coordinate is ever constructed. The crossed edge runs from its clockwise
     // end `tri.v[(side+1)%3]` to its counterclockwise end `tri.v[(side+2)%3]`.
     struct VisibilityCone {
-        TriId tri;
+        TriIndex tri;
         std::int8_t side;
-        VertexId right;
-        VertexId left;
+        VertexIndex right;
+        VertexIndex left;
     };
 
     // Where an expansion starts from a query point: the cones covering the
@@ -3421,7 +3867,7 @@ struct Triangulation {
     // through the interior.
     struct VisibilitySeeds {
         std::vector<VisibilityCone> cones;
-        std::vector<std::pair<VertexId, bool>> direct;
+        std::vector<std::pair<VertexIndex, bool>> direct;
         std::vector<std::size_t> arcs;  // index into `cones` where each arc opens
         bool located = false;           // the query point lies in the domain
         bool fullTurn = false;          // one arc, covering every direction
@@ -3430,13 +3876,13 @@ struct Triangulation {
     [[nodiscard]] VisibilitySeeds visibilitySeeds(const PointType& query) const;
 
     // An in-domain triangle whose closure holds `query`, starting from the
-    // triangle `start` that locateId stopped at. That walk may stop on a ghost or
+    // triangle `start` that locateIndex stopped at. That walk may stop on a ghost or
     // a hull-fill triangle when the query sits on the domain boundary — which
     // every polygon vertex does — so a boundary query needs this to find the
     // triangle it belongs to. NO_TRI when the query really is outside.
-    [[nodiscard]] TriId inDomainTriangleAt(const PointType& query, TriId start) const;
+    [[nodiscard]] TriIndex inDomainTriangleAt(const PointType& query, TriIndex start) const;
 
-    // Drains the open-cone expansion of `start`, calling onVertex(VertexId) for
+    // Drains the open-cone expansion of `start`, calling onVertex(VertexIndex) for
     // each clearly visible vertex met and onBlocked(VisibilityCone) for each
     // blocking edge a cone runs into. Leaves come out counterclockwise, which is
     // what lets regularizedVisiblePolygon assemble its ring without sorting.
@@ -3449,38 +3895,38 @@ struct Triangulation {
     // The vertices clearly visible from `query`, by id. `grazing` selects whether
     // the seeds reached along the boundary come too, which is what separates
     // visibleVertices from clearlyVisibleVertices.
-    [[nodiscard]] std::vector<VertexId> visibleIds(const PointType& query,
+    [[nodiscard]] std::vector<VertexIndex> visibleIds(const PointType& query,
                                                    const VisibilitySeeds& seeds,
                                                    bool grazing) const;
 
     // Clear-visibility adjacency indexed by vertex id (slot GHOST stays empty),
     // built by one triangular expansion per vertex.
-    [[nodiscard]] std::vector<std::vector<VertexId>> clearVisibleAdjacency() const;
+    [[nodiscard]] std::vector<std::vector<VertexIndex>> clearVisibleAdjacency() const;
 
     // clearVisibleAdjacency plus the mesh's own blocking edges — together the
     // pairs that see each other with no vertex in between — closed along
     // collinear chains, which is the full visibility relation.
-    [[nodiscard]] std::vector<std::vector<VertexId>> visibleAdjacency() const;
+    [[nodiscard]] std::vector<std::vector<VertexIndex>> visibleAdjacency() const;
 
     // The other endpoint of every wall incident to each vertex, indexed by
     // vertex id. Drives the tangency test of reducedVisibilityGraph.
-    [[nodiscard]] std::vector<std::vector<VertexId>> wallNeighbors() const;
+    [[nodiscard]] std::vector<std::vector<VertexIndex>> wallNeighbors() const;
 
     // Whether some line through vertex `m` stays in the domain on both sides of
     // it, so that a visibility segment can pass straight through. Only a
     // strictly convex corner of the domain fails. Deciding whether the collinear
     // closure need look at `m` at all, it is allowed to answer optimistically —
     // never the other way round.
-    [[nodiscard]] bool passesThrough(VertexId m) const;
+    [[nodiscard]] bool passesThrough(VertexIndex m) const;
 
     // The next mesh vertex met by the ray leaving `current` in the direction
     // `current - tail`, when the segment reaching it stays in the domain and
     // crosses no wall; GHOST when the ray leaves the domain first. `tail` is a
     // point rather than a vertex so a chain can start at a query point.
-    [[nodiscard]] VertexId nextVertexAlongRay(const PointType& tail, VertexId current) const;
+    [[nodiscard]] VertexIndex nextVertexAlongRay(const PointType& tail, VertexIndex current) const;
 
     // Side of triangle x whose neighbor is `target` (x shares <=1 edge with it).
-    [[nodiscard]] std::int8_t findSide(TriId x, TriId target) const {
+    [[nodiscard]] std::int8_t findSide(TriIndex x, TriIndex target) const {
         const auto& n = triangles_[x].nbr;
         return static_cast<std::int8_t>(n[0] == target ? 0 : (n[1] == target ? 1 : 2));
     }
@@ -3565,18 +4011,18 @@ struct Triangulation {
     // Only vertices of the *other* rings can obstruct an edge — a ring is simple,
     // so a vertex of its own inside one of its edges would be a self-crossing —
     // but scanning all of @p candidates is simpler and costs the same test.
-    std::vector<VertexId> expandRing(const std::vector<VertexId>& ring,
-                                     const std::vector<VertexId>& candidates) const {
-        std::vector<VertexId> expanded;
+    std::vector<VertexIndex> expandRing(const std::vector<VertexIndex>& ring,
+                                     const std::vector<VertexIndex>& candidates) const {
+        std::vector<VertexIndex> expanded;
         expanded.reserve(ring.size());
-        std::vector<VertexId> onEdge;
+        std::vector<VertexIndex> onEdge;
         for (std::size_t i = 0; i < ring.size(); ++i) {
-            const VertexId a = ring[i];
-            const VertexId b = ring[(i + 1) % ring.size()];
+            const VertexIndex a = ring[i];
+            const VertexIndex b = ring[(i + 1) % ring.size()];
             expanded.push_back(a);
             const SegmentType edge(vertices_[a], vertices_[b]);
             onEdge.clear();
-            for (const VertexId v : candidates) {
+            for (const VertexIndex v : candidates) {
                 if (v != a && v != b && edge.contains(vertices_[v])) {
                     onEdge.push_back(v);
                 }
@@ -3587,7 +4033,7 @@ struct Triangulation {
             // The obstructing vertices are collinear with the edge, so ordering
             // them lexicographically orders them along it, forward or backward.
             std::sort(onEdge.begin(), onEdge.end(),
-                      [this](VertexId p, VertexId q) { return vertices_[p] < vertices_[q]; });
+                      [this](VertexIndex p, VertexIndex q) { return vertices_[p] < vertices_[q]; });
             if (vertices_[b] < vertices_[a]) {
                 std::reverse(onEdge.begin(), onEdge.end());
             }
@@ -3600,7 +4046,7 @@ struct Triangulation {
     // that edge is not in the triangulation. Triangle vertices are stored
     // counterclockwise and side s spans v[s+1] -> v[s+2], so the triangle
     // carrying the edge in that direction is the one on its left.
-    [[nodiscard]] TriId triangleLeftOf(VertexId a, VertexId b) const {
+    [[nodiscard]] TriIndex triangleLeftOf(VertexIndex a, VertexIndex b) const {
         const auto it = segToEdge_.find(SegmentType(vertices_[a], vertices_[b]));
         if (it == segToEdge_.end()) {
             return NO_TRI;
@@ -3620,7 +4066,7 @@ struct Triangulation {
     // The same edge seen from the triangle on its other side (an invalid Edge if
     // there is none). mirror(e).tri is the neighbor across e.
     [[nodiscard]] Edge mirror(Edge e) const {
-        const TriId t2 = triangles_[e.tri].nbr[e.side];
+        const TriIndex t2 = triangles_[e.tri].nbr[e.side];
         if (t2 == NO_TRI) {
             return Edge{NO_TRI, 0};
         }
@@ -3628,7 +4074,7 @@ struct Triangulation {
     }
 
     // Materializes triangle t as a public Triangle value (with its label, if any).
-    [[nodiscard]] TriangleType triangleValue(TriId t) const {
+    [[nodiscard]] TriangleType triangleValue(TriIndex t) const {
         const auto& T = triangles_[t];
         TriangleType tri(vertices_[T.v[0]], vertices_[T.v[1]], vertices_[T.v[2]]);
         // Activates automatically once pgl::Triangle gains a mutable label():
@@ -3663,7 +4109,7 @@ struct Triangulation {
 
     // Resolves a public Triangle to its internal id, or NO_TRI if absent: look
     // up one of its edges, then pick the incident side whose apex matches t.
-    [[nodiscard]] TriId idOf(const TriangleType& t) const {
+    [[nodiscard]] TriIndex idOf(const TriangleType& t) const {
         const auto edges = t.edges();
         auto se = segToEdge_.find(edges[0]);
         if (se == segToEdge_.end()) {
@@ -3684,7 +4130,7 @@ struct Triangulation {
     // True if p lies in the closed triangle t (interior or boundary). Assumes t
     // is CCW; @p p may use a different point type.
     template <class QueryPoint>
-    [[nodiscard]] bool pointInClosure(const QueryPoint& p, TriId t) const {
+    [[nodiscard]] bool pointInClosure(const QueryPoint& p, TriIndex t) const {
         const auto& v = triangles_[t].v;
         return orientationSign(vertices_[v[0]], vertices_[v[1]], p) >= 0 &&
                orientationSign(vertices_[v[1]], vertices_[v[2]], p) >= 0 &&
@@ -3692,7 +4138,7 @@ struct Triangulation {
     }
 
     // Position (0,1,2) of vertex w within triangle t.
-    [[nodiscard]] int localIndex(TriId t, VertexId w) const {
+    [[nodiscard]] int localIndex(TriIndex t, VertexIndex w) const {
         const auto& v = triangles_[t].v;
         return v[0] == w ? 0 : (v[1] == w ? 1 : 2);
     }
@@ -3702,7 +4148,7 @@ struct Triangulation {
     // did not enter. Orientation-independent (ghosts are not CCW-normalized), so
     // it steps through the ghost triangles of w's fan as well. Mirrors the lambda
     // in the segment walk; shared by the region flood fill.
-    [[nodiscard]] TriId rotateAroundVertex(TriId cur, VertexId w, TriId from) const {
+    [[nodiscard]] TriIndex rotateAroundVertex(TriIndex cur, VertexIndex w, TriIndex from) const {
         const int lw = localIndex(cur, w);
         int s1 = -1, s2 = -1;
         for (int s = 0; s < 3; ++s) {
@@ -3713,32 +4159,32 @@ struct Triangulation {
         return triangles_[cur].nbr[triangles_[cur].nbr[s1] == from ? s2 : s1];
     }
 
-    // Calls fn(TriId) on every triangle of vertex w's fan, in rotational order
+    // Calls fn(TriIndex) on every triangle of vertex w's fan, in rotational order
     // starting from `start` (which must have w as a vertex). The rotation steps
     // through ghost and fill triangles too — that is what closes the ring — so
     // fn also sees those and must filter with inDomain if it wants only visible
     // triangles.
     template <class Fn>
-    void visitVertexFan(TriId start, VertexId w, Fn fn) const {
-        TriId cur = start, from = NO_TRI;
+    void visitVertexFan(TriIndex start, VertexIndex w, Fn fn) const {
+        TriIndex cur = start, from = NO_TRI;
         std::size_t g = 0, lim = triangles_.size() + 1;
         do {
             fn(cur);
-            const TriId next = rotateAroundVertex(cur, w, from);
+            const TriIndex next = rotateAroundVertex(cur, w, from);
             from = cur;
             cur = next;
         } while (cur != start && cur != NO_TRI && ++g < lim);
     }
 
     // The first in-domain real triangle, or NO_TRI if the domain is empty.
-    [[nodiscard]] TriId firstInDomainTriangle() const {
-        for (TriId t = 0; t < firstGhost_; ++t) {
+    [[nodiscard]] TriIndex firstInDomainTriangle() const {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             if (!triangles_[t].outOfDomain) return t;
         }
         return NO_TRI;
     }
 
-    // Calls f(TriId) once per connected component of the domain, stopping at the
+    // Calls f(TriIndex) once per connected component of the domain, stopping at the
     // first true. This is what a query falls back on when the shape's boundary
     // misses the domain entirely: every component then lies wholly inside the
     // shape or wholly outside it, and one triangle of each settles which.
@@ -3751,7 +4197,7 @@ struct Triangulation {
     // vertex does not.
     template <class Fn>
     bool anyDomainComponent(Fn&& f) const {
-        const TriId first = firstInDomainTriangle();
+        const TriIndex first = firstInDomainTriangle();
         if (first == NO_TRI) {
             return false;
         }
@@ -3759,8 +4205,8 @@ struct Triangulation {
             return f(first);
         }
         std::vector<char> seen(triangles_.size(), 0);
-        std::vector<TriId> stack;
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        std::vector<TriIndex> stack;
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             if (!inDomain(t) || seen[t]) {
                 continue;
             }
@@ -3770,10 +4216,10 @@ struct Triangulation {
             seen[t] = 1;
             stack.push_back(t);
             while (!stack.empty()) {
-                const TriId cur = stack.back();
+                const TriIndex cur = stack.back();
                 stack.pop_back();
                 for (int s = 0; s < 3; ++s) {
-                    const TriId nb = triangles_[cur].nbr[s];
+                    const TriIndex nb = triangles_[cur].nbr[s];
                     if (nb != NO_TRI && !seen[nb] && inDomain(nb)) {
                         seen[nb] = 1;
                         stack.push_back(nb);
@@ -3789,12 +4235,12 @@ struct Triangulation {
     // does not meet the triangulated region at all. (Helper for the
     // detail::TriangulationRegionQuery overload of visitTrianglesIntersecting.)
     template <class Q>
-    [[nodiscard]] std::vector<TriId> seedTrianglesIntersecting(const Q& shape) const {
-        std::vector<TriId> seeds;
+    [[nodiscard]] std::vector<TriIndex> seedTrianglesIntersecting(const Q& shape) const {
+        std::vector<TriIndex> seeds;
         if constexpr (PointConcept<Q>) {
             // A point: the triangle locate lands in already meets it (its closure
             // contains the point). Outside the hull, locate returns a ghost.
-            const TriId t = locateId(shape);
+            const TriIndex t = locateIndex(shape);
             if (t != NO_TRI && !isGhost(t)) {
                 seeds.push_back(t);
             }
@@ -3804,7 +4250,7 @@ struct Triangulation {
             // real triangle just inside it is a seed. (O(hull).) Segments, lines,
             // oriented lines, and rays are not region queries — they have their
             // own ordered walk.
-            for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+            for (TriIndex g = firstGhost_; g < static_cast<TriIndex>(triangles_.size()); ++g) {
                 if (edgeSegment(Edge{g, 2}).intersects(shape)) {
                     seeds.push_back(triangles_[g].nbr[2]);  // the real triangle inside
                     break;
@@ -3816,11 +4262,11 @@ struct Triangulation {
             // the triangle locate lands in is a seed when that point is inside
             // the hull. Otherwise the disk reaches in from outside the hull, so —
             // as for an unbounded shape — a hull edge it crosses gives the seed.
-            const TriId t = locateId(shape[0]);
+            const TriIndex t = locateIndex(shape[0]);
             if (t != NO_TRI && !isGhost(t)) {
                 seeds.push_back(t);
             } else {
-                for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+                for (TriIndex g = firstGhost_; g < static_cast<TriIndex>(triangles_.size()); ++g) {
                     if (edgeSegment(Edge{g, 2}).intersects(shape)) {
                         seeds.push_back(triangles_[g].nbr[2]);
                         break;
@@ -3832,7 +4278,7 @@ struct Triangulation {
             // polygon): any triangle its boundary meets is a seed. Trace each edge
             // with the segment walk and take the first triangle it reports.
             for (const auto& e : shape.edges()) {
-                TriId found = NO_TRI;
+                TriIndex found = NO_TRI;
                 visitTrianglesIntersecting(e, [&](const TriangleType& t) {
                     found = idOf(t);
                     return true;  // the first triangle suffices
@@ -3847,7 +4293,7 @@ struct Triangulation {
             // Every piece inside gets a seed — a hole can split the domain, and
             // the flood does not cross from one piece to another.
             if (seeds.empty() && numVertices() > 0) {
-                anyDomainComponent([&](TriId t) {
+                anyDomainComponent([&](TriIndex t) {
                     if (shape.contains(vertices_[triangles_[t].v[0]])) {
                         seeds.push_back(t);
                     }
@@ -3861,7 +4307,7 @@ struct Triangulation {
     // Grows the set of triangles meeting `shape` outward from `seeds` by a flood
     // fill over edge/vertex adjacency, emitting the in-domain ones to `f` (every
     // real one under AllTriangles, as in the directed walk — what contains() needs
-    // to see the fill region a shape reaches into). `f` takes a TriId and returns
+    // to see the fill region a shape reaches into). `f` takes a TriIndex and returns
     // bool. Every real (non-ghost) triangle meeting `shape` and reachable from a
     // seed through other meeting triangles is visited; ghosts are walls. A
     // per-triangle mark bit stands in for a visited set and is cleared on every
@@ -3870,18 +4316,18 @@ struct Triangulation {
     // not start another walk on the same Triangulation. Returns whether f stopped
     // early.
     template <bool AllTriangles, class Q, class Fn>
-    bool floodTriangleIdsIntersecting(const Q& shape, const std::vector<TriId>& seeds, Fn f) const {
-        std::vector<TriId> marked;
+    bool floodTriangleIdsIntersecting(const Q& shape, const std::vector<TriIndex>& seeds, Fn f) const {
+        std::vector<TriIndex> marked;
         struct MarkClearer {
             const std::vector<Tri>& tris;
-            const std::vector<TriId>& marked;
-            ~MarkClearer() { for (TriId t : marked) tris[t].walkMark = 0; }
+            const std::vector<TriIndex>& marked;
+            ~MarkClearer() { for (TriIndex t : marked) tris[t].walkMark = 0; }
         } markClearer{triangles_, marked};
 
-        std::vector<TriId> stack;
+        std::vector<TriIndex> stack;
         // Marks t seen; if it is a real triangle meeting `shape`, queues it for
         // expansion. Rejected triangles are marked too, so each is tested once.
-        const auto consider = [&](TriId t) {
+        const auto consider = [&](TriIndex t) {
             if (t == NO_TRI || isGhost(t) || triangles_[t].walkMark) {
                 return;
             }
@@ -3891,13 +4337,13 @@ struct Triangulation {
                 stack.push_back(t);
             }
         };
-        for (const TriId s : seeds) {
+        for (const TriIndex s : seeds) {
             consider(s);
         }
 
         bool stop = false;
         while (!stop && !stack.empty()) {
-            const TriId t = stack.back();
+            const TriIndex t = stack.back();
             stack.pop_back();
             if ((AllTriangles || inDomain(t)) && f(t)) {
                 stop = true;
@@ -3906,12 +4352,12 @@ struct Triangulation {
             // Expand through every triangle sharing a vertex with t (which covers
             // its edge neighbours too): the meeting set is connected under this
             // adjacency, so this reaches all of it without scanning the mesh.
-            for (const VertexId w : triangles_[t].v) {
-                TriId cur = t, from = NO_TRI;
+            for (const VertexIndex w : triangles_[t].v) {
+                TriIndex cur = t, from = NO_TRI;
                 std::size_t g = 0, lim = triangles_.size() + 1;
                 do {
                     consider(cur);
-                    const TriId next = rotateAroundVertex(cur, w, from);
+                    const TriIndex next = rotateAroundVertex(cur, w, from);
                     from = cur;
                     cur = next;
                 } while (cur != t && cur != NO_TRI && ++g < lim);
@@ -3926,7 +4372,7 @@ struct Triangulation {
     // so hooking the seed here is what keeps it fresh across a flip — the flip
     // re-registers both rewritten triangles, and a vertex of the quad ends up in
     // at least one of them.
-    void registerSides(TriId t) {
+    void registerSides(TriIndex t) {
         for (std::int8_t s = 0; s < 3; ++s) {
             segToEdge_[edgeSegment(Edge{t, s})] = Edge{t, s};
         }
@@ -3935,14 +4381,14 @@ struct Triangulation {
 
     // Records t as the fan seed of each of its real vertices. Ghost triangles
     // are skipped: a fan rotation may pass through them but never starts there.
-    void noteVertexIncidence(TriId t) {
+    void noteVertexIncidence(TriIndex t) {
         if (t < 0 || t >= firstGhost_) {
             return;
         }
         if (vertexTri_.size() < vertices_.size()) {
             vertexTri_.resize(vertices_.size(), NO_TRI);
         }
-        for (const VertexId w : triangles_[t].v) {
+        for (const VertexIndex w : triangles_[t].v) {
             if (w != GHOST) {
                 vertexTri_[static_cast<std::size_t>(w)] = t;
             }
@@ -3953,11 +4399,11 @@ struct Triangulation {
     // The record is verified against the triangle's current vertices, so it is
     // authoritative when it answers: a triangle that still lists w really is in
     // w's fan.
-    [[nodiscard]] TriId incidentTriangleOf(VertexId w) const {
+    [[nodiscard]] TriIndex incidentTriangleOf(VertexIndex w) const {
         if (static_cast<std::size_t>(w) >= vertexTri_.size()) {
             return NO_TRI;
         }
-        const TriId t = vertexTri_[static_cast<std::size_t>(w)];
+        const TriIndex t = vertexTri_[static_cast<std::size_t>(w)];
         if (t == NO_TRI || t >= firstGhost_) {
             return NO_TRI;
         }
@@ -3967,20 +4413,20 @@ struct Triangulation {
 
     // Builds the segment-to-edge map over all real triangles.
     void buildMap() {
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             registerSides(t);
         }
     }
 
     // Returns a function that maps a point to its vertex id, appending it to
     // vertices_ (and to `vid`) the first time it is seen.
-    auto makeVertexInterner(std::unordered_map<PointType, VertexId>& vid) {
-        return [this, &vid](const PointType& p) -> VertexId {
+    auto makeVertexInterner(std::unordered_map<PointType, VertexIndex>& vid) {
+        return [this, &vid](const PointType& p) -> VertexIndex {
             auto it = vid.find(p);
             if (it != vid.end()) {
                 return it->second;
             }
-            VertexId id = static_cast<VertexId>(vertices_.size());
+            VertexIndex id = static_cast<VertexIndex>(vertices_.size());
             vertices_.push_back(p);
             vid.emplace(p, id);
             return id;
@@ -3999,21 +4445,21 @@ struct Triangulation {
     // is unbounded).
     //
     // Each point is located by a visibility walk over the neighbour links (the
-    // same walk locateId() runs on the finished structure) and inserted by
+    // same walk locateIndex() runs on the finished structure) and inserted by
     // carving out the triangles whose open circumdisk contains it — found by a
     // local flood-fill from the located triangle, not a global scan — then
     // re-fanning the star-shaped cavity to the new vertex. With the random
     // insertion order the walk is short (seeded from the previously inserted
     // triangle), so the build is ~O(n^1.5) here rather than the O(n^2) of testing
     // every triangle against every point.
-    static std::vector<std::array<VertexId, 3>>
+    static std::vector<std::array<VertexIndex, 3>>
     delaunayTriples(const std::vector<PointType>& pts) {
-        const VertexId n = static_cast<VertexId>(pts.size());
-        std::vector<std::array<VertexId, 3>> out;
+        const VertexIndex n = static_cast<VertexIndex>(pts.size());
+        std::vector<std::array<VertexIndex, 3>> out;
         if (n < 3) {
             return out;
         }
-        const VertexId INF = n;  // the symbolic vertex at infinity
+        const VertexIndex INF = n;  // the symbolic vertex at infinity
 
         // Local closed triangulation: CCW vertices (ghosts contain INF) and three
         // neighbours each (nbr[i] is across the edge opposite v[i]). Killed
@@ -4021,14 +4467,14 @@ struct Triangulation {
         // live triangle ever references a dead slot, so `dead` doubles as the
         // per-insertion "already in the cavity" mark during the flood-fill.
         struct LTri {
-            std::array<VertexId, 3> v{};
+            std::array<VertexIndex, 3> v{};
             std::array<int, 3> nbr{-1, -1, -1};
             bool dead = false;
         };
         std::vector<LTri> tri;
         std::vector<int> freeList;
 
-        auto newTri = [&](VertexId a, VertexId b, VertexId d) -> int {
+        auto newTri = [&](VertexIndex a, VertexIndex b, VertexIndex d) -> int {
             int id;
             if (!freeList.empty()) {
                 id = freeList.back();
@@ -4058,15 +4504,15 @@ struct Triangulation {
         // splits in two instead of spanning a degenerate {edge, p}. p on the
         // edge's line but beyond an endpoint stays outside — the hull just extends
         // straight along the line, no degenerate triangle either way.
-        auto inDisk = [&](int t, VertexId p) -> bool {
+        auto inDisk = [&](int t, VertexIndex p) -> bool {
             const auto& q = tri[t].v;
             const int inf = q[0] == INF ? 0 : (q[1] == INF ? 1 : (q[2] == INF ? 2 : -1));
             if (inf < 0) {
                 return inCircleSign(pts[q[0]], pts[q[1]], pts[q[2]], pts[p]) ==
                        std::partial_ordering::greater;
             }
-            const VertexId u = q[(inf + 1) % 3];
-            const VertexId w = q[(inf + 2) % 3];
+            const VertexIndex u = q[(inf + 1) % 3];
+            const VertexIndex w = q[(inf + 2) % 3];
             const auto side = orientationSign(pts[u], pts[w], pts[p]);
             if (side > 0) {
                 return true;
@@ -4085,16 +4531,16 @@ struct Triangulation {
         // Seed with the first non-collinear triple, oriented CCW, plus the three
         // ghost triangles covering its hull edges. Points 2..c-1 (if any) are
         // collinear with 0 and 1 and get inserted in the main loop like any other.
-        VertexId c = 2;
+        VertexIndex c = 2;
         while (c < n && orientationSign(pts[0], pts[1], pts[c]) == 0) {
             ++c;
         }
         if (c == n) {
             return out;  // all points collinear: the Delaunay triangulation is empty
         }
-        const std::array<VertexId, 3> seed =
-            orientationSign(pts[0], pts[1], pts[c]) > 0 ? std::array<VertexId, 3>{0, 1, c}
-                                                        : std::array<VertexId, 3>{1, 0, c};
+        const std::array<VertexIndex, 3> seed =
+            orientationSign(pts[0], pts[1], pts[c]) > 0 ? std::array<VertexIndex, 3>{0, 1, c}
+                                                        : std::array<VertexIndex, 3>{1, 0, c};
         const int seedTris[4] = {
             newTri(seed[0], seed[1], seed[2]),
             newTri(seed[1], seed[0], INF),  // ghost outside edge seed0->seed1
@@ -4106,8 +4552,8 @@ struct Triangulation {
         // finds a partner.
         for (int t : seedTris) {
             for (int s = 0; s < 3; ++s) {
-                const VertexId a = tri[t].v[(s + 1) % 3];
-                const VertexId b = tri[t].v[(s + 2) % 3];
+                const VertexIndex a = tri[t].v[(s + 1) % 3];
+                const VertexIndex b = tri[t].v[(s + 2) % 3];
                 for (int u : seedTris) {
                     for (int q = 0; q < 3; ++q) {
                         if (tri[u].v[(q + 1) % 3] == b && tri[u].v[(q + 2) % 3] == a) {
@@ -4124,7 +4570,7 @@ struct Triangulation {
         // randomised start edge guarantees termination; the step cap is a safety
         // net only.
         std::uint64_t rngState = 0x9e3779b97f4a7c15ULL;
-        auto walk = [&](VertexId p, int t) -> int {
+        auto walk = [&](VertexIndex p, int t) -> int {
             int from = -1;
             const int64_t cap = int64_t(3) * static_cast<int64_t>(tri.size()) + 16;
             for (int64_t step = 0; step < cap; ++step) {
@@ -4139,8 +4585,8 @@ struct Triangulation {
                     if (tri[t].nbr[s] == from) {
                         continue;
                     }
-                    const VertexId ea = tri[t].v[(s + 1) % 3];
-                    const VertexId eb = tri[t].v[(s + 2) % 3];
+                    const VertexIndex ea = tri[t].v[(s + 1) % 3];
+                    const VertexIndex eb = tri[t].v[(s + 2) % 3];
                     if (orientationSign(pts[ea], pts[eb], pts[p]) < 0) {
                         next = tri[t].nbr[s];
                         break;
@@ -4159,19 +4605,19 @@ struct Triangulation {
         // A boundary edge of the cavity: its directed edge (a,b), the surviving
         // triangle behind it, and that triangle's side facing the cavity.
         struct Bnd {
-            VertexId a, b;
+            VertexIndex a, b;
             int surv, survSide;
         };
         std::vector<Bnd> boundary;
         // Spoke edges {vertex,p} awaiting their partner among the new triangles.
         struct Spoke {
-            VertexId vertex;
+            VertexIndex vertex;
             int tri, side;
         };
         std::vector<Spoke> spokes;
 
         int hint = seedTris[0];
-        for (VertexId i = 0; i < n; ++i) {
+        for (VertexIndex i = 0; i < n; ++i) {
             if (i == seed[0] || i == seed[1] || i == seed[2]) {
                 continue;
             }
@@ -4224,7 +4670,7 @@ struct Triangulation {
                 }
                 // side 0 (opposite a) is edge {b,i}; side 1 (opposite b) is {a,i}.
                 for (const auto& [vertex, side] :
-                     {std::pair<VertexId, int>{e.b, 0}, std::pair<VertexId, int>{e.a, 1}}) {
+                     {std::pair<VertexIndex, int>{e.b, 0}, std::pair<VertexIndex, int>{e.a, 1}}) {
                     bool paired = false;
                     for (std::size_t k = 0; k < spokes.size(); ++k) {
                         if (spokes[k].vertex == vertex) {
@@ -4275,23 +4721,23 @@ struct Triangulation {
     }
 
     // The current internal handle of edge {p,q}, or an invalid edge if absent.
-    [[nodiscard]] Edge edgeHandle(VertexId p, VertexId q) const {
+    [[nodiscard]] Edge edgeHandle(VertexIndex p, VertexIndex q) const {
         auto se = segToEdge_.find(SegmentType(vertices_[p], vertices_[q]));
         return se == segToEdge_.end() ? Edge{NO_TRI, 0} : se->second;
     }
 
-    [[nodiscard]] bool edgeExists(VertexId p, VertexId q) const {
+    [[nodiscard]] bool edgeExists(VertexIndex p, VertexIndex q) const {
         return segToEdge_.contains(SegmentType(vertices_[p], vertices_[q]));
     }
 
     // The interior edges that the open segment va->vb crosses, as vertex pairs,
     // in order from va to vb. Empty when {va,vb} is already an edge. Assumes no
     // vertex lies in the interior of the segment (true for simple-polygon edges).
-    [[nodiscard]] std::vector<std::pair<VertexId, VertexId>>
-    collectCrossings(VertexId va, VertexId vb) const {
+    [[nodiscard]] std::vector<std::pair<VertexIndex, VertexIndex>>
+    collectCrossings(VertexIndex va, VertexIndex vb) const {
         const PointType& A = vertices_[va];
         const PointType& B = vertices_[vb];
-        std::vector<std::pair<VertexId, VertexId>> out;
+        std::vector<std::pair<VertexIndex, VertexIndex>> out;
 
         // Find the triangle incident to va that the segment first enters. Only
         // va's own fan can hold it, so the search rotates around va rather than
@@ -4301,29 +4747,29 @@ struct Triangulation {
         // link of va is star-shaped about it, so a segment leaving va properly
         // crosses exactly one link edge — and the visit order therefore does not
         // matter.
-        TriId t = NO_TRI;
-        std::pair<VertexId, VertexId> entry{NO_TRI, NO_TRI};
-        const auto enterFrom = [&](TriId k) {
+        TriIndex t = NO_TRI;
+        std::pair<VertexIndex, VertexIndex> entry{NO_TRI, NO_TRI};
+        const auto enterFrom = [&](TriIndex k) {
             if (t != NO_TRI || k == NO_TRI || isGhost(k)) {
                 return;  // already found, or a ghost triangle closing the fan
             }
             const auto& v = triangles_[k].v;
             const int i = localIndex(k, va);
-            const VertexId p = v[(i + 1) % 3];
-            const VertexId q = v[(i + 2) % 3];
+            const VertexIndex p = v[(i + 1) % 3];
+            const VertexIndex q = v[(i + 2) % 3];
             if (properCross(A, B, vertices_[p], vertices_[q])) {
                 t = triangles_[k].nbr[i];
                 entry = {p, q};
                 out.push_back({p, q});
             }
         };
-        const TriId seed = incidentTriangleOf(va);
+        const TriIndex seed = incidentTriangleOf(va);
         if (seed != NO_TRI) {
             visitVertexFan(seed, va, enterFrom);
         } else {
             // No seed recorded (a mesh built by a path that never registered
             // one): fall back to the scan, which needs no incidence at all.
-            for (TriId k = 0; k < firstGhost_ && t == NO_TRI; ++k) {
+            for (TriIndex k = 0; k < firstGhost_ && t == NO_TRI; ++k) {
                 const auto& v = triangles_[k].v;
                 if (v[0] == va || v[1] == va || v[2] == va) {
                     enterFrom(k);
@@ -4343,8 +4789,8 @@ struct Triangulation {
             }
             int exitK = -1;
             for (int k = 0; k < 3; ++k) {
-                const VertexId p = v[(k + 1) % 3];
-                const VertexId q = v[(k + 2) % 3];
+                const VertexIndex p = v[(k + 1) % 3];
+                const VertexIndex q = v[(k + 2) % 3];
                 const bool sameEntry = (p == entry.first && q == entry.second) ||
                                        (p == entry.second && q == entry.first);
                 if (sameEntry) {
@@ -4374,14 +4820,14 @@ struct Triangulation {
     // until its quad becomes convex. This ordering guarantees progress (a naive
     // "flip the first convex one" can oscillate, repeatedly flipping a diagonal
     // back and forth).
-    void insertConstraint(VertexId va, VertexId vb) {
+    void insertConstraint(VertexIndex va, VertexIndex vb) {
         if (va == vb || edgeExists(va, vb)) {
             setConstrained(SegmentType(vertices_[va], vertices_[vb]), true);
             return;
         }
         const PointType& A = vertices_[va];
         const PointType& B = vertices_[vb];
-        std::deque<std::pair<VertexId, VertexId>> queue;
+        std::deque<std::pair<VertexIndex, VertexIndex>> queue;
         for (const auto& pq : collectCrossings(va, vb)) {
             queue.push_back(pq);
         }
@@ -4397,9 +4843,9 @@ struct Triangulation {
                 queue.push_back({p, q});  // quad not yet convex; revisit later
                 continue;
             }
-            const VertexId r = triangles_[e.tri].v[e.side];        // apex on one side
+            const VertexIndex r = triangles_[e.tri].v[e.side];        // apex on one side
             const Edge m = mirror(e);
-            const VertexId l = triangles_[m.tri].v[m.side];        // apex on the other
+            const VertexIndex l = triangles_[m.tri].v[m.side];        // apex on the other
             flip(SegmentType(vertices_[p], vertices_[q]));
             if (properCross(A, B, vertices_[r], vertices_[l])) {
                 queue.push_back({r, l});  // new diagonal still crosses; re-queue
@@ -4436,15 +4882,15 @@ struct Triangulation {
     // A region with holes seeds the same flood once more per hole, from a
     // triangle inside it: hole interiors are fenced off from the outside by the
     // outer boundary, so nothing else would reach them.
-    void markOutOfDomain(const std::vector<TriId>& holeSeeds = {}) {
+    void markOutOfDomain(const std::vector<TriIndex>& holeSeeds = {}) {
         std::vector<char> seen(triangles_.size(), 0);
-        std::vector<TriId> stack;
-        for (TriId g = firstGhost_; g < static_cast<TriId>(triangles_.size()); ++g) {
+        std::vector<TriIndex> stack;
+        for (TriIndex g = firstGhost_; g < static_cast<TriIndex>(triangles_.size()); ++g) {
             seen[g] = 1;
             stack.push_back(g);
         }
         std::size_t marked = 0;
-        for (const TriId seed : holeSeeds) {
+        for (const TriIndex seed : holeSeeds) {
             if (seed == NO_TRI || seen[seed]) {
                 continue;  // two rings bounding the same triangle: seeded already
             }
@@ -4454,13 +4900,13 @@ struct Triangulation {
             stack.push_back(seed);
         }
         while (!stack.empty()) {
-            const TriId t = stack.back();
+            const TriIndex t = stack.back();
             stack.pop_back();
             for (int s = 0; s < 3; ++s) {
                 if (bit(triangles_[t].constrainedMask, s)) {
                     continue;  // the polygon boundary fences off the interior
                 }
-                const TriId nb = triangles_[t].nbr[s];
+                const TriIndex nb = triangles_[t].nbr[s];
                 if (nb == NO_TRI || seen[nb]) {
                     continue;
                 }
@@ -4517,7 +4963,7 @@ struct Triangulation {
                               const PointRange& extraPoints,
                               const SegmentRange& constraintSegments,
                               const std::vector<Polygon<PointType>>& holes = {}) {
-        std::unordered_map<PointType, VertexId> vid;
+        std::unordered_map<PointType, VertexIndex> vid;
         const auto idOfPoint = makeVertexInterner(vid);
         for (const auto& outer : outers) {
             for (std::size_t i = 0; i < outer.size(); ++i) {
@@ -4547,13 +4993,13 @@ struct Triangulation {
         // at 1; index 0 is the ghost, whose placeholder coordinates must not
         // shadow a real vertex in the map).
         vid.clear();
-        for (VertexId i = 1; i < static_cast<VertexId>(vertices_.size()); ++i) {
+        for (VertexIndex i = 1; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
         }
-        std::vector<std::vector<VertexId>> outerLoops;
+        std::vector<std::vector<VertexIndex>> outerLoops;
         outerLoops.reserve(outers.size());
         for (const auto& outer : outers) {
-            std::vector<VertexId> loop;
+            std::vector<VertexIndex> loop;
             loop.reserve(outer.size());
             for (std::size_t i = 0; i < outer.size(); ++i) {
                 loop.push_back(vid.at(outer[i]));
@@ -4561,10 +5007,10 @@ struct Triangulation {
             outerLoops.push_back(std::move(loop));
         }
 
-        std::vector<std::vector<VertexId>> holeLoops;
+        std::vector<std::vector<VertexIndex>> holeLoops;
         holeLoops.reserve(holes.size());
         for (const auto& hole : holes) {
-            std::vector<VertexId> ring;
+            std::vector<VertexIndex> ring;
             ring.reserve(hole.size());
             for (std::size_t i = 0; i < hole.size(); ++i) {
                 ring.push_back(vid.at(hole[i]));
@@ -4576,7 +5022,7 @@ struct Triangulation {
         // edge; splice those in so every constrained edge is unobstructed. Only
         // several rings can produce them, so a lone polygon skips the scan.
         if (!holes.empty() || outers.size() > 1) {
-            std::vector<VertexId> ringVertices;
+            std::vector<VertexIndex> ringVertices;
             for (const auto& ring : outerLoops) {
                 ringVertices.insert(ringVertices.end(), ring.begin(), ring.end());
             }
@@ -4605,8 +5051,8 @@ struct Triangulation {
             }
         }
         for (const auto& s : constraintSegments) {
-            const VertexId a = vid.at(PointType(s[0]));
-            const VertexId b = vid.at(PointType(s[1]));
+            const VertexIndex a = vid.at(PointType(s[0]));
+            const VertexIndex b = vid.at(PointType(s[1]));
             if (a != b) {
                 insertConstraint(a, b);
             }
@@ -4618,10 +5064,10 @@ struct Triangulation {
         // inside it. Recorded as a triangle value too — that is what tells a
         // region query later whether it has swallowed a hole, and unlike a
         // triangle id it survives the edits that follow.
-        std::vector<TriId> holeSeeds;
+        std::vector<TriIndex> holeSeeds;
         holeSeeds.reserve(holeLoops.size());
         for (const auto& ring : holeLoops) {
-            const TriId seed = triangleLeftOf(ring[0], ring[1 % ring.size()]);
+            const TriIndex seed = triangleLeftOf(ring[0], ring[1 % ring.size()]);
             if (seed != NO_TRI && !isGhost(seed)) {
                 holeSeeds.push_back(seed);
                 holeWitnesses_.push_back(triangleValue(seed));
@@ -4649,12 +5095,12 @@ struct Triangulation {
     // then links adjacency and the edge map. With the ghost first, the real
     // vertices are the contiguous range [1, vertices_.size()) and insertions
     // can append real vertices without disturbing it.
-    void buildFromTriples(std::vector<std::array<VertexId, 3>>& triples,
+    void buildFromTriples(std::vector<std::array<VertexIndex, 3>>& triples,
                           const std::vector<TriangleLabel>& triLabels) {
         vertices_.insert(vertices_.begin(), PointType{});  // ghost (GHOST); coordinates unused
 
         for (std::size_t k = 0; k < triples.size(); ++k) {
-            VertexId x = triples[k][0] + 1, y = triples[k][1] + 1, z = triples[k][2] + 1;
+            VertexIndex x = triples[k][0] + 1, y = triples[k][1] + 1, z = triples[k][2] + 1;
             if (orientationSign(vertices_[x], vertices_[y], vertices_[z]) < 0) {
                 std::swap(y, z);
             }
@@ -4662,7 +5108,7 @@ struct Triangulation {
                    "Triangulation: degenerate triangle");
             triangles_.push_back(Tri{{x, y, z}, {NO_TRI, NO_TRI, NO_TRI}, 0, 0, 0, triLabels[k]});
         }
-        firstGhost_ = static_cast<TriId>(triangles_.size());
+        firstGhost_ = static_cast<TriIndex>(triangles_.size());
         domainTriangleCount_ = static_cast<std::size_t>(firstGhost_);
         buildAdjacency();
         buildMap();
@@ -4674,19 +5120,19 @@ struct Triangulation {
     // True if edge e can be flipped: unconstrained, interior (both sides real),
     // and the two incident triangles form a strictly convex quadrilateral.
     [[nodiscard]] bool flippableEdge(Edge e) const {
-        const TriId t = e.tri;
+        const TriIndex t = e.tri;
         if (t == NO_TRI || bit(triangles_[t].constrainedMask, e.side)) {
             return false;
         }
-        const TriId t2 = triangles_[t].nbr[e.side];
+        const TriIndex t2 = triangles_[t].nbr[e.side];
         if (t2 == NO_TRI || isGhost(t) || isGhost(t2)) {
             return false;
         }
         const Edge m = mirror(e);
-        const VertexId c = triangles_[t].v[e.side];
-        const VertexId a = triangles_[t].v[(e.side + 1) % 3];
-        const VertexId b = triangles_[t].v[(e.side + 2) % 3];
-        const VertexId d = triangles_[t2].v[m.side];
+        const VertexIndex c = triangles_[t].v[e.side];
+        const VertexIndex a = triangles_[t].v[(e.side + 1) % 3];
+        const VertexIndex b = triangles_[t].v[(e.side + 2) % 3];
+        const VertexIndex d = triangles_[t2].v[m.side];
         const auto oa = orientationSign(vertices_[c], vertices_[d], vertices_[a]);
         const auto ob = orientationSign(vertices_[c], vertices_[d], vertices_[b]);
         return (oa > 0 && ob < 0) || (oa < 0 && ob > 0);  // strictly convex quad
@@ -4701,21 +5147,21 @@ struct Triangulation {
         if (!flippableEdge(e)) {
             return false;
         }
-        const TriId t = e.tri;
+        const TriIndex t = e.tri;
         const int i = e.side;
         const Edge m = mirror(e);
-        const TriId t2 = m.tri;
+        const TriIndex t2 = m.tri;
         const int j = m.side;
 
-        const VertexId c = triangles_[t].v[i];
-        const VertexId a = triangles_[t].v[(i + 1) % 3];
-        const VertexId b = triangles_[t].v[(i + 2) % 3];
-        const VertexId d = triangles_[t2].v[j];
+        const VertexIndex c = triangles_[t].v[i];
+        const VertexIndex a = triangles_[t].v[(i + 1) % 3];
+        const VertexIndex b = triangles_[t].v[(i + 2) % 3];
+        const VertexIndex d = triangles_[t2].v[j];
 
-        const TriId nCA = triangles_[t].nbr[(i + 2) % 3];
-        const TriId nBC = triangles_[t].nbr[(i + 1) % 3];
-        const TriId nDB = triangles_[t2].nbr[(j + 2) % 3];
-        const TriId nAD = triangles_[t2].nbr[(j + 1) % 3];
+        const TriIndex nCA = triangles_[t].nbr[(i + 2) % 3];
+        const TriIndex nBC = triangles_[t].nbr[(i + 1) % 3];
+        const TriIndex nDB = triangles_[t2].nbr[(j + 2) % 3];
+        const TriIndex nAD = triangles_[t2].nbr[(j + 1) % 3];
         const bool cCA = bit(triangles_[t].constrainedMask, (i + 2) % 3);
         const bool cBC = bit(triangles_[t].constrainedMask, (i + 1) % 3);
         const bool cDB = bit(triangles_[t2].constrainedMask, (j + 2) % 3);
@@ -4750,7 +5196,7 @@ struct Triangulation {
     // any label already stored under a persisting edge key. (registerSides
     // would reset those labels — acceptable for flip, whose contract says so,
     // but an insertion only re-points surviving edges and must not wipe them.)
-    void reRegisterSides(TriId t) {
+    void reRegisterSides(TriIndex t) {
         for (std::int8_t s = 0; s < 3; ++s) {
             const SegmentType key = edgeSegment(Edge{t, s});
             auto it = segToEdge_.find(key);
@@ -4780,17 +5226,17 @@ struct Triangulation {
     // those and nothing else. Requires k ghosts (any nonempty triangulation
     // has >= 3) and spare capacity (callers reserve). Returns the first freed
     // slot; the freed slots hold stale copies the caller must overwrite.
-    TriId makeRoom(int k) {
-        const TriId base = firstGhost_;
-        const TriId oldSize = static_cast<TriId>(triangles_.size());
+    TriIndex makeRoom(int k) {
+        const TriIndex base = firstGhost_;
+        const TriIndex oldSize = static_cast<TriIndex>(triangles_.size());
         assert(oldSize - base >= k);
         for (int j = 0; j < k; ++j) {
             triangles_.push_back(triangles_[base + j]);
         }
         for (int j = 0; j < k; ++j) {
-            const TriId moved = oldSize + j;
+            const TriIndex moved = oldSize + j;
             for (int s = 0; s < 3; ++s) {
-                TriId& nb = triangles_[moved].nbr[s];
+                TriIndex& nb = triangles_[moved].nbr[s];
                 assert(nb != NO_TRI);  // ghosts always have three neighbors
                 if (nb >= base && nb < base + k) {
                     nb = nb - base + oldSize;  // the neighbor was relocated too
@@ -4815,8 +5261,8 @@ struct Triangulation {
     // out-of-domain flags, so an insertion inside a polygon's domain keeps the
     // carved-away region carved (a point outside the closed polygon is a
     // precondition violation; see insert).
-    std::optional<std::pair<VertexId, TriId>> insertVertexImpl(const PointType& p) {
-        const TriId t0 = locateId(p);
+    std::optional<std::pair<VertexIndex, TriIndex>> insertVertexImpl(const PointType& p) {
+        const TriIndex t0 = locateIndex(p);
         if (t0 == NO_TRI) {
             return std::nullopt;  // empty triangulation
         }
@@ -4831,7 +5277,7 @@ struct Triangulation {
                 return std::nullopt;  // p is already a vertex
             }
         }
-        // p is in t0's closure (locateId stopped here) and is not a vertex, so
+        // p is in t0's closure (locateIndex stopped here) and is not a vertex, so
         // it lies strictly inside either the triangle or exactly one edge.
         int onSide = -1;
         for (int k = 0; k < 3; ++k) {
@@ -4847,20 +5293,20 @@ struct Triangulation {
 
     // 1->3 subdivision: replaces the in-domain triangle t, whose interior
     // strictly contains p, by the fan from its three edges to the new vertex.
-    std::pair<VertexId, TriId> splitTriangle(TriId t, const PointType& p) {
+    std::pair<VertexIndex, TriIndex> splitTriangle(TriIndex t, const PointType& p) {
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, 2);
-        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
         vertices_.push_back(p);
-        const TriId n1 = makeRoom(2);
-        const TriId n2 = n1 + 1;
+        const TriIndex n1 = makeRoom(2);
+        const TriIndex n2 = n1 + 1;
 
         // Copy the record after makeRoom, whose relocation already fixed the
         // neighbor links of every triangle adjacent to a moved ghost.
         const Tri old = triangles_[t];
-        const VertexId a = old.v[0];
-        const VertexId b = old.v[1];
-        const VertexId c = old.v[2];
+        const VertexIndex a = old.v[0];
+        const VertexIndex b = old.v[1];
+        const VertexIndex c = old.v[2];
         // Children (CCW because p is strictly interior); each keeps one parent
         // edge — with that edge's constrained flag — as its side 2, opposite
         // vp, and inherits the parent's out-of-domain flag.
@@ -4879,7 +5325,7 @@ struct Triangulation {
         triangles_[old.nbr[0]].nbr[findSide(old.nbr[0], t)] = n1;
         triangles_[old.nbr[1]].nbr[findSide(old.nbr[1], t)] = n2;
         domainTriangleCount_ += old.outOfDomain ? 0 : 2;
-        for (const TriId x : {t, n1, n2}) {
+        for (const TriIndex x : {t, n1, n2}) {
             reRegisterSides(x);
         }
         hint_ = t;
@@ -4892,25 +5338,25 @@ struct Triangulation {
     // t.v[s]. The edge splits into two collinear halves, which inherit its
     // constrained flag and label; each incident triangle splits in two, its
     // children inheriting its out-of-domain flag.
-    std::pair<VertexId, TriId> splitEdge(TriId t, int s, const PointType& p) {
-        const TriId across = triangles_[t].nbr[s];
+    std::pair<VertexIndex, TriIndex> splitEdge(TriIndex t, int s, const PointType& p) {
+        const TriIndex across = triangles_[t].nbr[s];
         const bool ghostSide = isGhost(across);
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, 2);
 
         const bool cUW = bit(triangles_[t].constrainedMask, s);
-        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
         vertices_.push_back(p);
-        const TriId n1 = makeRoom(ghostSide ? 1 : 2);
+        const TriIndex n1 = makeRoom(ghostSide ? 1 : 2);
 
         // Copy the record after makeRoom, whose relocation already fixed the
         // neighbor links of every triangle adjacent to a moved ghost.
         const Tri oldT = triangles_[t];
-        const VertexId apex = oldT.v[s];
-        const VertexId u = oldT.v[(s + 1) % 3];
-        const VertexId w = oldT.v[(s + 2) % 3];
-        const TriId nWApex = oldT.nbr[(s + 1) % 3];  // neighbor across {w, apex}
-        const TriId nApexU = oldT.nbr[(s + 2) % 3];  // neighbor across {apex, u}
+        const VertexIndex apex = oldT.v[s];
+        const VertexIndex u = oldT.v[(s + 1) % 3];
+        const VertexIndex w = oldT.v[(s + 2) % 3];
+        const TriIndex nWApex = oldT.nbr[(s + 1) % 3];  // neighbor across {w, apex}
+        const TriIndex nApexU = oldT.nbr[(s + 2) % 3];  // neighbor across {apex, u}
         const bool cWApex = bit(oldT.constrainedMask, (s + 1) % 3);
         const bool cApexU = bit(oldT.constrainedMask, (s + 2) % 3);
 
@@ -4927,14 +5373,14 @@ struct Triangulation {
         if (!ghostSide) {
             // Interior edge: t = (apex,u,w) and t2 = (apex2,w,u) become the
             // four triangles fanning around vp.
-            const TriId n2 = n1 + 1;
-            const TriId t2 = across;
+            const TriIndex n2 = n1 + 1;
+            const TriIndex t2 = across;
             const int j = findSide(t2, t);
             const Tri oldT2 = triangles_[t2];
-            const VertexId apex2 = oldT2.v[j];
+            const VertexIndex apex2 = oldT2.v[j];
             assert(oldT2.v[(j + 1) % 3] == w && oldT2.v[(j + 2) % 3] == u);
-            const TriId nApex2W = oldT2.nbr[(j + 2) % 3];  // across {apex2, w}
-            const TriId nUApex2 = oldT2.nbr[(j + 1) % 3];  // across {u, apex2}
+            const TriIndex nApex2W = oldT2.nbr[(j + 2) % 3];  // across {apex2, w}
+            const TriIndex nUApex2 = oldT2.nbr[(j + 1) % 3];  // across {u, apex2}
             const bool cApex2W = bit(oldT2.constrainedMask, (j + 2) % 3);
             const bool cUApex2 = bit(oldT2.constrainedMask, (j + 1) % 3);
 
@@ -4957,19 +5403,19 @@ struct Triangulation {
             triangles_[nWApex].nbr[findSide(nWApex, t)] = n1;
             triangles_[nUApex2].nbr[findSide(nUApex2, t2)] = n2;
             domainTriangleCount_ += (oldT.outOfDomain ? 0 : 1) + (oldT2.outOfDomain ? 0 : 1);
-            for (const TriId x : {t, n1, t2, n2}) {
+            for (const TriIndex x : {t, n1, t2, n2}) {
                 reRegisterSides(x);
             }
         } else {
             // Hull edge: t splits in two and so does the ghost across, keeping
             // the ghost convention v = {real, real, GHOST} with nbr[2] real.
-            const TriId g = across;
+            const TriIndex g = across;
             const Tri oldG = triangles_[g];
             assert(oldG.v[0] == u && oldG.v[1] == w && oldG.v[2] == GHOST && oldG.nbr[2] == t);
-            const TriId gw = oldG.nbr[0];  // ghost-ring neighbor across {w, ghost}
-            const TriId gu = oldG.nbr[1];  // ghost-ring neighbor across {u, ghost}
+            const TriIndex gw = oldG.nbr[0];  // ghost-ring neighbor across {w, ghost}
+            const TriIndex gu = oldG.nbr[1];  // ghost-ring neighbor across {u, ghost}
 
-            const TriId g2 = static_cast<TriId>(triangles_.size());
+            const TriIndex g2 = static_cast<TriIndex>(triangles_.size());
             triangles_.push_back(Tri{{vp, w, GHOST},
                                      {gw, g, n1},
                                      mask(false, false, cUW),
@@ -4989,7 +5435,7 @@ struct Triangulation {
             triangles_[nWApex].nbr[findSide(nWApex, t)] = n1;
             triangles_[gw].nbr[findSide(gw, g)] = g2;
             domainTriangleCount_ += oldT.outOfDomain ? 0 : 1;
-            for (const TriId x : {t, n1}) {
+            for (const TriIndex x : {t, n1}) {
                 reRegisterSides(x);
             }
         }
@@ -5014,8 +5460,8 @@ struct Triangulation {
     // constrained stays constrained and simply becomes interior. (For a
     // polygon triangulation an outside point is a precondition violation —
     // see insert — so no domain fencing happens here.)
-    std::pair<VertexId, TriId> growHull(TriId g0, const PointType& p) {
-        const auto visible = [&](TriId g) {
+    std::pair<VertexIndex, TriIndex> growHull(TriIndex g0, const PointType& p) {
+        const auto visible = [&](TriIndex g) {
             const auto& gv = triangles_[g].v;
             return orientationSign(vertices_[gv[0]], vertices_[gv[1]], p) < 0;
         };
@@ -5027,17 +5473,17 @@ struct Triangulation {
         // predecessor (sharing a) and nbr[0] the successor (sharing b).
         std::size_t guard = 0;
         const std::size_t ringCap = triangles_.size() + 1;
-        TriId gStart = g0;
+        TriIndex gStart = g0;
         while (visible(triangles_[gStart].nbr[1]) && ++guard < ringCap) {
             gStart = triangles_[gStart].nbr[1];
         }
-        std::vector<TriId> inner;            // r_i: the real triangle inside base i
+        std::vector<TriIndex> inner;            // r_i: the real triangle inside base i
         std::vector<std::int8_t> innerSide;  // its side facing that base
-        std::vector<VertexId> u;             // hull chain u_0 -> ... -> u_m
-        TriId g = gStart;
+        std::vector<VertexIndex> u;             // hull chain u_0 -> ... -> u_m
+        TriIndex g = gStart;
         guard = 0;
         while (visible(g) && ++guard < ringCap) {
-            const TriId r = triangles_[g].nbr[2];
+            const TriIndex r = triangles_[g].nbr[2];
             inner.push_back(r);
             innerSide.push_back(findSide(r, g));
             u.push_back(triangles_[g].v[0]);
@@ -5049,25 +5495,25 @@ struct Triangulation {
 
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, m == 1 ? 2 : static_cast<std::size_t>(m));
-        const VertexId vp = static_cast<VertexId>(vertices_.size());
+        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
         vertices_.push_back(p);
-        const TriId nr = makeRoom(m);  // slots for the m new real triangles
+        const TriIndex nr = makeRoom(m);  // slots for the m new real triangles
 
         // Re-resolve the (possibly relocated) chain ghosts and the ring ends.
-        std::vector<TriId> dead(static_cast<std::size_t>(m));
+        std::vector<TriIndex> dead(static_cast<std::size_t>(m));
         for (int i = 0; i < m; ++i) {
             dead[i] = triangles_[inner[i]].nbr[innerSide[i]];
         }
-        const TriId prevG = triangles_[dead.front()].nbr[1];
-        const TriId nextG = triangles_[dead.back()].nbr[0];
+        const TriIndex prevG = triangles_[dead.front()].nbr[1];
+        const TriIndex nextG = triangles_[dead.back()].nbr[0];
 
         // The two new ghosts reuse dead chain slots (plus a push_back when
         // only one ghost died); leftover dead slots are compacted away below,
         // so the vector grows by exactly two triangles in every case.
-        const TriId ga = dead[0];
-        TriId gb;
+        const TriIndex ga = dead[0];
+        TriIndex gb;
         if (m == 1) {
-            gb = static_cast<TriId>(triangles_.size());
+            gb = static_cast<TriIndex>(triangles_.size());
             triangles_.push_back(Tri{});  // written below
         } else {
             gb = dead[1];
@@ -5095,21 +5541,21 @@ struct Triangulation {
             // holes with live ghosts taken from the end of triangles_ (the
             // same link rewiring as makeRoom, in the other direction), then
             // drop the all-dead tail.
-            std::vector<TriId> holes(dead.begin() + 2, dead.end());
+            std::vector<TriIndex> holes(dead.begin() + 2, dead.end());
             std::sort(holes.begin(), holes.end());
-            const auto isHole = [&](TriId t) {
+            const auto isHole = [&](TriIndex t) {
                 return std::binary_search(holes.begin(), holes.end(), t);
             };
-            TriId last = static_cast<TriId>(triangles_.size()) - 1;
+            TriIndex last = static_cast<TriIndex>(triangles_.size()) - 1;
             for (std::size_t h = 0; h < holes.size() && holes[h] < last;) {
                 if (isHole(last)) {
                     --last;  // already dead: it will be truncated
                     continue;
                 }
-                const TriId hole = holes[h];
+                const TriIndex hole = holes[h];
                 triangles_[hole] = triangles_[last];
                 for (int s = 0; s < 3; ++s) {
-                    const TriId nb = triangles_[hole].nbr[s];
+                    const TriIndex nb = triangles_[hole].nbr[s];
                     for (int q = 0; q < 3; ++q) {
                         if (triangles_[nb].nbr[q] == last) {
                             triangles_[nb].nbr[q] = hole;
@@ -5149,17 +5595,17 @@ struct Triangulation {
             const Edge e = se->second;
             const Edge m = mirror(e);
             const auto& tv = triangles_[e.tri].v;
-            const VertexId d = triangles_[m.tri].v[m.side];
+            const VertexIndex d = triangles_[m.tri].v[m.side];
             if (inCircleSign(vertices_[tv[0]], vertices_[tv[1]], vertices_[tv[2]],
                              vertices_[d]) != std::partial_ordering::greater) {
                 continue;  // locally Delaunay (the test is symmetric across e)
             }
-            const TriId t = e.tri;
-            const TriId t2 = m.tri;
+            const TriIndex t = e.tri;
+            const TriIndex t2 = m.tri;
             flip(s);
             // The rewritten triangles' sides — the four quad edges plus the new
             // diagonal, which the test above now accepts — are suspect again.
-            for (const TriId x : {t, t2}) {
+            for (const TriIndex x : {t, t2}) {
                 for (std::int8_t q = 0; q < 3; ++q) {
                     suspect.push_back(edgeSegment(Edge{x, q}));
                 }
@@ -5174,7 +5620,7 @@ struct Triangulation {
     // separate from checkInvariants because flipEdge checks invariants at a
     // point where the map is deliberately stale (its callers re-register).
     [[nodiscard]] bool checkEdgeMap() const {
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             for (std::int8_t s = 0; s < 3; ++s) {
                 if (!segToEdge_.contains(edgeSegment(Edge{t, s}))) {
                     return false;
@@ -5199,12 +5645,12 @@ struct Triangulation {
     // outside the triangulated region, NO_TRI only if empty. Seeds from, and
     // updates, hint_; @p p may use a different point type.
     template <class QueryPoint>
-    [[nodiscard]] TriId locateId(const QueryPoint& p) const {
+    [[nodiscard]] TriIndex locateIndex(const QueryPoint& p) const {
         if (triangles_.empty()) {
             return NO_TRI;
         }
-        TriId t = (hint_ != NO_TRI && !isGhost(hint_)) ? hint_ : 0;
-        TriId from = NO_TRI;
+        TriIndex t = (hint_ != NO_TRI && !isGhost(hint_)) ? hint_ : 0;
+        TriIndex from = NO_TRI;
         const std::size_t cap = triangles_.size() * 3 + 16;
         for (std::size_t step = 0; step < cap; ++step) {
             if (isGhost(t)) {
@@ -5213,14 +5659,14 @@ struct Triangulation {
             }
             const auto& T = triangles_[t];
             const int begin = static_cast<int>(rng_() % 3);  // random start: provably terminates
-            TriId next = NO_TRI;
+            TriIndex next = NO_TRI;
             for (int k = 0; k < 3; ++k) {
                 const int s = (begin + k) % 3;
                 if (T.nbr[s] == from) {
                     continue;
                 }
-                const VertexId ea = T.v[(s + 1) % 3];
-                const VertexId eb = T.v[(s + 2) % 3];
+                const VertexIndex ea = T.v[(s + 1) % 3];
+                const VertexIndex eb = T.v[(s + 2) % 3];
                 if (orientationSign(vertices_[ea], vertices_[eb], p) < 0) {
                     next = T.nbr[s];
                     break;
@@ -5241,19 +5687,19 @@ struct Triangulation {
     // vertex and links those ghosts into a ring, so every edge has two sides.
     void buildAdjacency() {
         // Undirected edge key (endpoints sorted) for matching the two sides.
-        const auto key = [](VertexId u, VertexId w) {
-            return u < w ? std::pair<VertexId, VertexId>{u, w} : std::pair<VertexId, VertexId>{w, u};
+        const auto key = [](VertexIndex u, VertexIndex w) {
+            return u < w ? std::pair<VertexIndex, VertexIndex>{u, w} : std::pair<VertexIndex, VertexIndex>{w, u};
         };
 
-        std::map<std::pair<VertexId, VertexId>, std::pair<TriId, int>> edges;
-        for (TriId t = 0; t < firstGhost_; ++t) {
+        std::map<std::pair<VertexIndex, VertexIndex>, std::pair<TriIndex, int>> edges;
+        for (TriIndex t = 0; t < firstGhost_; ++t) {
             for (int i = 0; i < 3; ++i) {
-                const VertexId a = triangles_[t].v[(i + 1) % 3];
-                const VertexId b = triangles_[t].v[(i + 2) % 3];
+                const VertexIndex a = triangles_[t].v[(i + 1) % 3];
+                const VertexIndex b = triangles_[t].v[(i + 2) % 3];
                 auto k = key(a, b);
                 auto it = edges.find(k);
                 if (it == edges.end()) {
-                    edges.emplace(k, std::pair<TriId, int>{t, i});
+                    edges.emplace(k, std::pair<TriIndex, int>{t, i});
                 } else {
                     auto [t2, jj] = it->second;
                     triangles_[t].nbr[i] = t2;
@@ -5263,21 +5709,21 @@ struct Triangulation {
             }
         }
 
-        std::map<VertexId, std::pair<TriId, int>> ghostEdges;
+        std::map<VertexIndex, std::pair<TriIndex, int>> ghostEdges;
         for (const auto& [k, val] : edges) {
             (void)k;
             const auto [t, i] = val;
-            const VertexId a = triangles_[t].v[(i + 1) % 3];
-            const VertexId b = triangles_[t].v[(i + 2) % 3];
-            const TriId g = static_cast<TriId>(triangles_.size());
+            const VertexIndex a = triangles_[t].v[(i + 1) % 3];
+            const VertexIndex b = triangles_[t].v[(i + 2) % 3];
+            const TriIndex g = static_cast<TriIndex>(triangles_.size());
             triangles_.push_back(Tri{{a, b, GHOST}, {NO_TRI, NO_TRI, NO_TRI}, 0});
             triangles_[g].nbr[2] = t;  // side 2 (opposite ghost) is the shared edge {a,b}
             triangles_[t].nbr[i] = g;
             for (auto [realVertex, side] :
-                 {std::pair<VertexId, int>{b, 0}, std::pair<VertexId, int>{a, 1}}) {
+                 {std::pair<VertexIndex, int>{b, 0}, std::pair<VertexIndex, int>{a, 1}}) {
                 auto it = ghostEdges.find(realVertex);
                 if (it == ghostEdges.end()) {
-                    ghostEdges.emplace(realVertex, std::pair<TriId, int>{g, side});
+                    ghostEdges.emplace(realVertex, std::pair<TriIndex, int>{g, side});
                 } else {
                     auto [g2, s2] = it->second;
                     triangles_[g].nbr[side] = g2;
@@ -5558,13 +6004,18 @@ Point<ResultNumber> PolygonWithHoles<PointType_, TLabel>::pointInside() const {
         return outerWitness;
     }
 
+    // Any domain triangle serves, so stop at the first non-degenerate one the
+    // visit meets rather than materializing and sorting the whole mesh.
     const auto mesh = triangulation();
-    for (const auto& triangle : mesh.triangles()) {
-        if (!triangle.isDegenerate()) {
-            return triangle.template pointInside<ResultNumber>();
+    Point<ResultNumber> witness = verticesCentroid<ResultNumber>();
+    mesh.visitTriangles([&](const auto& triangle) {
+        if (triangle.isDegenerate()) {
+            return false;
         }
-    }
-    return verticesCentroid<ResultNumber>();
+        witness = triangle.template pointInside<ResultNumber>();
+        return true;
+    });
+    return witness;
 }
 
 template <class PointType_, class TLabel>
