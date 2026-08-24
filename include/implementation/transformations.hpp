@@ -1729,10 +1729,15 @@ constexpr void Polygon<PointType, LabelType>::rotate90(int k) {
 
 template <class PointType, class LabelType>
 constexpr void Polygon<PointType, LabelType>::untangle() {
+    if (!std::is_constant_evaluated()) {
+        untangleRuntime();
+        return;
+    }
+
     // Work directly on the stored (untranslated) vertices: a uniform translation
     // preserves every crossing/containment relation used below, so indices stay
-    // meaningful without applying translation_. Orientation is irrelevant to the
-    // moves, so the sequence is only renormalized once at the end.
+    // meaningful without applying translation_. This pairwise path is retained
+    // for constant evaluation; runtime calls use the interval-tree implementation.
     const auto edge = [this](std::ptrdiff_t a) {
         const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
         return Segment<PointType>(points_[static_cast<std::size_t>(a)],

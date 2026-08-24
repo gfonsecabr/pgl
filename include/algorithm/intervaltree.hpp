@@ -7,11 +7,13 @@
  * @brief Mutable one-dimensional interval tree over projected bounded shapes.
  */
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -919,5 +921,155 @@ class IntervalTree {
 
 template <class Container>
 IntervalTree(const Container&) -> IntervalTree<typename Container::value_type>;
+
+// -----------------------------------------------------------------------------
+// Polygon::untangle runtime implementation
+
+template <class PointType, class LabelType>
+void Polygon<PointType, LabelType>::untangleRuntime() {
+    using Edge = Segment<PointType>;
+
+    // IntervalTree needs the boundary occurrence as well as its geometry: equal
+    // segments can occur more than once in a non-simple ring and remain distinct
+    // candidates for a batch.
+    struct IndexedEdge {
+        std::size_t index;
+        Edge segment;
+
+        [[nodiscard]] auto bbox() const {
+            return segment.bbox();
+        }
+    };
+
+    struct EdgeId {
+        std::size_t first;
+        std::size_t second;
+    };
+
+    struct Flip {
+        EdgeId first;
+        EdgeId second;
+    };
+
+    // Vertex occurrences, unlike coordinates, are unique. They let a selected
+    // edge be found after an earlier flip in the same batch has moved it to a
+    // different array position or reversed its direction.
+    std::vector<std::size_t> vertexIds(points_.size());
+    for (std::size_t i = 0; i < vertexIds.size(); ++i) {
+        vertexIds[i] = i;
+    }
+
+    const auto edge = [this](std::ptrdiff_t a) {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
+        return Edge(points_[static_cast<std::size_t>(a)],
+                    points_[static_cast<std::size_t>((a + 1) % n)]);
+    };
+
+    while (points_.size() >= 3) {
+        const std::ptrdiff_t n = static_cast<std::ptrdiff_t>(points_.size());
+
+        std::vector<IndexedEdge> edges;
+        edges.reserve(points_.size());
+        for (std::ptrdiff_t i = 0; i < n; ++i) {
+            edges.push_back({static_cast<std::size_t>(i), edge(i)});
+        }
+        const IntervalTree<IndexedEdge> tree(edges);
+
+        // Greedily choose a matching in the crossing graph. No boundary edge is
+        // selected twice, so each unprocessed selected edge survives earlier
+        // 2-opt reversals in this batch as the same undirected segment.
+        std::unordered_set<std::size_t> flipped;
+        flipped.reserve(points_.size());
+        std::vector<Flip> flips;
+        flips.reserve(points_.size() / 2);
+
+        for (const IndexedEdge& current : edges) {
+            if (flipped.contains(current.index)) {
+                continue;
+            }
+            (void)tree.visitProjectionsIntersecting(current, [&](const IndexedEdge& candidate) {
+                if (candidate.index == current.index || flipped.contains(candidate.index) ||
+                    !current.segment.crosses(candidate.segment)) {
+                    return false;
+                }
+
+                flipped.insert(current.index);
+                flipped.insert(candidate.index);
+                const auto next = [size = points_.size()](std::size_t i) {
+                    return (i + 1) % size;
+                };
+                flips.push_back({
+                    {vertexIds[current.index], vertexIds[next(current.index)]},
+                    {vertexIds[candidate.index], vertexIds[next(candidate.index)]}
+                });
+                return true;
+            });
+        }
+
+        if (!flips.empty()) {
+            const auto findEdge = [&vertexIds](const EdgeId& wanted) {
+                const std::size_t size = vertexIds.size();
+                for (std::size_t i = 0; i < size; ++i) {
+                    const std::size_t a = vertexIds[i];
+                    const std::size_t b = vertexIds[(i + 1) % size];
+                    if ((a == wanted.first && b == wanted.second) ||
+                        (a == wanted.second && b == wanted.first)) {
+                        return static_cast<std::ptrdiff_t>(i);
+                    }
+                }
+                return std::ptrdiff_t{-1};
+            };
+
+            for (const Flip& flip : flips) {
+                std::ptrdiff_t i = findEdge(flip.first);
+                std::ptrdiff_t j = findEdge(flip.second);
+                if (i < 0 || j < 0 || i == j) {
+                    assert(false && "a selected edge must survive earlier disjoint flips");
+                    continue;
+                }
+                if (j < i) {
+                    std::swap(i, j);
+                }
+                if (!edge(i).crosses(edge(j))) {
+                    assert(false && "a selected crossing must survive earlier disjoint flips");
+                    continue;
+                }
+                std::reverse(points_.begin() + (i + 1), points_.begin() + (j + 1));
+                std::reverse(vertexIds.begin() + (i + 1), vertexIds.begin() + (j + 1));
+            }
+            continue;  // rebuild the interval tree for the new boundary
+        }
+
+        // A projection query found no transversal crossings. Residual
+        // self-contact must therefore be removed as in the constexpr path.
+        bool removed = false;
+        for (std::ptrdiff_t k = 0; k < n && !removed; ++k) {
+            if (points_[static_cast<std::size_t>(k)] ==
+                points_[static_cast<std::size_t>((k + 1) % n)]) {
+                points_.erase(points_.begin() + k);
+                vertexIds.erase(vertexIds.begin() + k);
+                removed = true;
+                break;
+            }
+            for (std::ptrdiff_t e = 0; e < n; ++e) {
+                if (e == k || e == (k - 1 + n) % n) {
+                    continue;
+                }
+                if (edge(e).contains(points_[static_cast<std::size_t>(k)])) {
+                    points_.erase(points_.begin() + k);
+                    vertexIds.erase(vertexIds.begin() + k);
+                    removed = true;
+                    break;
+                }
+            }
+        }
+        if (!removed) {
+            break;
+        }
+    }
+
+    normalize();
+    resetCache();
+}
 
 }  // namespace pgl

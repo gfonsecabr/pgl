@@ -2842,7 +2842,10 @@ struct Polygon {
      * @brief Makes the polygon simple in place by uncrossing its boundary.
      *
      * Repeatedly removes self-intersections until the boundary is a simple closed
-     * curve. Two kinds of moves are applied:
+     * curve. At runtime, every round indexes the current boundary edges in an
+     * interval tree, greedily selects an edge-disjoint batch of crossing pairs,
+     * applies all of their flips, and rebuilds the tree for the changed boundary.
+     * Two kinds of moves are applied:
      *
      * - **Flip (2-opt):** when two non-adjacent edges cross transversally, the
      *   sub-path between them is reversed, turning the crossing pair
@@ -2864,7 +2867,11 @@ struct Polygon {
      * @warning Relies on exact orientation predicates; use an exact coordinate
      * type. Termination is not guaranteed for floating-point coordinates.
      *
-     * Complexity: O(n^3) worst case per move for n vertices.
+     * Runtime candidate searches are output-sensitive after an O(n log n) tree
+     * build per batch. A batch can still take O(n^2) when many projected intervals
+     * overlap or many vector sub-paths are reversed, and the number of batches has
+     * no polynomial bound in n. Constant evaluation uses an O(n^2) pairwise scan
+     * for each move instead of the runtime index.
      */
     constexpr void untangle();
 
@@ -3121,6 +3128,11 @@ struct Polygon {
         bbox_ = {};
         hash_ = hashUnset_;
     }
+
+    // Runtime implementation of untangle(), defined after IntervalTree is
+    // available. The constexpr front-end keeps the allocation-free pairwise
+    // implementation for constant evaluation.
+    void untangleRuntime();
 
     template <bool Oriented>
     constexpr BoundaryType<Oriented> boundaryAt(std::size_t index) const {

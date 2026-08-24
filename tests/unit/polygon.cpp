@@ -10,6 +10,16 @@
 #include <variant>
 #include <vector>
 
+constexpr bool polygonUntanglesAtCompileTime() {
+    using Point = pgl::Point<long long>;
+    using Polygon = pgl::Polygon<Point>;
+    Polygon bowtie({0, 0, 4, 4, 4, 0, 0, 4});
+    bowtie.untangle();
+    return bowtie == Polygon({0, 0, 4, 0, 4, 4, 0, 4});
+}
+
+static_assert(polygonUntanglesAtCompileTime());
+
 // Polygon::intersection(Polygon) clips the boundary of each polygon against the
 // other and reassembles the pieces into isolated points, open polylines, and
 // closed polygons. Pieces are returned in no particular order, so the tests
@@ -304,6 +314,21 @@ TEST_CASE("Polygon::untangle makes a polygon simple") {
         REQUIRE_FALSE(bad10.isSimple());
         bad10.untangle();
         CHECK(bad10.isSimple());
+    }
+
+    SUBCASE("many crossings are uncrossed in batches without dropping vertices") {
+        std::vector<Point> points;
+        points.reserve(128);
+        for (long long i = 0; i < 128; ++i) {
+            const long long index = (37 * i) % 128;
+            const long long x = index - 64;
+            points.emplace_back(x, x * x);
+        }
+        Polygon tour(points);
+        REQUIRE_FALSE(tour.isSimple());
+        tour.untangle();
+        CHECK(tour.isSimple());
+        CHECK(tour.size() == points.size());
     }
 
     SUBCASE("collinear touch is resolved by removing a vertex") {
