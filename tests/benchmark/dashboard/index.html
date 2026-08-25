@@ -18,7 +18,9 @@
       <a class="nav-button active" href="index.html" aria-current="page">Pairs</a>
       <a class="nav-button" href="asymptotic.html">Asymptotic</a>
     </nav>
-    <div class="legend"><span>best</span><i class="grad"></i><span>worst</span></div>
+    <label class="depth-picker" title="How many recent recorded runs to show and compare. At least 2 runs are used so the current score can be compared with history.">History
+      <input id="depth" type="number" min="2" max="20" step="1" value="5"/>
+    </label>
     <label class="machine-picker">Machine
       <select id="machine"></select>
     </label>

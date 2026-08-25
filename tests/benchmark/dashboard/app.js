@@ -166,10 +166,10 @@ async function load() {
     sel.appendChild(o);
   }
   sel.addEventListener("change", render);
-  // Controls each page owns: the asymptotic page has the history-depth input,
-  // the pairs page the hover bubble and the per-cell chart dialog.
+  // The shared history-depth input limits both pages' charts. On pairs it also
+  // limits the recent history used to colour the current measurement.
   const depth = document.getElementById("depth");
-  if (depth) depth.addEventListener("change", render);
+  if (depth) depth.addEventListener("change", () => { historyDepth(); render(); });
   const chartClose = document.getElementById("chart-close");
   if (chartClose) {
     chartClose.addEventListener(
@@ -201,6 +201,22 @@ function fmt(t) {
 const latest = (pts) => (pts && pts.length ? pts[pts.length - 1] : null);
 const bestOf = (pts) => Math.min(...pts.map((p) => p.time));
 const worstOf = (pts) => Math.max(...pts.map((p) => p.time));
+const MIN_HISTORY_DEPTH = 2;
+const MAX_HISTORY_DEPTH = 20;
+
+function historyDepth() {
+  const input = document.getElementById("depth");
+  const requested = Number(input && input.value);
+  const depth = Math.max(
+    MIN_HISTORY_DEPTH,
+    Math.min(MAX_HISTORY_DEPTH, Number.isFinite(requested) ? Math.trunc(requested) : 5));
+  if (input) input.value = depth;
+  return depth;
+}
+
+function recentHistory(points, depth = historyDepth()) {
+  return points.slice(Math.max(0, points.length - depth));
+}
 
 // Status colour on an absolute scale relative to the best (lo): green within
 // `margin` of the best, ramping through amber to full red once the value is
@@ -348,6 +364,7 @@ function render() {
 
 function renderPairs() {
   const machine = document.getElementById("machine").value;
+  const depth = historyDepth();
   const data = (DB.pairs && DB.pairs[machine]) || {};
   const root = document.getElementById("suites");
   root.innerHTML = "";
@@ -484,16 +501,18 @@ function renderPairs() {
           const coord = { ...base };
           if (rowDim) coord[rowDim] = r;
           if (colDim) coord[colDim] = c;
-          // Colour relative to this cell's own history (best..worst over time).
-          const lo = bestOf(pts), hi = worstOf(pts);
-          const spark = pts.length > 1 ? cellSpark(pts, 52, 16) : "";
+          // Compare only the requested recent history, rather than letting an
+          // old run permanently set this cell's green-to-red scale.
+          const history = recentHistory(pts, depth);
+          const lo = bestOf(history), hi = worstOf(history);
+          const spark = history.length > 1 ? cellSpark(history, 52, 16) : "";
           td.innerHTML =
             `<span class="cell">${spark}` +
             `<span class="num" style="color:${statusColor(lp.time, lo, hi)}">${fmt(lp.time)}</span>` +
             `</span>`;
           td.classList.add("clickable");
-          td.addEventListener("click", () => showChart(describe(coord) + " — " + machine, pts, "ns"));
-          td.addEventListener("mouseenter", (e) => showPop(e, describe(coord), pts, "ns"));
+          td.addEventListener("click", () => showChart(describe(coord) + " — " + machine, history, "ns"));
+          td.addEventListener("mouseenter", (e) => showPop(e, describe(coord), history, "ns"));
           td.addEventListener("mouseleave", hidePop);
         } else {
           td.textContent = "—";
@@ -513,8 +532,8 @@ function renderPairs() {
     const note = document.createElement("div");
     note.className = "unit-note";
     note.textContent = colDim
-      ? `columns: ${DIM_LABEL[colDim]} · time in ns · colour vs. own history · hover for trend, click for chart`
-      : "time in ns · colour vs. own history · hover for trend, click for chart";
+      ? `columns: ${DIM_LABEL[colDim]} · time in ns · colour vs. last ${depth} runs · hover for trend, click for chart`
+      : `time in ns · colour vs. last ${depth} runs · hover for trend, click for chart`;
     section.appendChild(note);
 
     root.appendChild(section);
@@ -593,8 +612,8 @@ function updateSummary(fixedDims, axisDims, facetDims) {
 // selects that value in one go), which demotes the previous compare axis back
 // to a single value.
 //
-// Depth (the shared History control) draws the last N recorded runs of each
-// curve rather than only the newest: recency modulates shade, the cube
+// The shared History control draws the last N recorded runs of each curve:
+// recency modulates shade, the cube
 // dimension controls hue, so an older run of a curve is a paler version of the
 // same colour rather than a different-coloured line.
 
@@ -1296,8 +1315,7 @@ function renderCategory(name) {
   if (!parts) return;
   const category = DB.asymptotic[name];
   const machine = document.getElementById("machine").value;
-  const depthInput = document.getElementById("depth");
-  const depth = Math.max(1, Math.min(20, Number(depthInput && depthInput.value) || 1));
+  const depth = historyDepth();
   const machineData = (category.data && category.data[machine]) || {};
   const state = asymState[name] || asymInitState(name, category, machineData);
   // Reconcile first: the snap decides whether a radio value has data by looking
