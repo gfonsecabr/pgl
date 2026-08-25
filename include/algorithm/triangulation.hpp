@@ -5527,8 +5527,7 @@ struct Triangulation {
     // constrained flag and label; each incident triangle splits in two, its
     // children inheriting its out-of-domain flag.
     std::pair<VertexIndex, TriIndex> splitEdge(TriIndex t, int s, const PointType& p) {
-        const TriIndex across = triangles_[t].nbr[s];
-        const bool ghostSide = isGhost(across);
+        const bool ghostSide = isGhost(triangles_[t].nbr[s]);
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, 2);
 
@@ -5537,8 +5536,11 @@ struct Triangulation {
         vertices_.push_back(p);
         const TriIndex n1 = makeRoom(ghostSide ? 1 : 2);
 
-        // Copy the record after makeRoom, whose relocation already fixed the
-        // neighbor links of every triangle adjacent to a moved ghost.
+        // Read the records after makeRoom: it relocates the lowest ghosts, so a
+        // ghost id read before it is stale (and now names a freed real slot),
+        // while its relocation already fixed the neighbor links of every
+        // triangle adjacent to a moved ghost.
+        const TriIndex across = triangles_[t].nbr[s];
         const Tri oldT = triangles_[t];
         const VertexIndex apex = oldT.v[s];
         const VertexIndex u = oldT.v[(s + 1) % 3];

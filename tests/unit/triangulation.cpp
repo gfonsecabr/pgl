@@ -1281,6 +1281,30 @@ TEST_CASE_TEMPLATE("insertDelaunay keeps the triangulation Delaunay",
     CHECK_FALSE(tri.insertDelaunay(P<Point>(45, 20)));  // a hull vertex now
 }
 
+TEST_CASE_TEMPLATE("Splitting a hull edge survives the ghost relocation",
+                   Point, pgl::Point<int>, pgl::Point<double>,
+                   pgl::Point<pgl::Rational<int64_t>>) {
+    // A hull-edge split frees a real slot by relocating the lowest-indexed
+    // ghost, which invalidates that ghost's id. Splitting the hull edge whose
+    // ghost is exactly the relocated one used to alias the freed slot and
+    // scramble the connectivity; here it takes four splits to line up.
+    std::vector<Point> pts = {P<Point>(0, 0), P<Point>(2, 0), P<Point>(2, 2),
+                              P<Point>(0, 2), P<Point>(1, 1)};
+    pgl::Triangulation tri(pts);
+    REQUIRE(tri.checkInvariants());
+    const auto hullArea = totalTwiceArea(tri);
+
+    for (const auto& q : {P<Point>(1, 0), P<Point>(2, 1), P<Point>(1, 2), P<Point>(0, 1)}) {
+        CHECK(tri.insertDelaunay(q));
+        pts.push_back(q);
+        CHECK(tri.checkInvariants());
+        CHECK(allCounterClockwise(tri));
+        CHECK(everyPointIsAVertex(tri, pts));
+        CHECK(totalTwiceArea(tri) == hullArea);  // an edge split adds no area
+    }
+    CHECK(tri.numVertices() == pts.size());
+}
+
 TEST_CASE("Insertion respects constrained edges and the polygon domain") {
     using Point = pgl::Point<int>;
     using Seg = pgl::Segment<Point>;
