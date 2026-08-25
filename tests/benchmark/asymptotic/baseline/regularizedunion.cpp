@@ -52,14 +52,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    // The same n triangles, straight from the shared generator: integer
+    // The same n / 3 triangles, straight from the shared generator: integer
     // vertices, so nothing is converted through pgl on the way in and the two
-    // libraries union the identical set.
+    // libraries union the identical set. Each emitted n is the input's number
+    // of vertices, as it is for the two-polygon dataset.
     if (bench::matches(opt.dataset, "triangles") &&
         bench::matches(opt.problem, "union")) {
         for (const int n : bench::sweep(bench::kUnionTriangles, opt)) {
             std::vector<bench::cgal::PolygonType> pieces;
-            for (const auto& t : bench::largeTriangles(n)) {
+            for (const auto& t : bench::largeTriangles(n / 3)) {
                 bench::cgal::PolygonType converted;
                 for (const auto& v : t.vertices()) {
                     converted.push_back(bench::cgal::point(v));

@@ -1,4 +1,4 @@
-// @desc: Regularized union of two polygons with n vertices or n triangles.
+// @desc: Regularized union of two polygons with n vertices or n/3 triangles.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -35,7 +35,7 @@ void manyTriangles(const bench::Options& opt) {
 
     for (const int n : bench::sweep(bench::kUnionTriangles, opt)) {
         const auto triangles =
-            bench::convert<pgl::ETriangle>(bench::largeTriangles(n));
+            bench::convert<pgl::ETriangle>(bench::largeTriangles(n / 3));
         long long result = 0;
         const double us = bench::timeOnce(result, [&] {
             return bench::doubledArea(pgl::regularizedUnionOf<pgl::EPoint>(triangles));
