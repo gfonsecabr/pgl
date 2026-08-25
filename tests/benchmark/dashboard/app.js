@@ -694,6 +694,19 @@ const BASELINE_DASHES = [[6, 4], [2, 3], [10, 3, 2, 3]];
 const asymState = {};
 const asymCharts = {};
 
+// A curve keeps its colour for as long as this category is open.  The selected
+// values are displayed in data order, which changes their list positions when
+// another value is selected or removed; deriving a colour from that position
+// would therefore recolour every following curve.  Keep an independent palette
+// assignment for each possible compare axis instead.
+function asymCurveColor(state, value) {
+  const colors = state.curveColors[state.compare] ||= new Map();
+  if (!colors.has(value)) {
+    colors.set(value, CURVE_COLORS[colors.size % CURVE_COLORS.length]);
+  }
+  return colors.get(value);
+}
+
 const hexToRgba = (hex, alpha) => {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
@@ -919,7 +932,7 @@ function asymExactValues(category, state, machineData, dim) {
 
 function asymInitState(name, category, machineData) {
   const selected = {};
-  const state = { selected, compare: ASYM_DIMS[0], xAxis: "size" };
+  const state = { selected, compare: ASYM_DIMS[0], xAxis: "size", curveColors: {} };
   // Every field on its first value, so the fields the pass below leaves alone
   // are already settled — and so asymDimValues can read the selected problem
   // while deciding what the algorithm field offers.
@@ -1023,7 +1036,6 @@ function asymFilterBar(name, category, state, machineData) {
     chips.className = "chips";
     const comparing = state.compare === dim;
     const free = !comparing && canCompare && asymPromotionIsFree(state, dim);
-    const chosen = asymSelected(category, state, dim);
     const available = asymAvailable(category, state, machineData, dim);
     for (const value of values) {
       const on = state.selected[dim].has(value);
@@ -1054,7 +1066,7 @@ function asymFilterBar(name, category, state, machineData) {
       }
       if (comparing && on) {
         // The chip wears its curve's colour, so the legend is the filter bar.
-        const color = CURVE_COLORS[chosen.indexOf(value) % CURVE_COLORS.length];
+        const color = asymCurveColor(state, value);
         chip.style.background = color;
         chip.style.borderColor = color;
         chip.style.color = "#fff";
@@ -1130,8 +1142,8 @@ function asymDatasets(category, state, machine, depth) {
   // be given the reference belonging to the slice it isn't in.
   const resolved = [];
   let latestMax = 0;
-  values.forEach((value, index) => {
-    const color = CURVE_COLORS[index % CURVE_COLORS.length];
+  values.forEach((value) => {
+    const color = asymCurveColor(state, value);
     const series = asymSeries(category, state, machineData, value);
     if (!series || !series.runs.length) return;
     // Say so when this curve had to override a radio button to exist at all.
