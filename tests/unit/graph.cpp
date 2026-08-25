@@ -51,6 +51,29 @@ void checkCliqueCover(
     CHECK(covered.size() == static_cast<std::size_t>(graph.vertexCount()));
 }
 
+template <class Vertex>
+void checkMaximalIndependentSet(
+    const pgl::Graph<Vertex>& graph,
+    const std::vector<Vertex>& independentSet
+) {
+    std::unordered_set<Vertex> selected;
+    for (const Vertex& vertex : independentSet) {
+        CHECK(graph.containsVertex(vertex));
+        CHECK(selected.insert(vertex).second);
+        for (const Vertex& neighbor : graph.neighbors(vertex)) {
+            CHECK_FALSE(selected.contains(neighbor));
+        }
+    }
+
+    for (const Vertex& vertex : graph) {
+        if (!selected.contains(vertex)) {
+            CHECK(std::ranges::any_of(graph.neighbors(vertex), [&selected](const Vertex& neighbor) {
+                return selected.contains(neighbor);
+            }));
+        }
+    }
+}
+
 // Weight of an edge of the sample weighted graph; heavy for absent edges so a
 // caller can also use it on graphs where those edges exist.
 int sampleWeight(int u, int v) {
@@ -391,6 +414,52 @@ TEST_CASE("Graph computes a DSATUR clique cover") {
         CHECK(cover[1].size() == 2);
         CHECK(cover[2].size() == 1);
         checkCliqueCover(graph, cover);
+    }
+}
+
+TEST_CASE("Graph greedily computes a maximal independent set from low degrees") {
+    SUBCASE("empty graph") {
+        const pgl::Graph<int> graph;
+        const auto independentSet = graph.independentSet();
+        CHECK(independentSet.empty());
+        checkMaximalIndependentSet(graph, independentSet);
+    }
+
+    SUBCASE("edgeless graph") {
+        pgl::Graph<int> graph;
+        for (int vertex = 0; vertex < 4; ++vertex) {
+            graph.addVertex(vertex);
+        }
+
+        const auto independentSet = graph.independentSet();
+        CHECK((asSet(independentSet) == std::set<int>{0, 1, 2, 3}));
+        checkMaximalIndependentSet(graph, independentSet);
+    }
+
+    SUBCASE("star") {
+        pgl::Graph<int> graph;
+        for (int leaf = 1; leaf <= 4; ++leaf) {
+            graph.addEdge(0, leaf);
+        }
+
+        const auto independentSet = graph.independentSet();
+        CHECK((asSet(independentSet) == std::set<int>{1, 2, 3, 4}));
+        checkMaximalIndependentSet(graph, independentSet);
+    }
+
+    SUBCASE("mixed components") {
+        pgl::Graph<int> graph;
+        graph.addEdge(0, 1);
+        graph.addEdge(1, 2);
+        graph.addEdge(1, 3);
+        graph.addEdge(2, 3);
+        graph.addVertex(4);
+
+        const auto independentSet = graph.independentSet();
+        CHECK(asSet(independentSet).contains(0));
+        CHECK(asSet(independentSet).contains(4));
+        CHECK(independentSet.size() == 3);
+        checkMaximalIndependentSet(graph, independentSet);
     }
 }
 

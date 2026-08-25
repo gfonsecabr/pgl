@@ -653,6 +653,41 @@ public:
     }
 
     /**
+     * @brief Computes a maximal independent set greedily from low-degree vertices.
+     *
+     * Vertices are considered in increasing order of their degree in this
+     * graph. A vertex is added when it is not adjacent to any vertex already
+     * in the result. Equal-degree vertices are considered in the graph's
+     * unspecified iteration order. The returned set is maximal: every vertex
+     * outside it is adjacent to at least one vertex in it. It is not generally
+     * a maximum-cardinality independent set.
+     *
+     * @return Pairwise non-adjacent vertices forming a maximal independent set.
+     */
+    [[nodiscard]] std::vector<Vertex> independentSet() const {
+        std::vector<Vertex> orderedVertices(begin(), end());
+        std::sort(orderedVertices.begin(), orderedVertices.end(), [this](
+            const Vertex& a,
+            const Vertex& b
+        ) {
+            return adjacency_.at(a).size() < adjacency_.at(b).size();
+        });
+
+        NeighborSet selected;
+        std::vector<Vertex> result;
+        for (const Vertex& vertex : orderedVertices) {
+            const NeighborSet& vertexNeighbors = adjacency_.at(vertex);
+            if (std::ranges::none_of(vertexNeighbors, [&selected](const Vertex& neighbor) {
+                    return selected.contains(neighbor);
+                })) {
+                selected.insert(vertex);
+                result.push_back(vertex);
+            }
+        }
+        return result;
+    }
+
+    /**
      * @brief Computes a minimum spanning forest using Prim's algorithm.
      *
      * The tree of a connected graph is a minimum spanning tree. A disconnected
