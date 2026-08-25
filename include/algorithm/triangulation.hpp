@@ -884,8 +884,8 @@ struct Triangulation {
      *
      * The index is an arrangement of a *coarsening* of this mesh — the
      * triangulation of a random sample of its vertices, one sampled per
-     * `bit_width(V)` of them — carrying a randomized trapezoidal search
-     * structure. A query descends it to the cell it falls
+     * `bit_width(V)` of them, its triangles merged in pairs into quadrilateral
+     * cells — carrying a randomized trapezoidal search structure. A query descends it to the cell it falls
      * in, which names a triangle of that cell's interior, and the stochastic
      * visibility walk starts there instead of at the previous query's answer:
      * the descent is over a structure a constant factor smaller than the mesh,
@@ -3852,26 +3852,34 @@ struct Triangulation {
     std::size_t revision_ = 0;
     std::size_t pointLocationRevision_ = 0;
 
-    // How many mesh triangles one cell of the point-location subdivision
-    // covers. The index locates the cell in O(log) and the walk crosses the
-    // cell, so a query costs a descent over an index this factor smaller than
-    // the mesh, plus O(sqrt(k)) walk steps for a cell of k triangles.
-    // See buildPointLocation for how the subdivision is drawn.
+    // One vertex of the point-location subdivision per this many vertices of
+    // the mesh. The index locates the cell a query falls in and the walk
+    // crosses that cell, so a query costs a descent over an index this factor
+    // smaller than the mesh, plus O(sqrt) of the triangles one cell holds --
+    // about twice this many, the cells being quadrilaterals. See
+    // buildPointLocation for how the subdivision is drawn.
     //
-    // Cells grow with the logarithm of the mesh rather than staying a fixed
-    // size, which is what keeps the index proportionate to what it indexes. A
-    // fixed cell size makes the index a fixed fraction of the mesh, and since
-    // building it costs more per element than building the mesh does, that
-    // fraction's *cost* creeps up with n: measured against the Delaunay build
-    // it indexes, a cell size of 16 goes from 0.65x at 1,000 vertices to 1.17x
-    // at 250,000. Solving for the cell size that holds that ratio at one gives
-    // 0.66 + 0.93*log2(n) over the same range -- which is bit_width to within
+    // The rate grows with the logarithm of the mesh rather than staying fixed,
+    // which is what keeps the index proportionate to what it indexes. A fixed
+    // rate makes the index a fixed fraction of the mesh, and since building it
+    // costs more per element than building the mesh does, that fraction's
+    // *cost* creeps up with V: measured against the Delaunay build it indexes,
+    // a rate of 16 goes from 0.65x at 1,000 vertices to 1.17x at 250,000.
+    // Solving for the rate that holds that ratio at one gives
+    // 0.66 + 0.93*log2(V) over the same range -- which is bit_width to within
     // half a cell, so that is what this is. Query time is flat across the whole
     // neighbourhood of the fit, so nothing is spent buying the exact constant.
     //
-    // The walk pays sqrt(log n) steps for it, against a descent of log n, and
-    // the index becomes Theta(V / log V) rather than Theta(V).
-    static constexpr std::size_t pointLocationCellSize(std::size_t vertices) {
+    // That fit was measured over triangular cells. Merging them in pairs
+    // leaves the index about a fifth smaller and a fifth cheaper than the fit
+    // provides for, and this keeps the saving rather than spending it on a
+    // finer sample: re-fitting the rate to the freed budget buys a sample whose
+    // extra trapezoids cancel the merge's almost exactly, and measures as a
+    // wash.
+    //
+    // The walk pays sqrt(log V) steps for the rate, against a descent of
+    // log V, and the index becomes Theta(V / log V) rather than Theta(V).
+    static constexpr std::size_t pointLocationSampling(std::size_t vertices) {
         return std::max<std::size_t>(1, std::bit_width(vertices));
     }
 
