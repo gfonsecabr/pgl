@@ -32,6 +32,8 @@ Options:
     --history DIR        history root        (default: tests/benchmark/history)
     --skip-pairs         do not read the pair snapshot
     --skip-asymptotic    do not read the asymptotic snapshot
+    --merge-baseline     replace only the categories present in the baseline
+                         snapshot, preserving the other stored categories
 """
 from __future__ import annotations
 
@@ -104,6 +106,7 @@ def main() -> int:
     ap.add_argument("--history", default="tests/benchmark/history")
     ap.add_argument("--skip-pairs", action="store_true")
     ap.add_argument("--skip-asymptotic", action="store_true")
+    ap.add_argument("--merge-baseline", action="store_true")
     args = ap.parse_args()
 
     history_dir = Path(args.history)
@@ -222,9 +225,18 @@ def main() -> int:
             print("baseline snapshot used --sizes; not recording it.", file=sys.stderr)
         else:
             target = history_dir / "asymptotic-baseline.json"
+            if args.merge_baseline and target.exists():
+                try:
+                    existing = json.loads(target.read_text())
+                    categories = {r["category"] for r in data.get("results", [])}
+                    preserved = [r for r in existing.get("results", [])
+                                 if r.get("category") not in categories]
+                    data = {**data, "results": preserved + data.get("results", [])}
+                except (OSError, json.JSONDecodeError):
+                    pass
             target.write_text(json.dumps(data, ensure_ascii=False, indent=2))
             print(f"  asymptotic-baseline.json: {len(data.get('results', []))} rows "
-                  f"(overwritten)")
+                  f"({'merged' if args.merge_baseline else 'overwritten'})")
 
     if not buckets:
         print("no records to append.", file=sys.stderr)

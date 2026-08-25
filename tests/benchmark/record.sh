@@ -6,6 +6,7 @@
 #   bash tests/benchmark/record.sh                     # full cube + all asymptotic
 #   bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
 #   bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
+#   bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation --baseline
 #   bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
 #   bash tests/benchmark/record.sh --focus Polygon     # Polygon vs everything (row+col)
 #   bash tests/benchmark/record.sh --rev 3fbc199       # an old library, today's benchmarks
@@ -32,6 +33,11 @@
 #                                 model. Has no effect with --asymptotic-only.
 #   --pairs-only / --asymptotic-only
 #                                 run only one half
+#   --asymptotic NAMES            limit the asymptotic run to a comma-separated
+#                                 list of driver names (for example,
+#                                 triangulation,arrangement). Also limits the
+#                                 CGAL baseline when --baseline is present;
+#                                 existing baseline categories are retained.
 #   --repetitions N               samples per program; median kept (default: 3)
 #   --baseline                    also build and run the CGAL reference drivers
 #                                 (tests/benchmark/asymptotic/baseline/). Off by
@@ -66,15 +72,28 @@ push=1
 repetitions=3
 rev=""
 fraction=""
+asymptotic_filter=0
+asymptotic_names=""
 shapes_opt=""
 types_opt=""
 methods_given=0
 pair_args=()
+asymptotic_drivers=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --pairs-only) asymptotic=0; shift ;;
         --asymptotic-only) pairs=0; shift ;;
+        --asymptotic)
+            asymptotic_filter=1
+            asymptotic_names="$2"
+            shift 2
+            ;;
+        --asymptotic=*)
+            asymptotic_filter=1
+            asymptotic_names="${1#*=}"
+            shift
+            ;;
         --baseline)   baseline=1; shift ;;
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
@@ -102,6 +121,24 @@ while [[ $# -gt 0 ]]; do
             exit 2 ;;
     esac
 done
+
+if [[ "$asymptotic_filter" -eq 1 ]]; then
+    if [[ -z "$asymptotic_names" ]]; then
+        echo "error: --asymptotic needs at least one driver name." >&2
+        exit 2
+    fi
+    IFS=',' read -r -a asymptotic_drivers <<< "$asymptotic_names"
+    for driver in "${asymptotic_drivers[@]}"; do
+        if [[ -z "$driver" ]]; then
+            echo "error: --asymptotic contains an empty driver name." >&2
+            exit 2
+        fi
+    done
+    if [[ "$asymptotic" -eq 0 ]]; then
+        echo "error: --asymptotic cannot be combined with --pairs-only." >&2
+        exit 2
+    fi
+fi
 
 if [[ -n "$fraction" ]]; then
     if [[ "$methods_given" -eq 1 ]]; then
@@ -205,7 +242,8 @@ if [[ "$asymptotic" -eq 1 ]]; then
     asymptotic_args=(--repetitions "$repetitions" --jobs "$jobs"
                      --output "$asymptotic_json" --baseline-output "$baseline_json")
     [[ "$baseline" -eq 1 ]] && asymptotic_args+=(--baseline)
-    python3 "$bench_root/tests/benchmark/run_asymptotic.py" "${asymptotic_args[@]}"
+    python3 "$bench_root/tests/benchmark/run_asymptotic.py" \
+        "${asymptotic_drivers[@]}" "${asymptotic_args[@]}"
     echo "::endgroup::"
 else
     history_args+=(--skip-asymptotic)
@@ -215,6 +253,8 @@ fi
 # were this one's; to_history.py only reads the file when it is there.
 if [[ "$baseline" -eq 0 ]]; then
     rm -f "$baseline_json"
+elif [[ "$asymptotic_filter" -eq 1 ]]; then
+    history_args+=(--merge-baseline)
 fi
 
 # ── Append to the versioned history ──────────────────────────────────────────

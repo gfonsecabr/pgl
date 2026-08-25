@@ -1,5 +1,6 @@
 // @desc: Delaunay triangulation of random points in a disk.
-// Location by stochastic visibility walk, and through the trapezoidal DAG.
+// Location by stochastic walk, and through the preprocessed
+// point location.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -45,7 +46,7 @@ void run(const bench::Options& opt) {
         // Before the index: the stochastic visibility walk.
         if (bench::matches(opt.problem, "locate")) {
             const double walkUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "visibility walk", number, n,
+            bench::emit(kCategory, kDataset, "locate", "walk", number, n,
                         result, walkUs / bench::kQueryBatch);
         }
 
@@ -54,7 +55,7 @@ void run(const bench::Options& opt) {
                 triangulation->buildPointLocation();
                 return triangulation->numEdges();
             });
-            bench::emit(kCategory, kDataset, "buildPointLocation", "trapezoidal DAG",
+            bench::emit(kCategory, kDataset, "buildPointLocation", "preprocessed",
                         number, n, result, indexUs);
         } else {
             triangulation->buildPointLocation();
@@ -67,7 +68,7 @@ void run(const bench::Options& opt) {
                        "the point-location index is not in place");
         if (bench::matches(opt.problem, "locate")) {
             const double indexedUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "trapezoidal DAG", number, n,
+            bench::emit(kCategory, kDataset, "locate", "preprocessed", number, n,
                         result, indexedUs / bench::kQueryBatch);
         }
     }

@@ -75,6 +75,8 @@ bash tests/benchmark/record.sh                     # full cube + all asymptotic
 bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
 bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
 bash tests/benchmark/record.sh --baseline          # also refresh the CGAL reference
+bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation --baseline
+bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation,arrangement --baseline
 bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
 bash tests/benchmark/record.sh --no-push           # commit locally, don't push
 ```
