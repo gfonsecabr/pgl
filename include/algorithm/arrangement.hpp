@@ -4419,9 +4419,9 @@ void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
     // trapezoidal search is a chain of random accesses whose cost is set by
     // how much memory it reaches over. So the index is drawn on the
     // triangulation of a sample of the vertices instead: a subdivision of the
-    // same shape, whose cells each hold a bounded neighbourhood of mesh
-    // triangles (see pointLocationSampling). Locating the cell leaves the walk
-    // that neighbourhood to cross rather than the whole mesh.
+    // same shape, whose cells each hold about pointLocationCellSize mesh
+    // triangles. Locating the cell leaves the walk with that bounded
+    // neighbourhood to cross rather than the whole mesh.
     //
     // Only the walk's start moves; the walk still answers, so the index cannot
     // widen what a query may return -- a point on an edge or a vertex has
@@ -4431,7 +4431,7 @@ void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
     const std::size_t vertexCount = numVertices();
     const std::size_t sampleCount =
         std::max(std::min(vertexCount, pointLocationMinimumCells),
-                 vertexCount / pointLocationSampling(vertexCount));
+                 vertexCount / pointLocationCellSize(vertexCount));
 
     std::vector<PointType> sample;
     if (vertexCount == 0) {
@@ -4453,48 +4453,9 @@ void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
     }
 
     const Triangulation coarse(sample);
-
-    // Cells are quadrilaterals, not triangles: a diagonal dropped between two
-    // coarse triangles merges them into one cell, and the trapezoidal map cuts
-    // a quadrilateral into three trapezoids where it cuts the two triangles
-    // into four. Fewer trapezoids is less memory for the descent to reach
-    // over, which is what a query is billed for.
-    //
-    // A diagonal can only go if neither of the triangles it separates has
-    // already lost one, or a cell would swallow a third triangle and the walk
-    // across it would lengthen without bound. Those are the independent sets
-    // of the graph on candidate diagonals that joins two whenever they bound a
-    // triangle in common -- a matching of the dual, drawn here as an
-    // independent set because that is what Graph offers.
-    Graph<Segment<PointType>> conflicts;
-    for (const TriId cell : coarse.triangleIds()) {
-        const TriangleType shape = coarse.getShape(cell);
-        std::vector<Segment<PointType>> diagonals;
-        for (int side = 0; side < 3; ++side) {
-            const auto across = coarse.otherTriangle(cell, side);
-            if (across.has_value() && coarse.has(*across)) {
-                const auto edge = shape.edges()[static_cast<std::size_t>(side)];
-                diagonals.emplace_back(edge[0], edge[1]);
-            }
-        }
-        for (const auto& diagonal : diagonals) {
-            conflicts.addVertex(diagonal);
-        }
-        for (std::size_t i = 0; i + 1 < diagonals.size(); ++i) {
-            for (std::size_t j = i + 1; j < diagonals.size(); ++j) {
-                conflicts.addEdge(diagonals[i], diagonals[j]);
-            }
-        }
-    }
-    const std::vector<Segment<PointType>> merged = conflicts.independentSet();
-    const std::unordered_set<Segment<PointType>> dropped(merged.begin(), merged.end());
-
     std::vector<Segment<PointLocationPoint>> cellEdges;
-    cellEdges.reserve(coarse.numEdges() - dropped.size());
+    cellEdges.reserve(coarse.numEdges());
     coarse.visitEdges([&](const SegmentType& edge) {
-        if (dropped.contains(Segment<PointType>(edge[0], edge[1]))) {
-            return;
-        }
         cellEdges.emplace_back(PointLocationPoint(edge[0]), PointLocationPoint(edge[1]));
     });
 
