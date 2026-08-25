@@ -117,6 +117,58 @@ TEST_CASE("regularizedUnionOf unites shapes that carry their edges as an array")
     }
 }
 
+TEST_CASE("the many-triangle union extracts only exposed boundary intervals") {
+    using TriangleShape = pgl::Triangle<Point>;
+
+    SUBCASE("a grid of shared edges closes into one square") {
+        std::vector<TriangleShape> triangles;
+        for (int y = 0; y < 4; ++y) {
+            for (int x = 0; x < 4; ++x) {
+                triangles.emplace_back(Point(x, y), Point(x + 1, y), Point(x, y + 1));
+                triangles.emplace_back(Point(x + 1, y + 1), Point(x, y + 1),
+                                       Point(x + 1, y));
+            }
+        }
+
+        CHECK(pgl::regularizedUnionOf<pgl::EPoint>(triangles) ==
+              pgl::EPolygon(square(0, 0, 4)).asPolygonSet());
+    }
+
+    SUBCASE("overlapping lattice triangles agree with the full overlay") {
+        std::vector<TriangleShape> triangles;
+        for (int i = 0; i < 20; ++i) {
+            const int x = (7 * i) % 11;
+            const int y = (5 * i) % 9;
+            triangles.emplace_back(Point(x, y), Point(x + 8, y + 1 + i % 2),
+                                   Point(x + 2 + i % 3, y + 9));
+        }
+
+        const auto exposed = pgl::regularizedUnionOf<pgl::EPoint>(triangles);
+        const auto fullOverlay =
+            pgl::detail::regularizedUnionByCoverage<pgl::EPoint>(triangles);
+        CHECK(exposed == fullOverlay);
+    }
+}
+
+TEST_CASE("the simple-boundary sweep preserves a large polygon pair union") {
+    const auto jagged = [](int phase) {
+        std::vector<Point> vertices;
+        for (int x = 0; x < 130; ++x) {
+            vertices.emplace_back(x, 10 + (x + phase) % 2);
+        }
+        for (int x = 129; x >= 0; --x) {
+            vertices.emplace_back(x, -10 - (x + phase) % 2);
+        }
+        return PolygonShape(std::move(vertices));
+    };
+    const PolygonShape a = jagged(0);
+    const PolygonShape b = jagged(1);
+
+    const auto swept = a.regularizedUnion<pgl::ERational>(b);
+    const auto fullOverlay = pgl::detail::regularizedUnion<pgl::EPoint>(a, b);
+    CHECK(swept == fullOverlay);
+}
+
 TEST_CASE("regularizedUnionOf takes a range of sets by their components") {
     const RegionSet left = square(0, 0, 4).regularizedUnion<int>(square(10, 0, 4));
     const RegionSet right = square(2, 2, 4).regularizedUnion<int>(square(20, 0, 4));

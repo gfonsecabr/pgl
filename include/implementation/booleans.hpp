@@ -391,7 +391,7 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
 
     // Start outside every piece in the unbounded face, then propagate those
     // parity bits across the arrangement's face adjacency graph.
-    const Arrangement<ExactPoint> arrangement(distinct);
+    const Arrangement<ExactPoint> arrangement(distinct, detail::simpleBoundaries);
     using HalfedgeId = typename Arrangement<ExactPoint>::HalfedgeId;
     using FaceId = typename Arrangement<ExactPoint>::FaceId;
     const std::size_t faceCount = arrangement.faceCount();
@@ -487,6 +487,205 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
     return regularizedCellsFromKeep<ResultPoint>(arrangement, keep);
 }
 
+// The boundary of a union is a subset of the operands' boundaries. For a set
+// of lattice triangles, find that subset directly: another convex triangle
+// covers one interval of an edge, obtained by clipping the edge's supporting
+// line against its three half-planes. Unioning those intervals leaves only the
+// exposed pieces. All O(n²) rejection and clipping arithmetic stays in int128;
+// rationals are constructed only for actual interval ends on the output
+// boundary. The final, usually small arrangement turns those pieces into the
+// canonical PolygonSet and handles touching/collinear degeneracies centrally.
+template <class ResultPoint, class TriangleType>
+std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
+    const std::vector<TriangleType>& triangles) {
+    using ShapeNumber = typename TriangleType::NumberType;
+    using ExactNumber = Exact1DNumber<ShapeNumber, ShapeNumber>;
+    using ExactPoint = Point<ExactNumber>;
+    using ExactSegment = Segment<ExactPoint>;
+    using Wide = int128;
+
+    struct IPoint {
+        std::int64_t x;
+        std::int64_t y;
+    };
+    struct ITriangle {
+        std::array<IPoint, 3> vertex;
+        std::int64_t minX, minY, maxX, maxY;
+    };
+    constexpr std::int64_t safeCoordinate = 1000000000;
+    const auto narrow = [](const ShapeNumber& value) -> std::optional<std::int64_t> {
+        if constexpr (is_Rational_v<ShapeNumber>) {
+            if (!value.isInteger()) {
+                return std::nullopt;
+            }
+            using Integer = rational_int_t<ShapeNumber>;
+            const Integer integer = static_cast<Integer>(value);
+            if (!detail::representableAs<std::int64_t>(integer)) {
+                return std::nullopt;
+            }
+            return detail::narrowTo<std::int64_t>(integer);
+        } else if constexpr (detail::extended_integral<ShapeNumber> ||
+                             std::same_as<ShapeNumber, BigInt>) {
+            if (!detail::representableAs<std::int64_t>(value)) {
+                return std::nullopt;
+            }
+            return detail::narrowTo<std::int64_t>(value);
+        } else {
+            return std::nullopt;
+        }
+    };
+
+    std::vector<ITriangle> integral;
+    integral.reserve(triangles.size());
+    for (const TriangleType& triangle : triangles) {
+        ITriangle converted{};
+        const auto vertices = triangle.vertices();
+        for (std::size_t i = 0; i < 3; ++i) {
+            const auto x = narrow(vertices[i].x());
+            const auto y = narrow(vertices[i].y());
+            if (!x || !y) {
+                return std::nullopt;
+            }
+            if (*x < -safeCoordinate || safeCoordinate < *x ||
+                *y < -safeCoordinate || safeCoordinate < *y) {
+                return std::nullopt;
+            }
+            converted.vertex[i] = {*x, *y};
+        }
+        converted.minX = converted.maxX = converted.vertex[0].x;
+        converted.minY = converted.maxY = converted.vertex[0].y;
+        for (const IPoint& point : converted.vertex) {
+            converted.minX = std::min(converted.minX, point.x);
+            converted.minY = std::min(converted.minY, point.y);
+            converted.maxX = std::max(converted.maxX, point.x);
+            converted.maxY = std::max(converted.maxY, point.y);
+        }
+        integral.push_back(converted);
+    }
+
+    const auto cross = [](Wide ax, Wide ay, Wide bx, Wide by) {
+        return ax * by - ay * bx;
+    };
+    struct Fraction {
+        Wide numerator;
+        Wide denominator;
+    };
+    const auto fraction = [](Wide numerator, Wide denominator) {
+        if (denominator < 0) {
+            numerator = -numerator;
+            denominator = -denominator;
+        }
+        return Fraction{numerator, denominator};
+    };
+    const auto less = [](const Fraction& left, const Fraction& right) {
+        return left.numerator * right.denominator <
+               right.numerator * left.denominator;
+    };
+    const auto maximum = [&less](const Fraction& left, const Fraction& right) {
+        return less(left, right) ? right : left;
+    };
+    const auto minimum = [&less](const Fraction& left, const Fraction& right) {
+        return less(left, right) ? left : right;
+    };
+    const auto exact = [](const Fraction& value) {
+        return ExactNumber(BigInt(value.numerator), BigInt(value.denominator));
+    };
+    constexpr Fraction zero{0, 1};
+    constexpr Fraction one{1, 1};
+    std::vector<ExactSegment> exposed;
+    std::vector<std::pair<Fraction, Fraction>> covered;
+    covered.reserve(triangles.size());
+
+    for (std::size_t owner = 0; owner < integral.size(); ++owner) {
+        const ITriangle& mine = integral[owner];
+        for (std::size_t edge = 0; edge < 3; ++edge) {
+            const IPoint from = mine.vertex[edge];
+            const IPoint to = mine.vertex[(edge + 1) % 3];
+            const Wide dx = Wide(to.x) - from.x;
+            const Wide dy = Wide(to.y) - from.y;
+            const std::int64_t edgeMinX = std::min(from.x, to.x);
+            const std::int64_t edgeMinY = std::min(from.y, to.y);
+            const std::int64_t edgeMaxX = std::max(from.x, to.x);
+            const std::int64_t edgeMaxY = std::max(from.y, to.y);
+            covered.clear();
+
+            for (std::size_t other = 0; other < integral.size(); ++other) {
+                const ITriangle& theirs = integral[other];
+                if (other == owner || edgeMaxX < theirs.minX || theirs.maxX < edgeMinX ||
+                    edgeMaxY < theirs.minY || theirs.maxY < edgeMinY) {
+                    continue;
+                }
+                Fraction low = zero;
+                Fraction high = one;
+                bool feasible = true;
+                bool coincident = false;
+                bool interiorOnRight = false;
+                for (std::size_t wall = 0; wall < 3; ++wall) {
+                    const IPoint a = theirs.vertex[wall];
+                    const IPoint b = theirs.vertex[(wall + 1) % 3];
+                    const Wide wx = Wide(b.x) - a.x;
+                    const Wide wy = Wide(b.y) - a.y;
+                    const Wide c = cross(wx, wy, Wide(from.x) - a.x,
+                                         Wide(from.y) - a.y);
+                    const Wide slope = cross(wx, wy, dx, dy);
+                    if (slope == 0) {
+                        if (c < 0) {
+                            feasible = false;
+                            break;
+                        }
+                        if (c == 0) {
+                            coincident = true;
+                            interiorOnRight = wx * dx + wy * dy < 0;
+                        }
+                        continue;
+                    }
+                    const Fraction at = fraction(-c, slope);
+                    if (slope > 0) {
+                        low = maximum(low, at);
+                    } else {
+                        high = minimum(high, at);
+                    }
+                    if (!less(low, high)) {
+                        feasible = false;
+                        break;
+                    }
+                }
+                if (feasible && less(low, high) && (!coincident || interiorOnRight)) {
+                    covered.emplace_back(low, high);
+                }
+            }
+
+            std::sort(covered.begin(), covered.end(), [&less](const auto& left, const auto& right) {
+                return less(left.first, right.first) ||
+                       (!less(right.first, left.first) && less(left.second, right.second));
+            });
+            Fraction cursor = zero;
+            const auto pointAt = [&](const Fraction& parameter) {
+                const ExactNumber t = exact(parameter);
+                return ExactPoint(ExactNumber(from.x) + ExactNumber(dx) * t,
+                                  ExactNumber(from.y) + ExactNumber(dy) * t);
+            };
+            for (const auto& interval : covered) {
+                if (less(cursor, interval.first)) {
+                    exposed.emplace_back(pointAt(cursor), pointAt(interval.first));
+                }
+                cursor = maximum(cursor, interval.second);
+                if (!less(cursor, one)) {
+                    break;
+                }
+            }
+            if (less(cursor, one)) {
+                exposed.emplace_back(pointAt(cursor), pointAt(one));
+            }
+        }
+    }
+
+    return regularizedCells<ResultPoint>(exposed, [&triangles](const ExactPoint& witness) {
+        return std::ranges::any_of(
+            triangles, [&witness](const TriangleType& triangle) { return triangle.contains(witness); });
+    });
+}
+
 }  // namespace detail
 
 /**
@@ -546,6 +745,15 @@ PolygonSet<ResultPoint> regularizedUnionOf(const ShapeRange& shapes,
         return regularizedUnionOf<ResultPoint>(components, simpleBoundaries);
     } else if constexpr (detail::is_convex_v<ShapeType> || detail::is_triangle_v<ShapeType> ||
                          detail::is_rectangle_v<ShapeType>) {
+        if constexpr (detail::is_triangle_v<ShapeType> &&
+                      !std::floating_point<typename ShapeType::NumberType>) {
+            if (distinct.size() >= 16) {
+                if (auto result =
+                        detail::regularizedUnionOfIntegralTriangles<ResultPoint>(distinct)) {
+                    return std::move(*result);
+                }
+            }
+        }
         return detail::regularizedUnionByCoverage<ResultPoint>(distinct);
     } else {
         using ShapeNumber = typename ShapeType::NumberType;
@@ -1187,7 +1395,12 @@ template <class PointType_, class TLabel>
 template <class ResultNumber, PolygonConcept OtherPolygon>
 PolygonSet<Point<ResultNumber, typename PointType_::LabelType>>
 Polygon<PointType_, TLabel>::regularizedUnion(const OtherPolygon& other) const {
-    return detail::regularizedUnion<Point<ResultNumber, typename PointType_::LabelType>>(*this, other);
+    using ExactNumber = detail::Exact1DNumber<NumberType, typename OtherPolygon::NumberType>;
+    using ExactPoint = Point<ExactNumber>;
+    const std::array<Polygon<ExactPoint>, 2> operands{Polygon<ExactPoint>(*this),
+                                                      Polygon<ExactPoint>(other)};
+    return regularizedUnionOf<Point<ResultNumber, typename PointType_::LabelType>>(
+        operands, true);
 }
 
 template <class PointType_, class TLabel>

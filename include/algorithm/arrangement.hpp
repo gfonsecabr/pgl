@@ -68,6 +68,9 @@ namespace pgl {
 
 namespace detail {
 
+struct SimpleBoundariesTag {};
+inline constexpr SimpleBoundariesTag simpleBoundaries;
+
 /**
  * @brief The orientation of a **simple** ring: positive when it runs
  *        counterclockwise, negative when clockwise, zero when it bounds no area.
@@ -261,7 +264,18 @@ public:
         std::vector<InputCurve> curves;
         std::vector<PointType> isolated;
         collect(shapes, segments, curves, isolated);
-        build(segments, curves, isolated);
+        build(segments, curves, isolated, false);
+    }
+
+    // Internal fast path for boolean operands whose boundary rings are known
+    // simple and non-overlapping within each input shape.
+    template <std::ranges::input_range ShapeRange>
+    Arrangement(const ShapeRange& shapes, detail::SimpleBoundariesTag) {
+        std::vector<InputSegment> segments;
+        std::vector<InputCurve> curves;
+        std::vector<PointType> isolated;
+        collect(shapes, segments, curves, isolated);
+        build(segments, curves, isolated, true);
     }
 
     /**
@@ -291,7 +305,7 @@ public:
         for (const auto& point : points) {
             isolated.emplace_back(point);
         }
-        build(segments, curves, isolated);
+        build(segments, curves, isolated, false);
     }
 
     // -------------------------------------------------------------------------
@@ -1519,14 +1533,14 @@ private:
     // Construction
 
     void build(std::vector<InputSegment>& segments, std::vector<InputCurve>& curves,
-               std::vector<PointType>& isolated) {
+               std::vector<PointType>& isolated, bool simpleBoundaries) {
         const bool hasUnbounded = std::ranges::any_of(
             curves, [](const InputCurve& curve) { return curve.kind != EdgeKind::segment; });
         if (hasUnbounded) {
             buildUnbounded(curves, isolated);
             return;
         }
-        std::vector<Piece> pieces = split(segments, isolated);
+        std::vector<Piece> pieces = split(segments, isolated, simpleBoundaries);
         internVertices(pieces, isolated);
         simplifyStoredCoordinates();
         wireHalfedges();
@@ -1874,7 +1888,8 @@ private:
      * the rest.
      */
     static std::vector<Piece> split(std::vector<InputSegment>& segments,
-                                    const std::vector<PointType>& isolated) {
+                                    const std::vector<PointType>& isolated,
+                                    bool simpleBoundaries) {
         using IntegralPoint = Point<std::int64_t>;
         using IntegralSegment = Segment<IntegralPoint>;
         constexpr bool mayNeedIntegralNarrowing =
@@ -2002,46 +2017,106 @@ private:
                 segments[group[b]].segment));
         };
 
-        // The active list is compacted by the same pass that tests it, so a
-        // group is dropped exactly once and expiry costs nothing beyond the
-        // comparison the test needed anyway.
-        std::vector<std::uint32_t> active;
-        for (const std::uint32_t current : order) {
-            const NumberType& left = segments[group[current]].segment.min().x();
-            std::size_t write = 0;
-            for (std::size_t read = 0; read < active.size(); ++read) {
-                const std::uint32_t other = active[read];
-                bool expired;
-                bool missesInY;
-                if constexpr (mayNeedIntegralNarrowing) {
-                    if (integral[current] && integral[other]) {
-                        const IntegralSegment& currentSegment = *integral[current];
-                        const IntegralSegment& otherSegment = *integral[other];
-                        expired = otherSegment.max().x() < currentSegment.min().x();
-                        const auto [currentLow, currentHigh] =
-                            std::minmax(currentSegment.min().y(), currentSegment.max().y());
-                        const auto [otherLow, otherHigh] =
-                            std::minmax(otherSegment.min().y(), otherSegment.max().y());
-                        missesInY = otherHigh < currentLow || currentHigh < otherLow;
+        // For two large simple boundaries the arrangement normally has only a
+        // small number of red-blue crossings, while the edges of each jagged
+        // ring have long, mutually overlapping x-projections. The box sweep
+        // below then examines quadratically many pairs it can reject only with
+        // an exact predicate. Bentley--Ottmann follows the actual crossings and
+        // makes that case O((n + k) log n). Keep the box sweep for many-shape and
+        // dense overlays: its compact vectors and native-integer rejection are
+        // substantially cheaper when k itself is large.
+        const std::uint32_t originCount = segments.empty()
+            ? 0
+            : 1 + std::ranges::max(segments, {}, &InputSegment::origin).origin;
+        const bool useIntersectionSweep = simpleBoundaries && originCount == 2 && count >= 256 &&
+                                          !std::floating_point<NumberType>;
+        if (useIntersectionSweep) {
+            if constexpr (!std::floating_point<NumberType>) {
+                const bool allIntegral = mayNeedIntegralNarrowing &&
+                    std::ranges::all_of(
+                        integral, [](const auto& segment) { return segment.has_value(); });
+                if (allIntegral) {
+                    std::vector<IntegralSegment> unique;
+                    unique.reserve(count);
+                    for (const auto& segment : integral) {
+                        unique.push_back(*segment);
+                    }
+                    detail::BentleyOttmann<NumberType, IntegralSegment> sweep;
+                    for (const auto& pair : sweep.findIntersections(unique)) {
+                        const auto indexOf = [&](const IntegralSegment& segment) {
+                            return static_cast<std::size_t>(
+                                std::lower_bound(unique.begin(), unique.end(), segment) -
+                                unique.begin());
+                        };
+                        const std::size_t a = indexOf(pair[0]);
+                        const std::size_t b = indexOf(pair[1]);
+                        if (a != b) {
+                            meet(a, b);
+                        }
+                    }
+                } else {
+                    std::vector<Segment<PointType>> unique;
+                    unique.reserve(count);
+                    for (std::size_t i = 0; i < count; ++i) {
+                        unique.push_back(segments[group[i]].segment);
+                    }
+                    detail::BentleyOttmann<NumberType, Segment<PointType>> sweep;
+                    for (const auto& pair : sweep.findIntersections(unique)) {
+                        const auto indexOf = [&](const Segment<PointType>& segment) {
+                            return static_cast<std::size_t>(
+                                std::lower_bound(unique.begin(), unique.end(), segment) -
+                                unique.begin());
+                        };
+                        const std::size_t a = indexOf(pair[0]);
+                        const std::size_t b = indexOf(pair[1]);
+                        if (a != b) {
+                            meet(a, b);
+                        }
+                    }
+                }
+            }
+        } else {
+            // The active list is compacted by the same pass that tests it, so a
+            // group is dropped exactly once and expiry costs nothing beyond the
+            // comparison the test needed anyway.
+            std::vector<std::uint32_t> active;
+            for (const std::uint32_t current : order) {
+                const NumberType& left = segments[group[current]].segment.min().x();
+                std::size_t write = 0;
+                for (std::size_t read = 0; read < active.size(); ++read) {
+                    const std::uint32_t other = active[read];
+                    bool expired;
+                    bool missesInY;
+                    if constexpr (mayNeedIntegralNarrowing) {
+                        if (integral[current] && integral[other]) {
+                            const IntegralSegment& currentSegment = *integral[current];
+                            const IntegralSegment& otherSegment = *integral[other];
+                            expired = otherSegment.max().x() < currentSegment.min().x();
+                            const auto [currentLow, currentHigh] =
+                                std::minmax(currentSegment.min().y(), currentSegment.max().y());
+                            const auto [otherLow, otherHigh] =
+                                std::minmax(otherSegment.min().y(), otherSegment.max().y());
+                            missesInY = otherHigh < currentLow || currentHigh < otherLow;
+                        } else {
+                            expired = right[other] < left;
+                            missesInY = high[other] < low[current] || high[current] < low[other];
+                        }
                     } else {
                         expired = right[other] < left;
                         missesInY = high[other] < low[current] || high[current] < low[other];
                     }
-                } else {
-                    expired = right[other] < left;
-                    missesInY = high[other] < low[current] || high[current] < low[other];
+                    if (expired) {
+                        continue;  // its projection closed before this one opened
+                    }
+                    active[write++] = other;
+                    if (missesInY) {
+                        continue;  // boxes overlap in x but miss in y
+                    }
+                    meet(other, current);
                 }
-                if (expired) {
-                    continue;  // its projection closed before this one opened
-                }
-                active[write++] = other;
-                if (missesInY) {
-                    continue;  // boxes overlap in x but miss in y
-                }
-                meet(other, current);
+                active.resize(write);
+                active.push_back(current);
             }
-            active.resize(write);
-            active.push_back(current);
         }
 
         std::vector<Piece> pieces;
