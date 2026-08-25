@@ -38,10 +38,10 @@ of them.
         # the last N runs of each series.
         "data": { <machine>: { "dataset|problem|algorithm|type":
                     [ {commit, date, points:[{size,time,min,max,result}, ...]}, ... ] } },
-        # The CGAL reference, if one was recorded. Keyed on dataset|problem
-        # only: CGAL is not one of the cube's selectable values, so its curve is
-        # drawn whatever algorithm and number type happen to be selected.
-        "baseline": { "dataset|problem": {algorithm, number, points:[...]} },
+        # The CGAL reference, if one was recorded. Keyed on dataset|problem;
+        # a curve may additionally name the pgl algorithm it compares against.
+        "baseline": { "dataset|problem":
+                      {algorithm, number, for_algorithm?, points:[...]} },
         "source_url"?, "description"?
       }
     }
@@ -200,6 +200,14 @@ PROBLEM_ORDER = ["build", "buildPointLocation", "locate", "locateFace",
                  "visibility graph", "visible vertices",
                  "Minkowski sum", "union"]
 
+# A CGAL entry may be the independent reference for one specific pgl algorithm,
+# rather than for every algorithm that solves the same problem.
+BASELINE_FOR_ALGORITHM = {
+    ("Triangulation", "locate", "CGAL::Delaunay_triangulation_2::locate"): "walk",
+    ("Triangulation", "locate", "CGAL::Triangulation_hierarchy_2::locate"):
+        "preprocessed",
+}
+
 
 def build_asymptotic(history: str, repo_base: str, bench_root: str):
     """Return (asymptotic, machines) for the size-swept benchmarks."""
@@ -305,9 +313,14 @@ def read_baseline(history: str):
     for r in snapshot.get("results", []):
         key = "|".join((r["dataset"], r["problem"]))
         curves = grouped.setdefault(r["category"], {}).setdefault(key, {})
+        for_algorithm = BASELINE_FOR_ALGORITHM.get(
+            (r["category"], r["problem"], r["algorithm"]))
         curve = curves.setdefault(r["algorithm"], {
-            "algorithm": r["algorithm"], "number": r["number"], "_points": {},
+            "algorithm": r["algorithm"], "number": r["number"],
+            "_points": {},
         })
+        if for_algorithm:
+            curve["for_algorithm"] = for_algorithm
         curve["_points"][r["size"]] = {
             "size": r["size"], "time": r["time"],
             "min": r.get("time_min", r["time"]), "max": r.get("time_max", r["time"]),

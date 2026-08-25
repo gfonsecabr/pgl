@@ -1058,9 +1058,9 @@ function asymDatasets(category, state, machine, depth) {
     .sort((a, b) => a.x - b.x);
 
   const datasets = [];
-  // (dataset, problem) each drawn curve actually resolved to, for the CGAL
-  // lookup below — which has to follow the same relaxation, or a relaxed curve
-  // would be given the reference belonging to the slice it isn't in.
+  // The dimensions each drawn curve actually resolved to, for the CGAL lookup
+  // below — this has to follow the same relaxation, or a relaxed curve would
+  // be given the reference belonging to the slice it isn't in.
   const resolved = [];
   let latestMax = 0;
   values.forEach((value, index) => {
@@ -1079,6 +1079,8 @@ function asymDatasets(category, state, machine, depth) {
         : at.dataset ?? asymSelected(category, state, "dataset")[0],
       problem: state.compare === "problem" ? value
         : at.problem ?? asymSelected(category, state, "problem")[0],
+      algorithm: state.compare === "algorithm" ? value
+        : at.algorithm ?? asymSelected(category, state, "algorithm")[0],
     });
     shown.forEach((run, position) => {
       const newest = position === shown.length - 1;
@@ -1109,46 +1111,46 @@ function asymDatasets(category, state, machine, depth) {
     });
   });
 
-  // The CGAL reference curves. A baseline is keyed on dataset and problem
-  // alone — CGAL is neither one of the algorithms on the algorithm axis nor a
-  // value of the number-type axis, so the same reference is the right one
-  // whichever of those two is selected. When the compare axis *is* the dataset
-  // or the problem, though, each curve on the chart wants its own, so they are
-  // collected per compare value and duplicates dropped. A key may name more
-  // than one: CGAL solves the Minkowski sum twice, by decomposition and by
-  // convolution, and both belong on the chart.
+  // The CGAL reference curves. Most baselines apply to every pgl algorithm for
+  // their dataset and problem. A baseline may instead name `for_algorithm`, in
+  // which case it belongs only to that pgl series. This lets, for example, the
+  // ordinary and hierarchy CGAL locators follow Triangulation's walk and
+  // preprocessed curves respectively.
   const seen = new Set();
   const references = [];
-  for (const { value, color, dataset, problem } of resolved) {
+  for (const { value, color, dataset, problem, algorithm } of resolved) {
     const key = `${dataset}|${problem}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
     const found = (category.baseline && category.baseline[key]) || [];
     found.forEach((baseline, rank) => {
+      if (baseline.for_algorithm && baseline.for_algorithm !== algorithm) return;
+      // A number-type comparison repeats the same algorithm, so its reference
+      // must only be drawn once. Algorithm-specific references use a separate
+      // key so selecting walk and preprocessed draws one of each.
+      const referenceKey = baseline.for_algorithm
+        ? `${key}|${algorithm}|${baseline.algorithm}`
+        : `${key}|${baseline.algorithm}`;
+      if (seen.has(referenceKey)) return;
+      seen.add(referenceKey);
       const points = laid(baseline.points);
       if (points.length) references.push({ value, color, baseline, points, rank });
     });
   }
 
-  // Whether a reference belongs to one named curve rather than to all of them.
-  // A baseline is keyed on dataset and problem, so when the compare axis is the
-  // algorithm or the number type every curve on the chart shares the same
-  // reference and it stays neutral — colouring it like one of them would claim
-  // a pairing that isn't there. When the compare axis is the dataset or the
-  // problem, each curve has its own, and a grey dash among coloured curves
-  // says nothing about which one it answers: there it takes that curve's
-  // colour and keeps the dashes to stay legible as CGAL rather than as pgl.
+  // A baseline associated with one pgl algorithm always takes that curve's
+  // colour. Unassociated references only take a colour when dataset or problem
+  // is being compared, where each one belongs to a distinct curve.
   const specific = values.length > 1 &&
     state.compare !== "algorithm" && state.compare !== "type";
   for (const { value, color, baseline, points, rank } of references) {
     const label = `${baseline.algorithm} (${baseline.number})`;
-    const stroke = specific ? color : BASELINE_COLOR;
+    const paired = Boolean(baseline.for_algorithm);
+    const stroke = paired || specific ? color : BASELINE_COLOR;
     // Where a curve has several references, colour can no longer tell them
     // apart — it is already saying which curve they belong to — so the dash
     // pattern does.
     const dash = BASELINE_DASHES[rank % BASELINE_DASHES.length];
     datasets.push({
-      label: specific ? `${label} · ${value}` : label,
+      label: paired || specific ? `${label} · ${value}` : label,
       data: points,
       borderColor: stroke,
       backgroundColor: stroke,
