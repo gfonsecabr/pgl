@@ -19,6 +19,8 @@ let DB = null;
 let chart = null;
 let pop = null; // hover preview bubble
 const PAGE = document.body.dataset.page || "pairs";
+let deferredPairsPromise = null;
+let deferredPairsLoaded = false;
 
 const DIMS = ["shape1", "size1", "shape2", "size2", "method", "type"];
 const DIM_LABEL = {
@@ -147,7 +149,7 @@ function distributionTip(shape, size) {
 
 async function load() {
   const dataFile = PAGE === "asymptotic" ? "asymptotic.json" : "pairs.json";
-  const res = await fetch(dataFile, { cache: "no-store" });
+  const res = await fetch(dataFile, { cache: "no-cache" });
   DB = await res.json();
   pop = document.getElementById("spark-pop");
 
@@ -165,7 +167,10 @@ async function load() {
     o.value = o.textContent = m;
     sel.appendChild(o);
   }
-  sel.addEventListener("change", render);
+  sel.addEventListener("change", () => {
+    render();
+    requestDeferredPairs(render);
+  });
   // The shared history-depth input limits both pages' charts. On pairs it also
   // limits the recent history used to colour the current measurement.
   const depth = document.getElementById("depth");
@@ -186,6 +191,45 @@ async function load() {
   }
 
   render();
+  if (PAGE === "pairs") scheduleDeferredPairs();
+}
+
+function loadDeferredPairs() {
+  if (PAGE !== "pairs" || deferredPairsLoaded) return Promise.resolve();
+  if (deferredPairsPromise) return deferredPairsPromise;
+
+  deferredPairsPromise = fetch("pairs-deferred.json", { cache: "no-cache" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`could not load deferred pair data (${res.status})`);
+      return res.json();
+    })
+    .then((payload) => {
+      for (const [machine, cells] of Object.entries(payload.pairs || {}))
+        Object.assign(DB.pairs[machine] ||= {}, cells);
+      deferredPairsLoaded = true;
+    })
+    .catch((error) => {
+      deferredPairsPromise = null;
+      console.warn("Deferred pair benchmark data was not loaded.", error);
+      throw error;
+    });
+  return deferredPairsPromise;
+}
+
+// The opening view is complete in pairs.json. Fetch the rest only after it has
+// had a chance to paint, but immediately finish the load if a reader changes a
+// filter before then.
+function scheduleDeferredPairs() {
+  const prefetch = () => { loadDeferredPairs().catch(() => {}); };
+  if ("requestIdleCallback" in window)
+    window.requestIdleCallback(prefetch, { timeout: 3000 });
+  else
+    window.setTimeout(prefetch, 1500);
+}
+
+function requestDeferredPairs(onLoaded) {
+  if (PAGE === "pairs" && !deferredPairsLoaded)
+    loadDeferredPairs().then(onLoaded).catch(() => {});
 }
 
 // ── shared formatting / colour helpers (kept from the original dashboard) ─────
@@ -334,6 +378,7 @@ function buildFilterBar() {
         else selected[d].add(v);
         buildFilterBar();
         render();
+        requestDeferredPairs(render);
       });
       chips.appendChild(chip);
     }

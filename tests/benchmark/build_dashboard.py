@@ -19,6 +19,10 @@ pairs.json shape:
     "asymptotic": {}
   }
 
+The initial pairs payload contains the opening dashboard view (large first
+operand, small second operand, and int). The remaining cell histories are
+written as pairs-deferred.json and fetched after the page becomes idle.
+
 asymptotic.json shape. The cube's four dimensions are carried flat rather than
 pre-grouped by a fixed axis: the page lets the reader pick which one is the
 multi-select "compare" axis at render time, so it has to be able to pivot on any
@@ -82,6 +86,12 @@ DESC_RE = re.compile(r"//\s*@desc:\s*(.*)")
 # The microsecond symbol. Runs recorded before it was spelled properly carry
 # "us" in the history, and the page should not show two spellings of one unit.
 MICROSECONDS = "\u00b5s"
+
+# The opening dashboard slice. Point operands carry the size-agnostic ``n/a``
+# sentinel, so they belong to this slice regardless of the other operand's
+# selected size.
+INITIAL_PAIRS = {"size1": "large", "size2": "small", "type": "int"}
+NO_SIZE = "n/a"
 
 
 def canonical_unit(unit: str) -> str:
@@ -183,6 +193,24 @@ def build_pairs(history: str):
               "size2": SIZE_ORDER, "method": METHOD_ORDER, "type": TYPE_ORDER}
     dimensions = {d: sorted(vals, key=order_key(orders[d])) for d, vals in dims.items()}
     return pairs, dimensions, machines
+
+
+def split_initial_pairs(pairs: dict):
+    """Split the first-view pair cells from the deferred dashboard payload."""
+    initial: dict = {}
+    deferred: dict = {}
+    for machine, cells in pairs.items():
+        initial[machine] = {}
+        deferred[machine] = {}
+        for key, history in cells.items():
+            _, size1, _, size2, _, number = key.split("|")
+            is_initial = (
+                size1 in (INITIAL_PAIRS["size1"], NO_SIZE)
+                and size2 in (INITIAL_PAIRS["size2"], NO_SIZE)
+                and number == INITIAL_PAIRS["type"]
+            )
+            (initial if is_initial else deferred)[machine][key] = history
+    return initial, deferred
 
 
 # Display order for the asymptotic page's own dimensions. Anything not listed
@@ -354,6 +382,7 @@ def main() -> None:
         repo_base += "/"
 
     pairs, dimensions, pair_machines = build_pairs(args.history)
+    initial_pairs, deferred_pairs = split_initial_pairs(pairs)
     asymptotic, asym_machines = build_asymptotic(args.history, repo_base, args.bench_root)
     machines = sorted(pair_machines | asym_machines)
 
@@ -363,7 +392,7 @@ def main() -> None:
         "machines": sorted(pair_machines),
         "unit": "ns",
         "dimensions": dimensions,
-        "pairs": pairs,
+        "pairs": initial_pairs,
         "asymptotic": {},
     }
     asymptotic_payload = {
@@ -374,6 +403,7 @@ def main() -> None:
         "pairs": {},
         "asymptotic": asymptotic,
     }
+    deferred_pairs_payload = {"pairs": deferred_pairs}
 
     os.makedirs(args.out, exist_ok=True)
     for fname in ("index.html", "asymptotic.html", "app.js", "style.css"):
@@ -383,6 +413,7 @@ def main() -> None:
     if os.path.exists(args.logo):
         shutil.copy(args.logo, os.path.join(args.out, "logo.png"))
     for fname, payload in (("pairs.json", pairs_payload),
+                           ("pairs-deferred.json", deferred_pairs_payload),
                            ("asymptotic.json", asymptotic_payload)):
         with open(os.path.join(args.out, fname), "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
