@@ -245,15 +245,18 @@ function fmt(t) {
 const latest = (pts) => (pts && pts.length ? pts[pts.length - 1] : null);
 const bestOf = (pts) => Math.min(...pts.map((p) => p.time));
 const worstOf = (pts) => Math.max(...pts.map((p) => p.time));
-const MIN_HISTORY_DEPTH = 2;
-const MAX_HISTORY_DEPTH = 20;
+const HISTORY_DEPTH = PAGE === "pairs"
+  ? { min: 2, max: 20, default: 5 }
+  : { min: 1, max: 20, default: 1 };
 
 function historyDepth() {
   const input = document.getElementById("depth");
   const requested = Number(input && input.value);
   const depth = Math.max(
-    MIN_HISTORY_DEPTH,
-    Math.min(MAX_HISTORY_DEPTH, Number.isFinite(requested) ? Math.trunc(requested) : 5));
+    HISTORY_DEPTH.min,
+    Math.min(
+      HISTORY_DEPTH.max,
+      Number.isFinite(requested) ? Math.trunc(requested) : HISTORY_DEPTH.default));
   if (input) input.value = depth;
   return depth;
 }
