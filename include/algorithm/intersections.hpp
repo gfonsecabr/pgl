@@ -10,16 +10,47 @@
  * the public helpers that expose it through the Pangolin API.
  */
 
-#include <functional>
-#include <queue>
-#include <utility>
 #include <array>
+#include <cassert>
+#include <functional>
+#include <map>
 #include <queue>
 #include <set>
-#include <map>
+#include <type_traits>
+#include <unordered_set>
+#include <utility>
 
 
 namespace pgl::detail{
+
+/**
+ * @brief The number type @ref BentleyOttmann evaluates its height expression in.
+ *
+ * That expression is a degree-three product of coordinate differences times one
+ * part of the sweep abscissa. Over integer coordinates it is an integer, and
+ * the type is the wider of the two operands' types, promoted once so their
+ * product fits as well. Over rational coordinates the coefficients are already
+ * fractions and nothing clears to integers, so the sweep's own fraction type is
+ * the answer — and asking for a common type of a fraction and an integer, which
+ * is what the general form does, would not even be well formed.
+ *
+ * @tparam Coefficient Type of the expression's coefficients.
+ * @tparam Part Type of the sweep abscissa's numerator and denominator.
+ * @tparam Fraction The sweep's own rational type.
+ */
+template <class Coefficient, class Part, class Fraction>
+struct sweepHeightNumber {
+    using type = promoted_number_t<std::common_type_t<Coefficient, Part>>;
+};
+
+template <class Int, class Part, class Fraction>
+struct sweepHeightNumber<pgl::Rational<Int>, Part, Fraction> {
+    using type = Fraction;
+};
+
+template <class Coefficient, class Part, class Fraction>
+using sweepHeightNumber_t = typename sweepHeightNumber<Coefficient, Part, Fraction>::type;
+
 template <class Rational, SegmentConcept Segment>
 class BentleyOttmann {
     using Point = Segment::PointType;
@@ -33,19 +64,41 @@ class BentleyOttmann {
     using RSegment = pgl::Segment<RPoint>;
     using CrossingPair = std::array<Segment,2>;
 
+    // Integer types the status order's arithmetic runs in. `Integer` is what
+    // the sweep abscissa's numerator and denominator are; `Wide` holds a
+    // degree-three product of coordinate differences, which is as far as the
+    // height comparison's coefficients go; `Exact` multiplies one of those by
+    // one of the abscissa's parts, and is the widest quantity the sweep forms.
+    using Integer = pgl::rational_int_t<Rational>;
+    using Coordinate = pgl::detail::promoted_number_t<Number>;
+    using Wide = pgl::detail::promoted_number_t<Coordinate>;
+    using Exact = pgl::detail::sweepHeightNumber_t<Wide, Integer, Rational>;
+
     enum class EventEnum {
         RIGHT, CROSS, VERTICAL, LEFT
     };
 
     struct Event {
         Rational x;
+        // The abscissa in double, with the bound that makes it a proof. Two
+        // events are ordered by their abscissas, and the queue compares
+        // O(log n) pairs per push and per pop; comparing fractions over
+        // arbitrary-precision parts exactly, every time, costs far more than
+        // the events whose abscissas are nowhere near each other are worth.
+        pgl::detail::Approximate approx;
         EventEnum type;
         Segment s1;
 
         Event(Rational x_, EventEnum type_, Segment s1_)
-            : x(std::move(x_)), type(type_), s1(std::move(s1_)) {}
+            : x(std::move(x_)), approx(pgl::detail::approximate(x)),
+              type(type_), s1(std::move(s1_)) {}
 
         auto operator<(const Event &other) const { // Order is backwards by x
+            const std::partial_ordering filtered =
+                pgl::detail::approximateSign(other.approx - approx);
+            if (filtered != std::partial_ordering::unordered) {
+                return filtered < 0;
+            }
             return other.x < x;
         }
 
@@ -56,10 +109,86 @@ class BentleyOttmann {
 
     std::priority_queue<Event> queue;
     Rectangle bbox;
-    Rational line;
-    using Tree = std::set<Segment,std::function<bool(const Segment&a, const Segment &b)>>;
+
+    /**
+     * @brief A sweep abscissa, carrying the two integers the exact height test
+     * needs alongside the fraction itself.
+     *
+     * Splitting the fraction once, rather than at each of the many comparisons
+     * made at that abscissa, is the whole reason this exists: reading
+     * `numerator()` off an unreduced fraction runs a gcd of its own, and
+     * reading both parts runs two.
+     */
+    struct Abscissa {
+        Rational x;
+        Integer num{};
+        Integer den{1};
+        // The same value in double, with the bound that makes it a proof. A
+        // fraction over arbitrary-precision parts reaches double the slow way,
+        // through a long double per part, so converting it once per step rather
+        // than once per comparison is the difference between the filter paying
+        // for itself and not.
+        pgl::detail::Approximate approx{};
+    };
+
+    // Where the sweep stands. The status tree's order is the order *at this
+    // abscissa*, so it is only ever moved between emptying the tree of the
+    // segments the move reorders and putting them back.
+    Abscissa line;
+
+    // A plain function object rather than a std::function: the tree calls this
+    // O(log n) times per operation and millions of times per sweep, and the
+    // type-erased call cannot be inlined.
+    struct AlongLine {
+        const BentleyOttmann *sweep;
+        bool operator()(const Segment &a, const Segment &b) const {
+            return sweep->CompareAlongLine(a, b);
+        }
+    };
+    using Tree = std::set<Segment, AlongLine>;
     Tree tree;
-    std::set<CrossingPair> crossingsSet, intersectionSet;
+
+    // This step's events, split by kind; see @ref getEvents.
+    std::array<std::vector<Event>, 4> events;
+
+    /**
+     * @brief One crossing's worth of the status tree: the segments meeting the
+     * sweep line at a single point, bottom to top.
+     *
+     * They occupy consecutive positions — two segments at the same height are
+     * neighbours, and every segment between two of them is at that height too —
+     * which is what lets @ref node stand for the whole run. It is where the run
+     * starts before the crossing is processed and some position inside it
+     * after, so neither end of the run ever has to be searched for.
+     */
+    struct Run {
+        typename Tree::iterator node;
+        std::vector<Segment> segments;
+    };
+
+    // Hashed, not ordered: these accumulate one entry per reported pair, and
+    // the sweep only ever asks whether a pair is already in them. Ordering them
+    // as they are built charges a log-sized run of segment comparisons, and a
+    // red-black node, for every crossing found; the results are put in order
+    // once, at the end, where it costs a single sort.
+    struct CrossingPairHash {
+        std::size_t operator()(const CrossingPair &pair) const {
+            std::size_t seed = 0;
+            pgl::detail::hashCombine(seed, pair[0]);
+            pgl::detail::hashCombine(seed, pair[1]);
+            return seed;
+        }
+    };
+    using CrossingPairSet = std::unordered_set<CrossingPair, CrossingPairHash>;
+    CrossingPairSet crossingsSet, intersectionSet;
+
+    // The set's contents in the order the public entry points hand them back.
+    static std::vector<CrossingPair> sorted(const CrossingPairSet &pairs) {
+        std::vector<CrossingPair> ordered(pairs.begin(), pairs.end());
+        std::sort(ordered.begin(), ordered.end());
+        return ordered;
+    }
+
     std::function<bool(const CrossingPair&)> onCrossing = [](const CrossingPair&){return false;},
                                        onIntersection = [](const CrossingPair&){return false;};
     bool onlyCrossings = true;
@@ -106,29 +235,161 @@ class BentleyOttmann {
         bbox = Rectangle(bbox.min().x()-1, bbox.min().y()-1, bbox.max().x()+1, bbox.max().y()+1);
     }
 
+    // ── The status order ────────────────────────────────────────────────────
+    //
+    // The tree holds the segments straddling the sweep line in the order their
+    // heights on it run, bottom to top, with segments meeting the line at one
+    // point ordered by which of them leaves that point above. What that order
+    // *is* is fixed by the geometry; everything below is about computing it
+    // without ever evaluating those heights.
+    //
+    // Evaluating them is what the direct implementation does — one `yAtX` per
+    // segment in the sweep's rational type, then a comparison — and it is what
+    // the sweep used to spend itself on. The sweep abscissa is a fraction, so
+    // each height comes out over a wider denominator still, and every one of
+    // the O(log n) comparisons a single tree operation makes builds two of them
+    // through a chain of rational operations that each reduce to lowest terms.
+    // Over 3,000 small segments that comparison alone was 62% of the whole run.
+    //
+    // The difference of the two heights is affine in x, so its sign across the
+    // x-range the two segments share is pinned by its sign at that range's two
+    // ends — and each of those is one endpoint of one segment tested against
+    // the other, an orientation over the *input* coordinates. Only when the
+    // sign differs between the two ends do the segments meet inside the shared
+    // range, and only then does where the sweep sits relative to that meeting
+    // decide anything. That case, and nothing else, touches the abscissa.
+
+    /**
+     * @brief Sign of `b`'s height minus `a`'s height at the sweep line.
+     *
+     * Both segments must be non-vertical, and both must straddle the sweep
+     * abscissa — which is what every segment in the status tree does.
+     */
+    int heightSign(const Segment &a, const Segment &b, const Abscissa &at) const {
+        // The height difference at each end of the shared x-range. Whichever
+        // segment contributes the end, its endpoint is tested against the other
+        // segment, and the sign flips when the endpoint is a's, since the
+        // difference is measured b minus a.
+        const int atLeft = a.min().x() < b.min().x()
+            ? pgl::detail::signOf(pgl::orientationSign(a.min(), a.max(), b.min()))
+            : -pgl::detail::signOf(pgl::orientationSign(b.min(), b.max(), a.min()));
+        const int atRight = b.max().x() < a.max().x()
+            ? pgl::detail::signOf(pgl::orientationSign(a.min(), a.max(), b.max()))
+            : -pgl::detail::signOf(pgl::orientationSign(b.min(), b.max(), a.max()));
+
+        if (atLeft == atRight) {
+            // Same sign at both ends: one segment runs clear of the other
+            // across the whole range, the sweep included. Both ends zero: an
+            // affine function with two roots is the zero function, so the two
+            // segments are collinear and the difference vanishes everywhere.
+            return atLeft;
+        }
+        if (atLeft == 0) {
+            // The segments touch at the range's left end and separate to the
+            // right of it, so all that matters is whether the sweep has left
+            // that end behind — and the end is an input coordinate.
+            return at.x > std::max(a.min().x(), b.min().x()) ? atRight : 0;
+        }
+        if (atRight == 0) {
+            return at.x < std::min(a.max().x(), b.max().x()) ? atLeft : 0;
+        }
+        return crossedHeightSign(a, b, at);
+    }
+
+    /**
+     * @brief Whether two segments of the status tree meet the sweep line at the
+     * same point, which is what makes them one crossing's worth of segments.
+     */
+    bool sameHeight(const Segment &a, const Segment &b, const Abscissa &at) const {
+        return a == b || heightSign(a, b, at) == 0;
+    }
+
+    /**
+     * @brief The height expression's two coefficients:
+     * `(b's height - a's height) * dax * dbx == slope * x + offset`.
+     *
+     * Both x-extents are positive — neither segment is vertical, and a Segment
+     * stores its endpoints in lexicographic order — so the scaling they apply
+     * leaves the sign alone.
+     */
+    static std::pair<Wide, Wide> heightCoefficients(const Segment &a, const Segment &b) {
+        const Wide dax = static_cast<Wide>(a.max().x()) - static_cast<Wide>(a.min().x());
+        const Wide day = static_cast<Wide>(a.max().y()) - static_cast<Wide>(a.min().y());
+        const Wide dbx = static_cast<Wide>(b.max().x()) - static_cast<Wide>(b.min().x());
+        const Wide dby = static_cast<Wide>(b.max().y()) - static_cast<Wide>(b.min().y());
+
+        return {dax * dby - dbx * day,
+                dax * dbx * (static_cast<Wide>(b.min().y()) - static_cast<Wide>(a.min().y())) -
+                    dax * dby * static_cast<Wide>(b.min().x()) +
+                    dbx * day * static_cast<Wide>(a.min().x())};
+    }
+
+    /**
+     * @brief @ref heightSign for the one case its endpoint tests leave open:
+     * the two segments meet strictly inside the range they share, so which side
+     * of that meeting the sweep sits on is what decides.
+     *
+     * Scaling the height difference by the two segments' x-extents and by the
+     * abscissa's denominator — all three positive — clears every division out
+     * of it and leaves one integer expression whose sign is the answer.
+     */
+    int crossedHeightSign(const Segment &a, const Segment &b, const Abscissa &at) const {
+        const auto [slope, offset] = heightCoefficients(a, b);
+
+        if constexpr (pgl::detail::filtersSign<Exact>) {
+            // Same bargain the orientation predicates strike: a double
+            // evaluation carrying its own error bound proves the sign outright
+            // for all but the near-degenerate pairs, and only those pay below.
+            //
+            // Filtering the coefficients rather than rebuilding the whole
+            // expression in bounded double arithmetic: the expression is degree
+            // three, and propagating a bound through that many operations
+            // measured slower than forming the coefficients exactly and
+            // converting the two of them.
+            const std::partial_ordering filtered = pgl::detail::approximateSign(
+                pgl::detail::approximate(slope) * at.approx +
+                pgl::detail::approximate(offset));
+            if (filtered != std::partial_ordering::unordered) {
+                return pgl::detail::signOf(filtered);
+            }
+        }
+
+        // Scaled once more by the abscissa's denominator, which is positive,
+        // and there is nothing left to divide.
+        const Exact scaled = static_cast<Exact>(slope) * static_cast<Exact>(at.num) +
+                             static_cast<Exact>(offset) * static_cast<Exact>(at.den);
+        return scaled > Exact(0) ? 1 : (scaled < Exact(0) ? -1 : 0);
+    }
+
     // Compare segments by intersection points vertically along line
     bool CompareAlongLine (const Segment& a, const Segment& b) const {
-        // Vertical segments are never stored in the set.
-        // They compare against other segments by min point along line.
+        // Vertical segments are never stored in the set. They reach the
+        // comparator only as a probe, and only ever at their own abscissa —
+        // which is the sweep's, since a vertical segment is probed at the step
+        // its event belongs to. So the probe's own endpoint is the point whose
+        // side of the stored segment is wanted, and no height is needed at all.
         if (a.isVertical()) {
+            if (b.isVertical()) {
+                return a.min().y() < b.min().y();
+            }
+            assert(line.x == a.min().x());
             if (a.min().y() < std::min(b.min().y(),b.max().y()))
                 return true;
 
             if (std::max(b.min().y(),b.max().y()) < a.min().y())
                 return false;
 
-            auto b_isec = b.template yAtX<Rational>(line);
-            return a.min().y() < *b_isec;
+            return pgl::orientationSign(b.min(), b.max(), a.min()) < 0;
         }
         if(b.isVertical()) {
+            assert(line.x == b.min().x());
             if (std::max(a.min().y(),a.max().y()) < b.min().y())
                 return true;
 
             if (b.min().y() < std::min(a.min().y(),a.max().y()))
                 return false;
 
-            auto a_isec = a.template yAtX<Rational>(line);
-            return *a_isec < b.min().y();
+            return pgl::orientationSign(a.min(), a.max(), b.min()) > 0;
         }
 
         if (std::max(a.min().y(),a.max().y()) < std::min(b.min().y(),b.max().y()))
@@ -141,11 +402,9 @@ class BentleyOttmann {
             return false;
         }
 
-        auto a_isec = a.template yAtX<Rational>(line);
-        auto b_isec = b.template yAtX<Rational>(line);
-
-        if (*a_isec != *b_isec) {
-            return *a_isec < *b_isec;
+        const int height = heightSign(a, b, line);
+        if (height != 0) {
+            return height > 0;
         }
 
         // Segments intersecting line at same point
@@ -160,9 +419,37 @@ class BentleyOttmann {
         return a < b;
     }
 
+    // Splits `x` into the parts the height tests read.
+    //
+    // Reducing the fraction here, once per step, is the same work the status
+    // order would otherwise do over and over: every comparison that reaches the
+    // exact fallback reads both parts, and reading either off an unreduced
+    // fraction runs a gcd that is thrown away with the expression's locals.
+    //
+    // Unconditionally, and not @ref Rational::simplifyIfLarge: an abscissa
+    // narrow enough that no operation would reduce it still feeds every
+    // comparison at this step. Measured over a sweep of 3000 segments, gating
+    // on width left the gcd count untouched while reducing outright cut it by
+    // 41%.
+    Abscissa abscissa(Rational x) const {
+        Abscissa at;
+        at.x = std::move(x);
+        if constexpr (pgl::is_Rational_v<Rational>) {
+            at.x.simplify();
+            at.num = at.x.numerator();
+            at.den = at.x.denominator();
+        } else {
+            // pgl::arrangement runs this sweep over a plain integer when its
+            // coordinates are integral, and then the abscissa is whole.
+            at.num = at.x;
+            at.den = Integer(1);
+        }
+        at.approx = pgl::detail::approximate(at.x);
+        return at;
+    }
+
     void initTree() {
-        auto cmp = [this](const Segment& a, const Segment& b){return this->CompareAlongLine(a, b);};
-        tree = std::set<Segment, std::function<bool(const Segment&a, const Segment &b)>>(cmp);
+        tree = Tree(AlongLine{this});
         tree.emplace(bbox.edges()[0]); // Bottom edge as sentinel
         tree.emplace(bbox.edges()[2]); // Top edge as sentinel
     }
@@ -207,15 +494,19 @@ class BentleyOttmann {
         std::cout << std::endl;
     }
 
-    std::vector<std::vector<Event>> getEvents() {
-        std::vector<std::vector<Event>> events(4);
-        Rational currentX = queue.top().x;
+    // Moves every event at `currentX` off the queue and into @ref events.
+    //
+    // The buckets are a member reused across steps rather than four fresh
+    // vectors per step: there is a step per event, and the sweep's heap traffic
+    // is worth more than the reallocation saves.
+    void getEvents(const Rational &currentX) {
+        for (std::vector<Event> &bucket : events) {
+            bucket.clear();
+        }
         do {
-            int t = static_cast<int>(queue.top().type);
-            events.at(t).push_back(queue.top());
+            events[static_cast<std::size_t>(queue.top().type)].push_back(queue.top());
             queue.pop();
         } while (!queue.empty() && queue.top().x == currentX);
-        return events;
     }
 
     void possibleCrossing(Tree::iterator ita, Tree::iterator itb) {
@@ -226,7 +517,7 @@ class BentleyOttmann {
 
         if (sa.crosses(sb) && !crossingsSet.contains(pair)) {
             RPoint cross = std::get<RPoint>(*sa.template intersection<Rational>(sb));
-            if (cross.x() > line) {
+            if (cross.x() > line.x) {
                 // assert(CompareAlongLine(sa,sb));
                 queue.emplace(cross.x(), EventEnum::CROSS, sa);
                 addCrossing(pair);
@@ -246,37 +537,53 @@ class BentleyOttmann {
 
     }
 
-    void getNewCrossEvents(std::vector<Event> &events, Rational currentX) {
+    void getNewCrossEvents(std::vector<Event> &crossEvents, const Rational &currentX) {
         while (!queue.empty() && queue.top().x == currentX) {
-            events.push_back(queue.top());
+            crossEvents.push_back(queue.top());
             queue.pop();
         }
     }
 
-    auto findFirst (Segment s, RPoint current) {
+    // The lowest segment of the run that meets the sweep line where `s` does,
+    // `s` itself included.
+    //
+    // `s` is located by the tree's own order, so this must be called while the
+    // tree is still ordered where `s` sits in it — which is not necessarily
+    // `at`: the run about to collapse onto one point at `at` is found while the
+    // tree still holds the order that keeps it contiguous.
+    auto findFirst(const Segment &s, const Abscissa &at) {
         auto it = tree.find(s);
-        while (it != tree.begin() && it->contains(current)) {
+        while (it != tree.begin() && sameHeight(*it, s, at)) {
             --it;
         }
         ++it;
         return it;
     }
 
-    std::map<Rational,std::vector<Segment>> getCrossingSegments(std::vector<Event> &evts, const Rational &currentX) {
-        std::map<Rational,std::vector<Segment>> ret;
+    // The segments of the status tree that meet at each of this step's crossing
+    // points, each run in tree order, the runs in no particular order.
+    //
+    // Grouping by identity of the crossing point, rather than by the point
+    // itself: what used to key this by an exact y-coordinate paid for that
+    // coordinate — one `yAtX` per event and a std::map over fractions — to
+    // express something the runs already say, since two segments meet the sweep
+    // line at the same point exactly when they are one run.
+    std::vector<Run> getCrossingSegments(const std::vector<Event> &evts, const Abscissa &at) {
+        std::vector<Run> ret;
         std::set<Segment> done;
 
-        for (Event ev : evts) {
-            if(!done.contains(ev.s1)) {
-                auto isec = ev.s1.template yAtX<Rational>(currentX);
-                RPoint current =  RPoint(currentX, *isec);
-                auto it = findFirst(ev.s1, current);
-                for (; it != tree.end() && it->contains(current); ++it) {
-                    if (!done.contains(*it)) {
-                        ret[current.y()].push_back(*it);
-                        done.insert(*it);
-                    }
-                }
+        for (const Event &ev : evts) {
+            if (done.contains(ev.s1)) {
+                continue;  // already collected as part of an earlier run
+            }
+            Run run;
+            run.node = findFirst(ev.s1, at);
+            for (auto it = run.node; it != tree.end() && sameHeight(*it, ev.s1, at); ++it) {
+                run.segments.push_back(*it);
+                done.insert(*it);
+            }
+            if (!run.segments.empty()) {
+                ret.push_back(std::move(run));
             }
         }
 
@@ -287,49 +594,52 @@ class BentleyOttmann {
         // 3) Check possible new cross events
         getNewCrossEvents(evts, currentX);
 
-        std::map<Rational,std::vector<Segment>> crossingAt = getCrossingSegments(evts, currentX);
+        // Where the crossings are, split once for the whole step. Built before
+        // the tree is touched but installed as the sweep's own only at 5): the
+        // tree is still ordered at the previous abscissa, and erasing under a
+        // changed order would not find the nodes it is asked for.
+        const Abscissa crossing = abscissa(currentX);
 
-        // 4) Do all CROSS removals from tree
-        for (const auto &[currentY,segs] : crossingAt) {
-            for (Segment s : segs) {
-                tree.erase(s);
+        std::vector<Run> crossingAt = getCrossingSegments(evts, crossing);
+
+        // 4) Do all CROSS removals from tree.
+        //    By iterator, walking the run: erasing a node the tree has already
+        //    handed us costs no comparison, where erasing by value searches for
+        //    it first — and this is one of the two searches per crossing that
+        //    used to dominate what a crossing costs.
+        for (const Run &run : crossingAt) {
+            auto it = run.node;
+            for (std::size_t i = 0; i < run.segments.size(); ++i) {
+                it = tree.erase(it);
             }
         }
 
         // 5) Move the line to currentX
-        line = currentX;
-        // Every comparison the status tree makes at this sweep position reads
-        // `line`, through `yAtX`, and the subtraction there reduces it whenever
-        // it has grown wide — into that expression's locals, keeping nothing. So
-        // an unreduced sweep abscissa is reduced once per comparison, which is
-        // O(log n) times per tree operation and many times over per step.
-        // Reducing it here, once per step, is the same work done a single time.
-        //
-        // Unconditionally, and not @ref Rational::simplifyIfLarge: an abscissa
-        // narrow enough that no subtraction would reduce it still feeds every
-        // `yAtX` at this step, and reducing it is what keeps *those* results
-        // from growing wide enough to be reduced themselves. Measured over a
-        // sweep of 3000 segments, gating on width left the gcd count untouched
-        // while reducing outright cut it by 41%.
-        if constexpr (pgl::is_Rational_v<Rational>) {
-            line.simplify();
-        }
+        line = crossing;
 
         // 6) Do all CROSS insertions to tree
-        for (const auto &[currentY,segs] : crossingAt) {
-            for (Segment s : segs) {
-                tree.insert(s);
+        for (Run &run : crossingAt) {
+            for (const Segment &s : run.segments) {
+                run.node = tree.insert(s).first;
             }
         }
 
         // 7) Create all CROSS new events
-        for (const auto &[currentY,segs] : crossingAt) {
-            RPoint current(currentX,currentY);
-            auto it1 = findFirst(*segs.begin(), current);
-            auto it2 = it1;
-            for (; it2 != tree.end() && it2->contains(current); ++it2) {
+        for (const Run &run : crossingAt) {
+            // The run is back in the tree, reordered but occupying the same
+            // consecutive positions, and 6) kept one of them. Walking out from
+            // there costs the length of the run; finding it again would cost
+            // the other of the two searches.
+            auto it1 = run.node;
+            while (it1 != tree.begin() &&
+                   sameHeight(*std::prev(it1), run.segments.front(), line)) {
+                --it1;
             }
-            --it2;
+            auto it2 = run.node;
+            while (std::next(it2) != tree.end() &&
+                   sameHeight(*std::next(it2), run.segments.front(), line)) {
+                ++it2;
+            }
 
             auto it0 = it1; --it0;
             auto it3 = it2; ++it3;
@@ -340,7 +650,8 @@ class BentleyOttmann {
         }
 
         // 8) Add crossings to set
-        for (const auto &[currentY,segs] : crossingAt) {
+        for (const Run &run : crossingAt) {
+            const std::vector<Segment> &segs = run.segments;
             for (size_t i = 0; i+1 < segs.size(); i++) {
                 for (size_t j = i+1; j < segs.size(); j++) {
                     CrossingPair pair{segs[i], segs[j]};
@@ -469,14 +780,14 @@ class BentleyOttmann {
 
         initQueue(segments);
         initBbox(segments);
-        line = bbox.min().x();
+        line = abscissa(static_cast<Rational>(bbox.min().x()));
         initTree();
 
         while (!queue.empty()) {
             // printTree();
             // 1) Get all events with same x into events
-            Rational currentX = queue.top().x;
-            std::vector<std::vector<Event>> events = getEvents();
+            const Rational currentX = queue.top().x;
+            getEvents(currentX);
 
             // 2) Do all RIGHT events
             processRIGHT(events[(size_t)EventEnum::RIGHT]);
@@ -517,7 +828,7 @@ public:
     std::vector<CrossingPair> findCrossings(const std::vector<Segment> &segments) {
         onlyCrossings = true;
         run(segments);
-        return std::vector(crossingsSet.begin(), crossingsSet.end());
+        return sorted(crossingsSet);
     }
 
     std::vector<CrossingPair> findIntersections(const std::vector<Segment> &segments) {
@@ -541,7 +852,7 @@ public:
             }
         }
 
-        return std::vector(intersectionSet.begin(), intersectionSet.end());
+        return sorted(intersectionSet);
     }
 
     bool detectCrossings(const std::vector<Segment> &segments) {
