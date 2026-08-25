@@ -65,12 +65,16 @@ constexpr std::array<int, kSamples> linearSizes(int max) {
 }
 
 // ── 1. Triangulation ────────────────────────────────────────────────────────
-// Anchored to buildPointLocation, not to the Delaunay build: the two are both
-// constructions, but the index costs about thirty times the triangulation it
-// indexes (at 100,000 points, 4.2 s against 0.12 s), so it is the one that
-// decides how far the sweep can go. 30,000 puts it at ~1.0 s. The Delaunay
-// build is measured out to the full 100,000 ceiling in its own right under
-// point constructions, so nothing is lost by anchoring here.
+// Anchored, when this ceiling was set, to buildPointLocation: the index then
+// cost about thirty times the triangulation it indexed (at 100,000 points,
+// 4.2 s against 0.12 s), and it was what decided how far the sweep could go —
+// 30,000 put it at ~1.0 s. The index is now drawn on a coarsening of the mesh
+// and costs less than the Delaunay build it indexes (at 30,000 points, 0.03 s
+// against 0.04 s for the int build and 0.07 s against 0.13 s for the
+// ERational one), so no row here is index-bound any more. The ceiling stays
+// where it is: the Delaunay build is measured out to the full 100,000 in its
+// own right under point constructions, and the locate rows need only enough
+// spread to separate the walk from the index.
 constexpr auto kTriangulation = linearSizes(30000);
 
 // ── 2. Arrangement ──────────────────────────────────────────────────────────
@@ -150,10 +154,12 @@ constexpr auto kMinkowski = linearSizes(180);
 // (6,400 takes 3.0 s).
 //
 // One problem, two shapes of input, each anchored to itself. Two polygons of
-// n vertices: 0.67 s at 3,200 each (6,400 takes 3.0 s). n large triangles: the
-// pieces are trivial but they overlap heavily, so the cost is in how many
-// boundaries meet — 0.85 s at 800, and 1.4 s at 1,000.
+// n vertices: 0.67 s at 3,200 each (6,400 takes 3.0 s). n / 3 large triangles:
+// the pieces are trivial but they overlap heavily, so the cost is in how many
+// boundaries meet — 0.85 s at 2,400 vertices (800 triangles), and 1.4 s at
+// 3,000 vertices (1,000 triangles). The triangle sweep is a multiple of three
+// throughout, so n always denotes the total number of input vertices.
 constexpr auto kUnionPair      = linearSizes(3200);
-constexpr auto kUnionTriangles = linearSizes(800);
+constexpr auto kUnionTriangles = linearSizes(2400);
 
 }  // namespace bench

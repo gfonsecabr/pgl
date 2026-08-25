@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -881,17 +882,53 @@ struct Triangulation {
     /**
      * @brief Builds an arrangement-backed point-location index.
      *
-     * The operation is idempotent. Until it is called, @ref locate and
-     * @ref locateId use their stochastic visibility walk; afterwards queries
-     * whose coordinates convert losslessly to this triangulation's @ref PointType
-     * use the arrangement's randomized trapezoidal index. Any successful
-     * topological edit releases the index.
+     * The index is an arrangement of a *coarsening* of this mesh — the
+     * triangulation of a random sample of its vertices, one sampled per
+     * `bit_width(V)` of them — carrying a randomized trapezoidal search
+     * structure. A query descends it to the cell it falls
+     * in, which names a triangle of that cell's interior, and the stochastic
+     * visibility walk starts there instead of at the previous query's answer:
+     * the descent is over a structure a constant factor smaller than the mesh,
+     * and the walk has one cell to cross rather than the whole mesh.
      *
-     * @complexity Expected `O(E log E)` time and `O(E)` space.
+     * Indexing the mesh itself would answer without a walk, but a trapezoidal
+     * search is a chain of random accesses, and what it costs is set by how
+     * much memory it reaches over rather than by how many comparisons it makes.
+     * The coarsening is what keeps that reach small.
+     *
+     * Until it is called, @ref locate and @ref locateId walk from the last
+     * query's answer; afterwards queries whose coordinates convert losslessly
+     * to this triangulation's @ref PointType walk from the index's seed. The
+     * walk is what answers either way, so the index changes how long a query
+     * takes and not what it may return: a point strictly inside a triangle gets
+     * that triangle indexed or not, and one on an edge or a vertex gets an
+     * incident triangle, which of them being as unspecified as it is for the
+     * bare walk.
+     *
+     * **The index outlives every edit.** Because it only chooses where the walk
+     * starts, an index built before an @ref insert or a @ref flip stays correct
+     * across it — a seed is a triangle of this mesh whatever has happened to
+     * the mesh since, and the walk goes on to answer from there. What an edit
+     * costs is seed *quality*: the coarsening does not know the vertices added
+     * since it was drawn, so the walk out of a cell lengthens as the mesh grows
+     * away from it. Rebuilding is therefore the owner's call and never the
+     * triangulation's — call this again to redraw the index against the mesh as
+     * it now stands (it does nothing if nothing has changed since), or
+     * @ref clearPointLocation to give it up and go back to walking from the
+     * previous query's answer.
+     *
+     * @complexity Expected `O(V log V)` time, which the cell size holds at
+     *             roughly the cost of building the mesh itself, and
+     *             `O(V / log V)` space.
      */
     void buildPointLocation();
 
-    /** @brief Releases the arrangement-backed point-location index. */
+    /**
+     * @brief Releases the arrangement-backed point-location index.
+     *
+     * The only thing that does: no edit releases it. @ref locate and
+     * @ref locateId go back to walking from the previous query's answer.
+     */
     void clearPointLocation() noexcept {
         pointLocation_.reset();
         pointLocationLookup_ = nullptr;
@@ -900,6 +937,18 @@ struct Triangulation {
     /** @brief True if @ref locate and @ref locateId currently use the point-location index. */
     [[nodiscard]] bool hasPointLocation() const noexcept {
         return static_cast<bool>(pointLocation_);
+    }
+
+    /**
+     * @brief True if the index is in place and was drawn against the mesh as it
+     *        now stands.
+     *
+     * False once an edit has moved the mesh on from the index, which costs the
+     * walk its seed quality and nothing else — see @ref buildPointLocation,
+     * which this is the test of whether calling would do any work.
+     */
+    [[nodiscard]] bool hasCurrentPointLocation() const noexcept {
+        return pointLocation_ && pointLocationRevision_ == revision_;
     }
 
     // ---- low-level navigation --------------------------------------------
@@ -969,24 +1018,25 @@ struct Triangulation {
      * hash-free way into the handle world for a point that is not a vertex —
      * `getId(*locate(p))` would locate the triangle and then look it up again.
      *
+     * @ref buildPointLocation makes the walk start beside the query instead of
+     * at the previous one's answer, which is what a query pays for; it does not
+     * change what the walk returns.
+     *
      * @param p Query point; may use a different point type than the triangulation.
      * @return The handle of the containing triangle, or the invalid handle if
      *         @p p lies outside the triangulated region (or the triangulation is
      *         empty).
      */
     [[nodiscard]] TriId locateId(const PointType& p) const {
-        if (pointLocation_ && pointLocationLookup_) {
-            return pointLocationLookup_(pointLocation_.get(), p);
-        }
-        const TriIndex id = locateIndex(p);
+        const TriIndex id = locateIndex(p, pointLocationSeed(p));
         return triHandle(inDomain(id) ? id : NO_TRI);
     }
 
     /** @overload
-     * Queries with matching coordinate types use the index whenever their point
-     * labels can be converted too. Other coordinate types keep using the
-     * visibility walk, avoiding a potentially lossy conversion into the
-     * arrangement's @ref PointType.
+     * Queries with matching coordinate types take their walk's start from the
+     * index whenever their points can be converted too. Other coordinate types
+     * walk from the usual hint, avoiding a potentially lossy conversion into
+     * the index's own point type.
      */
     template <PointConcept QueryPoint>
     [[nodiscard]] TriId locateId(const QueryPoint& p) const {
@@ -1146,7 +1196,6 @@ struct Triangulation {
         if (m.tri != NO_TRI) {
             setBit(triangles_[static_cast<std::size_t>(m.tri)].constrainedMask, m.side, value);
         }
-        clearPointLocation();
     }
 
     /**
@@ -3429,7 +3478,6 @@ struct Triangulation {
         if (m.tri != NO_TRI) {
             setBit(triangles_[m.tri].constrainedMask, m.side, value);
         }
-        clearPointLocation();
     }
 
     // ---- labels ----------------------------------------------------------
@@ -3528,7 +3576,7 @@ struct Triangulation {
         segToEdge_.erase(s);
         registerSides(t);
         registerSides(t2);
-        clearPointLocation();
+        ++revision_;
         return edgeSegment(Edge{t, 1});  // new diagonal (side opposite a in t)
     }
 
@@ -3622,7 +3670,7 @@ struct Triangulation {
     bool insert(const PointType& p) {
         const bool inserted = insertVertexImpl(p).has_value();
         if (inserted) {
-            clearPointLocation();
+            ++revision_;
         }
         return inserted;
     }
@@ -3662,7 +3710,7 @@ struct Triangulation {
             }
         });
         legalize(suspect);
-        clearPointLocation();
+        ++revision_;
         return true;
     }
 
@@ -3772,17 +3820,78 @@ struct Triangulation {
     mutable TriIndex hint_ = NO_TRI;      // last located triangle (walk seed)
     mutable std::mt19937 rng_;         // drives the stochastic walk in locateIndex
     // The arrangement is immutable once built, so copies can share it just as
-    // Arrangement copies share their own point-location index. Its exact point
-    // type lets every supported triangulation number type use the arrangement
-    // construction, including fixed-width rationals whose intermediate
-    // crossings need arbitrary-precision storage. Its definition arrives later,
-    // from arrangement.hpp, so keep only its forward-declared type here.
-    using PointLocationPoint = Point<Rational<BigInt>>;
+    // Arrangement copies share their own point-location index. Its definition
+    // arrives later, from arrangement.hpp, so keep only its forward-declared
+    // type here.
+    //
+    // The index is an arrangement of triangulation edges, which meet only at
+    // shared endpoints: it never computes a crossing, so its vertices are the
+    // triangulation's own points and an exact coordinate type carries them
+    // unchanged. Coordinates that are not exact integers -- fixed-width
+    // rationals above all, whose products overflow -- are widened to ERational
+    // instead, which holds any of them. Carrying `int` points as 160-byte
+    // rationals is what the widening used to cost every query: the index is
+    // walked at random, so its size in bytes is what a query pays for.
+    static constexpr bool nativePointLocation =
+        detail::extended_integral<NumberType> || std::same_as<NumberType, BigInt> ||
+        std::same_as<NumberType, ERational>;
+    using PointLocationPoint =
+        std::conditional_t<nativePointLocation, PointType, Point<ERational>>;
     using PointLocation = Arrangement<PointLocationPoint, TriId>;
     std::shared_ptr<const PointLocation> pointLocation_;
     using PointLocationLookup = TriId (*)(const void*, const PointType&);
     PointLocationLookup pointLocationLookup_ = nullptr;
-    static TriId locatePointLocation(const void* location, const PointType& point);
+    static TriId seedFromPointLocation(const void* location, const PointType& point);
+
+    // Counts the structural edits — the ones that move vertices or connectivity
+    // on from what the index was drawn against. Nothing invalidates the index,
+    // which stays correct across any edit; this only tells buildPointLocation
+    // whether redrawing would find anything new, and answers
+    // hasCurrentPointLocation. Constraint flags do not count: they change no
+    // geometry a walk can see.
+    std::size_t revision_ = 0;
+    std::size_t pointLocationRevision_ = 0;
+
+    // How many mesh triangles one cell of the point-location subdivision
+    // covers. The index locates the cell in O(log) and the walk crosses the
+    // cell, so a query costs a descent over an index this factor smaller than
+    // the mesh, plus O(sqrt(k)) walk steps for a cell of k triangles.
+    // See buildPointLocation for how the subdivision is drawn.
+    //
+    // Cells grow with the logarithm of the mesh rather than staying a fixed
+    // size, which is what keeps the index proportionate to what it indexes. A
+    // fixed cell size makes the index a fixed fraction of the mesh, and since
+    // building it costs more per element than building the mesh does, that
+    // fraction's *cost* creeps up with n: measured against the Delaunay build
+    // it indexes, a cell size of 16 goes from 0.65x at 1,000 vertices to 1.17x
+    // at 250,000. Solving for the cell size that holds that ratio at one gives
+    // 0.66 + 0.93*log2(n) over the same range -- which is bit_width to within
+    // half a cell, so that is what this is. Query time is flat across the whole
+    // neighbourhood of the fit, so nothing is spent buying the exact constant.
+    //
+    // The walk pays sqrt(log n) steps for it, against a descent of log n, and
+    // the index becomes Theta(V / log V) rather than Theta(V).
+    static constexpr std::size_t pointLocationCellSize(std::size_t vertices) {
+        return std::max<std::size_t>(1, std::bit_width(vertices));
+    }
+
+    // Smallest subdivision worth drawing: below it the mesh is indexed whole,
+    // since a coarser one would only trade a descent for a walk of the same
+    // length.
+    static constexpr std::size_t pointLocationMinimumCells = 64;
+
+    // The walk's start triangle, from the index. The cell the query falls in
+    // carries a triangle of its own interior, so the walk starts within the
+    // cell it must cross. Absent index, a query outside the subdivision, or a
+    // cell no triangle of the domain witnessed: no seed, and the walk starts
+    // where it would have without an index.
+    [[nodiscard]] TriIndex pointLocationSeed(const PointType& p) const {
+        if (!pointLocation_ || pointLocationLookup_ == nullptr) {
+            return NO_TRI;
+        }
+        const TriIndex seed = indexOf(pointLocationLookup_(pointLocation_.get(), p));
+        return realTriangle(seed) ? seed : NO_TRI;
+    }
 
     // ---- small helpers ---------------------------------------------------
 
@@ -5721,14 +5830,16 @@ struct Triangulation {
 
     // Locates the triangle containing p by a stochastic visibility walk (random
     // start edge guarantees termination). Returns a ghost triangle if p is
-    // outside the triangulated region, NO_TRI only if empty. Seeds from, and
-    // updates, hint_; @p p may use a different point type.
+    // outside the triangulated region, NO_TRI only if empty. Starts at @p start
+    // when that is a real triangle, else seeds from hint_; updates hint_ either
+    // way. @p p may use a different point type.
     template <class QueryPoint>
-    [[nodiscard]] TriIndex locateIndex(const QueryPoint& p) const {
+    [[nodiscard]] TriIndex locateIndex(const QueryPoint& p, TriIndex start = NO_TRI) const {
         if (triangles_.empty()) {
             return NO_TRI;
         }
-        TriIndex t = (hint_ != NO_TRI && !isGhost(hint_)) ? hint_ : 0;
+        TriIndex t = realTriangle(start) ? start
+                                         : ((hint_ != NO_TRI && !isGhost(hint_)) ? hint_ : 0);
         TriIndex from = NO_TRI;
         const std::size_t cap = triangles_.size() * 3 + 16;
         for (std::size_t step = 0; step < cap; ++step) {

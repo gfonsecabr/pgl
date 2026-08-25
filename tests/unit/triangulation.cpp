@@ -2430,6 +2430,159 @@ TEST_CASE("asArrangement has the mesh edges and triangle face IDs") {
     }
 }
 
+// A mesh large enough that buildPointLocation indexes a strict sample of the
+// vertices rather than all of them, with one query strictly inside every
+// triangle. Coordinates are multiples of three, which makes each triangle's
+// centroid a point of the coordinate type itself -- so the queries reach the
+// index, which only serves a query in the mesh's own number type.
+template <class Point>
+std::vector<Point> sampledIndexMesh(int count) {
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+    std::vector<Point> points;
+    std::set<std::pair<int, int>> seen;
+    std::uint32_t state = 0x1234567u;
+    const auto next = [&state] {
+        state = state * 1664525u + 1013904223u;
+        return static_cast<int>((state >> 13) % 200) * 3;
+    };
+    while (static_cast<int>(points.size()) < count) {
+        const std::pair<int, int> xy{next(), next()};
+        if (seen.insert(xy).second) {
+            points.emplace_back(Number(xy.first), Number(xy.second));
+        }
+    }
+    return points;
+}
+
+TEST_CASE_TEMPLATE("The point-location index answers as the bare walk does",
+                   Point, pgl::Point<int>, pgl::EPoint) {
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    // 400 vertices against an index of at most 64 cells: the walk finishes
+    // what the index starts, over cells of several triangles each.
+    Mesh mesh(sampledIndexMesh<Point>(400));
+    REQUIRE(mesh.numTriangles() > 64);
+
+    std::vector<Point> queries;
+    for (const auto& triangle : mesh.triangles()) {
+        queries.push_back((triangle.a() + triangle.b() + triangle.c()) / Number(3));
+    }
+    // Outside the hull, and on a vertex, where any incident triangle answers.
+    queries.push_back(P<Point>(-50, -50));
+    queries.push_back(P<Point>(5000, 17));
+    const Point vertex = mesh[mesh.vertexIds().front()];
+
+    std::vector<typename Mesh::TriId> walked;
+    for (const Point& query : queries) {
+        walked.push_back(mesh.locateId(query));
+    }
+
+    mesh.buildPointLocation();
+    CHECK(mesh.hasPointLocation());
+    for (std::size_t i = 0; i < queries.size(); ++i) {
+        // Each query is strictly inside one triangle, or outside the hull, so
+        // the answer is the triangle's identity and not a matter of where the
+        // walk happened to start.
+        CHECK(mesh.locateId(queries[i]) == walked[i]);
+    }
+    CHECK(mesh.has(mesh.locateId(vertex)));
+}
+
+TEST_CASE_TEMPLATE("A stale point-location index answers exactly as none does",
+                   Point, pgl::Point<int>, pgl::EPoint) {
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+    using Number = std::remove_cvref_t<decltype(std::declval<Point>().x())>;
+
+    // Index a 400-vertex mesh, then grow it by half as much again without
+    // rebuilding: the coarsening now knows two thirds of the vertices, and
+    // every cell's seed was chosen against a mesh that no longer exists.
+    //
+    // The corners of the generator's range go in first, so every later point
+    // falls inside the hull and the insertions exercise splitting rather than
+    // hull growth.
+    std::vector<Point> points{P<Point>(0, 0), P<Point>(597, 0), P<Point>(0, 597),
+                              P<Point>(597, 597)};
+    for (const Point& point : sampledIndexMesh<Point>(600)) {
+        if (std::find(points.begin(), points.end(), point) == points.end()) {
+            points.push_back(point);
+        }
+    }
+    points.resize(600);
+    Mesh mesh(std::vector<Point>(points.begin(), points.begin() + 400));
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasCurrentPointLocation());
+    for (auto it = points.begin() + 400; it != points.end(); ++it) {
+        mesh.insertDelaunay(*it);
+    }
+    REQUIRE(mesh.hasPointLocation());
+    REQUIRE_FALSE(mesh.hasCurrentPointLocation());
+
+    std::vector<Point> queries;
+    for (const auto& triangle : mesh.triangles()) {
+        queries.push_back((triangle.a() + triangle.b() + triangle.c()) / Number(3));
+    }
+    queries.push_back(P<Point>(-50, -50));
+    queries.push_back(P<Point>(5000, 17));
+
+    std::vector<typename Mesh::TriId> seeded;
+    for (const Point& query : queries) {
+        seeded.push_back(mesh.locateId(query));
+    }
+
+    mesh.clearPointLocation();
+    for (std::size_t i = 0; i < queries.size(); ++i) {
+        CHECK(mesh.locateId(queries[i]) == seeded[i]);
+    }
+}
+
+TEST_CASE("The point-location index respects a domain with holes") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Region = pgl::PolygonWithHoles<Point>;
+    using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
+
+    // The sample the index is drawn on is a triangulation of the vertices
+    // alone, so its cells cross the holes; a query in a hole must still come
+    // back empty, which is the walk's answer and not the index's. Every
+    // coordinate here is a multiple of three, the holes' included, so that a
+    // triangle's centroid stays a point of the mesh's own number type.
+    const Region region(PolygonShape({0, 0, 600, 0, 600, 600, 0, 600}),
+                        std::vector{PolygonShape({99, 99, 201, 99, 201, 201, 99, 201}),
+                                    PolygonShape({399, 399, 501, 399, 501, 501, 399, 501})});
+    std::vector<Point> interior;
+    for (const Point& point : sampledIndexMesh<Point>(300)) {
+        if (region.interiorContains(point)) {  // the holes are not the domain
+            interior.push_back(point);
+        }
+    }
+    Mesh mesh(region, interior);
+    REQUIRE(mesh.numVertices() > 64);
+
+    std::vector<Point> queries{Point(150, 150), Point(450, 450),  // the two holes
+                               Point(50, 550),  Point(300, 50),   // material
+                               Point(-20, 300)};                  // outside
+    for (const auto& triangle : mesh.triangles()) {
+        queries.push_back((triangle.a() + triangle.b() + triangle.c()) / 3);
+    }
+
+    std::vector<typename Mesh::TriId> walked;
+    for (const Point& query : queries) {
+        walked.push_back(mesh.locateId(query));
+    }
+    CHECK_FALSE(walked[0].valid());
+    CHECK_FALSE(walked[1].valid());
+    CHECK(walked[2].valid());
+    CHECK(walked[3].valid());
+    CHECK_FALSE(walked[4].valid());
+
+    mesh.buildPointLocation();
+    REQUIRE(mesh.hasPointLocation());
+    for (std::size_t i = 0; i < queries.size(); ++i) {
+        CHECK(mesh.locateId(queries[i]) == walked[i]);
+    }
+}
+
 TEST_CASE("Triangulation uses and invalidates its arrangement point location") {
     using Point = pgl::EPoint;
     using Mesh = pgl::Triangulation<pgl::Triangle<Point>>;
@@ -2450,14 +2603,34 @@ TEST_CASE("Triangulation uses and invalidates its arrangement point location") {
         CHECK(mesh.locateId(queries[i]) == walked[i]);
     }
 
-    // The arrangement reports a mesh vertex as a cell, so the triangulation
-    // must still resolve it to one of its incident triangles.
+    // A query on a mesh vertex is seeded like any other, and the walk resolves
+    // it to one of the incident triangles.
     CHECK(mesh.has(mesh.locateId(P<Point>(2, 2))));
 
+    // A constraint flag changes no geometry a walk can see, so it leaves the
+    // index not merely in place but current.
     mesh.setConstrained(mesh.triangleIds().front(), 0);
-    CHECK_FALSE(mesh.hasPointLocation());
-    mesh.buildPointLocation();
+    CHECK(mesh.hasPointLocation());
+    CHECK(mesh.hasCurrentPointLocation());
+
+    // An edit does move the mesh on from the index, and the index survives it:
+    // a seed is a triangle of this mesh however the mesh has changed, and the
+    // walk answers from there.
     REQUIRE(mesh.insertDelaunay(P<Point>(1, 2)));
+    CHECK(mesh.hasPointLocation());
+    CHECK_FALSE(mesh.hasCurrentPointLocation());
+    CHECK(mesh.has(mesh.locateId(P<Point>(1, 2))));
+    for (std::size_t i = 0; i < queries.size(); ++i) {
+        CHECK(mesh.locateId(queries[i]).valid() == walked[i].valid());
+    }
+
+    // Redrawing it against the mesh as it now stands is the owner's call.
+    mesh.buildPointLocation();
+    CHECK(mesh.hasCurrentPointLocation());
+    CHECK(mesh.has(mesh.locateId(P<Point>(1, 2))));
+
+    // And giving it up is the only thing that takes it away.
+    mesh.clearPointLocation();
     CHECK_FALSE(mesh.hasPointLocation());
     CHECK(mesh.has(mesh.locateId(P<Point>(1, 2))));
 }

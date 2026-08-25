@@ -51,6 +51,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <ranges>
@@ -4409,62 +4410,89 @@ Triangulation<TriangleType, SegmentType>::asArrangement() const {
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 void Triangulation<TriangleType, SegmentType>::buildPointLocation() {
-    if (pointLocation_) {
-        return;
+    if (hasCurrentPointLocation()) {
+        return;  // already drawn against this mesh; redrawing would find nothing
     }
-    std::vector<Segment<PointLocationPoint>> meshEdges;
-    meshEdges.reserve(numEdges());
-    visitEdges([&](const SegmentType& edge) {
-        meshEdges.emplace_back(PointLocationPoint(edge[0]), PointLocationPoint(edge[1]));
+
+    // The subdivision the index is drawn on. Indexing the mesh itself answers
+    // a query outright, but makes the index as large as the mesh, and a
+    // trapezoidal search is a chain of random accesses whose cost is set by
+    // how much memory it reaches over. So the index is drawn on the
+    // triangulation of a sample of the vertices instead: a subdivision of the
+    // same shape, whose cells each hold about pointLocationCellSize mesh
+    // triangles. Locating the cell leaves the walk with that bounded
+    // neighbourhood to cross rather than the whole mesh.
+    //
+    // Only the walk's start moves; the walk still answers, so the index cannot
+    // widen what a query may return -- a point on an edge or a vertex has
+    // several triangles whose closure holds it, and which one comes back is
+    // unspecified with an index exactly as it is without one. A sample too
+    // thin to seed well costs time and never correctness.
+    const std::size_t vertexCount = numVertices();
+    const std::size_t sampleCount =
+        std::max(std::min(vertexCount, pointLocationMinimumCells),
+                 vertexCount / pointLocationCellSize(vertexCount));
+
+    std::vector<PointType> sample;
+    if (vertexCount == 0) {
+        // Nothing to index, and no cell to seed from: every query walks. The
+        // empty index still stands, so building it stays idempotent.
+    } else if (sampleCount >= vertexCount) {
+        sample.assign(vertices_.begin() + 1, vertices_.end());  // slot 0 is the ghost
+    } else {
+        sample.reserve(sampleCount);
+        std::vector<VertexIndex> order(vertexCount);
+        std::iota(order.begin(), order.end(), static_cast<VertexIndex>(1));
+        // Stable across runs, and independent of rng_, which the walk drives.
+        std::mt19937 generator(0x50474cU);
+        for (std::size_t i = 0; i < sampleCount; ++i) {
+            std::uniform_int_distribution<std::size_t> pick(i, order.size() - 1);
+            std::swap(order[i], order[pick(generator)]);
+            sample.push_back(vertices_[static_cast<std::size_t>(order[i])]);
+        }
+    }
+
+    const Triangulation coarse(sample);
+    std::vector<Segment<PointLocationPoint>> cellEdges;
+    cellEdges.reserve(coarse.numEdges());
+    coarse.visitEdges([&](const SegmentType& edge) {
+        cellEdges.emplace_back(PointLocationPoint(edge[0]), PointLocationPoint(edge[1]));
     });
 
-    auto location = std::make_shared<PointLocation>(meshEdges);
+    auto location = std::make_shared<PointLocation>(cellEdges);
     for (std::size_t i = 0; i < location->faceCount(); ++i) {
         const typename PointLocation::FaceId face(static_cast<std::uint32_t>(i));
         if (location->isUnbounded(face)) {
             continue;
         }
-        const TriId triangle = locateId(location->witness(face));
-        if (triangle.valid()) {
-            location->label(face) = triangle;
+        // The witness is an interior point of the cell, so the triangle
+        // holding it is one the walk can start from wherever the query lands
+        // in that cell. A triangle the domain carved away seeds as well as one
+        // it kept: the walk crosses the mesh geometrically, and the domain only
+        // decides what the walk may answer -- so a cell lying over a hole is
+        // seeded too. Only a witness outside the mesh altogether leaves the
+        // label invalid, and such a query walks from the usual hint.
+        const TriIndex seed = locateIndex(location->witness(face));
+        if (realTriangle(seed)) {
+            location->label(face) = triHandle(seed);
         }
     }
     location->buildPointLocation();
-    pointLocationLookup_ = &Triangulation::locatePointLocation;
+    pointLocationLookup_ = &Triangulation::seedFromPointLocation;
     pointLocation_ = std::move(location);
+    pointLocationRevision_ = revision_;
 }
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>
 typename Triangulation<TriangleType, SegmentType>::TriId
-Triangulation<TriangleType, SegmentType>::locatePointLocation(const void* location,
-                                                               const PointType& point) {
+Triangulation<TriangleType, SegmentType>::seedFromPointLocation(const void* location,
+                                                                const PointType& point) {
     const auto& arrangement = *static_cast<const PointLocation*>(location);
-    const auto labelOf = [&arrangement](typename PointLocation::FaceId face) {
-        return arrangement.label(face);
-    };
-    const auto labelOfEitherSide = [&arrangement, &labelOf](typename PointLocation::HalfedgeId edge) {
-        const TriId left = labelOf(arrangement.face(edge));
-        return left.valid() ? left : labelOf(arrangement.face(arrangement.twin(edge)));
-    };
-
-    return std::visit(
-        [&](const auto& cell) -> TriId {
-            using Cell = std::remove_cvref_t<decltype(cell)>;
-            if constexpr (std::same_as<Cell, typename PointLocation::FaceId>) {
-                return labelOf(cell);
-            } else if constexpr (std::same_as<Cell, typename PointLocation::HalfedgeId>) {
-                return labelOfEitherSide(cell);
-            } else {
-                for (const auto edge : arrangement.outgoingHalfedges(cell)) {
-                    const TriId triangle = labelOfEitherSide(edge);
-                    if (triangle.valid()) {
-                        return triangle;
-                    }
-                }
-                return TriId{};
-            }
-        },
-        arrangement.locateCell(PointLocationPoint(point)));
+    // The face alone: a query standing on a cell boundary is seeded by either
+    // side of it just as well, so the index need not tell an edge or a vertex
+    // from the cell it bounds -- and skipping that leaves the descent as the
+    // only thing a query pays for.
+    return arrangement.label(arrangement.locateFace(PointLocationPoint(point)));
 }
 
 template <TriangleConcept TriangleType, SegmentConcept SegmentType>

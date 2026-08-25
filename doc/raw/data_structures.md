@@ -103,7 +103,7 @@ always fit.
 
 It may be constructed from a Polygon (constrained Delaunay triangulation), a container of points (Delaunay triangulation), a container of points plus a container of non-crossing segments (conforming constrained Delaunay: the segments become constrained edges and nothing is carved away), segments forming a complete triangulation, or triangles, always keeping labels. The polygon constructor optionally takes a container of extra interior points (added as vertices) and/or a container of interior segments (added as vertices and constrained edges); either may be omitted, and both are assumed to lie inside the polygon (not checked). Attention, the segments or triangles must define a valid triangulation (of the convex hull or any polygon), otherwise the behavior is undefined.
 
-- `locate(p)` returns a triangle containing point `p`, or none if `p` is outside, via a randomized visibility walk.
+- `locate(p)` returns a triangle containing point `p`, or none if `p` is outside, via a randomized visibility walk. The walk starts where the previous query ended, which is fast for queries that follow one another. `buildPointLocation()` gives it a better start triangle using a randomized trapezoidal map over a coarsening of the Delaunay triangulation. The point location structure is not updated when the triangulation is modified, but the quality of the start triangle deteriorates slowly under changes.
 
 - Navigation: `otherTriangle`, `edgeAdjacentTriangles`, `vertexAdjacentTriangles`, `incidentTriangles` (of an edge or of a vertex), the `visitTriangles`/`visitEdges` visitors, and the sorted `triangles()`/`edges()`.
 
