@@ -62,13 +62,35 @@ reference a cell has, one dash pattern each.
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
 than a measurement of this repo at this commit, so it overwrites a single
-`history/asymptotic-baseline.json`.
+`asymptotic-baseline.json` in the history.
+
+## Where the history lives
+
+The recorded history is **not** in this repository. It is a growing time series
+— every run rewrites the files it touches — and keeping it here would make each
+clone of the library carry every measurement ever taken. It lives in
+[gfonsecabr/pgl-benchmarks](https://github.com/gfonsecabr/pgl-benchmarks)
+instead, and the two are joined only where the history is read: locally by
+`build_dashboard.py`, and in CI by the Pages workflow, which checks the data
+repository out alongside this one.
+
+Clone it beside your pgl checkout before recording anything:
+
+```bash
+git clone https://github.com/gfonsecabr/pgl-benchmarks.git ../pgl-benchmarks
+```
+
+`bench_paths.py` resolves the directory — `$PGL_BENCH_HISTORY` if set, else
+`../pgl-benchmarks/history` — and every script that reads or writes history
+takes `--history` to override it. Nothing else ties the repositories together:
+each record carries the short SHA of the pgl commit it measured, and so does
+each commit message in the data repository.
 
 ## Recording a run
 
-`record.sh` runs the benchmarks, appends the results to the versioned history
-under `history/`, commits and pushes. The Pages workflow then rebuilds the
-dashboard from that history.
+`record.sh` runs the benchmarks, appends the results to the history, commits and
+pushes them to the data repository, then dispatches this repository's Pages
+workflow (via `gh`) to rebuild the dashboard.
 
 ```bash
 bash tests/benchmark/record.sh                     # full cube + all asymptotic
@@ -78,11 +100,12 @@ bash tests/benchmark/record.sh --baseline          # also refresh the CGAL refer
 bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation --baseline
 bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation,arrangement --baseline
 bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
-bash tests/benchmark/record.sh --no-push           # commit locally, don't push
+bash tests/benchmark/record.sh --no-push           # commit to the data repo, don't push
 ```
 
-It refuses to run with uncommitted changes to tracked files, so every
-measurement maps to a real commit (the dashboard's x-axis is the commit date).
+It refuses to run with uncommitted changes to tracked files — in either
+repository — so every measurement maps to a real commit (the dashboard's x-axis
+is the commit date).
 Override the compiler/flags as usual: `CXX=g++ CXXFLAGS="-std=c++23 -O2" …`.
 
 > The full cube is ~256 shape-size pairs × 18 methods × 5 number types — many
@@ -127,9 +150,10 @@ Run `python3 tests/benchmark/run_shapepairs.py --help` for the full option list.
 | `run_asymptotic.py` | Compile/run the `asymptotic/*.cpp` size sweeps (and, with `--baseline`, the CGAL reference) → snapshot JSON |
 | `to_history.py`     | Append snapshots into `history/` (one record per data point per commit) |
 | `build_dashboard.py`| History → page-specific JSON payloads + copy the `dashboard/` frontend into the output dir |
-| `record.sh`         | Orchestrate run → history → commit → push |
+| `record.sh`         | Orchestrate run → history → commit → push → dispatch the Pages rebuild |
+| `bench_paths.py`    | Resolve where the history checkout is (shared by the scripts above) |
 | `randomshapes.hpp`  | Deterministic random shape generators used by the generated sources |
 | `legacy_untangle.hpp` | The pre-batching `Polygon::untangle()`, pinning the pair benchmark's polygon datasets to the shapes its recorded history was measured on |
 | `dashboard/`        | Static frontend (`index.html`, `asymptotic.html`, `app.js`, `style.css`) |
-| `history/`          | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus the overwritten `asymptotic-baseline.json` |
+| `history/` *(separate repo)* | Versioned JSONL: pair records at the top level, asymptotic under `history/asymptotic/`, plus the overwritten `asymptotic-baseline.json` |
 | `asymptotic/`       | Size-sweep drivers, the fixed size lists (`sizes.hpp`), the shared harness, and the CGAL `baseline/` |

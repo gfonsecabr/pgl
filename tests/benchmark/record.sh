@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 #
-# Record a benchmark run into the versioned history (tests/benchmark/history/)
-# and push it to GitHub, where the Pages workflow rebuilds the dashboard.
+# Record a benchmark run into the versioned history and push it, then ask the
+# Pages workflow in this repository to rebuild the dashboard from it.
+#
+# The history lives in its own repository (see bench_paths.py) rather than in
+# this one: it is a growing time series, every run rewrites the files it
+# touches, and a clone of the library should not have to carry any of it. Clone
+# it beside this checkout, or point PGL_BENCH_HISTORY at it:
+#
+#     git clone https://github.com/gfonsecabr/pgl-benchmarks.git ../pgl-benchmarks
 #
 #   bash tests/benchmark/record.sh                     # full cube + all asymptotic
 #   bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
@@ -46,7 +53,8 @@
 #                                 rather than a measurement of this commit — it
 #                                 overwrites history/asymptotic-baseline.json
 #                                 instead of being appended to a history.
-#   --no-push                     commit locally but do not push
+#   --no-push                     commit to the data repository but do not push
+#                                 it, and do not trigger the Pages rebuild
 #   --rev COMMIT                  measure an older library version. The commit is
 #                                 checked out into a throwaway worktree, today's
 #                                 benchmarks are run against its headers, and the
@@ -157,6 +165,21 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     exit 1
 fi
 
+# ── Locate the benchmark data repository ─────────────────────────────────────
+# Resolved before anything is measured: a missing or dirty data checkout should
+# fail now, not after an overnight run with nowhere to put the results.
+bench_history="$(python3 tests/benchmark/bench_paths.py)"
+if ! data_repo="$(git -C "$bench_history" rev-parse --show-toplevel 2>/dev/null)"; then
+    echo "error: $bench_history is not inside a git repository." >&2
+    echo "The recorded history is versioned in its own repository; see bench_paths.py." >&2
+    exit 1
+fi
+if [[ -n "$(git -C "$data_repo" status --porcelain --untracked-files=no)" ]]; then
+    echo "error: the benchmark data repository has uncommitted changes." >&2
+    echo "Commit or discard them in $data_repo first." >&2
+    exit 1
+fi
+
 CXX="${CXX:-c++}"
 CXXFLAGS="${CXXFLAGS:--std=c++23 -O2 -DNDEBUG}"
 jobs="$(nproc 2>/dev/null || echo 1)"
@@ -213,7 +236,8 @@ fi
 # the split is about spreading tonight's compile+run cost, which has nothing to
 # do with which commit's headers are being measured.
 if [[ -n "$fraction" ]]; then
-    split_args=(--fraction "$fraction" --repetitions "$repetitions" --jobs "$jobs")
+    split_args=(--fraction "$fraction" --repetitions "$repetitions" --jobs "$jobs"
+                --history "$bench_history")
     [[ -n "$shapes_opt" ]] && split_args+=(--shapes "$shapes_opt")
     [[ -n "$types_opt"  ]] && split_args+=(--types  "$types_opt")
     fraction_methods="$(python3 tests/benchmark/split_methods.py "${split_args[@]}")"
@@ -260,23 +284,39 @@ fi
 # ── Append to the versioned history ──────────────────────────────────────────
 python3 tests/benchmark/to_history.py \
     --pairs "$pairs_json" --asymptotic "$asymptotic_json" --baseline "$baseline_json" \
-    --history tests/benchmark/history "${history_args[@]}"
+    --history "$bench_history" "${history_args[@]}"
 
 echo
 
-# Commit the refreshed history (and push). The clean-tree guard above guarantees
-# the only tracked changes are the jsonl files written just now, so staging the
-# history directory can't sweep up anything unrelated.
-git add tests/benchmark/history
-if git diff --cached --quiet; then
+# Commit the refreshed history into the data repository (and push). The
+# clean-tree guard above guarantees the only tracked changes there are the jsonl
+# files written just now, so staging the history directory can't sweep up
+# anything unrelated. The commit names the library commit that was measured:
+# the two repositories share no history, and that short SHA is the only thing
+# tying a data point back to the code it measured.
+measured="${rev_commit:-$(git rev-parse --short HEAD)}"
+git -C "$data_repo" add "$bench_history"
+if git -C "$data_repo" diff --cached --quiet; then
     echo "History unchanged — nothing to commit."
     exit 0
 fi
 
-git commit -m "Benchmark${fraction:+ ($fraction)}${rev:+ $rev_commit}"
-if [[ "$push" -eq 1 ]]; then
-    git push
-    echo "History committed and pushed."
+git -C "$data_repo" commit -m "Benchmark $measured${fraction:+ ($fraction)}"
+if [[ "$push" -eq 0 ]]; then
+    echo "History committed to $data_repo (not pushed; --no-push)."
+    exit 0
+fi
+git -C "$data_repo" push
+echo "History committed and pushed to $data_repo."
+
+# A push to the data repository cannot rebuild the site by itself — the Pages
+# workflow lives here — so dispatch it. A failure here costs nothing that was
+# measured: the site simply keeps showing the previous run until the next push
+# to this repository, or a manual dispatch.
+if ! command -v gh >/dev/null 2>&1; then
+    echo "note: gh CLI not found; run the Pages workflow by hand to publish this run." >&2
+elif gh workflow run pages.yml >/dev/null 2>&1; then
+    echo "Pages rebuild requested."
 else
-    echo "History committed (not pushed; --no-push)."
+    echo "warning: could not dispatch the Pages workflow; run 'gh workflow run pages.yml'." >&2
 fi

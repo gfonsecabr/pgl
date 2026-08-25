@@ -51,7 +51,7 @@ Options:
                           CPU-seconds (default 5.0; see module docstring)
     --jobs     N          parallel compile jobs record.sh will use
                           (default: all available CPUs, matching record.sh)
-    --history  DIR        history root (default tests/benchmark/history)
+    --history  DIR        history root (default: see bench_paths.py)
     --cache    FILE       cache path (default build/tests/benchmark/fraction_cache.json)
 """
 from __future__ import annotations
@@ -65,6 +65,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from bench_paths import default_history  # noqa: E402
 from run_shapepairs import ALL_METHODS, GROUND_TRUTH_TYPE  # noqa: E402
 
 
@@ -175,7 +176,7 @@ def main() -> int:
 
     script_dir = Path(__file__).parent.resolve()
     project_root = script_dir.parent.parent
-    history_dir = Path(args.history) if args.history else project_root / "tests/benchmark/history"
+    history_dir = Path(args.history) if args.history else default_history()
     cache_path = (Path(args.cache) if args.cache
                   else project_root / "build/tests/benchmark/fraction_cache.json")
 

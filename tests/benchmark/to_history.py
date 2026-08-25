@@ -44,6 +44,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from bench_paths import default_history  # noqa: E402
+
 # The microsecond symbol, and the "us" older runs spelled it with.
 MICROSECONDS = "\u00b5s"
 
@@ -103,13 +106,14 @@ def main() -> int:
                     default="build/tests/benchmark/asymptotic/asymptotic.json")
     ap.add_argument("--baseline",
                     default="build/tests/benchmark/asymptotic/baseline.json")
-    ap.add_argument("--history", default="tests/benchmark/history")
+    ap.add_argument("--history", default=None,
+                    help="history root (default: see bench_paths.py)")
     ap.add_argument("--skip-pairs", action="store_true")
     ap.add_argument("--skip-asymptotic", action="store_true")
     ap.add_argument("--merge-baseline", action="store_true")
     args = ap.parse_args()
 
-    history_dir = Path(args.history)
+    history_dir = Path(args.history) if args.history else default_history()
     (history_dir / "asymptotic").mkdir(parents=True, exist_ok=True)
 
     # buckets: relative-path -> list[record]

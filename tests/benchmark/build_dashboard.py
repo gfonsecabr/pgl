@@ -61,6 +61,11 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from bench_paths import default_history, missing_history_message  # noqa: E402
 
 # Display orders mirroring run_shapepairs.py so the dashboard axes read naturally.
 SHAPE_ORDER = ["Point", "Segment", "OrientedSegment", "Line", "OrientedLine",
@@ -367,7 +372,8 @@ def read_baseline(history: str):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--history", default="tests/benchmark/history")
+    ap.add_argument("--history", default=None,
+                    help="history root (default: see bench_paths.py)")
     ap.add_argument("--dashboard", default="tests/benchmark/dashboard")
     ap.add_argument("--bench-root", default="tests/benchmark",
                     help="root holding asymptotic/<driver>.cpp sources, for source links")
@@ -377,13 +383,17 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
+    history = Path(args.history) if args.history else default_history()
+    if not history.is_dir():
+        sys.exit(missing_history_message(history))
+
     repo_base = args.repo_url or default_repo_base()
     if repo_base and not repo_base.endswith("/"):
         repo_base += "/"
 
-    pairs, dimensions, pair_machines = build_pairs(args.history)
+    pairs, dimensions, pair_machines = build_pairs(history)
     initial_pairs, deferred_pairs = split_initial_pairs(pairs)
-    asymptotic, asym_machines = build_asymptotic(args.history, repo_base, args.bench_root)
+    asymptotic, asym_machines = build_asymptotic(history, repo_base, args.bench_root)
     machines = sorted(pair_machines | asym_machines)
 
     generated = datetime.datetime.now(datetime.timezone.utc).isoformat()

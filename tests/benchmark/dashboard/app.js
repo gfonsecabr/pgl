@@ -158,8 +158,8 @@ async function load() {
     const root = document.getElementById(PAGE === "asymptotic" ? "asymptotic" : "suites");
     root.innerHTML =
       '<p class="empty-state">No benchmark data recorded yet. Run ' +
-      "<code>bash tests/benchmark/record.sh</code> and commit " +
-      "<code>tests/benchmark/history/</code>.</p>";
+      "<code>bash tests/benchmark/record.sh</code>, which records into the " +
+      "benchmark data repository.</p>";
     return;
   }
   for (const m of DB.machines) {
@@ -1385,8 +1385,8 @@ function renderAsymptotic() {
   if (!names.length) {
     document.getElementById("asymptotic").innerHTML =
       '<p class="empty-state">No asymptotic benchmark data recorded yet. Run ' +
-      "<code>bash tests/benchmark/record.sh</code> and commit " +
-      "<code>tests/benchmark/history/</code>.</p>";
+      "<code>bash tests/benchmark/record.sh</code>, which records into the " +
+      "benchmark data repository.</p>";
     return;
   }
   // Only the first call builds the DOM; later ones (a machine or history-depth

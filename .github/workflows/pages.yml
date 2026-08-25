@@ -5,16 +5,20 @@ on:
     branches:
       - main
       - master
-    # Rebuild the site when the docs OR the benchmark data/dashboard change.
+    # Rebuild the site when the docs OR the dashboard frontend change. The
+    # benchmark *data* lives in its own repository and arrives via the
+    # repository_dispatch below (record.sh dispatches this workflow after
+    # pushing there).
     paths:
       - 'include/**'
       - 'doc/**'
       - 'examples/**'
       - 'Doxyfile'
-      - 'tests/benchmark/history/**'
       - 'tests/benchmark/dashboard/**'
       - 'tests/benchmark/build_dashboard.py'
       - '.github/workflows/pages.yml'
+  repository_dispatch:
+    types: [benchmarks-updated]
   workflow_dispatch:
 
 permissions:
@@ -33,9 +37,21 @@ jobs:
     env:
       DOXYGEN_AWESOME_VERSION: v2.3.4
       DOXYGEN_VERSION: 1.17.0
+      # Public repository holding the recorded benchmark history; kept out of
+      # this one so a clone of the library does not carry the time series.
+      # Mirrors bench_paths.py.
+      BENCH_DATA_REPO: gfonsecabr/pgl-benchmarks
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # The data repository is public, so the default token suffices; the
+      # checkout is shallow, which keeps this cheap however large it grows.
+      - name: Checkout benchmark data
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BENCH_DATA_REPO }}
+          path: benchdata
 
       # Reuse the previously built docs when none of their sources changed, so a
       # benchmark-only push redeploys without rebuilding the API reference.
@@ -97,7 +113,7 @@ jobs:
           mkdir -p site
           cp -r build/doc/html/. site/
           python3 tests/benchmark/build_dashboard.py \
-            --history tests/benchmark/history \
+            --history benchdata/history \
             --dashboard tests/benchmark/dashboard \
             --bench-root tests/benchmark \
             --repo-url "https://github.com/${GITHUB_REPOSITORY}/blob/main/" \
