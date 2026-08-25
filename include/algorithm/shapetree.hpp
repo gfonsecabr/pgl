@@ -566,6 +566,59 @@ class ShapeTree {
     Split bestSplitOnAxis(const std::vector<std::size_t>& indices, std::size_t axis) const {
         const std::size_t n = indices.size();
 
+        // Points have no straddlers: an optimum is attained immediately before
+        // or after the coordinate group containing the median. Selecting that
+        // group is linear on average and avoids the endpoint sorts needed for
+        // shapes with non-degenerate bounding boxes.
+        if constexpr (PointConcept<ShapeType>) {
+            std::vector<std::size_t> ordered = indices;
+            const auto middle = ordered.begin() + static_cast<std::ptrdiff_t>(n / 2);
+            std::nth_element(
+                ordered.begin(), middle, ordered.end(),
+                [&](std::size_t a, std::size_t b) {
+                    return elements_[a][axis] < elements_[b][axis];
+                });
+            const NumberType& median = elements_[*middle][axis];
+
+            std::size_t less = 0;
+            std::size_t equal = 0;
+            std::size_t predecessor = 0;
+            bool hasPredecessor = false;
+            for (std::size_t i : indices) {
+                const NumberType& coordinate = elements_[i][axis];
+                if (coordinate < median) {
+                    ++less;
+                    if (!hasPredecessor || elements_[predecessor][axis] < coordinate) {
+                        predecessor = i;
+                        hasPredecessor = true;
+                    }
+                } else if (!(median < coordinate)) {
+                    ++equal;
+                }
+            }
+
+            Split best;
+            best.axis = static_cast<int>(axis);
+            const auto consider = [&](const NumberType& value, std::size_t leftCount) {
+                const std::size_t rightCount = n - leftCount;
+                if (leftCount >= n || rightCount >= n) {
+                    return;
+                }
+                const std::size_t score = std::max(leftCount, rightCount);
+                if (!best.found || score < best.score) {
+                    best.found = true;
+                    best.value = value;
+                    best.maxChild = score;
+                    best.score = score;
+                }
+            };
+            if (hasPredecessor) {
+                consider(elements_[predecessor][axis], less);
+            }
+            consider(median, less + equal);
+            return best;
+        }
+
         // Sorted box extents on the axis: lo = bbox min coord, hi = max coord.
         std::vector<NumberType> los, his;
         los.reserve(n);
@@ -577,20 +630,28 @@ class ShapeTree {
         std::sort(los.begin(), los.end());
         std::sort(his.begin(), his.end());
 
-        // Counts on each side only change at the distinct extent coordinates.
-        std::vector<NumberType> candidates = his;
-        candidates.insert(candidates.end(), los.begin(), los.end());
-        std::sort(candidates.begin(), candidates.end());
-        candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
-
         Split best;
-        best.axis = axis;
-        for (const NumberType& v : candidates) {
+        best.axis = static_cast<int>(axis);
+        std::size_t loPos = 0;
+        std::size_t hiPos = 0;
+        while (loPos < n || hiPos < n) {
+            // Merge the distinct lo/hi coordinates in order. Advancing both
+            // cursors through v gives the two side counts directly, avoiding a
+            // third sort and two binary searches per candidate coordinate.
+            const NumberType& v =
+                hiPos == n || (loPos < n && los[loPos] < his[hiPos])
+                    ? los[loPos]
+                    : his[hiPos];
+            while (loPos < n && !(v < los[loPos])) {
+                ++loPos;
+            }
+            while (hiPos < n && !(v < his[hiPos])) {
+                ++hiPos;
+            }
+
             // left: boxes entirely <= v (hi <= v); right: entirely > v (lo > v).
-            const std::size_t leftCount =
-                static_cast<std::size_t>(std::upper_bound(his.begin(), his.end(), v) - his.begin());
-            const std::size_t rightCount =
-                static_cast<std::size_t>(los.end() - std::upper_bound(los.begin(), los.end(), v));
+            const std::size_t leftCount = hiPos;
+            const std::size_t rightCount = n - loPos;
             if (leftCount >= n || rightCount >= n || leftCount + rightCount == 0) {
                 continue;  // No progress: a child would hold every element.
             }
@@ -622,6 +683,12 @@ class ShapeTree {
             if (!best.found || candidate.score < best.score ||
                 (candidate.score == best.score && candidate.straddlers < best.straddlers)) {
                 best = candidate;
+            }
+            // This is the absolute lower bound: the elements are split evenly
+            // and none stays at the node, so the other axis cannot improve it.
+            if (candidate.straddlers == 0 &&
+                candidate.score == (indices.size() + 1) / 2) {
+                return candidate;
             }
         }
         return best;

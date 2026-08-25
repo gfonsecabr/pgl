@@ -311,6 +311,31 @@ TEST_CASE("ShapeTree on points") {
     }
 }
 
+TEST_CASE("ShapeTree point build handles duplicate and one-axis coordinates") {
+    const std::vector<std::vector<Point>> datasets{
+        std::vector<Point>(20, Point(7, 7)),
+        {{0, 0}, {0, 0}, {0, 1}, {0, 1}, {0, 1}, {0, 2},
+         {0, 3}, {0, 5}, {0, 8}, {0, 13}, {0, 21}},
+        {{0, 0}, {0, 0}, {0, 0}, {1, 0}, {1, 0}, {2, 0},
+         {3, 0}, {5, 0}, {8, 0}, {13, 0}, {21, 0}},
+    };
+    const std::vector<Rect> windows{
+        {-1, -1, 0, 0}, {0, 0, 0, 0}, {0, 0, 3, 3},
+        {6, 6, 8, 8}, {-100, -100, 100, 100},
+    };
+
+    for (const auto& points : datasets) {
+        for (const std::size_t leafSize : {std::size_t{1}, std::size_t{3}}) {
+            const pgl::ShapeTree<Point> tree(points, leafSize);
+            CHECK(tree.size() == points.size());
+            for (const Rect& q : windows) {
+                CHECK(tree.countIntersecting(q) == bruteCountIntersecting(points, q));
+                CHECK(tree.countContainedIn(q) == bruteCountIntersecting(points, q));
+            }
+        }
+    }
+}
+
 TEST_CASE("ShapeTree deduces the stored shape type from the container") {
     const std::vector<Triangle> tris = makeTriangles(20, 7);
 
