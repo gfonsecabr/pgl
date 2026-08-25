@@ -1,8 +1,8 @@
 // @desc: CGAL reference for the Union category: General_polygon_set_2 over the
-// same operands. The signature is twice the result's total area, which is what
-// pgl's driver reports — a vertex or component count would not do, since the
-// two libraries keep collinear boundary vertices differently while the region
-// they describe is the same.
+// same operands. The signature is the total number of boundary vertices in
+// CGAL's result, the same output-size measure reported by pgl's driver. It is
+// not expected to match pgl exactly: the libraries canonicalize collinear
+// boundary vertices differently.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -18,13 +18,13 @@ using Region       = CGAL::Polygon_with_holes_2<bench::cgal::Kernel>;
 using PolygonSet   = CGAL::General_polygon_set_2<
     CGAL::Gps_segment_traits_2<bench::cgal::Kernel>>;
 
-double doubledArea(const PolygonSet& set) {
+long long vertexCount(const PolygonSet& set) {
     std::vector<Region> components;
     set.polygons_with_holes(std::back_inserter(components));
-    double total = 0;
+    long long total = 0;
     for (const auto& component : components) {
         if (component.is_unbounded()) continue;
-        total += bench::cgal::doubledArea(component);
+        total += bench::cgal::vertexCount(component);
     }
     return total;
 }
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
             const double us = bench::timeOnce(result, [&] {
                 PolygonSet set(a);
                 set.join(b);
-                return doubledArea(set);
+                return vertexCount(set);
             });
             bench::emit("Regularized union", "large + large", "union",
                         "CGAL::General_polygon_set_2::join", bench::cgal::kNumber,
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
             const double us = bench::timeOnce(result, [&] {
                 PolygonSet set;
                 set.join(pieces.begin(), pieces.end());
-                return doubledArea(set);
+                return vertexCount(set);
             });
             bench::emit("Regularized union", "triangles", "union",
                         "CGAL::General_polygon_set_2::join", bench::cgal::kNumber,

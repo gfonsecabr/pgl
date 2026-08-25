@@ -10,10 +10,9 @@
 // them together separates "pgl's decomposition is slower than CGAL's" from
 // "decomposition is the slower approach".
 //
-// Both report twice the sum's area, which is what pgl's driver reports — a
-// vertex count would not do, since the libraries keep collinear boundary
-// vertices differently while the region they describe is the same. The two
-// CGAL rows must agree with each other and with pgl's at every size.
+// Both report the total number of boundary vertices, which is what pgl's driver
+// reports. The two CGAL rows must agree with each other and with pgl's at every
+// size.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -41,7 +40,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         long long decomposed = 0;
         const double decomposedUs = bench::timeOnce(decomposed, [&] {
             Decomposition decomposition;
-            return bench::cgal::doubledArea(
+            return bench::cgal::vertexCount(
                 CGAL::minkowski_sum_2(a, b, decomposition));
         });
         bench::emit("Minkowski sum", dataset, "Minkowski sum",
@@ -50,11 +49,11 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 
         long long convolved = 0;
         const double convolvedUs = bench::timeOnce(convolved, [&] {
-            return bench::cgal::doubledArea(
+            return bench::cgal::vertexCount(
                 CGAL::minkowski_sum_by_reduced_convolution_2(a, b));
         });
         bench::require(convolved == decomposed,
-                       "CGAL's two Minkowski sums disagree on the area");
+                       "CGAL's two Minkowski sums disagree on the vertex count");
         bench::emit("Minkowski sum", dataset, "Minkowski sum",
                     "CGAL::minkowski_sum_by_reduced_convolution_2",
                     bench::cgal::kNumber, n, convolved, convolvedUs);

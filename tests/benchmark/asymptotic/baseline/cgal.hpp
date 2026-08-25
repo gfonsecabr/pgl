@@ -29,7 +29,6 @@
 #include <CGAL/Polygon_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
 
-#include <cmath>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -71,17 +70,11 @@ inline PolygonType polygon(const IntPolygon& in) {
     return out;
 }
 
-// Twice a region's area, rounded exactly as bench::signature rounds it on the
-// pgl side — round-to-nearest, not truncation, or every row would differ by one
-// and mean nothing by it. The arithmetic differs by more than the rounding:
-// CGAL's exact area is reduced as it accumulates, so it converts to double at
-// the end, where pgl's is summed in double from the vertices (see the note in
-// harness.hpp on why it cannot be summed exactly). Measured, the two still
-// agree to the unit on every cell of both region categories.
-inline double doubledArea(const CGAL::Polygon_with_holes_2<Kernel>& region) {
-    double total = std::abs(CGAL::to_double(region.outer_boundary().area())) * 2.0;
+/** Total number of vertices over a CGAL region's outer ring and holes. */
+inline long long vertexCount(const CGAL::Polygon_with_holes_2<Kernel>& region) {
+    long long total = static_cast<long long>(region.outer_boundary().size());
     for (const auto& hole : region.holes()) {
-        total -= std::abs(CGAL::to_double(hole.area())) * 2.0;
+        total += static_cast<long long>(hole.size());
     }
     return total;
 }

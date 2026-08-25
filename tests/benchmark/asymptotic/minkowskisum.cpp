@@ -1,4 +1,5 @@
-// @desc: The Minkowski sum of two simple polygons with n vertices each.
+// @desc: The Minkowski sum of two simple polygons with n vertices each; the
+// result is the total number of boundary vertices.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -24,7 +25,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
                                         : bench::randomSmallPolygon(n, 2));
         long long result = 0;
         const double us = bench::timeOnce(result,
-            [&] { return bench::doubledArea(a.minkowskiSum(b)); });
+            [&] { return static_cast<long long>(a.minkowskiSum(b).vertexCount()); });
         bench::emit(kCategory, dataset, "Minkowski sum", kAlgorithm, number, n, result, us);
     }
 }

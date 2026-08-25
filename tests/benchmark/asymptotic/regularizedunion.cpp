@@ -1,4 +1,5 @@
-// @desc: Regularized union of two polygons with n vertices or n/3 triangles.
+// @desc: Regularized union of two polygons with n vertices or n/3 triangles;
+// the result is the total number of boundary vertices.
 #include "harness.hpp"
 #include "datasets.hpp"
 #include "sizes.hpp"
@@ -22,7 +23,7 @@ void twoPolygons(const bench::Options& opt) {
         const pgl::EPolygon b(bench::randomPolygon(n, 2));
         long long result = 0;
         const double us = bench::timeOnce(result,
-            [&] { return bench::doubledArea(a.regularizedUnion(b)); });
+            [&] { return static_cast<long long>(a.regularizedUnion(b).vertexCount()); });
         bench::emit(kCategory, dataset, kProblem, kAlgorithm, number, n, result, us);
     }
 }
@@ -38,7 +39,8 @@ void manyTriangles(const bench::Options& opt) {
             bench::convert<pgl::ETriangle>(bench::largeTriangles(n / 3));
         long long result = 0;
         const double us = bench::timeOnce(result, [&] {
-            return bench::doubledArea(pgl::regularizedUnionOf<pgl::EPoint>(triangles));
+            return static_cast<long long>(
+                pgl::regularizedUnionOf<pgl::EPoint>(triangles).vertexCount());
         });
         bench::emit(kCategory, dataset, kProblem, kAlgorithm, number, n, result, us);
     }

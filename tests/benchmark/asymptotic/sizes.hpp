@@ -65,17 +65,7 @@ constexpr std::array<int, kSamples> linearSizes(int max) {
 }
 
 // ── 1. Triangulation ────────────────────────────────────────────────────────
-// Anchored, when this ceiling was set, to buildPointLocation: the index then
-// cost about thirty times the triangulation it indexed (at 100,000 points,
-// 4.2 s against 0.12 s), and it was what decided how far the sweep could go —
-// 30,000 put it at ~1.0 s. The index is now drawn on a coarsening of the mesh
-// and costs less than the Delaunay build it indexes (at 30,000 points, 0.03 s
-// against 0.04 s for the int build and 0.07 s against 0.13 s for the
-// ERational one), so no row here is index-bound any more. The ceiling stays
-// where it is: the Delaunay build is measured out to the full 100,000 in its
-// own right under point constructions, and the locate rows need only enough
-// spread to separate the walk from the index.
-constexpr auto kTriangulation = linearSizes(30000);
+constexpr auto kTriangulation = linearSizes(100000);
 
 // ── 2. Arrangement ──────────────────────────────────────────────────────────
 // Quadratic output: at 10,000 small segments the arrangement already has 63,338
@@ -87,7 +77,7 @@ constexpr auto kTriangulation = linearSizes(30000);
 // list in category 3 stops at, and for the same reason — the dataset, not the
 // operation, is what runs out of room.
 constexpr auto kArrangement      = linearSizes(10000);
-constexpr auto kArrangementLarge = linearSizes(1200);
+constexpr auto kArrangementLarge = linearSizes(2000);
 
 // ── 3. Intersection of line segments ────────────────────────────────────────
 // One list per dataset: the three differ by orders of magnitude in output at
@@ -100,8 +90,8 @@ constexpr auto kArrangementLarge = linearSizes(1200);
 //     same sweep with no output term, and it runs in 33 ms at 6,000. Its
 //     ceiling is generation: 6,400 is about a second of untangling.
 constexpr auto kSegmentsSmall   = linearSizes(10000);
-constexpr auto kSegmentsLarge   = linearSizes(1200);
-constexpr auto kSegmentsPolygon = linearSizes(6400);
+constexpr auto kSegmentsLarge   = linearSizes(1000);
+constexpr auto kSegmentsPolygon = linearSizes(10000);
 
 // ── 4. Constructions over a set of points ───────────────────────────────────
 // No dominant construction: each is its own one-shot build, so each is anchored
@@ -138,7 +128,7 @@ constexpr auto kSegmentSearch = linearSizes(100000);
 // per vertex, and takes 70 ms to build. visibleVertices is the expensive
 // problem here rather than the graph, which is why it uses a much shorter query
 // batch than the rest of the suite.
-constexpr auto kVisibility = linearSizes(6400);
+constexpr auto kVisibility = linearSizes(10000);
 
 // ── 8. Minkowski sum ────────────────────────────────────────────────────────
 // pgl decomposes both operands into convex pieces and unions the pairwise sums,
@@ -147,7 +137,7 @@ constexpr auto kVisibility = linearSizes(6400);
 // range and the only thing separating them at a given n is how much of the
 // plane the second operand covers: at 180 vertices each, two large operands
 // take 1.65 s and a large with a small one 1.09 s.
-constexpr auto kMinkowski = linearSizes(180);
+constexpr auto kMinkowski = linearSizes(200);
 
 // ── 9. Union ────────────────────────────────────────────────────────────────
 // The pair union is its own anchor at 0.67 s for two 3,200-vertex polygons
@@ -159,7 +149,7 @@ constexpr auto kMinkowski = linearSizes(180);
 // boundaries meet — 0.85 s at 2,400 vertices (800 triangles), and 1.4 s at
 // 3,000 vertices (1,000 triangles). The triangle sweep is a multiple of three
 // throughout, so n always denotes the total number of input vertices.
-constexpr auto kUnionPair      = linearSizes(3200);
-constexpr auto kUnionTriangles = linearSizes(2400);
+constexpr auto kUnionPair      = linearSizes(10000);
+constexpr auto kUnionTriangles = linearSizes(10000);
 
 }  // namespace bench

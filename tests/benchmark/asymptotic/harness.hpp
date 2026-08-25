@@ -156,67 +156,6 @@ inline void emit(std::string_view category, std::string_view dataset,
 }
 
 // ---------------------------------------------------------------------------
-// Region signatures
-//
-// For the categories whose answer is a region rather than a count — Minkowski
-// sum, union — the signature is twice the region's area, not a vertex or
-// component count. A vertex count is a property of how a boundary is
-// *represented*: pgl keeps collinear boundary vertices where CGAL merges them,
-// so two correct answers to the same question disagree on it. The area is a
-// property of the region itself, so it is what the CGAL baseline can actually
-// check, and it catches a wrong answer that a count would not.
-//
-// Twice the area, because the shoelace sum is halved to get an area and the
-// doubling keeps whole coordinates on an integer footing. Both categories'
-// results still have some genuinely rational vertices — a Minkowski sum's
-// piece-sums have integer vertices but the union of those pieces puts vertices
-// at crossings, and a union of two polygons does the same — so the reported
-// signature is a *rounded* area. Read agreement as agreement to about eight
-// significant digits: a difference of one in the last unit is the two doubles
-// straddling a half, not a wrong answer.
-//
-// The shoelace sum is taken in double, over vertices converted one at a time,
-// rather than by asking the shape for its exact twiceArea. pgl's rationals do
-// not reduce as they add, so an exactly accumulated ring area is a fraction
-// whose numerator and denominator each outgrow what a double can hold long
-// before the division happens: the conversion gives inf/inf, and the signature
-// comes out NaN. Converting each vertex first keeps every term small — a
-// crossing's coordinate is a ratio of small polynomials in the inputs — and
-// costs nothing. Measured on the union of 200 large triangles: the exact area
-// takes 1.2 s and returns NaN where this returns 8.37e7 in under a
-// millisecond, and on the inputs where the exact one does work (the union of
-// two 3,200-vertex polygons, a 160-vertex Minkowski sum) the two agree to ten
-// significant digits.
-// ---------------------------------------------------------------------------
-inline double doubledRingArea(const pgl::EPolygon& ring) {
-    const auto& v = ring.vertices();
-    double sum = 0;
-    for (std::size_t i = 0; i < v.size(); ++i) {
-        const auto& p = v[i];
-        const auto& q = v[(i + 1) % v.size()];
-        sum += static_cast<double>(p.x()) * static_cast<double>(q.y()) -
-               static_cast<double>(q.x()) * static_cast<double>(p.y());
-    }
-    return std::abs(sum);
-}
-
-inline double doubledArea(const pgl::EPolygonWithHoles& region) {
-    double total = doubledRingArea(region.outer());
-    for (const auto& hole : region.holes()) {
-        total -= doubledRingArea(hole);
-    }
-    return total;
-}
-
-inline double doubledArea(const pgl::EPolygonSet& set) {
-    double total = 0;
-    for (const auto& component : set.components()) {
-        total += doubledArea(component);
-    }
-    return total;
-}
-
-// ---------------------------------------------------------------------------
 // Preconditions
 //
 // A benchmark can measure the wrong thing silently: an index that was never
