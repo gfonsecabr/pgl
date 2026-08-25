@@ -2792,13 +2792,13 @@ private:
      *
      * A scan per query costs `O(Q E)`: one straddle test per query and edge, and
      * that test is about as cheap as an exact test on a pair of coordinates gets.
-     * @ref sweepHalfedgesLeftOf costs `O((E + Q) log E)`, but pays an orientation
-     * predicate and a tree node per comparison, some five times the straddle test
-     * on the same coordinates. So the scan wins whenever the queries are few —
-     * connected input asks only a handful, and the arrangements that are large
-     * are usually connected — and loses by any margin one likes as they grow:
-     * scattered input asks one per component, which is where the `Q E` term was
-     * the whole cost of construction.
+     * @ref sweepHalfedgesLeftOf costs `O((E + Q) log E)`, paying an orientation
+     * predicate and a tree node per comparison — which measures a little cheaper
+     * than the straddle test, not dearer, the two being one exact predicate each.
+     * So the scan wins only when the queries are genuinely few — connected input
+     * asks a handful — and loses by any margin one likes as they grow: scattered
+     * input asks one per component, which is where the `Q E` term was the whole
+     * cost of construction.
      *
      * Both counts are known before either runs, so this is a choice and not a
      * bail-out — and the choice is what keeps the `Q E` term out of the bound.
@@ -2815,9 +2815,16 @@ private:
         const std::uint64_t asked = queries.size();
         // log2 of the number of edges, near enough, and without a cast to double.
         const std::uint64_t depth = std::bit_width(edges);
-        constexpr std::uint64_t perComparison = 5;
+        // What one sweep comparison costs in straddle tests, as a ratio so the
+        // calibrated number stays an integer. Measured at about a half on exact
+        // rational coordinates: the two predicates cost much the same, and the
+        // sweep stays well inside the `(E + Q) log E` its bound allows, its
+        // status holding only the edges the line currently crosses.
+        constexpr std::uint64_t perComparisonNum = 1;
+        constexpr std::uint64_t perComparisonDen = 2;
         if (!infinity_.valid() &&
-            asked * edges > perComparison * (2 * edges + asked) * depth) {
+            perComparisonDen * asked * edges >
+                perComparisonNum * (2 * edges + asked) * depth) {
             return sweepHalfedgesLeftOf(queries);
         }
         std::vector<HalfedgeId> answer;
