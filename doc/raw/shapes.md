@@ -654,7 +654,7 @@ A polygon `P` has methods such as:
 - `P.isSimple()`: Returns true if the edges only intersect at the endpoints of consecutive edges. Takes $O(n \log n)$ time for $n$ edges with exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through the bounding-box sweep of `xyIntersections` instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
 - `P.isConvex()`: Returns true if the polygon is convex, possibly with vertices subdividing convex hull edges. Takes $O(n)$ time.
 - `P.asPolygonWithHoles()`: Returns the polygon as a hole-free `PolygonWithHoles` region.
-- `P.asBitMatrix()`: Returns the polygon rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell. Every edge must be axis-parallel and the coordinates integral, otherwise it throws `std::logic_error`.
+- `P.asBitMatrix<ResultNumber>()`: Returns the polygon rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell. Every edge must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error` — a `Rational` or floating-point coordinate is checked, never rounded. `ResultNumber` is the grid's integer type, by default the coordinate type itself, the integer a `Rational` is built on, or `int64_t`.
 - `P.untangle()`: Makes the polygon simple in place. Edges that cross are flipped and when a flip is blocked by collinearity (collinear vertices) the offending vertex is removed. On return `P.isSimple()` holds. Worst-case complexity is high.
 - `P.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior; its endpoints may lie on the boundary.
 
@@ -708,7 +708,7 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.verticesCentroid<ResultNumber>()`: Returns the centroid of the vertex set over all rings.
 - `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. It may divide coordinates by four and is undefined for a region with no area.
 - `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
-- `A.asBitMatrix()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset. Every edge of every ring must be axis-parallel and the coordinates integral, otherwise it throws `std::logic_error`.
+- `A.asBitMatrix<ResultNumber>()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset. Every edge of every ring must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error`. Same `ResultNumber` rule as on a polygon.
 - `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
 - `A.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior. The segment interior must be strictly inside the outer ring and may not touch a hole, while either endpoint may lie on any ring.
 
@@ -763,7 +763,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.pointInside<ResultNumber>()`: A point in the first component's interior.
 - `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
-- `A.asBitMatrix()`: The set rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over the bounding box of the whole set, the holes and the gaps between components left unset. Same rectilinear requirement as on a region.
+- `A.asBitMatrix<ResultNumber>()`: The set rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over the bounding box of the whole set, the holes and the gaps between components left unset. Same rectilinear and whole-number requirement as on a region.
 - `A.interiorContainsInterior(s)`: Returns true when the open segment lies strictly inside one component; boundary endpoints are allowed, but an interior passage through a component pinch is not.
 
 

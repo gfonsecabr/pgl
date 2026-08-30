@@ -783,16 +783,26 @@ struct PolygonSet {
      * whole set and the set cells are the ones its components cover, holes left
      * unset. Only a rectilinear set is exactly a set of grid cells, so every
      * edge of every ring must be axis-parallel; use @ref innerRaster or
-     * @ref outerRaster to approximate any other set. The coordinates must also
-     * be integers, which the grid needs.
+     * @ref outerRaster to approximate any other set.
+     *
+     * A cell is an integer position, so the coordinates must be whole numbers
+     * too. An integer set rasterizes as it stands; one over a Rational or a
+     * floating-point type is checked vertex by vertex and throws unless every
+     * coordinate happens to be whole -- rounding one would move the set.
      *
      * Two components that touch only at a corner stay apart, since the cells do
      * too and @ref BitMatrix::asPolygonSet splits on edge connectivity, so the
      * round trip through the raster recovers a rectilinear set.
      *
+     * @tparam ResultNumber Integer coordinate type of the grid (default: the
+     *         coordinate type itself when it is a signed integer, the integer a
+     *         Rational is built on, and `int64_t` otherwise).
      * @return A @ref BitMatrix over the bounding box, covering this set.
-     * @throws std::logic_error If an edge of a ring is not axis-parallel.
+     * @throws std::logic_error If an edge of a ring is not axis-parallel, or a
+     *         coordinate is not a whole number the grid can hold.
      */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(std::signed_integral<ResultNumber>)
     [[nodiscard]] auto asBitMatrix() const;
 
     // -------------------------------------------------------------------------

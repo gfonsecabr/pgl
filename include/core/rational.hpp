@@ -60,6 +60,21 @@ struct rational_int<Rational<Int>> {
 template <class T>
 using rational_int_t = typename rational_int<T>::type;
 
+/**
+ * @brief The integer type a coordinate rasterizes onto by default.
+ *
+ * A grid cell is an integer position, so a shape can only be rasterized over a
+ * signed integer coordinate type. One that already is stays itself, so an
+ * integer shape rasterizes with no conversion at all, and a Rational collapses
+ * to the integer it is built on, which every whole fraction fits. Anything else
+ * -- a floating-point coordinate, a Rational over a @ref BigInt -- goes to
+ * `int64_t`, wide enough for every whole number a `double` can name; the value
+ * is checked against its range rather than wrapped into it.
+ */
+template <class T>
+using grid_number_t = std::conditional_t<std::signed_integral<rational_int_t<T>>,
+                                         rational_int_t<T>, std::int64_t>;
+
 namespace detail {
 /// @brief Exact 2^k as a pgl::BigInt for k >= 0 (exponentiation by squaring).
 ///

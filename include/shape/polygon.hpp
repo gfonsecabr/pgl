@@ -989,12 +989,22 @@ struct Polygon {
      * set cells are the ones the polygon covers. Only a rectilinear polygon is
      * exactly a set of grid cells, so every edge must be axis-parallel; use
      * @ref innerRaster or @ref outerRaster to approximate any other polygon.
-     * The coordinates must also be integers, which the grid needs.
      *
+     * A cell is an integer position, so the coordinates must be whole numbers
+     * too. An integer polygon rasterizes as it stands; one over a Rational or a
+     * floating-point type is checked vertex by vertex and throws unless every
+     * coordinate happens to be whole -- rounding one would move the polygon.
+     *
+     * @tparam ResultNumber Integer coordinate type of the grid (default: the
+     *         coordinate type itself when it is a signed integer, the integer a
+     *         Rational is built on, and `int64_t` otherwise).
      * @return A @ref BitMatrix over the bounding box, covering this polygon.
-     * @throws std::logic_error If an edge is not axis-parallel.
+     * @throws std::logic_error If an edge is not axis-parallel, or a coordinate
+     *         is not a whole number the grid can hold.
      */
-    auto asBitMatrix() const;
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(std::signed_integral<ResultNumber>)
+    [[nodiscard]] auto asBitMatrix() const;
 
     /**
      * @brief Builds the constrained Delaunay triangulation of this polygon with

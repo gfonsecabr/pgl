@@ -636,6 +636,26 @@ TEST_CASE("a polygon and a set of regions rasterize like a region") {
                     std::logic_error);
 }
 
+TEST_CASE("a shape over another coordinate type rasterizes when its coordinates are whole") {
+    using RationalPoint = pgl::Point<pgl::Rational<int>>;
+    using RationalPolygon = pgl::Polygon<RationalPoint>;
+
+    const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 3, 0, 3});
+    const RationalPolygon exact(ell);
+
+    // The constructor is what asBitMatrix spells, over either coordinate type.
+    CHECK(Matrix(exact) == Matrix(ell));
+    CHECK(Matrix(exact) == exact.asBitMatrix());
+    CHECK(Matrix(pgl::PolygonWithHoles<RationalPoint>(exact)) == Matrix(Region(ell)));
+    CHECK(Matrix(pgl::PolygonSet<RationalPoint>(pgl::PolygonWithHoles<RationalPoint>(exact)))
+          == Matrix(pgl::PolygonSet<Point>(Region(ell))));
+
+    const pgl::Rational<int> half(5, 2);
+    const RationalPolygon fractional({RationalPoint(0, 0), RationalPoint(half, 0),
+                                      RationalPoint(half, 2), RationalPoint(0, 2)});
+    CHECK_THROWS_AS(static_cast<void>(Matrix(fractional)), std::logic_error);
+}
+
 TEST_CASE("polyomino regions round trip through the raster") {
     for (std::size_t size = 1; size <= 6; ++size) {
         for (const Region& region : pgl::polyominoRegions(size)) {

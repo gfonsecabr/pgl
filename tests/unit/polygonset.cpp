@@ -578,3 +578,26 @@ TEST_CASE("PolygonSet asBitMatrix rasterizes a rectilinear set") {
         CHECK(RegionSet().asBitMatrix().empty());
     }
 }
+
+TEST_CASE("PolygonSet asBitMatrix refuses a coordinate that is not a whole number") {
+    using RationalPoint = pgl::Point<pgl::Rational<int>>;
+    using RationalPolygon = pgl::Polygon<RationalPoint>;
+    using RationalRegion = pgl::PolygonWithHoles<RationalPoint>;
+    using RationalSet = pgl::PolygonSet<RationalPoint>;
+
+    const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+
+    SUBCASE("whole rational coordinates rasterize onto the integer they name") {
+        const RationalSet exact(set);
+        CHECK(exact.asBitMatrix() == set.asBitMatrix());
+    }
+
+    SUBCASE("a fractional coordinate in any component throws") {
+        const pgl::Rational<int> half(5, 2);
+        const RationalPolygon fractional({RationalPoint(0, 0), RationalPoint(half, 0),
+                                          RationalPoint(half, 2), RationalPoint(0, 2)});
+        const RationalSet mixed(std::vector{RationalRegion(RationalPolygon(squareB())),
+                                            RationalRegion(fractional)});
+        CHECK_THROWS_AS(static_cast<void>(mixed.asBitMatrix()), std::logic_error);
+    }
+}

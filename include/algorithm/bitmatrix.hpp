@@ -11,6 +11,7 @@
 #include <array>
 #include <bit>
 #include <cassert>
+#include <cmath>
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -34,6 +35,120 @@ namespace pgl {
  * sharing a side or only a corner).
  */
 enum class GridAdjacency { edge, vertex };
+
+namespace detail {
+
+/**
+ * @brief Converts one coordinate onto the integer grid, exactly or not at all.
+ *
+ * A cell is named by integers, so a coordinate that is not a whole number names
+ * no cell: rounding it would move the shape, which is why this refuses it
+ * instead. A whole number that @p Int cannot hold is refused for the same
+ * reason.
+ *
+ * @tparam Int Signed integer type of the grid.
+ * @param value Coordinate to convert.
+ * @return The same value as an @p Int.
+ * @throws std::logic_error If the value is not a whole number, or is one that
+ *         @p Int cannot hold.
+ */
+template <class Int, class Number>
+[[nodiscard]] Int gridCoordinate(const Number& value) {
+    if constexpr (std::same_as<Int, Number>) {
+        return value;
+    } else if constexpr (is_Rational_v<Number>) {
+        if (!value.isInteger()) {
+            throw std::logic_error("pgl::BitMatrix: a coordinate is not an integer");
+        }
+        return gridCoordinate<Int>(static_cast<rational_int_t<Number>>(value));
+    } else if constexpr (std::is_floating_point_v<Number>) {
+        if (!std::isfinite(value) || value != std::floor(value)) {
+            throw std::logic_error("pgl::BitMatrix: a coordinate is not an integer");
+        }
+        // The bound is a power of two, so it and its negation are both exact in
+        // any binary floating-point type: this range test never rounds, even
+        // where Int carries more digits than Number does.
+        const Number low = static_cast<Number>(numeric_limits<Int>::min());
+        if (value < low || value >= -low) {
+            throw std::logic_error("pgl::BitMatrix: a coordinate does not fit the grid");
+        }
+        return static_cast<Int>(value);
+    } else {
+        // An exact integer of some other width. Range-check it whenever Number
+        // can spell Int's bounds at all; an unbounded BigInt reports no digits
+        // and always can, a narrower fixed width cannot go out of range.
+        constexpr bool comparable = !numeric_limits<Number>::is_specialized
+                                    || numeric_limits<Number>::digits >= numeric_limits<Int>::digits;
+        if constexpr (comparable) {
+            if (value < static_cast<Number>(numeric_limits<Int>::min())
+                || value > static_cast<Number>(numeric_limits<Int>::max())) {
+                throw std::logic_error("pgl::BitMatrix: a coordinate does not fit the grid");
+            }
+        }
+        return static_cast<Int>(value);
+    }
+}
+
+/** @brief Converts one point onto the integer grid, as @ref gridCoordinate does. */
+template <class GridPointType, class OtherPointType>
+[[nodiscard]] GridPointType gridPoint(const OtherPointType& point) {
+    using Int = typename GridPointType::NumberType;
+    return GridPointType(gridCoordinate<Int>(point.x()), gridCoordinate<Int>(point.y()));
+}
+
+/**
+ * @brief Converts a ring onto the integer grid, vertex by vertex.
+ *
+ * The result is built trusted: the source ring is canonical and an exact
+ * coordinate conversion preserves that, the same reason the shapes' own
+ * converting constructors renormalize nothing.
+ */
+template <class GridPointType, class OtherPointType, class TLabel>
+[[nodiscard]] Polygon<GridPointType> gridRing(const Polygon<OtherPointType, TLabel>& ring) {
+    std::vector<GridPointType> vertices;
+    vertices.reserve(ring.size());
+    for (const OtherPointType& vertex : ring) {
+        vertices.push_back(gridPoint<GridPointType>(vertex));
+    }
+    return Polygon<GridPointType>(std::move(vertices), true);
+}
+
+/** @brief Converts a region onto the integer grid, ring by ring. */
+template <class GridPointType, class OtherPointType, class TLabel>
+[[nodiscard]] PolygonWithHoles<GridPointType> gridRegion(
+    const PolygonWithHoles<OtherPointType, TLabel>& region) {
+    std::vector<Polygon<GridPointType>> holes;
+    holes.reserve(region.holeCount());
+    for (const auto& hole : region.holes()) {
+        holes.push_back(gridRing<GridPointType>(hole));
+    }
+    return PolygonWithHoles<GridPointType>(gridRing<GridPointType>(region.outer()), std::move(holes),
+                                           true);
+}
+
+/** @brief Converts a set onto the integer grid, component by component. */
+template <class GridPointType, class OtherPointType, class TLabel>
+[[nodiscard]] PolygonSet<GridPointType> gridSet(const PolygonSet<OtherPointType, TLabel>& set) {
+    std::vector<PolygonWithHoles<GridPointType>> components;
+    components.reserve(set.componentCount());
+    for (const auto& component : set.components()) {
+        components.push_back(gridRegion<GridPointType>(component));
+    }
+    return PolygonSet<GridPointType>(std::move(components), true);
+}
+
+/**
+ * @brief The point type a shape over @p PointType rasterizes onto.
+ *
+ * The shape's own point type when the grid keeps its coordinate type, so an
+ * integer shape rasterizes onto exactly the points it is made of, labels and
+ * all; otherwise the requested integer paired with the same label type.
+ */
+template <class PointType, class Int>
+using grid_point_t = std::conditional_t<std::same_as<Int, typename PointType::NumberType>, PointType,
+                                        Point<Int, typename PointType::LabelType>>;
+
+}  // namespace detail
 
 /**
  * @brief A bit per cell of a rectangular window of the integer grid.
@@ -179,6 +294,27 @@ public:
     }
 
     /**
+     * @brief Rasterizes a rectilinear region given over another coordinate type.
+     *
+     * A cell is an integer position, so a region whose coordinates are not
+     * integers -- a Rational or a floating-point one -- covers a set of cells
+     * only when every coordinate of it happens to be whole. That is checked
+     * rather than rounded: a coordinate that is not a whole number, or is one
+     * @ref NumberType cannot hold, throws instead of moving a vertex.
+     *
+     * @param region Region to rasterize; every edge of it must be axis-parallel
+     *        and every coordinate a whole number this grid can hold.
+     * @throws std::logic_error If an edge is not axis-parallel, or a coordinate
+     *         is not a whole number of the grid.
+     */
+    // Unconstrained: partial ordering already prefers the same-type overload
+    // above, and a constraint here would ride onto an implicit deduction guide,
+    // which the CI clang mishandles.
+    template <class OtherPointType, class TLabel>
+    explicit BitMatrix(const PolygonWithHoles<OtherPointType, TLabel>& region)
+        : BitMatrix(detail::gridRegion<PointType>(region)) {}
+
+    /**
      * @brief Rasterizes a rectilinear polygon, one bit per covered cell.
      *
      * The single-ring case of @ref BitMatrix(const PolygonWithHoles<PointType,
@@ -196,6 +332,21 @@ public:
         addRingCrossings(polygon, crossings);
         fillCrossings(crossings);
     }
+
+    /**
+     * @brief Rasterizes a rectilinear polygon given over another coordinate type.
+     *
+     * The single-ring case of @ref BitMatrix(const PolygonWithHoles<OtherPointType,
+     * TLabel>&), with the same whole-number requirement on every coordinate.
+     *
+     * @param polygon Polygon to rasterize; every edge of it must be axis-parallel
+     *        and every coordinate a whole number this grid can hold.
+     * @throws std::logic_error If an edge is not axis-parallel, or a coordinate
+     *         is not a whole number of the grid.
+     */
+    template <class OtherPointType, class TLabel>
+    explicit BitMatrix(const Polygon<OtherPointType, TLabel>& polygon)
+        : BitMatrix(detail::gridRing<PointType>(polygon)) {}
 
     /**
      * @brief Rasterizes a rectilinear set of regions, one bit per covered cell.
@@ -218,6 +369,21 @@ public:
         }
         fillCrossings(crossings);
     }
+
+    /**
+     * @brief Rasterizes a rectilinear set given over another coordinate type.
+     *
+     * The many-component case of @ref BitMatrix(const PolygonWithHoles<OtherPointType,
+     * TLabel>&), with the same whole-number requirement on every coordinate.
+     *
+     * @param set Set to rasterize; every edge of it must be axis-parallel and
+     *        every coordinate a whole number this grid can hold.
+     * @throws std::logic_error If an edge is not axis-parallel, or a coordinate
+     *         is not a whole number of the grid.
+     */
+    template <class OtherPointType, class TLabel>
+    explicit BitMatrix(const PolygonSet<OtherPointType, TLabel>& set)
+        : BitMatrix(detail::gridSet<PointType>(set)) {}
 
     // -----------------------------------------------------------------------
     // The window
@@ -2328,18 +2494,24 @@ BitMatrix(const PolygonSet<PointType, LabelType>&) -> BitMatrix<PointType>;
 // is the rasterizing constructor for that shape, so it is the constructor that
 // documents the window, the fill rule and the rectilinear requirement.
 template <class PointType_, class TLabel>
+template <class ResultNumber>
+    requires(std::signed_integral<ResultNumber>)
 auto Polygon<PointType_, TLabel>::asBitMatrix() const {
-    return BitMatrix<PointType_>(*this);
+    return BitMatrix<detail::grid_point_t<PointType_, ResultNumber>>(*this);
 }
 
 template <class PointType_, class TLabel>
+template <class ResultNumber>
+    requires(std::signed_integral<ResultNumber>)
 auto PolygonWithHoles<PointType_, TLabel>::asBitMatrix() const {
-    return BitMatrix<PointType_>(*this);
+    return BitMatrix<detail::grid_point_t<PointType_, ResultNumber>>(*this);
 }
 
 template <class PointType_, class TLabel>
+template <class ResultNumber>
+    requires(std::signed_integral<ResultNumber>)
 auto PolygonSet<PointType_, TLabel>::asBitMatrix() const {
-    return BitMatrix<PointType_>(*this);
+    return BitMatrix<detail::grid_point_t<PointType_, ResultNumber>>(*this);
 }
 
 namespace detail {

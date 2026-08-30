@@ -4,10 +4,12 @@
 #include "pgl.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <set>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -1236,5 +1238,49 @@ TEST_CASE("Polygon asBitMatrix rasterizes a rectilinear polygon") {
 
     SUBCASE("a polygon without vertices rasterizes to no cell") {
         CHECK(PolygonShape().asBitMatrix().empty());
+    }
+}
+
+TEST_CASE("Polygon asBitMatrix refuses a coordinate that is not a whole number") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using RationalPoint = pgl::Point<pgl::Rational<int>>;
+    using RationalPolygon = pgl::Polygon<RationalPoint>;
+    using DoublePoint = pgl::Point<double>;
+    using DoublePolygon = pgl::Polygon<DoublePoint>;
+
+    const PolygonShape square({0, 0, 3, 0, 3, 2, 0, 2});
+
+    SUBCASE("whole rational coordinates rasterize onto the integer they name") {
+        const RationalPolygon exact({0, 0, 3, 0, 3, 2, 0, 2});
+        CHECK(exact.asBitMatrix() == square.asBitMatrix());
+        CHECK(std::is_same_v<decltype(exact.asBitMatrix()), pgl::BitMatrix<Point>>);
+    }
+
+    SUBCASE("whole floating-point coordinates rasterize the same way") {
+        const DoublePolygon exact({0, 0, 3, 0, 3, 2, 0, 2});
+        CHECK(exact.asBitMatrix<int>() == square.asBitMatrix());
+        // Wide enough for every whole number a double can name.
+        CHECK(std::is_same_v<decltype(exact.asBitMatrix()),
+                             pgl::BitMatrix<pgl::Point<std::int64_t>>>);
+    }
+
+    SUBCASE("a fractional coordinate throws rather than moving a vertex") {
+        const pgl::Rational<int> half(5, 2);
+        const RationalPolygon fractional({RationalPoint(0, 0), RationalPoint(half, 0),
+                                          RationalPoint(half, 2), RationalPoint(0, 2)});
+        CHECK_THROWS_AS(static_cast<void>(fractional.asBitMatrix()), std::logic_error);
+        CHECK_THROWS_AS(static_cast<void>(DoublePolygon({0, 0, 2.5, 0, 2.5, 2, 0, 2}).asBitMatrix()),
+                        std::logic_error);
+    }
+
+    SUBCASE("a whole coordinate the grid cannot hold throws too") {
+        const DoublePolygon distant({0, 0, 4e9, 0, 4e9, 2, 0, 2});
+        CHECK_THROWS_AS(static_cast<void>(distant.asBitMatrix<int>()), std::logic_error);
+    }
+
+    SUBCASE("the rectilinear requirement still applies") {
+        const RationalPolygon triangle({0, 0, 4, 0, 0, 4});
+        CHECK_THROWS_AS(static_cast<void>(triangle.asBitMatrix()), std::logic_error);
     }
 }

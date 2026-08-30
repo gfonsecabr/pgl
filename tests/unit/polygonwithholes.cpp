@@ -632,3 +632,27 @@ TEST_CASE("PolygonWithHoles asBitMatrix rasterizes a rectilinear region") {
         CHECK(Region().asBitMatrix().empty());
     }
 }
+
+TEST_CASE("PolygonWithHoles asBitMatrix refuses a coordinate that is not a whole number") {
+    using RationalPoint = pgl::Point<pgl::Rational<int>>;
+    using RationalPolygon = pgl::Polygon<RationalPoint>;
+    using RationalRegion = pgl::PolygonWithHoles<RationalPoint>;
+
+    const Region region(outerSquare(), std::vector{smallHole(), otherHole()});
+
+    SUBCASE("whole rational coordinates rasterize onto the integer they name") {
+        const RationalRegion exact(region);
+        CHECK(exact.asBitMatrix() == region.asBitMatrix());
+    }
+
+    SUBCASE("a fractional coordinate in a hole throws, like one in the outer ring") {
+        const pgl::Rational<int> half(5, 2);
+        const RationalPolygon fractionalHole({RationalPoint(2, 2), RationalPoint(half, 2),
+                                              RationalPoint(half, 4), RationalPoint(2, 4)});
+        const RationalRegion outerFractional(fractionalHole);
+        const RationalRegion holeFractional(RationalPolygon(outerSquare()),
+                                            std::vector{fractionalHole});
+        CHECK_THROWS_AS(static_cast<void>(outerFractional.asBitMatrix()), std::logic_error);
+        CHECK_THROWS_AS(static_cast<void>(holeFractional.asBitMatrix()), std::logic_error);
+    }
+}
