@@ -7,6 +7,7 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <iterator>
 #include <optional>
 #include <ostream>
 #include <ranges>
@@ -166,6 +167,8 @@ struct PolygonSet {
     using NumberType = typename PointType::NumberType;
     using LabelType = TLabel;
     using ComponentType = PolygonWithHoles<PointType>;
+
+    class VertexIterator;
     using PolygonType = Polygon<PointType>;
     using EdgeType = Segment<PointType>;
     static_assert(detail::is_point_v<PointType>, "PolygonSet requires pgl::Point vertices");
@@ -389,6 +392,28 @@ struct PolygonSet {
             }
         }
         return result;
+    }
+
+    /**
+     * @brief Returns a lazy view over the vertices of every ring of every
+     * component, without allocating a vector.
+     *
+     * Same vertex sequence as @ref vertices(), which materializes one vector
+     * per component before copying into its result; this allocates nothing.
+     * Unlike @ref begin(), which walks the *components*, this walks points.
+     */
+    [[nodiscard]] constexpr auto verticesView() const {
+        return std::ranges::subrange(verticesBegin(), verticesEnd());
+    }
+
+    /** @brief Returns an iterator to the first vertex of the first component. */
+    [[nodiscard]] constexpr VertexIterator verticesBegin() const {
+        return VertexIterator(this, 0);
+    }
+
+    /** @brief Returns an iterator past the last vertex of the last component. */
+    [[nodiscard]] constexpr VertexIterator verticesEnd() const {
+        return VertexIterator(this, components_.size());
     }
 
     /** @brief Returns the boundary edges of every ring of every component. */
@@ -750,6 +775,25 @@ struct PolygonSet {
      * @return The convex covering, in canonical order.
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
+     * @brief Rasterizes this set into a @ref BitMatrix, one bit per covered cell.
+     *
+     * Equivalent to `BitMatrix(*this)`: the window is the bounding box of the
+     * whole set and the set cells are the ones its components cover, holes left
+     * unset. Only a rectilinear set is exactly a set of grid cells, so every
+     * edge of every ring must be axis-parallel; use @ref innerRaster or
+     * @ref outerRaster to approximate any other set. The coordinates must also
+     * be integers, which the grid needs.
+     *
+     * Two components that touch only at a corner stay apart, since the cells do
+     * too and @ref BitMatrix::asPolygonSet splits on edge connectivity, so the
+     * round trip through the raster recovers a rectilinear set.
+     *
+     * @return A @ref BitMatrix over the bounding box, covering this set.
+     * @throws std::logic_error If an edge of a ring is not axis-parallel.
+     */
+    [[nodiscard]] auto asBitMatrix() const;
 
     // -------------------------------------------------------------------------
     // Boolean operations
@@ -1544,6 +1588,76 @@ struct PolygonSet {
         *this = scaledDownY(scalar);
         label_ = std::move(saved);
     }
+
+    /**
+     * @brief Forward iterator flattening every component's rings into one
+     *        vertex sequence, components in canonical order.
+     *
+     * Each component already flattens its own rings, so this pairs a component
+     * index with that component's @ref PolygonWithHoles::VertexIterator and
+     * rolls over to the next component when the inner iterator runs out.
+     */
+    class VertexIterator {
+      public:
+        using iterator_category = std::forward_iterator_tag;
+        using iterator_concept = std::forward_iterator_tag;
+        using value_type = PointType;
+        using difference_type = std::ptrdiff_t;
+        using reference = value_type;
+
+        constexpr VertexIterator() = default;
+
+        constexpr value_type operator*() const {
+            assert(set != nullptr);
+            return *inner;
+        }
+
+        constexpr VertexIterator& operator++() {
+            ++inner;
+            skipExhausted();
+            return *this;
+        }
+
+        constexpr VertexIterator operator++(int) {
+            VertexIterator copy(*this);
+            ++(*this);
+            return copy;
+        }
+
+        constexpr bool operator==(const VertexIterator& other) const = default;
+
+      private:
+        friend struct PolygonSet;
+
+        constexpr VertexIterator(const PolygonSet* set_arg, std::size_t component_arg)
+            : set(set_arg), component(component_arg) {
+            enterComponent();
+            skipExhausted();
+        }
+
+        // Seeds `inner` from the current component, or clears it at the end so
+        // that a walked-to-the-end iterator compares equal to verticesEnd().
+        constexpr void enterComponent() {
+            const std::size_t count = set == nullptr ? 0 : set->components_.size();
+            inner = component < count ? set->components_[component].verticesBegin()
+                                      : typename ComponentType::VertexIterator{};
+        }
+
+        // Steps over components holding no vertices. A canonical set has none —
+        // addComponent() drops the ones without area — but this keeps the end
+        // state reachable by increment alone for a set built any other way.
+        constexpr void skipExhausted() {
+            const std::size_t count = set == nullptr ? 0 : set->components_.size();
+            while (component < count && inner == set->components_[component].verticesEnd()) {
+                ++component;
+                enterComponent();
+            }
+        }
+
+        const PolygonSet* set = nullptr;
+        std::size_t component = 0;
+        typename ComponentType::VertexIterator inner{};
+    };
 
   private:
     /**

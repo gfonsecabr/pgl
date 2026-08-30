@@ -124,6 +124,14 @@ TEST_CASE("MonotoneChain structure queries") {
         CHECK(verts[2] == Point(11, 1));
     }
 
+    SUBCASE("verticesView is the lazy counterpart of vertices") {
+        const auto chain = strict + Point(1, 1);
+        const auto verts = chain.vertices();
+        const auto lazy = chain.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), verts.begin(), verts.end()));
+        CHECK(lazy.size() == chain.size());
+    }
+
     SUBCASE("diameter is the farthest vertex pair") {
         CHECK(strict.diameter() == pgl::Segment<Point>(Point(0, 0), Point(10, 0)));
     }

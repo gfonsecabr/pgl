@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <functional>
+#include <iterator>
 #include <set>
+#include <stdexcept>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -1173,5 +1175,66 @@ TEST_CASE("The canonical form survives an area past the coordinate range") {
         CHECK(spike.isDegenerate());
         CHECK(spike.isSegment());
         CHECK_FALSE(spike.isUndefined());
+    }
+}
+
+TEST_CASE("Polygon::verticesView is the lazy counterpart of vertices") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+
+    PolygonShape square({0, 0, 4, 0, 4, 4, 0, 4});
+
+    SUBCASE("same sequence as vertices, with no vector") {
+        const auto materialized = square.vertices();
+        const auto lazy = square.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+    }
+
+    SUBCASE("the translation is applied, as vertices() applies it") {
+        square += Point(7, 9);
+        const auto materialized = square.vertices();
+        const auto lazy = square.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        CHECK(*lazy.begin() == Point(7, 9));
+    }
+
+    SUBCASE("a polygon without vertices views as empty") {
+        const PolygonShape empty;
+        CHECK(empty.verticesView().empty());
+    }
+}
+
+TEST_CASE("Polygon asBitMatrix rasterizes a rectilinear polygon") {
+    using Point = pgl::Point<int>;
+    using PolygonShape = pgl::Polygon<Point>;
+
+    // The L-shaped hexomino: a 4x1 foot with a 1x2 leg above its left cell.
+    const PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 3, 0, 3});
+
+    SUBCASE("the window is the bounding box and the cells are the covered ones") {
+        const auto raster = ell.asBitMatrix();
+        CHECK(raster.window() == ell.bbox());
+        CHECK(raster.area() == ell.area<int>());
+        CHECK(raster.count() == 6);
+        CHECK(raster.asPolygonWithHoles() == pgl::PolygonWithHoles<Point>(ell));
+    }
+
+    SUBCASE("the cells are the ones an exact raster keeps") {
+        CHECK(ell.asBitMatrix() == pgl::innerRaster(ell));
+    }
+
+    SUBCASE("a translated polygon rasterizes where it sits") {
+        PolygonShape moved = ell;
+        moved += Point(7, -5);
+        CHECK(moved.asBitMatrix() == ell.asBitMatrix() + Point(7, -5));
+    }
+
+    SUBCASE("a slanted edge cannot be represented") {
+        const PolygonShape triangle({0, 0, 4, 0, 0, 4});
+        CHECK_THROWS_AS(static_cast<void>(triangle.asBitMatrix()), std::logic_error);
+    }
+
+    SUBCASE("a polygon without vertices rasterizes to no cell") {
+        CHECK(PolygonShape().asBitMatrix().empty());
     }
 }

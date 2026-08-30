@@ -3,8 +3,11 @@
 
 #include "pgl.hpp"
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 #include <vector>
 
@@ -204,6 +207,23 @@ TEST_CASE("PolygonWithHoles ring traversal") {
         CHECK(region.vertices().size() == 8);
         CHECK(region.edges().size() == 8);
         CHECK(region.orientedEdges().size() == 8);
+    }
+
+    SUBCASE("verticesView is the lazy counterpart of vertices") {
+        const auto materialized = region.vertices();
+        const auto lazy = region.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        // The view walks points, unlike begin(), which walks holes.
+        CHECK(*region.verticesBegin() == region.outer()[0]);
+        // A second pass gives the same sequence: the iterator is forward, not input.
+        CHECK(std::distance(region.verticesBegin(), region.verticesEnd())
+              == static_cast<std::ptrdiff_t>(region.vertexCount()));
+    }
+
+    SUBCASE("verticesView of a region without vertices is empty") {
+        const Region empty;
+        CHECK(empty.verticesBegin() == empty.verticesEnd());
+        CHECK(empty.verticesView().empty());
     }
 
     SUBCASE("hole rings are reversed so the region stays on the left") {
@@ -585,5 +605,30 @@ TEST_CASE("PolygonWithHoles over exact and converted coordinate types") {
         const pgl::PolygonWithHoles<pgl::Point<long long>> converted(source);
         CHECK(converted.holeCount() == 1);
         CHECK(converted.twiceArea() == 192);
+    }
+}
+
+TEST_CASE("PolygonWithHoles asBitMatrix rasterizes a rectilinear region") {
+    const Region region(outerSquare(), std::vector{smallHole(), otherHole()});
+
+    SUBCASE("the window is the bounding box and the holes stay unset") {
+        const auto raster = region.asBitMatrix();
+        CHECK(raster.window() == region.bbox());
+        CHECK(raster.area() == region.area<int>());
+        CHECK(raster.holeCount() == 2);
+        CHECK(raster.asPolygonWithHoles() == region);
+    }
+
+    SUBCASE("the cells are the ones an exact raster keeps") {
+        CHECK(region.asBitMatrix() == pgl::innerRaster(region));
+    }
+
+    SUBCASE("a slanted edge cannot be represented") {
+        const Region triangle{PolygonShape({0, 0, 4, 0, 0, 4})};
+        CHECK_THROWS_AS(static_cast<void>(triangle.asBitMatrix()), std::logic_error);
+    }
+
+    SUBCASE("a region without vertices rasterizes to no cell") {
+        CHECK(Region().asBitMatrix().empty());
     }
 }

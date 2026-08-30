@@ -1,6 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <random>
@@ -51,6 +52,32 @@ TEST_CASE_TEMPLATE("Convex usest the right vertex order and iterates over its ve
     CHECK(triangle[0].x() == Number(1));
     CHECK(triangle[1].x() == Number(4));
     CHECK(triangle[2].y() == Number(5));
+    }
+}
+
+TEST_CASE("Convex::verticesView is the lazy counterpart of vertices") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+
+    ConvexShape square(std::vector<Point>{{0, 0}, {4, 0}, {4, 4}, {0, 4}});
+
+    SUBCASE("same counterclockwise sequence as vertices, with no vector") {
+        const auto materialized = square.vertices();
+        const auto lazy = square.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        CHECK(lazy.size() == square.size());
+    }
+
+    SUBCASE("the translation is applied, as vertices() applies it") {
+        square += Point(3, 5);
+        const auto materialized = square.vertices();
+        const auto lazy = square.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        CHECK(*lazy.begin() == Point(3, 5));
+    }
+
+    SUBCASE("a convex polygon without vertices views as empty") {
+        CHECK(ConvexShape().verticesView().empty());
     }
 }
 

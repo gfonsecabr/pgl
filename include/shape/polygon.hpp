@@ -739,6 +739,18 @@ struct Polygon {
         const PointType& query) const;
 
     /**
+     * @brief Returns a lazy view over the vertices, translating each on the fly
+     * instead of allocating a vector.
+     *
+     * Same vertex sequence as @ref vertices(), with no heap allocation. The
+     * polygon is itself a vertex range, so this is just @ref begin() and
+     * @ref end() packaged as a view for callers that take one.
+     */
+    constexpr auto verticesView() const {
+        return std::ranges::subrange(begin(), end());
+    }
+
+    /**
      * @brief Returns a lazy view over the edges, materializing each @ref
      * Segment on the fly instead of allocating a vector.
      *
@@ -969,6 +981,20 @@ struct Polygon {
      * @return The convex covering, in canonical order.
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
+     * @brief Rasterizes this polygon into a @ref BitMatrix, one bit per covered cell.
+     *
+     * Equivalent to `BitMatrix(*this)`: the window is the bounding box and the
+     * set cells are the ones the polygon covers. Only a rectilinear polygon is
+     * exactly a set of grid cells, so every edge must be axis-parallel; use
+     * @ref innerRaster or @ref outerRaster to approximate any other polygon.
+     * The coordinates must also be integers, which the grid needs.
+     *
+     * @return A @ref BitMatrix over the bounding box, covering this polygon.
+     * @throws std::logic_error If an edge is not axis-parallel.
+     */
+    auto asBitMatrix() const;
 
     /**
      * @brief Builds the constrained Delaunay triangulation of this polygon with

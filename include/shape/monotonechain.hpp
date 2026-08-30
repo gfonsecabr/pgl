@@ -595,6 +595,18 @@ struct MonotoneChain {
     }
 
     /**
+     * @brief Returns a lazy view over the vertices, translating each on the fly
+     * instead of allocating a vector.
+     *
+     * Same lexicographically sorted vertex sequence as @ref vertices(), with no
+     * heap allocation. The chain is itself a vertex range, so this is just
+     * @ref begin() and @ref end() packaged as a view for callers that take one.
+     */
+    constexpr auto verticesView() const {
+        return std::ranges::subrange(begin(), end());
+    }
+
+    /**
      * @brief Returns a lazy view over the edges, materializing each @ref
      * Segment on the fly instead of allocating a vector.
      *

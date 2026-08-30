@@ -109,6 +109,13 @@ TEST_CASE("Polyline vertex access") {
         CHECK(poly.vertices() == seen);
     }
 
+    SUBCASE("verticesView is the lazy counterpart of vertices") {
+        const auto materialized = poly.vertices();
+        const auto lazy = poly.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        CHECK(lazy.size() == poly.size());
+    }
+
     SUBCASE("edges connect consecutive vertices without closing") {
         const auto edges = poly.edges();
         REQUIRE(edges.size() == poly.size() - 1);

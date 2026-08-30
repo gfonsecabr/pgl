@@ -372,6 +372,8 @@ The policy is receiver-only: mixed-coordinate calls use the receiver's default. 
 
 - `convexCovering()` (`Polygon` and `PolygonWithHoles`): Returns an irredundant covering by `Convex` pieces. The pieces may overlap, and the covering is not necessarily minimum. For a `Polygon`, the constrained Delaunay triangles form a full-visibility subgraph using the paper's dual-graph BFS, a DSATUR vertex clique cover groups them, and every clique becomes one convex hull. For `PolygonWithHoles`, the method remains shorthand for `triangulation().convexCovering()` because clique hulls can surround holes and require an additional splitting step. On a region, the covering leaves holes and slits uncovered.
 
+- `asBitMatrix()` (`Polygon`, `PolygonWithHoles` and `PolygonSet`): Returns the shape rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, one bit per covered cell, holes left unset. Only a rectilinear shape is exactly a set of grid cells, so every edge must be axis-parallel and the coordinates integral; it throws `std::logic_error` otherwise. Use `innerRaster` or `outerRaster` to approximate any other shape.
+
 
 ## Iterating
 
@@ -384,6 +386,8 @@ Several methods iterate through vertices, edges, or oriented edges. An [`std::ar
 - `orientedEdges()`: Returns an `std::array` or an `std::vector` of `OrientedSegment` objects. Boundary shapes return them in counterclockwise order. This method is not defined for `Disk`.
 
 - `begin()`, `end()`, `edgesBegin()`, `edgesEnd()`, `orientedEdgesBegin()`, and `orientedEdgesEnd()`: Provide iterator access corresponding to `vertices()`, `edges()`, and `orientedEdges()` above, with `O(1)` work per element visited.
+
+- `verticesView()`, `edgesView()`, and `orientedEdgesView()`: Lazy views over the same sequences, materializing each element on the fly instead of allocating a vector. They exist for the shapes whose sequences are vector-backed: `Convex`, `Polyline`, `MonotoneChain`, `Polygon`, and — for `verticesView()` only — `PolygonWithHoles` and `PolygonSet`. On those last two the view walks the points of every ring, which `begin()` does not, since those iterate holes and components respectively; those two views are forward ranges and not sized, so ask `vertexCount()` for the count. The rest wrap random-access vertex iterators and are sized.
 
 ### Indexed access
 

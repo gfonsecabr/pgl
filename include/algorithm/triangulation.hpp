@@ -1,6 +1,6 @@
 #pragma once
 
-#include "algorithm/polyominoes.hpp"
+#include "algorithm/bitmatrix.hpp"
 
 /**
  * @file triangulation.hpp

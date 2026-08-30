@@ -3,8 +3,11 @@
 
 #include "pgl.hpp"
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 #include <vector>
 
@@ -144,6 +147,21 @@ TEST_CASE("PolygonSet vertices, edges and oriented edges") {
         const auto vertices = set.vertices();
         CHECK(vertices.size() == set.vertexCount());
         CHECK(vertices.front() == Point(0, 0));
+    }
+
+    SUBCASE("verticesView is the lazy counterpart of vertices") {
+        const auto materialized = set.vertices();
+        const auto lazy = set.verticesView();
+        CHECK(std::equal(lazy.begin(), lazy.end(), materialized.begin(), materialized.end()));
+        // The view walks points, unlike begin(), which walks components.
+        CHECK(std::distance(set.verticesBegin(), set.verticesEnd())
+              == static_cast<std::ptrdiff_t>(set.vertexCount()));
+    }
+
+    SUBCASE("verticesView of an empty set is empty") {
+        const RegionSet empty;
+        CHECK(empty.verticesBegin() == empty.verticesEnd());
+        CHECK(empty.verticesView().empty());
     }
 
     SUBCASE("edges span every ring of every component") {
@@ -520,5 +538,43 @@ TEST_CASE("PolygonSet decompositions") {
             pgl::Segment<Point>(Point(0, 0), Point(2, 2))};
         const auto mesh = set.triangulation(constraints);
         CHECK(mesh.numTriangles() == 2);
+    }
+}
+
+TEST_CASE("PolygonSet asBitMatrix rasterizes a rectilinear set") {
+    SUBCASE("the window spans the whole set and every component is filled") {
+        const RegionSet set(std::vector{Region(squareA()), Region(squareB())});
+        const auto raster = set.asBitMatrix();
+        CHECK(raster.window() == set.bbox());
+        CHECK(raster.area() == set.area<int>());
+        CHECK(raster.componentCount() == 2);
+        CHECK(raster.asPolygonSet() == set);
+    }
+
+    SUBCASE("a component inside a hole of another one keeps its gap") {
+        const PolygonShape frame({0, 0, 10, 0, 10, 10, 0, 10});
+        const PolygonShape bigHole({2, 2, 8, 2, 8, 8, 2, 8});
+        const PolygonShape island({4, 4, 6, 4, 6, 6, 4, 6});
+        const RegionSet set(std::vector{Region(frame, std::vector{bigHole}), Region(island)});
+        const auto raster = set.asBitMatrix();
+        CHECK(raster.area() == set.area<int>());
+        CHECK(raster.asPolygonSet() == set);
+    }
+
+    SUBCASE("components touching at a corner stay apart") {
+        const RegionSet set(std::vector{Region(squareA()),
+                                        Region(PolygonShape({2, 2, 4, 2, 4, 4, 2, 4}))});
+        const auto raster = set.asBitMatrix();
+        CHECK(raster.area() == set.area<int>());
+        CHECK(raster.asPolygonSet() == set);
+    }
+
+    SUBCASE("a slanted edge cannot be represented") {
+        const RegionSet set{Region(PolygonShape({0, 0, 4, 0, 0, 4}))};
+        CHECK_THROWS_AS(static_cast<void>(set.asBitMatrix()), std::logic_error);
+    }
+
+    SUBCASE("the empty set rasterizes to no cell") {
+        CHECK(RegionSet().asBitMatrix().empty());
     }
 }

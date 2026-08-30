@@ -7,6 +7,7 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <iterator>
 #include <optional>
 #include <ostream>
 #include <ranges>
@@ -92,6 +93,8 @@ struct PolygonWithHoles {
     using PolygonType = Polygon<PointType>;
     using EdgeType = Segment<PointType>;
     static_assert(detail::is_point_v<PointType>, "PolygonWithHoles requires pgl::Point vertices");
+
+    class VertexIterator;
 
     /**
      * @brief Creates the empty region (a vertexless outer polygon, no holes).
@@ -312,6 +315,28 @@ struct PolygonWithHoles {
             }
         }
         return result;
+    }
+
+    /**
+     * @brief Returns a lazy view over the vertices of every ring, outer
+     * boundary first, without allocating a vector.
+     *
+     * Same vertex sequence as @ref vertices(). Unlike @ref begin(), which walks
+     * the *holes*, this walks the points of every ring, so it is what generic
+     * code iterating a region's vertices wants.
+     */
+    [[nodiscard]] constexpr auto verticesView() const {
+        return std::ranges::subrange(verticesBegin(), verticesEnd());
+    }
+
+    /** @brief Returns an iterator to the first vertex of the outer boundary. */
+    [[nodiscard]] constexpr VertexIterator verticesBegin() const {
+        return VertexIterator(this, 0);
+    }
+
+    /** @brief Returns an iterator past the last vertex of the last hole. */
+    [[nodiscard]] constexpr VertexIterator verticesEnd() const {
+        return VertexIterator(this, 1 + holes_.size());
     }
 
     /** @brief Returns the boundary edges of every ring, outer boundary first. */
@@ -781,6 +806,21 @@ struct PolygonWithHoles {
      * @return The convex covering, in canonical order.
      */
     [[nodiscard]] std::vector<Convex<PointType>> convexCovering() const;
+
+    /**
+     * @brief Rasterizes this region into a @ref BitMatrix, one bit per covered cell.
+     *
+     * Equivalent to `BitMatrix(*this)`: the window is the bounding box and the
+     * set cells are the ones the region covers, holes left unset. Only a
+     * rectilinear region is exactly a set of grid cells, so every edge of every
+     * ring must be axis-parallel; use @ref innerRaster or @ref outerRaster to
+     * approximate any other region. The coordinates must also be integers,
+     * which the grid needs.
+     *
+     * @return A @ref BitMatrix over the bounding box, covering this region.
+     * @throws std::logic_error If an edge of a ring is not axis-parallel.
+     */
+    [[nodiscard]] auto asBitMatrix() const;
 
     /**
      * @brief Returns the regularized set difference of the two shapes (A ∖ B).
@@ -2942,6 +2982,73 @@ struct PolygonWithHoles {
         *this = scaledDownY(scalar);
         label_ = std::move(saved);
     }
+
+    /**
+     * @brief Forward iterator flattening the region's rings into one vertex
+     *        sequence: the outer boundary, then each hole in canonical order.
+     *
+     * The rings are separate @ref Polygon objects, so this holds a ring index
+     * and a vertex index rather than a single underlying iterator. Ring index
+     * `0` is the outer boundary and ring `i + 1` is hole `i`.
+     */
+    class VertexIterator {
+      public:
+        using iterator_category = std::forward_iterator_tag;
+        using iterator_concept = std::forward_iterator_tag;
+        using value_type = PointType;
+        using difference_type = std::ptrdiff_t;
+        using reference = value_type;
+
+        constexpr VertexIterator() = default;
+
+        constexpr value_type operator*() const {
+            assert(region != nullptr);
+            return currentRing()[index];
+        }
+
+        constexpr VertexIterator& operator++() {
+            ++index;
+            skipExhausted();
+            return *this;
+        }
+
+        constexpr VertexIterator operator++(int) {
+            VertexIterator copy(*this);
+            ++(*this);
+            return copy;
+        }
+
+        constexpr bool operator==(const VertexIterator& other) const = default;
+
+      private:
+        friend struct PolygonWithHoles;
+
+        constexpr VertexIterator(const PolygonWithHoles* region_arg, std::size_t ring_arg)
+            : region(region_arg), ring(ring_arg) {
+            skipExhausted();
+        }
+
+        constexpr const PolygonType& currentRing() const {
+            return ring == 0 ? region->outer_ : region->holes_[ring - 1];
+        }
+
+        // Steps over rings with no vertices, so `index` always addresses a real
+        // vertex and the past-the-end state is exactly `ring == 1 + holes`.
+        // Only an empty outer boundary can trigger this — addHole() drops
+        // degenerate rings — but the guard costs nothing and keeps begin() and
+        // end() comparing equal for a region with no vertices at all.
+        constexpr void skipExhausted() {
+            const std::size_t rings = region == nullptr ? 0 : 1 + region->holes_.size();
+            while (ring < rings && index == currentRing().size()) {
+                ++ring;
+                index = 0;
+            }
+        }
+
+        const PolygonWithHoles* region = nullptr;
+        std::size_t ring = 0;
+        std::size_t index = 0;
+    };
 
   private:
     /**
