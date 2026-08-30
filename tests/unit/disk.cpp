@@ -507,3 +507,30 @@ TEST_CASE("A disk of radius zero answers as the point it covers") {
         CHECK(d.interiorContains(Point(5, 5)));
     }
 }
+
+TEST_CASE("Disk latticePoints grows each column from the row nearest the centre") {
+    using Point = pgl::Point<int>;
+    using Disk = pgl::Disk<Point>;
+
+    // The disk of radius 2 around the origin holds thirteen lattice points, the
+    // four on its boundary among them.
+    const Disk disk(Point(0, 0), 2);
+    const auto points = disk.latticePoints();
+    CHECK(points.size() == 13);
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    CHECK(points.front() == Point(-2, 0));
+    CHECK(points.back() == Point(2, 0));
+    for (const Point& point : points) {
+        CHECK(disk.contains(point));
+        CHECK(point.x() * point.x() + point.y() * point.y() <= 4);
+    }
+
+    // Defined by three boundary points instead: the same disk, so the same
+    // points, and the centre is a fraction it never rounds.
+    CHECK(Disk(Point(-2, 0), Point(2, 0), Point(0, 2)).latticePoints() == points);
+    CHECK(Disk(Point(0, 0), Point(1, 0), Point(0, 1)).latticePoints()
+          == std::vector<Point>{{0, 0}, {0, 1}, {1, 0}, {1, 1}});
+
+    // A disk that collapsed to a point is that point.
+    CHECK(Disk(Point(3, 3), 0).latticePoints() == std::vector<Point>{{3, 3}});
+}

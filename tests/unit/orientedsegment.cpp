@@ -392,3 +392,21 @@ TEST_CASE("OrientedSegment separates and crosses another oriented segment") {
         CHECK_FALSE(horizontal.crosses(disjoint));
     }
 }
+
+TEST_CASE("OrientedSegment latticePoints runs from the source to the target") {
+    using Point = pgl::Point<int>;
+    using OrientedSegment = pgl::OrientedSegment<Point>;
+    using Segment = pgl::Segment<Point>;
+
+    // The same points the unoriented segment reports, in the direction this one
+    // is walked: reversed exactly when the source is the larger endpoint.
+    const OrientedSegment forwards(Point(0, 0), Point(4, 2));
+    CHECK(forwards.latticePoints() == std::vector<Point>{{0, 0}, {2, 1}, {4, 2}});
+    CHECK(forwards.latticePoints() == Segment(forwards).latticePoints());
+    CHECK(forwards.opposite().latticePoints() == std::vector<Point>{{4, 2}, {2, 1}, {0, 0}});
+
+    // Vertical and degenerate cases keep the same rule.
+    CHECK(OrientedSegment(Point(1, 3), Point(1, 1)).latticePoints()
+          == std::vector<Point>{{1, 3}, {1, 2}, {1, 1}});
+    CHECK(OrientedSegment(Point(5, 5), Point(5, 5)).latticePoints() == std::vector<Point>{{5, 5}});
+}

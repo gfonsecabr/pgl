@@ -63,6 +63,7 @@
 #include "implementation/distancelinf.hpp"
 #include "visualization/canvas.hpp"
 #include "core/hash.hpp"
+#include "implementation/lattice.hpp"
 #include "algorithm/graph.hpp"
 #include "algorithm/intersections.hpp"
 #include "algorithm/redbluesweep.hpp"

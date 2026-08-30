@@ -1597,6 +1597,25 @@ struct OrientedSegment {
     [[nodiscard]] constexpr Segment<PointType> diameter() const;
 
     /**
+     * @brief Returns the integer points the oriented segment contains.
+     *
+     * Exactly @ref pgl::Segment::latticePoints of the same endpoints, listed
+     * from @ref source to @ref target rather than in increasing order.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, each of them once, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, or a lattice
+     *         point of the shape does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
+
+    /**
      * @brief Returns the bounding box of the oriented segment.
      *
      * @return The minimum axis-aligned rectangle that contains the segment.

@@ -1008,3 +1008,31 @@ TEST_CASE("The empty rectangle is the empty set of points") {
         CHECK(pgl::Shape<Point>(rect).contains(wrapped));
     }
 }
+
+TEST_CASE("Rectangle latticePoints pairs the integers of its two sides") {
+    using Point = pgl::Point<int>;
+    using Rectangle = pgl::Rectangle<Point>;
+
+    CHECK(Rectangle(Point(0, 0), Point(2, 1)).latticePoints()
+          == std::vector<Point>{{0, 0}, {0, 1}, {1, 0}, {1, 1}, {2, 0}, {2, 1}});
+
+    // Degenerate boxes fall back to the segment and the point they are.
+    CHECK(Rectangle(Point(3, 1), Point(3, 3)).latticePoints()
+          == std::vector<Point>{{3, 1}, {3, 2}, {3, 3}});
+    CHECK(Rectangle(Point(5, 5), Point(5, 5)).latticePoints() == std::vector<Point>{{5, 5}});
+
+    // Fractional corners keep the whole points between them, and a box that
+    // spans no integer in one direction holds none at all.
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    using RationalRectangle = pgl::Rectangle<RationalPoint>;
+    using Result = std::vector<pgl::Point<int64_t>>;
+    CHECK(RationalRectangle(RationalPoint(Rational(1, 2), Rational(1, 2)),
+                            RationalPoint(Rational(5, 2), Rational(3, 2)))
+              .latticePoints()
+          == Result{{1, 1}, {2, 1}});
+    CHECK(RationalRectangle(RationalPoint(Rational(1, 3), Rational(0)),
+                            RationalPoint(Rational(2, 3), Rational(9)))
+              .latticePoints()
+              .empty());
+}

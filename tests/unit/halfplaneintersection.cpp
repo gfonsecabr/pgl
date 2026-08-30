@@ -688,3 +688,23 @@ TEST_CASE("Region self-pair works with rational coordinates") {
     CHECK(meet.contains(RPoint(1, 5)));
     CHECK(!meet.contains(RPoint(1, -1)));
 }
+
+TEST_CASE("HalfplaneIntersection latticePoints needs a bounded region") {
+    CHECK(unitSquare().latticePoints()
+          == std::vector<Point>{{0, 0}, {0, 1}, {1, 0}, {1, 1}});
+    CHECK(triangle().latticePoints() == std::vector<Point>{{0, 0}, {0, 1}, {1, 0}});
+
+    // The vertices of a region are crossings, so they need not be lattice
+    // points; the ones it covers are found all the same.
+    const Region halved({yGE0, xGE0, Halfplane(3, 0, 0, 3), Halfplane(0, 0, 1, 0)});
+    for (const Point& point : halved.latticePoints()) {
+        CHECK(halved.contains(point));
+    }
+
+    // Unbounded regions have infinitely many, so they are refused rather than
+    // truncated -- as every vertex list of one is.
+    CHECK_THROWS_AS(static_cast<void>(quadrant().latticePoints()), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(strip().latticePoints()), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(Region().latticePoints()), std::logic_error);
+    CHECK(emptyRegion().latticePoints().empty());
+}

@@ -703,4 +703,26 @@ TEST_CASE("Polyline and Polyline intersection pieces") {
     }
 }
 
+
+TEST_CASE("Polyline latticePoints concatenates the edges without repeating a point") {
+    using Point = pgl::Point<int>;
+    using PolylineShape = pgl::Polyline<Point>;
+
+    // Traversal order, and the vertex shared by two edges is reported once.
+    const PolylineShape zigzag({Point(0, 0), Point(2, 2), Point(4, 0), Point(4, 4)});
+    CHECK(zigzag.latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {3, 1}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}});
+
+    // A polyline that retraces itself reaches no new point on the way back.
+    CHECK(PolylineShape({Point(0, 0), Point(3, 0), Point(1, 0)}).latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 0}, {2, 0}, {3, 0}});
+
+    // A crossing point belongs to the edge that reaches it first.
+    CHECK(PolylineShape({Point(0, 0), Point(2, 2), Point(2, 0), Point(0, 2)}).latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {2, 1}, {2, 0}, {0, 2}});
+
+    CHECK(PolylineShape({Point(7, 3)}).latticePoints() == std::vector<Point>{{7, 3}});
+    CHECK(PolylineShape().latticePoints().empty());
+}
+
 }  // namespace

@@ -22,6 +22,7 @@
 #include <iterator>
 #include <numbers>
 #include <optional>
+#include <vector>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -453,6 +454,27 @@ struct Disk {
      *
      * @warning The box may be larger than the disk if it is not contructed by center and radius.
      */
+    /**
+     * @brief Returns the integer points the disk contains.
+     *
+     * The boundary included: a point at distance exactly the radius is a point
+     * of the disk. Each column of the bounding box meets the disk in one run of
+     * rows, grown from the row nearest the centre by the disk's own exact
+     * containment test, so no square root is taken and nothing is rounded.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, in increasing order, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, a lattice point of
+     *         the shape does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
+
     [[nodiscard]] constexpr Rectangle<PointType> bbox() const {
         // Exact when built from a center and radius: center +/- (radius, radius).
         if (auto cr = centerAndRadius()) {

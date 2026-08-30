@@ -2004,3 +2004,23 @@ TEST_CASE("The empty convex polygon is the well-defined empty set") {
     CHECK(empty.asHalfplaneIntersection().empty());
     CHECK(Rectangle().asConvex().empty());
 }
+
+TEST_CASE("Convex latticePoints reports its interior and its boundary") {
+    using Point = pgl::Point<int>;
+    using ConvexShape = pgl::Convex<Point>;
+
+    const auto square = ConvexShape(std::vector<Point>{{0, 0}, {2, 0}, {2, 2}, {0, 2}}).latticePoints();
+    CHECK(square.size() == 9);
+    CHECK(square.front() == Point(0, 0));
+    CHECK(square.back() == Point(2, 2));
+
+    // A diamond: the boundary passes through the four vertices only, and the
+    // sweep fills the rest.
+    CHECK(ConvexShape(std::vector<Point>{{0, 1}, {1, 0}, {2, 1}, {1, 2}}).latticePoints()
+          == std::vector<Point>{{0, 1}, {1, 0}, {1, 1}, {1, 2}, {2, 1}});
+
+    // Degenerate hulls are their own boundary.
+    CHECK(ConvexShape(std::vector<Point>{{0, 0}, {2, 2}}).latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}});
+    CHECK(ConvexShape().latticePoints().empty());
+}

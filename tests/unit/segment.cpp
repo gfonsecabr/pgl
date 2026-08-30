@@ -1025,3 +1025,107 @@ TEST_CASE("Segment converts to a degenerate segment half-plane intersection") {
         CHECK(!region.contains(Point(8, 7)));
     }
 }
+
+TEST_CASE("Segment latticePoints lists the integer points of an integer segment") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+
+    // Every point of the segment is a lattice point: the endpoints are, and the
+    // primitive direction is (1,1).
+    CHECK(Segment(Point(0, 0), Point(3, 3)).latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {3, 3}});
+
+    // gcd(6,4) == 2, so the step is (3,2) and the far endpoint is reached.
+    CHECK(Segment(Point(0, 0), Point(6, 4)).latticePoints()
+          == std::vector<Point>{{0, 0}, {3, 2}, {6, 4}});
+
+    // A primitive direction leaves only the endpoints, whichever way the
+    // segment runs; the answer is in increasing order either way.
+    CHECK(Segment(Point(0, 0), Point(3, 5)).latticePoints()
+          == std::vector<Point>{{0, 0}, {3, 5}});
+    CHECK(Segment(Point(3, -5), Point(0, 0)).latticePoints()
+          == std::vector<Point>{{0, 0}, {3, -5}});
+
+    // Vertical, horizontal and degenerate segments take the fast path.
+    CHECK(Segment(Point(2, 3), Point(2, -1)).latticePoints()
+          == std::vector<Point>{{2, -1}, {2, 0}, {2, 1}, {2, 2}, {2, 3}});
+    CHECK(Segment(Point(1, 7), Point(-2, 7)).latticePoints()
+          == std::vector<Point>{{-2, 7}, {-1, 7}, {0, 7}, {1, 7}});
+    CHECK(Segment(Point(5, 5), Point(5, 5)).latticePoints() == std::vector<Point>{{5, 5}});
+
+    // The result type is the coordinate type by default, and can be asked for.
+    static_assert(std::is_same_v<decltype(Segment().latticePoints()), std::vector<Point>>);
+    CHECK(Segment(Point(0, 0), Point(4, 2)).latticePoints<int64_t>()
+          == std::vector<pgl::Point<int64_t>>{{0, 0}, {2, 1}, {4, 2}});
+    CHECK(Segment(Point(0, 0), Point(4, 2)).latticePoints<pgl::BigInt>().size() == 3);
+
+    // A point of the segment that the requested type cannot name is refused
+    // rather than wrapped onto a different one.
+    CHECK_THROWS_AS(static_cast<void>(Segment(Point(0, 0), Point(300, 300)).latticePoints<int8_t>()),
+                    std::logic_error);
+}
+
+TEST_CASE("Segment latticePoints keeps only the whole points of a fractional segment") {
+    using Rational = pgl::Rational<int64_t>;
+    using Point = pgl::Point<Rational>;
+    using Segment = pgl::Segment<Point>;
+    using Result = std::vector<pgl::Point<int64_t>>;
+    const auto point = [](int x, int y, int denominator = 1) {
+        return Point(Rational(x, denominator), Rational(y, denominator));
+    };
+
+    // Half-integer endpoints are not lattice points, but the segment still runs
+    // through every whole point between them.
+    CHECK(Segment(point(1, 1, 2), point(7, 7, 2)).latticePoints()
+          == Result{{1, 1}, {2, 2}, {3, 3}});
+
+    // The supporting line misses the grid entirely: y == (x - 1/2)/9 is whole
+    // for no integer x at all.
+    CHECK(Segment(point(1, 0, 2), Point(Rational(7, 2), Rational(1, 3))).latticePoints().empty());
+
+    // The supporting line y == x is full of lattice points; this short piece of
+    // it between two of them holds none.
+    CHECK(Segment(Point(Rational(1, 2), Rational(1, 2)), Point(Rational(3, 4), Rational(3, 4)))
+              .latticePoints()
+              .empty());
+
+    // Axis-parallel segments: the constant coordinate has to be whole itself.
+    CHECK(Segment(point(1, 0, 2), Point(Rational(1, 2), Rational(9, 2))).latticePoints().empty());
+    CHECK(Segment(Point(Rational(3), Rational(-1, 2)), Point(Rational(3), Rational(9, 2)))
+              .latticePoints()
+          == Result{{3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}});
+    CHECK(Segment(Point(Rational(-3, 2), Rational(2)), Point(Rational(7, 2), Rational(2)))
+              .latticePoints()
+          == Result{{-1, 2}, {0, 2}, {1, 2}, {2, 2}, {3, 2}});
+
+    // A lattice endpoint is included, and a fractional one next to it is not.
+    CHECK(Segment(Point(Rational(1), Rational(1)), Point(Rational(5, 2), Rational(5, 2)))
+              .latticePoints()
+          == Result{{1, 1}, {2, 2}});
+
+    // The same answer over arbitrary-precision exact coordinates.
+    CHECK(pgl::ESegment(pgl::EPoint(pgl::ERational(1, 3), pgl::ERational(1, 3)),
+                        pgl::EPoint(pgl::ERational(10, 3), pgl::ERational(10, 3)))
+              .latticePoints<int64_t>()
+          == Result{{1, 1}, {2, 2}, {3, 3}});
+}
+
+TEST_CASE("Segment latticePoints reads floating-point coordinates as the exact values they are") {
+    using Point = pgl::Point<double>;
+    using Segment = pgl::Segment<Point>;
+    using Result = std::vector<pgl::Point<int64_t>>;
+
+    CHECK(Segment(Point(0.5, 0.5), Point(3.5, 3.5)).latticePoints()
+          == Result{{1, 1}, {2, 2}, {3, 3}});
+
+    // y == x/2 on [-1.5, 2.5]: whole exactly at the even x.
+    CHECK(Segment(Point(-1.5, -0.75), Point(2.5, 1.25)).latticePoints()
+          == Result{{0, 0}, {2, 1}});
+
+    // A quarter of an offset is enough to miss the grid altogether.
+    CHECK(Segment(Point(0.25, 0.5), Point(3.25, 3.5)).latticePoints().empty());
+
+    CHECK(Segment(Point(2.0, -1.5), Point(2.0, 2.5)).latticePoints()
+          == Result{{2, -1}, {2, 0}, {2, 1}, {2, 2}});
+    CHECK(Segment(Point(2.5, -1.0), Point(2.5, 2.0)).latticePoints().empty());
+}

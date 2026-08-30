@@ -536,6 +536,27 @@ struct Polyline {
     constexpr const Rectangle<PointType>& bbox() const;
 
     /**
+     * @brief Returns the integer points the polyline contains.
+     *
+     * The lattice points of the edges, one edge at a time in traversal order,
+     * with each point kept the first time the polyline reaches it: a vertex
+     * shared by two edges appears once, and so does a point the polyline
+     * crosses or retraces. A single vertex answers for itself.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, each of them once, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, or a lattice
+     *         point of the shape does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
+
+    /**
      * @brief Computes the floating-point bounding box of the polyline.
      * @tparam ResultNumber The floating-point type for the result.
      * @return A rectangle with floating-point coordinates representing the bounding box.

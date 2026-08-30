@@ -656,3 +656,19 @@ TEST_CASE("PolygonWithHoles asBitMatrix refuses a coordinate that is not a whole
         CHECK_THROWS_AS(static_cast<void>(holeFractional.asBitMatrix()), std::logic_error);
     }
 }
+
+TEST_CASE("PolygonWithHoles latticePoints drops the points inside a hole, not those on it") {
+    const PolygonShape outer({Point(0, 0), Point(4, 0), Point(4, 4), Point(0, 4)});
+    const PolygonShape hole({Point(1, 1), Point(3, 1), Point(3, 3), Point(1, 3)});
+    const Region region(outer, std::vector<PolygonShape>{hole});
+
+    const auto points = region.latticePoints();
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    // The 25 points of the box, less the single one strictly inside the hole.
+    CHECK(points.size() == 24);
+    CHECK(std::find(points.begin(), points.end(), Point(2, 2)) == points.end());
+    CHECK(std::find(points.begin(), points.end(), Point(1, 2)) != points.end());  // on the hole
+    for (const Point& point : points) {
+        CHECK(region.contains(point));
+    }
+}

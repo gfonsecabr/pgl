@@ -1284,3 +1284,31 @@ TEST_CASE("Polygon asBitMatrix refuses a coordinate that is not a whole number")
         CHECK_THROWS_AS(static_cast<void>(triangle.asBitMatrix()), std::logic_error);
     }
 }
+
+TEST_CASE("Polygon latticePoints follows a boundary that turns back on itself") {
+    using Point = pgl::Point<int>;
+    using Polygon = pgl::Polygon<Point>;
+
+    // An L: the parity has to close over both notches of the boundary.
+    const Polygon el({Point(0, 0), Point(4, 0), Point(4, 2), Point(2, 2), Point(2, 4), Point(0, 4)});
+    const auto points = el.latticePoints();
+    CHECK(points.size() == 21);
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    for (const Point& point : points) {
+        CHECK(el.contains(point));
+    }
+    CHECK(std::find(points.begin(), points.end(), Point(3, 3)) == points.end());  // outside the L
+    CHECK(std::find(points.begin(), points.end(), Point(2, 4)) != points.end());  // a vertex
+
+    // Fractional coordinates: the boundary is off the grid, the inside is not.
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    const auto corner = [](int x, int y) {
+        return RationalPoint(Rational(2 * x + 1, 2), Rational(2 * y + 1, 2));
+    };
+    const pgl::Polygon<RationalPoint> shifted({corner(0, 0), corner(2, 0), corner(2, 2), corner(0, 2)});
+    CHECK(shifted.latticePoints()
+          == std::vector<pgl::Point<int64_t>>{{1, 1}, {1, 2}, {2, 1}, {2, 2}});
+
+    CHECK(Polygon().latticePoints().empty());
+}

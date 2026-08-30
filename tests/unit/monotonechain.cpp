@@ -939,3 +939,27 @@ TEST_CASE("MonotoneChain merge sweep agrees with the brute-force edge-pair scan"
         }
     }
 }
+
+TEST_CASE("MonotoneChain latticePoints walks the edges and reports each point once") {
+    using Point = pgl::Point<int>;
+    using Chain = pgl::MonotoneChain<Point>;
+
+    // The vertices are sorted, so the walk is increasing: the point shared by
+    // two edges is reported by the first of them only.
+    const Chain chain({Point(0, 0), Point(2, 2), Point(3, 2), Point(5, 4)});
+    CHECK(chain.latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {3, 2}, {4, 3}, {5, 4}});
+
+    // A chain of one vertex answers for itself, and an empty one for nothing.
+    CHECK(Chain({Point(7, 3)}).latticePoints() == std::vector<Point>{{7, 3}});
+    CHECK(Chain().latticePoints().empty());
+
+    // Fractional coordinates keep only the whole points, joints included.
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    const pgl::MonotoneChain<RationalPoint> fractional(
+        {RationalPoint(Rational(1, 2), Rational(1, 2)), RationalPoint(Rational(2), Rational(2)),
+         RationalPoint(Rational(4), Rational(2))});
+    CHECK(fractional.latticePoints()
+          == std::vector<pgl::Point<int64_t>>{{1, 1}, {2, 2}, {3, 2}, {4, 2}});
+}

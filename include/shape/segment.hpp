@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 #include <optional>
 
 
@@ -1656,6 +1657,35 @@ struct Segment {
      */
     template <class OtherShape>
     [[nodiscard]] constexpr bool pointInsideInteriorContainedIn(const OtherShape& shape) const;
+
+    /**
+     * @brief Returns the integer points the segment contains.
+     *
+     * The lattice points lie on the segment in order, from @ref min to
+     * @ref max, spaced by the primitive integer direction of the segment. An
+     * endpoint is among them exactly when it is a lattice point itself, so
+     * integer endpoints always are and fractional ones never are -- a segment
+     * over non-integer coordinates still contains every grid point it passes
+     * through, and one whose supporting line misses the grid contains none.
+     *
+     * A vertical or horizontal segment, a single point included, is answered
+     * from the integers of one interval, with no direction to reduce and no
+     * fraction to solve. Any other segment over integer coordinates costs one
+     * gcd; over fractional ones it solves for a lattice point on its supporting
+     * line, exactly and at the price of an extended gcd.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the segment's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, in increasing order, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, or a lattice
+     *         point of the segment does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename TPoint::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
 
     /**
      * @brief Returns the bounding box of the segment.

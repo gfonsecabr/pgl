@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <optional>
+#include <vector>
 #include <utility>
 #include <variant>
 
@@ -600,6 +601,27 @@ struct Rectangle {
      * @return This rectangle.
      */
     [[nodiscard]] constexpr Rectangle bbox() const;
+
+    /**
+     * @brief Returns the integer points the rectangle contains.
+     *
+     * The box is the product of its two sides, so the answer is: every integer
+     * of the x range paired with every integer of the y range, with no edge to
+     * walk and no crossing to sort. A degenerate box gives the points of the
+     * segment or the point it collapsed to.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, in increasing order, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, or a lattice
+     *         point of the shape does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
 
     /**
      * @brief Returns a bounding box of the rectangle with floating point coordinates.

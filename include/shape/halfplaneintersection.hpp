@@ -1038,6 +1038,27 @@ struct HalfplaneIntersection {
     constexpr Rectangle<Point<ResultNumber, typename PointType::LabelType>> bbox() const;
 
     /**
+     * @brief Returns the integer points the region contains.
+     *
+     * The boundary included, as everywhere else. The region is read as the
+     * exact convex polygon its constraints cut out -- its vertices are
+     * crossings, so they are generally not on the grid themselves -- and the
+     * points come from a sweep over that polygon's columns.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, in increasing order, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, a lattice point of
+     *         the shape does not fit @p ResultNumber, or the region is unbounded (the whole plane included).
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
+
+    /**
      * @brief Computes the floating-point bounding box of the region.
      *
      * Throws `std::logic_error` when the region is empty or unbounded.

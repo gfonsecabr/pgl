@@ -5,7 +5,7 @@
  * @brief Simple undirected graph with hashable vertices.
  */
 
-#include "core/hash.hpp"
+#include "implementation/lattice.hpp"
 
 #include <algorithm>
 #include <array>

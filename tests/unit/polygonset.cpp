@@ -601,3 +601,19 @@ TEST_CASE("PolygonSet asBitMatrix refuses a coordinate that is not a whole numbe
         CHECK_THROWS_AS(static_cast<void>(mixed.asBitMatrix()), std::logic_error);
     }
 }
+
+TEST_CASE("PolygonSet latticePoints answers for every component at once") {
+    const Region left(PolygonShape({Point(0, 0), Point(2, 0), Point(2, 2), Point(0, 2)}));
+    const Region right(PolygonShape({Point(2, 0), Point(4, 0), Point(4, 2), Point(2, 2)}));
+    const RegionSet set(std::vector<Region>{left, right});
+
+    const auto points = set.latticePoints();
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    // Three columns each from the two boxes, sharing the column they touch on.
+    CHECK(points.size() == 15);
+    CHECK(std::count(points.begin(), points.end(), Point(2, 1)) == 1);   // reported once
+    for (const Point& point : points) {
+        CHECK(set.contains(point));
+    }
+    CHECK(RegionSet().latticePoints().empty());
+}

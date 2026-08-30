@@ -229,6 +229,7 @@ if (!s.interiorsIntersect(t)) std::cout << " Interiors do not intersect!\n";
 A segment `s` has methods such as:
 
 - `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
+- `s.latticePoints<ResultNumber>()`: Returns the integer points on `s` in increasing order, an endpoint among them exactly when its own coordinates are whole. `ResultNumber` is the integer type of the answer — by default the coordinate type when it is a signed integer, the integer a `Rational` is built on, or `int64_t` — and a point that does not fit it throws `std::logic_error` rather than rounding.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -273,6 +274,7 @@ std::cout << s << std::endl;
 An oriented segment `s` has all methods of the `Segment` class, with the only difference being for the slope, which may be negative:
 
 - `s.midpoint<ResultNumber>()`: Returns the midpoint. Integral receivers therefore return `Point<ERational>` by default; an explicitly integral result type truncates odd coordinates.
+- `s.latticePoints<ResultNumber>()`: The same integer points as the unoriented segment's, listed from `source()` to `target()` instead of in increasing order.
 - `s.length()`: Returns `s[0].distance(s[1])`.
 - `s.squaredLength()`: Returns `s[0].squaredDistance(s[1])`.
 - `s.isDegenerate()`: Returns `s.length() == 0`.
@@ -550,6 +552,7 @@ Disk does not have the `intersection` method and cannot be scaled on a single ax
 - `d.isDegenerate()`: Returns true if the points are collinear or equal.
 - `d.isPoint()` / `d.getIfPoint()`: Whether the disk collapses to a single point (all defining points equal), and that point as a `std::optional<PointType>`.
 - `d.isUndefined()`: True if the boundary points are collinear but not all equal, so they do not determine a circle (three distinct collinear points have no circle through them; two distinct ones have infinitely many). A disk is never a segment, so this and `isPoint` cover every degenerate disk.
+- `d.latticePoints<ResultNumber>()`: The integer points of the disk, its boundary circle included. Each column grows from the row nearest the centre by the disk's own containment test, so no square root is taken and nothing is rounded.
 - `d.radius<ResultNumber = double>()`: Returns the radius length. A radius can be irrational, so the result is floating-point by default. Notice that when the disk is defined by center and radius, we may set `ResultNumber` to the same number type as the defining point.
 - `d.squaredRadius<ResultNumber>()`: Returns  the squared radius.
 - `d.center<ResultNumber>()`: Returns the center point.
@@ -579,6 +582,7 @@ We use the term above to refer to larger y coordinates and below to refer to sma
 - `P.yAtX<ResultNumber>(x)`: Returns an `std::optional` with the y coordinate at `x` (at a vertical edge, the y of the edge's bottom vertex). Takes $O(\log n)$ time. Interpolation may divide, so integral receivers widen to ERational by default.
 - `P.isBelow(p)`: Returns an `std::optional<size_t>` that is engaged if a ray shot down from `p` intersects `P`; the value is the index `indexAtX` returns for `p.x()`. Takes $O(\log n)$ time, exactly.
 - `P.isAbove(p)`: The same for a ray shot up from `p`. Note that `isBelow` and `isAbove` are not complementary: both are engaged when `p` lies on the chain.
+- `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge and hence in increasing order, the vertex two edges share reported once. Same result type and same `std::logic_error` on a point too large for it as the segment's.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the chain.
 - `P.edgesCross(P2)`: Returns true if `P` has a point strictly above `P2` and a point strictly below it, i.e. every sufficiently small perturbation of the vertices of `P` and `P2` still yields intersecting chains. Unlike `P.crosses(P2)`, a touch that does not swap sides never counts. The x-extents of `P` and `P2` must overlap in more than a single point, or the result is false outright — a shared x that is only one chain's own extreme vertex (e.g. a chain that is a single vertical edge) is not robust to perturbation. Takes $O(n \log m + m \log n)$ time if `P2` has $m$ vertices.
 
@@ -601,6 +605,7 @@ A polyline `P` with $n$ vertices has methods such as:
 - `P.isSegment()` / `P.getIfSegment()`: Whether the polyline collapses to a segment of positive length (defining points collinear but not all equal), and that segment as a `std::optional<Segment>`.
 - `P.isUndefined()`: True only for an empty polyline, which has no vertex.
 - `P.isSimple()`: Returns true if the edges only intersect at the shared endpoints of consecutive edges. In an open chain the first and last edges are not consecutive, so a closed polyline (first vertex equal to the last) is not simple. Takes $O(n \log n)$ time for exact coordinate types. Floating-point coordinates, which the exact sweep line cannot take, go through the bounding-box sweep of `xyIntersections` instead, for $O((n+k) \log n)$ time where $k$ is the number of pairs of edges with overlapping bounding boxes; that is $O(n \log n)$ unless the edges are long compared to the spacing of the vertices.
+- `P.latticePoints<ResultNumber>()`: The integer points on `P`, edge by edge in traversal order, each of them once — a shared vertex, a crossing and a retraced part are all reported only where the polyline first reaches them. Same result type and same `std::logic_error` on a point too large for it as the segment's.
 - `P.length()`, `P.lengthL1()`, `P.lengthLInf()`: Return the Euclidean, Manhattan, and Chebyshev lengths of the polyline. A self-overlapping polyline counts every traversal of a repeated part.
 
 
@@ -708,6 +713,7 @@ A region `A` with $n$ vertices in total and $k$ holes has methods such as:
 - `A.verticesCentroid<ResultNumber>()`: Returns the centroid of the vertex set over all rings.
 - `A.pointInside<ResultNumber>()`: Returns a point strictly inside the region, so inside the outer boundary and outside every hole. A polygon finds one from an ear of its smallest vertex; that argument does not survive holes — an ear can be occupied by one — so this triangulates, in $O(n \log n)$ time. It may divide coordinates by four and is undefined for a region with no area.
 - `A.triangulation()`: Returns the constrained Delaunay [triangulation](data_structures.md#triangulation) of the region, optionally with extra interior constraint segments. Every ring becomes constrained edges and the hole interiors are left out of the domain, so the in-domain triangles cover exactly the part of the region that has area — a slit, having none, carries no triangle.
+- `A.latticePoints<ResultNumber>()`: The integer points of the region. A hole takes away the points strictly inside it and keeps the ones on its boundary, which belong to the region as any boundary point does.
 - `A.asBitMatrix<ResultNumber>()`: The region rasterized into a [`BitMatrix`](data_structures.md#bit-matrix) over its bounding box, the holes left unset. Every edge of every ring must be axis-parallel and every coordinate a whole number, otherwise it throws `std::logic_error`. Same `ResultNumber` rule as on a polygon.
 - `A.diameter()` / `A.bbox()`: The holes lie inside the outer boundary and cannot contribute, so both are the outer polygon's.
 - `A.interiorContainsInterior(s)`: Returns true when the open segment lies in the polygon's strict interior. The segment interior must be strictly inside the outer ring and may not touch a hole, while either endpoint may lie on any ring.
@@ -760,6 +766,7 @@ A set `A` with $k$ components and $n$ vertices in total has methods such as:
 - `A.centroid<ResultNumber>()` / `A.verticesCentroid<ResultNumber>()`: The area-weighted centroid over the components, falling back on the vertex centroid when the total area is zero.
 - `A.diameter()`: Unlike a region's, this cannot be delegated to any one component — the farthest pair generally has its two ends in different ones. Every hole lies inside its own component's outer ring, so it is the diameter of the outer rings' convex hull.
 - `A.bbox()`: The union of the components' boxes, cached — unlike a region, which delegates to the box its outer ring already caches.
+- `A.latticePoints<ResultNumber>()`: The integer points of the set, over all components at once, so a point two touching components share is reported once.
 - `A.pointInside<ResultNumber>()`: A point in the first component's interior.
 - `A.triangulation()`: The constrained Delaunay [triangulation](data_structures.md#triangulation) of the set, optionally with extra interior constraint segments. Every ring of every component becomes constrained edges; the hole interiors and the gaps between components are left out of the domain.
 - `A.convexPartition()` / `A.convexCovering()`: As on a region, derived from the triangulation.
@@ -787,6 +794,7 @@ A half-plane intersection `k` has methods such as:
 - `k.isSegment()` / `k.getIfSegment<ResultNumber>()`: Whether the region is a segment of positive length, and that segment. The default endpoints are exact for integral constraints.
 - `k.isRay()` / `k.getIfRay<ResultNumber>()`: Whether the region is a ray, and that ray. The test needs no coordinate arithmetic (a ray is the only unbounded degenerate region with a vertex); the default source is exact for integral constraints.
 - Together with `empty` and `isPlane` these name every region a half-plane intersection can be, except a full-dimensional one other than a half-plane.
+- `k.latticePoints<ResultNumber>()`: The integer points of the region, read off the exact convex polygon its constraints cut out. Throws `std::logic_error` for an unbounded region, which covers infinitely many.
 - `k.vertex<R>(i)`, `k.vertices<R>()`, `k.vertexCount()`: The implicit vertices, counterclockwise for bounded regions.
 - `k.edge<R>(i)`: The boundary contribution of half-plane `i` as a `std::variant` of `Segment`, `Ray`, or `Line`.
 - `k.bbox<R>()`, `k.fbox()`: Bounding box; throws `std::logic_error` when the region is empty or unbounded. With an explicitly integral result type the box is rounded outward so it always encloses the region.

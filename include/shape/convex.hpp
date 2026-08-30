@@ -473,6 +473,27 @@ struct Convex {
     constexpr const Rectangle<PointType>& bbox() const;
 
     /**
+     * @brief Returns the integer points the convex polygon contains.
+     *
+     * The boundary included: a point on an edge is a point of the shape. The
+     * boundary answers for its own points, edge by edge as segments, and a
+     * sweep over the columns of the bounding box answers for the rest, so the
+     * cost is one pass over the edges plus one point per point reported.
+     *
+     * @tparam ResultNumber Integer coordinate type of the points: the shape's
+     *         own coordinate type when that is a signed integer, the integer a
+     *         pgl::Rational is built on, and `int64_t` for anything else.
+     * @return The lattice points, in increasing order, carrying no label.
+     * @throws std::logic_error If a coordinate is not finite, or a lattice
+     *         point of the shape does not fit @p ResultNumber.
+     * @throws std::length_error If there are more of them than a vector holds.
+     */
+    template <class ResultNumber = grid_number_t<typename PointType_::NumberType>>
+        requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
+    [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
+    latticePoints() const;
+
+    /**
      * @brief Computes the floating-point bounding box of the convex polygon.
      * @tparam ResultNumber The floating-point type for the result.
      * @return A rectangle with floating-point coordinates representing the bounding box.

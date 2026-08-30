@@ -767,3 +767,33 @@ TEST_CASE("Triangle unites with Triangle into a set of regions") {
         CHECK(flat.regularizedUnion<int>(flat).empty());
     }
 }
+
+TEST_CASE("Triangle latticePoints reports its interior and its boundary") {
+    using Point = pgl::Point<int>;
+    using Triangle = pgl::Triangle<Point>;
+
+    // The right triangle with legs of length 4 holds the 15 points with
+    // x, y >= 0 and x + y <= 4, in increasing order.
+    const auto points = Triangle(Point(0, 0), Point(4, 0), Point(0, 4)).latticePoints();
+    CHECK(points.size() == 15);
+    CHECK(std::is_sorted(points.begin(), points.end()));
+    CHECK(points.front() == Point(0, 0));
+    CHECK(points.back() == Point(4, 0));
+    for (const Point& point : points) {
+        CHECK(point.x() >= 0);
+        CHECK(point.y() >= 0);
+        CHECK(point.x() + point.y() <= 4);
+    }
+
+    // A triangle whose vertices are not lattice points still crosses plenty of
+    // them; a degenerate one is exactly the segment it collapsed to.
+    using Rational = pgl::Rational<int64_t>;
+    using RationalPoint = pgl::Point<Rational>;
+    const pgl::Triangle<RationalPoint> half(
+        RationalPoint(Rational(1, 2), Rational(1, 2)), RationalPoint(Rational(7, 2), Rational(1, 2)),
+        RationalPoint(Rational(1, 2), Rational(7, 2)));
+    CHECK(half.latticePoints()
+          == std::vector<pgl::Point<int64_t>>{{1, 1}, {1, 2}, {1, 3}, {2, 1}, {2, 2}, {3, 1}});
+    CHECK(Triangle(Point(0, 0), Point(2, 2), Point(4, 4)).latticePoints()
+          == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}});
+}
