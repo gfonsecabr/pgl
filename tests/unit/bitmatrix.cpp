@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <compare>
 #include <cstdlib>
+#include <list>
 #include <map>
 #include <ranges>
 #include <set>
@@ -656,6 +657,88 @@ TEST_CASE("a shape over another coordinate type rasterizes when its coordinates 
     CHECK_THROWS_AS(static_cast<void>(Matrix(fractional)), std::logic_error);
 }
 
+TEST_CASE("a range of points sets one cell each, over the smallest window") {
+    const std::vector<Point> points{Point(2, 3), Point(5, 3), Point(2, 7), Point(2, 3)};
+    const Matrix matrix(points);
+
+    // The window is the smallest one holding the points, so it is the bbox.
+    CHECK(matrix.origin() == Point(2, 3));
+    CHECK(matrix.width() == 4);
+    CHECK(matrix.height() == 5);
+    CHECK(matrix.window() == matrix.bbox());
+    CHECK(matrix.trimmed() == matrix);
+
+    // The repeated point sets the same cell again, which changes nothing.
+    CHECK(matrix.count() == 3);
+    CHECK(cellsOf(matrix) == CellSet{{2, 3}, {2, 7}, {5, 3}});
+
+    // A braced list of cells works through the default range type.
+    CHECK(Matrix({Point(2, 3), Point(5, 3), Point(2, 7)}) == matrix);
+    CHECK(Matrix({{2, 3}, {5, 3}, {2, 7}}) == matrix);
+
+    // Any point range does, single-pass ones included.
+    CHECK(Matrix(std::set<Point>(points.begin(), points.end())) == matrix);
+    CHECK(Matrix(std::list<Point>(points.begin(), points.end())) == matrix);
+    CHECK(Matrix(points | std::views::filter([](const Point& p) { return p.x() == 2; }))
+          == Matrix({Point(2, 3), Point(2, 7)}));
+
+    // An empty range gives the one empty window every empty window equals.
+    CHECK(Matrix(std::vector<Point>{}) == Matrix());
+    CHECK(Matrix(std::vector<Point>{Point(-4, 6)}).window() == Rect(Point(-4, 6), Point(-3, 7)));
+
+    // The lattice points are exactly what the constructor reads back.
+    Rng rng;
+    for (int trial = 0; trial < 200; ++trial) {
+        const Matrix source = randomMatrix(rng);
+        CHECK(Matrix(source.lattice()) == source.trimmed());
+        CHECK(Matrix(source.latticeView()) == source.trimmed());
+        CHECK(Matrix(source.lattice()).samePointSet(source));
+    }
+}
+
+TEST_CASE("a range of points deduces its point type and converts its coordinates") {
+    const std::vector<pgl::Point<long>> wide{{1, 1}, {3, 4}};
+    const pgl::BitMatrix deduced(wide);
+    static_assert(std::is_same_v<decltype(deduced)::PointType, pgl::Point<long>>);
+    CHECK(deduced.count() == 2);
+    CHECK(pgl::BitMatrix(std::vector<Point>{Point(0, 0)}).window() == Rect(Point(0, 0), Point(1, 1)));
+
+    // Whole coordinates of any type name a cell; the rest are refused, not rounded.
+    using RationalPoint = pgl::Point<pgl::Rational<int>>;
+    const Matrix matrix({Point(2, 3), Point(5, 3)});
+    CHECK(Matrix(std::vector<RationalPoint>{{pgl::Rational<int>(4, 2), 3}, {5, 3}}) == matrix);
+    CHECK(Matrix(std::vector<pgl::Point<double>>{{2.0, 3.0}, {5.0, 3.0}}) == matrix);
+    CHECK_THROWS_AS(Matrix(std::vector<pgl::Point<double>>{{0.5, 0.0}}), std::logic_error);
+    CHECK_THROWS_AS(
+        Matrix(std::vector<RationalPoint>{{pgl::Rational<int>(1, 2), 0}}), std::logic_error);
+}
+
+TEST_CASE("a shape and a matrix are not point clouds") {
+    // Every shape that iterates over its vertices keeps out of the point-range
+    // constructor: those vertices are a boundary, not a set of cells. The ones
+    // that rasterize keep their own constructor, whatever the argument's
+    // constness, and a matrix keeps copying its window along with its cells.
+    static_assert(!std::constructible_from<Matrix, const pgl::Convex<Point>&>);
+    static_assert(!std::constructible_from<Matrix, pgl::Convex<Point>&>);
+    static_assert(!std::constructible_from<Matrix, pgl::Polyline<Point>&>);
+    static_assert(!std::constructible_from<Matrix, pgl::MonotoneChain<Point>&>);
+    static_assert(!std::constructible_from<Matrix, pgl::Triangle<Point>&>);
+    static_assert(!std::constructible_from<Matrix, const pgl::BitMatrix<pgl::Point<long>>&>);
+    static_assert(std::constructible_from<Matrix, const std::vector<Point>&>);
+
+    PolygonShape ell({0, 0, 4, 0, 4, 1, 1, 1, 1, 3, 0, 3});
+    CHECK(Matrix(ell).count() == 6);
+    CHECK(Matrix(std::as_const(ell)) == Matrix(ell));
+    // The vertices alone are six cells, the filled polygon is six other ones.
+    CHECK(Matrix(std::vector<Point>(ell.begin(), ell.end())) != Matrix(ell));
+
+    Matrix wide(Point(-5, -5), 20, 20);
+    wide.set(0, 0);
+    CHECK(Matrix(wide).sameWindow(wide));
+    CHECK(Matrix(std::as_const(wide)).sameWindow(wide));
+    CHECK(!Matrix(wide.lattice()).sameWindow(wide));
+}
+
 TEST_CASE("polyomino regions round trip through the raster") {
     for (std::size_t size = 1; size <= 6; ++size) {
         for (const Region& region : pgl::polyominoRegions(size)) {
@@ -1294,4 +1377,152 @@ TEST_CASE("a matrix over wider coordinates behaves the same") {
     CHECK(matrix.asPolygonSet().componentCount() == 2);
     CHECK(matrix.asPolygonSet().area() == 2);
     CHECK(matrix.trimmed().origin() == WidePoint(far_away, -far_away));
+}
+
+TEST_CASE("set over a range of points sets one cell each") {
+    Matrix m(Rect(Point(0, 0), Point(4, 4)));
+
+    SUBCASE("a braced list of cells") {
+        m.set({Point(0, 0), Point(2, 3), Point(2, 3)});
+        CHECK(m.count() == 2);
+        CHECK(m.get(Point(0, 0)));
+        CHECK(m.get(Point(2, 3)));
+    }
+
+    SUBCASE("a container, with cells outside the window dropped") {
+        const std::vector<Point> cells = {Point(1, 1), Point(9, 9), Point(-1, 2)};
+        m.set(cells);
+        CHECK(m.count() == 1);
+        CHECK(m.get(Point(1, 1)));
+    }
+
+    SUBCASE("a single-pass view") {
+        const std::vector<Point> cells = {Point(0, 1), Point(3, 3)};
+        m.set(cells | std::views::filter([](const Point& p) { return p.x() > 0; }));
+        CHECK(m.count() == 1);
+        CHECK(m.get(Point(3, 3)));
+    }
+
+    SUBCASE("points over another coordinate type") {
+        const std::vector<pgl::Point<double>> cells = {{1.0, 2.0}, {3.0, 0.0}};
+        m.set(cells);
+        CHECK(m.count() == 2);
+        CHECK(m.get(Point(1, 2)));
+        CHECK(m.get(Point(3, 0)));
+        const std::vector<pgl::Point<double>> fractional = {{1.5, 2.0}};
+        CHECK_THROWS_AS(m.set(fractional), std::logic_error);
+    }
+
+    SUBCASE("the single-cell overloads still resolve") {
+        m.set(Point(2, 2));
+        m.set(1, 1);
+        m.set(0, 0, false);
+        CHECK(m.count() == 2);
+    }
+
+    SUBCASE("an empty range changes nothing") {
+        m.set(std::vector<Point>{});
+        CHECK(m.empty());
+    }
+}
+
+TEST_CASE("reset over a range of points clears one cell each") {
+    Matrix m(Rect(Point(0, 0), Point(4, 4)));
+    m.setAll();
+
+    SUBCASE("a braced list of cells, repetition included") {
+        m.reset({Point(0, 0), Point(2, 3), Point(2, 3)});
+        CHECK(m.count() == 14);
+        CHECK_FALSE(m.get(Point(0, 0)));
+        CHECK_FALSE(m.get(Point(2, 3)));
+    }
+
+    SUBCASE("a container, with cells outside the window dropped") {
+        const std::vector<Point> cells = {Point(1, 1), Point(9, 9), Point(-1, 2)};
+        m.reset(cells);
+        CHECK(m.count() == 15);
+        CHECK_FALSE(m.get(Point(1, 1)));
+    }
+
+    SUBCASE("a single-pass view") {
+        const std::vector<Point> cells = {Point(0, 1), Point(3, 3)};
+        m.reset(cells | std::views::filter([](const Point& p) { return p.x() > 0; }));
+        CHECK(m.count() == 15);
+        CHECK_FALSE(m.get(Point(3, 3)));
+    }
+
+    SUBCASE("points over another coordinate type") {
+        const std::vector<pgl::Point<double>> cells = {{1.0, 2.0}, {3.0, 0.0}};
+        m.reset(cells);
+        CHECK(m.count() == 14);
+        CHECK_FALSE(m.get(Point(1, 2)));
+        const std::vector<pgl::Point<double>> fractional = {{1.5, 2.0}};
+        CHECK_THROWS_AS(m.reset(fractional), std::logic_error);
+    }
+
+    SUBCASE("the single-cell overloads still resolve") {
+        m.reset(Point(2, 2));
+        m.reset(1, 1);
+        CHECK(m.count() == 14);
+    }
+
+    SUBCASE("an empty range changes nothing") {
+        m.reset(std::vector<Point>{});
+        CHECK(m.count() == 16);
+    }
+}
+
+TEST_CASE("flip over a range of points flips one cell each") {
+    Matrix m(Rect(Point(0, 0), Point(4, 4)));
+
+    SUBCASE("a braced list of cells") {
+        m.set(Point(0, 0));
+        m.flip({Point(0, 0), Point(2, 3)});
+        CHECK(m.count() == 1);
+        CHECK_FALSE(m.get(Point(0, 0)));
+        CHECK(m.get(Point(2, 3)));
+    }
+
+    SUBCASE("a repeated point cancels, unlike set and reset") {
+        m.flip({Point(2, 3), Point(2, 3)});
+        CHECK(m.empty());
+        m.flip({Point(2, 3), Point(2, 3), Point(2, 3)});
+        CHECK(m.count() == 1);
+        CHECK(m.get(Point(2, 3)));
+    }
+
+    SUBCASE("a container, with cells outside the window dropped") {
+        const std::vector<Point> cells = {Point(1, 1), Point(9, 9), Point(-1, 2)};
+        m.flip(cells);
+        CHECK(m.count() == 1);
+        CHECK(m.get(Point(1, 1)));
+    }
+
+    SUBCASE("a single-pass view") {
+        const std::vector<Point> cells = {Point(0, 1), Point(3, 3)};
+        m.flip(cells | std::views::filter([](const Point& p) { return p.x() > 0; }));
+        CHECK(m.count() == 1);
+        CHECK(m.get(Point(3, 3)));
+    }
+
+    SUBCASE("points over another coordinate type") {
+        const std::vector<pgl::Point<double>> cells = {{1.0, 2.0}, {3.0, 0.0}};
+        m.flip(cells);
+        CHECK(m.count() == 2);
+        CHECK(m.get(Point(1, 2)));
+        CHECK(m.get(Point(3, 0)));
+        const std::vector<pgl::Point<double>> fractional = {{1.5, 2.0}};
+        CHECK_THROWS_AS(m.flip(fractional), std::logic_error);
+    }
+
+    SUBCASE("the single-cell overloads still resolve") {
+        m.flip(Point(2, 2));
+        m.flip(1, 1);
+        CHECK(m.count() == 2);
+    }
+
+    SUBCASE("an empty range changes nothing") {
+        m.flip(std::vector<Point>{});
+        CHECK(m.empty());
+    }
 }

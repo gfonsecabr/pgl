@@ -36,7 +36,20 @@ namespace pgl {
  */
 enum class GridAdjacency { edge, vertex };
 
+// Declared here so the point-range constructor can constrain on it: a matrix is
+// itself a range of points, and it must not fall into that overload.
+template <class TPointType>
+    requires std::signed_integral<typename TPointType::NumberType>
+class BitMatrix;
+
 namespace detail {
+
+/** @brief Whether a type is a @ref BitMatrix. */
+template <class T>
+inline constexpr bool is_bit_matrix_v = false;
+
+template <class TPointType>
+inline constexpr bool is_bit_matrix_v<BitMatrix<TPointType>> = true;
 
 /**
  * @brief Converts one coordinate onto the integer grid, exactly or not at all.
@@ -385,6 +398,55 @@ public:
     explicit BitMatrix(const PolygonSet<OtherPointType, TLabel>& set)
         : BitMatrix(detail::gridSet<PointType>(set)) {}
 
+    /**
+     * @brief Sets one cell per point of a range, over the smallest window holding them.
+     *
+     * This is the lattice-point reading of a matrix: every point names the cell
+     * it is, rather than a corner of a region to fill. The window is the
+     * smallest one holding every point, so the result has `window() == bbox()`
+     * and equals its own @ref trimmed; an empty range gives an empty window.
+     * Repeated points set the same cell again, which changes nothing.
+     *
+     * Any range of points does, except a shape or another matrix. A shape that
+     * happens to iterate over its vertices -- a Polygon, a Convex, a Polyline --
+     * is a boundary and not a point cloud, and the shapes that rasterize have
+     * their own constructor above; a matrix carries a window that this would
+     * silently trim. Feed either one's points through @ref lattice or a view to
+     * ask for this reading of it anyway.
+     *
+     * The points may carry any coordinate type, checked rather than rounded
+     * exactly as the shape constructors check theirs.
+     *
+     * @tparam Range Input range of points, defaulting to an initializer list so
+     *         that a braced list of cells works.
+     * @param points Cells to set.
+     * @throws std::logic_error If a coordinate is not a whole number this grid
+     *         can hold, or the points span more cells than a window holds.
+     */
+    template <std::ranges::input_range Range = std::initializer_list<PointType>>
+        requires(detail::is_point_v<std::remove_cvref_t<std::ranges::range_value_t<Range>>>
+                 && !AnyShapeConcept<std::remove_cvref_t<Range>>
+                 && !detail::is_bit_matrix_v<std::remove_cvref_t<Range>>)
+    explicit BitMatrix(Range&& points) {
+        using SourcePoint = std::remove_cvref_t<std::ranges::range_value_t<Range>>;
+        if constexpr (std::ranges::forward_range<Range>
+                      && std::same_as<typename SourcePoint::NumberType, NumberType>) {
+            *this = emptyOver(points);
+            for (const auto& point : points) {
+                set(point.x(), point.y());
+            }
+        } else {
+            // A single-pass range cannot be walked twice, and a converting one
+            // should not be: the window needs a pass of its own, so convert
+            // once into a range that gives both.
+            std::vector<PointType> cells;
+            for (const auto& point : points) {
+                cells.push_back(detail::gridPoint<PointType>(point));
+            }
+            *this = BitMatrix(cells);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // The window
 
@@ -478,6 +540,35 @@ public:
         }
     }
 
+    /**
+     * @brief Sets one cell per point of a range; cells outside the window are dropped.
+     *
+     * Every point names the cell it is, the lattice-point reading the range
+     * constructor takes, except that the window here is the one the matrix
+     * already has. Repeated points set the same cell again, which changes
+     * nothing.
+     *
+     * Any range of points does, except a shape or another matrix, exactly as
+     * for that constructor: a shape that iterates over its vertices is a
+     * boundary and not a point cloud. The points may carry any coordinate type,
+     * checked rather than rounded.
+     *
+     * @tparam Range Input range of points, defaulting to an initializer list so
+     *         that a braced list of cells works.
+     * @param points Cells to set.
+     * @throws std::logic_error If a coordinate is not a whole number this grid
+     *         can hold.
+     */
+    template <std::ranges::input_range Range = std::initializer_list<PointType>>
+        requires(detail::is_point_v<std::remove_cvref_t<std::ranges::range_value_t<Range>>>
+                 && !AnyShapeConcept<std::remove_cvref_t<Range>>
+                 && !detail::is_bit_matrix_v<std::remove_cvref_t<Range>>)
+    void set(Range&& points) {
+        for (const auto& point : points) {
+            set(detail::gridPoint<PointType>(point));
+        }
+    }
+
     /** @brief Clears the cell; a cell outside the window is silently dropped. */
     void reset(NumberType x, NumberType y) {
         const std::int64_t i = localX(x), j = localY(y);
@@ -490,6 +581,30 @@ public:
     /** @brief Clears the cell; a cell outside the window is silently dropped. */
     void reset(const PointType& cell) { reset(cell.x(), cell.y()); }
 
+    /**
+     * @brief Clears one cell per point of a range; cells outside the window are dropped.
+     *
+     * The plural of @ref reset(const PointType&), taking the same ranges the
+     * range @ref set does and reading their points the same way: every point
+     * names the cell it is, over the window the matrix already has. Repeated
+     * points clear the same cell again, which changes nothing.
+     *
+     * @tparam Range Input range of points, defaulting to an initializer list so
+     *         that a braced list of cells works.
+     * @param points Cells to clear.
+     * @throws std::logic_error If a coordinate is not a whole number this grid
+     *         can hold.
+     */
+    template <std::ranges::input_range Range = std::initializer_list<PointType>>
+        requires(detail::is_point_v<std::remove_cvref_t<std::ranges::range_value_t<Range>>>
+                 && !AnyShapeConcept<std::remove_cvref_t<Range>>
+                 && !detail::is_bit_matrix_v<std::remove_cvref_t<Range>>)
+    void reset(Range&& points) {
+        for (const auto& point : points) {
+            reset(detail::gridPoint<PointType>(point));
+        }
+    }
+
     /** @brief Flips the cell; a cell outside the window is silently dropped. */
     void flip(NumberType x, NumberType y) {
         const std::int64_t i = localX(x), j = localY(y);
@@ -501,6 +616,31 @@ public:
 
     /** @brief Flips the cell; a cell outside the window is silently dropped. */
     void flip(const PointType& cell) { flip(cell.x(), cell.y()); }
+
+    /**
+     * @brief Flips one cell per point of a range; cells outside the window are dropped.
+     *
+     * The plural of @ref flip(const PointType&), taking the same ranges the
+     * range @ref set does and reading their points the same way: every point
+     * names the cell it is, over the window the matrix already has. A repeated
+     * point flips the same cell twice and so leaves it as it was, unlike the
+     * range @ref set and @ref reset, which repetition does not affect.
+     *
+     * @tparam Range Input range of points, defaulting to an initializer list so
+     *         that a braced list of cells works.
+     * @param points Cells to flip.
+     * @throws std::logic_error If a coordinate is not a whole number this grid
+     *         can hold.
+     */
+    template <std::ranges::input_range Range = std::initializer_list<PointType>>
+        requires(detail::is_point_v<std::remove_cvref_t<std::ranges::range_value_t<Range>>>
+                 && !AnyShapeConcept<std::remove_cvref_t<Range>>
+                 && !detail::is_bit_matrix_v<std::remove_cvref_t<Range>>)
+    void flip(Range&& points) {
+        for (const auto& point : points) {
+            flip(detail::gridPoint<PointType>(point));
+        }
+    }
 
     /** @brief Sets every cell of the window. */
     void setAll() {
@@ -1729,6 +1869,37 @@ private:
         return static_cast<std::size_t>((width + 63) / 64);
     }
 
+    /** @brief Number of cells from @p low to @p high inclusive, as a window extent. */
+    static int cellSpan(NumberType low, NumberType high) {
+        // Unsigned subtraction is exact here even where the difference overflows
+        // the coordinate type, since high is at least low.
+        const std::uint64_t span =
+            static_cast<std::uint64_t>(high) - static_cast<std::uint64_t>(low);
+        if (span >= static_cast<std::uint64_t>(detail::numeric_limits<int>::max())) {
+            throw std::logic_error("pgl::BitMatrix: the points do not fit a window");
+        }
+        return static_cast<int>(span) + 1;
+    }
+
+    /** @brief An empty matrix over the smallest window holding every point of a range. */
+    template <class Range>
+    static BitMatrix emptyOver(Range&& points) {
+        auto it = std::ranges::begin(points);
+        const auto last = std::ranges::end(points);
+        if (it == last) {
+            return BitMatrix();
+        }
+        NumberType minX = (*it).x(), maxX = minX;
+        NumberType minY = (*it).y(), maxY = minY;
+        for (++it; it != last; ++it) {
+            minX = std::min<NumberType>(minX, (*it).x());
+            maxX = std::max<NumberType>(maxX, (*it).x());
+            minY = std::min<NumberType>(minY, (*it).y());
+            maxY = std::max<NumberType>(maxY, (*it).y());
+        }
+        return BitMatrix(PointType(minX, minY), cellSpan(minX, maxX), cellSpan(minY, maxY));
+    }
+
     std::uint64_t* row(int j) { return bits_.data() + static_cast<std::size_t>(j) * words_; }
     const std::uint64_t* row(int j) const {
         return bits_.data() + static_cast<std::size_t>(j) * words_;
@@ -2488,6 +2659,15 @@ BitMatrix(const Polygon<PointType, LabelType>&) -> BitMatrix<PointType>;
 
 template <class PointType, class LabelType>
 BitMatrix(const PolygonSet<PointType, LabelType>&) -> BitMatrix<PointType>;
+
+// The point-range constructor deduces nothing on its own -- PointType does not
+// appear in its signature -- so without this guide a range of points would take
+// the default point type whatever it holds.
+template <std::ranges::input_range Range>
+    requires(detail::is_point_v<std::remove_cvref_t<std::ranges::range_value_t<Range>>>
+             && !AnyShapeConcept<std::remove_cvref_t<Range>>
+             && !detail::is_bit_matrix_v<std::remove_cvref_t<Range>>)
+BitMatrix(Range&&) -> BitMatrix<std::remove_cvref_t<std::ranges::range_value_t<Range>>>;
 
 // Out-of-line: asBitMatrix is declared in the shape headers (which precede this
 // one in the layering) but can only be defined once BitMatrix is visible. Each
