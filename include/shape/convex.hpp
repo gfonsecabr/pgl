@@ -2846,15 +2846,6 @@ struct Convex {
     }
 
     /**
-     * @brief Translates the convex polygon by the given point.
-     *
-     * Complexity: O(1).
-     *
-     * @tparam OtherPoint The point type of the translation vector.
-     * @param translation The translation vector.
-     * @return A reference to the modified polygon.
-     */
-    /**
      * @brief Returns the convex polygon rotated by 90k degrees around the origin.
      *
      * @param k Number of 90-degree CCW rotations (may be negative).

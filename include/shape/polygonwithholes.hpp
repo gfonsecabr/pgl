@@ -1568,6 +1568,10 @@ struct PolygonWithHoles {
      * The holes lie inside the outer boundary, so this is the outer polygon's
      * box, cached there.
      */
+    [[nodiscard]] constexpr const Rectangle<PointType>& bbox() const {
+        return outer_.bbox();
+    }
+
     /**
      * @brief Returns the integer points the region contains.
      *
@@ -1590,10 +1594,6 @@ struct PolygonWithHoles {
         requires(detail::extended_integral<ResultNumber> || std::same_as<ResultNumber, BigInt>)
     [[nodiscard]] std::vector<Point<ResultNumber, typename PointType::LabelType>>
     latticePoints() const;
-
-    [[nodiscard]] constexpr const Rectangle<PointType>& bbox() const {
-        return outer_.bbox();
-    }
 
     /** @brief Computes the floating-point bounding box of the region. */
     template <std::floating_point ResultNumber = double>
