@@ -1526,3 +1526,23 @@ TEST_CASE("flip over a range of points flips one cell each") {
         CHECK(m.empty());
     }
 }
+
+TEST_CASE("BitMatrix hashes agree with equality and the centroid sums whole words") {
+    using Point = pgl::Point<int>;
+    using Matrix = pgl::BitMatrix<Point>;
+    Matrix a(Point(-3, 2), 80, 5), b(Point(-3, 2), 80, 5);   // wider than the cells, so trimming moves the window
+    a.set(Point(-3, 2));
+    a.set(Point(60, 4));
+    a.set(Point(66, 3));
+    b.set(Point(66, 3));
+    b.set(Point(60, 4));
+    b.set(Point(-3, 2));
+    CHECK(a == b);
+    CHECK(std::hash<Matrix>{}(a) == std::hash<Matrix>{}(b));
+    const std::unordered_set<Matrix> values{a, b, a.trimmed()};
+    CHECK(values.size() == 2);   // a and b are one value; the trimmed copy has another window
+    // Three cells across two words of a row and three rows: the mean of the
+    // cell centres.
+    CHECK(a.centroid() == pgl::Point<pgl::ERational>(pgl::ERational(83, 2), pgl::ERational(7, 2)));
+    CHECK(a.centroid() == a.trimmed().centroid());
+}

@@ -725,11 +725,28 @@ public:
      */
     template <class ResultNumber = division_result_t<NumberType>>
     [[nodiscard]] Point<ResultNumber> centroid() const {
+        // Summed a word at a time: the cells of a word share a row and a base
+        // column, so only their bit offsets are walked.
         std::int64_t sumX = 0, sumY = 0, cells = 0;
-        for (const PointType& cell : *this) {
-            sumX += static_cast<std::int64_t>(cell.x());
-            sumY += static_cast<std::int64_t>(cell.y());
-            ++cells;
+        for (int j = 0; j < height_; ++j) {
+            const std::uint64_t* here = row(j);
+            const std::int64_t y = static_cast<std::int64_t>(origin_.y()) + j;
+            for (std::size_t w = 0; w < words_; ++w) {
+                std::uint64_t word = here[w];
+                if (word == 0) {
+                    continue;
+                }
+                const std::int64_t inWord = std::popcount(word);
+                const std::int64_t base =
+                    static_cast<std::int64_t>(origin_.x()) + static_cast<std::int64_t>(w) * 64;
+                std::int64_t offsets = 0;
+                for (; word != 0; word &= word - 1) {
+                    offsets += std::countr_zero(word);
+                }
+                sumX += base * inWord + offsets;
+                sumY += y * inWord;
+                cells += inWord;
+            }
         }
         if (cells == 0) {
             throw std::logic_error("pgl::BitMatrix::centroid: no cell is set");
@@ -1847,6 +1864,8 @@ public:
     };
 
 private:
+    friend struct std::hash<BitMatrix>;
+
     /** @brief A maximal run of set cells in one row, in window-local coordinates. */
     struct CellRun {
         int y;            ///< Row of the run.
@@ -2786,7 +2805,9 @@ namespace std {
  *
  * Hashes the window and the cells, so it agrees with `operator==`. Two matrices
  * covering the same region over different windows are different values and hash
- * apart; `trimmed()` brings them to the one form that hashes alike.
+ * apart; `trimmed()` brings them to the one form that hashes alike. The cells
+ * are hashed as the packed words that `operator==` compares, a word at a time
+ * rather than a cell at a time.
  */
 template <class PointType>
 struct hash<pgl::BitMatrix<PointType>> {
@@ -2795,8 +2816,8 @@ struct hash<pgl::BitMatrix<PointType>> {
         pgl::detail::hashCombine(seed, matrix.origin());
         pgl::detail::hashCombine(seed, matrix.width());
         pgl::detail::hashCombine(seed, matrix.height());
-        for (const PointType& cell : matrix) {
-            pgl::detail::hashCombine(seed, cell);
+        for (const std::uint64_t word : matrix.bits_) {
+            pgl::detail::hashCombine(seed, word);
         }
         return seed;
     }
