@@ -514,3 +514,30 @@ TEST_CASE("simplifyIfLarge is usable in constant expressions") {
     static_assert(viaHint(6, 8) == 304);
     CHECK(viaHint(6, 8) == 304);
 }
+
+TEST_CASE("Floating-point construction keeps the integer part when no fraction bit fits") {
+    // Bounded storage keeps half its width, less a few bits, for the fraction;
+    // a value whose integer part alone needs more is truncated to that part.
+    CHECK(pgl::Rational<int64_t>(1e9) == 1000000000);
+    CHECK(pgl::Rational<int64_t>(-123456789012.0) == -123456789012LL);
+    CHECK(pgl::Rational<int64_t>(200000000.5) == 200000000);   // toward zero
+    CHECK(pgl::Rational<int>(3000.0) == 3000);
+    CHECK(pgl::Rational<int>(-3000.75) == -3000);
+    // Below the bound the fraction is still kept.
+    CHECK(pgl::Rational<int64_t>(100000.5) == pgl::Rational<int64_t>(200001, 2));
+    // The integer part has to fit the storage type, and the value has to be a number.
+    CHECK_THROWS_AS(pgl::Rational<int64_t>(1e19), std::overflow_error);
+    CHECK_THROWS_AS(pgl::Rational<int>(3e9), std::overflow_error);
+    const double infinite = std::numeric_limits<double>::infinity();
+    const double notANumber = std::numeric_limits<double>::quiet_NaN();
+    CHECK_THROWS_AS((void)pgl::Rational<int64_t>(infinite), std::domain_error);
+    CHECK_THROWS_AS((void)pgl::Rational<int64_t>(notANumber), std::domain_error);
+    // Unbounded storage holds every integer part exactly.
+    CHECK(pgl::ERational(1e30) == pgl::BigInt(1e30));
+    CHECK(pgl::ERational(1e30).denominator() == 1);
+    // The same path serves a shape conversion.
+    const pgl::Segment<pgl::Point<double>> s({0.5, 1.0}, {200000000.0, 3.0});
+    const pgl::Segment<pgl::Point<pgl::Rational<int64_t>>> r(s);
+    CHECK(r.max().x() == 200000000);
+    CHECK(r.min().x() == pgl::Rational<int64_t>(1, 2));
+}

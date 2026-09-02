@@ -258,7 +258,20 @@ public:
     }
 
     /**
-     * @brief Construct from floating point
+     * @brief Construct from floating point.
+     *
+     * Keeps @p digits significant bits of @p f: the integer part exactly, and
+     * as many bits of the fraction as fit beside it, the rest truncated. Once
+     * the integer part alone needs every one of those bits, or more, the value
+     * is truncated toward zero to that integer part, which is what a plain
+     * integer conversion does; only an integer part that @p Int cannot hold is
+     * refused, as is a value that is not finite.
+     *
+     * The default @p digits is half the width of a bounded @p Int, less a few
+     * bits, so that the parts leave room for the arithmetic that follows.
+     *
+     * @throws std::domain_error If @p f is infinite or NaN.
+     * @throws std::overflow_error If the integer part of @p f does not fit Int.
      */
     template<std::floating_point Float>
     explicit constexpr Rational(Float f,
@@ -266,24 +279,41 @@ public:
                            ? std::min(pgl::detail::numeric_limits<Float>::digits,
                                       pgl::detail::numeric_limits<Int>::digits / 2 - 4)
                            : pgl::detail::numeric_limits<Float>::digits) {
-        if constexpr (requires(Int x, Float g) { x * g; }) {
-            if (f == 0) {
-                num = 0;
-                den = 1;
-                return;
+        if (!std::isfinite(f)) {
+            throw std::domain_error("pgl::Rational: cannot construct from a non-finite floating-point value");
+        }
+        if (f == 0) {
+            num = 0;
+            den = 1;
+            return;
+        }
+
+        // |f| lies in [2^(exponent - 1), 2^exponent), so exponent is how many
+        // of the requested bits the integer part takes for itself.
+        int exponent = 0;
+        std::frexp(f, &exponent);
+        const int fractionBits = exponent > 0 ? digits - exponent : digits;
+        if (fractionBits <= 0) {
+            // No fraction bit fits beside the integer part: the value is that
+            // part, exactly, whenever the storage type holds it.
+            if constexpr (pgl::detail::numeric_limits<Int>::is_bounded) {
+                if (exponent > pgl::detail::numeric_limits<Int>::digits) {
+                    throw std::overflow_error("pgl::Rational: floating-point value does not fit the integer type");
+                }
             }
+            num = Int(std::trunc(f));
+            den = Int(1);
+            normalized_ = true;
+            return;
+        }
+
+        if constexpr (requires(Int x, Float g) { x * g; }) {
             bool negative = false;
             if (f < 0) {
                 negative = true;
                 f = -f;
             }
-
-            int exponent;
-            std::frexp(f, &exponent);
-            if (exponent > 0)
-                digits -= exponent;
-            assert(digits > 0); // Rational number overflow
-            den = Int(1) << digits;
+            den = Int(1) << fractionBits;
             // Wrap in Int(): for the Boost int128 fallback `den * f` yields a
             // double (see the double-interop shim in numeric.hpp), so convert it
             // back explicitly. For native __int128 / built-in ints this is the
