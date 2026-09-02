@@ -554,16 +554,20 @@ Rectangle<PointType, LabelType>::latticePoints() const {
         return points;   // a side spans no integer, so neither does the box
     }
     // The two sides are independent: their integers are the whole answer, with
-    // no direction to reduce and no crossing to sort.
-    const std::size_t columns = detail::latticeCount(firstX, lastX);
-    const std::size_t rows = detail::latticeCount(firstY, lastY);
+    // no direction to reduce and no crossing to sort. They are counted and
+    // walked one type wider than the points, so a side that reaches the edge
+    // of the coordinate range neither wraps its count nor steps past its end.
+    using Step = detail::promoted_number_t<ResultNumber>;
+    const std::size_t columns = detail::latticeCount(Step(firstX), Step(lastX));
+    const std::size_t rows = detail::latticeCount(Step(firstY), Step(lastY));
     if (columns > std::numeric_limits<std::size_t>::max() / rows) {
         throw std::length_error("pgl::latticePoints: too many lattice points");
     }
     points.reserve(columns * rows);
-    for (ResultNumber x = firstX; !(lastX < x); ++x) {
-        for (ResultNumber y = firstY; !(lastY < y); ++y) {
-            points.push_back(ResultPoint(x, y));
+    for (Step x = Step(firstX); !(Step(lastX) < x); ++x) {
+        for (Step y = Step(firstY); !(Step(lastY) < y); ++y) {
+            points.push_back(ResultPoint(detail::narrowTo<ResultNumber>(x),
+                                         detail::narrowTo<ResultNumber>(y)));
         }
     }
     return points;
@@ -606,7 +610,11 @@ Disk<PointType, LabelType>::latticePoints() const {
     // the growth is the disk's own exact predicate.
     const ResultNumber middle =
         detail::latticeFloor<ResultNumber>(center<division_result_t<NumberType>>().y());
-    for (ResultNumber x = firstX; !(lastX < x); ++x) {
+    // Walked one type wider than the points, so a disk that reaches the edge
+    // of the coordinate range does not step past its last column.
+    using Step = detail::promoted_number_t<ResultNumber>;
+    for (Step column = Step(firstX); !(Step(lastX) < column); ++column) {
+        const ResultNumber x = detail::narrowTo<ResultNumber>(column);
         ResultNumber seed = middle;
         bool inside = contains(ResultPoint(x, seed));
         for (int step = -1; !inside && step <= 1; step += 2) {

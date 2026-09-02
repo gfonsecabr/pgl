@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 
+#include <limits>
+
 #include <cstdint>
 #include <set>
 #include <stdexcept>
@@ -1035,4 +1037,19 @@ TEST_CASE("Rectangle latticePoints pairs the integers of its two sides") {
                             RationalPoint(Rational(2, 3), Rational(9)))
               .latticePoints()
               .empty());
+}
+
+TEST_CASE("Rectangle latticePoints reaches the edge of the coordinate range and refuses the whole of it") {
+    using Point = pgl::Point<int>;
+    using Box = pgl::Rectangle<Point>;
+    const int top = std::numeric_limits<int>::max();
+    const int bottom = std::numeric_limits<int>::min();
+    // The last integer of the range is reached, and not stepped past.
+    const auto corner = Box(Point(top - 1, top - 1), Point(top, top)).latticePoints();
+    REQUIRE(corner.size() == 4);
+    CHECK(corner.back() == Point(top, top));
+    CHECK(Box(Point(bottom, bottom), Point(bottom, bottom + 1)).latticePoints().size() == 2);
+    // The whole range holds more points than a vector can, which is refused
+    // rather than counted modulo the coordinate type.
+    CHECK_THROWS_AS((void)Box(Point(bottom, bottom), Point(top, top)).latticePoints(), std::length_error);
 }
