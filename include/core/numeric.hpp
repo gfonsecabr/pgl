@@ -75,16 +75,22 @@ using int128 = boost::multiprecision::number<boost::multiprecision::cpp_int_back
  * @return The output stream.
  */
 inline std::ostream& operator<<(std::ostream& stream, const int128& value) {
-    if (value < 0 && value == -value) {
-        return stream << "-170141183460469231731687303715884105728";
-    }
+    // The magnitude is taken unsigned: the most negative value has no negation
+    // in the signed type, and forming one there is undefined behavior that
+    // optimizers exploit -- a `value == -value` guard for it folds away.
+    __uint128_t magnitude = value < 0 ? -static_cast<__uint128_t>(value)
+                                      : static_cast<__uint128_t>(value);
+    char digits[41];   // 39 decimal digits, a sign and a terminator
+    char* first = digits + sizeof(digits) - 1;
+    *first = '\0';
+    do {
+        *--first = static_cast<char>('0' + static_cast<int>(magnitude % 10));
+        magnitude /= 10;
+    } while (magnitude != 0);
     if (value < 0) {
-        return stream << "-" << -value;
+        *--first = '-';
     }
-    if (value < 10) {
-        return stream << static_cast<char>(value + '0');
-    }
-    return stream << value / 10 << static_cast<char>(value % 10 + '0');
+    return stream << first;
 }
 
 /**
@@ -114,12 +120,14 @@ inline std::istream& operator>>(std::istream& stream, int128& value) {
         stream.setstate(std::ios::failbit);
         return stream;
     }
-    int128 result = 0;
+    // Accumulated unsigned, where the most negative value's magnitude exists
+    // and wrapping is defined; a magnitude past the type wraps, as before.
+    __uint128_t result = 0;
     for (; c >= '0' && c <= '9'; c = stream.peek()) {
         stream.get();
-        result = result * 10 + (c - '0');
+        result = result * 10 + static_cast<unsigned>(c - '0');
     }
-    value = neg ? -result : result;
+    value = static_cast<int128>(neg ? -result : result);
     return stream;
 }
 #endif

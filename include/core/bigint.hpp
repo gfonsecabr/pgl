@@ -480,6 +480,31 @@ private:
         r.setFromLimbs(std::move(rm), remainderNegative);
     }
 
+    /// @brief The low 128 bits of a limb-held magnitude, with the sign applied.
+    ///
+    /// The magnitude is at least 2^127 here, so it has no signed form and the
+    /// truncation is done unsigned, where wrapping is defined; the value the
+    /// bits then spell is what the signed cast reads back. (The Boost fallback
+    /// wraps by construction.)
+    PGL_BIGINT_COLD
+    pgl::int128 lowBitsInt128() const {
+#if defined(__SIZEOF_INT128__)
+        __uint128_t m = 0;
+        for (std::size_t i = 0; i < limbs_.size() && i < 3; ++i) {
+            m += static_cast<__uint128_t>(limbs_[i]) << (kLimbBits * i);
+        }
+        return static_cast<pgl::int128>(negative_ ? -m : m);
+#else
+        pgl::int128 m = 0;
+        pgl::int128 weight = 1;
+        for (std::size_t i = 0; i < limbs_.size() && i < 3; ++i) {
+            m += limbs_[i] * weight;
+            weight *= base();
+        }
+        return negative_ ? -m : m;
+#endif
+    }
+
 public:
     /// @brief Default constructor (zero).
     BigInt() = default;
@@ -587,17 +612,10 @@ public:
 
     /// @brief Convert to ::pgl::int128 (low bits, with sign, when it overflows).
     explicit operator pgl::int128() const {
-        pgl::int128 m = 0;
         if (limbs_.empty()) {
-            m = small_;
-        } else {
-            pgl::int128 weight = 1;
-            for (std::size_t i = 0; i < limbs_.size() && i < 3; ++i) {
-                m += limbs_[i] * weight;
-                weight *= base();
-            }
+            return negative_ ? -small_ : small_;
         }
-        return negative_ ? -m : m;
+        return lowBitsInt128();
     }
 
     explicit operator int() const { return static_cast<int>(static_cast<pgl::int128>(*this)); }

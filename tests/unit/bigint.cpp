@@ -382,3 +382,29 @@ TEST_CASE("Factorial") {
     }
     CHECK(a == 6);
 }
+
+#if defined(__SIZEOF_INT128__)
+TEST_CASE("Most negative int128 streams, parses and converts") {
+    using pgl::operator<<;
+    using pgl::operator>>;
+    const pgl::int128 lowest = pgl::detail::numeric_limits<pgl::int128>::min();
+    std::stringstream out;
+    out << lowest;
+    CHECK(out.str() == "-170141183460469231731687303715884105728");
+    std::stringstream in("-170141183460469231731687303715884105728");
+    pgl::int128 parsed = 0;
+    in >> parsed;
+    CHECK(parsed == lowest);
+    // Through BigInt, whose limb store holds that magnitude, and back.
+    const pgl::BigInt big(lowest);
+    std::stringstream viaBig;
+    viaBig << big;
+    CHECK(viaBig.str() == out.str());
+    CHECK(static_cast<pgl::int128>(big) == lowest);
+    CHECK(pgl::BigInt(static_cast<pgl::int128>(big)) == big);
+    // Ordinary values print as they did.
+    std::stringstream plain;
+    plain << pgl::int128(-12345) << ' ' << pgl::int128(0) << ' ' << pgl::int128(7) << ' ' << (lowest + 1);
+    CHECK(plain.str() == "-12345 0 7 -170141183460469231731687303715884105727");
+}
+#endif
