@@ -443,7 +443,15 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherHalfplane& ot
 template <class PointType, class LabelType>
 template<TriangleConcept OtherTriangle>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherTriangle& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A collinear triangle is the segment or point it spans: the segment
+        // overload answers for the former, and a point is never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
         return false;
     }
     if (other.interiorContains(min()) || other.interiorContains(max())) {
@@ -493,7 +501,16 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherConvex& other
     // inside (otherwise the segment ends midway and leaves a slit, not a
     // split) and the segment actually crosses the interior (otherwise it
     // lies along a single boundary edge). Both checks are O(log n).
-    return !isDegenerate() && !other.isDegenerate()
+    if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    return !isDegenerate()
            && !other.interiorContains(min())
            && !other.interiorContains(max())
            && other.interiorsIntersect(*this);
@@ -502,7 +519,15 @@ constexpr bool Segment<PointType, LabelType>::separates(const OtherConvex& other
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Segment<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A polygon that collapses to a segment is cut as that segment is; a
+        // point is never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
         return false;
     }
     // The segment separates the polygon iff it covers whole some connected
@@ -604,6 +629,20 @@ template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Triangle<PointType, LabelType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
 
@@ -643,11 +682,20 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherConvex& othe
 //   k == 1 -> separates iff c >= 1
 //   k >= 2 -> never (the disk bulges out on a single arc)
 // This avoids building a Convex and short-circuits on k before any chord test.
-// Degenerate inputs are undefined here; we report false.
+// A degenerate disk is a point and disconnects nothing; a collinear triangle is
+// the segment it spans, which answers for it.
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Triangle<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
 
@@ -1093,6 +1141,12 @@ template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Ray<PointType, LabelType>::separates(const OtherConvex& other) const {
     if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
         return false;
     }
 
@@ -1249,6 +1303,11 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherTriangle& o
         return false;
     }
     if (other.isDegenerate()) {
+        // A collinear triangle is the segment or point it spans: the segment
+        // overload answers for the former, and a point is never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
         return false;
     }
 
@@ -1295,7 +1354,15 @@ constexpr bool Rectangle<PointType, LabelType>::separates(const OtherDisk& other
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
 
@@ -1543,7 +1610,21 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherTriangle& othe
 template <class PointType, class LabelType>
 template<ConvexConcept OtherConvex>
 constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
     if (!bbox().intersects(other.bbox())) {
@@ -1611,7 +1692,15 @@ constexpr bool Convex<PointType, LabelType>::separates(const OtherConvex& other)
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Convex<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
 
@@ -1685,7 +1774,16 @@ constexpr bool Disk<PointType, LabelType>::separates(const OtherOrientedLine& ot
 template <class PointType, class LabelType>
 template <ConvexConcept OtherConvex>
 constexpr bool Disk<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
         return false;
     }
 
@@ -1962,7 +2060,20 @@ constexpr bool Triangle<PointType, LabelType>::separates(const OtherPolygon& oth
 template <class PointType, class LabelType>
 template<PolygonConcept OtherPolygon>
 constexpr bool Convex<PointType, LabelType>::separates(const OtherPolygon& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A polygon that collapses to a segment is cut as that segment is; a
+        // point is never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
     if (!bbox().intersects(other.bbox())) {
@@ -2387,7 +2498,15 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherTriangle& oth
 template <class PointType, class LabelType>
 template<DiskConcept OtherDisk>
 constexpr bool Polygon<PointType, LabelType>::separates(const OtherDisk& other) const {
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
 
@@ -2589,7 +2708,20 @@ constexpr bool Polygon<PointType, LabelType>::separates(const OtherPolygon& othe
     // Convex overload uses, generalized to a non-convex A: A may dip into B
     // through several separate pockets, so the count is per A ∩ B component, not
     // a raw boundary-arc tally.
-    if (isDegenerate() || other.isDegenerate()) {
+    if (other.isDegenerate()) {
+        // A polygon that collapses to a segment is cut as that segment is; a
+        // point is never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
+        return false;
+    }
+    if (isDegenerate()) {
+        // What this degenerate shape spans does the cutting: a segment answers
+        // as one, and a point disconnects nothing.
+        if (const auto spanned = getIfSegment()) {
+            return spanned->separates(other);
+        }
         return false;
     }
     if (!bbox().intersects(other.bbox())) {
@@ -4099,7 +4231,16 @@ constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const Othe
 template <class PointType, class LabelType>
 template <ConvexConcept OtherConvex>
 constexpr bool HalfplaneIntersection<PointType, LabelType>::separates(const OtherConvex& other) const {
-    if (empty() || other.size() < 3) {
+    if (empty()) {
+        return false;
+    }
+    if (other.isDegenerate()) {
+        // A convex with fewer than three vertices is the segment or point it
+        // spans: the segment overload answers for the former, and a point is
+        // never disconnected.
+        if (const auto spanned = other.getIfSegment()) {
+            return separates(*spanned);
+        }
         return false;
     }
     using E = detail::region_exact_number_t<NumberType>;

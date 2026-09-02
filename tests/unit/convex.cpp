@@ -2024,3 +2024,71 @@ TEST_CASE("Convex latticePoints reports its interior and its boundary") {
           == std::vector<Point>{{0, 0}, {1, 1}, {2, 2}});
     CHECK(ConvexShape().latticePoints().empty());
 }
+
+TEST_CASE("separates reads a degenerate Convex or Triangle as the segment it spans") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point>;
+    using Triangle = pgl::Triangle<Point>;
+    using Convex = pgl::Convex<Point>;
+    using Box = pgl::Rectangle<Point>;
+    using PolygonShape = pgl::Polygon<Point>;
+    using Disk = pgl::Disk<Point>;
+
+    const Segment chord(Point(-3, 0), Point(2, 0));
+    const Convex thin(std::vector<Point>{Point(-3, 0), Point(2, 0)});   // the same segment
+    REQUIRE(thin.isDegenerate());
+
+    // The chord runs right through the triangle, so each cuts the other.
+    const Triangle triangle(Point(-2, 2), Point(-1, -1), Point(-2, 3));
+    CHECK(triangle.separates(chord));
+    CHECK(chord.separates(triangle));
+    CHECK(triangle.separates(thin) == triangle.separates(chord));
+    CHECK(thin.separates(triangle) == chord.separates(triangle));
+    CHECK(triangle.crosses(thin));
+    CHECK(thin.crosses(triangle));
+
+    // The chord enters the box from the left and ends on its right edge: it
+    // cuts the box, the box does not cut it.
+    const Box box(Point(0, -3), Point(2, 2));
+    CHECK_FALSE(box.separates(chord));
+    CHECK(chord.separates(box));
+    CHECK(box.separates(thin) == box.separates(chord));
+    CHECK(thin.separates(box) == chord.separates(box));
+
+    const PolygonShape polygon({Point(0, -3), Point(2, -3), Point(2, 2), Point(0, 2)});
+    CHECK(thin.separates(polygon) == chord.separates(polygon));
+    CHECK(polygon.separates(thin) == polygon.separates(chord));
+
+    const Convex convexBox(std::vector<Point>{Point(0, -3), Point(2, -3), Point(2, 2), Point(0, 2)});
+    CHECK(thin.separates(convexBox) == chord.separates(convexBox));
+    CHECK(convexBox.separates(thin) == convexBox.separates(chord));
+
+    const Disk disk(Point(0, 0), 2);
+    CHECK(thin.separates(disk) == chord.separates(disk));
+    CHECK(disk.separates(thin) == disk.separates(chord));
+
+    // A collinear triangle spans a segment too: this one clips a corner.
+    const Triangle needle(Point(-2, -2), Point(-2, -2), Point(0, 2));
+    const Segment needleChord(Point(-2, -2), Point(0, 2));
+    const Triangle corner(Point(-3, 1), Point(0, -1), Point(1, -1));
+    REQUIRE(needle.isDegenerate());
+    CHECK(corner.separates(needleChord));
+    CHECK(needleChord.separates(corner));
+    CHECK(corner.separates(needle) == corner.separates(needleChord));
+    CHECK(needle.separates(corner) == needleChord.separates(corner));
+    CHECK(needle.crosses(corner));
+    CHECK(corner.crosses(needle));
+    const Convex cornerConvex(std::vector<Point>{Point(-3, 1), Point(0, -1), Point(1, -1)});
+    CHECK(cornerConvex.separates(needle) == cornerConvex.separates(needleChord));
+    CHECK(needle.separates(cornerConvex) == needleChord.separates(cornerConvex));
+
+    // A convex or a triangle that is a single point disconnects nothing.
+    const Convex dot(std::vector<Point>{Point(1, 0)});
+    const Triangle dotTriangle(Point(0, 0), Point(0, 0), Point(0, 0));
+    CHECK_FALSE(dot.separates(triangle));
+    CHECK_FALSE(triangle.separates(dot));
+    CHECK_FALSE(dotTriangle.separates(triangle));
+    CHECK_FALSE(triangle.separates(dotTriangle));
+    CHECK_FALSE(box.separates(dot));
+    CHECK_FALSE(disk.separates(dot));
+}
