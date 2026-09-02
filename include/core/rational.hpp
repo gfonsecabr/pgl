@@ -377,8 +377,8 @@ public:
             return;
         }
 
-        if (den == 1 || num == 1) {
-            return;
+        if (den == 1 || num == 1 || num == -1) {
+            return;   // a unit numerator or denominator is already in lowest terms
         }
 
         Int g = pgl::detail::gcd(pgl::detail::abs(num), den);
@@ -405,7 +405,7 @@ public:
         if (num == 0) {
             return Rational(Int(0), Int(1), true);
         }
-        if (den == 1 || num == 1) {
+        if (den == 1 || num == 1 || num == -1) {
             return Rational(num, den, true);
         }
         const Int g = pgl::detail::gcd(pgl::detail::abs(num), den);

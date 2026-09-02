@@ -13,7 +13,6 @@
 #include <array>
 #include <cmath>
 #include <compare>
-#include <compare>
 #include <concepts>
 #include <cstdint>
 #include <istream>
