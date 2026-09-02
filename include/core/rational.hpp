@@ -563,6 +563,14 @@ public:
             flt_result = std::nextafter(flt_result, -pgl::detail::numeric_limits<Float>::infinity());
             assert(i++ < 10); // Normally one iteration should be enough
         }
+        // The quotient is itself a rounding of the exact value, so when the
+        // narrowing landed exactly on it nothing above tells which side of the
+        // value the candidate is on: settle that exactly. One step then
+        // suffices, since a float strictly below the quotient is below every
+        // value the quotient can have rounded from.
+        if (static_cast<Double>(flt_result) == result && (*this <=> flt_result) < 0) {
+            flt_result = std::nextafter(flt_result, -pgl::detail::numeric_limits<Float>::infinity());
+        }
 
         return flt_result;
     }
@@ -575,7 +583,7 @@ public:
     *
     * 1. Upper bound property:
     *      r >= num / den
-    *    i.e., the result never exceeds the exact mathematical value.
+    *    i.e., the result is never below the exact mathematical value.
     *
     * 2. Monotonicity:
     *      If num'/den' <= num/den, then f(num',den') <= f(num,den)
@@ -600,6 +608,11 @@ public:
         while (static_cast<Double>(flt_result) < result) {
             flt_result = std::nextafter(flt_result, pgl::detail::numeric_limits<Float>::infinity());
             assert(i++ < 10); // Normally one iteration should be enough
+        }
+        // See lowerBound: a candidate equal to the rounded quotient may still
+        // be below the exact value, and one exact step settles it.
+        if (static_cast<Double>(flt_result) == result && (*this <=> flt_result) > 0) {
+            flt_result = std::nextafter(flt_result, pgl::detail::numeric_limits<Float>::infinity());
         }
 
         return flt_result;

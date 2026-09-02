@@ -541,3 +541,37 @@ TEST_CASE("Floating-point construction keeps the integer part when no fraction b
     CHECK(r.max().x() == 200000000);
     CHECK(r.min().x() == pgl::Rational<int64_t>(1, 2));
 }
+
+TEST_CASE("lowerBound and upperBound bracket the exact value even when the quotient is a float") {
+    // For these the long double quotient happens to be exactly a double, so
+    // only the rounding of the quotient itself tells which side the value is
+    // on; both bounds used to return that one double.
+    const pgl::Rational<int64_t> a(-908, 4533), b(16323, 9154);
+    CHECK(((a <=> a.lowerBound()) >= 0));
+    CHECK(((a <=> a.upperBound()) <= 0));
+    CHECK(a.lowerBound() < a.upperBound());
+    CHECK(((b <=> b.lowerBound()) >= 0));
+    CHECK(((b <=> b.upperBound()) <= 0));
+    CHECK(b.lowerBound() < b.upperBound());
+    // A value that is a double is its own bound on both sides.
+    const pgl::Rational<int64_t> half(1, 2);
+    CHECK(half.lowerBound() == 0.5);
+    CHECK(half.upperBound() == 0.5);
+    // A sweep, judged by the exact comparison.
+    for (int64_t n = -300; n <= 300; ++n) {
+        for (int64_t d = 1; d <= 40; ++d) {
+            const pgl::Rational<int64_t> r(n, d);
+            CHECK(((r <=> r.lowerBound()) >= 0));
+            CHECK(((r <=> r.upperBound()) <= 0));
+            CHECK(((r <=> r.lowerBound<float>()) >= 0));
+            CHECK(((r <=> r.upperBound<float>()) <= 0));
+        }
+    }
+    // The floating box of a point contains the point.
+    const pgl::Point<pgl::Rational<int64_t>> p(a, b);
+    const auto box = p.fbox();
+    CHECK(((p.x() <=> box.min().x()) >= 0));
+    CHECK(((p.x() <=> box.max().x()) <= 0));
+    CHECK(((p.y() <=> box.min().y()) >= 0));
+    CHECK(((p.y() <=> box.max().y()) <= 0));
+}
