@@ -788,8 +788,11 @@ public:
     constexpr std::strong_ordering operator<=>(const Rational<U>& r) const {
         using Common = std::common_type_t<Int, U>;
         using Wide = pgl::detail::promoted_number_t<Common>;
-        const Wide lhs = static_cast<Wide>(num) * static_cast<Wide>(r.denominator());
-        const Wide rhs = static_cast<Wide>(r.numerator()) * static_cast<Wide>(den);
+        // Both parts of the other value are wanted, and a deferred fraction
+        // reduces itself anew on each read, so reduce it once and read twice.
+        const Rational<U> other = r.simplified();
+        const Wide lhs = static_cast<Wide>(num) * static_cast<Wide>(other.denominator());
+        const Wide rhs = static_cast<Wide>(other.numerator()) * static_cast<Wide>(den);
         return compareValues(lhs, rhs);
     }
 
@@ -817,13 +820,15 @@ public:
      * @brief Equality comparison against a Rational of a different integer type.
      *
      * Mirrors the heterogeneous operator<=> so mixed-type `==`/`!=` are
-     * unambiguous. Both operands are normalized, so equal value implies equal
-     * numerator and denominator.
+     * unambiguous. Both operands are reduced first, once each, so equal value
+     * is equal numerator and denominator.
      */
     template <class U>
         requires (!std::same_as<U, Int>)
     constexpr bool operator==(const Rational<U>& r) const {
-        return numerator() == r.numerator() && denominator() == r.denominator();
+        const Rational mine = simplified();
+        const Rational<U> other = r.simplified();
+        return mine.num == other.numerator() && mine.den == other.denominator();
     }
 
     // --- comparison against floating point ---
@@ -981,12 +986,12 @@ public:
      * @brief Output format: num/den or just num if den==1
      */
     friend std::ostream& operator<<(std::ostream& os, const Rational& r) {
-        const Int n = r.numerator();
-        const Int d = r.denominator();
-        if (d == 1)
-            return os << n;
+        // Reduced once, rather than once per part read.
+        const Rational reduced = r.simplified();
+        if (reduced.den == 1)
+            return os << reduced.num;
         else
-            return os << n << "/" << d;
+            return os << reduced.num << "/" << reduced.den;
     }
 
     /**
