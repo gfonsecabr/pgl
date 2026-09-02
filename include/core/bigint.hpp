@@ -224,10 +224,8 @@ private:
         return r;
     }
 
-    /// @brief Subtract magnitude @p b from @p a, which must satisfy a >= b.
-    static Limbs subMag(const Limbs& a, const Limbs& b) {
-        Limbs r;
-        r.reserve(a.size());
+    /// @brief Subtract magnitude @p b from @p a in place; @p a must be >= @p b.
+    static void subMagInPlace(Limbs& a, const Limbs& b) {
         pgl::int128 borrow = 0;
         for (std::size_t i = 0; i < a.size(); ++i) {
             pgl::int128 d = a[i] - borrow - (i < b.size() ? b[i] : pgl::int128(0));
@@ -237,10 +235,29 @@ private:
             } else {
                 borrow = 0;
             }
-            r.push_back(d);
+            a[i] = d;
         }
-        trim(r);
+        trim(a);
+    }
+
+    /// @brief Subtract magnitude @p b from @p a, which must satisfy a >= b.
+    static Limbs subMag(const Limbs& a, const Limbs& b) {
+        Limbs r = a;
+        subMagInPlace(r, b);
         return r;
+    }
+
+    /// @brief Shift a magnitude left by one bit in place.
+    static void shiftLeftOneMag(Limbs& v) {
+        pgl::int128 carry = 0;
+        for (pgl::int128& limb : v) {
+            const pgl::int128 next = limb >> (kLimbBits - 1);
+            limb = ((limb << 1) & limbMask()) | carry;
+            carry = next;
+        }
+        if (carry != 0) {
+            v.push_back(carry);
+        }
     }
 
     /// @brief Multiply two magnitudes (schoolbook).
@@ -290,28 +307,53 @@ private:
         return ((v[limb] >> static_cast<int>(off)) & 1) != 0;
     }
 
-    /// @brief Magnitude division with remainder via binary int64_t division.
+    /// @brief Magnitude division with remainder.
     ///
-    /// The divisor must be non-zero. Returns { quotient, remainder }. This is
-    /// O(bits^2) but only runs once magnitudes exceed 128 bits, which is rare.
+    /// The divisor must be non-zero. Returns { quotient, remainder }. A divisor
+    /// of a single limb takes one 124-by-62-bit division per limb of the
+    /// dividend, which is what the decimal printer and a gcd against a narrow
+    /// value run. A wider divisor is divided bit by bit, the remainder shifted
+    /// and reduced in place and the quotient bits set where they land, so no
+    /// step allocates. This only runs once a magnitude exceeds 128 bits.
     static std::pair<Limbs, Limbs> divmodMag(const Limbs& n, const Limbs& d) {
-        Limbs q;
-        Limbs r;
-        const Limbs one = {pgl::int128(1)};
-        for (std::size_t bit = bitLengthMag(n); bit-- > 0;) {
-            r = addMag(r, r);                       // r <<= 1
-            if (testBitMag(n, bit)) {
-                r = addMag(r, one);
+        if (cmpMag(n, d) < 0) {
+            return {Limbs(), n};
+        }
+        Limbs q(n.size(), pgl::int128(0));
+        if (d.size() == 1) {
+            const pgl::int128 divisor = d[0];
+            pgl::int128 remainder = 0;
+            for (std::size_t i = n.size(); i-- > 0;) {
+                // remainder < divisor < 2^62, so this is below 2^124.
+                const pgl::int128 current = (remainder << kLimbBits) | n[i];
+                q[i] = current / divisor;
+                remainder = current % divisor;
             }
-            q = addMag(q, q);                       // q <<= 1
+            trim(q);
+            Limbs r;
+            if (remainder != 0) {
+                r.push_back(remainder);
+            }
+            return {std::move(q), std::move(r)};
+        }
+        Limbs r;
+        r.reserve(d.size() + 1);
+        for (std::size_t bit = bitLengthMag(n); bit-- > 0;) {
+            shiftLeftOneMag(r);
+            if (testBitMag(n, bit)) {
+                if (r.empty()) {
+                    r.push_back(pgl::int128(0));
+                }
+                r[0] |= pgl::int128(1);
+            }
             if (cmpMag(r, d) >= 0) {
-                r = subMag(r, d);
-                q = addMag(q, one);
+                subMagInPlace(r, d);
+                q[bit / kLimbBits] |= pgl::int128(1) << static_cast<int>(bit % kLimbBits);
             }
         }
         trim(q);
         trim(r);
-        return {q, r};
+        return {std::move(q), std::move(r)};
     }
 
     // --- conversions between the small and limb representations ---
@@ -391,7 +433,26 @@ private:
     /// hot callers (gcd loop conditions, Rational comparisons).
     PGL_BIGINT_COLD
     int compareMagGeneral(const BigInt& o) const {
-        return cmpMag(magToLimbs(), o.magToLimbs());
+        // A limb store only ever holds a magnitude past what an int128 can, so
+        // having one at all settles the order against an inline value, and two
+        // stores compare by width and then from the top limb down: nothing
+        // needs copying out.
+        if (limbs_.empty()) {
+            return -1;
+        }
+        if (o.limbs_.empty()) {
+            return 1;
+        }
+        const std::size_t n = limbs_.size(), m = o.limbs_.size();
+        if (n != m) {
+            return n < m ? -1 : 1;
+        }
+        for (std::size_t i = n; i-- > 0;) {
+            if (limbs_[i] != o.limbs_[i]) {
+                return limbs_[i] < o.limbs_[i] ? -1 : 1;
+            }
+        }
+        return 0;
     }
 
     /// @brief Decimal spelling of the magnitude (no sign), used for large values.

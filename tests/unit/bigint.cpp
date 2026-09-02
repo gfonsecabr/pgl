@@ -408,3 +408,36 @@ TEST_CASE("Most negative int128 streams, parses and converts") {
     CHECK(plain.str() == "-12345 0 7 -170141183460469231731687303715884105727");
 }
 #endif
+
+TEST_CASE("Division and remainder of wide values satisfy the division identity") {
+    using pgl::BigInt;
+    const auto pow2 = [](int k) { return pgl::detail::pow2(k); };
+    const BigInt n = pow2(600) + BigInt(12345678901234567LL) * pow2(300) + BigInt(987654321);
+    // Divisors of one limb, of many, near the dividend, and negative.
+    const BigInt divisors[] = {pow2(300) + BigInt(77777777), BigInt(1000000000000000000LL), BigInt(3),
+                               pow2(62),  pow2(62) - BigInt(1), pow2(61), pow2(200) + pow2(100),
+                               n - BigInt(1), n, n + BigInt(1), -(pow2(200) + BigInt(5))};
+    for (const BigInt& d : divisors) {
+        const BigInt q = n / d, r = n % d;
+        CHECK(q * d + r == n);
+        CHECK(r.abs() < d.abs());
+        CHECK_FALSE(r.isNegative());   // the remainder follows the dividend's sign
+        const BigInt nq = (-n) / d, nr = (-n) % d;
+        CHECK(nq * d + nr == -n);
+        CHECK(nq == -q);
+        CHECK(nr == -r);
+    }
+    CHECK(n / n == 1);
+    CHECK(n % n == 0);
+    CHECK(n / (n + BigInt(1)) == 0);
+    CHECK(n % (n + BigInt(1)) == n);
+    // Comparisons across the inline and limb stores.
+    const BigInt wide = pow2(130), inline128 = pow2(126);
+    CHECK(wide > inline128);
+    CHECK(-wide < -inline128);
+    CHECK(-wide < inline128);
+    CHECK(wide > -wide);
+    CHECK(pow2(130) == wide);
+    CHECK(pow2(130) + BigInt(1) > wide);
+    CHECK(pow2(200) > pow2(130) * pow2(69));
+}
