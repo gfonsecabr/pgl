@@ -845,6 +845,203 @@ Convex<PointType, LabelType>::smallestEnclosingRectangle() const {
     });
 }
 
+namespace detail {
+
+/**
+ * @brief The edge and the vertex realizing the minimum width of a convex polygon.
+ *
+ * Rotating calipers with a single support. The signed distance from the line of
+ * edge `i` to a vertex, `cross(u, P - P_i)`, is cyclically unimodal along the
+ * counterclockwise boundary starting at `i`, so walking forward while the next
+ * vertex is strictly farther lands on the farthest one; as the edge direction
+ * turns, that support only moves forward, which is what makes the whole sweep
+ * one loop over the boundary.
+ *
+ * @pre The polygon has at least three vertices.
+ * @return The index of the flush edge and the index of the vertex the opposite
+ *         supporting line passes through.
+ */
+template <class PointType, class LabelType>
+constexpr std::pair<std::size_t, std::size_t>
+minimumWidthSupport(const Convex<PointType, LabelType>& convex) {
+    using NumberType = typename PointType::NumberType;
+    const std::size_t n = convex.size();
+
+    // Every quantity below is a difference between vertices, so the promoted
+    // coordinate type only has to cover the extent of the polygon.
+    using Coord = promoted_number_t<NumberType>;
+    // Comparing two candidate widths squares the supporting distance and
+    // cross-multiplies by the squared edge lengths, which is three degrees past
+    // that, so it runs in a type that grows to hold its values: their products
+    // are integers for integral coordinates and fractions for rational ones.
+    // Floating-point coordinates keep computing in the promoted floating-point
+    // type.
+    using Wide = std::conditional_t<
+        std::floating_point<NumberType>, Coord,
+        std::conditional_t<RationalConcept<NumberType>, ERational, BigInt>>;
+    struct Vec {
+        Coord x, y;
+    };
+
+    const auto next = [n](std::size_t v) { return v + 1 == n ? std::size_t{0} : v + 1; };
+    const auto difference = [&convex](std::size_t a, std::size_t b) {
+        const auto pa = convex[a];
+        const auto pb = convex[b];
+        return Vec{asNumber<Coord>(pa.x()) - asNumber<Coord>(pb.x()),
+                   asNumber<Coord>(pa.y()) - asNumber<Coord>(pb.y())};
+    };
+    const auto edgeVector = [&](std::size_t i) { return difference(next(i), i); };
+    const auto dot = [](const Vec& u, const Vec& w) { return u.x * w.x + u.y * w.y; };
+    const auto cross = [](const Vec& u, const Vec& w) { return u.x * w.y - u.y * w.x; };
+
+    std::size_t top = 0;
+    const auto advance = [&](auto better) {
+        while (better(difference(next(top), top))) {
+            top = next(top);
+        }
+    };
+    const auto advanceTop = [&](const Vec& u) {
+        advance([&](const Vec& step) { return cross(u, step) > Coord(0); });
+    };
+
+    // Seed the support for edge 0. The supporting distance stays flat along the
+    // edge itself before it starts to rise, so the walk has to pass the extreme
+    // vertex along the edge direction first -- that is where its own ascent
+    // begins -- or it stalls on the flat step and never leaves vertex 0.
+    {
+        const Vec u = edgeVector(0);
+        advance([&](const Vec& step) { return dot(u, step) > Coord(0); });
+        advanceTop(u);
+    }
+
+    // A minimum-width slab has one supporting line flush with a polygon edge,
+    // so the best of these n candidates is the answer. Measured in the frame of
+    // edge i, the slab spans [0, height] along u turned 90 degrees, scaled by
+    // |u|; its width is therefore height / (u * u) raised to the half, and two
+    // of those are compared squared, by cross-multiplication.
+    std::size_t bestEdge = 0, bestTop = 0;
+    Wide bestSquaredHeight(0), bestSquaredLength(1);
+    bool found = false;
+    for (std::size_t i = 0; i < n; ++i) {
+        const Vec u = edgeVector(i);
+        advanceTop(u);
+
+        const Coord squaredLength = dot(u, u);
+        if (squaredLength == Coord(0)) {
+            // A repeated vertex leaves no direction to measure across, and its
+            // slab would divide by zero. Canonical hull vertices have no such
+            // edge; one reaching here came from a trusted construction.
+            continue;
+        }
+        const Coord height = cross(u, difference(top, i));
+
+        const Wide wideHeight = asNumber<Wide>(height);
+        const Wide wideSquaredHeight = wideHeight * wideHeight;
+        const Wide wideSquaredLength = asNumber<Wide>(squaredLength);
+        if (!found || wideSquaredHeight * bestSquaredLength <
+                          bestSquaredHeight * wideSquaredLength) {
+            found = true;
+            bestEdge = i;
+            bestTop = top;
+            bestSquaredHeight = wideSquaredHeight;
+            bestSquaredLength = wideSquaredLength;
+        }
+    }
+    return {bestEdge, bestTop};
+}
+
+/**
+ * @brief The width of a convex polygon's slab as the fraction defining it.
+ *
+ * The width is `height / sqrt(squaredLength)`, where `height` is twice the area
+ * of the triangle the flush edge makes with its opposite support and
+ * `squaredLength` is that edge's squared length. Returning the two parts lets
+ * each caller take the root or the square without the other.
+ *
+ * @tparam Number Type the two parts are computed in.
+ * @return The supporting distance scaled by the edge length, and that edge's
+ *         squared length.
+ */
+template <class Number, class PointType, class LabelType>
+constexpr std::pair<Number, Number>
+minimumWidthFraction(const Convex<PointType, LabelType>& convex, std::size_t edge, std::size_t top) {
+    const std::size_t n = convex.size();
+    const auto base = convex[edge];
+    const auto tip = convex[edge + 1 == n ? std::size_t{0} : edge + 1];
+    const auto support = convex[top];
+
+    const Number ux = asNumber<Number>(tip.x()) - asNumber<Number>(base.x());
+    const Number uy = asNumber<Number>(tip.y()) - asNumber<Number>(base.y());
+    const Number vx = asNumber<Number>(support.x()) - asNumber<Number>(base.x());
+    const Number vy = asNumber<Number>(support.y()) - asNumber<Number>(base.y());
+
+    const Number squaredLength = ux * ux + uy * uy;
+    if (squaredLength == Number(0)) {
+        // Every edge of the polygon is a repeated vertex, which only a trusted
+        // construction produces. It covers one point, whose width is zero;
+        // reporting the fraction as 0/1 keeps that the answer instead of a
+        // division by zero.
+        return {Number(0), Number(1)};
+    }
+    return {ux * vy - uy * vx, squaredLength};
+}
+
+}  // namespace detail
+
+template <class PointType, class LabelType>
+constexpr HalfplaneIntersection<PointType>
+Convex<PointType, LabelType>::smallestEnclosingSlab() const {
+    const std::size_t n = size();
+    if (n < 3) {
+        // No width to minimize: the polygon (empty, a point, or a segment) is
+        // its own narrowest slab, of width zero.
+        return asHalfplaneIntersection();
+    }
+
+    const auto [bestEdge, bestTop] = detail::minimumWidthSupport(*this);
+
+    // The two parallel supporting lines, one along the flush edge and one
+    // through the opposite support along that same edge vector, oriented so
+    // that the slab lies to the left of both. Nothing here divides, which is
+    // why the region is exact in NumberType while its width is not.
+    const PointType base = (*this)[bestEdge];
+    const PointType tip = (*this)[bestEdge + 1 == n ? std::size_t{0} : bestEdge + 1];
+    const PointType along = tip - base;
+    const PointType topSupport = (*this)[bestTop];
+    return HalfplaneIntersection<PointType>({
+        Halfplane<PointType>(base, tip),
+        Halfplane<PointType>(topSupport, topSupport - along),
+    });
+}
+
+template <class PointType, class LabelType>
+template <class ResultNumber>
+constexpr ResultNumber Convex<PointType, LabelType>::squaredMinimumWidth() const {
+    if (size() < 3) {
+        return ResultNumber{};
+    }
+
+    const auto [bestEdge, bestTop] = detail::minimumWidthSupport(*this);
+    const auto [height, squaredLength] =
+        detail::minimumWidthFraction<ResultNumber>(*this, bestEdge, bestTop);
+    return height * height / squaredLength;
+}
+
+template <class PointType, class LabelType>
+template <class ApproximateNumber>
+ApproximateNumber Convex<PointType, LabelType>::minimumWidth() const {
+    if (size() < 3) {
+        return ApproximateNumber{};
+    }
+
+    const auto [bestEdge, bestTop] = detail::minimumWidthSupport(*this);
+    const auto [height, squaredLength] =
+        detail::minimumWidthFraction<ApproximateNumber>(*this, bestEdge, bestTop);
+    // One square root, of the edge length rather than of the squared width, so
+    // the division's operands are the exactly computed ones.
+    return height / std::sqrt(squaredLength);
+}
+
 // -----------------------------------------------------------------------------
 // Polygon
 

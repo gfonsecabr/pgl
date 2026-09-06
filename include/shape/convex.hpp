@@ -941,6 +941,88 @@ struct Convex {
     [[nodiscard]] constexpr HalfplaneIntersection<PointType> smallestEnclosingRectangle() const;
 
     /**
+     * @brief Returns the narrowest slab containing the convex polygon.
+     *
+     * The *width* of a convex polygon is the smallest distance between two
+     * parallel supporting lines, and the slab they bound is what this returns.
+     * The minimum is always attained with one of the two lines flush with an
+     * edge, so a single rotating-calipers sweep over the edges finds it: for
+     * each edge, the farthest vertex from that edge's line gives the slab flush
+     * with it, and that support advances forward only.
+     *
+     * Both supporting lines are exact in @ref NumberType -- one runs along an
+     * edge, the other through a vertex along that same edge vector -- while the
+     * distance between them is not, since it divides by the edge length and
+     * takes a square root. So the region comes back as a
+     * @ref HalfplaneIntersection, exact in the polygon's own coordinate type,
+     * and the width itself is asked for separately with
+     * @ref squaredMinimumWidth or @ref minimumWidth. The slab is unbounded, so
+     * it has no `bbox()`; `k.vertices<ResultNumber>()` is empty for it.
+     *
+     * A polygon with fewer than three vertices has no width to minimize: the
+     * result is the polygon's own region, exactly as @ref asHalfplaneIntersection
+     * returns it (empty, a point, or a segment), which is the degenerate slab
+     * of width zero.
+     *
+     * Complexity: O(n) for n vertices. Comparing two candidate widths is degree
+     * six in the coordinates, past what a promoted coordinate type holds, so
+     * that comparison runs in a type that grows to hold it: @ref pgl::BigInt for
+     * integral coordinates, @ref pgl::ERational for rational ones, and the
+     * promoted floating-point type -- no exact type -- for floating-point ones.
+     *
+     * @warning The second supporting line is defined by a vertex and by that
+     *          vertex translated along an edge vector, so the defining
+     *          coordinates reach about twice the extent of the polygon.
+     * @see smallestEnclosingRectangle() for the bounded counterpart.
+     * @return The narrowest enclosing slab, as two half-planes.
+     */
+    [[nodiscard]] constexpr HalfplaneIntersection<PointType> smallestEnclosingSlab() const;
+
+    /**
+     * @brief Returns the squared minimum width of the convex polygon.
+     *
+     * The width divides by an edge length and is therefore irrational, but its
+     * square is the fraction `(2 * area)^2 / |edge|^2` and stays exact: this is
+     * the form to compare against a threshold or between polygons, the way
+     * @ref squaredLength and @ref squaredDistance are used elsewhere. Fitting
+     * through a gap of width `w` is `squaredMinimumWidth() <= w * w`, decided
+     * exactly for integral coordinates.
+     *
+     * A polygon with fewer than three vertices has no width to minimize and
+     * returns zero, which is the width of its degenerate slab.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam ResultNumber Type of the returned value (default: @ref division_result_t).
+     * @warning An explicitly integral @p ResultNumber truncates the fraction,
+     *          and squaring the numerator in it may overflow; the default type
+     *          holds the value exactly.
+     * @see smallestEnclosingSlab() for the two supporting lines realizing it.
+     * @return The squared minimum width.
+     */
+    template <class ResultNumber = division_result_t<NumberType>>
+    [[nodiscard]] constexpr ResultNumber squaredMinimumWidth() const;
+
+    /**
+     * @brief Returns the minimum width of the convex polygon.
+     *
+     * The distance between the two supporting lines of
+     * @ref smallestEnclosingSlab. Generally irrational, hence the floating-point
+     * return type; use @ref squaredMinimumWidth to compare widths exactly.
+     * Divides the supporting distance by the edge length rather than taking the
+     * root of the squared width, so only one square root enters the result.
+     *
+     * A polygon with fewer than three vertices returns zero.
+     *
+     * Complexity: O(n) for n vertices.
+     *
+     * @tparam ApproximateNumber Floating-point return type.
+     * @return The minimum width.
+     */
+    template <class ApproximateNumber = double>
+    [[nodiscard]] ApproximateNumber minimumWidth() const;
+
+    /**
      * @brief Returns the smallest closed disk containing the convex polygon.
      *
      * Delegates to @ref pgl::smallestEnclosingDisk over the hull vertices,

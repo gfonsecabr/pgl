@@ -2,6 +2,7 @@
 #include "doctest.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <random>
@@ -1049,6 +1050,250 @@ TEST_CASE_TEMPLATE("Convex::smallestEnclosingRectangle keeps its point type",
     }
     // Twice the triangle's area, whatever the coordinate type.
     CHECK(k.template area<double>() == doctest::Approx(12.0));
+}
+
+
+// ---------------------------------------------------------------------------
+// smallestEnclosingSlab() / minimum width, validated against an independent
+// O(n^2) sweep.
+//
+// The minimum width is attained with a supporting line flush with a polygon
+// edge, so the brute force measures every vertex against every edge line and
+// keeps the smallest of the per-edge maxima. It computes the squared width in
+// ERational throughout, exact for every coordinate type tested here and so
+// independent of the widening the sweep itself picks.
+namespace {
+
+template <class Convex>
+static ExactRational bruteMinSquaredWidth(const Convex& c) {
+    const std::size_t n = c.size();
+    ExactRational best(0);
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto a = c[i];
+        const auto b = c[(i + 1) % n];
+        const ExactRational ux = ExactRational(b.x()) - ExactRational(a.x());
+        const ExactRational uy = ExactRational(b.y()) - ExactRational(a.y());
+        const ExactRational squaredLength = ux * ux + uy * uy;
+        if (squaredLength == ExactRational(0)) continue;
+        ExactRational height(0);
+        for (std::size_t j = 0; j < n; ++j) {
+            const auto p = c[j];
+            const ExactRational dx = ExactRational(p.x()) - ExactRational(a.x());
+            const ExactRational dy = ExactRational(p.y()) - ExactRational(a.y());
+            const ExactRational across = ux * dy - uy * dx;
+            if (across > height) height = across;
+        }
+        const ExactRational squaredWidth = height * height / squaredLength;
+        if (i == 0 || squaredWidth < best) {
+            best = squaredWidth;
+        }
+    }
+    return best;
+}
+
+// Two opposite parallel constraints holding the whole polygon, each touching
+// it, separated by exactly the minimum width.
+template <class Convex, class Region>
+static void checkIsMinimumWidthSlab(const Convex& c, const Region& k) {
+    REQUIRE(k.size() == 2);
+    CHECK_FALSE(k.isBounded());
+
+    // Opposite boundary directions: the two lines are parallel and the region
+    // is the strip between them rather than a wedge.
+    const auto first = k[0], second = k[1];
+    const ExactRational ax = ExactRational(first.target().x()) - ExactRational(first.source().x());
+    const ExactRational ay = ExactRational(first.target().y()) - ExactRational(first.source().y());
+    const ExactRational bx = ExactRational(second.target().x()) - ExactRational(second.source().x());
+    const ExactRational by = ExactRational(second.target().y()) - ExactRational(second.source().y());
+    CHECK(ax * by - ay * bx == ExactRational(0));
+    CHECK(ax * bx + ay * by < ExactRational(0));
+
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        CHECK(k.contains(c[i]));
+    }
+
+    // Each supporting line touches the polygon, or the slab could be narrowed.
+    for (std::size_t h = 0; h < 2; ++h) {
+        bool touches = false;
+        for (std::size_t i = 0; i < c.size(); ++i) {
+            touches = touches || k[h].boundaryContains(c[i]);
+        }
+        CHECK(touches);
+    }
+
+    CHECK(c.template squaredMinimumWidth<ExactRational>() == bruteMinSquaredWidth(c));
+}
+
+}  // namespace
+
+TEST_CASE("Convex::smallestEnclosingSlab returns a region in the polygon's own number type") {
+    using Convex = pgl::Convex<BPoint>;
+    const Convex c(std::vector<BPoint>{{0, 2}, {4, 12}, {10, 4}, {16, 14}, {22, 6}, {18, -2}, {8, -4}});
+    const auto k = c.smallestEnclosingSlab();
+    static_assert(std::is_same_v<decltype(k), const pgl::HalfplaneIntersection<BPoint>>);
+    checkIsMinimumWidthSlab(c, k);
+
+    // The point of the half-plane form: the constraints are integral by type,
+    // as the static_assert above states, while the width they bound is not
+    // even rational.
+    const double width = c.minimumWidth();
+    CHECK(width * width == doctest::Approx(c.squaredMinimumWidth<double>()));
+}
+
+TEST_CASE("Convex::minimumWidth measures the short side of a rectangle") {
+    using Convex = pgl::Convex<BPoint>;
+
+    SUBCASE("axis-parallel") {
+        const Convex c(std::vector<BPoint>{{0, 0}, {6, 0}, {6, 2}, {0, 2}});
+        checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+        CHECK(c.squaredMinimumWidth() == pgl::ERational(4));
+        CHECK(c.minimumWidth() == doctest::Approx(2.0));
+        // Flush with a long edge, so the slab is bounded by the two of them.
+        CHECK(c.smallestEnclosingSlab().contains(BPoint(1000, 1)));
+        CHECK_FALSE(c.smallestEnclosingSlab().contains(BPoint(0, 3)));
+    }
+
+    SUBCASE("tilted square") {
+        // Side length sqrt(2) both ways.
+        const Convex c(std::vector<BPoint>{{0, 1}, {1, 0}, {2, 1}, {1, 2}});
+        checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+        CHECK(c.squaredMinimumWidth() == pgl::ERational(2));
+    }
+
+    SUBCASE("translated rectangle") {
+        Convex c(std::vector<BPoint>{{0, 0}, {6, 0}, {6, 2}, {0, 2}});
+        c += BPoint(1000, -2000);
+        CHECK(c.squaredMinimumWidth() == pgl::ERational(4));
+    }
+}
+
+TEST_CASE("Convex::squaredMinimumWidth is exact where the width is irrational") {
+    using Convex = pgl::Convex<BPoint>;
+    // Twice the area is 12; the shortest of the three heights rests on the edge
+    // of length sqrt(18), giving width 12/sqrt(18) -- irrational, squared 8.
+    const Convex c(std::vector<BPoint>{{0, 0}, {4, 0}, {1, 3}});
+    checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+    CHECK(c.squaredMinimumWidth() == pgl::ERational(8));
+    CHECK(c.minimumWidth() == doctest::Approx(12.0 / std::sqrt(18.0)));
+
+    // The 3-4-5 triangle instead has a rational width, 12/5, and its square is
+    // held exactly rather than as the nearest double.
+    const Convex right(std::vector<BPoint>{{0, 0}, {4, 0}, {0, 3}});
+    CHECK(right.squaredMinimumWidth() == pgl::ERational(144, 25));
+    CHECK(right.minimumWidth() == doctest::Approx(2.4));
+}
+
+TEST_CASE("Convex::minimumWidth is the tilted direction on a diagonal sliver") {
+    using Convex = pgl::Convex<BPoint>;
+    // Its bounding box is far wider in every axis-parallel direction.
+    const Convex c(std::vector<BPoint>{{0, 0}, {10, 10}, {9, 11}, {-1, 1}});
+    checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+    CHECK(c.squaredMinimumWidth() == pgl::ERational(2));
+    const auto box = c.bbox();
+    CHECK(c.minimumWidth() < static_cast<double>(std::min(box.width(), box.height())));
+}
+
+TEST_CASE("Convex::minimumWidth never exceeds the diameter") {
+    using Convex = pgl::Convex<BPoint>;
+    std::mt19937 rng(11235);
+    std::uniform_int_distribution<int> coord(-40, 40);
+    for (int trial = 0; trial < 200; ++trial) {
+        std::vector<BPoint> pts;
+        for (int k = 0; k < 12; ++k) pts.push_back(BPoint(coord(rng), coord(rng)));
+        const Convex c(pts);
+        if (c.size() < 3) continue;
+        INFO("n=", c.size(), " trial=", trial);
+        CHECK(c.minimumWidth() <= c.diameter().length() + 1e-9);
+    }
+}
+
+TEST_CASE("Convex::smallestEnclosingSlab handles degenerate sizes") {
+    using Convex = pgl::Convex<BPoint>;
+    const Convex nothing(std::vector<BPoint>{});
+    CHECK(nothing.smallestEnclosingSlab().empty());
+    CHECK(nothing.squaredMinimumWidth() == pgl::ERational(0));
+    CHECK(nothing.minimumWidth() == doctest::Approx(0.0));
+
+    const Convex one(std::vector<BPoint>{{2, 3}});
+    REQUIRE(one.smallestEnclosingSlab().isPoint());
+    CHECK(one.smallestEnclosingSlab().getIfPoint<ExactRational>() == ExactPoint(2, 3));
+    CHECK(one.squaredMinimumWidth() == pgl::ERational(0));
+
+    const Convex two(std::vector<BPoint>{{0, 0}, {5, 2}});
+    REQUIRE(two.smallestEnclosingSlab().isSegment());
+    CHECK(two.squaredMinimumWidth() == pgl::ERational(0));
+    CHECK(two.minimumWidth() == doctest::Approx(0.0));
+
+    // Collinear vertices only reach the sweep through the trusted constructor;
+    // the slab has zero width and collapses onto the line carrying them, which
+    // the region represents exactly, as two opposite touching constraints.
+    const Convex collinear(std::vector<BPoint>{{0, 0}, {2, 1}, {4, 2}}, true);
+    const auto flat = collinear.smallestEnclosingSlab();
+    REQUIRE(flat.size() == 2);
+    CHECK(flat.isLine());
+    CHECK(collinear.squaredMinimumWidth() == pgl::ERational(0));
+    CHECK(collinear.minimumWidth() == doctest::Approx(0.0));
+
+    // Repeated vertices, likewise reachable only through the trusted
+    // constructor, leave every edge without a direction. The width is still the
+    // zero of the point the polygon covers, not a division by zero.
+    const Convex repeated(std::vector<BPoint>{{2, 2}, {2, 2}, {2, 2}}, true);
+    CHECK(repeated.squaredMinimumWidth() == pgl::ERational(0));
+    CHECK(repeated.minimumWidth() == doctest::Approx(0.0));
+}
+
+TEST_CASE("Convex::smallestEnclosingSlab matches brute force on random hulls") {
+    using Convex = pgl::Convex<BPoint>;
+    std::mt19937 rng(24680);
+    std::uniform_int_distribution<int> coord(-40, 40);
+    std::uniform_int_distribution<int> count(3, 30);
+    for (int trial = 0; trial < 300; ++trial) {
+        std::vector<BPoint> pts;
+        const int m = count(rng);
+        for (int k = 0; k < m; ++k) pts.push_back(BPoint(coord(rng), coord(rng)));
+        Convex c(pts);
+        if (c.size() < 3) continue;  // degenerate hulls covered separately
+        INFO("n=", c.size(), " trial=", trial);
+        checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+    }
+}
+
+TEST_CASE("Convex::squaredMinimumWidth compares widths in a type that grows") {
+    // Coordinates this large make the width comparison — degree six, so three
+    // promotions above the coordinates — overflow any fixed-width integer the
+    // promotion rules offer. Only a growing type keeps picking the minimum.
+    using Convex = pgl::Convex<BPoint>;
+    std::mt19937_64 rng(13579);
+    std::uniform_int_distribution<int64_t> coord(-(int64_t(1) << 31), int64_t(1) << 31);
+    std::uniform_int_distribution<int> count(3, 12);
+    for (int trial = 0; trial < 40; ++trial) {
+        std::vector<BPoint> pts;
+        const int m = count(rng);
+        for (int k = 0; k < m; ++k) pts.push_back(BPoint(coord(rng), coord(rng)));
+        Convex c(pts);
+        if (c.size() < 3) continue;
+        INFO("n=", c.size(), " trial=", trial);
+        checkIsMinimumWidthSlab(c, c.smallestEnclosingSlab());
+    }
+}
+
+TEST_CASE_TEMPLATE("Convex::smallestEnclosingSlab keeps its point type",
+                   Point, pgl::Point<int>, pgl::Point<double>, pgl::Point<pgl::Rational<int64_t>>,
+                   pgl::Point<pgl::BigInt>, pgl::Point<int, std::string>) {
+    using Convex = pgl::Convex<Point>;
+    using Number = typename Point::NumberType;
+    const Convex c(std::vector<Point>{{Number(0), Number(0)},
+                                      {Number(4), Number(0)},
+                                      {Number(1), Number(3)}});
+    const auto k = c.smallestEnclosingSlab();
+    static_assert(std::is_same_v<decltype(k), const pgl::HalfplaneIntersection<Point>>);
+    REQUIRE(k.size() == 2);
+    CHECK_FALSE(k.isBounded());
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        CHECK(k.contains(c[i]));
+    }
+    // Twice the area over the longest edge, whatever the coordinate type.
+    CHECK(c.template minimumWidth<double>() == doctest::Approx(12.0 / std::sqrt(18.0)));
 }
 
 

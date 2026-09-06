@@ -625,6 +625,9 @@ A convex polygon `c` has methods such as:
 - `c.isUndefined()`: Always `false`: a degenerate convex polygon is always empty, a point, or a segment.
 - `c.centroid<ResultNumber>()`: Returns the centroid.
 - `c.smallestEnclosingRectangle()`: Returns the smallest-area enclosing rectangle as a `HalfplaneIntersection` in the polygon's own number type. The rectangle is generally not axis-parallel (`c.bbox()` is the axis-parallel one) and its corners generally need fractions, but its four supporting lines do not: each runs through a vertex, along the flush edge or along that edge turned 90 degrees, so the defining coordinates reach about twice the extent of the polygon. Ask the region for the corners at the wanted precision, with `k.vertices<ResultNumber>()` or `k.asConvex<ResultNumber>()`. A convex polygon with fewer than three vertices comes back as its own region.
+- `c.smallestEnclosingSlab()`: Returns the narrowest strip between two parallel supporting lines as a `HalfplaneIntersection` in the polygon's own number type. Like the enclosing rectangle, the two lines are exact while the distance between them is not, and a convex polygon with fewer than three vertices comes back as its own region. The slab is unbounded, so it has no corners to ask for.
+- `c.squaredMinimumWidth<ResultNumber>()`: Returns the squared distance between those two lines. The width itself divides by an edge length and is irrational; its square is a fraction and stays exact, so this is the form to compare against a threshold or between polygons. An explicitly integral `ResultNumber` truncates it.
+- `c.minimumWidth<ApproximateNumber>()`: Returns that distance as a floating-point number.
 - `c.insert(s)`: Enlarges the convex polygon in order to contain a finite shape `s`. The shape must expose its vertices.
 - `c.insert(points)`: Enlarges the convex polygon in order to contain every point in the input range.
 - `c.upperHull()`: Returns the upper monotone chain.
@@ -636,7 +639,7 @@ It knows how to convert itself to:
 
 If the convex polygon `c` has $n$ vertices, then:
 
-- `c.diameter()` and `c.smallestEnclosingRectangle()` take $O(n)$ time, each with a single rotating-calipers sweep. Comparing two candidate rectangle areas is degree six in the coordinates, so it runs in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
+- `c.diameter()`, `c.smallestEnclosingRectangle()` and the three minimum-width methods take $O(n)$ time, each with a single rotating-calipers sweep. Comparing two candidate rectangle areas or two candidate widths is degree six in the coordinates, so it runs in `BigInt` for integral coordinates and in `ERational` for rational ones, floating point unchanged.
 - `c.intersects(s)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `s.intersects(c)` takes $O(\log n)$ time if `s` is a shape with $O(1)$ vertices (not including Disk).
 - `c.intersects(c2)` takes $O(\min(n+m) \log(n+m))$ time if `c2` is a convex polygon with $m$ vertices.
