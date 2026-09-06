@@ -1392,6 +1392,42 @@ struct Segment {
     }
 
     /**
+     * @brief Returns the pair of elements realizing the distance, nothing when the shapes meet.
+     *
+     * The first element is this shape's, the second is @p other's; each is one
+     * of the shape's edges, degenerate to a vertex where the shape has none.
+     * Empty exactly when @ref squaredDistance is zero.
+     *
+     * @tparam ResultNumber Coordinate type of the returned segments (default: @ref NumberType).
+     *
+     * @warning @p other's coordinates and labels are re-expressed in this
+     *          shape's, so a narrower @p ResultNumber loses them.
+     */
+    template <class ResultNumber = NumberType, BoundedPolygonalConcept OtherShape>
+        requires detail::ClosestPairConcept<Segment<TPoint, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto closestSegments(const OtherShape& other) const;
+
+    /**
+     * @brief Returns the pair of points realizing the distance, nothing when the shapes meet.
+     *
+     * The first point lies on this shape and the second on @p other. Empty
+     * exactly when @ref squaredDistance is zero. Unlike @ref closestSegments
+     * this also takes an unbounded convex @p other — a line, an oriented line, a
+     * ray, a half-plane, a half-plane intersection — which realizes the distance
+     * at a point on no edge and at no vertex: there is no element to name there,
+     * but there is still a point to give.
+     *
+     * @tparam ResultNumber Coordinate type of the returned points (default: @ref division_result_t).
+     *
+     * @warning A point interior to an element comes from a division, so with an
+     *          integer @p ResultNumber it truncates. Request a floating-point or
+     *          pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires detail::ClosestPointsPairConcept<Segment<TPoint, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto closestPoints(const OtherShape& other) const;
+
+    /**
      * @brief Returns the Manhattan (L1) distance to the given shape.
      *
      * @warning With an integer @p ResultNumber the exact distance is

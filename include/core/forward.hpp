@@ -404,6 +404,38 @@ concept PolygonalRegionConcept =
     RectangleConcept<T> || TriangleConcept<T> || ConvexConcept<T> ||
     PolygonConcept<T> || PolygonWithHolesConcept<T> || PolygonSetConcept<T>;
 
+namespace detail {
+
+/**
+ * @brief Shape pairs that can name the elements realizing their distance.
+ *
+ * Both operands must be @ref BoundedPolygonalConcept — covered by finitely many
+ * segments whose endpoints are the shape's own vertices — and the pair must have
+ * a `squaredDistance` for the witness to agree with.
+ */
+template <class Self, class Other>
+concept ClosestPairConcept =
+    BoundedPolygonalConcept<Self> && BoundedPolygonalConcept<Other> &&
+    requires(const Self& self, const Other& other) { self.squaredDistance(other); };
+
+/**
+ * @brief Shape pairs that can name the two points realizing their distance.
+ *
+ * Wider than @ref ClosestPairConcept: an @ref UnboundedConvexConcept operand
+ * realizes the distance at a point that is on no edge and at no vertex, so it
+ * has no element to name, but the point itself is still there and is still
+ * exact in a coordinate type closed under division. Both operands unbounded is
+ * left out — two parallel lines realize their distance along their whole
+ * length, with nothing to anchor a choice to.
+ */
+template <class Self, class Other>
+concept ClosestPointsPairConcept =
+    ((BoundedPolygonalConcept<Self> && (BoundedPolygonalConcept<Other> || UnboundedConvexConcept<Other>)) ||
+     (UnboundedConvexConcept<Self> && BoundedPolygonalConcept<Other>)) &&
+    requires(const Self& self, const Other& other) { self.squaredDistance(other); };
+
+}  // namespace detail
+
 /**
  * @brief Shape pairs whose Minkowski sum Pangolin can represent.
  *

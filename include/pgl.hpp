@@ -61,6 +61,7 @@
 #include "implementation/distance.hpp"
 #include "implementation/distancel1.hpp"
 #include "implementation/distancelinf.hpp"
+#include "implementation/closest.hpp"
 #include "visualization/canvas.hpp"
 #include "core/hash.hpp"
 #include "implementation/lattice.hpp"

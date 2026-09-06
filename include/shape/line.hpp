@@ -1247,6 +1247,25 @@ struct Line {
         return disk.template squaredDistance<ResultNumber>(*this);
     }
 
+    /**
+     * @brief Returns the pair of points realizing the distance, nothing when the shapes meet.
+     *
+     * The first point lies on this shape and the second on @p other, which must
+     * be bounded polygonal: two unbounded shapes may realize their distance
+     * along their whole length, with nothing to anchor a choice to. Empty
+     * exactly when @ref squaredDistance is zero. There is no `closestSegments`
+     * counterpart — the point on this shape lies on no edge and at no vertex.
+     *
+     * @tparam ResultNumber Coordinate type of the returned points (default: @ref division_result_t).
+     *
+     * @warning The point on this shape generally comes from a division, so with
+     *          an integer @p ResultNumber it truncates. Request a floating-point
+     *          or pgl::Rational result type for an accurate value.
+     */
+    template <class ResultNumber = division_result_t<NumberType>, class OtherShape>
+        requires detail::ClosestPointsPairConcept<Line<PointType_, TLabel>, OtherShape>
+    [[nodiscard]] constexpr auto closestPoints(const OtherShape& other) const;
+
     /** @brief Returns the Manhattan (L1) distance to the given shape. */
     template <class ResultNumber = division_result_t<NumberType>, PointConcept OtherPoint>
     [[nodiscard]] constexpr auto distanceL1(const OtherPoint& point) const;
