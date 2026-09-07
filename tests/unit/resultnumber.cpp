@@ -205,12 +205,19 @@ static_assert(std::is_same_v<Promoted<pgl::BigInt>, pgl::BigInt>);
 // BigInt has to be convertible back to each of them for the same reason: the
 // conversion operators were named after the same two aliases.
 TEST_CASE("BigInt converts to every signed built-in integer width") {
-    const pgl::BigInt value(-1234567890123LL);
-
-    CHECK(static_cast<int>(pgl::BigInt(-42)) == -42);
-    CHECK(static_cast<long>(value) == -1234567890123L);
-    CHECK(static_cast<long long>(value) == -1234567890123LL);
-    CHECK(static_cast<std::int64_t>(value) == -1234567890123LL);
+    // Every one of these holds a value this small, `long` included: it is 32
+    // bits under LLP64, so a wider constant here would be testing the platform
+    // rather than the conversion -- the very assumption that hid the bug.
+    const long long narrow = -123456;
+    CHECK(static_cast<signed char>(pgl::BigInt(-42)) == -42);
     CHECK(static_cast<short>(pgl::BigInt(-3)) == -3);
-    CHECK(static_cast<pgl::int128>(value) == pgl::int128(-1234567890123LL));
+    CHECK(static_cast<int>(pgl::BigInt(narrow)) == static_cast<int>(narrow));
+    CHECK(static_cast<long>(pgl::BigInt(narrow)) == static_cast<long>(narrow));
+    CHECK(static_cast<long long>(pgl::BigInt(narrow)) == narrow);
+
+    // A value that needs the full 64 bits, for the types guaranteed to have them.
+    const long long wide = -1234567890123LL;
+    CHECK(static_cast<long long>(pgl::BigInt(wide)) == wide);
+    CHECK(static_cast<std::int64_t>(pgl::BigInt(wide)) == static_cast<std::int64_t>(wide));
+    CHECK(static_cast<pgl::int128>(pgl::BigInt(wide)) == pgl::int128(wide));
 }
