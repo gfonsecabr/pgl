@@ -528,6 +528,19 @@ class BentleyOttmann {
     void processRIGHT(const std::vector<Event> &evts) {
         for (Event ev : evts) {
             auto it1 = tree.find(ev.s1);
+            // The segment is located by the status order, so a comparator that
+            // has gone inconsistent with the tree's shape surfaces here as a
+            // miss on a segment the tree still physically holds. Erasing end()
+            // then frees the set's own header node, which turns a wrong order
+            // into heap corruption several steps away from its cause. Dropping
+            // the event loses whatever crossings it would have reported —
+            // wrong, but bounded and diagnosable.
+            assert(it1 != tree.end() && "RIGHT event for a segment not in the status");
+            if (it1 == tree.end()) {
+                continue;
+            }
+            // Both bbox sentinels sit in the tree, so a real segment always has
+            // a neighbour on either side of it.
             auto it0 = it1; --it0;
             auto it2 = it1; ++it2;
             tree.erase(it1);

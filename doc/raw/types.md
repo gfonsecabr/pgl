@@ -68,13 +68,12 @@ std::cout << s << std::endl;
 
 The geometric [predicates](shape_methods.md#predicates) do not use division anywhere, so they should be exact for integers, unless there is an overflow. To minimize the chances of an overflow, whenever we need to multiply two coordinates, we promote the type to a larger one:
 
-- `int8_t` is promoted to `int16_t`
-- `int16_t` is promoted to `int32_t`
-- `int32_t` is promoted to `int64_t`
-- `int64_t` is promoted to [`pgl::int128`](#large-integers)
+- a signed integer is promoted to the next signed type at least twice its width: 1 byte to `int16_t`, 2 to `int32_t`, 4 to `int64_t`, 8 to [`pgl::int128`](#large-integers)
 - `pgl::int128` is promoted to [`pgl::BigInt`](#large-integers)
 - `float` is promoted to `double`
 - `double` is promoted to `long double`
+
+Promotion goes by width, so it covers every signed built-in integer type, `char`, `short`, `int`, `long` and `long long` included, whichever of them a fixed-width alias happens to name on your platform.
 
 You may disable promotion by defining `PGL_DISABLE_PROMOTION` before including any PGL header.
 

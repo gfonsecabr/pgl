@@ -281,26 +281,31 @@ struct _promote {
 #ifndef PGL_DISABLE_PROMOTION
 // Rational is deliberately never promoted: it manages its own overflow by
 // reducing to lowest terms, so the storage type stays as the user chose it.
-template <>
-struct _promote<int8_t> {
-    using type = int16_t;
+
+// Signed built-in integers promote by width rather than by fixed-width alias.
+// Which of `int`, `long` and `long long` each of `int32_t` and `int64_t` names
+// is platform-dependent, and the three are distinct types whatever their
+// widths: specializing on the aliases alone leaves whichever type they skip —
+// `long long` under LP64, `long` under LLP64 — matching nothing but the
+// identity primary template. Nothing about that is visible at the use site.
+// The coordinate still compiles everywhere it should, and every overflow guard
+// built on this trait is simply absent, so an intermediate meant to be
+// evaluated 128 bits wide wraps in 64 instead. Worse than a plain wrap, once a
+// wrapped value is widened again the modular arithmetic stops agreeing with the
+// exact arithmetic around it, which is how a wrong sign reaches a predicate.
+template <typename T>
+    requires std::signed_integral<T>
+struct _promote<T> {
+    using type =
+        std::conditional_t<sizeof(T) <= 1, int16_t,
+        std::conditional_t<sizeof(T) <= 2, int32_t,
+        std::conditional_t<sizeof(T) <= 4, int64_t,
+        std::conditional_t<sizeof(T) <= 8, pgl::int128, pgl::BigInt>>>>;
 };
 
-template <>
-struct _promote<int16_t> {
-    using type = int32_t;
-};
-
-template <>
-struct _promote<int32_t> {
-    using type = int64_t;
-};
-
-template <>
-struct _promote<int64_t> {
-    using type = pgl::int128;
-};
-
+// Kept as an explicit specialization, which outranks the partial one above on
+// the platforms where pgl::int128 is the native extension and the standard
+// library counts it as an integer.
 template <>
 struct _promote<pgl::int128> {
     using type = pgl::BigInt;

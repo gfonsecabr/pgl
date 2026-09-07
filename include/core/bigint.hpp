@@ -19,6 +19,7 @@
 #include <cassert>
 #include <cmath>
 #include <compare>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -679,8 +680,19 @@ public:
         return lowBitsInt128();
     }
 
-    explicit operator int() const { return static_cast<int>(static_cast<pgl::int128>(*this)); }
-    explicit operator int64_t() const { return static_cast<int64_t>(static_cast<pgl::int128>(*this)); }
+    /// @brief Convert to any narrower signed integer (low bits, with sign).
+    ///
+    /// Written over the concept rather than as one overload per fixed-width
+    /// alias for the reason @ref pgl::detail::_promote is: `int`, `long` and
+    /// `long long` are three distinct types, and which two of them the aliases
+    /// name changes with the data model, so naming aliases leaves the third
+    /// without a conversion on every platform. That gap is only reachable from
+    /// a coordinate type that promotes this far, which is how it stayed hidden.
+    template <std::signed_integral T>
+    explicit operator T() const {
+        return static_cast<T>(static_cast<pgl::int128>(*this));
+    }
+
     explicit operator bool() const { return !isZero(); }
 
     /// @brief Convert to floating point.

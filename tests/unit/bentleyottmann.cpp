@@ -132,3 +132,78 @@ TEST_CASE_TEMPLATE("Detect crossings and intersections among segments", Point, p
     bool cross2 = pgl::detectCrossings(segs);
     CHECK(cross2);
 }
+
+// Regression: six segments from a CGSHOP2022 instance, over coordinates large
+// enough that the status order's height expression -- degree three in the
+// coordinates -- overflows 64 bits. With `long long` coordinates left
+// unpromoted the expression wrapped, the wrapped coefficient was then widened
+// again for the exact comparison, and the two arithmetics stopped agreeing:
+// heightSign returned the wrong sign, the status tree ordered two segments
+// against their actual heights, a crossing went unreported, and find() later
+// missed a segment the tree still held, so processRIGHT erased end().
+//
+// The six share four endpoints, which is what puts the near-degenerate pairs in
+// front of the comparator. They are checked against brute force at every
+// coordinate width because only the widest overflowed: the same input over
+// `int` never reached the bad path.
+TEST_CASE_TEMPLATE("Sweep agrees with brute force on large shared-endpoint coordinates",
+                   Number, int, long, long long) {
+    using Point = pgl::Point<Number>;
+    using Segment = pgl::Segment<Point>;
+
+    const std::vector<Segment> segs = {
+        Segment(Point(8001103, 20643050), Point(7890830, 20858656)),
+        Segment(Point(8001103, 20643050), Point(8913516, 20211134)),
+        Segment(Point(8538875, 20320635), Point(8443546, 20293985)),
+        Segment(Point(8538875, 20320635), Point(7890830, 20858656)),
+        Segment(Point(8913516, 20211134), Point(7890830, 20858656)),
+        Segment(Point(7524275, 20403185), Point(8307188, 21091424)),
+    };
+
+    auto sorted = [](auto v) { std::sort(v.begin(), v.end()); return v; };
+
+    const auto crossings = sorted(pgl::findCrossings(segs));
+    const auto bruteCrossings = sorted(pgl::bruteForceCrossings(segs));
+    CHECK(crossings.size() == 4);
+    CHECK(crossings == bruteCrossings);
+
+    const auto intersections = sorted(pgl::findIntersections(segs));
+    const auto bruteIntersections = sorted(pgl::bruteForceIntersections(segs));
+    CHECK(intersections.size() == 10);
+    CHECK(intersections == bruteIntersections);
+
+    // The xy sweep never used the height expression and was correct throughout,
+    // so it pins the expected answer independently.
+    CHECK(sorted(pgl::xyCrossings(segs)) == bruteCrossings);
+    CHECK(sorted(pgl::xyIntersections(segs)) == bruteIntersections);
+}
+
+// The same six translated so that every coordinate is small. An exact integer
+// translation changes no orientation predicate and no event order, so the sweep
+// owes the same answer -- and while the height expression was overflowing it
+// gave one here and not above, which is what identified the magnitude rather
+// than the combinatorics as the trigger.
+TEST_CASE("Sweep is invariant under an exact integer translation") {
+    using Point = pgl::Point<long long>;
+    using Segment = pgl::Segment<Point>;
+
+    const std::vector<Point> ends = {
+        {8001103, 20643050}, {7890830, 20858656}, {8001103, 20643050},
+        {8913516, 20211134}, {8538875, 20320635}, {8443546, 20293985},
+        {8538875, 20320635}, {7890830, 20858656}, {8913516, 20211134},
+        {7890830, 20858656}, {7524275, 20403185}, {8307188, 21091424},
+    };
+
+    std::vector<Segment> here, shifted;
+    for (std::size_t i = 0; i + 1 < ends.size(); i += 2) {
+        const Point p = ends[i], q = ends[i + 1];
+        here.emplace_back(p, q);
+        shifted.emplace_back(Point(p.x() - 7524275, p.y() - 20211134),
+                             Point(q.x() - 7524275, q.y() - 20211134));
+    }
+
+    CHECK(pgl::findCrossings(here).size() == pgl::findCrossings(shifted).size());
+    CHECK(pgl::findIntersections(here).size() == pgl::findIntersections(shifted).size());
+    CHECK(pgl::findCrossings(shifted).size() == pgl::bruteForceCrossings(shifted).size());
+}
+

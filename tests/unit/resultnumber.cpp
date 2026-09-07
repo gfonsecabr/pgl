@@ -2,6 +2,8 @@
 #include "doctest.h"
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <type_traits>
 #include <variant>
@@ -155,4 +157,60 @@ TEST_CASE("Disk keeps rational invariants exact and irrational values floating")
     CHECK(disk.center() == EPoint(1, 1));
     CHECK(disk.squaredRadius() == pgl::ERational(2));
     CHECK(disk.radius() == doctest::Approx(std::sqrt(2.0)));
+}
+
+// Every signed built-in integer must widen, whatever the data model calls it.
+//
+// Regression: the promotion trait was specialized on the fixed-width aliases
+// alone. `int`, `long` and `long long` are three distinct types and the aliases
+// name only two of them -- `int64_t` is `long` under LP64 and `long long` under
+// LLP64 -- so the third matched nothing but the identity primary template and
+// promoted to itself. That is invisible at the use site: a `long long`
+// coordinate still compiles everywhere, and every overflow guard built on the
+// trait is simply absent, so an intermediate meant to be evaluated 128 bits
+// wide wraps in 64 instead.
+namespace promotion {
+
+template <class T>
+using Promoted = pgl::detail::promoted_number_t<T>;
+
+// Doubling the width is what the guard is for: the products the predicates form
+// are degree two and three in the coordinates.
+template <class T>
+constexpr bool widens = sizeof(Promoted<T>) >= 2 * sizeof(T);
+
+static_assert(widens<signed char>);
+static_assert(widens<short>);
+static_assert(widens<int>);
+static_assert(widens<long>);
+static_assert(widens<long long>);
+static_assert(widens<std::int8_t>);
+static_assert(widens<std::int16_t>);
+static_assert(widens<std::int32_t>);
+static_assert(widens<std::int64_t>);
+static_assert(widens<std::ptrdiff_t>);
+
+// The top of the chain leaves fixed width behind rather than saturating, so
+// sizeof stops being the measure.
+static_assert(std::is_same_v<Promoted<pgl::int128>, pgl::BigInt>);
+static_assert(std::is_same_v<Promoted<long long>, pgl::int128>);
+static_assert(std::is_same_v<Promoted<Promoted<long long>>, pgl::BigInt>);
+
+// Rational manages its own overflow by reducing, so it is deliberately fixed.
+static_assert(std::is_same_v<Promoted<Rational>, Rational>);
+static_assert(std::is_same_v<Promoted<pgl::BigInt>, pgl::BigInt>);
+
+}  // namespace promotion
+
+// BigInt has to be convertible back to each of them for the same reason: the
+// conversion operators were named after the same two aliases.
+TEST_CASE("BigInt converts to every signed built-in integer width") {
+    const pgl::BigInt value(-1234567890123LL);
+
+    CHECK(static_cast<int>(pgl::BigInt(-42)) == -42);
+    CHECK(static_cast<long>(value) == -1234567890123L);
+    CHECK(static_cast<long long>(value) == -1234567890123LL);
+    CHECK(static_cast<std::int64_t>(value) == -1234567890123LL);
+    CHECK(static_cast<short>(pgl::BigInt(-3)) == -3);
+    CHECK(static_cast<pgl::int128>(value) == pgl::int128(-1234567890123LL));
 }
