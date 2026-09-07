@@ -207,3 +207,28 @@ TEST_CASE("Sweep is invariant under an exact integer translation") {
     CHECK(pgl::findCrossings(shifted).size() == pgl::bruteForceCrossings(shifted).size());
 }
 
+// Regression: the sweep named the alternatives of the variant returned by
+// Segment::intersection as Point<Rational, NoLabel>, but a point label rides
+// along with the point type, so for labelled points that alternative was not in
+// the variant at all and the whole algorithm failed to instantiate.
+TEST_CASE("Find{Crossings,Intersections} accept labelled points and keep the labels") {
+    using Point = pgl::Point<int, std::string>;
+    using Segment = pgl::Segment<Point>;
+
+    std::vector<Segment> segs;
+    segs.emplace_back(Point(0, 0, "a"), Point(10, 10, "a"));
+    segs.emplace_back(Point(0, 10, "b"), Point(10, 0, "b"));
+
+    const auto crossings = pgl::findCrossings(segs);
+    REQUIRE(crossings.size() == 1);
+    for (const auto &s : crossings.front()) {
+        CHECK(s.min().label() == s.max().label());
+        CHECK_FALSE(s.min().label().empty());
+    }
+
+    const auto intersections = pgl::findIntersections(segs);
+    REQUIRE(intersections.size() == 1);
+    for (const auto &s : intersections.front()) {
+        CHECK_FALSE(s.min().label().empty());
+    }
+}

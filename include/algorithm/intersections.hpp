@@ -60,7 +60,11 @@ class BentleyOttmann {
                   "coordinates; the sweep line's predicates are not robust under "
                   "rounding. Use integer or rational coordinates.");
     using Rectangle = pgl::Rectangle<Point>;
-    using RPoint = pgl::Point<Rational>;
+    // The point label rides along with the point type through
+    // Segment::intersection, so these must carry the input's label to name the
+    // alternatives that variant actually holds. Spelling them without it made
+    // the sweep instantiable only for unlabelled points.
+    using RPoint = pgl::Point<Rational, typename Point::LabelType>;
     using RSegment = pgl::Segment<RPoint>;
     using CrossingPair = std::array<Segment,2>;
 

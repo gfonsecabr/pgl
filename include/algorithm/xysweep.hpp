@@ -159,16 +159,21 @@ namespace pgl {
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto xyCrossings(const Container &segments) {
     using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v;
+    // Rebuilt carrying the input's own label type: defaulting it to NoLabel
+    // here dropped a segment label that the caller had put on to identify the
+    // pairs coming back, and dropped it silently, since the conversion is
+    // well-formed either way.
+    using Seg = pgl::Segment<Point, typename Container::value_type::LabelType>;
+    std::vector<Seg> v;
     for (const auto &s : segments) {
-        pgl::Segment<Point> converted = s;
+        Seg converted = s;
         v.push_back(converted);
     }
 
-    std::vector<std::array<pgl::Segment<Point>,2>> ret;
+    std::vector<std::array<Seg,2>> ret;
     pgl::detail::visitXYSweepPairs(v, [&v,&ret](std::size_t i, std::size_t j) {
-        pgl::Segment<Point> s1 = v[i];
-        pgl::Segment<Point> s2 = v[j];
+        Seg s1 = v[i];
+        Seg s2 = v[j];
         if (s1.crosses(s2)) {
             if (s2 < s1)
                 std::swap(s1,s2);
@@ -197,16 +202,21 @@ auto xyCrossings(const Container &segments) {
 template<class Rational = pgl::Rational<pgl::BigInt>, class Container>
 auto xyIntersections(const Container &segments) {
     using Point = Container::value_type::PointType;
-    std::vector<pgl::Segment<Point>> v;
+    // Rebuilt carrying the input's own label type: defaulting it to NoLabel
+    // here dropped a segment label that the caller had put on to identify the
+    // pairs coming back, and dropped it silently, since the conversion is
+    // well-formed either way.
+    using Seg = pgl::Segment<Point, typename Container::value_type::LabelType>;
+    std::vector<Seg> v;
     for (const auto &s : segments) {
-        pgl::Segment<Point> converted = s;
+        Seg converted = s;
         v.push_back(converted);
     }
 
-    std::vector<std::array<pgl::Segment<Point>,2>> ret;
+    std::vector<std::array<Seg,2>> ret;
     pgl::detail::visitXYSweepPairs(v, [&v,&ret](std::size_t i, std::size_t j) {
-        pgl::Segment<Point> s1 = v[i];
-        pgl::Segment<Point> s2 = v[j];
+        Seg s1 = v[i];
+        Seg s2 = v[j];
         if (s1.intersects(s2)) {
             if (s2 < s1)
                 std::swap(s1,s2);

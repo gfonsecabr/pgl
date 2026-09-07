@@ -39,6 +39,8 @@ Given a container of $n$ line segments, we provide several functions to compute 
 
 - [`detectCrossings(V)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ade9af54c89044d728daf207e9c534759 "Detects whether any two segments properly cross.") returns true if there are two crossing segments in the container `V` using the Bentley-Ottmann sweep-line algorithm. It runs in $O(n \log n)$ time.
 
+The pair-returning functions all keep the input segment type, labels on the segments and on their points included, which is the usual way to recover which input a reported pair came from.
+
 These functions use the same predicate conventions documented in
 [Predicates](shape_methods.md#predicates).
 

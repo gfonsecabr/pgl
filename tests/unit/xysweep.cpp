@@ -4,9 +4,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <map>
 #include <numbers>
 #include <random>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "pgl.hpp"
@@ -309,4 +311,61 @@ TEST_CASE("Exact coordinates keep answering as before at sweep-path sizes") {
     std::swap(vertices[2], vertices[sweepSize / 2]);
     PolygonShape tangled(vertices);
     CHECK(!tangled.isSimple());
+}
+
+// Regression: the xy sweeps rebuilt their input as pgl::Segment<Point>, whose
+// label defaults to NoLabel, so a segment label the caller had put on to
+// identify the pairs coming back was dropped -- silently, since the conversion
+// is well-formed either way. Point labels survived, because the point type was
+// carried over whole. That left the two sweeps mirror images of each other: one
+// preserved segment labels and rejected point ones, the other the reverse, so a
+// caller could not switch between them without moving the index to a different
+// shape.
+TEST_CASE("xy sweeps preserve segment labels, as the Bentley-Ottmann sweep does") {
+    using Point = pgl::Point<int>;
+    using Segment = pgl::Segment<Point, std::string>;
+
+    std::vector<Segment> segs;
+    segs.emplace_back(Point(0, 0), Point(10, 10), "up");
+    segs.emplace_back(Point(0, 10), Point(10, 0), "down");
+    segs.emplace_back(Point(20, 0), Point(30, 10), "away");
+
+    std::map<Segment, std::string> expected;
+    for (const auto &s : segs)
+        expected[s] = s.label();
+
+    auto crossings = pgl::xyCrossings(segs);
+    REQUIRE(crossings.size() == 1);
+    for (const auto &pair : crossings) {
+        for (const auto &s : pair) {
+            REQUIRE(expected.count(s) == 1);
+            CHECK(s.label() == expected.at(s));
+        }
+    }
+
+    auto intersections = pgl::xyIntersections(segs);
+    REQUIRE(intersections.size() == 1);
+    for (const auto &pair : intersections) {
+        for (const auto &s : pair) {
+            REQUIRE(expected.count(s) == 1);
+            CHECK(s.label() == expected.at(s));
+        }
+    }
+}
+
+// Point labels kept working alongside, so both sweeps now accept either.
+TEST_CASE("xy sweeps preserve point labels") {
+    using Point = pgl::Point<int, std::string>;
+    using Segment = pgl::Segment<Point>;
+
+    std::vector<Segment> segs;
+    segs.emplace_back(Point(0, 0, "a"), Point(10, 10, "a"));
+    segs.emplace_back(Point(0, 10, "b"), Point(10, 0, "b"));
+
+    const auto crossings = pgl::xyCrossings(segs);
+    REQUIRE(crossings.size() == 1);
+    for (const auto &s : crossings.front()) {
+        CHECK(s.min().label() == s.max().label());
+        CHECK_FALSE(s.min().label().empty());
+    }
 }
