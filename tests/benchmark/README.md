@@ -51,13 +51,15 @@ Its **Asymptotic** button opens the size-sweep page.
 ### The CGAL baseline
 
 `asymptotic/baseline/*.cpp` measure the same problems on the same operands with
-CGAL, for the categories where CGAL has a direct analogue. They exist to check
-pgl's answers against something that is not more pgl, and to put a reference
-curve on the chart. A cell may carry more than one: CGAL solves the Minkowski
-sum both by decomposition, the strategy pgl uses, and by reduced convolution,
-which pgl has no counterpart for — the first says how pgl's implementation of an
-idea compares, the second says what the other idea costs. The chart draws every
-reference a cell has, one dash pattern each.
+CGAL — one file per category, covering every problem CGAL has a direct analogue
+for. Three do not have one and are left without a reference rather than given a
+misleading one: closest pair, sort by angle, and the visibility graph. The rest
+exist to check pgl's answers against something that is not more pgl, and to put
+a reference curve on the chart. A cell may carry more than one: CGAL solves the
+Minkowski sum both by decomposition, the strategy pgl uses, and by reduced
+convolution, which pgl has no counterpart for — the first says how pgl's
+implementation of an idea compares, the second says what the other idea costs.
+The chart draws every reference a cell has, one dash pattern each.
 
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
