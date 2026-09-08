@@ -52,6 +52,7 @@
 #include <cstddef>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <ranges>
 #include <type_traits>
 #include <variant>
@@ -490,11 +491,22 @@ PolygonSet<ResultPoint> regularizedUnionByCoverage(
 // The boundary of a union is a subset of the operands' boundaries. For a set
 // of lattice triangles, find that subset directly: another convex triangle
 // covers one interval of an edge, obtained by clipping the edge's supporting
-// line against its three half-planes. Unioning those intervals leaves only the
-// exposed pieces. All O(n²) rejection and clipping arithmetic stays in int128;
-// rationals are constructed only for actual interval ends on the output
+// line against its three half-planes. Subtracting those intervals leaves only
+// the exposed pieces. All the rejection and clipping arithmetic stays in
+// int128; rationals are constructed only for actual interval ends on the output
 // boundary. The final, usually small arrangement turns those pieces into the
 // canonical PolygonSet and handles touching/collinear degeneracies centrally.
+//
+// The subtraction is what keeps the scan from being quadratic in earnest. An
+// edge carries what is still uncovered of it, as a short sorted list of
+// disjoint intervals, and a triangle that covers nothing left of it costs one
+// clip and nothing else; the moment the list empties the edge is done and the
+// remaining triangles are never looked at. Only an edge with a piece on the
+// output boundary is ever tested against all of them, so the work is
+// n x (output complexity) rather than n² whenever the union covers itself —
+// which is the case a union of many overlapping pieces actually is. Testing the
+// largest triangles first is the same bet: a big one covers a long stretch of
+// whatever it meets, so the list empties in fewer tests.
 template <class ResultPoint, class TriangleType>
 std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
     const std::vector<TriangleType>& triangles) {
@@ -511,6 +523,7 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
     struct ITriangle {
         std::array<IPoint, 3> vertex;
         std::int64_t minX, minY, maxX, maxY;
+        Wide twiceArea;
     };
     constexpr std::int64_t safeCoordinate = 1000000000;
     const auto narrow = [](const ShapeNumber& value) -> std::optional<std::int64_t> {
@@ -533,6 +546,10 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
         } else {
             return std::nullopt;
         }
+    };
+
+    const auto cross = [](Wide ax, Wide ay, Wide bx, Wide by) {
+        return ax * by - ay * bx;
     };
 
     std::vector<ITriangle> integral;
@@ -560,12 +577,24 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
             converted.maxX = std::max(converted.maxX, point.x);
             converted.maxY = std::max(converted.maxY, point.y);
         }
+        const IPoint& a = converted.vertex[0];
+        const IPoint& b = converted.vertex[1];
+        const IPoint& c = converted.vertex[2];
+        converted.twiceArea =
+            cross(Wide(b.x) - a.x, Wide(b.y) - a.y, Wide(c.x) - a.x, Wide(c.y) - a.y);
+        if (converted.twiceArea < 0) {
+            converted.twiceArea = -converted.twiceArea;
+        }
         integral.push_back(converted);
     }
 
-    const auto cross = [](Wide ax, Wide ay, Wide bx, Wide by) {
-        return ax * by - ay * bx;
-    };
+    // The order the coverers are tested in, largest first.
+    std::vector<std::uint32_t> order(integral.size());
+    std::iota(order.begin(), order.end(), std::uint32_t{0});
+    std::sort(order.begin(), order.end(), [&integral](std::uint32_t left, std::uint32_t right) {
+        return integral[left].twiceArea > integral[right].twiceArea;
+    });
+
     struct Fraction {
         Wide numerator;
         Wide denominator;
@@ -593,8 +622,9 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
     constexpr Fraction zero{0, 1};
     constexpr Fraction one{1, 1};
     std::vector<ExactSegment> exposed;
-    std::vector<std::pair<Fraction, Fraction>> covered;
-    covered.reserve(triangles.size());
+    // What is still uncovered of the edge being scanned: sorted, disjoint, and
+    // usually one interval or none.
+    std::vector<std::pair<Fraction, Fraction>> uncovered;
 
     for (std::size_t owner = 0; owner < integral.size(); ++owner) {
         const ITriangle& mine = integral[owner];
@@ -607,9 +637,9 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
             const std::int64_t edgeMinY = std::min(from.y, to.y);
             const std::int64_t edgeMaxX = std::max(from.x, to.x);
             const std::int64_t edgeMaxY = std::max(from.y, to.y);
-            covered.clear();
+            uncovered.assign(1, {zero, one});
 
-            for (std::size_t other = 0; other < integral.size(); ++other) {
+            for (const std::uint32_t other : order) {
                 const ITriangle& theirs = integral[other];
                 if (other == owner || edgeMaxX < theirs.minX || theirs.maxX < edgeMinX ||
                     edgeMaxY < theirs.minY || theirs.maxY < edgeMinY) {
@@ -650,32 +680,57 @@ std::optional<PolygonSet<ResultPoint>> regularizedUnionOfIntegralTriangles(
                         break;
                     }
                 }
-                if (feasible && less(low, high) && (!coincident || interiorOnRight)) {
-                    covered.emplace_back(low, high);
+                if (!feasible || !less(low, high) || (coincident && !interiorOnRight)) {
+                    continue;
+                }
+
+                // Subtract [low, high]. Only the intervals it meets are
+                // touched: those from the first one ending past `low` to the
+                // last one starting before `high`. They collapse to at most a
+                // head remnant and a tail remnant, so the list grows by one
+                // only where a single interval is split in two.
+                std::size_t first = 0;
+                while (first < uncovered.size() && !less(low, uncovered[first].second)) {
+                    ++first;
+                }
+                std::size_t last = first;
+                while (last < uncovered.size() && less(uncovered[last].first, high)) {
+                    ++last;
+                }
+                if (first == last) {
+                    continue;
+                }
+                const Fraction head = uncovered[first].first;
+                const Fraction tail = uncovered[last - 1].second;
+                const bool keepHead = less(head, low);
+                const bool keepTail = less(high, tail);
+                if (keepHead && keepTail && last - first == 1) {
+                    uncovered[first] = {head, low};
+                    uncovered.insert(uncovered.begin() + static_cast<std::ptrdiff_t>(first) + 1,
+                                     {high, tail});
+                } else {
+                    std::size_t write = first;
+                    if (keepHead) {
+                        uncovered[write++] = {head, low};
+                    }
+                    if (keepTail) {
+                        uncovered[write++] = {high, tail};
+                    }
+                    uncovered.erase(uncovered.begin() + static_cast<std::ptrdiff_t>(write),
+                                    uncovered.begin() + static_cast<std::ptrdiff_t>(last));
+                }
+                if (uncovered.empty()) {
+                    break;
                 }
             }
 
-            std::sort(covered.begin(), covered.end(), [&less](const auto& left, const auto& right) {
-                return less(left.first, right.first) ||
-                       (!less(right.first, left.first) && less(left.second, right.second));
-            });
-            Fraction cursor = zero;
             const auto pointAt = [&](const Fraction& parameter) {
                 const ExactNumber t = exact(parameter);
                 return ExactPoint(ExactNumber(from.x) + ExactNumber(dx) * t,
                                   ExactNumber(from.y) + ExactNumber(dy) * t);
             };
-            for (const auto& interval : covered) {
-                if (less(cursor, interval.first)) {
-                    exposed.emplace_back(pointAt(cursor), pointAt(interval.first));
-                }
-                cursor = maximum(cursor, interval.second);
-                if (!less(cursor, one)) {
-                    break;
-                }
-            }
-            if (less(cursor, one)) {
-                exposed.emplace_back(pointAt(cursor), pointAt(one));
+            for (const auto& piece : uncovered) {
+                exposed.emplace_back(pointAt(piece.first), pointAt(piece.second));
             }
         }
     }
