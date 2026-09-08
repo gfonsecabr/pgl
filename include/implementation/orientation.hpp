@@ -12,6 +12,7 @@
 
 #include <compare>
 #include <type_traits>
+#include <vector>
 
 
 namespace pgl {
@@ -35,6 +36,15 @@ template <class AX, class BX, class CX>
 using orientation_coordinate_t = sign_coordinate_t<AX, BX, CX>;
 template <class AX, class BX>
 using dot_coordinate_t = sign_coordinate_t<AX, BX>;
+
+/**
+ * @brief Coordinate type the in-circle determinant is evaluated in.
+ *
+ * Two promotions above the common type of the operands, the degree of the
+ * determinant being four rather than two.
+ */
+template <class... Numbers>
+using incircle_coordinate_t = detail::promoted_number_t<sign_coordinate_t<Numbers...>>;
 
 /**
  * @brief The sign of a three-way comparison result, as `-1`, `0` or `1`.
@@ -294,15 +304,20 @@ constexpr std::partial_ordering exactOrientationSign(
  *
  * A predicate that takes several signs over the same few points converts each
  * exact coordinate into one of these once and hands it to every sign that reads
- * it, instead of reconverting per sign. Where @ref filtersSign says the filter
- * would not pay for itself the specialization below stores nothing but the
- * point, so the same predicate text compiles down to the unfiltered one.
+ * it, instead of reconverting per sign. Where nothing would read one, the
+ * specialization below stores the point alone and the same predicate text
+ * compiles down to the unfiltered one.
+ *
+ * @p Filters says only whether an approximation is at hand, never whether a
+ * predicate should filter: that each of them settles for itself, at its own
+ * coordinate type, and converts on the spot for an operand arriving without
+ * one. See @ref approximationOf.
  *
  * The wrapper refers to the point rather than owning it, so it must not outlive
  * the predicate body that built it.
  *
  * @tparam PointType The exact point type being filtered.
- * @tparam Filters Whether to carry an approximation at all.
+ * @tparam Filters Whether an approximation is carried alongside.
  */
 template <class PointType, bool Filters>
 struct FilteredPoint {
@@ -316,11 +331,12 @@ struct FilteredPoint<PointType, false> {
 };
 
 /**
- * @brief Pairs a point with its approximation, for signs evaluated in @p Coordinate.
+ * @brief Pairs a point with its approximation, if a predicate reading it filters.
  *
- * @p Coordinate is the type the exact fallback would evaluate in — for a
- * predicate over several points, the one promoted from all of their coordinate
- * types, so that every point of the group filters or none does.
+ * @p Coordinate is the type the exact fallback would evaluate in for the
+ * most-promoting predicate that will read the point — promoted from every
+ * operand's coordinate type, the point's own included, since a richer operand
+ * can carry the predicate into the range where filtering pays.
  */
 template <class Coordinate, class PointType>
 constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(const PointType& point) {
@@ -336,6 +352,25 @@ constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(const Point
  */
 template <class Coordinate, class PointType>
 constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(const PointType&&) = delete;
+
+/**
+ * @brief The approximation of a filtered point, converting it if none was kept.
+ *
+ * A predicate decides for itself whether to filter, at its own coordinate type,
+ * and its operands need not agree on whether an approximation was worth keeping
+ * — a triangulation over `int` vertices keeps none, yet a query point of
+ * rational type promotes the same predicate into the range where filtering
+ * pays. Whoever has one hands it over; whoever has not converts here.
+ */
+template <class PointType>
+constexpr ApproximatePoint approximationOf(const FilteredPoint<PointType, true>& point) {
+    return point.approximation;
+}
+
+template <class PointType>
+constexpr ApproximatePoint approximationOf(const FilteredPoint<PointType, false>& point) {
+    return approximatePoint(*point.point);
+}
 
 /**
  * @brief An orientation sign the filter proved, or the means to evaluate it exactly.
@@ -395,16 +430,28 @@ private:
  *
  * @return The sign, deferred: proved by the filter, or evaluable exactly.
  */
-template <class APoint, class BPoint, class CPoint, bool Filters>
-constexpr DeferredOrientationSign<APoint, BPoint, CPoint, Filters> orientationSignOf(
-    const FilteredPoint<APoint, Filters>& a,
-    const FilteredPoint<BPoint, Filters>& b,
-    const FilteredPoint<CPoint, Filters>& c) {
-    if constexpr (Filters) {
-        return {*a.point, *b.point, *c.point,
-                orientationFilter(a.approximation, b.approximation, c.approximation)};
+template <class APoint, bool AFilters, class BPoint, bool BFilters, class CPoint, bool CFilters>
+constexpr auto orientationSignOf(
+    const FilteredPoint<APoint, AFilters>& a,
+    const FilteredPoint<BPoint, BFilters>& b,
+    const FilteredPoint<CPoint, CFilters>& c) {
+    // The gate is this predicate's own, read at the type its exact fallback
+    // would evaluate in — never the operands', which say only whether an
+    // approximation was already at hand. Deciding it operand-side would both
+    // filter where @ref orientationSign does not (an int64_t coordinate keeps
+    // approximations for its in-circle tests, whose determinant needs them,
+    // but not for these, whose fits in an int128) and fail to filter where it
+    // does (`int` vertices against a rational query point).
+    using Coordinate = orientation_coordinate_t<typename APoint::NumberType,
+                                                typename BPoint::NumberType,
+                                                typename CPoint::NumberType>;
+    if constexpr (filtersSign<Coordinate>) {
+        return DeferredOrientationSign<APoint, BPoint, CPoint, true>{
+            *a.point, *b.point, *c.point,
+            orientationFilter(approximationOf(a), approximationOf(b), approximationOf(c))};
     } else {
-        return {*a.point, *b.point, *c.point};
+        return DeferredOrientationSign<APoint, BPoint, CPoint, false>{
+            *a.point, *b.point, *c.point};
     }
 }
 
@@ -412,6 +459,39 @@ constexpr DeferredOrientationSign<APoint, BPoint, CPoint, Filters> orientationSi
 template <class... Signs>
 constexpr bool allDecided(const Signs&... signs) {
     return (signs.decided() && ...);
+}
+
+/**
+ * @brief Pairs a point with the approximation an owner already stores for it.
+ *
+ * Converting an exact coordinate to double is the expensive half of a filter,
+ * and an algorithm running sign predicates over a vertex array converts the
+ * same coordinates again and again: an incremental Delaunay build over
+ * ERational coordinates spent some 147 conversions per input point, which has
+ * two coordinates to convert. An owner that keeps a vector of approximations
+ * parallel to its points, and reads them back through this, pays one
+ * conversion per coordinate for as long as the point lives.
+ *
+ * The owner keeps that vector only where the filter earns its keep, so an empty
+ * @p approximations is how it says there is nothing to read — and is never
+ * indexed, the same @ref filtersSign gate deciding both.
+ *
+ * @p Coordinate should be the coordinate type of the most-promoting predicate
+ * the owner runs, @ref incircle_coordinate_t where it runs an in-circle test,
+ * since a predicate promoting further is the one that filters at more
+ * coordinate types. Each predicate then reads its own gate, so carrying an
+ * approximation one of them will not use costs that one nothing.
+ */
+template <class Coordinate, class PointType>
+constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(
+    const PointType& point,
+    const std::vector<ApproximatePoint>& approximations,
+    std::size_t index) {
+    if constexpr (filtersSign<Coordinate>) {
+        return {&point, approximations[index]};
+    } else {
+        return {&point};
+    }
 }
 
 /**
@@ -681,20 +761,17 @@ namespace detail {
  * @param d Query point.
  * @return The sign of the exact determinant, or `unordered` when undecided.
  */
-template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel, class DNumber, class DLabel>
 constexpr std::partial_ordering inCircleFilter(
-    const Point<ANumber, ALabel>& a,
-    const Point<BNumber, BLabel>& b,
-    const Point<CNumber, CLabel>& c,
-    const Point<DNumber, DLabel>& d) {
-    const Approximate dx = approximate(d.x());
-    const Approximate dy = approximate(d.y());
-    const Approximate adx = approximate(a.x()) - dx;
-    const Approximate ady = approximate(a.y()) - dy;
-    const Approximate bdx = approximate(b.x()) - dx;
-    const Approximate bdy = approximate(b.y()) - dy;
-    const Approximate cdx = approximate(c.x()) - dx;
-    const Approximate cdy = approximate(c.y()) - dy;
+    const ApproximatePoint& a,
+    const ApproximatePoint& b,
+    const ApproximatePoint& c,
+    const ApproximatePoint& d) {
+    const Approximate adx = a.x - d.x;
+    const Approximate ady = a.y - d.y;
+    const Approximate bdx = b.x - d.x;
+    const Approximate bdy = b.y - d.y;
+    const Approximate cdx = c.x - d.x;
+    const Approximate cdy = c.y - d.y;
     const Approximate abdet = adx * bdy - bdx * ady;
     const Approximate bcdet = bdx * cdy - cdx * bdy;
     const Approximate cadet = cdx * ady - adx * cdy;
@@ -702,6 +779,60 @@ constexpr std::partial_ordering inCircleFilter(
     const Approximate blift = bdx * bdx + bdy * bdy;
     const Approximate clift = cdx * cdx + cdy * cdy;
     return approximateSign(alift * bcdet + blift * cadet + clift * abdet);
+}
+
+/** @brief Exact fallback for @ref inCircleSign, with no floating filter. */
+template <class ANumber, class ALabel, class BNumber, class BLabel, class CNumber, class CLabel, class DNumber, class DLabel>
+constexpr std::partial_ordering exactInCircleSign(
+    const Point<ANumber, ALabel>& a,
+    const Point<BNumber, BLabel>& b,
+    const Point<CNumber, CLabel>& c,
+    const Point<DNumber, DLabel>& d) {
+    using Coordinate = incircle_coordinate_t<ANumber, BNumber, CNumber, DNumber>;
+
+    const auto adx = asNumber<Coordinate>(a.x()) - asNumber<Coordinate>(d.x());
+    const auto ady = asNumber<Coordinate>(a.y()) - asNumber<Coordinate>(d.y());
+    const auto bdx = asNumber<Coordinate>(b.x()) - asNumber<Coordinate>(d.x());
+    const auto bdy = asNumber<Coordinate>(b.y()) - asNumber<Coordinate>(d.y());
+    const auto cdx = asNumber<Coordinate>(c.x()) - asNumber<Coordinate>(d.x());
+    const auto cdy = asNumber<Coordinate>(c.y()) - asNumber<Coordinate>(d.y());
+    const auto abdet = adx * bdy - bdx * ady;
+    const auto bcdet = bdx * cdy - cdx * bdy;
+    const auto cadet = cdx * ady - adx * cdy;
+    const auto alift = adx * adx + ady * ady;
+    const auto blift = bdx * bdx + bdy * bdy;
+    const auto clift = cdx * cdx + cdy * cdy;
+    return threeWay(alift * bcdet + blift * cadet, -clift * abdet);
+}
+
+/**
+ * @brief @ref pgl::inCircleSign over four already-filtered points.
+ *
+ * Unlike @ref orientationSignOf this returns the sign rather than deferring it:
+ * every caller reads it straight away, none has the two-phase shape that makes
+ * a deferred sign worth its weight.
+ *
+ * @return The sign, proved by the filter or evaluated exactly.
+ */
+template <class APoint, bool AFilters, class BPoint, bool BFilters,
+          class CPoint, bool CFilters, class DPoint, bool DFilters>
+constexpr std::partial_ordering inCircleSignOf(
+    const FilteredPoint<APoint, AFilters>& a,
+    const FilteredPoint<BPoint, BFilters>& b,
+    const FilteredPoint<CPoint, CFilters>& c,
+    const FilteredPoint<DPoint, DFilters>& d) {
+    using Coordinate = incircle_coordinate_t<typename APoint::NumberType,
+                                             typename BPoint::NumberType,
+                                             typename CPoint::NumberType,
+                                             typename DPoint::NumberType>;
+    if constexpr (filtersSign<Coordinate>) {  // see orientationSignOf
+        const std::partial_ordering filtered = inCircleFilter(
+            approximationOf(a), approximationOf(b), approximationOf(c), approximationOf(d));
+        if (filtered != std::partial_ordering::unordered) {
+            return filtered;
+        }
+    }
+    return exactInCircleSign(*a.point, *b.point, *c.point, *d.point);
 }
 
 }  // namespace detail
@@ -728,7 +859,7 @@ constexpr auto inCircleDeterminant(
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c,
     const Point<DNumber, DLabel>& d) {
-    using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
+    using Coordinate = detail::incircle_coordinate_t<ANumber, BNumber, CNumber, DNumber>;
 
     const auto adx = detail::asNumber<Coordinate>(a.x()) - detail::asNumber<Coordinate>(d.x());
     const auto ady = detail::asNumber<Coordinate>(a.y()) - detail::asNumber<Coordinate>(d.y());
@@ -765,32 +896,24 @@ constexpr std::partial_ordering inCircleSign(
     const Point<BNumber, BLabel>& b,
     const Point<CNumber, CLabel>& c,
     const Point<DNumber, DLabel>& d) {
-    using Coordinate = detail::promoted_number_t<detail::promoted_number_t<std::common_type_t<ANumber, BNumber, CNumber, DNumber>>>;
+    using Coordinate = detail::incircle_coordinate_t<ANumber, BNumber, CNumber, DNumber>;
 
     // A double evaluation that carries its own error bound settles the sign for
     // all but the near-degenerate inputs, sparing the exact arithmetic below.
     // It only reports a sign it has proved, so this is a shortcut, not an
-    // approximation; see @ref detail::inCircleFilter.
+    // approximation; see @ref detail::inCircleFilter. A caller running this
+    // repeatedly over one point array should keep the conversions — see
+    // @ref detail::filtered — and call @ref detail::inCircleSignOf instead.
     if constexpr (detail::filtersSign<Coordinate>) {
-        const std::partial_ordering filtered = detail::inCircleFilter(a, b, c, d);
+        const std::partial_ordering filtered = detail::inCircleFilter(
+            detail::approximatePoint(a), detail::approximatePoint(b),
+            detail::approximatePoint(c), detail::approximatePoint(d));
         if (filtered != std::partial_ordering::unordered) {
             return filtered;
         }
     }
 
-    const auto adx = detail::asNumber<Coordinate>(a.x()) - detail::asNumber<Coordinate>(d.x());
-    const auto ady = detail::asNumber<Coordinate>(a.y()) - detail::asNumber<Coordinate>(d.y());
-    const auto bdx = detail::asNumber<Coordinate>(b.x()) - detail::asNumber<Coordinate>(d.x());
-    const auto bdy = detail::asNumber<Coordinate>(b.y()) - detail::asNumber<Coordinate>(d.y());
-    const auto cdx = detail::asNumber<Coordinate>(c.x()) - detail::asNumber<Coordinate>(d.x());
-    const auto cdy = detail::asNumber<Coordinate>(c.y()) - detail::asNumber<Coordinate>(d.y());
-    const auto abdet = adx * bdy - bdx * ady;
-    const auto bcdet = bdx * cdy - cdx * bdy;
-    const auto cadet = cdx * ady - adx * cdy;
-    const auto alift = adx * adx + ady * ady;
-    const auto blift = bdx * bdx + bdy * bdy;
-    const auto clift = cdx * cdx + cdy * cdy;
-    return detail::threeWay(alift * bcdet + blift * cadet, -clift * abdet);
+    return detail::exactInCircleSign(a, b, c, d);
 }
 
 }  // namespace pgl

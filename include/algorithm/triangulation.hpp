@@ -212,6 +212,7 @@ struct Triangulation {
             idOfPoint(tr[2]);
         }
         hilbertSort(vertices_);
+        syncVertexApproximations();
         vid.clear();
         for (VertexIndex i = 0; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
@@ -252,6 +253,7 @@ struct Triangulation {
             idOfPoint(s[1]);
         }
         hilbertSort(vertices_);
+        syncVertexApproximations();
         vid.clear();
         for (VertexIndex i = 0; i < static_cast<VertexIndex>(vertices_.size()); ++i) {
             vid.emplace(vertices_[i], i);
@@ -365,7 +367,8 @@ struct Triangulation {
         // insertion) and improves cache locality for later query walks too.
         // Vertex order is purely internal, so this is transparent downstream.
         hilbertSort(vertices_);
-        auto triples = delaunayTriples(vertices_);
+        syncVertexApproximations();
+        auto triples = delaunayTriples(vertices_, vertexApproximations_);
         buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
     }
 
@@ -404,7 +407,8 @@ struct Triangulation {
         }
         // Keep vertices_ in Hilbert order (see the point-set constructor).
         hilbertSort(vertices_);
-        auto triples = delaunayTriples(vertices_);
+        syncVertexApproximations();
+        auto triples = delaunayTriples(vertices_, vertexApproximations_);
         buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
 
         // Resolve the constraint endpoints against the final ids — the
@@ -3800,8 +3804,63 @@ struct Triangulation {
     static_assert(sizeof(Tri) == 28 || detail::has_label_v<TriangleLabel>,
                   "Tri should stay 28 bytes when unlabeled");
 
+    // The coordinate type the vertex approximations are kept for: the in-circle
+    // test promotes furthest of the predicates run here, so it is the one whose
+    // gate decides whether keeping them is worth it at all. A predicate that
+    // promotes less reads its own gate and simply ignores them.
+    using VertexCoordinate = detail::incircle_coordinate_t<typename PointType::NumberType>;
+
+    // Rebuilds every approximation, after vertices_ is reordered or refilled.
+    void syncVertexApproximations() {
+        if constexpr (detail::filtersSign<VertexCoordinate>) {
+            vertexApproximations_.clear();
+            vertexApproximations_.reserve(vertices_.size());
+            for (const auto& vertex : vertices_) {
+                vertexApproximations_.push_back(detail::approximatePoint(vertex));
+            }
+        }
+    }
+
+    // Appends a vertex and its approximation together.
+    VertexIndex appendVertex(const PointType& p) {
+        const VertexIndex id = static_cast<VertexIndex>(vertices_.size());
+        vertices_.push_back(p);
+        if constexpr (detail::filtersSign<VertexCoordinate>) {
+            vertexApproximations_.push_back(detail::approximatePoint(p));
+        }
+        return id;
+    }
+
+    // A vertex paired with the approximation kept for it, for the sign
+    // predicates in detail:: that take filtered operands.
+    [[nodiscard]] auto filteredVertex(VertexIndex v) const {
+        const auto index = static_cast<std::size_t>(v);
+        return detail::filtered<VertexCoordinate>(vertices_[index], vertexApproximations_, index);
+    }
+
+    // A point that is not a vertex — a query, or one about to be inserted —
+    // converted once for however many signs read it. Its own coordinate type
+    // joins the gate: a rational query point against `int` vertices promotes
+    // the predicates that read it into the range where filtering pays, even
+    // though the vertices alone would not.
+    template <class QueryPoint>
+    [[nodiscard]] static auto filteredPoint(const QueryPoint& p) {
+        using QueryCoordinate =
+            detail::incircle_coordinate_t<typename PointType::NumberType,
+                                          typename QueryPoint::NumberType>;
+        return detail::filtered<QueryCoordinate>(p);
+    }
+
     std::vector<PointType> vertices_;  // ghost vertex at index 0 (when nonempty),
                                        // then the real vertices; inserts append
+    // Approximations of vertices_, parallel to it, or empty where the filter
+    // would not pay for itself. Every sign predicate here reads its operands
+    // out of vertices_ and the same vertices come up again and again — the walk
+    // revisits them, the flood-fill revisits them, each legalization revisits
+    // them — so converting a coordinate to double once per vertex rather than
+    // once per predicate is most of what the filter costs. Kept in step with
+    // vertices_ by syncVertexApproximations and appendVertex.
+    std::vector<detail::ApproximatePoint> vertexApproximations_;
     std::vector<Tri> triangles_;       // real triangles [0,firstGhost_), then ghost triangles
     std::unordered_map<SegmentType, Edge> segToEdge_;  // outside edge -> internal handle
     // One triangle inside each hole of a region domain, empty otherwise. A
@@ -4320,9 +4379,13 @@ struct Triangulation {
     template <class QueryPoint>
     [[nodiscard]] bool pointInClosure(const QueryPoint& p, TriIndex t) const {
         const auto& v = triangles_[t].v;
-        return orientationSign(vertices_[v[0]], vertices_[v[1]], p) >= 0 &&
-               orientationSign(vertices_[v[1]], vertices_[v[2]], p) >= 0 &&
-               orientationSign(vertices_[v[2]], vertices_[v[0]], p) >= 0;
+        const auto fq = filteredPoint(p);
+        const auto f0 = filteredVertex(v[0]);
+        const auto f1 = filteredVertex(v[1]);
+        const auto f2 = filteredVertex(v[2]);
+        return detail::orientationSignOf(f0, f1, fq).value() >= 0 &&
+               detail::orientationSignOf(f1, f2, fq).value() >= 0 &&
+               detail::orientationSignOf(f2, f0, fq).value() >= 0;
     }
 
     // Position (0,1,2) of vertex w within triangle t.
@@ -4641,13 +4704,23 @@ struct Triangulation {
     // triangle), so the build is ~O(n^1.5) here rather than the O(n^2) of testing
     // every triangle against every point.
     static std::vector<std::array<VertexIndex, 3>>
-    delaunayTriples(const std::vector<PointType>& pts) {
+    delaunayTriples(const std::vector<PointType>& pts,
+                    const std::vector<detail::ApproximatePoint>& approximations) {
         const VertexIndex n = static_cast<VertexIndex>(pts.size());
         std::vector<std::array<VertexIndex, 3>> out;
         if (n < 3) {
             return out;
         }
         const VertexIndex INF = n;  // the symbolic vertex at infinity
+
+        // Every predicate below reads its operands out of `pts`, and the walk
+        // and the flood-fill revisit the same vertices over and over, so the
+        // approximations the caller keeps are what stop each of those reads
+        // from converting a coordinate to double again.
+        const auto fp = [&](VertexIndex v) {
+            const auto index = static_cast<std::size_t>(v);
+            return detail::filtered<VertexCoordinate>(pts[index], approximations, index);
+        };
 
         // Local closed triangulation: CCW vertices (ghosts contain INF) and three
         // neighbours each (nbr[i] is across the edge opposite v[i]). Killed
@@ -4696,12 +4769,14 @@ struct Triangulation {
             const auto& q = tri[t].v;
             const int inf = q[0] == INF ? 0 : (q[1] == INF ? 1 : (q[2] == INF ? 2 : -1));
             if (inf < 0) {
-                return inCircleSign(pts[q[0]], pts[q[1]], pts[q[2]], pts[p]) ==
+                return detail::inCircleSignOf(fp(q[0]), fp(q[1]),
+                                              fp(q[2]), fp(p)) ==
                        std::partial_ordering::greater;
             }
             const VertexIndex u = q[(inf + 1) % 3];
             const VertexIndex w = q[(inf + 2) % 3];
-            const auto side = orientationSign(pts[u], pts[w], pts[p]);
+            const auto side =
+                detail::orientationSignOf(fp(u), fp(w), fp(p)).value();
             if (side > 0) {
                 return true;
             }
@@ -4720,15 +4795,17 @@ struct Triangulation {
         // ghost triangles covering its hull edges. Points 2..c-1 (if any) are
         // collinear with 0 and 1 and get inserted in the main loop like any other.
         VertexIndex c = 2;
-        while (c < n && orientationSign(pts[0], pts[1], pts[c]) == 0) {
+        while (c < n &&
+               detail::orientationSignOf(fp(0), fp(1), fp(c)).value() == 0) {
             ++c;
         }
         if (c == n) {
             return out;  // all points collinear: the Delaunay triangulation is empty
         }
         const std::array<VertexIndex, 3> seed =
-            orientationSign(pts[0], pts[1], pts[c]) > 0 ? std::array<VertexIndex, 3>{0, 1, c}
-                                                        : std::array<VertexIndex, 3>{1, 0, c};
+            detail::orientationSignOf(fp(0), fp(1), fp(c)).value() > 0
+                ? std::array<VertexIndex, 3>{0, 1, c}
+                : std::array<VertexIndex, 3>{1, 0, c};
         const int seedTris[4] = {
             newTri(seed[0], seed[1], seed[2]),
             newTri(seed[1], seed[0], INF),  // ghost outside edge seed0->seed1
@@ -4775,7 +4852,8 @@ struct Triangulation {
                     }
                     const VertexIndex ea = tri[t].v[(s + 1) % 3];
                     const VertexIndex eb = tri[t].v[(s + 2) % 3];
-                    if (orientationSign(pts[ea], pts[eb], pts[p]) < 0) {
+                    if (detail::orientationSignOf(fp(ea), fp(eb),
+                                                  fp(p)).value() < 0) {
                         next = tri[t].nbr[s];
                         break;
                     }
@@ -5172,7 +5250,8 @@ struct Triangulation {
         }
         // Keep vertices_ in Hilbert order (see the point-set constructor).
         hilbertSort(vertices_);
-        auto triples = delaunayTriples(vertices_);
+        syncVertexApproximations();
+        auto triples = delaunayTriples(vertices_, vertexApproximations_);
         buildFromTriples(triples, std::vector<TriangleLabel>(triples.size()));
 
         // The interner's ids went stale twice — the Hilbert reorder and the
@@ -5286,6 +5365,7 @@ struct Triangulation {
     void buildFromTriples(std::vector<std::array<VertexIndex, 3>>& triples,
                           const std::vector<TriangleLabel>& triLabels) {
         vertices_.insert(vertices_.begin(), PointType{});  // ghost (GHOST); coordinates unused
+        syncVertexApproximations();
 
         for (std::size_t k = 0; k < triples.size(); ++k) {
             VertexIndex x = triples[k][0] + 1, y = triples[k][1] + 1, z = triples[k][2] + 1;
@@ -5321,8 +5401,10 @@ struct Triangulation {
         const VertexIndex a = triangles_[t].v[(e.side + 1) % 3];
         const VertexIndex b = triangles_[t].v[(e.side + 2) % 3];
         const VertexIndex d = triangles_[t2].v[m.side];
-        const auto oa = orientationSign(vertices_[c], vertices_[d], vertices_[a]);
-        const auto ob = orientationSign(vertices_[c], vertices_[d], vertices_[b]);
+        const auto fc = filteredVertex(c);
+        const auto fd = filteredVertex(d);
+        const auto oa = detail::orientationSignOf(fc, fd, filteredVertex(a)).value();
+        const auto ob = detail::orientationSignOf(fc, fd, filteredVertex(b)).value();
         return (oa > 0 && ob < 0) || (oa < 0 && ob > 0);  // strictly convex quad
     }
 
@@ -5468,8 +5550,10 @@ struct Triangulation {
         // p is in t0's closure (locateIndex stopped here) and is not a vertex, so
         // it lies strictly inside either the triangle or exactly one edge.
         int onSide = -1;
+        const auto fp = filteredPoint(p);
         for (int k = 0; k < 3; ++k) {
-            if (orientationSign(vertices_[tv[(k + 1) % 3]], vertices_[tv[(k + 2) % 3]], p) == 0) {
+            if (detail::orientationSignOf(filteredVertex(tv[(k + 1) % 3]),
+                                          filteredVertex(tv[(k + 2) % 3]), fp).value() == 0) {
                 onSide = k;
             }
         }
@@ -5484,8 +5568,7 @@ struct Triangulation {
     std::pair<VertexIndex, TriIndex> splitTriangle(TriIndex t, const PointType& p) {
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, 2);
-        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
-        vertices_.push_back(p);
+        const VertexIndex vp = appendVertex(p);
         const TriIndex n1 = makeRoom(2);
         const TriIndex n2 = n1 + 1;
 
@@ -5532,8 +5615,7 @@ struct Triangulation {
         reserveExtra(triangles_, 2);
 
         const bool cUW = bit(triangles_[t].constrainedMask, s);
-        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
-        vertices_.push_back(p);
+        const VertexIndex vp = appendVertex(p);
         const TriIndex n1 = makeRoom(ghostSide ? 1 : 2);
 
         // Read the records after makeRoom: it relocates the lowest ghosts, so a
@@ -5651,9 +5733,11 @@ struct Triangulation {
     // polygon triangulation an outside point is a precondition violation —
     // see insert — so no domain fencing happens here.)
     std::pair<VertexIndex, TriIndex> growHull(TriIndex g0, const PointType& p) {
+        const auto fp = filteredPoint(p);
         const auto visible = [&](TriIndex g) {
             const auto& gv = triangles_[g].v;
-            return orientationSign(vertices_[gv[0]], vertices_[gv[1]], p) < 0;
+            return detail::orientationSignOf(filteredVertex(gv[0]), filteredVertex(gv[1]), fp)
+                       .value() < 0;
         };
         assert(isGhost(g0) && visible(g0));
 
@@ -5685,8 +5769,7 @@ struct Triangulation {
 
         reserveExtra(vertices_, 1);
         reserveExtra(triangles_, m == 1 ? 2 : static_cast<std::size_t>(m));
-        const VertexIndex vp = static_cast<VertexIndex>(vertices_.size());
-        vertices_.push_back(p);
+        const VertexIndex vp = appendVertex(p);
         const TriIndex nr = makeRoom(m);  // slots for the m new real triangles
 
         // Re-resolve the (possibly relocated) chain ghosts and the ring ends.
@@ -5786,8 +5869,9 @@ struct Triangulation {
             const Edge m = mirror(e);
             const auto& tv = triangles_[e.tri].v;
             const VertexIndex d = triangles_[m.tri].v[m.side];
-            if (inCircleSign(vertices_[tv[0]], vertices_[tv[1]], vertices_[tv[2]],
-                             vertices_[d]) != std::partial_ordering::greater) {
+            if (detail::inCircleSignOf(filteredVertex(tv[0]), filteredVertex(tv[1]),
+                                       filteredVertex(tv[2]), filteredVertex(d)) !=
+                std::partial_ordering::greater) {
                 continue;  // locally Delaunay (the test is symmetric across e)
             }
             const TriIndex t = e.tri;
@@ -5844,6 +5928,9 @@ struct Triangulation {
                                          : ((hint_ != NO_TRI && !isGhost(hint_)) ? hint_ : 0);
         TriIndex from = NO_TRI;
         const std::size_t cap = triangles_.size() * 3 + 16;
+        // The walk tests p against three edges of every triangle it steps
+        // through, so p is converted once here rather than once per test.
+        const auto fq = filteredPoint(p);
         for (std::size_t step = 0; step < cap; ++step) {
             if (isGhost(t)) {
                 hint_ = NO_TRI;
@@ -5859,7 +5946,8 @@ struct Triangulation {
                 }
                 const VertexIndex ea = T.v[(s + 1) % 3];
                 const VertexIndex eb = T.v[(s + 2) % 3];
-                if (orientationSign(vertices_[ea], vertices_[eb], p) < 0) {
+                if (detail::orientationSignOf(filteredVertex(ea), filteredVertex(eb), fq)
+                        .value() < 0) {
                     next = T.nbr[s];
                     break;
                 }
