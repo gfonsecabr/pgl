@@ -183,6 +183,26 @@ private:
     }
 
     /**
+     * @brief Whether the value is stored over a denominator of exactly 1.
+     *
+     * A fraction over 1 is in lowest terms however it was built, so this reads
+     * the stored denominator and never runs a gcd — it is the same comparison
+     * the constructor already spends on every value it builds. It says nothing
+     * about a value that *is* an integer while stored over a larger denominator;
+     * that one simply takes the general path, which is why every use below is a
+     * shortcut rather than a classification.
+     */
+    constexpr bool storedInteger() const {
+        // An arbitrary-precision Int answers this off its inline store; building
+        // a value to compare against would cost more than the shortcut saves.
+        if constexpr (requires { den.isOne(); }) {
+            return den.isOne();
+        } else {
+            return den == Int(1);
+        }
+    }
+
+    /**
      * @brief Copy this value's numerator/denominator into (n, d), reducing first
      * only when leaving them unreduced could overflow the impending arithmetic.
      */
@@ -629,6 +649,11 @@ public:
     }
 
     constexpr Rational operator+(const Rational& r) const {
+        // Two integers add and multiply as integers, over the 1 they already
+        // share: the general form below would cross-multiply by it three times.
+        if (storedInteger() && r.storedInteger()) {
+            return Rational(num + r.num, den, true);
+        }
         if (safeRaw() && r.safeRaw()) {
             const Int rd = den * r.den;
             return Rational(num * r.den + r.num * den, rd, rd == 1);
@@ -641,6 +666,11 @@ public:
     }
 
     constexpr Rational operator-(const Rational& r) const {
+        // Two integers add and multiply as integers, over the 1 they already
+        // share: the general form below would cross-multiply by it three times.
+        if (storedInteger() && r.storedInteger()) {
+            return Rational(num - r.num, den, true);
+        }
         if (safeRaw() && r.safeRaw()) {
             const Int rd = den * r.den;
             return Rational(num * r.den - r.num * den, rd, rd == 1);
@@ -653,6 +683,9 @@ public:
     }
 
     constexpr Rational<Int> operator*(const Rational<Int>& r) const {
+        if (storedInteger() && r.storedInteger()) {
+            return Rational(num * r.num, den, true);
+        }
         if (safeRaw() && r.safeRaw()) {
             const Int rd = den * r.den;
             return Rational(num * r.num, rd, rd == 1);
@@ -763,6 +796,11 @@ public:
         // type (both denominators are positive, so the sign is preserved, and
         // compareValues yields the equal case). Reduce first only when an operand
         // is large enough that the widened product could itself overflow.
+        // Two integers compare as integers: both cross products below would be
+        // a multiplication by one, and over a BigInt that is a real one.
+        if (storedInteger() && r.storedInteger()) {
+            return compareValues(num, r.num);
+        }
         if ((!normalized_ && comparisonNeedsReduction(num, den)) ||
             (!r.normalized_ && comparisonNeedsReduction(r.num, r.den))) {
             Int an, ad, bn, bd;
@@ -801,6 +839,9 @@ public:
      */
     constexpr bool operator==(const Rational& r) const {
         using Wide = pgl::detail::promoted_number_t<Int>;
+        if (storedInteger() && r.storedInteger()) {
+            return num == r.num;
+        }
         // Deferred fractions are equal iff their cross products match; reduce
         // first only when an operand could overflow the widened product.
         if ((!normalized_ && comparisonNeedsReduction(num, den)) ||

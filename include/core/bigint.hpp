@@ -635,6 +635,13 @@ public:
     /// @brief Whether the value is zero.
     bool isZero() const { return limbs_.empty() && small_ == 0; }
 
+    /// @brief Whether the value is one.
+    ///
+    /// Rational asks this of a denominator on every comparison and every
+    /// arithmetic step, to take the integer shortcut, so it reads the inline
+    /// store directly rather than building a BigInt to compare against.
+    bool isOne() const { return limbs_.empty() && !negative_ && small_ == 1; }
+
     /// @brief Whether the value is strictly negative.
     bool isNegative() const { return negative_; }
 
