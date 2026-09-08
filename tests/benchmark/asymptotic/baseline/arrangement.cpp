@@ -1,7 +1,7 @@
 // @desc: CGAL reference for the Arrangement category: Arrangement_2 over the
 // same two segment datasets, with Arr_trapezoid_ric_point_location for the
-// queries. The build's signature is the arrangement's vertex count, directly
-// comparable with pgl's.
+// queries. The build's signature is the arrangement's size -- vertices, edges
+// and faces, the unbounded one included -- directly comparable with pgl's.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -19,6 +19,14 @@ using Traits       = CGAL::Arr_segment_traits_2<bench::cgal::Kernel>;
 using Arrangement  = CGAL::Arrangement_2<Traits>;
 using Locator      = CGAL::Arr_trapezoid_ric_point_location<Arrangement>;
 using Curve        = Traits::X_monotone_curve_2;
+
+// Every cell of the subdivision, counted as pgl's driver counts them. CGAL's
+// number_of_faces includes the unbounded face, as pgl's faceCount does.
+long long outputSize(const Arrangement& arrangement) {
+    return static_cast<long long>(arrangement.number_of_vertices() +
+                                  arrangement.number_of_edges() +
+                                  arrangement.number_of_faces());
+}
 
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   std::span<const int> sizes,
@@ -39,7 +47,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         Arrangement arrangement;
         const double buildUs = bench::timeOnce(result, [&] {
             CGAL::insert(arrangement, curves.begin(), curves.end());
-            return arrangement.number_of_vertices();
+            return outputSize(arrangement);
         });
         if (bench::matches(opt.problem, "build")) {
             bench::emit("Arrangement", dataset, "build", "CGAL::Arrangement_2",
@@ -52,7 +60,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
             Locator locator;
             const double indexUs = bench::timeOnce(result, [&] {
                 locator.attach(arrangement);
-                return arrangement.number_of_vertices();
+                return outputSize(arrangement);
             });
             bench::emit("Arrangement", dataset, "buildPointLocation",
                         "CGAL::Arr_trapezoid_ric_point_location", bench::cgal::kNumber,

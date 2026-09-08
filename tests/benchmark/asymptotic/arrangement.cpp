@@ -13,6 +13,20 @@ namespace {
 
 constexpr const char* kCategory = "Arrangement";
 
+// The size of the thing built: every cell of the subdivision, which is what the
+// DCEL stores and so what the build had to produce. The vertex count alone --
+// what this reported before -- is not a stand-in for it. The two datasets do not
+// even agree on the ratio: over small segments an arrangement comes out with
+// E ~ V and F ~ V/13, over large ones with E ~ 2V and F ~ V, because the first
+// stays in hundreds of components and the second is one. Counting all three also
+// gives the signature something to catch -- a wrong edge or face count is
+// invisible in V -- and Euler's V - E + F = 1 + components ties them together.
+template <class ArrangementType>
+long long outputSize(const ArrangementType& arrangement) {
+    return static_cast<long long>(arrangement.vertexCount() + arrangement.edgeCount() +
+                                  arrangement.faceCount());
+}
+
 // Exact arithmetic only: an arrangement of intersecting segments has rational
 // vertices, so there is no meaningful `int` cell to compare against.
 void sweepDataset(const bench::Options& opt, const char* dataset,
@@ -31,7 +45,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         std::optional<pgl::Arrangement<Point>> arrangement;
         const double buildUs = bench::timeOnce(result, [&] {
             arrangement.emplace(segments);
-            return arrangement->vertices().size();
+            return outputSize(*arrangement);
         });
         if (bench::matches(opt.problem, "build")) {
             bench::emit(kCategory, dataset, "build", "sweep", number, n, result, buildUs);
@@ -65,7 +79,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         if (bench::matches(opt.problem, "buildPointLocation")) {
             const double indexUs = bench::timeOnce(result, [&] {
                 arrangement->buildPointLocation();
-                return arrangement->vertices().size();
+                return outputSize(*arrangement);
             });
             bench::emit(kCategory, dataset, "buildPointLocation", "trapezoidal DAG",
                         number, n, result, indexUs);
