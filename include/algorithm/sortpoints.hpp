@@ -77,10 +77,19 @@ void sortAround(std::vector<Point<Number, Label>>& points,
     };
     const auto middle = std::partition(first, last, firstHalf);
 
+    // The center is an operand of every orientation sign the sort takes —
+    // O(n log n) of them — so its coordinates are converted for the filter once
+    // here rather than once per comparison. The two points being compared are
+    // different ones each time and are converted as they come.
+    using SignCoordinate = detail::orientation_coordinate_t<CenterNumber, Number, Number>;
+    const auto center = detail::filtered<SignCoordinate>(p);
+
     // Neither part spans more than half a turn, so within one of them the
     // orientation sign is a consistent order on the directions.
-    const auto less = [&p](const auto& a, const auto& b) {
-        const auto turn = orientationSign(p, a, b);
+    const auto less = [&p, &center](const auto& a, const auto& b) {
+        const auto turn = detail::orientationSignOf(
+            center, detail::filtered<SignCoordinate>(a), detail::filtered<SignCoordinate>(b))
+            .value();
         if (turn > 0)
             return true;   // b is counterclockwise of a, so a has the smaller angle.
         if (turn < 0)
@@ -103,7 +112,12 @@ void sortAround(std::vector<Point<Number, Label>>& points,
     const auto above = firstHalf(reference);
     const auto start = std::lower_bound(
         above ? first : middle, above ? middle : last, reference,
-        [&p](const auto& a, const auto& b) { return orientationSign(p, a, b) > 0; });
+        [&center](const auto& a, const auto& b) {
+            return detail::orientationSignOf(center,
+                                             detail::filtered<SignCoordinate>(a),
+                                             detail::filtered<SignCoordinate>(b))
+                       .value() > 0;
+        });
     std::rotate(first, start, last);
 }
 

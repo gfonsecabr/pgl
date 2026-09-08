@@ -2240,6 +2240,11 @@ struct Triangulation {
         if (firstGhost_ == 0) return false;
         const auto a = s[0];
         const auto b = s[1];
+        // The query's two defining points are read by every sign this walk
+        // takes — a dozen of them, once per triangle of the path and once per
+        // edge of each — so they are converted here rather than at each.
+        const auto fa = filteredPoint(a);
+        const auto fb = filteredPoint(b);
         // How the directed query extends past its defining points `a`, `b` (which
         // always give its supporting line and forward direction a->b):
         //  - unboundedBack: no finite source (a line / oriented line). Entered at
@@ -2313,10 +2318,12 @@ struct Triangulation {
         // triangle being CCW its interior is the positive side.
         const auto rayEnters = [&](TriIndex t, const auto& p) -> int {
             const auto& v = triangles_[t].v;
+            const auto fp = filteredPoint(p);
             for (int k = 0; k < 3; ++k) {
                 const auto& u = vertices_[v[(k + 1) % 3]];
                 const auto& w = vertices_[v[(k + 2) % 3]];
-                if (orientationSign(u, w, p) == 0) {
+                if (detail::orientationSignOf(filteredVertex(v[(k + 1) % 3]),
+                                              filteredVertex(v[(k + 2) % 3]), fp).value() == 0) {
                     const auto forward =
                         orientationDeterminant(u, w, b) - orientationDeterminant(u, w, a);
                     if (forward < 0) return 0;
@@ -2372,7 +2379,8 @@ struct Triangulation {
                 do {
                     if (!isGhost(cur)) {
                         for (VertexIndex y : triangles_[cur].v) {
-                            if (y != w && orientationSign(a, b, vertices_[y]) == 0 &&
+                            if (y != w &&
+                                detail::orientationSignOf(fa, fb, filteredVertex(y)).value() == 0 &&
                                 vertexOrder(w, y) > 0 &&
                                 (unboundedFront || alongOrder(b, vertices_[y]) <= 0)) {
                                 nextV = y;
@@ -2480,8 +2488,8 @@ struct Triangulation {
         [[maybe_unused]] const auto enterThroughGhost = [&](TriIndex g) -> TriIndex {
             const VertexIndex va = triangles_[g].v[0];
             const VertexIndex vb = triangles_[g].v[1];
-            const bool onA = orientationSign(a, b, vertices_[va]) == 0;
-            const bool onB = orientationSign(a, b, vertices_[vb]) == 0;
+            const bool onA = detail::orientationSignOf(fa, fb, filteredVertex(va)).value() == 0;
+            const bool onB = detail::orientationSignOf(fa, fb, filteredVertex(vb)).value() == 0;
             if (onA || onB) {
                 VertexIndex w = onA ? va : vb;
                 if (onA && onB) {
@@ -2503,9 +2511,11 @@ struct Triangulation {
         // which contains point `p`; visit p's contact triangles along the way.
         [[maybe_unused]] const auto enterAt = [&](const auto& p, TriIndex start) -> TriIndex {
             const auto& v = triangles_[start].v;
+            const auto fp = filteredPoint(p);
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
-                if (orientationSign(vertices_[v[(k + 1) % 3]], vertices_[v[(k + 2) % 3]], p) == 0) {
+                if (detail::orientationSignOf(filteredVertex(v[(k + 1) % 3]),
+                                              filteredVertex(v[(k + 2) % 3]), fp).value() == 0) {
                     ++zeros;
                     if (z0 < 0) z0 = k; else z1 = k;
                 }
@@ -2525,7 +2535,8 @@ struct Triangulation {
                 // its forward endpoint). Otherwise the segment crosses the edge
                 // into the other side already emitted — if that side is outside
                 // the hull, nothing more lies on this side.
-                if (orientationSign(vertices_[e1], vertices_[e2], b) != 0) {
+                if (detail::orientationSignOf(filteredVertex(e1), filteredVertex(e2), fb)
+                        .value() != 0) {
                     return NO_TRI;
                 }
                 const VertexIndex fwd = vertexOrder(e2, e1) > 0 ? e1 : e2;
@@ -2552,7 +2563,8 @@ struct Triangulation {
             const auto& v = triangles_[t].v;
             int zeros = 0, z0 = -1, z1 = -1;
             for (int k = 0; k < 3; ++k) {
-                if (orientationSign(vertices_[v[(k + 1) % 3]], vertices_[v[(k + 2) % 3]], b) == 0) {
+                if (detail::orientationSignOf(filteredVertex(v[(k + 1) % 3]),
+                                              filteredVertex(v[(k + 2) % 3]), fb).value() == 0) {
                     ++zeros;
                     if (z0 < 0) z0 = k; else z1 = k;
                 }
@@ -2621,21 +2633,24 @@ struct Triangulation {
                 if (triangles_[t].nbr[k] == prev) continue;
                 const auto& u = vertices_[v[(k + 1) % 3]];
                 const auto& w = vertices_[v[(k + 2) % 3]];
-                const auto du = orientationSign(a, b, u);
-                const auto dw = orientationSign(a, b, w);
+                const auto fu = filteredVertex(v[(k + 1) % 3]);
+                const auto fw = filteredVertex(v[(k + 2) % 3]);
+                const auto du = detail::orientationSignOf(fa, fb, fu).value();
+                const auto dw = detail::orientationSignOf(fa, fb, fw).value();
                 const bool straddleLine = (du > 0 && dw < 0) || (du < 0 && dw > 0);
                 if (!straddleLine) continue;
                 bool forward;
                 if constexpr (unboundedFront) {
                     // a->b leaves t outward across (u,w): its direction points to the
                     // side of (u,w) away from the apex v[k] (the triangle interior).
-                    const auto apexSide = orientationSign(u, w, vertices_[v[k]]);
+                    const auto apexSide =
+                        detail::orientationSignOf(fu, fw, filteredVertex(v[k])).value();
                     const auto dirCross = orientationDeterminant(u, w, b) -
                                           orientationDeterminant(u, w, a);
                     forward = dirCross != 0 && (dirCross > 0) != (apexSide > 0);
                 } else {
-                    const auto ea = orientationSign(u, w, a);
-                    const auto eb = orientationSign(u, w, b);
+                    const auto ea = detail::orientationSignOf(fu, fw, fa).value();
+                    const auto eb = detail::orientationSignOf(fu, fw, fb).value();
                     forward = (ea > 0 && eb < 0) || (ea < 0 && eb > 0);
                 }
                 if (forward) { exitK = k; break; }
@@ -2657,7 +2672,7 @@ struct Triangulation {
             // Degenerate: s leaves t through a vertex or runs along an edge.
             int onCount = 0, on0 = -1, on1 = -1;
             for (int m = 0; m < 3; ++m) {
-                if (orientationSign(a, b, vertices_[v[m]]) == 0) {
+                if (detail::orientationSignOf(fa, fb, filteredVertex(v[m])).value() == 0) {
                     ++onCount;
                     if (on0 < 0) on0 = m; else on1 = m;
                 }
