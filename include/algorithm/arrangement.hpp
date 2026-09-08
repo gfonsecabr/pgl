@@ -1543,6 +1543,7 @@ private:
         std::vector<Piece> pieces = split(segments, isolated, simpleBoundaries);
         internVertices(pieces, isolated);
         simplifyStoredCoordinates();
+        syncVertexApproximations();
         wireHalfedges();
         buildFaces();
     }
@@ -1846,6 +1847,7 @@ private:
         }
 
         simplifyStoredCoordinates();
+        syncVertexApproximations();
         next_.assign(origin_.size(), 0);
         face_.assign(origin_.size(), 0);
         outgoing_.assign(topologicalVertexCount(), HalfedgeId());
@@ -2243,6 +2245,40 @@ private:
         }
     }
 
+    // The coordinate type the vertex approximations are kept for: every sign
+    // predicate that reads points_ back is an orientation over three of them.
+    using VertexCoordinate =
+        detail::orientation_coordinate_t<NumberType, NumberType, NumberType>;
+
+    // Converts every interned vertex once, for those predicates to read back.
+    //
+    // They run inside comparators — the rotational sort around a vertex, the
+    // status order of the sweep — so a vertex takes part in a logarithmic number
+    // of them and converting per predicate re-derives the same few doubles over
+    // and over. Must run after @ref simplifyStoredCoordinates: an unreduced
+    // fraction can overflow double in both parts, leaving a quotient the filter
+    // can only abstain on. Stays empty, and unindexed, where
+    // @ref detail::filtersSign says exact arithmetic is cheap enough already.
+    void syncVertexApproximations() {
+        if constexpr (detail::filtersSign<VertexCoordinate>) {
+            vertexApproximations_.clear();
+            vertexApproximations_.reserve(points_.size());
+            for (const PointType& point : points_) {
+                vertexApproximations_.push_back(detail::approximatePoint(point));
+            }
+        }
+    }
+
+    // An interned vertex paired with the approximation kept for it. The two
+    // arrays are parallel, and a vertex added without one would be read as some
+    // other vertex's approximation — a sign the filter then proves wrong rather
+    // than abstains on — so the pairing is asserted rather than trusted.
+    [[nodiscard]] auto filteredVertex(std::uint32_t index) const {
+        assert(!detail::filtersSign<VertexCoordinate> ||
+               vertexApproximations_.size() == points_.size());
+        return detail::filtered<VertexCoordinate>(points_[index], vertexApproximations_, index);
+    }
+
     // Sorts the halfedges leaving each vertex counterclockwise and links them:
     // arriving at a vertex along one edge, the boundary of the face on the left
     // leaves along the next edge clockwise, which is the previous one in
@@ -2270,14 +2306,17 @@ private:
                 }
                 return to.x() > center.x() ? 0 : 1;
             };
+            const auto filteredCenter = filteredVertex(v);
             std::sort(around.begin(), around.end(), [&](std::uint32_t left, std::uint32_t right) {
                 const int leftHalf = half(left);
                 const int rightHalf = half(right);
                 if (leftHalf != rightHalf) {
                     return leftHalf < rightHalf;
                 }
-                return orientationSign(center, points_[origin_[left ^ 1]],
-                                       points_[origin_[right ^ 1]]) > 0;
+                return detail::orientationSignOf(filteredCenter,
+                                                 filteredVertex(origin_[left ^ 1]),
+                                                 filteredVertex(origin_[right ^ 1]))
+                           .value() > 0;
             });
             const std::size_t degree = around.size();
             for (std::size_t i = 0; i < degree; ++i) {
@@ -2756,33 +2795,45 @@ private:
 
         bool operator()(std::uint32_t left, std::uint32_t right) const {
             const std::vector<std::uint32_t>& origin = arrangement->origin_;
-            const std::vector<PointType>& points = arrangement->points_;
             const std::uint32_t leftLow = origin[left ^ 1];
             const std::uint32_t rightLow = origin[right ^ 1];
+            const auto vertex = [this](std::uint32_t index) {
+                return arrangement->filteredVertex(index);
+            };
             if (leftLow == rightLow) {
                 // One vertex, both leaving it upwards: the one leaning further
                 // right crosses the line further right.
-                return orientationSign(points[leftLow], points[origin[left]],
-                                       points[origin[right]]) < 0;
+                return detail::orientationSignOf(vertex(leftLow), vertex(origin[left]),
+                                                 vertex(origin[right]))
+                           .value() < 0;
             }
             if ((*position)[leftLow] > (*position)[rightLow]) {
-                return orientationSign(points[rightLow], points[origin[right]],
-                                       points[leftLow]) > 0;
+                return detail::orientationSignOf(vertex(rightLow), vertex(origin[right]),
+                                                 vertex(leftLow))
+                           .value() > 0;
             }
-            return orientationSign(points[leftLow], points[origin[left]], points[rightLow]) < 0;
+            return detail::orientationSignOf(vertex(leftLow), vertex(origin[left]),
+                                             vertex(rightLow))
+                       .value() < 0;
         }
 
         // The edge is strictly left of the point when the point is strictly to
         // the right of it. A point *on* the edge is not, which is what keeps the
         // edges through a query vertex from answering it.
         bool operator()(std::uint32_t left, const PointType& p) const {
-            return orientationSign(arrangement->points_[arrangement->origin_[left ^ 1]],
-                                   arrangement->points_[arrangement->origin_[left]], p) < 0;
+            return detail::orientationSignOf(
+                       arrangement->filteredVertex(arrangement->origin_[left ^ 1]),
+                       arrangement->filteredVertex(arrangement->origin_[left]),
+                       detail::filtered<VertexCoordinate>(p))
+                       .value() < 0;
         }
 
         bool operator()(const PointType& p, std::uint32_t right) const {
-            return orientationSign(arrangement->points_[arrangement->origin_[right ^ 1]],
-                                   arrangement->points_[arrangement->origin_[right]], p) > 0;
+            return detail::orientationSignOf(
+                       arrangement->filteredVertex(arrangement->origin_[right ^ 1]),
+                       arrangement->filteredVertex(arrangement->origin_[right]),
+                       detail::filtered<VertexCoordinate>(p))
+                       .value() > 0;
         }
     };
 
@@ -2992,8 +3043,10 @@ private:
             // them, so their origins are the previous and the next vertex.
             const std::uint32_t ahead = next_[h];
             if (origin_[ahead] == vertex &&
-                !(orientationSign(points_[vertex], points_[origin_[ahead ^ 1]],
-                                  points_[origin_[h]]) > 0)) {
+                !(detail::orientationSignOf(filteredVertex(vertex),
+                                            filteredVertex(origin_[ahead ^ 1]),
+                                            filteredVertex(origin_[h]))
+                      .value() > 0)) {
                 return false;
             }
             h = ahead;
@@ -4085,6 +4138,9 @@ private:
     };
 
     std::vector<PointType> points_;
+    // Approximations of points_, parallel to it, or empty where the filter would
+    // not pay for itself. See @ref syncVertexApproximations.
+    std::vector<detail::ApproximatePoint> vertexApproximations_;
     VertexId infinity_;                            // symbolic vertex, absent for bounded input
     std::vector<HalfedgeId> outgoing_;         // one per vertex; invalid when isolated
     std::vector<std::uint32_t> origin_;        // one per halfedge
