@@ -26,6 +26,8 @@ All shapes support [many predicates](shape_methods.md#predicates) and several ot
 
 A [`Canvas`](https://gfonsecabr.github.io/pgl/classpgl_1_1Canvas.html "Stores drawable objects and exports them as an SVG image.") class is provided for [easy visualization](canvas.md).
 
+We also include a [comparison against CGAL](cgal.md) to help you decide if pgl is the right choice for you.
+
 As a header-only library with no dependency, you can compile your code directly with `g++` or `clang++` (the standard needs to be at least c++20):
 
 ```bash

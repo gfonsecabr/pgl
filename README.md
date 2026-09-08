@@ -159,7 +159,7 @@ Pangolin includes [fundamental algorithms](doc/algorithms.md):
 
 ## Comparison to CGAL
 
-There are several architectural differences between Pangolin and [CGAL](https://www.cgal.org/), we summarize some of them:
+There are several architectural differences between Pangolin and [CGAL](https://www.cgal.org/). Here, we summarize some of them, but we also include a [detailed comparison](doc/cgal.md).
 
 | Feature | Pangolin | CGAL |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ There are several architectural differences between Pangolin and [CGAL](https://
 - Pangolin does not distinguish between points, vectors, and directions.
 - Pangolin predicates return `true` or `false`, instead of some CGAL predicates that return 3 possible values for inside, outside, and on the boundary. Boundaries and interiors are distinguished by different predicates such as `contains`, `boundaryContains`, and `interiorContains`.
 - Even simple queries often require composing several CGAL primitives. For example, checking whether a segment lies inside a polygon has no direct predicate, and `CGAL::intersection` has no overload for a segment against a polygon: you must combine endpoint side-tests with per-edge intersection checks, or build a 2D arrangement. In Pangolin these are `polygon.contains(segment)` and `polygon.intersection(segment)`.
-- It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other. Overall CGAL has faster more complex implementations. For example, pgl's decomposition-based Minkowski sum is much slower than CGAL's convolution-based Minkowski sum and a little slower than CGAL's decomposition-based Minkowski sum. Surprisingly, pgl's trapezoidal map point location is significantly faster than CGAL's in our benchmarks.
+- It is hard to compare the performance against CGAL, as many algorithms are not available in one or the other and the number types are different. Overall CGAL has faster more complex implementations. For example, pgl's decomposition-based Minkowski sum is much slower than CGAL's convolution-based Minkowski sum. However, pgl wins in some cases like trapezoidal map point location, several operations on kd-trees, and union of many small shapes.
 
 ## Build
 
