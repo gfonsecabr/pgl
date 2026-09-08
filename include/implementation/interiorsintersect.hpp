@@ -46,64 +46,29 @@ template<SegmentConcept OtherSegment>
 constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherSegment& other) const {
     using Coordinate = detail::sign_coordinate_t<NumberType, typename OtherSegment::NumberType>;
 
-    if constexpr (detail::filtersSign<Coordinate>) {
-        const auto filtered = detail::segmentOrientationFilters(*this, other);
-        if (filtered.allDecided()) {
-            return filtered.firstOtherMin != filtered.firstOtherMax &&
-                   filtered.secondFirstMin != filtered.secondFirstMax;
-        }
+    const auto& a = min();
+    const auto& b = max();
+    const auto& c = other.min();
+    const auto& d = other.max();
 
-        if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
-            const int cross = boundingBoxesCross(other);
-            if (cross == 0) {
-                return false;
-            }
-            if (cross == 2) {
-                return true;
-            }
-        }
-        else if (!boundingBoxesOverlap(other)) {
-            return false;
-        }
-        if (min() == max() || other.min() == other.max()) {
-            return false;
-        }
-        const auto& a = min();
-        const auto& b = max();
-        const auto& c = other.min();
-        const auto& d = other.max();
-        const auto d1 = filtered.firstOtherMin == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(a, b, c)
-                      : filtered.firstOtherMin;
-        const auto d2 = filtered.firstOtherMax == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(a, b, d)
-                      : filtered.firstOtherMax;
-        const auto d3 = filtered.secondFirstMin == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(c, d, a)
-                      : filtered.secondFirstMin;
-        const auto d4 = filtered.secondFirstMax == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(c, d, b)
-                      : filtered.secondFirstMax;
-        const bool no_endpoint_is_collinear = d1 != 0 && d2 != 0 && d3 != 0 && d4 != 0;
-        const bool this_segment_straddles_other = (d1 > 0) != (d2 > 0);
-        const bool other_segment_straddles_this = (d3 > 0) != (d4 > 0);
-        const bool proper_cross =
-            no_endpoint_is_collinear &&
-            this_segment_straddles_other &&
-            other_segment_straddles_this;
-        if (proper_cross) {
-            return true;
-        }
-        if (d1 != 0 || d2 != 0) {
-            return false;
-        }
-        return interiorContains(c) ||
-               interiorContains(d) ||
-               other.interiorContains(a) ||
-               other.interiorContains(b) ||
-               (a == c && b == d);
+    // Four orientation signs over four endpoints, each endpoint in three of
+    // them; see Segment::intersects for what the filtered wrappers buy.
+    const auto fa = detail::filtered<Coordinate>(a);
+    const auto fb = detail::filtered<Coordinate>(b);
+    const auto fc = detail::filtered<Coordinate>(c);
+    const auto fd = detail::filtered<Coordinate>(d);
+    const auto s1 = detail::orientationSignOf(fa, fb, fc);
+    const auto s2 = detail::orientationSignOf(fa, fb, fd);
+    const auto s3 = detail::orientationSignOf(fc, fd, fa);
+    const auto s4 = detail::orientationSignOf(fc, fd, fb);
+
+    // Four proved signs are all nonzero, so neither segment is degenerate and
+    // the collinear cases below cannot arise.
+    if (detail::allDecided(s1, s2, s3, s4)) {
+        return s1.value() != s2.value() && s3.value() != s4.value();
     }
-    else if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+
+    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
         const int cross = boundingBoxesCross(other);
         if (cross == 0) {
             return false;
@@ -115,17 +80,13 @@ constexpr bool Segment<PointType, LabelType>::interiorsIntersect(const OtherSegm
     else if (!boundingBoxesOverlap(other)) {
         return false;
     }
-    if (min() == max() || other.min() == other.max()) {
+    if (a == b || c == d) {
         return false;
     }
-    const auto& a = min();
-    const auto& b = max();
-    const auto& c = other.min();
-    const auto& d = other.max();
-    const auto d1 = orientationSign(a, b, c);
-    const auto d2 = orientationSign(a, b, d);
-    const auto d3 = orientationSign(c, d, a);
-    const auto d4 = orientationSign(c, d, b);
+    const auto d1 = s1.value();
+    const auto d2 = s2.value();
+    const auto d3 = s3.value();
+    const auto d4 = s4.value();
     const bool no_endpoint_is_collinear = d1 != 0 && d2 != 0 && d3 != 0 && d4 != 0;
     const bool this_segment_straddles_other = (d1 > 0) != (d2 > 0);
     const bool other_segment_straddles_this = (d3 > 0) != (d4 > 0);

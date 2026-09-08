@@ -65,10 +65,10 @@ struct Approximate {
 /**
  * @brief The two filtered coordinates of a point.
  *
- * A single orientation filter only needs this representation transiently, but
- * segment-pair predicates evaluate four orientations over the same four
- * points.  Keeping the conversions here lets those predicates pay for each
- * exact-coordinate-to-double conversion once instead of once per orientation.
+ * A single orientation filter only needs this representation transiently, but a
+ * predicate taking several signs over the same few points — a segment pair
+ * evaluates four orientations over four endpoints — reads each coordinate from
+ * one of these. @ref FilteredPoint is what carries it alongside the exact point.
  */
 struct ApproximatePoint {
     Approximate x;
@@ -290,38 +290,128 @@ constexpr std::partial_ordering exactOrientationSign(
 }
 
 /**
- * @brief The four orientation filters required by a pair of segments.
+ * @brief A point carried together with the approximation of its coordinates.
  *
- * Each endpoint occurs in three signs.  Materializing all eight approximate
- * coordinates once avoids repeating expensive exact-coordinate conversions in
- * segment predicates that can finish from proved signs alone.
+ * A predicate that takes several signs over the same few points converts each
+ * exact coordinate into one of these once and hands it to every sign that reads
+ * it, instead of reconverting per sign. Where @ref filtersSign says the filter
+ * would not pay for itself the specialization below stores nothing but the
+ * point, so the same predicate text compiles down to the unfiltered one.
+ *
+ * The wrapper refers to the point rather than owning it, so it must not outlive
+ * the predicate body that built it.
+ *
+ * @tparam PointType The exact point type being filtered.
+ * @tparam Filters Whether to carry an approximation at all.
  */
-struct SegmentOrientationFilters {
-    std::partial_ordering firstOtherMin;
-    std::partial_ordering firstOtherMax;
-    std::partial_ordering secondFirstMin;
-    std::partial_ordering secondFirstMax;
-
-    [[nodiscard]] constexpr bool allDecided() const {
-        return firstOtherMin != std::partial_ordering::unordered &&
-               firstOtherMax != std::partial_ordering::unordered &&
-               secondFirstMin != std::partial_ordering::unordered &&
-               secondFirstMax != std::partial_ordering::unordered;
-    }
+template <class PointType, bool Filters>
+struct FilteredPoint {
+    const PointType* point;
+    ApproximatePoint approximation;
 };
 
-/** @brief Evaluates every filtered orientation for a pair of segments once. */
-template <class FirstSegment, class SecondSegment>
-constexpr SegmentOrientationFilters segmentOrientationFilters(
-    const FirstSegment& first, const SecondSegment& second) {
-    const ApproximatePoint firstMin = approximatePoint(first.min());
-    const ApproximatePoint firstMax = approximatePoint(first.max());
-    const ApproximatePoint secondMin = approximatePoint(second.min());
-    const ApproximatePoint secondMax = approximatePoint(second.max());
-    return {orientationFilter(firstMin, firstMax, secondMin),
-            orientationFilter(firstMin, firstMax, secondMax),
-            orientationFilter(secondMin, secondMax, firstMin),
-            orientationFilter(secondMin, secondMax, firstMax)};
+template <class PointType>
+struct FilteredPoint<PointType, false> {
+    const PointType* point;
+};
+
+/**
+ * @brief Pairs a point with its approximation, for signs evaluated in @p Coordinate.
+ *
+ * @p Coordinate is the type the exact fallback would evaluate in — for a
+ * predicate over several points, the one promoted from all of their coordinate
+ * types, so that every point of the group filters or none does.
+ */
+template <class Coordinate, class PointType>
+constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(const PointType& point) {
+    if constexpr (filtersSign<Coordinate>) {
+        return {&point, approximatePoint(point)};
+    } else {
+        return {&point};
+    }
+}
+
+/**
+ * @brief Rejects a temporary, which the wrapper would outlive.
+ */
+template <class Coordinate, class PointType>
+constexpr FilteredPoint<PointType, filtersSign<Coordinate>> filtered(const PointType&&) = delete;
+
+/**
+ * @brief An orientation sign the filter proved, or the means to evaluate it exactly.
+ *
+ * Holding the two apart is what lets a predicate ask whether every sign it
+ * needs came for free — @ref allDecided — before committing to work that only
+ * the undecided ones require, and then read each sign with @ref value, which
+ * falls back to exact arithmetic only for those the filter left open. A sign
+ * the filter proved is never zero, since a quantity it cannot separate from
+ * zero is exactly one it abstains on.
+ */
+template <class APoint, class BPoint, class CPoint, bool Filters>
+class DeferredOrientationSign {
+public:
+    constexpr DeferredOrientationSign(const APoint& a, const BPoint& b, const CPoint& c,
+                                      std::partial_ordering proved)
+        : a_(&a), b_(&b), c_(&c), proved_(proved) {}
+
+    /** @brief Whether the filter settled this sign. */
+    [[nodiscard]] constexpr bool decided() const {
+        return proved_ != std::partial_ordering::unordered;
+    }
+
+    /** @brief The sign, evaluated exactly if the filter could not prove it. */
+    [[nodiscard]] constexpr std::partial_ordering value() const {
+        return decided() ? proved_ : exactOrientationSign(*a_, *b_, *c_);
+    }
+
+private:
+    const APoint* a_;
+    const BPoint* b_;
+    const CPoint* c_;
+    std::partial_ordering proved_;
+};
+
+/** @brief The unfiltered case: nothing is ever proved ahead of time. */
+template <class APoint, class BPoint, class CPoint>
+class DeferredOrientationSign<APoint, BPoint, CPoint, false> {
+public:
+    constexpr DeferredOrientationSign(const APoint& a, const BPoint& b, const CPoint& c)
+        : a_(&a), b_(&b), c_(&c) {}
+
+    [[nodiscard]] constexpr bool decided() const { return false; }
+
+    [[nodiscard]] constexpr std::partial_ordering value() const {
+        return exactOrientationSign(*a_, *b_, *c_);
+    }
+
+private:
+    const APoint* a_;
+    const BPoint* b_;
+    const CPoint* c_;
+};
+
+/**
+ * @brief Runs the orientation filter on three already-filtered points.
+ *
+ * @return The sign, deferred: proved by the filter, or evaluable exactly.
+ */
+template <class APoint, class BPoint, class CPoint, bool Filters>
+constexpr DeferredOrientationSign<APoint, BPoint, CPoint, Filters> orientationSignOf(
+    const FilteredPoint<APoint, Filters>& a,
+    const FilteredPoint<BPoint, Filters>& b,
+    const FilteredPoint<CPoint, Filters>& c) {
+    if constexpr (Filters) {
+        return {*a.point, *b.point, *c.point,
+                orientationFilter(a.approximation, b.approximation, c.approximation)};
+    } else {
+        return {*a.point, *b.point, *c.point};
+    }
+}
+
+/** @brief Whether the filter proved every one of these signs. */
+template <class... Signs>
+constexpr bool allDecided(const Signs&... signs) {
+    return (signs.decided() && ...);
 }
 
 /**

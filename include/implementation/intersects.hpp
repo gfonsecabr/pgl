@@ -54,70 +54,30 @@ template<SegmentConcept OtherSegment>
 constexpr bool Segment<PointType, LabelType>::intersects(const OtherSegment& other) const {
     using Coordinate = detail::sign_coordinate_t<NumberType, typename OtherSegment::NumberType>;
 
-    if constexpr (detail::filtersSign<Coordinate>) {
-        // A segment pair needs four orientation signs, but each of its four
-        // endpoints occurs in three of them.  Cache their filtered coordinates
-        // so an ERational-to-double conversion happens once per coordinate,
-        // rather than three times.  Four proved nonzero signs decide the
-        // predicate outright, so they also avoid the costly exact rational
-        // bounding-box comparisons below.
-        const auto filtered = detail::segmentOrientationFilters(*this, other);
-        const auto filteredD1 = filtered.firstOtherMin;
-        const auto filteredD2 = filtered.firstOtherMax;
-        const auto filteredD3 = filtered.secondFirstMin;
-        const auto filteredD4 = filtered.secondFirstMax;
+    // A segment pair needs four orientation signs, but each of its four
+    // endpoints occurs in three of them. Filtering the endpoints once has an
+    // ERational-to-double conversion happen once per coordinate rather than
+    // three times, and every sign the filter proves is one the exact arithmetic
+    // below never evaluates. Where the filter would not pay for itself the
+    // wrappers carry nothing but the points, and this is the plain sequence of
+    // exact orientation tests.
+    const auto a = detail::filtered<Coordinate>(min());
+    const auto b = detail::filtered<Coordinate>(max());
+    const auto c = detail::filtered<Coordinate>(other.min());
+    const auto d = detail::filtered<Coordinate>(other.max());
+    const auto s1 = detail::orientationSignOf(a, b, c);
+    const auto s2 = detail::orientationSignOf(a, b, d);
+    const auto s3 = detail::orientationSignOf(c, d, a);
+    const auto s4 = detail::orientationSignOf(c, d, b);
 
-        if (filtered.allDecided()) {
-            return filteredD1 != filteredD2 && filteredD3 != filteredD4;
-        }
-
-        if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
-            const int cross = boundingBoxesCross(other);
-            if (cross == 0) {
-                return false;
-            }
-            if (cross == 2) {
-                return true;
-            }
-        }
-        else if (!boundingBoxesOverlap(other)) {
-            return false;
-        }
-
-        // Do exact arithmetic only for signs the filter could not prove.  In
-        // particular, a possible zero reaches this path so the existing
-        // closed-boundary checks remain exact.
-        const auto d1 = filteredD1 == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(min(), max(), other.min())
-                      : filteredD1;
-        if (d1 == 0 && containsCollinear(other.min())) {
-            return true;
-        }
-        const auto d2 = filteredD2 == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(min(), max(), other.max())
-                      : filteredD2;
-        if (d2 == 0 && containsCollinear(other.max())) {
-            return true;
-        }
-        const auto d3 = filteredD3 == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(other.min(), other.max(), min())
-                      : filteredD3;
-        if (d3 == 0 && other.containsCollinear(min())) {
-            return true;
-        }
-        const auto d4 = filteredD4 == std::partial_ordering::unordered
-                      ? detail::exactOrientationSign(other.min(), other.max(), max())
-                      : filteredD4;
-        if (d4 == 0 && other.containsCollinear(max())) {
-            return true;
-        }
-        if (d1 == 0 || d2 == 0 || d3 == 0 || d4 == 0) {
-            return false;
-        }
-        return d1 != d2 && d3 != d4;
+    // Four proved signs are all nonzero and decide the predicate outright, so
+    // they also spare the costly exact rational bounding-box comparisons.
+    if (detail::allDecided(s1, s2, s3, s4)) {
+        return s1.value() != s2.value() && s3.value() != s4.value();
     }
-    else if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
-        int cross = boundingBoxesCross(other);
+
+    if constexpr (is_Rational_v<NumberType> || is_Rational_v<typename OtherSegment::NumberType>) {
+        const int cross = boundingBoxesCross(other);
         if (cross == 0) {
             return false;
         }
@@ -128,19 +88,22 @@ constexpr bool Segment<PointType, LabelType>::intersects(const OtherSegment& oth
     else if (!boundingBoxesOverlap(other)) {
         return false;
     }
-    const auto d1 = orientationSign(min(), max(), other.min());
+
+    // A possible zero always reaches here, so the closed-boundary checks stay
+    // exact.
+    const auto d1 = s1.value();
     if (d1 == 0 && containsCollinear(other.min())) {
         return true;
     }
-    const auto d2 = orientationSign(min(), max(), other.max());
+    const auto d2 = s2.value();
     if (d2 == 0 && containsCollinear(other.max())) {
         return true;
     }
-    const auto d3 = orientationSign(other.min(), other.max(), min());
+    const auto d3 = s3.value();
     if (d3 == 0 && other.containsCollinear(min())) {
         return true;
     }
-    const auto d4 = orientationSign(other.min(), other.max(), max());
+    const auto d4 = s4.value();
     if (d4 == 0 && other.containsCollinear(max())) {
         return true;
     }
