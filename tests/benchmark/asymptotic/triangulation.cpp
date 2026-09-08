@@ -35,6 +35,9 @@ void run(const bench::Options& opt) {
             bench::emit(kCategory, kDataset, "build", "incremental", number, n, result, buildUs);
         }
 
+        // A locate answers with one triangle however large the triangulation
+        // is, so the hit count below is a signature and not a size: what these
+        // rows report as their output is the triangulation they search.
         const auto locate = [&] {
             std::size_t hits = 0;
             for (const auto& q : queries) {
@@ -46,8 +49,9 @@ void run(const bench::Options& opt) {
         // Before the index: the stochastic visibility walk.
         if (bench::matches(opt.problem, "locate")) {
             const double walkUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "walk", number, n,
-                        result, walkUs / bench::kQueryBatch);
+            bench::emit(kCategory, kDataset, "locate", "walk", number, n, result,
+                        static_cast<long long>(triangulation->numTriangles()),
+                        walkUs / bench::kQueryBatch);
         }
 
         if (bench::matches(opt.problem, "buildPointLocation")) {
@@ -68,8 +72,9 @@ void run(const bench::Options& opt) {
                        "the point-location index is not in place");
         if (bench::matches(opt.problem, "locate")) {
             const double indexedUs = bench::timeOnce(result, locate);
-            bench::emit(kCategory, kDataset, "locate", "preprocessed", number, n,
-                        result, indexedUs / bench::kQueryBatch);
+            bench::emit(kCategory, kDataset, "locate", "preprocessed", number, n, result,
+                        static_cast<long long>(triangulation->numTriangles()),
+                        indexedUs / bench::kQueryBatch);
         }
     }
 }

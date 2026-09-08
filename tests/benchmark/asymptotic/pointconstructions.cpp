@@ -22,33 +22,55 @@ void run(const bench::Options& opt) {
     // rather than once for the category. `measure` returns the construction's
     // numeric signature, computed inside the timed region so the work cannot be
     // optimized away.
-    const auto forEach = [&](const char* problem, const char* algorithm,
-                             std::span<const int> sizes, auto&& measure) {
+    // `outputOf` says how big the answer was, which is not always what the
+    // signature measured: a closest pair's signature is a squared distance, and
+    // the sort's is a two-point spot check.
+    const auto forEachSized = [&](const char* problem, const char* algorithm,
+                                  std::span<const int> sizes, auto&& measure,
+                                  auto&& outputOf) {
         if (!bench::matches(opt.problem, problem)) return;
         for (const int n : bench::sweep(sizes, opt)) {
             const auto points = bench::convert<Point>(bench::points(n));
             long long result = 0;
             const double us = bench::timeOnce(result, [&] { return measure(points); });
-            bench::emit(kCategory, kDataset, problem, algorithm, number, n, result, us);
+            bench::emit(kCategory, kDataset, problem, algorithm, number, n, result,
+                        outputOf(points, result), us);
         }
     };
 
-    forEach("closest pair", "divide and conquer", bench::kClosestPair,
-            [](const std::vector<Point>& points) {
-                return pgl::closestPair(points).squaredLength();
-            });
+    // The ordinary case: the signature counts what came out, so it is its size.
+    const auto forEach = [&](const char* problem, const char* algorithm,
+                             std::span<const int> sizes, auto&& measure) {
+        forEachSized(problem, algorithm, sizes, measure,
+                     [](const std::vector<Point>&, long long result) { return result; });
+    };
+
+    // For the two problems whose answer has no size that grows -- a closest
+    // pair is one segment, a sort is a permutation of what it was given -- the
+    // point set they ran over is what the output column reports.
+    const auto inputSize = [](const std::vector<Point>& points, long long) {
+        return static_cast<long long>(points.size());
+    };
+
+    // The signature is a squared distance, which is not a size at all.
+    forEachSized("closest pair", "divide and conquer", bench::kClosestPair,
+                 [](const std::vector<Point>& points) {
+                     return pgl::closestPair(points).squaredLength();
+                 },
+                 inputSize);
     forEach("convex hull", "Graham scan", bench::kConvexHull,
             [](const std::vector<Point>& points) {
                 return pgl::convexHull(points).size();
             });
     // The signature compares the sorted order's first and last points: cheap,
     // but it cannot be computed without the whole sort having happened.
-    forEach("sort by angle", "comparison sort", bench::kSortAround,
-            [](const std::vector<Point>& points) {
-                auto copy = points;
-                pgl::sortAround(copy, Point(0, 0));
-                return copy.front() == copy.back() ? 1 : 0;
-            });
+    forEachSized("sort by angle", "comparison sort", bench::kSortAround,
+                 [](const std::vector<Point>& points) {
+                     auto copy = points;
+                     pgl::sortAround(copy, Point(0, 0));
+                     return copy.front() == copy.back() ? 1 : 0;
+                 },
+                 inputSize);
     forEach("Delaunay", "incremental", bench::kDelaunayBuild,
             [](const std::vector<Point>& points) {
                 return pgl::Triangulation<pgl::Triangle<Point>>(points).triangles().size();

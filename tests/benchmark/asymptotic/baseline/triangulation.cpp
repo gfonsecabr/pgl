@@ -55,9 +55,13 @@ int main(int argc, char** argv) {
                 }
                 return hits;
             });
+            // As in pgl's driver: the hit count is the signature, and the size
+            // these rows report is the triangulation being searched.
             bench::emit("Triangulation", "points", "locate",
                         "CGAL::Delaunay_triangulation_2::locate", bench::cgal::kNumber,
-                        n, result, locateUs / bench::kQueryBatch);
+                        n, result,
+                        static_cast<long long>(triangulation.number_of_faces()),
+                        locateUs / bench::kQueryBatch);
         }
 
         // CGAL's hierarchy is assembled while its triangulation is inserted,
@@ -87,7 +91,9 @@ int main(int argc, char** argv) {
             });
             bench::emit("Triangulation", "points", "locate",
                         "CGAL::Triangulation_hierarchy_2::locate", bench::cgal::kNumber,
-                        n, result, hierarchyLocateUs / bench::kQueryBatch);
+                        n, result,
+                        static_cast<long long>(hierarchy->number_of_faces()),
+                        hierarchyLocateUs / bench::kQueryBatch);
         }
     }
     return 0;

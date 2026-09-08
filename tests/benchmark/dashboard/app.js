@@ -1109,7 +1109,7 @@ function asymFilterBar(name, category, state, machineData) {
   xGroup.appendChild(xLabel);
   const xChips = document.createElement("div");
   xChips.className = "chips";
-  for (const [key, text] of [["size", "input size"], ["result", "output size"]]) {
+  for (const [key, text] of [["size", "input size"], ["output", "output size"]]) {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip" + (state.xAxis === key ? " on" : "");
@@ -1130,7 +1130,7 @@ function asymDatasets(category, state, machine, depth) {
   const values = asymSelected(category, state, state.compare);
   // Points are laid out against the chosen x and sorted by it: output size is
   // not always monotone in n, and a line drawn in sweep order would zigzag.
-  const xOf = (p) => (state.xAxis === "result" ? Number(p.result) : p.size);
+  const xOf = (p) => (state.xAxis === "output" ? Number(p.output) : p.size);
   const laid = (list) => list
     .map((p) => ({ x: xOf(p), y: p.time, point: p }))
     .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
@@ -1259,7 +1259,7 @@ function asymChart(canvas, name, category, state, machine, depth) {
   }
 
   const yTitle = `time (${category.unit || "µs"})`;
-  const xTitle = state.xAxis === "result" ? "output size" : "input size (n)";
+  const xTitle = state.xAxis === "output" ? "output size" : "input size (n)";
   // The y scale is fitted to the newest run alone. An older run or the CGAL
   // curve that happens to be much slower is cropped rather than allowed to
   // squash the curve the page is actually about into the bottom inch.
@@ -1306,7 +1306,7 @@ function asymChart(canvas, name, category, state, machine, depth) {
             label: (item) => {
               const p = item.raw.point;
               return `${item.dataset.label}: ${fmt(p.time)} ${category.unit || "µs"}` +
-                     `  ·  output ${p.result}`;
+                     `  ·  output ${p.output}`;
             },
           },
         },

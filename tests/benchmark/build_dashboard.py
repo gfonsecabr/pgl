@@ -41,7 +41,7 @@ of them.
         # result signature at each. The page's history-depth control just takes
         # the last N runs of each series.
         "data": { <machine>: { "dataset|problem|algorithm|type":
-                    [ {commit, date, points:[{size,time,min,max,result}, ...]}, ... ] } },
+                    [ {commit, date, points:[{size,time,min,max,output}, ...]}, ... ] } },
         # The CGAL reference, if one was recorded. Keyed on dataset|problem;
         # a curve may additionally name the pgl algorithm it compares against.
         "baseline": { "dataset|problem":
@@ -276,7 +276,11 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
                 "time":   r["time"],
                 "min":    r.get("time_min", r["time"]),
                 "max":    r.get("time_max", r["time"]),
-                "result": r.get("result"),
+                # The output size, and only that: `result` is the verification
+                # signature, which is compared but never displayed. Records
+                # written before the two were told apart carry one number that
+                # served as both, so they fall back to it.
+                "output": r.get("output", r.get("result")),
             }
 
     baseline = read_baseline(history)
@@ -357,7 +361,7 @@ def read_baseline(history: str):
         curve["_points"][r["size"]] = {
             "size": r["size"], "time": r["time"],
             "min": r.get("time_min", r["time"]), "max": r.get("time_max", r["time"]),
-            "result": r.get("result"),
+            "output": r.get("output", r.get("result")),
         }
     for keys in grouped.values():
         for key, curves in keys.items():

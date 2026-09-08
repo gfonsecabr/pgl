@@ -67,8 +67,12 @@ void run(const bench::Options& opt) {
                 }
                 return sum;
             });
+            // The signature is a checksum over the answers; a nearest
+            // neighbour is one point however large the tree is, so the output
+            // column reports the tree the queries searched.
             bench::emit(kCategory, kDataset, "nearest neighbor", kAlgorithm,
-                        number, n, result, us / bench::kQueryBatch);
+                        number, n, result, static_cast<long long>(tree->size()),
+                        us / bench::kQueryBatch);
         }
     }
 }

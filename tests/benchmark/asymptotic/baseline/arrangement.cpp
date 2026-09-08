@@ -77,9 +77,11 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
                 }
                 return bounded;
             });
+            // As in pgl's driver: the bounded-face count is the signature, and
+            // the size these rows report is the arrangement being queried.
             bench::emit("Arrangement", dataset, "locateFace",
                         "CGAL::Arr_trapezoid_ric_point_location::locate",
-                        bench::cgal::kNumber, n, result,
+                        bench::cgal::kNumber, n, result, outputSize(arrangement),
                         locateUs / bench::kSlowQueryBatch);
         }
     }

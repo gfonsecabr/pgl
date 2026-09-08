@@ -214,6 +214,11 @@ def main() -> int:
                         "time_max":   entry.get("time_max", entry["time"]),
                         "unit":       canonical_unit(entry.get("unit", "")),
                         "result":     str(entry.get("result")),
+                        # The size of what the row produced, which is what the
+                        # dashboard plots; `result` above is the verification
+                        # signature and never reaches it. A snapshot from before
+                        # the two were told apart carries only the one number.
+                        "output":     str(entry.get("output", entry.get("result"))),
                         "commit":     commit,
                         "date":       date,
                         "machine":    machine,

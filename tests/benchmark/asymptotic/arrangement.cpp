@@ -56,6 +56,10 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         // bounded-ness is a property of the plane, so the CGAL baseline can
         // compute the same number and the cross-check reaches outside pgl.
         //
+        // It is a signature and nothing else: a locate returns one face however
+        // large the subdivision is, so what grows under these rows is the
+        // arrangement they query, and that is what they report as their output.
+        //
         // Without the index locateFace is a linear scan over the edges, which
         // reaches milliseconds a query at the top of the sweep — hence the
         // short batch, shared with the indexed algorithm so the two stay
@@ -73,7 +77,8 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         if (bench::matches(opt.problem, "locateFace")) {
             const double scanUs = bench::timeOnce(result, locate);
             bench::emit(kCategory, dataset, "locateFace", "edge scan", number, n,
-                        result, scanUs / bench::kSlowQueryBatch);
+                        result, outputSize(*arrangement),
+                        scanUs / bench::kSlowQueryBatch);
         }
 
         if (bench::matches(opt.problem, "buildPointLocation")) {
@@ -92,7 +97,8 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         if (bench::matches(opt.problem, "locateFace")) {
             const double indexedUs = bench::timeOnce(result, locate);
             bench::emit(kCategory, dataset, "locateFace", "trapezoidal DAG", number, n,
-                        result, indexedUs / bench::kSlowQueryBatch);
+                        result, outputSize(*arrangement),
+                        indexedUs / bench::kSlowQueryBatch);
         }
     }
 }

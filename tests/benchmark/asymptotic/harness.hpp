@@ -143,16 +143,46 @@ constexpr const char* numberName = NumberName<Number>::value;
 // Output
 // ---------------------------------------------------------------------------
 inline void header() {
-    std::cout << "Category\tDataset\tProblem\tAlgorithm\tNumber\tSize\tResult\tTime(µs)\n";
+    std::cout << "Category\tDataset\tProblem\tAlgorithm\tNumber\tSize\tResult\tOutput"
+                 "\tTime(µs)\n";
 }
 
+// A row carries two numbers, and they answer different questions.
+//
+// `result` is the verification signature: whatever value pins down that the
+// computation happened and came out the same as every other way of doing it.
+// Two algorithms of one problem must agree on it, an `int` run and an
+// `ERational` run over the identical input must agree on it, and where CGAL
+// solves the same problem its driver reports the same number. It is never
+// shown: it exists to be compared, not read.
+//
+// `output` is the size of what the row is about, and it is what the dashboard
+// plots when the x axis is switched off n. For most rows the two coincide --
+// a count of intersections is both the answer and the size of the answer --
+// and the short overload below is how a driver says so.
+//
+// They part company wherever the answer is not a size. A locate query returns
+// one face however large the subdivision is; a closest pair returns a distance.
+// A signature there has to be something else entirely -- how many queries
+// landed inside, the squared length -- and reporting that as an output size
+// puts a number on the chart that measures nothing. Such a row reports the size
+// of the structure it is about, the same measure that structure's own build row
+// reports, and keeps its check in `result`.
+inline void emit(std::string_view category, std::string_view dataset,
+                 std::string_view problem, std::string_view algorithm,
+                 std::string_view number, int size, long long result,
+                 long long output, double microseconds) {
+    std::cout << category << '\t' << dataset << '\t' << problem << '\t'
+              << algorithm << '\t' << number << '\t' << size << '\t'
+              << result << '\t' << output << '\t' << microseconds << std::endl;
+}
+
+/** @brief A row whose answer is its own size, so the two numbers coincide. */
 inline void emit(std::string_view category, std::string_view dataset,
                  std::string_view problem, std::string_view algorithm,
                  std::string_view number, int size, long long result,
                  double microseconds) {
-    std::cout << category << '\t' << dataset << '\t' << problem << '\t'
-              << algorithm << '\t' << number << '\t' << size << '\t'
-              << result << '\t' << microseconds << std::endl;
+    emit(category, dataset, problem, algorithm, number, size, result, result, microseconds);
 }
 
 // ---------------------------------------------------------------------------

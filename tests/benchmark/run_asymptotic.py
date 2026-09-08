@@ -65,7 +65,13 @@ def canonical_unit(unit: str) -> str:
     return MICROSECONDS if unit in ("us", "\u00b5s", "\u03bcs") else unit
 
 
-COLUMNS = ("category", "dataset", "problem", "algorithm", "number", "size", "result")
+# The columns a driver prints, in order. The last two are the row's two
+# numbers: `result` is the verification signature and never leaves this
+# pipeline for the dashboard, `output` is the size of what the row produced and
+# is what the site plots. Everything before them is the cell key.
+COLUMNS = ("category", "dataset", "problem", "algorithm", "number", "size",
+           "result", "output")
+KEY_COLUMNS = COLUMNS[:-2]
 
 
 def detect_cpu() -> str:
@@ -92,8 +98,8 @@ def detect_cpu() -> str:
 def parse_table(raw: str) -> tuple[str, list[dict]]:
     """Parse a driver's output into (unit, rows).
 
-    Rows are exactly the eight columns the drivers print. Anything that does not
-    have eight fields, or whose last field is not a number, is not a data row —
+    Rows are exactly the nine columns the drivers print. Anything that does not
+    have nine fields, or whose last field is not a number, is not a data row —
     a driver is free to print progress or warnings alongside its table.
     """
     unit = MICROSECONDS
@@ -143,9 +149,9 @@ def run_drivers(built, repetitions, driver_args, timeout) -> list[dict]:
     """Run each binary `repetitions` times, keeping the median time per cell."""
     results: list[dict] = []
     for stem, binary in sorted(built.items()):
-        # cell key -> list of (result, time); the median time's own result is
-        # kept, so a reported row is one real measurement rather than a blend.
-        cells: dict[tuple, list[tuple[str, float]]] = {}
+        # cell key -> list of (result, output, time); the median time's own
+        # row is kept, so a reported row is one real measurement, not a blend.
+        cells: dict[tuple, list[tuple[str, str, float]]] = {}
         order: list[tuple] = []
         unit = MICROSECONDS
         ok = True
@@ -163,24 +169,25 @@ def run_drivers(built, repetitions, driver_args, timeout) -> list[dict]:
                 break
             unit, rows = parse_table(run.stdout)
             for row in rows:
-                key = tuple(row[c] for c in COLUMNS[:-1])
+                key = tuple(row[c] for c in KEY_COLUMNS)
                 if key not in cells:
                     cells[key] = []
                     order.append(key)
-                cells[key].append((row["result"], row["time"]))
+                cells[key].append((row["result"], row["output"], row["time"]))
         if not ok:
             continue
 
         for key in order:
-            samples = sorted(cells[key], key=lambda s: s[1])
-            result, time = samples[len(samples) // 2]
-            row = dict(zip(COLUMNS[:-1], key))
+            samples = sorted(cells[key], key=lambda s: s[2])
+            result, output, time = samples[len(samples) // 2]
+            row = dict(zip(KEY_COLUMNS, key))
             row.update({
                 "driver":   stem,
                 "result":   result,
+                "output":   output,
                 "time":     round(time, 6),
-                "time_min": round(samples[0][1], 6),
-                "time_max": round(samples[-1][1], 6),
+                "time_min": round(samples[0][2], 6),
+                "time_max": round(samples[-1][2], 6),
                 "unit":     unit,
             })
             results.append(row)
