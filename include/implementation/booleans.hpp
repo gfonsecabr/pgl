@@ -244,8 +244,21 @@ PolygonSet<ResultPoint> regularizedCellsFromKeep(
             }
             holesOfOuter[owner].push_back(convert(hole.vertices()));
         }
+        // The same bargain `convert` strikes for a ring, struck once more for
+        // the region: its holes are canonical polygons already, and not one of
+        // them bounds no area — a ring whose orientation vanished was dropped
+        // above — so all the region's own normalization would find to do is
+        // sort them, after measuring every one of them exactly to learn what is
+        // already known. Over rationals that measurement is the single most
+        // expensive thing this function does. A result type that is not the
+        // exact one may collapse a ring on the way, so it still normalizes.
+        constexpr bool exact = std::is_same_v<ResultPoint, ExactPoint>;
         for (std::size_t i = 0; i < outers.size(); ++i) {
-            result.emplace_back(convert(outers[i].vertices()), std::move(holesOfOuter[i]));
+            if constexpr (exact) {
+                std::sort(holesOfOuter[i].begin(), holesOfOuter[i].end());
+            }
+            result.emplace_back(convert(outers[i].vertices()), std::move(holesOfOuter[i]),
+                                /*trusted=*/exact);
         }
     }
     // The pieces have pairwise disjoint interiors and share no stretch of edge —
