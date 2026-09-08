@@ -689,6 +689,13 @@ const BASELINE_COLOR = "#6e7781";
 // One dash pattern per reference of the same curve, in the order the baseline
 // snapshot recorded them.
 const BASELINE_DASHES = [[6, 4], [2, 3], [10, 3, 2, 3]];
+// How far the y axis may stretch past the pgl curve to bring a slower CGAL
+// reference into the frame. The reference is the whole reason the curve is
+// worth looking at, so the axis makes room for it; but pgl's `int` path runs an
+// order of magnitude ahead of CGAL's exact kernel in the query-bound cells, and
+// fitting those references in full would leave the curve the page is about as a
+// flat line along the bottom. Three times keeps that curve in the top third.
+const BASELINE_HEADROOM = 3;
 
 // Per-category UI state, built on first render.
 const asymState = {};
@@ -932,7 +939,8 @@ function asymExactValues(category, state, machineData, dim) {
 
 function asymInitState(name, category, machineData) {
   const selected = {};
-  const state = { selected, compare: ASYM_DIMS[0], xAxis: "size", curveColors: {} };
+  const state = { selected, compare: ASYM_DIMS[0], xAxis: "size", baseline: true,
+                  curveColors: {} };
   // Every field on its first value, so the fields the pass below leaves alone
   // are already settled — and so asymDimValues can read the selected problem
   // while deciding what the algorithm field offers.
@@ -1120,6 +1128,42 @@ function asymFilterBar(name, category, state, machineData) {
   xGroup.appendChild(xChips);
   bar.appendChild(xGroup);
 
+  // Whether the CGAL curves are drawn. They are the reference the numbers are
+  // checked against, so they are on by default — but they are also the only
+  // thing on the chart that is not this library, and a cell where CGAL is
+  // several times slower spends its y axis on them (see BASELINE_HEADROOM).
+  // Turning them off gives the whole height back to the curve being read.
+  // Offered only where there is something to draw: most categories have a
+  // reference for every cell, but a control that does nothing is worse than no
+  // control.
+  if (category.baseline && Object.keys(category.baseline).length) {
+    const refGroup = document.createElement("div");
+    refGroup.className = "filter-group";
+    const refLabel = document.createElement("span");
+    refLabel.className = "filter-label static";
+    refLabel.title = "The CGAL reference curves, drawn dashed. They are not a " +
+      "measurement of this repository: they are the same problem on the same " +
+      "input, solved by another library, and they overlay whichever curve is " +
+      "selected.";
+    refLabel.textContent = "CGAL";
+    refGroup.appendChild(refLabel);
+    const refChips = document.createElement("div");
+    refChips.className = "chips";
+    for (const [on, text] of [[true, "show"], [false, "hide"]]) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" + (state.baseline === on ? " on" : "");
+      chip.textContent = text;
+      chip.addEventListener("click", () => {
+        state.baseline = on;
+        renderCategory(name);
+      });
+      refChips.appendChild(chip);
+    }
+    refGroup.appendChild(refChips);
+    bar.appendChild(refGroup);
+  }
+
   return bar;
 }
 
@@ -1198,6 +1242,7 @@ function asymDatasets(category, state, machine, depth) {
   const seen = new Set();
   const references = [];
   for (const { value, color, dataset, problem, algorithm } of resolved) {
+    if (!state.baseline) break;
     const key = `${dataset}|${problem}`;
     const found = (category.baseline && category.baseline[key]) || [];
     found.forEach((baseline, rank) => {
@@ -1215,21 +1260,45 @@ function asymDatasets(category, state, machine, depth) {
     });
   }
 
+  // The y ceiling, which the references get a say in. Fitting the axis to the
+  // pgl curve alone is what the older runs need -- one of those is often much
+  // slower and says nothing by being on screen -- but a reference held out of
+  // the fit does not merely lose its top: where CGAL runs several times ahead
+  // of the selected curve the whole thing sits above the frame, and all that is
+  // left of it is a legend entry for a curve that was never drawn. So the axis
+  // stretches to fit the references, up to BASELINE_HEADROOM times the curve;
+  // one still above that is cropped, and says so in the legend rather than
+  // disappearing quietly.
+  const referenceMax = references.reduce(
+    (m, r) => Math.max(m, ...r.points.map((p) => p.y)), 0);
+  const ceiling = latestMax > 0
+    ? Math.min(Math.max(latestMax, referenceMax), latestMax * BASELINE_HEADROOM)
+    : referenceMax;
+  const yMax = ceiling > 0 ? ceiling * 1.08 : undefined;
+
   // A baseline associated with one pgl algorithm always takes that curve's
   // colour. Unassociated references only take a colour when dataset or problem
   // is being compared, where each one belongs to a distinct curve.
   const specific = values.length > 1 &&
     state.compare !== "algorithm" && state.compare !== "type";
   for (const { value, color, baseline, points, rank } of references) {
-    const label = `${baseline.algorithm} (${baseline.number})`;
     const paired = Boolean(baseline.for_algorithm);
+    const named = `${baseline.algorithm} (${baseline.number})`;
+    const titled = paired || specific ? `${named} · ${value}` : named;
+    // Entirely above the ceiling: nothing of it will be drawn, so the legend
+    // has to carry how far up it is, or the reader is left with a dashed
+    // swatch and an empty chart.
+    const lowest = Math.min(...points.map((p) => p.y));
+    const label = yMax !== undefined && lowest > yMax
+      ? `${titled} · off scale, ${fmt(lowest / yMax)}× above`
+      : titled;
     const stroke = paired || specific ? color : BASELINE_COLOR;
     // Where a curve has several references, colour can no longer tell them
     // apart — it is already saying which curve they belong to — so the dash
     // pattern does.
     const dash = BASELINE_DASHES[rank % BASELINE_DASHES.length];
     datasets.push({
-      label: paired || specific ? `${label} · ${value}` : label,
+      label,
       data: points,
       borderColor: stroke,
       backgroundColor: stroke,
@@ -1247,11 +1316,11 @@ function asymDatasets(category, state, machine, depth) {
       legendEntry: true,
     });
   }
-  return { datasets, latestMax };
+  return { datasets, yMax };
 }
 
 function asymChart(canvas, name, category, state, machine, depth) {
-  const { datasets, latestMax } = asymDatasets(category, state, machine, depth);
+  const { datasets, yMax } = asymDatasets(category, state, machine, depth);
   if (asymCharts[name]) asymCharts[name].destroy();
   if (!datasets.length) {
     asymCharts[name] = null;
@@ -1260,11 +1329,6 @@ function asymChart(canvas, name, category, state, machine, depth) {
 
   const yTitle = `time (${category.unit || "µs"})`;
   const xTitle = state.xAxis === "output" ? "output size" : "input size (n)";
-  // The y scale is fitted to the newest run alone. An older run or the CGAL
-  // curve that happens to be much slower is cropped rather than allowed to
-  // squash the curve the page is actually about into the bottom inch.
-  const yMax = latestMax > 0 ? latestMax * 1.08 : undefined;
-
   asymCharts[name] = new Chart(canvas, {
     type: "line",
     data: { datasets },
