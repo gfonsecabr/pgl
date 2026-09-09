@@ -91,27 +91,27 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 48× faster to pgl being 4× faster. On `int` / EPICK, the ratio goes from CGAL being 7.8× faster to pgl being 3× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 9.8× faster to pgl being 4.2× faster. On `int` / EPICK, the ratio goes from CGAL being 7.9× faster to pgl being 5.9× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
-| Segment search, count in Rectangle | 48× (34–51) | 1.3× (0.72–1.4) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
-| Segment search, count in Triangle | 24× (15–24) | 0.81× (0.52–0.86) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
 | Segment intersection | 9.8× (3.9–18) | — | [`findIntersections(v)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#adcd493466342b027a48fe7bf0718434b "Finds all intersecting segment pairs with Bentley-Ottmann.") | <code>compute_<wbr>intersection_points</code> |
-| Delaunay triangulation | 8.1× (6.7–9.2) | 4.2× (3.8–4.5) | [`Triangulation`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html "Triangulation whose connectivity may change and whose vertex set may grow.") | `Delaunay_triangulation_2` |
+| Delaunay triangulation | 7.9× (6.7–8.6) | 4.3× (3.9–4.6) | [`Triangulation`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html "Triangulation whose connectivity may change and whose vertex set may grow.") | `Delaunay_triangulation_2` |
 | Minkowski sum | 5.4× (2.3–14) | — | [`a.minkowskiSum(b)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#afe1664a4092da89cf4055a68eedf08ab "Returns the regularized Minkowski sum of the two shapes (A ⊕ B).") | <code>minkowski_sum_by_<wbr>reduced_convolution_2</code> |
-| Convex hull | 5.2× (4.2–5.2) | 1.7× (1.5–1.7) | [`convexHull(v)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a3999bfdf73609b7ec708a4882fcaea2f "Computes the convex hull of a point container.") | `convex_hull_2` |
-| Point search, count in Triangle | 4.8× (4.4–5.3) | 0.32× (0.28–0.36) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `Kd_tree::search` |
-| Segment search build | 3.5× (3.3–3.9) | 7.8× (7.4–8.1) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
-| kd-tree build | 3.4× (2.6–3.7) | 3.7× (3.2–4.3) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `Kd_tree` |
+| Convex hull | 5.1× (4.1–5.2) | 1.7× (1.5–1.8) | [`convexHull(v)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#a3999bfdf73609b7ec708a4882fcaea2f "Computes the convex hull of a point container.") | `convex_hull_2` |
+| Segment search build | 3.8× (3.7–4.2) | 7.9× (7.4–8.2) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
+| kd-tree build | 3.4× (2.6–3.9) | 3.7× (3.2–4.1) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `Kd_tree` |
 | Arrangement build | 2.9× (1.7–3.3) | — | [`Arrangement`](https://gfonsecabr.github.io/pgl/classpgl_1_1Arrangement.html "The planar subdivision induced by a set of one-dimensional shapes.") | `Arrangement_2` |
 | Triangulation point location | 2.7× (1.9–3.6) | 1.4× (0.88–2.6) | [`t.locate(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a29b96c32ebb52fddc7fd10eaeee4dbd8 "Finds the triangle containing the query point by walking the mesh.") | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
 | Regularized union, large + large | 2.7× (2.3–2.8) | — | [`a.regularizedUnion(b)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Polygon.html#a3066fa00a91b8fa642125c56b8a2d5b7 "Returns the regularized union of the two shapes (A ∪ B).") | <code>General_polygon_set_2<wbr>::join</code> |
+| Point search, count in Triangle | 1.9× (1.4–2.1) | 0.17× (0.13–0.19) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `Kd_tree::search` |
 | Triangulation point-location build | 1.7× (1.1–1.8) | 1.8× (1.4–2.2) | [`t.buildPointLocation()`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a669c50019ef2407fe80b553bfada6a1f "Builds the point-location index: a Kirkpatrick hierarchy over this mesh.") | <code>Triangulation_<wbr>hierarchy_2</code> |
+| Segment search, count in Triangle | 1.5× (1.4–1.6) | 0.35× (0.23–0.39) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
+| Segment search, count in Rectangle | 1.2× (0.83–1.3) | 0.68× (0.37–0.79) | [`ShapeTree`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html "Static shape tree of bounded shapes.") | `AABB_tree` |
 | Visibility, visible vertices | 0.9× (0.62–1.1) | 0.78× (0.66–0.93) | [`t.visibleVertices(p)`](https://gfonsecabr.github.io/pgl/structpgl_1_1Triangulation.html#a3ec93b7700354398247e96c0ee9ba4db "The mesh vertices visible from query.") | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | Arrangement point-location build | 0.89× (0.69–1.2) | — | [`a.buildPointLocation()`](https://gfonsecabr.github.io/pgl/classpgl_1_1Arrangement.html#af73b4d7888dfb82faaabaf0156b208a5 "Builds the randomized trapezoidal point-location index.") | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Arrangement point location query | 0.62× (0.38–1.1) | — | [`a.locateFace(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1Arrangement.html#a95d36d4248271458151cc640bf838704 "Returns the face containing a point.") | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
-| Nearest neighbor query | 0.55× (0.48–0.58) | 1.5× (1.2–1.6) | [`t.nearestNeighbor(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html#ab474ac9db17611ead980ea1ff63f3446 "Returns the stored shape nearest to a query shape.") | <code>Orthogonal_k_<wbr>neighbor_search</code> |
+| Nearest neighbor query | 0.55× (0.47–0.58) | 1.4× (1.2–1.5) | [`t.nearestNeighbor(p)`](https://gfonsecabr.github.io/pgl/classpgl_1_1ShapeTree.html#ab474ac9db17611ead980ea1ff63f3446 "Returns the stored shape nearest to a query shape.") | <code>Orthogonal_k_<wbr>neighbor_search</code> |
 | Regularized union, triangles | 0.24× (0.22–0.75) | — | [`regularizedUnionOf(v)`](https://gfonsecabr.github.io/pgl/namespacepgl.html#ae72efa38504e74942758d2d4fb78ffcd "The regularized union of arbitrarily many shapes, as a set of regions.") | <code>General_polygon_set_2<wbr>::join</code> |
 
 #### What the numbers do not say
