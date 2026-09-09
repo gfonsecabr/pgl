@@ -2,7 +2,7 @@
 // random points, answering the same rectangle, triangle and nearest-neighbour
 // queries pgl's ShapeTree answers.
 //
-// Two things need saying about how the rows below are made comparable.
+// Three things need saying about how the rows below are made comparable.
 //
 // CGAL's kd-tree builds lazily -- the constructor only stores the points, and
 // the hierarchy appears on the first query. `build()` is therefore called
@@ -15,6 +15,15 @@
 // written to descend the way ShapeTree descends: prune a node whose rectangle
 // misses the triangle, take a whole subtree whose rectangle lies inside it,
 // test the rest point by point. Both tests are exact.
+//
+// The sweep runs under both kernels -- EPICK as the reference for pgl's `int`
+// column, EPECK for `ERational`. The counting rows are exact under either: a
+// node's splitting value is a construction, but it is only ever compared
+// against, so rounding it changes which points land in which cell and never
+// which points the query returns; the per-point containment test that settles
+// the answer reads the input coordinates. Nearest neighbour is exact too --
+// the squared distances it orders stay under 10^9 on this dataset -- so it
+// keeps the tie caveat below and gains no other.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -33,34 +42,25 @@
 
 namespace {
 
-using Kernel   = bench::cgal::Kernel;
-using Point    = bench::cgal::Point;
-using FT       = Kernel::FT;
-using Traits   = CGAL::Search_traits_2<Kernel>;
-using Tree     = CGAL::Kd_tree<Traits>;
-using Box      = CGAL::Fuzzy_iso_box<Traits>;
-using Search   = CGAL::Orthogonal_k_neighbor_search<Traits>;
-using TreeRect = CGAL::Kd_tree_rectangle<FT, Traits::Dimension>;
-
-static_assert(std::is_same_v<Search::Tree, Tree>,
-              "the neighbour search must query the same tree the build row measured");
-
 /**
  * A triangle as a kd-tree query item, exactly the way Fuzzy_iso_box is one for
  * a box. Zero fuzz: every test is exact, so the count it produces is the count
  * pgl's countIntersecting produces on the same operands.
  */
+template <class K>
 class TriangleQuery {
   public:
-    using D       = Traits::Dimension;
-    using Point_d = Point;
+    using Traits  = CGAL::Search_traits_2<K>;
+    using D       = typename Traits::Dimension;
+    using Point_d = typename K::Point_2;
+    using TreeRect = CGAL::Kd_tree_rectangle<typename K::FT, D>;
 
     explicit TriangleQuery(const bench::IntTriangle& t)
-        : triangle_(bench::cgal::point(t[0]), bench::cgal::point(t[1]),
-                    bench::cgal::point(t[2])) {}
+        : triangle_(bench::cgal::point<K>(t[0]), bench::cgal::point<K>(t[1]),
+                    bench::cgal::point<K>(t[2])) {}
 
     /** Closed containment, as pgl's Triangle::contains is. */
-    bool contains(const Point& p) const {
+    bool contains(const Point_d& p) const {
         return !triangle_.has_on_unbounded_side(p);
     }
 
@@ -73,19 +73,20 @@ class TriangleQuery {
     bool outer_range_contains(const TreeRect& r) const {
         // The triangle is convex, so it holds the cell exactly when it holds
         // all four corners.
-        return contains(Point(r.min_coord(0), r.min_coord(1))) &&
-               contains(Point(r.min_coord(0), r.max_coord(1))) &&
-               contains(Point(r.max_coord(0), r.min_coord(1))) &&
-               contains(Point(r.max_coord(0), r.max_coord(1)));
+        return contains(Point_d(r.min_coord(0), r.min_coord(1))) &&
+               contains(Point_d(r.min_coord(0), r.max_coord(1))) &&
+               contains(Point_d(r.max_coord(0), r.min_coord(1))) &&
+               contains(Point_d(r.max_coord(0), r.max_coord(1)));
     }
 
   private:
-    static Kernel::Iso_rectangle_2 box(const TreeRect& r) {
-        return Kernel::Iso_rectangle_2(Point(r.min_coord(0), r.min_coord(1)),
-                                       Point(r.max_coord(0), r.max_coord(1)));
+    static typename K::Iso_rectangle_2 box(const TreeRect& r) {
+        return typename K::Iso_rectangle_2(
+            Point_d(r.min_coord(0), r.min_coord(1)),
+            Point_d(r.max_coord(0), r.max_coord(1)));
     }
 
-    Kernel::Triangle_2 triangle_;
+    typename K::Triangle_2 triangle_;
 };
 
 /**
@@ -104,29 +105,37 @@ class CountingIterator {
 
     explicit CountingIterator(std::size_t& counter) : counter_(&counter) {}
 
-    CountingIterator& operator=(const Point&) { ++*counter_; return *this; }
-    CountingIterator& operator*()             { return *this; }
-    CountingIterator& operator++()            { return *this; }
-    CountingIterator  operator++(int)         { return *this; }
+    // Templated on the point type, so one iterator serves both kernels.
+    template <class P>
+    CountingIterator& operator=(const P&)  { ++*counter_; return *this; }
+    CountingIterator& operator*()          { return *this; }
+    CountingIterator& operator++()         { return *this; }
+    CountingIterator  operator++(int)      { return *this; }
 
   private:
     std::size_t* counter_;
 };
 
 /** The number of points the query selects, without materializing them. */
-template <class Query>
+template <class Tree, class Query>
 std::size_t countIn(const Tree& tree, const Query& q) {
     std::size_t found = 0;
     tree.search(CountingIterator(found), q);
     return found;
 }
 
-}  // namespace
+template <class K>
+void run(const bench::Options& opt) {
+    if (!bench::cgal::selected<K>(opt)) return;
+    const char* number = bench::cgal::numberName<K>;
 
-int main(int argc, char** argv) {
-    const auto opt = bench::parseOptions(argc, argv);
-    bench::header();
-    if (!bench::matches(opt.dataset, "points")) return 0;
+    using Traits = CGAL::Search_traits_2<K>;
+    using Tree   = CGAL::Kd_tree<Traits>;
+    using Box    = CGAL::Fuzzy_iso_box<Traits>;
+    using Search = CGAL::Orthogonal_k_neighbor_search<Traits>;
+
+    static_assert(std::is_same_v<typename Search::Tree, Tree>,
+                  "the neighbour search must query the same tree the build row measured");
 
     // The query batches, converted once: the same shapes, in the same order,
     // that the pgl driver hands its tree.
@@ -137,16 +146,16 @@ int main(int argc, char** argv) {
     // element at its final address and never relocates it.
     std::deque<Box> boxes;
     for (const auto& r : bench::queryRectangles(bench::kQueryBatch)) {
-        boxes.emplace_back(bench::cgal::point(r.min()), bench::cgal::point(r.max()));
+        boxes.emplace_back(bench::cgal::point<K>(r.min()), bench::cgal::point<K>(r.max()));
     }
-    std::vector<TriangleQuery> triangles;
+    std::vector<TriangleQuery<K>> triangles;
     for (const auto& t : bench::queryTriangles(bench::kQueryBatch)) {
         triangles.emplace_back(t);
     }
-    const auto queries = bench::cgal::points(bench::queryPoints(bench::kQueryBatch));
+    const auto queries = bench::cgal::points<K>(bench::queryPoints(bench::kQueryBatch));
 
     for (const int n : bench::sweep(bench::kPointSearch, opt)) {
-        const auto pts = bench::cgal::points(bench::points(n));
+        const auto pts = bench::cgal::points<K>(bench::points(n));
         long long result = 0;
 
         Tree tree(pts.begin(), pts.end());
@@ -156,7 +165,7 @@ int main(int argc, char** argv) {
         });
         if (bench::matches(opt.problem, "build")) {
             bench::emit("Point search", "points", "build", "CGAL::Kd_tree",
-                        bench::cgal::kNumber, n, result, buildUs);
+                        number, n, result, buildUs);
         }
         bench::require(tree.is_built(), "the kd-tree was never built");
 
@@ -172,7 +181,7 @@ int main(int argc, char** argv) {
                 return total;
             });
             bench::emit("Point search", "points", problem, "CGAL::Kd_tree::search",
-                        bench::cgal::kNumber, n, result, us / bench::kQueryBatch);
+                        number, n, result, us / bench::kQueryBatch);
         };
         measure("count in Rectangle", boxes);
         measure("count in Triangle", triangles);
@@ -199,10 +208,20 @@ int main(int argc, char** argv) {
             // disagreement here is a tie, while a large one, or one on any
             // other row, is not.
             bench::emit("Point search", "points", "nearest neighbor",
-                        "CGAL::Orthogonal_k_neighbor_search", bench::cgal::kNumber,
+                        "CGAL::Orthogonal_k_neighbor_search", number,
                         n, result, static_cast<long long>(tree.size()),
                         us / bench::kQueryBatch);
         }
     }
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    const auto opt = bench::parseOptions(argc, argv);
+    bench::header();
+    if (!bench::matches(opt.dataset, "points")) return 0;
+    run<bench::cgal::Inexact>(opt);
+    run<bench::cgal::Kernel>(opt);
     return 0;
 }

@@ -1144,7 +1144,10 @@ function asymFilterBar(name, category, state, machineData) {
     refLabel.title = "The CGAL reference curves, drawn dashed. They are not a " +
       "measurement of this repository: they are the same problem on the same " +
       "input, solved by another library, and they overlay whichever curve is " +
-      "selected.";
+      "selected. Each curve gets the CGAL kernel its number type is entitled " +
+      "to — EPICK against int, EPECK against ERational — except where CGAL " +
+      "constructs geometry and only EPECK is exact, which stays EPECK for " +
+      "both. The legend names the kernel each reference used.";
     refLabel.textContent = "CGAL";
     refGroup.appendChild(refLabel);
     const refChips = document.createElement("div");
@@ -1165,6 +1168,31 @@ function asymFilterBar(name, category, state, machineData) {
   }
 
   return bar;
+}
+
+// The reference curves a pgl number type is entitled to, one per CGAL entry
+// point. EPICK is the reference for `int` and EPECK for `ERational`: CGAL's
+// inexact-constructions kernel decides every predicate of a hull, a Delaunay
+// triangulation or a search tree exactly on integer input, so charging pgl's
+// `int` column against a lazy-exact kernel measured CGAL paying for exactness
+// the row never asked for.
+//
+// Only the categories whose CGAL side never constructs geometry record both.
+// One that does — an arrangement, a sweep, a Minkowski sum, a Boolean union, a
+// visibility region — has no honest EPICK curve to record, because rounding a
+// constructed point there can make CGAL's own decisions inconsistent (see
+// baseline/cgal.hpp). Such a key offers EPECK alone, and keeps it whatever the
+// selected type: it is still how CGAL solves that problem at all.
+function baselineForType(found, type) {
+  const wanted = type === "int" ? "EPICK" : "EPECK";
+  const byAlgorithm = new Map();
+  for (const curve of found) {
+    const held = byAlgorithm.get(curve.algorithm);
+    if (!held || (held.number !== wanted && curve.number === wanted)) {
+      byAlgorithm.set(curve.algorithm, curve);
+    }
+  }
+  return [...byAlgorithm.values()];
 }
 
 // The Chart.js datasets for one category: one line per (compare value, run),
@@ -1204,6 +1232,8 @@ function asymDatasets(category, state, machine, depth) {
         : at.problem ?? asymSelected(category, state, "problem")[0],
       algorithm: state.compare === "algorithm" ? value
         : at.algorithm ?? asymSelected(category, state, "algorithm")[0],
+      type: state.compare === "type" ? value
+        : at.type ?? asymSelected(category, state, "type")[0],
     });
     shown.forEach((run, position) => {
       const newest = position === shown.length - 1;
@@ -1241,22 +1271,30 @@ function asymDatasets(category, state, machine, depth) {
   // preprocessed curves respectively.
   const seen = new Set();
   const references = [];
-  for (const { value, color, dataset, problem, algorithm } of resolved) {
+  for (const { value, color, dataset, problem, algorithm, type } of resolved) {
     if (!state.baseline) break;
     const key = `${dataset}|${problem}`;
-    const found = (category.baseline && category.baseline[key]) || [];
-    found.forEach((baseline, rank) => {
+    const all = (category.baseline && category.baseline[key]) || [];
+    // Whether this cell records a kernel per number type at all: where it does,
+    // two type curves get two different references and each belongs to one of
+    // them; where it does not, they share the single EPECK curve.
+    const typed = new Set(all.map((b) => b.number)).size > 1;
+    baselineForType(all, type).forEach((baseline) => {
       if (baseline.for_algorithm && baseline.for_algorithm !== algorithm) return;
-      // A number-type comparison repeats the same algorithm, so its reference
-      // must only be drawn once. Algorithm-specific references use a separate
-      // key so selecting walk and preprocessed draws one of each.
+      // A comparison that repeats the same algorithm must only draw its
+      // reference once. Algorithm-specific references use a separate key so
+      // selecting walk and preprocessed draws one of each -- and so does the
+      // kernel, so comparing int against ERational draws EPICK beside EPECK
+      // rather than silently keeping whichever came first.
       const referenceKey = baseline.for_algorithm
-        ? `${key}|${algorithm}|${baseline.algorithm}`
-        : `${key}|${baseline.algorithm}`;
+        ? `${key}|${algorithm}|${baseline.algorithm}|${baseline.number}`
+        : `${key}|${baseline.algorithm}|${baseline.number}`;
       if (seen.has(referenceKey)) return;
       seen.add(referenceKey);
       const points = laid(baseline.points);
-      if (points.length) references.push({ value, color, baseline, points, rank });
+      if (points.length) {
+        references.push({ value, color, baseline, points, rank: baseline.rank ?? 0, typed });
+      }
     });
   }
 
@@ -1277,12 +1315,13 @@ function asymDatasets(category, state, machine, depth) {
   const yMax = ceiling > 0 ? ceiling * 1.08 : undefined;
 
   // A baseline associated with one pgl algorithm always takes that curve's
-  // colour. Unassociated references only take a colour when dataset or problem
-  // is being compared, where each one belongs to a distinct curve.
-  const specific = values.length > 1 &&
-    state.compare !== "algorithm" && state.compare !== "type";
-  for (const { value, color, baseline, points, rank } of references) {
+  // colour. An unassociated reference only takes a colour when it belongs to a
+  // distinct curve: when dataset or problem is being compared, or when the
+  // number type is and this cell has a kernel of its own for each type.
+  const comparing = values.length > 1 && state.compare !== "algorithm";
+  for (const { value, color, baseline, points, rank, typed } of references) {
     const paired = Boolean(baseline.for_algorithm);
+    const specific = comparing && (state.compare !== "type" || typed);
     const named = `${baseline.algorithm} (${baseline.number})`;
     const titled = paired || specific ? `${named} · ${value}` : named;
     // Entirely above the ceiling: nothing of it will be drawn, so the legend

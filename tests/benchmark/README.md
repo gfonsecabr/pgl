@@ -61,6 +61,16 @@ convolution, which pgl has no counterpart for — the first says how pgl's
 implementation of an idea compares, the second says what the other idea costs.
 The chart draws every reference a cell has, one dash pattern each.
 
+A cell may also carry a reference per *kernel*, and the chart picks the one the
+selected number type is entitled to: EPICK against pgl's `int` column, EPECK
+against `ERational`. Only the categories whose CGAL side never constructs a
+point it later tests offer both — Point constructions, Point search, Segment
+search and Triangulation — where EPICK decides every predicate exactly on this
+integer dataset and is what a CGAL user would actually reach for. A category
+that constructs geometry (Arrangement, Segment intersections, Minkowski sum,
+Regularized union, Visibility) has no honest EPICK curve to record and stays on
+EPECK for both columns. `baseline/cgal.hpp` carries the full rule.
+
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
 than a measurement of this repo at this commit, so it overwrites a single

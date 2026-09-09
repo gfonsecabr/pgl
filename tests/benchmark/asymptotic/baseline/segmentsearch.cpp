@@ -16,6 +16,12 @@
 // Like CGAL's kd-tree, the hierarchy is built lazily -- the first query would
 // otherwise pay for it -- so build() is called inside the timed region, and the
 // query rows are measured against a tree that is already standing.
+//
+// The sweep runs under both kernels -- EPICK as the reference for pgl's `int`
+// column, EPECK for `ERational`. The counts are exact under either: the
+// hierarchy's bounding boxes are already double intervals rounded outwards
+// whatever the kernel, so they only ever prune conservatively, and the
+// do_intersect that settles each candidate reads the input coordinates.
 #include "cgal.hpp"
 #include "../sizes.hpp"
 
@@ -28,44 +34,47 @@
 
 namespace {
 
-using Kernel    = bench::cgal::Kernel;
-using Point     = bench::cgal::Point;
-using Segment   = Kernel::Segment_2;
-using Iterator  = std::vector<Segment>::const_iterator;
-using Primitive = CGAL::AABB_segment_primitive_2<Kernel, Iterator>;
-using Traits    = CGAL::AABB_traits_2<Kernel, Primitive>;
-using Tree      = CGAL::AABB_tree<Traits>;
-
-std::vector<Segment> segments(const std::vector<bench::IntSegment>& in) {
-    std::vector<Segment> out;
+template <class K>
+std::vector<typename K::Segment_2> segments(const std::vector<bench::IntSegment>& in) {
+    std::vector<typename K::Segment_2> out;
     out.reserve(in.size());
     for (const auto& s : in) {
-        out.emplace_back(bench::cgal::point(s[0]), bench::cgal::point(s[1]));
+        out.emplace_back(bench::cgal::point<K>(s[0]), bench::cgal::point<K>(s[1]));
     }
     return out;
 }
 
+template <class K>
 void sweepDataset(const bench::Options& opt, const char* dataset,
                   std::span<const int> sizes,
                   std::vector<bench::IntSegment> (*generate)(int)) {
     if (!bench::matches(opt.dataset, dataset)) return;
+    if (!bench::cgal::selected<K>(opt)) return;
+    const char* number = bench::cgal::numberName<K>;
+
+    using Segment   = typename K::Segment_2;
+    using Iterator  = typename std::vector<Segment>::const_iterator;
+    using Primitive = CGAL::AABB_segment_primitive_2<K, Iterator>;
+    using Traits    = CGAL::AABB_traits_2<K, Primitive>;
+    using Tree      = CGAL::AABB_tree<Traits>;
 
     // The same query shapes the pgl driver uses, in the same order, so the two
     // read the same prefix of the batch.
-    std::vector<Kernel::Iso_rectangle_2> rectangles;
+    std::vector<typename K::Iso_rectangle_2> rectangles;
     for (const auto& r : bench::queryRectangles(bench::kQueryBatch)) {
-        rectangles.emplace_back(bench::cgal::point(r.min()), bench::cgal::point(r.max()));
+        rectangles.emplace_back(bench::cgal::point<K>(r.min()),
+                                bench::cgal::point<K>(r.max()));
     }
-    std::vector<Kernel::Triangle_2> triangles;
+    std::vector<typename K::Triangle_2> triangles;
     for (const auto& t : bench::queryTriangles(bench::kQueryBatch)) {
-        triangles.emplace_back(bench::cgal::point(t[0]), bench::cgal::point(t[1]),
-                               bench::cgal::point(t[2]));
+        triangles.emplace_back(bench::cgal::point<K>(t[0]), bench::cgal::point<K>(t[1]),
+                               bench::cgal::point<K>(t[2]));
     }
 
     for (const int n : bench::sweep(sizes, opt)) {
         // The primitives reference the segments through iterators, so this
         // vector has to outlive the tree built over it.
-        const auto segs = segments(generate(n));
+        const auto segs = segments<K>(generate(n));
         long long result = 0;
 
         Tree tree(segs.begin(), segs.end());
@@ -75,7 +84,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
         });
         if (bench::matches(opt.problem, "build")) {
             bench::emit("Segment search", dataset, "build", "CGAL::AABB_tree",
-                        bench::cgal::kNumber, n, result, buildUs);
+                        number, n, result, buildUs);
         }
         bench::require(!tree.empty() && tree.size() == segs.size(),
                        "the AABB tree does not hold the whole dataset");
@@ -94,7 +103,7 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
             });
             bench::emit("Segment search", dataset, problem,
                         "CGAL::AABB_tree::number_of_intersected_primitives",
-                        bench::cgal::kNumber, n, result, us / bench::kSlowQueryBatch);
+                        number, n, result, us / bench::kSlowQueryBatch);
         };
         measure("count in Rectangle", rectangles);
         measure("count in Triangle", triangles);
@@ -106,6 +115,9 @@ void sweepDataset(const bench::Options& opt, const char* dataset,
 int main(int argc, char** argv) {
     const auto opt = bench::parseOptions(argc, argv);
     bench::header();
-    sweepDataset(opt, "small segments", bench::kSegmentSearch, bench::smallSegments);
+    sweepDataset<bench::cgal::Inexact>(opt, "small segments", bench::kSegmentSearch,
+                                       bench::smallSegments);
+    sweepDataset<bench::cgal::Kernel>(opt, "small segments", bench::kSegmentSearch,
+                                      bench::smallSegments);
     return 0;
 }

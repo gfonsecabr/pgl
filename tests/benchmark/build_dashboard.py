@@ -43,9 +43,12 @@ of them.
         "data": { <machine>: { "dataset|problem|algorithm|type":
                     [ {commit, date, points:[{size,time,min,max,output}, ...]}, ... ] } },
         # The CGAL reference, if one was recorded. Keyed on dataset|problem;
-        # a curve may additionally name the pgl algorithm it compares against.
+        # `number` is the kernel that produced the curve (EPICK is shown against
+        # pgl's int column, EPECK against ERational), `rank` selects the dash
+        # pattern, and a curve may additionally name the pgl algorithm it
+        # compares against.
         "baseline": { "dataset|problem":
-                      {algorithm, number, for_algorithm?, points:[...]} },
+                      {algorithm, number, rank, for_algorithm?, points:[...]} },
         "source_url"?, "description"?
       }
     }
@@ -330,9 +333,19 @@ def build_asymptotic(history: str, repo_base: str, bench_root: str):
 def read_baseline(history: str):
     """The CGAL reference snapshot, category -> "dataset|problem" -> [curve].
 
-    A list per key, not one curve: a category may have more than one reference
-    for the same cell — CGAL's Minkowski sum is measured both by decomposition
-    and by reduced convolution — and the chart draws all of them.
+    A list per key, not one curve, for two reasons. A category may have more
+    than one reference for the same cell — CGAL's Minkowski sum is measured both
+    by decomposition and by reduced convolution — and the chart draws all of
+    them. And a reference measured under both of CGAL's kernels appears once per
+    kernel, since the page shows EPICK against pgl's `int` column and EPECK
+    against `ERational` (see baseline/cgal.hpp for which drivers may offer
+    both). Curves are therefore keyed on (algorithm, number), not on algorithm
+    alone, or the second kernel would overwrite the first.
+
+    `rank` is the index of a curve's *algorithm* among the key's algorithms, and
+    it is what the page picks a dash pattern from. Ranking the flat list instead
+    would give one algorithm's two kernels two different patterns, which would
+    read as two different algorithms.
 
     A single overwritten JSON rather than a history: see to_history.py. Missing
     is the normal case — it is only ever written on a machine with CGAL.
@@ -352,7 +365,7 @@ def read_baseline(history: str):
         curves = grouped.setdefault(r["category"], {}).setdefault(key, {})
         for_algorithm = BASELINE_FOR_ALGORITHM.get(
             (r["category"], r["problem"], r["algorithm"]))
-        curve = curves.setdefault(r["algorithm"], {
+        curve = curves.setdefault((r["algorithm"], r["number"]), {
             "algorithm": r["algorithm"], "number": r["number"],
             "_points": {},
         })
@@ -365,8 +378,10 @@ def read_baseline(history: str):
         }
     for keys in grouped.values():
         for key, curves in keys.items():
+            ranks: dict[str, int] = {}
             listed = []
             for curve in curves.values():
+                curve["rank"] = ranks.setdefault(curve["algorithm"], len(ranks))
                 points = curve.pop("_points")
                 curve["points"] = [points[s] for s in sorted(points)]
                 listed.append(curve)

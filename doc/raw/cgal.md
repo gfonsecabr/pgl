@@ -207,13 +207,32 @@ coordinates the balance tips the other way.
   all.
 - One run, one machine (Ryzen 9 9900X, `c++ -std=c++23 -O2 -DNDEBUG`, CGAL
   6.1.2), three repetitions per point. Treat a median under about 1.3 as a tie.
-- CGAL's exact-predicates, exact-constructions kernel (EPECK) is the baseline
-  everywhere. It is a *filtered* kernel: on integer input its interval
-  arithmetic almost always settles the sign, so it runs at close to `double`
-  speed and falls back to exact arithmetic only when it must. pgl has no such
-  filter, so neither pgl number type pairs with it perfectly — `ERational` is
-  pgl paying for exact arithmetic unconditionally, `int` is pgl skipping it
-  because the coordinates make it unnecessary. Both comparisons are below.
+- Each pgl number type is measured against the CGAL kernel that matches it.
+  Both of CGAL's are *filtered*: on integer input the interval arithmetic
+  almost always settles a sign, so a predicate runs at close to `double` speed
+  and falls back only when it must. What separates them is constructions.
+  - `ERational` is measured against EPECK, exact predicates **and** exact
+    constructions. That is the like-for-like pairing: both keep every
+    constructed coordinate exact.
+  - `int` is measured against EPICK, exact predicates with constructions
+    rounded to `double`, wherever CGAL's side of the problem never constructs a
+    point it later tests — convex hulls, Delaunay triangulations, kd-trees, AABB
+    trees. On this dataset EPICK decides every one of those predicates exactly
+    (coordinates are integers under 10⁴, so the determinants stay far inside
+    `double`'s exact range), so it is the same answer for less work, and it is
+    the kernel a CGAL user would actually reach for. Measuring pgl's `int` tree
+    against EPECK's `Lazy_exact_nt` coordinates — an interval and a DAG node per
+    point — was charging CGAL for exactness the row never asked for.
+  - Where CGAL *does* construct geometry and feed it back into a predicate —
+    arrangements, the segment sweep, Minkowski sums, Boolean unions, visibility
+    regions — EPICK is not an option at all: rounding those points can make
+    CGAL's own decisions inconsistent, so EPECK is the baseline for both pgl
+    columns there.
+
+  Neither pairing is perfect even so: pgl has no filter, so `ERational` pays for
+  exact arithmetic unconditionally where EPECK usually avoids it, and `int`
+  skips it because the coordinates make it unnecessary. Both comparisons are
+  below.
 
 #### Same arithmetic: `ERational` against EPECK
 
@@ -261,6 +280,15 @@ is the configuration a pgl user would actually reach for, and it costs roughly
 5–10× less than `ERational`. Six of the categories have one; the Arrangement,
 Minkowski sum and Regularized union categories do not, because their output is
 constructed points that are not integers.
+
+> **These tables predate the EPICK baseline and are being re-measured.** Every
+> ratio below was recorded against EPECK, including the four categories that now
+> have an EPICK reference — Point constructions, Point search, Segment search
+> and Triangulation. Those ratios understate CGAL, in places by a lot — a spot
+> check on other hardware put the kd-tree build around 13× and the
+> nearest-neighbour query around 36× faster under EPICK. The Segment
+> intersection and Visibility rows are unaffected, since their CGAL side
+> constructs geometry and stays on EPECK.
 
 pgl ahead:
 
