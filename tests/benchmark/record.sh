@@ -10,13 +10,26 @@
 #
 #     git clone https://github.com/gfonsecabr/pgl-benchmarks.git ../pgl-benchmarks
 #
-#   bash tests/benchmark/record.sh                     # full cube + all asymptotic
-#   bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
-#   bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
-#   bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation --baseline
-#   bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
-#   bash tests/benchmark/record.sh --focus Polygon     # Polygon vs everything (row+col)
-#   bash tests/benchmark/record.sh --rev 3fbc199       # an old library, today's benchmarks
+# What to run is named positionally; at least one name is required, and any
+# combination of the three may be given:
+#
+#   pairs        the shape-pair cube (run_shapepairs.py)
+#   asymptotic   the whole-algorithm size sweeps (run_asymptotic.py)
+#   baseline     the CGAL reference drivers for those sweeps
+#                (asymptotic/baseline/). Not a measurement of this commit but a
+#                reference point, so it overwrites
+#                history/asymptotic-baseline.json instead of being appended to
+#                a history. CGAL is not on every dev machine or CI box, which
+#                is the other reason it is asked for by name.
+#
+#   bash tests/benchmark/record.sh pairs asymptotic     # the usual full run
+#   bash tests/benchmark/record.sh pairs                # only the shape-pair cube
+#   bash tests/benchmark/record.sh asymptotic baseline  # sweeps and their reference
+#   bash tests/benchmark/record.sh baseline --drivers triangulation
+#   bash tests/benchmark/record.sh pairs --shapes Segment,Triangle --methods intersects
+#   bash tests/benchmark/record.sh pairs --focus Polygon   # Polygon vs everything
+#   bash tests/benchmark/record.sh pairs asymptotic --rev 3fbc199   # an old library,
+#                                                       # today's benchmarks
 #
 # Refuses to run with uncommitted changes to tracked files, so every measurement
 # maps to a real commit — the dashboard's x-axis is the commit date, not the run
@@ -37,22 +50,12 @@
 #                                 costs — changes between them. Re-running 1/D
 #                                 starts a fresh cycle. Cannot be combined with
 #                                 --methods. See split_methods.py for the cost
-#                                 model. Has no effect with --asymptotic-only.
-#   --pairs-only / --asymptotic-only
-#                                 run only one half
-#   --asymptotic NAMES            limit the asymptotic run to a comma-separated
-#                                 list of driver names (for example,
-#                                 triangulation,arrangement). Also limits the
-#                                 CGAL baseline when --baseline is present;
-#                                 existing baseline categories are retained.
+#                                 model. Requires the pairs target.
+#   --drivers NAMES               limit the asymptotic and baseline runs to a
+#                                 comma-separated list of driver names (for
+#                                 example, triangulation,arrangement). Baseline
+#                                 categories outside the list are retained.
 #   --repetitions N               samples per program; median kept (default: 3)
-#   --baseline                    also build and run the CGAL reference drivers
-#                                 (tests/benchmark/asymptotic/baseline/). Off by
-#                                 default: CGAL is not on every dev machine or
-#                                 CI box, and a baseline is a reference point
-#                                 rather than a measurement of this commit — it
-#                                 overwrites history/asymptotic-baseline.json
-#                                 instead of being appended to a history.
 #   --no-push                     commit to the data repository but do not push
 #                                 it, and do not trigger the Pages rebuild
 #   --rev COMMIT                  measure an older library version. The commit is
@@ -72,37 +75,33 @@ set -Eeuo pipefail
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-# ── Parse options ────────────────────────────────────────────────────────────
-pairs=1
-asymptotic=1
+# ── Parse arguments ──────────────────────────────────────────────────────────
+# What runs is named, never defaulted: a full run costs hours, and the CGAL
+# baseline overwrites a shared reference, so neither should happen because an
+# argument was forgotten.
+pairs=0
+asymptotic=0
 baseline=0
 push=1
 repetitions=3
 rev=""
 fraction=""
-asymptotic_filter=0
-asymptotic_names=""
+drivers_filter=0
+drivers_names=""
 shapes_opt=""
 types_opt=""
 methods_given=0
 pair_args=()
+pair_opt=""
 asymptotic_drivers=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --pairs-only) asymptotic=0; shift ;;
-        --asymptotic-only) pairs=0; shift ;;
-        --asymptotic)
-            asymptotic_filter=1
-            asymptotic_names="$2"
-            shift 2
-            ;;
-        --asymptotic=*)
-            asymptotic_filter=1
-            asymptotic_names="${1#*=}"
-            shift
-            ;;
-        --baseline)   baseline=1; shift ;;
+        pairs)        pairs=1; shift ;;
+        asymptotic)   asymptotic=1; shift ;;
+        baseline)     baseline=1; shift ;;
+        --drivers)    drivers_filter=1; drivers_names="$2"; shift 2 ;;
+        --drivers=*)  drivers_filter=1; drivers_names="${1#*=}"; shift ;;
         --no-push)    push=0;  shift ;;
         --repetitions) repetitions="$2"; shift 2 ;;
         --repetitions=*) repetitions="${1#*=}"; shift ;;
@@ -110,42 +109,57 @@ while [[ $# -gt 0 ]]; do
         --rev=*)      rev="${1#*=}"; shift ;;
         --fraction)   fraction="$2"; shift 2 ;;
         --fraction=*) fraction="${1#*=}"; shift ;;
-        --shapes)     shapes_opt="$2"; pair_args+=("$1" "$2"); shift 2 ;;
-        --shapes=*)   shapes_opt="${1#*=}"; pair_args+=("$1"); shift ;;
-        --types)      types_opt="$2"; pair_args+=("$1" "$2"); shift 2 ;;
-        --types=*)    types_opt="${1#*=}"; pair_args+=("$1"); shift ;;
-        --methods)    methods_given=1; pair_args+=("$1" "$2"); shift 2 ;;
-        --methods=*)  methods_given=1; pair_args+=("$1"); shift ;;
+        --shapes)     shapes_opt="$2"; pair_opt="$1"; pair_args+=("$1" "$2"); shift 2 ;;
+        --shapes=*)   shapes_opt="${1#*=}"; pair_opt="--shapes"; pair_args+=("$1"); shift ;;
+        --types)      types_opt="$2"; pair_opt="$1"; pair_args+=("$1" "$2"); shift 2 ;;
+        --types=*)    types_opt="${1#*=}"; pair_opt="--types"; pair_args+=("$1"); shift ;;
+        --methods)    methods_given=1; pair_opt="$1"; pair_args+=("$1" "$2"); shift 2 ;;
+        --methods=*)  methods_given=1; pair_opt="--methods"; pair_args+=("$1"); shift ;;
         --focus|--sizes|--sizes-a|--sizes-b)
-            pair_args+=("$1" "$2"); shift 2 ;;
+            pair_opt="$1"; pair_args+=("$1" "$2"); shift 2 ;;
         --focus=*|--sizes=*|--sizes-a=*|--sizes-b=*)
-            pair_args+=("$1"); shift ;;
+            pair_opt="${1%%=*}"; pair_args+=("$1"); shift ;;
         -h|--help)
             awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"
             exit 0 ;;
-        *)
+        -*)
             echo "error: unknown option '$1'" >&2
+            echo "Run 'bash tests/benchmark/record.sh --help' for usage." >&2
+            exit 2 ;;
+        *)
+            echo "error: unknown target '$1'; expected pairs, asymptotic or baseline." >&2
             echo "Run 'bash tests/benchmark/record.sh --help' for usage." >&2
             exit 2 ;;
     esac
 done
 
-if [[ "$asymptotic_filter" -eq 1 ]]; then
-    if [[ -z "$asymptotic_names" ]]; then
-        echo "error: --asymptotic needs at least one driver name." >&2
+if [[ "$pairs" -eq 0 && "$asymptotic" -eq 0 && "$baseline" -eq 0 ]]; then
+    echo "error: name what to run: pairs, asymptotic, baseline (one or more)." >&2
+    echo "Run 'bash tests/benchmark/record.sh --help' for usage." >&2
+    exit 2
+fi
+
+if [[ "$drivers_filter" -eq 1 ]]; then
+    if [[ -z "$drivers_names" ]]; then
+        echo "error: --drivers needs at least one driver name." >&2
         exit 2
     fi
-    IFS=',' read -r -a asymptotic_drivers <<< "$asymptotic_names"
+    IFS=',' read -r -a asymptotic_drivers <<< "$drivers_names"
     for driver in "${asymptotic_drivers[@]}"; do
         if [[ -z "$driver" ]]; then
-            echo "error: --asymptotic contains an empty driver name." >&2
+            echo "error: --drivers contains an empty driver name." >&2
             exit 2
         fi
     done
-    if [[ "$asymptotic" -eq 0 ]]; then
-        echo "error: --asymptotic cannot be combined with --pairs-only." >&2
+    if [[ "$asymptotic" -eq 0 && "$baseline" -eq 0 ]]; then
+        echo "error: --drivers needs the asymptotic or baseline target." >&2
         exit 2
     fi
+fi
+
+if [[ -n "$pair_opt" && "$pairs" -eq 0 ]]; then
+    echo "error: $pair_opt filters the shape-pair cube; add the pairs target." >&2
+    exit 2
 fi
 
 if [[ -n "$fraction" ]]; then
@@ -154,7 +168,7 @@ if [[ -n "$fraction" ]]; then
         exit 2
     fi
     if [[ "$pairs" -eq 0 ]]; then
-        echo "error: --fraction has no effect with --asymptotic-only (it splits the shape-pair cube's methods)." >&2
+        echo "error: --fraction splits the shape-pair cube's methods; add the pairs target." >&2
         exit 2
     fi
 fi
@@ -257,19 +271,31 @@ else
     history_args+=(--skip-pairs)
 fi
 
-# ── Run the asymptotic benchmarks ────────────────────────────────────────────
-# Every driver measures the fixed size list checked into asymptotic/sizes.hpp;
-# nothing here may pass --sizes, which is for calibration and would put the run's
-# points at x values no other run measured.
-if [[ "$asymptotic" -eq 1 ]]; then
-    echo "::group::Asymptotic benchmarks"
+# ── Run the asymptotic benchmarks and/or the CGAL baseline ───────────────────
+# One runner covers both, so the two targets share an invocation: --baseline
+# adds the reference drivers to the sweeps, --baseline-only runs the reference
+# alone. Every driver measures the fixed size list checked into
+# asymptotic/sizes.hpp; nothing here may pass --sizes, which is for calibration
+# and would put the run's points at x values no other run measured.
+if [[ "$asymptotic" -eq 1 || "$baseline" -eq 1 ]]; then
+    if [[ "$asymptotic" -eq 1 ]]; then
+        echo "::group::Asymptotic benchmarks"
+    else
+        echo "::group::CGAL baseline"
+    fi
     asymptotic_args=(--repetitions "$repetitions" --jobs "$jobs"
                      --output "$asymptotic_json" --baseline-output "$baseline_json")
-    [[ "$baseline" -eq 1 ]] && asymptotic_args+=(--baseline)
+    if [[ "$baseline" -eq 1 && "$asymptotic" -eq 1 ]]; then
+        asymptotic_args+=(--baseline)
+    elif [[ "$baseline" -eq 1 ]]; then
+        asymptotic_args+=(--baseline-only)
+    fi
     python3 "$bench_root/tests/benchmark/run_asymptotic.py" \
         "${asymptotic_drivers[@]}" "${asymptotic_args[@]}"
     echo "::endgroup::"
-else
+fi
+
+if [[ "$asymptotic" -eq 0 ]]; then
     history_args+=(--skip-asymptotic)
 fi
 
@@ -277,7 +303,7 @@ fi
 # were this one's; to_history.py only reads the file when it is there.
 if [[ "$baseline" -eq 0 ]]; then
     rm -f "$baseline_json"
-elif [[ "$asymptotic_filter" -eq 1 ]]; then
+elif [[ "$drivers_filter" -eq 1 ]]; then
     history_args+=(--merge-baseline)
 fi
 

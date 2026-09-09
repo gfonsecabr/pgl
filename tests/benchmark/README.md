@@ -64,12 +64,13 @@ The chart draws every reference a cell has, one dash pattern each.
 A cell may also carry a reference per *kernel*, and the chart picks the one the
 selected number type is entitled to: EPICK against pgl's `int` column, EPECK
 against `ERational`. Only the categories whose CGAL side never constructs a
-point it later tests offer both — Point constructions, Point search, Segment
-search and Triangulation — where EPICK decides every predicate exactly on this
-integer dataset and is what a CGAL user would actually reach for. A category
-that constructs geometry (Arrangement, Segment intersections, Minkowski sum,
-Regularized union, Visibility) has no honest EPICK curve to record and stays on
-EPECK for both columns. `baseline/cgal.hpp` carries the full rule.
+point it later *tests* offer both — Point constructions, Point search, Segment
+search, Triangulation and Visibility — where EPICK decides every predicate
+exactly on this integer dataset and is what a CGAL user would actually reach
+for. A category whose constructed points feed back into its own decisions
+(Arrangement, Segment intersections, Minkowski sum, Regularized union) has no
+honest EPICK curve to record and stays on EPECK for both columns.
+`baseline/cgal.hpp` carries the full rule and the evidence for it.
 
 Opt-in only (`--baseline`), because CGAL is not on every dev machine or CI box.
 Never appended to the history either: a baseline is a reference point rather
@@ -104,16 +105,24 @@ each commit message in the data repository.
 pushes them to the data repository, then dispatches this repository's Pages
 workflow (via `gh`) to rebuild the dashboard.
 
+What to run is named positionally — `pairs` (the shape-pair cube), `asymptotic`
+(the whole-algorithm size sweeps), `baseline` (the CGAL reference for those
+sweeps) — and at least one name is required: nothing runs by default.
+
 ```bash
-bash tests/benchmark/record.sh                     # full cube + all asymptotic
-bash tests/benchmark/record.sh --pairs-only        # skip the asymptotic benchmarks
-bash tests/benchmark/record.sh --asymptotic-only   # only the asymptotic benchmarks
-bash tests/benchmark/record.sh --baseline          # also refresh the CGAL reference
-bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation --baseline
-bash tests/benchmark/record.sh --asymptotic-only --asymptotic=triangulation,arrangement --baseline
-bash tests/benchmark/record.sh --shapes Segment,Triangle --methods intersects
-bash tests/benchmark/record.sh --no-push           # commit to the data repo, don't push
+bash tests/benchmark/record.sh pairs asymptotic     # the usual full run
+bash tests/benchmark/record.sh pairs                # only the shape-pair cube
+bash tests/benchmark/record.sh asymptotic           # only the size sweeps
+bash tests/benchmark/record.sh baseline             # only refresh the CGAL reference
+bash tests/benchmark/record.sh asymptotic baseline  # sweeps and their reference
+bash tests/benchmark/record.sh asymptotic baseline --drivers triangulation
+bash tests/benchmark/record.sh baseline --drivers triangulation,arrangement
+bash tests/benchmark/record.sh pairs --shapes Segment,Triangle --methods intersects
+bash tests/benchmark/record.sh pairs asymptotic --no-push   # commit to the data repo, don't push
 ```
+
+`--drivers` limits the asymptotic and baseline runs to named drivers; baseline
+categories outside the list are retained rather than dropped.
 
 It refuses to run with uncommitted changes to tracked files — in either
 repository — so every measurement maps to a real commit (the dashboard's x-axis

@@ -158,7 +158,7 @@ async function load() {
     const root = document.getElementById(PAGE === "asymptotic" ? "asymptotic" : "suites");
     root.innerHTML =
       '<p class="empty-state">No benchmark data recorded yet. Run ' +
-      "<code>bash tests/benchmark/record.sh</code>, which records into the " +
+      "<code>bash tests/benchmark/record.sh pairs asymptotic</code>, which records into the " +
       "benchmark data repository.</p>";
     return;
   }
@@ -1503,7 +1503,7 @@ function renderAsymptotic() {
   if (!names.length) {
     document.getElementById("asymptotic").innerHTML =
       '<p class="empty-state">No asymptotic benchmark data recorded yet. Run ' +
-      "<code>bash tests/benchmark/record.sh</code>, which records into the " +
+      "<code>bash tests/benchmark/record.sh pairs asymptotic</code>, which records into the " +
       "benchmark data repository.</p>";
     return;
   }
