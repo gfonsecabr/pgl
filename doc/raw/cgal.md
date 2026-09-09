@@ -74,7 +74,6 @@ Neither library is a rearrangement of the other. The choices below run through e
 - **Values, not handles.** Every shape is comparable and hashable and goes straight into a `std::set` or `std::unordered_set`, and a `Triangulation` is addressed by the points themselves rather than by handles into it. CGAL is navigated with handles and circulators throughout.
 - **Monolithic, not modular.** One header and one set of conventions, against dozens of packages each with its own traits and concepts: less to learn, and much less to swap out.
 
-
 ### Speed
 
 The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/pgl/benchmarks/asymptotic.html), where the curves behind every ratio can be read directly. Pgl's `ERational` is measured against EPECK, and pgl `int` against EPICK. CGAL is the faster of the two on most of the comparisons below, under either number type.
@@ -82,30 +81,29 @@ The numbers come from the [asymptotic benchmarks](https://gfonsecabr.github.io/p
 #### Methodology
 
 - Both libraries are handed the identical input: the benchmark generates every dataset once, with `int` coordinates, and converts. The CGAL drivers live in `tests/benchmark/asymptotic/baseline/` beside the pgl ones.
-- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers at that size. **Below 1 means pgl is faster.**. The table gives the median over the 32 sizes of the sweep and, in parentheses, the full range — a single size can sit well outside the median, and where a ratio moves steadily with size that is called out under the table. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
+- Each ratio is pgl time divided by CGAL time, taking the best algorithm each library offers at that size, except that pgl searches with `ShapeTree` throughout. **Below 1 means pgl is faster.**. The table gives the median over the 32 sizes of the sweep and, in parentheses, the full range — a single size can sit well outside the median, and where a ratio moves steadily with size that is called out under the table. A row covering more than one dataset averages the per-dataset medians, and its range spans them all.
 - The two ratio columns are independent measurements, not one scaled by the other: each races a pgl number type against the CGAL kernel of the same strength. They disagree in both directions, so read the row, not one column.
-- Where two pgl structures are named, the row is split between them: each column's winner, in column order.
 - Rows are ordered by the like-for-like `ERational` column, the one every row has, from CGAL's widest lead to pgl's.
 - One run, one machine, `g++ -std=c++23 -O2 -DNDEBUG`, CGAL 6.1.2).
 
 #### Results
 
-The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 39× faster to pgl being 4× faster. On `int` / EPICK, the ratio goes from CGAL being 4.2× faster to pgl being 3× faster.
+The results below are sorted by `ERational` / EPECK ratio, from the cases where CGAL is faster to the ones where CGAL is slower. On `ERational` / EPECK ratio the range goes from CGAL being 48× faster to pgl being 4× faster. On `int` / EPICK, the ratio goes from CGAL being 7.8× faster to pgl being 3× faster.
 
 | Problem | `ERational` / EPECK | `int` / EPICK | pgl | CGAL |
 | --- | --- | --- | --- | --- |
-| Segment search, count in Rectangle | 39× (29–42) | 1.3× (0.72–1.4) | `IntervalTree`, `ShapeTree` | `AABB_tree` |
-| Segment search, count in Triangle | 24× (14–24) | 0.81× (0.52–0.86) | `ShapeTree` | `AABB_tree` |
+| Segment search, count in Rectangle | 48× (34–51) | 1.3× (0.72–1.4) | `ShapeTree` | `AABB_tree` |
+| Segment search, count in Triangle | 24× (15–24) | 0.81× (0.52–0.86) | `ShapeTree` | `AABB_tree` |
 | Segment intersection | 9.8× (3.9–18) | — | `findIntersections(v)` | <code>compute_<wbr>intersection_points</code> |
 | Delaunay triangulation | 8.1× (6.7–9.2) | 4.2× (3.8–4.5) | `Triangulation` | `Delaunay_triangulation_2` |
 | Minkowski sum | 5.4× (2.3–14) | — | `a.minkowskiSum(b)`{Polygon} | <code>minkowski_sum_by_<wbr>reduced_convolution_2</code> |
 | Convex hull | 5.2× (4.2–5.2) | 1.7× (1.5–1.7) | `convexHull(v)` | `convex_hull_2` |
 | Point search, count in Triangle | 4.8× (4.4–5.3) | 0.32× (0.28–0.36) | `ShapeTree` | `Kd_tree::search` |
+| Segment search build | 3.5× (3.3–3.9) | 7.8× (7.4–8.1) | `ShapeTree` | `AABB_tree` |
 | kd-tree build | 3.4× (2.6–3.7) | 3.7× (3.2–4.3) | `ShapeTree` | `Kd_tree` |
 | Arrangement build | 2.9× (1.7–3.3) | — | `Arrangement` | `Arrangement_2` |
 | Triangulation point location | 2.7× (1.8–3.1) | 1.6× (1.2–2.8) | `t.locate(p)`{Triangulation} | <code>Triangulation_hierarchy_2<wbr>::locate</code> |
 | Regularized union, large + large | 2.7× (2.3–2.8) | — | `a.regularizedUnion(b)`{Polygon} | <code>General_polygon_set_2<wbr>::join</code> |
-| Segment search build | 1.1× (0.85–1.2) | 1.9× (1.5–2) | `IntervalTree` | `AABB_tree` |
 | Visibility, visible vertices | 0.9× (0.62–1.1) | 0.78× (0.66–0.93) | `t.visibleVertices(p)`{Triangulation} | <code>Triangular_expansion_<wbr>visibility_2</code> |
 | Arrangement point-location build | 0.89× (0.69–1.2) | — | `a.buildPointLocation()`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location</code> |
 | Arrangement point location query | 0.62× (0.38–1.1) | — | `a.locateFace(p)`{Arrangement} | <code>Arr_trapezoid_ric_<wbr>point_location<wbr>::locate</code> |
