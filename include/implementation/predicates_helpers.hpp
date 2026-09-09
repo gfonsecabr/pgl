@@ -69,11 +69,18 @@ constexpr bool polygonBoundaryContainsSegment(const Polygon& polygon, const Othe
  */
 template <class RectangleType, class FirstPoint, class SecondPoint>
 constexpr bool lineIntersectsRectangle(const RectangleType& rectangle, const FirstPoint& first, const SecondPoint& second) {
+    // The line's two points appear in all four signs, so filtering them once
+    // converts each of their coordinates a single time instead of four.
+    using Coordinate = sign_coordinate_t<typename FirstPoint::NumberType,
+                                         typename SecondPoint::NumberType,
+                                         typename RectangleType::NumberType>;
+    const auto a = filtered<Coordinate>(first);
+    const auto b = filtered<Coordinate>(second);
     bool has_positive = false;
     bool has_negative = false;
     const auto vertices = rectangle.vertices();
     for (const auto& vertex : vertices) {
-        const auto side = orientationSign(first, second, vertex);
+        const auto side = orientationSignOf(a, b, filtered<Coordinate>(vertex)).value();
         if (side == std::partial_ordering::equivalent) {
             return true;
         }
@@ -81,6 +88,40 @@ constexpr bool lineIntersectsRectangle(const RectangleType& rectangle, const Fir
         has_negative = has_negative || side == std::partial_ordering::less;
     }
     return has_positive && has_negative;
+}
+
+/**
+ * Closed rectangle/segment intersection, over a non-empty rectangle.
+ *
+ * Both shapes are convex, so they miss each other exactly when one of their
+ * edge normals separates them: the rectangle's two axes, and the segment's own.
+ * The axes are the bounding-box overlap tested first, and the segment's normal
+ * separates precisely when every rectangle vertex lies strictly on one side of
+ * the line through the segment -- which is what 'lineIntersectsRectangle'
+ * already decides. Taking the two together answers the predicate in a handful
+ * of coordinate comparisons and four orientation signs, where walking the
+ * rectangle's own edges would build four segments and run a general segment
+ * intersection against each.
+ *
+ * The endpoints arrive in whatever order the caller holds them, so the segment
+ * extent is sorted here rather than assumed.
+ */
+template <class RectangleType, class FirstPoint, class SecondPoint>
+constexpr bool segmentIntersectsRectangle(const RectangleType& rectangle, const FirstPoint& first, const SecondPoint& second) {
+    const auto& low = rectangle.min();
+    const auto& high = rectangle.max();
+
+    const bool rising_x = first.x() < second.x();
+    if ((rising_x ? first.x() : second.x()) > high.x() ||
+        (rising_x ? second.x() : first.x()) < low.x()) {
+        return false;
+    }
+    const bool rising_y = first.y() < second.y();
+    if ((rising_y ? first.y() : second.y()) > high.y() ||
+        (rising_y ? second.y() : first.y()) < low.y()) {
+        return false;
+    }
+    return lineIntersectsRectangle(rectangle, first, second);
 }
 
 /**

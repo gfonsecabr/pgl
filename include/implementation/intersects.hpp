@@ -222,22 +222,21 @@ constexpr bool Triangle<PointType, LabelType>::intersects(const OtherRectangle& 
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
-    if (other.contains(a()) || other.contains(b()) || other.contains(c())) {
-        return true;
+    // Cheapest rejection first: the two bounding boxes must overlap. Without
+    // it a rectangle off to one side still pays the corner containment below,
+    // which the three edge tests can never short-circuit.
+    if (!other.intersects(bbox())) {
+        return false;
     }
-    for (const auto& vertex : other.vertices()) {
-        if (contains(vertex)) {
-            return true;
-        }
-    }
-    for (const auto& left : other.edges()) {
-        for (const auto& right : edges()) {
-            if (left.intersects(right)) {
-                return true;
-            }
-        }
-    }
-    return false;
+    // Convex against convex. If no edge of the triangle meets the rectangle
+    // then the rectangle, being connected, lies wholly inside the triangle or
+    // wholly outside it, and one of its corners settles which. Going through
+    // the vertex pairs rather than through 'edges()' keeps the three segments
+    // from being built at all.
+    return detail::segmentIntersectsRectangle(other, a(), b()) ||
+           detail::segmentIntersectsRectangle(other, b(), c()) ||
+           detail::segmentIntersectsRectangle(other, c(), a()) ||
+           contains(other.min());
 }
 
 template <class PointType, class LabelType>
@@ -552,16 +551,7 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherSegment& o
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
-    if (contains(other.min()) || contains(other.max())) {
-        return true;
-    }
-    const auto rectangle_edges = edges();
-    for (const auto& edge : rectangle_edges) {
-        if (edge.intersects(other)) {
-            return true;
-        }
-    }
-    return false;
+    return detail::segmentIntersectsRectangle(*this, other.min(), other.max());
 }
 
 template <class PointType, class LabelType>
@@ -571,16 +561,7 @@ constexpr bool Rectangle<PointType, LabelType>::intersects(const OtherOrientedSe
         // The empty set meets nothing and disconnects nothing.
         return false;
     }
-    if (contains(other.source()) || contains(other.target())) {
-        return true;
-    }
-    const auto rectangle_edges = edges();
-    for (const auto& edge : rectangle_edges) {
-        if (other.intersects(edge)) {
-            return true;
-        }
-    }
-    return false;
+    return detail::segmentIntersectsRectangle(*this, other.source(), other.target());
 }
 
 template <class PointType, class LabelType>
